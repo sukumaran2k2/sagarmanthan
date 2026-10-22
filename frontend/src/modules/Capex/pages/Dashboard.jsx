@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react';
-import { RefreshCw, Target, Wallet, Percent, X } from 'lucide-react';
+import { RefreshCw, Target, Wallet, Percent, X, MousePointerClick } from 'lucide-react';
 import * as am5 from '@amcharts/amcharts5';
 import * as am5xy from '@amcharts/amcharts5/xy';
 import am5themes_Animated from '@amcharts/amcharts5/themes/Animated';
 import { fetchCapexDashboardFilters, fetchCapexDashboardSummary, fetchCapexDashboardFySummary, fetchCapexDashboardYoy } from '../api';
 import ChartExportMenu from '../../../components/ChartExportMenu';
+import TableExportMenu from '../../../components/TableExportMenu';
 import { newChartRoot, chartColors, useIsDark } from '../../../utils/amCharts';
 
 const ALL = 'all';
@@ -177,19 +178,43 @@ function PlannedActualChart({ data, onRootReady, dark, selectedId, onSelect }) {
 
 const formatAmount = (v) => (v ? `${Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Cr` : '—');
 
-// Actual expenditure by month (or by year) for the chart selection, with the planned
-// totals and % spent per funding type underneath (the 2.0 "Financial Year Summary").
-function FySummaryTable({ summary }) {
-  const { rows, planned, period } = summary;
+const SUMMARY_COLS = [...FUNDING, { key: 'total', label: 'Total' }];
+
+// Column totals of the summary rows and % of the planned amount spent, shared by the
+// table and its export.
+function summaryTotals({ rows, planned }) {
   const totals = rows.reduce(
     (acc, r) => ({ gbs: acc.gbs + r.gbs, iebr: acc.iebr + r.iebr, ppp: acc.ppp + r.ppp, total: acc.total + r.total }),
     { gbs: 0, iebr: 0, ppp: 0, total: 0 },
   );
-  const cols = [...FUNDING, { key: 'total', label: 'Total' }];
   const spent = (key) => {
     const p = percent(totals[key], planned[key]);
     return p === null ? '—' : formatPercent(p);
   };
+  return { totals, spent };
+}
+
+// The summary table as export headers / rows (amounts in ₹ Cr, 2 decimals).
+function summaryExport(summary) {
+  const { totals, spent } = summaryTotals(summary);
+  const amount = (v) => (Number(v) || 0).toFixed(2);
+  return {
+    headers: [summary.period === 'month' ? 'Month' : 'Financial Year', ...SUMMARY_COLS.map((c) => `${c.label} (₹ Cr)`)],
+    rows: [
+      ...summary.rows.map((r) => [r.label, ...SUMMARY_COLS.map((c) => amount(r[c.key]))]),
+      ['Total Actual', ...SUMMARY_COLS.map((c) => amount(totals[c.key]))],
+      ['Planned', ...SUMMARY_COLS.map((c) => amount(summary.planned[c.key]))],
+      ['% Spent', ...SUMMARY_COLS.map((c) => spent(c.key))],
+    ],
+  };
+}
+
+// Actual expenditure by month (or by year) for the chart selection, with the planned
+// totals and % spent per funding type underneath (the 2.0 "Financial Year Summary").
+function FySummaryTable({ summary }) {
+  const { rows, planned, period } = summary;
+  const { totals, spent } = summaryTotals(summary);
+  const cols = SUMMARY_COLS;
   return (
     <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-auto">
       <table className="w-full text-[11px] border-separate border-spacing-0">
@@ -331,6 +356,15 @@ function YoyTrendSection({ filters, orgScoped, dark, className = 'pt-4' }) {
 
   return (
     <div className={`space-y-4 ${className}`}>
+      {/* Divider marking this section off from the dashboard above, so its own filters
+          aren't mistaken for the page filters at the top. */}
+      {!orgScoped && (
+        <div className="flex items-center gap-3" role="separator" aria-label="Year-on-Year Trend">
+          <span className="flex-1 h-px bg-slate-300 dark:bg-slate-700" />
+          <span className="text-[11px] font-extrabold uppercase tracking-widest text-slate-500 dark:text-slate-400">Year-on-Year Trend</span>
+          <span className="flex-1 h-px bg-slate-300 dark:bg-slate-700" />
+        </div>
+      )}
       {/* Filters sit directly above the chart card, like the dashboard filters at the top. */}
       {!orgScoped && (
         <div className="flex flex-wrap gap-4">
@@ -487,17 +521,27 @@ export default function CapexDashboard({ orgScoped = false }) {
     return actual[key] > 0 ? `No target (${formatCrore(actual[key])} spent)` : '—';
   };
 
+  // A stored result for an older request counts as loading.
+  const summaryState = fySummary?.key !== fyKey ? 'loading' : fySummary.error ? 'error' : 'ready';
+  const summaryReady = summaryState === 'ready';
   const summaryPanel = (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden flex flex-col">
-      <div className="bg-gradient-to-r from-[#1e1b4b] to-[#6366f1] px-5 py-3">
-        <h3 className="text-xs font-black text-white uppercase tracking-wider">Financial Year Summary (₹ Cr)</h3>
+      <div className="bg-gradient-to-r from-[#1e1b4b] to-[#6366f1] px-5 py-3 flex items-center justify-between gap-3">
+        <h3 className="text-xs font-black text-white uppercase tracking-wider">Financial Year Summary - Actual Expenditure (₹ Cr)</h3>
+        {summaryReady && (
+          <TableExportMenu
+            {...summaryExport(fySummary.data)}
+            fileName={`capex_fy_summary_${summaryTitle}_${financialYear}`.replace(/[^\w-]+/g, '_')}
+            title={`Financial Year Summary - Actual Expenditure (₹ Cr): ${summaryTitle}, ${yearLabel}`}
+          />
+        )}
       </div>
       <div className="p-4 space-y-3">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">{summaryTitle}</p>
             <p className="text-[11px] text-slate-500 dark:text-slate-400">
-              {yearLabel}{selectedOrg == null && !singleOrg ? ' · click an organisation in the chart to see its summary' : ''}
+              {yearLabel}
             </p>
           </div>
           {selectedOrg != null && (
@@ -506,9 +550,9 @@ export default function CapexDashboard({ orgScoped = false }) {
             </button>
           )}
         </div>
-        {fySummary?.key !== fyKey ? (
+        {summaryState === 'loading' ? (
           <div className="h-40 flex items-center justify-center text-slate-400 text-xs"><RefreshCw size={14} className="animate-spin mr-2" /> Loading summary...</div>
-        ) : fySummary.error ? (
+        ) : summaryState === 'error' ? (
           <div className="h-40 flex items-center justify-center text-xs text-red-500">Failed to load the summary.</div>
         ) : (
           <FySummaryTable summary={fySummary.data} />
@@ -617,6 +661,10 @@ export default function CapexDashboard({ orgScoped = false }) {
         </div>
         {chartData.length ? (
           <>
+            <p className="flex items-center gap-1.5 px-4 pt-3 text-[11px] text-slate-500 dark:text-slate-400 flex-shrink-0">
+              <MousePointerClick className="h-3.5 w-3.5 flex-shrink-0" />
+              Click an organisation's bar to see its month-wise actual expenditure in the Financial Year Summary.
+            </p>
             <div className="flex-1 min-h-0 overflow-y-auto px-4 pt-4">
               <div style={{ height: chartHeight(chartData.length) }}><PlannedActualChart data={chartData} onRootReady={setChartRoot} dark={dark} selectedId={selectedOrg} onSelect={selectOrg} /></div>
             </div>
