@@ -388,6 +388,74 @@ export const MODULE_PAGES = {
       'Action Taken Report',
     ],
   },
+
+  HR_MANAGEMENT: {
+    tabs: [
+      'HR Management',
+      'hr-management',
+      'Organisation Structure',
+      'Organization Structure',
+      'Employee Database',
+      'List of Abolished Posts',
+      'Abolished Posts',
+      'Contractual Employment',
+      'Training Details',
+      'HR Input Form',
+      'Add Post',
+      'Non Port Monthly Upload',
+      'non-port-monthly-upload',
+      'Input Form',
+      'input-form',
+    ],
+    uiTabs: [
+      'HR Management',
+      'Organisation Structure',
+      'Organization Structure',
+      'Employee Database',
+      'List of Abolished Posts',
+      'Abolished Posts',
+      'Contractual Employment',
+      'Training Details',
+      'HR Input Form',
+      'Input Form',
+      'Non Port Monthly Upload',
+    ],
+  },
+
+  YOUNG_PROFESSIONAL: {
+    tabs: [
+      'Young Professionals',
+      'YP Data List',
+      'YP Input Form',
+      'YP Report',
+      'YP Reports',
+      'Data List',
+      'Input Form',
+      'Report',
+    ],
+    uiTabs: [
+      'Young Professionals',
+      'YP Data List',
+      'YP Input Form',
+      'YP Report',
+      'YP Reports',
+    ],
+  },
+
+  CONSULTANT_APPOINTMENT: {
+    tabs: [
+      'Consultant Appointment',
+      'Consultant Input Form',
+      'Consultant Data List',
+      'Consultant Reports',
+    ],
+    uiTabs: [
+      'Consultant Appointment',
+      'Consultant Input Form',
+      'Consultant Data List',
+      'Consultant Reports',
+    ],
+  },
 };
 
 export const PUBLIC_UI_TABS = [

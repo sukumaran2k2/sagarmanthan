@@ -1,19 +1,23 @@
 import React, { useMemo } from 'react';
 import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
 import InternalNavigation from '../../../components/InternalNavigation';
-import { FileText, GraduationCap, UserPlus, Briefcase } from 'lucide-react';
+import { FileText, GraduationCap, UserPlus, Briefcase, CalendarCheck } from 'lucide-react';
 import ContractualDataForm from '../components/ContractualDataForm';
 import TrainingDataForm from '../components/TrainingDataForm';
 import EmployeeDataForm from '../components/EmployeeDataForm';
 import AddPostForm from '../components/AddPostForm';
+import NonPortMonthlyUploadForm from '../components/NonPortMonthlyUploadForm';
+import { isOtherOrganisationUser } from '../../../utils/authSession';
 
 export default function InputForm({ triggerNotification }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const isOtherOrg = isOtherOrganisationUser();
 
   const currentTab = useMemo(() => {
     const path = location.pathname.toLowerCase();
-    if (path.includes('/training-data')) return 'training-data';
+    if (path.includes('/non-port-monthly-upload') || path.includes('/monthly-upload') || path.includes('/non-port-upload')) return 'non-port-monthly-upload';
+    if (path.includes('/training-data') || path.includes('/training-details')) return 'training-data';
     if (path.includes('/employee-data')) return 'employee-data';
     if (path.includes('/add-post') || path.includes('/post-data')) return 'add-post';
     return 'contractual-data';
@@ -21,13 +25,20 @@ export default function InputForm({ triggerNotification }) {
 
   const isEditMode = !!location.state?.editData;
 
-  const tabs = [
+  const otherOrgTabs = [
+    { id: 'contractual-data', label: isEditMode && currentTab === 'contractual-data' ? 'Update Contractual Data' : 'Contractual Training & Employment Form', icon: FileText },
+    { id: 'training-data', label: isEditMode && currentTab === 'training-data' ? 'Update Training Data' : 'Training Details Form', icon: GraduationCap },
+    { id: 'non-port-monthly-upload', label: 'Non Port Monthly Upload Form', icon: CalendarCheck },
+  ];
+
+  const majorPortTabs = [
     { id: 'contractual-data', label: isEditMode && currentTab === 'contractual-data' ? 'Update Contractual Data' : 'Contractual Data', icon: FileText },
     { id: 'training-data', label: isEditMode && currentTab === 'training-data' ? 'Update Training Data' : 'Training Data', icon: GraduationCap },
     { id: 'employee-data', label: 'Employee Data', icon: UserPlus },
     { id: 'add-post', label: 'Add Post', icon: Briefcase },
   ];
 
+  const tabs = isOtherOrg ? otherOrgTabs : majorPortTabs;
   const visibleTabs = isEditMode ? tabs.filter(t => t.id === currentTab) : tabs;
 
   const handleTabChange = (tabId) => {
@@ -82,8 +93,10 @@ export default function InputForm({ triggerNotification }) {
             <div>
               <h3 className="text-sm font-black uppercase tracking-wider font-display">
                 {currentTab === 'training-data' 
-                  ? (isEditMode ? 'Update Training Data' : 'Training Data Input Form') 
-                  : (isEditMode ? 'Update Contractual Data' : 'Contractual Data Input Form')}
+                  ? (isEditMode ? 'Update Training Data' : 'Training Details Input Form') 
+                  : currentTab === 'non-port-monthly-upload'
+                  ? 'Non Port Monthly Vacancy Upload Form'
+                  : (isEditMode ? 'Update Contractual Data' : 'Contractual Training & Employment Input Form')}
               </h3>
               <p className="text-[10px] text-[#eadede] font-semibold tracking-wide mt-0.5">Ministry of Ports, Shipping and Waterways</p>
             </div>
@@ -92,6 +105,7 @@ export default function InputForm({ triggerNotification }) {
             <Routes>
               <Route path="contractual-data" element={<ContractualDataForm triggerNotification={triggerNotification} />} />
               <Route path="training-data" element={<TrainingDataForm triggerNotification={triggerNotification} />} />
+              <Route path="non-port-monthly-upload" element={<NonPortMonthlyUploadForm triggerNotification={triggerNotification} />} />
               <Route path="employee-data" element={<EmployeeDataForm triggerNotification={triggerNotification} />} />
               <Route path="add-post" element={<AddPostForm triggerNotification={triggerNotification} />} />
               <Route index element={<Navigate to="contractual-data" replace />} />

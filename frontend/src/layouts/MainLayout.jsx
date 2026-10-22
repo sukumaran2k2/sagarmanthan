@@ -158,7 +158,10 @@ export const ROUTE_MAP = {
   'Contractual Employment': 'hr/hr-management/contractual-employment',
   'Training Details': 'hr/hr-management/training-details',
   'HR Input Form': 'hr/hr-management/input-form',
+  'Input Form': 'hr/hr-management/input-form',
   'Add Post': 'hr/hr-management/input-form/add-post',
+  'Non Port Monthly Upload': 'hr/hr-management/non-port-monthly-upload',
+  'HR Management': 'hr/hr-management',
 
   // Young Professionals routes
   'Young Professionals': 'hr/young-professionals/list-view',
@@ -208,8 +211,14 @@ export const getTabFromSlug = (slug) => {
   if (cleanSlug.startsWith('projects/project/view-project') || cleanSlug.startsWith('projects/view-project') || cleanSlug.startsWith('projects/project/detail')) return 'projects-view-project';
   if (cleanSlug.startsWith('projects/project') || cleanSlug.startsWith('projects')) return 'projects-list';
 
+  if (cleanSlug.startsWith('hr/hr-management/non-port-monthly-upload')) return 'Non Port Monthly Upload';
   if (cleanSlug.startsWith('hr/hr-management/input-form')) return 'HR Input Form';
   if (cleanSlug.startsWith('hr/hr-management/abolished-posts')) return isOrganisationUser() ? 'Abolished Posts' : 'List of Abolished Posts';
+  if (cleanSlug.startsWith('hr/hr-management/organisation-structure')) return 'Organisation Structure';
+  if (cleanSlug.startsWith('hr/hr-management/employee-database')) return 'Employee Database';
+  if (cleanSlug.startsWith('hr/hr-management/contractual-employment')) return 'Contractual Employment';
+  if (cleanSlug.startsWith('hr/hr-management/training-details')) return 'Training Details';
+  if (cleanSlug.startsWith('hr/hr-management') || cleanSlug === 'hr') return 'HR Management';
   if (cleanSlug.startsWith('hr/young-professionals')) return 'YP Data List';
   if (cleanSlug.startsWith('hr/consultant-appointment')) return 'Consultant Data List';
   if (cleanSlug.startsWith('strategies/gmis-mou')) return 'GMIS & IMW MoUs';
@@ -304,6 +313,8 @@ const getBreadcrumbs = (tab) => {
     'Contractual Employment': ['HR & Institutional', 'HR Management'],
     'Training Details': ['HR & Institutional', 'HR Management'],
     'HR Input Form': ['HR & Institutional', 'HR Management'],
+    'Non Port Monthly Upload': ['HR & Institutional', 'HR Management', 'Non Port Monthly Upload'],
+    'HR Management': ['HR & Institutional', 'HR Management'],
     'Young Professionals': ['HR & Institutional', 'Young Professionals'],
     'YP Data List': ['HR & Institutional', 'Young Professionals'],
     'YP Input Form': ['HR & Institutional', 'Young Professionals'],
@@ -316,7 +327,10 @@ const getBreadcrumbs = (tab) => {
     'Consultant Data List': ['HR & Institutional', 'Consultant Appointment'],
     'Consultant Reports': ['HR & Institutional', 'Consultant Appointment'],
   };
-  if (hrItems[tab]) return ['Home', ...hrItems[tab], tab];
+  if (hrItems[tab]) {
+    if (tab === 'HR Input Form') return ['Home', 'HR & Institutional', 'HR Management', 'Input Form'];
+    return ['Home', ...hrItems[tab], tab];
+  }
 
   const governanceItems = [
     'Attendance', 'Cabinet Notes - Other Ministries', 'E Office',

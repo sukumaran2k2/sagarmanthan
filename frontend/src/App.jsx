@@ -500,6 +500,8 @@ export default function App() {
 
             {/* HR Routes */}
             <Route path="hr/hr-management/*" element={<HRDashboardView />} />
+            <Route path="hr" element={<Navigate to="/hr/hr-management" replace />} />
+            <Route path="hr-management/*" element={<Navigate to="/hr/hr-management" replace />} />
             <Route path="hr/young-professionals/*" element={<YoungProfessionalsView triggerNotification={triggerNotification} />} />
             <Route path="hr/consultant-appointment/*" element={<ConsultantAppointmentView triggerNotification={triggerNotification} />} />
 

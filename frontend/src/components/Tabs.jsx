@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { API_BASE_URL } from '../config/api';
-import { getCurrentUserId } from '../utils/authSession';
+import { getCurrentUserId, isSuperAdmin, getDataScopeCode, isOtherOrganisationUser } from '../utils/authSession';
 import sagarmanthanLogo from '../assets/sagarmanthan_logo.png';
-import { isSuperAdmin } from '../utils/authSession';
 import {
   canAccessTab,
   filterMenuByAccess,
@@ -13,7 +12,6 @@ import {
   TAB_USER_MASTER_MANAGEMENT
 } from '../utils/moduleAccess';
 import { canCreateModule } from '../utils/modulePermissions';
-import { getDataScopeCode } from '../utils/authSession';
 import {
   Home,
   Briefcase,
@@ -59,6 +57,8 @@ import {
   Menu,
   Target,
   PlusCircle,
+  CalendarCheck,
+  FileSpreadsheet,
   X
 } from 'lucide-react';
 
@@ -341,12 +341,20 @@ export default function Tabs({ activeTab, setActiveTab }) {
         {
           title: 'HR Management',
           icon: Users,
-          items: [
-            m('HR_MANAGEMENT', { label: 'Employee Database', tab: 'Employee Database', icon: Users }),
-            m('HR_MANAGEMENT', { label: isOrgUser ? 'Abolished Posts' : 'List of Abolished Posts', tab: isOrgUser ? 'Abolished Posts' : 'List of Abolished Posts', icon: Users }),
-            m('HR_MANAGEMENT', { label: 'Contractual Employment', tab: 'Contractual Employment', icon: UserPlus }),
-            m('HR_MANAGEMENT', { label: 'Training Details', tab: 'Training Details', icon: BookOpen }),
-          ]
+          items: isOtherOrganisationUser()
+            ? [
+                m('HR_MANAGEMENT', { label: 'Non Port Monthly Upload', tab: 'Non Port Monthly Upload', icon: CalendarCheck }),
+                m('HR_MANAGEMENT', { label: 'Contractual Employment', tab: 'Contractual Employment', icon: UserPlus }),
+                m('HR_MANAGEMENT', { label: 'Training Details', tab: 'Training Details', icon: BookOpen }),
+                m('HR_MANAGEMENT', { label: 'Input Form', tab: 'HR Input Form', icon: FileEdit }),
+              ]
+            : [
+                m('HR_MANAGEMENT', { label: 'Employee Database', tab: 'Employee Database', icon: Users }),
+                m('HR_MANAGEMENT', { label: isOrgUser ? 'Abolished Posts' : 'List of Abolished Posts', tab: isOrgUser ? 'Abolished Posts' : 'List of Abolished Posts', icon: Users }),
+                m('HR_MANAGEMENT', { label: 'Contractual Employment', tab: 'Contractual Employment', icon: UserPlus }),
+                m('HR_MANAGEMENT', { label: 'Training Details', tab: 'Training Details', icon: BookOpen }),
+                m('HR_MANAGEMENT', { label: 'Input Form', tab: 'HR Input Form', icon: FileEdit }),
+              ]
         },
         {
           title: 'Young Professionals',
@@ -556,8 +564,8 @@ export default function Tabs({ activeTab, setActiveTab }) {
             const Icon = menu.icon;
             const hasDropdown = !menu.directTab && (menu.subcategories || menu.items);
             const isHrActiveTab = [
-              'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Abolished Posts',
-              'Contractual Employment', 'Training Details', 'HR Reports'
+              'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Abolished Posts',
+              'Contractual Employment', 'Training Details', 'Non Port Monthly Upload', 'HR Input Form'
             ].includes(activeTab);
             const isMainMenuActive =
               activeTab === menu.directTab ||
