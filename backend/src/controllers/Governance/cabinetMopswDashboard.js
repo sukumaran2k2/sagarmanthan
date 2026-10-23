@@ -19,29 +19,6 @@
 
 import { pool } from "../../db.js";
 
-// SLA thresholds per stage (days).  Tune with Harish/team if needed.
-const SLA_THRESHOLDS = {
-  1:  { warn: 15,  critical: 30  }, // Preliminary DCN Prepared
-  2:  { warn: 15,  critical: 30  }, // Preliminary DCN Approved by Minister
-  3:  { warn: 30,  critical: 60  }, // Circulated for IMC
-  4:  { warn: 60,  critical: 120 }, // IMC Comments Received
-  5:  { warn: 20,  critical: 45  }, // Final DCN to be Prepared
-  6:  { warn: 15,  critical: 30  }, // Final DCN Approved by Minister
-  7:  { warn: 30,  critical: 60  }, // Advance Copy Sent to PMO
-  8:  { warn: 15,  critical: 30  }, // Cabinet Approved
-  9:  { warn: 999, critical: 999 }, // On Hold  — no SLA (always "—")
-  10: { warn: 999, critical: 999 }, // Completed — no SLA
-  // stage 11 (DCM Been Approved) excluded — unconfirmed, not in reference dashboard
-};
-
-function slaStatus(avgDays, stageId) {
-  const t = SLA_THRESHOLDS[stageId];
-  if (!t || t.critical >= 999) return null;
-  if (avgDays >= t.critical) return "Critical";
-  if (avgDays >= t.warn)     return "At Risk";
-  return "Good";
-}
-
 // Reuse the same COMPLETED definition as the main controller
 const COMPLETED_CONDITION = `(
   LOWER(LTRIM(RTRIM(stage.mopsw_stage_name))) = N'completed'
@@ -140,7 +117,6 @@ async function getCabinetMopswDashboard(req, res) {
       note_count: row.note_count,
       avg_days:   row.avg_days,
       max_days:   row.max_days,
-      sla_status: row.note_count === 0 ? null : slaStatus(row.avg_days, row.stage_id),
     }));
 
     // ── 3. Wing-wise pending (active) notes ───────────────────────────────

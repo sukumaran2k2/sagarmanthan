@@ -10,25 +10,6 @@
 
 import { pool } from "../../db.js";
 
-// SLA thresholds per stage (days). Tune with Harish/team if needed.
-const SLA_THRESHOLDS = {
-  0: { warn: 999, critical: 999 }, // No Status — no SLA
-  1: { warn: 10,  critical: 20  }, // Received but yet to be sent for Comments
-  2: { warn: 15,  critical: 30  }, // Submitted for Approval
-  3: { warn: 20,  critical: 40  }, // Comments Sought
-  4: { warn: 20,  critical: 40  }, // Comments Received
-  5: { warn: 10,  critical: 20  }, // Reply Furnished
-  6: { warn: 999, critical: 999 }, // Disposed — no SLA (complete)
-};
-
-function slaStatus(avgDays, stageId) {
-  const t = SLA_THRESHOLDS[stageId];
-  if (!t || t.critical >= 999) return null;
-  if (avgDays >= t.critical) return "Critical";
-  if (avgDays >= t.warn)     return "At Risk";
-  return "Good";
-}
-
 // Each stage's own "entered stage" date column, matching mmt_vip_stage.vip_stage_id
 const STAGE_DATE_CASE = `
   CASE notes.stage_id
@@ -90,7 +71,6 @@ async function getVipReferenceDashboard(req, res) {
       note_count: row.note_count,
       avg_days:   row.avg_days,
       max_days:   row.max_days,
-      sla_status: row.note_count === 0 ? null : slaStatus(row.avg_days, row.stage_id),
     }));
 
     // ── 3. Wing-wise pending (active, non-disposed) references ────────────

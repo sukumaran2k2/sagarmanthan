@@ -8,6 +8,7 @@ import CapexDataListView from './components/CapexDataListView';
 // import CapexKpiCards from './components/CapexKpiCards';
 import CapexMonthlyDataModal from './components/CapexMonthlyDataModal';
 import CapexActualExpenditurePage from './components/CapexActualExpenditurePage';
+import CapexDashboard from './pages/Dashboard';
 import CapexReports from './pages/Reports';
 import CapexInputForm from './pages/InputForm';
 import CapexUpdateForm from './pages/UpdateForm';
@@ -50,7 +51,8 @@ function getTabKeyFromPath(pathname = '') {
   const path = pathname.toLowerCase();
   if (path.includes('/input-form')) return 'input-form';
   if (path.includes('/reports') || path.includes('/report')) return 'reports';
-  if (path.includes('/dashboard') || path.includes('/data-list') || path.includes('/estimate-values')) {
+  if (path.includes('/dashboard')) return 'dashboard';
+  if (path.includes('/data-list') || path.includes('/estimate-values')) {
     return 'data-list';
   }
   return 'data-list';
@@ -514,7 +516,7 @@ export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, tr
   };
 
   const tabs = useMemo(() => {
-    const items = [];
+    const items = [{ id: 'dashboard', label: 'Dashboard' }];
     if (showInputForm) {
       items.push({ id: 'input-form', label: 'Input Form' });
     }
@@ -633,7 +635,8 @@ export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, tr
           }
           onTabChange={(tabId) => {
             clearOverlays();
-            if (tabId === 'input-form') goToCapexTab('input-form');
+            if (tabId === 'dashboard') goToCapexTab('dashboard');
+            else if (tabId === 'input-form') goToCapexTab('input-form');
             else if (tabId === 'reports') goToCapexTab('reports');
             else goToCapexTab('data-list');
           }}
@@ -642,7 +645,7 @@ export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, tr
 
       <div className="space-y-8">
         <Routes>
-          <Route path="dashboard" element={dataListPanel} />
+          <Route path="dashboard" element={<CapexDashboard orgScoped={viewMode === 'org'} />} />
           <Route path="data-list" element={dataListPanel} />
           <Route path="estimate-values" element={<Navigate to="../data-list" replace />} />
           {showInputForm ? (

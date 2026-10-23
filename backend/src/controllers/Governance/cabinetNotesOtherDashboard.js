@@ -10,24 +10,6 @@
 
 import { pool } from "../../db.js";
 
-// SLA thresholds per stage (days). Tune with Harish/team if needed.
-const SLA_THRESHOLDS = {
-  0: { warn: 999, critical: 999 }, // No Status — no SLA
-  1: { warn: 10,  critical: 20  }, // Received at Ministry
-  2: { warn: 20,  critical: 40  }, // Sent for Comments
-  3: { warn: 20,  critical: 40  }, // Comments Received
-  4: { warn: 15,  critical: 30  }, // File submitted for Approval
-  5: { warn: 999, critical: 999 }, // Reply furnished to other ministry — no SLA (complete)
-};
-
-function slaStatus(avgDays, stageId) {
-  const t = SLA_THRESHOLDS[stageId];
-  if (!t || t.critical >= 999) return null;
-  if (avgDays >= t.critical) return "Critical";
-  if (avgDays >= t.warn)     return "At Risk";
-  return "Good";
-}
-
 // Each stage's own "entered stage" date column, matching mmt_cabinet_ministry_stage.cab_ministry_stage_id
 const STAGE_DATE_CASE = `
   CASE notes.stage_id
@@ -88,7 +70,6 @@ async function getCabinetNotesOtherDashboard(req, res) {
       note_count: row.note_count,
       avg_days:   row.avg_days,
       max_days:   row.max_days,
-      sla_status: row.note_count === 0 ? null : slaStatus(row.avg_days, row.stage_id),
     }));
 
     // ── 3. Ministry-wise pending (active, non-completed) notes ────────────

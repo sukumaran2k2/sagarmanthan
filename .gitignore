@@ -20,7 +20,8 @@ logs/
 
 # Database files & SQL dumps
 *.sql
-!backend/sql/*.sql
+# SQL scripts kept with the code (database dumps elsewhere stay ignored)
+!backend/sql/**/*.sql
 sagar_dumb_july1.sql
 
 # File Uploads directory

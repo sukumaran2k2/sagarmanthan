@@ -191,6 +191,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           title: 'Capex',
           icon: Coins,
           items: [
+            m('CAPEX', { label: 'Capex Dashboard', icon: LayoutDashboard, tab: 'Capex Dashboard' }),
             m('CAPEX', { label: 'Capex Datalist', icon: ClipboardList, tab: 'Capex Datalist' }),
             ...(canCreateCapex && !isOrgUser
               ? [m('CAPEX', { label: 'Capex Input Form', icon: FileEdit, tab: 'Capex Input Form' })]

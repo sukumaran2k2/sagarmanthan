@@ -42,27 +42,6 @@ const STAGE_DATE_CASE = `
   END
 `;
 
-// SLA thresholds per stage name (days). Tune with Harish/team if needed.
-const SLA_THRESHOLDS = {
-  'No Status': { warn: 999, critical: 999 },
-  'Received At Ministry': { warn: 10, critical: 20 },
-  'Comments Sought': { warn: 20, critical: 40 },
-  'Comments Received': { warn: 15, critical: 30 },
-  'Extension Of Time Soughted': { warn: 15, critical: 30 },
-  'Implementation Report Furnished/Request for dropping': { warn: 15, critical: 30 },
-  'Debated in Parliament': { warn: 15, critical: 30 },
-  'Matter Disposed': { warn: 999, critical: 999 },
-  'Replay sent': { warn: 999, critical: 999 },
-};
-
-function slaStatus(avgDays, stageName) {
-  const t = SLA_THRESHOLDS[stageName];
-  if (!t || t.critical >= 999) return null;
-  if (avgDays >= t.critical) return "Critical";
-  if (avgDays >= t.warn)     return "At Risk";
-  return "Good";
-}
-
 async function getParliamentaryIssueDashboard(req, res) {
   const conn = await pool;
   try {
@@ -114,7 +93,6 @@ async function getParliamentaryIssueDashboard(req, res) {
       note_count: row.note_count,
       avg_days:   row.avg_days,
       max_days:   row.max_days,
-      sla_status: row.note_count === 0 ? null : slaStatus(row.avg_days, row.stage_name),
     }));
 
     // ── 3. Wing-wise pending (active) issues ────────────────────────────────
