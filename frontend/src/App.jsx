@@ -4,7 +4,7 @@ import MainLayout, { ROUTE_MAP, getTabFromSlug } from './layouts/MainLayout';
 import LoginView from './modules/Login/Login';
 import Loader from './components/Loader';
 import { Activity, Sparkles } from 'lucide-react';
-import { TAB_USER_MODULE_PERMISSION, TAB_USER_LIST, normalizeTab } from './utils/moduleAccess';
+import { TAB_USER_MODULE_PERMISSION, TAB_USER_MASTER_MANAGEMENT, TAB_USER_LIST, normalizeTab } from './utils/moduleAccess';
 import { resetAllStores } from './stores/resetRegistry';
 
 // Lazy-loaded feature modules for code splitting and instant initial page load
@@ -42,7 +42,7 @@ const MasterManagement = lazy(() => import("./modules/MasterManagement/pages/mas
 const ContactUs = lazy(() => import('./modules/Contact/Contact'));
 
 // Major Ports Components
-import { PortsDashboardView, PortsInputFormView, PortsReportsView } from './modules/MajorPorts/MajorPorts';
+import { PortsDashboardView, PortsEntryAccessView, PortsInputFormView, PortsReportsView } from './modules/MajorPorts/MajorPorts';
 
 const INITIAL_PROJECTS = [
   {
@@ -170,8 +170,8 @@ export default function App() {
   // so a new function on every toast would make a failing fetch retry itself in a loop.
   const triggerNotification = useCallback((message, type = 'success', title = '', options = {}) => {
     const id = Date.now() + Math.random();
-    const duration = options.duration ?? 4000;
-    setToasts(prev => [...prev, { id, message, type, title, variant: options.variant, duration }]);
+    const duration = options?.duration ?? 4000;
+    setToasts(prev => [...prev, { id, message, type, title, variant: options?.variant, duration }]);
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
     }, duration + 300);
@@ -450,12 +450,12 @@ export default function App() {
             <Route path="projects/csr-project/*" element={<Navigate to="/projects/csr-projects/dashboard" replace />} />
 
             {/* KPI - Major Ports */}
-            <Route path="kpi/major-ports/major-ports-dashboard" element={<PortsDashboardView />} />
-             <Route
-              path="kpi/major-ports/major-ports-input-form"
+            <Route path="kpi/major-ports/major-ports-dashboard" element={<PortsDashboardView triggerNotification={triggerNotification} />} />
+            <Route path="kpi/major-ports/major-ports-entry-access" element={<PortsEntryAccessView triggerNotification={triggerNotification} />} />
+            <Route
+              path="kpi/major-ports/major-ports-input-form/*"
               element={<PortsInputFormView triggerNotification={triggerNotification} />}
             />
-            <Route path="kpi/major-ports/major-ports-input-form" element={<PortsInputFormView />} />
             <Route path="kpi/major-ports/major-ports-reports" element={<PortsReportsView />} />
             <Route path="kpi/major-ports" element={<Navigate to="/kpi/major-ports/major-ports-input-form" replace />} />
             <Route path="kpi/major-ports/*" element={<Navigate to="/kpi/major-ports/major-ports-input-form" replace />} />
@@ -499,7 +499,12 @@ export default function App() {
             <Route path="legal/acts-and-rules" element={<ActsAndRulesView />} />
 
             {/* HR Routes */}
-            <Route path="hr/hr-management/*" element={<HRDashboardView />} />
+            <Route path="hr/hr-management/*" element={
+              <HRDashboardView
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
             <Route path="hr" element={<Navigate to="/hr/hr-management" replace />} />
             <Route path="hr-management/*" element={<Navigate to="/hr/hr-management" replace />} />
             <Route path="hr/young-professionals/*" element={<YoungProfessionalsView triggerNotification={triggerNotification} />} />

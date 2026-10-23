@@ -50,6 +50,7 @@ export const ROUTE_MAP = {
   // KPI nested routes
   'Major Ports Dashboard': 'kpi/major-ports/major-ports-dashboard',
   'Major Ports Input Form': 'kpi/major-ports/major-ports-input-form',
+  'Major Ports Entry Access': 'kpi/major-ports/major-ports-entry-access',
   'Major Ports Reports': 'kpi/major-ports/major-ports-reports',
   'DGLL Input Form': 'kpi/dgll',
   'DGLL Reports': 'kpi/dgll',
@@ -155,6 +156,8 @@ export const ROUTE_MAP = {
   'Employee Database': 'hr/hr-management/employee-database',
   'List of Abolished Posts': 'hr/hr-management/abolished-posts',
   'Abolished Posts': 'hr/hr-management/abolished-posts',
+  'Vacancy Management': 'hr/hr-management/vacancy-management',
+  'HR Administration & Actions': 'hr/hr-management/administration',
   'Contractual Employment': 'hr/hr-management/contractual-employment',
   'Training Details': 'hr/hr-management/training-details',
   'HR Input Form': 'hr/hr-management/input-form',
@@ -162,6 +165,7 @@ export const ROUTE_MAP = {
   'Add Post': 'hr/hr-management/input-form/add-post',
   'Non Port Monthly Upload': 'hr/hr-management/non-port-monthly-upload',
   'HR Management': 'hr/hr-management',
+  'HR Reports': 'hr/hr-management/reports',
 
   // Young Professionals routes
   'Young Professionals': 'hr/young-professionals/list-view',
@@ -212,8 +216,11 @@ export const getTabFromSlug = (slug) => {
   if (cleanSlug.startsWith('projects/project') || cleanSlug.startsWith('projects')) return 'projects-list';
 
   if (cleanSlug.startsWith('hr/hr-management/non-port-monthly-upload')) return 'Non Port Monthly Upload';
+  if (cleanSlug.startsWith('hr/hr-management/reports')) return 'HR Reports';
+  if (cleanSlug.startsWith('hr/hr-management/vacancy-management') || cleanSlug.startsWith('hr/hr-management/vacancy-details')) return 'Vacancy Management';
   if (cleanSlug.startsWith('hr/hr-management/input-form')) return 'HR Input Form';
   if (cleanSlug.startsWith('hr/hr-management/abolished-posts')) return isOrganisationUser() ? 'Abolished Posts' : 'List of Abolished Posts';
+  if (cleanSlug.startsWith('hr/hr-management/administration')) return 'HR Administration & Actions';
   if (cleanSlug.startsWith('hr/hr-management/organisation-structure')) return 'Organisation Structure';
   if (cleanSlug.startsWith('hr/hr-management/employee-database')) return 'Employee Database';
   if (cleanSlug.startsWith('hr/hr-management/contractual-employment')) return 'Contractual Employment';
@@ -233,6 +240,7 @@ export const getTabFromSlug = (slug) => {
   if (cleanSlug.startsWith('governance/parliamentary-issue')) return 'Parliamentary Issues';
   if (cleanSlug.startsWith('kpi/major-ports/major-ports-input-form')) return 'Major Ports Input Form';
   if (cleanSlug.startsWith('kpi/major-ports/major-ports-reports')) return 'Major Ports Reports';
+  if (cleanSlug.startsWith('kpi/major-ports/major-ports-entry-access')) return 'Major Ports Entry Access';
   if (cleanSlug.startsWith('kpi/major-ports')) return 'Major Ports Dashboard';
   if (cleanSlug.startsWith('kpi/dgll')) return 'DGLL Input Form';
   if (cleanSlug.startsWith('kpi/csl')) return 'CSL Input Form';
@@ -287,6 +295,7 @@ const getBreadcrumbs = (tab) => {
   const kpiItems = {
     'Major Ports Dashboard': ['KPI', 'Major Ports'],
     'Major Ports Input Form': ['KPI', 'Major Ports'],
+    'Major Ports Entry Access': ['KPI', 'Major Ports'],
     'Major Ports Reports': ['KPI', 'Major Ports'],
     'MMD Master': ['KPI', 'DSG'],
     'DSG Input Form': ['KPI', 'DSG'],
@@ -310,11 +319,14 @@ const getBreadcrumbs = (tab) => {
     'Employee Database': ['HR & Institutional', 'HR Management'],
     'List of Abolished Posts': ['HR & Institutional', 'HR Management'],
     'Abolished Posts': ['HR & Institutional', 'HR Management'],
+    'Vacancy Management': ['HR & Institutional', 'HR Management'],
+    'HR Administration & Actions': ['HR & Institutional', 'HR Management'],
     'Contractual Employment': ['HR & Institutional', 'HR Management'],
     'Training Details': ['HR & Institutional', 'HR Management'],
     'HR Input Form': ['HR & Institutional', 'HR Management'],
-    'Non Port Monthly Upload': ['HR & Institutional', 'HR Management', 'Non Port Monthly Upload'],
-    'HR Management': ['HR & Institutional', 'HR Management'],
+    'Non Port Monthly Upload': ['HR & Institutional', 'HR Management'],
+    'HR Management': ['HR & Institutional'],
+    'HR Reports': ['HR & Institutional', 'HR Management'],
     'Young Professionals': ['HR & Institutional', 'Young Professionals'],
     'YP Data List': ['HR & Institutional', 'Young Professionals'],
     'YP Input Form': ['HR & Institutional', 'Young Professionals'],
@@ -415,7 +427,7 @@ export default function MainLayout({
   const tabAllowed = canAccessTab(activeTab);
 
   return (
-    <div 
+    <div
       className="min-h-screen flex flex-col font-sans relative antialiased selection:bg-blue-100 transition-colors"
       style={{ backgroundColor: 'var(--module-page-bg, #f8fafc)' }}
     >

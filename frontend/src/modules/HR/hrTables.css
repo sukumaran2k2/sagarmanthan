@@ -1,0 +1,43 @@
+/* HR data table alignment (see utils/tableAlignment.js).
+   Selectors carry an extra class so they win over the pages' centring rules. */
+
+.ag-theme-quartz .hr-col-left .ag-header-cell-label,
+.ag-theme-quartz .ag-header-cell.hr-col-left .ag-header-cell-label {
+  justify-content: flex-start !important;
+  text-align: left !important;
+}
+.ag-theme-quartz .hr-col-left .ag-header-cell-text {
+  text-align: left !important;
+}
+
+.ag-theme-quartz .hr-col-center .ag-header-cell-label,
+.ag-theme-quartz .hr-col-center .ag-header-group-cell-label {
+  justify-content: center !important;
+  text-align: center !important;
+}
+.ag-theme-quartz .hr-col-center .ag-header-cell-text {
+  text-align: center !important;
+}
+
+.ag-theme-quartz .ag-cell.hr-cell-left {
+  display: flex !important;
+  align-items: center;
+  justify-content: flex-start !important;
+  text-align: left !important;
+}
+.ag-theme-quartz .ag-cell.hr-cell-left .justify-center {
+  justify-content: flex-start !important;
+}
+.ag-theme-quartz .ag-cell.hr-cell-left :where(span, div, p) {
+  text-align: left !important;
+}
+
+.ag-theme-quartz .ag-cell.hr-cell-center {
+  display: flex !important;
+  align-items: center;
+  justify-content: center !important;
+  text-align: center !important;
+}
+.ag-theme-quartz .ag-cell.hr-cell-center > :where(span, div, p) {
+  text-align: center !important;
+}

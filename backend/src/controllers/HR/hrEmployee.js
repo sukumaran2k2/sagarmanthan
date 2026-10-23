@@ -1,4 +1,7 @@
 import { pool } from "../../db.js";
+import sql from "mssql";
+import { withTransaction, httpError, readListQuery, likePattern, resolveListOrganisation, runPagedQuery, buildPagination } from "./hrHelperFunctions.js";
+import { getDataScope } from "../../middleware/dataScope.js";
 import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
@@ -1148,7 +1151,7 @@ async function getEmployeeListHoldingDesig(req, res) {
             LEFT JOIN mmt_hr_post p ON et.emp_post_id = p.post_id
             LEFT JOIN mmt_class mmc ON p.class_id = mmc.class_id
             LEFT JOIN mmt_hr_department d ON p.department_id = d.department_id
-            WHERE ps.organisation_id= ${orgID} AND ps.vacant_or_filled='filled' AND emp_post_end_date IS NULL
+            WHERE ps.organisation_id = @orgID AND ps.vacant_or_filled='filled' AND emp_post_end_date IS NULL
         `;
 
         if (depID != "None") {
@@ -1239,38 +1242,51 @@ async function getTransactionHstryOfEmp(req, res) {
 
 //vacancy status
 async function updatedVaccancyPosts(req, res) {
-    const conn = await pool;
     const data = req.body;
+    if (!Array.isArray(data) || data.length === 0) {
+        return res.status(400).json({ message: "No vacancy rows to update" });
+    }
+
+    // Organisation users may only update their own organisation's posts.
+    const { isOrganisation, organisationId } = getDataScope(req.user);
 
     try {
-        for (const row of data) {
-            const { id, vacancy_type, method_of_appointment, vacancy_arise_date, exemption,reasonForExemption, abolish_date} = row;
+        // All rows are saved together: a failure on any row leaves nothing half-updated.
+        const updated = await withTransaction(pool, async (_request, transaction) => {
+            let count = 0;
+            for (const row of data) {
+                const { id, vacancy_type, method_of_appointment, to_be_filled_through, vacancy_arise_date, exemption, reasonForExemption } = row;
+                if (!id) throw httpError(400, "Each vacancy row needs an id");
 
-            const request = conn.request();
-            request.input("vacancyType", vacancy_type || null);
-            request.input("method", method_of_appointment || null);
-            request.input("date", vacancy_arise_date || null);
-            request.input("exemption", exemption ? 1 : 0);
-            request.input("abolishDate", abolish_date || null);
-            request.input("reasonForExemption", reasonForExemption || null);
-            request.input("id", id || null);
+                const request = new sql.Request(transaction);
+                request.input("vacancyType", (vacancy_type !== undefined ? vacancy_type : to_be_filled_through) || null);
+                request.input("method", method_of_appointment || null);
+                request.input("date", vacancy_arise_date || null);
+                request.input("exemption", exemption ? 1 : 0);
+                request.input("reasonForExemption", reasonForExemption || null);
+                request.input("id", id);
+                if (isOrganisation) request.input("orgId", organisationId);
 
-            await request.query(`
-                UPDATE tbl_hr_post_strength
-                SET vacancy_type = @vacancyType,
-                    method_of_appointment = @method,
-                    date_of_arise_in_vacancy = @date,
-                    exception_abolish = @exemption,
-                    reason_for_exemption = @reasonForExemption,
-                    updated_date = GETDATE()
-                WHERE id = @id AND vacant_or_filled = 'vacant';
-            `);
-        }
+                const result = await request.query(`
+                    UPDATE tbl_hr_post_strength
+                    SET vacancy_type = @vacancyType,
+                        method_of_appointment = @method,
+                        date_of_arise_in_vacancy = @date,
+                        exception_abolish = @exemption,
+                        reason_for_exemption = @reasonForExemption,
+                        updated_date = GETDATE()
+                    WHERE id = @id AND vacant_or_filled = 'vacant'
+                    ${isOrganisation ? "AND organisation_id = @orgId" : ""};
+                `);
+                count += result.rowsAffected?.[0] || 0;
+            }
+            return count;
+        });
 
-        res.json({ message: "Vacancy details updated successfully" });
+        res.json({ message: "Vacancy details updated successfully", updated });
     } catch (err) {
-        //console.error(err);
-        res.sendStatus(500);
+        console.error(err);
+        res.status(err.status || 500).json({ message: err.status ? err.message : "Failed to update vacancy details" });
     }
 }
 
@@ -1518,10 +1534,215 @@ async function getCHDEmployeesByOrgId(req, res) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Server-side paginated lists
+// ---------------------------------------------------------------------------
+
+/**
+ * HR Administration: employees currently holding a designation, one page at a time.
+ * GET /hr/employees?page&limit&departmentId&postId&className&search&exact
+ * Organisation from the login (ministry users pass ?organisationId).
+ */
+async function listEmployeesHoldingDesignation(req, res) {
+    const scope = resolveListOrganisation(req);
+    if (!scope.ok) return res.status(403).json({ message: "Your account is not linked to an organisation." });
+    if (!scope.organisationId) return res.status(400).json({ message: "Select an organisation." });
+
+    const { page, limit, offset, search } = readListQuery(req.query);
+    const exact = req.query.exact === "true" || req.query.exact === "1";
+
+    // Same filters on the page query and (only when needed) the count query
+    const bindFilters = (request) => {
+        request.input("orgId", sql.Int, scope.organisationId);
+        const parts = [];
+        if (req.query.departmentId) {
+            request.input("departmentId", sql.NVarChar(50), String(req.query.departmentId));
+            parts.push("d.department_id = @departmentId");
+        }
+        if (req.query.postId) {
+            request.input("postId", sql.NVarChar(50), String(req.query.postId));
+            parts.push("p.post_id = @postId");
+        }
+        if (req.query.className) {
+            request.input("className", sql.NVarChar(20), String(req.query.className));
+            parts.push("mmc.class = @className");
+        }
+        if (search) {
+            const columns = ["p.post_name", "et.emp_post_code", "et.emp_reference_id", "m.emp_name", "d.department_name", "mmc.class", "et.employee_id"];
+            request.input("search", sql.NVarChar(200), exact ? search : likePattern(search));
+            parts.push(`(${columns.map((c) => exact
+                ? `LTRIM(RTRIM(CAST(${c} AS NVARCHAR(400)))) = @search`
+                : `CAST(${c} AS NVARCHAR(400)) LIKE @search`).join(" OR ")})`);
+        }
+        return parts.length ? ` AND ${parts.join(" AND ")}` : "";
+    };
+    const fromSql = (where) => `
+        FROM tbl_employee_transaction_details et
+        INNER JOIN tbl_hr_post_strength ps ON et.emp_post_code = ps.post_code
+        LEFT JOIN tbl_employee_master m ON et.emp_master_id = m.emp_master_id
+        LEFT JOIN mmt_hr_post p ON et.emp_post_id = p.post_id
+        LEFT JOIN mmt_class mmc ON p.class_id = mmc.class_id
+        LEFT JOIN mmt_hr_department d ON p.department_id = d.department_id
+        WHERE ps.organisation_id = @orgId
+          AND ps.vacant_or_filled = 'filled'
+          AND et.emp_post_end_date IS NULL
+          ${where}`;
+
+    try {
+        const conn = await pool;
+        const dataRequest = conn.request();
+        const dataWhere = bindFilters(dataRequest);
+        dataRequest.input("offset", sql.Int, offset);
+        dataRequest.input("limit", sql.Int, limit);
+        const countQuery = async () => {
+            const countRequest = conn.request();
+            const countWhere = bindFilters(countRequest);
+            return (await countRequest.query(`SELECT COUNT(*) AS total ${fromSql(countWhere)}`)).recordset[0];
+        };
+
+        const { rows, total } = await runPagedQuery(dataRequest, `
+            SELECT et.employee_id, et.emp_master_id, et.emp_post_code,
+                   m.emp_name, m.emp_dor, et.emp_reference_id AS reference_id, m.emp_status,
+                   p.post_name, p.post_id, mmc.class, d.department_id, d.department_name,
+                   ps.date_of_arise_in_vacancy, ps.method_of_appointment,
+                   COUNT(*) OVER() AS total_count
+            ${fromSql(dataWhere)}
+            ORDER BY d.department_name, p.post_name, et.emp_post_code
+            OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
+        `, countQuery, page);
+
+        return res.status(200).json({ data: rows, pagination: buildPagination(total, page, limit) });
+    } catch (error) {
+        console.error("Error fetching employees holding a designation:", error);
+        return res.status(500).json({ message: "The employee list could not be loaded." });
+    }
+}
+
+// A post has a vacancy that reaches its 5-year abolition date in the current month.
+const ABOLISHING_THIS_MONTH_SQL = (postColumn) => `EXISTS (
+    SELECT 1 FROM tbl_hr_post_strength a
+    WHERE a.post_id = ${postColumn}
+      AND a.vacant_or_filled = 'vacant'
+      AND a.date_of_arise_in_vacancy IS NOT NULL
+      AND DATEADD(YEAR, 5, a.date_of_arise_in_vacancy) <= GETDATE()
+      AND MONTH(DATEADD(YEAR, 5, a.date_of_arise_in_vacancy)) = MONTH(GETDATE())
+      AND YEAR(DATEADD(YEAR, 5, a.date_of_arise_in_vacancy)) = YEAR(GETDATE())
+)`;
+
+/**
+ * Vacancy Management - Vacancy Overview: one row per post with strength and vacancy counts.
+ * GET /hr/vacancy-overview?page&limit&departmentId&postId&className&search&abolishingOnly
+ *
+ * Phase 1 pages on the posts only (names, filters, search, the abolishing flag);
+ * phase 2 computes the strength and vacancy counts for the posts on this page only.
+ * The response also carries counts.abolishingThisMonth for the filter toggle.
+ */
+async function listVacancyOverview(req, res) {
+    const scope = resolveListOrganisation(req);
+    if (!scope.ok) return res.status(403).json({ message: "Your account is not linked to an organisation." });
+    if (!scope.organisationId) return res.status(400).json({ message: "Select an organisation." });
+
+    const { page, limit, offset, search } = readListQuery(req.query);
+    const abolishingOnly = req.query.abolishingOnly === "true";
+
+    const bindFilters = (request) => {
+        request.input("orgId", sql.Int, scope.organisationId);
+        const parts = [];
+        if (req.query.departmentId) {
+            request.input("departmentId", sql.NVarChar(50), String(req.query.departmentId));
+            parts.push("d.department_id = @departmentId");
+        }
+        if (req.query.postId) {
+            request.input("postId", sql.NVarChar(50), String(req.query.postId));
+            parts.push("p.post_id = @postId");
+        }
+        if (req.query.className) {
+            request.input("className", sql.NVarChar(20), String(req.query.className));
+            parts.push("mmtc.class = @className");
+        }
+        if (search) {
+            request.input("search", sql.NVarChar(200), likePattern(search));
+            parts.push("(d.department_name LIKE @search OR p.post_name LIKE @search OR mmtc.class LIKE @search)");
+        }
+        return parts.length ? ` AND ${parts.join(" AND ")}` : "";
+    };
+    // Every post of the organisation with its names and abolishing flag (no strength rows yet)
+    const postKeysSql = (where) => `
+        WITH post_keys AS (
+            SELECT p.post_id, p.post_name, d.department_id, d.department_name AS department, mmtc.class,
+                   CASE WHEN ${ABOLISHING_THIS_MONTH_SQL("p.post_id")} THEN 1 ELSE 0 END AS abolishing_this_month
+            FROM mmt_hr_post p
+            LEFT JOIN mmt_class mmtc ON p.class_id = mmtc.class_id
+            LEFT JOIN mmt_hr_department d ON d.department_id = p.department_id
+            WHERE p.organisation_id = @orgId ${where}
+        ),
+        filtered AS (
+            SELECT * FROM post_keys WHERE 1 = 1 ${abolishingOnly ? "AND abolishing_this_month = 1" : ""}
+        )`;
+
+    try {
+        const conn = await pool;
+        const dataRequest = conn.request();
+        const dataWhere = bindFilters(dataRequest);
+        dataRequest.input("offset", sql.Int, offset);
+        dataRequest.input("limit", sql.Int, limit);
+        const countQuery = async () => {
+            const countRequest = conn.request();
+            const countWhere = bindFilters(countRequest);
+            return (await countRequest.query(`${postKeysSql(countWhere)}
+                SELECT COUNT(*) AS total, SUM(abolishing_this_month) AS abolishing_count FROM filtered`)).recordset[0];
+        };
+
+        const { rows, total, countRow } = await runPagedQuery(dataRequest, `
+            ${postKeysSql(dataWhere)},
+            page_keys AS (
+                SELECT filtered.*,
+                       COUNT(*) OVER() AS total_count,
+                       SUM(abolishing_this_month) OVER() AS abolishing_count
+                FROM filtered
+                ORDER BY department, post_name
+                OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
+            )
+            SELECT
+                pk.post_id, pk.department_id, pk.department, pk.class, pk.post_name, pk.abolishing_this_month,
+                COUNT(*) AS sanctioned_strength,
+                COUNT(CASE WHEN ps.vacant_or_filled = 'filled' THEN 1 END) AS filled_post,
+                COALESCE(SUM(CASE WHEN ps.vacant_or_filled = 'vacant'
+                    AND (((ps.exception_abolish IS NULL OR ps.exception_abolish = 0)
+                        AND ps.date_of_arise_in_vacancy IS NOT NULL
+                        AND DATEADD(YEAR, 5, ps.date_of_arise_in_vacancy) > GETDATE()
+                        OR ps.exception_abolish = 1) OR ps.date_of_arise_in_vacancy IS NULL)
+                    THEN 1 ELSE 0 END), 0) AS live_post,
+                COALESCE(SUM(CASE WHEN ps.vacant_or_filled = 'vacant'
+                    AND ps.date_of_arise_in_vacancy IS NOT NULL
+                    AND ((ps.exception_abolish IS NULL OR ps.exception_abolish = 0)
+                        AND DATEADD(YEAR, 5, ps.date_of_arise_in_vacancy) <= GETDATE())
+                    THEN 1 ELSE 0 END), 0) AS abolished_post,
+                COUNT(CASE WHEN ps.vacant_or_filled = 'vacant' THEN 1 END) AS total_vacant_post,
+                pk.total_count, pk.abolishing_count
+            FROM page_keys pk
+            LEFT JOIN tbl_hr_post_strength ps ON ps.post_id = pk.post_id
+            GROUP BY pk.post_id, pk.department_id, pk.department, pk.class, pk.post_name,
+                     pk.abolishing_this_month, pk.total_count, pk.abolishing_count
+            ORDER BY pk.department, pk.post_name
+        `, countQuery, page);
+
+        return res.status(200).json({
+            data: rows.map(({ abolishing_count: _count, ...row }) => row),
+            pagination: buildPagination(total, page, limit),
+            counts: { abolishingThisMonth: Number(countRow.abolishing_count) || 0 },
+        });
+    } catch (error) {
+        console.error("Error fetching the vacancy overview:", error);
+        return res.status(500).json({ message: "The vacancy overview could not be loaded." });
+    }
+}
+
 export default {
     getDeputedEndEmployeeData,getHrEmployee,getTransferInEmployeeListByOrgId, getEmpDetailsForVacancyManagement,getHrEmployeeByID, getDepartmentList, submitEmpLeaveHistory, getEmpLeaveHistoryData, updateEmployeeStatus,
     getHrDepartmentList, getHrDivisionList, getHrPostList, getHrPostDetails, getHrVacancyDetails, getEmployeeDetailsByOrgID, getEmployeeDetailsByEmpId,
     getPostNamesByOrgId, getEmployeeListByOrgId, getEmployeeListByOrgDepPost, getPostCodeByPostId,getEmployeeListHoldingDesig, getTransactionHstryOfEmp,
     updatedVaccancyPosts, getDeputedEmployeeListByOrgId, getDeputedEmployeesByOrgId, getHrEmployeeListByOrgId, getHrCompositeEmployeeListByOrgId,getEmployeeDetailsByReferenceId,
-    getEmployeeDetailsByReferenceIdOnly,getCHDEmployeesByOrgId
+    getEmployeeDetailsByReferenceIdOnly,getCHDEmployeesByOrgId,
+    listEmployeesHoldingDesignation, listVacancyOverview
 };

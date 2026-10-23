@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+// Shared client: sends the login token and refreshes it (HR routes require login)
+import { axiosInstance as axios } from '../../../api';
 import { 
   Building2, 
   Briefcase, 

@@ -84,48 +84,6 @@ export default function Header({ onLogout, onProfileClick, onUserManagementClick
       });
   }, []);
 
-  useEffect(() => {
-    let isMounted = true;
-    const loadGlobalNotifCount = async () => {
-      try {
-        if (isOrganisationUser()) {
-          if (isMounted) setDropCount(0);
-          return;
-        }
-
-        const uid = getCurrentUserId() || 1;
-        const res = await axios.get(`${API_BASE_URL}/viewdrop-projectlist/${uid}`);
-        const data = res.data || [];
-        const pending = data.filter(
-          (item) => item.reject_request_status !== 0 && !item.drop_date
-        );
-        const clearedDropCount = Number(localStorage.getItem('sagar_cleared_drop_count') || 0);
-        const readDropCount = Number(localStorage.getItem('sagar_read_drop_count') || 0);
-
-        let count = 0;
-        // Show badge count 1 when there are pending requests that have not been cleared or read
-        if (pending.length > 0 && pending.length > clearedDropCount && pending.length > readDropCount) {
-          count = 1;
-        }
-
-        if (isMounted) setDropCount(count);
-      } catch {
-        // silent fallback
-      }
-    };
-
-    loadGlobalNotifCount();
-    const interval = setInterval(loadGlobalNotifCount, 15000);
-    window.addEventListener('drop-request-updated', loadGlobalNotifCount);
-    window.addEventListener('notifications-updated', loadGlobalNotifCount);
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-      window.removeEventListener('drop-request-updated', loadGlobalNotifCount);
-      window.removeEventListener('notifications-updated', loadGlobalNotifCount);
-    };
-  }, []);
-
   // Handle opening one dropdown and forcing the others to close
   const handleDropdownOpen = (targetOpen) => {
     if (targetOpen === 'lang') {

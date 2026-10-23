@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+// Shared client: sends the login token and refreshes it (HR routes require login)
+import { axiosInstance as axios } from '../../../api';
 import { ArrowLeft, CheckCircle2, AlertCircle, Save, Send, Check, X, ShieldAlert } from 'lucide-react';
 import { API_BASE_URL } from '../../../config/api';
 import { isOrganisationUser } from '../../../utils/authSession';

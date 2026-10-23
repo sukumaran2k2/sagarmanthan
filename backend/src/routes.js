@@ -193,12 +193,17 @@ import RoPaxTab from "./controllers/KPI/ropax.js";
 import SurveyVesselTab from "./controllers/KPI/surveyVessel.js";
 import CargoVesselTab from "./controllers/KPI/cargoVessel.js";
 import TrafficTab from "./controllers/KPI/traffic.js";
-import TrafficVesselTab from "./controllers/KPI/trafficVessel.js";
+import TrafficEntry from "./controllers/KPI/trafficEntry.js";
+import TrafficDashboard from "./controllers/KPI/trafficDashboardAccess.js";
+import PortPerformanceEntry from "./controllers/KPI/portPerformanceEntry.js";
+import FinancialParameterEntry from "./controllers/KPI/financialParameterEntry.js";
+import FinancialDashboard from "./controllers/KPI/financialDashboardAccess.js";
+import CruisePassengerTrafficEntry from "./controllers/KPI/cruisePassengerTrafficEntry.js";
 import vesselMovementTab from "./controllers/KPI/vesselTerminal.js";
 import PassengerTerminalController from "./controllers/KPI/PassengerTerminal.js";
 import cargoTerminalController from "./controllers/KPI/cargoTerminal.js";
 import KpiTimePerformanceTab from "./controllers/KPI/kpiTimePerformance.js";
-import KpiRenewableEnergyTab from "./controllers/KPI/kpiRenewableEnergy.js";
+import RenewableEnergyEntry from "./controllers/KPI/renewableEnergyEntry.js";
 import MMDTab from "./controllers/KPI/mmdMaster.js";
 import VesselSurveyTab from "./controllers/KPI/k_2_8.js";
 import MTIMasterTab from "./controllers/KPI/mtiMaster.js";
@@ -1198,25 +1203,25 @@ router.get("/get-organisation-code/:organisationId", hrManagementTab.getOrganisa
 router.get("/get-department-id/:postId", hrManagementTab.getDepartmentId);
 router.get("/check-post-code/:Id", hrManagementTab.checkPostCode);
 router.post("/post-strength-detail", hrManagementTab.addPostStrengthDetail);
-router.post("/post-hr-anticipated-vacancies", hrManagementTab.addAnticipatedVancancies);
-router.post("/put-hr-anticipated-vacancies", hrManagementTab.updateAnticipatedVacancies);
-router.delete("/delete-hr-anticipated-vacancies/:anticipatedId", hrManagementTab.deleteAnticipatedVacancy);
-router.get("/get-hr-anticipated-vacancies/:Id", hrManagementTab.getAnticipatedVacancies);
+router.post("/post-hr-anticipated-vacancies", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrManagementTab.addAnticipatedVancancies);
+router.post("/put-hr-anticipated-vacancies", auth, requireModulePermission("HR_MANAGEMENT", "update"), hrManagementTab.updateAnticipatedVacancies);
+router.delete("/delete-hr-anticipated-vacancies/:anticipatedId", auth, requireModulePermission("HR_MANAGEMENT", "delete"), hrManagementTab.deleteAnticipatedVacancy);
+router.get("/get-hr-anticipated-vacancies/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getAnticipatedVacancies);
 router.post("/post-revive-detail", hrManagementTab.addRevivePost);
 router.get("/get-strength-data/:Id", hrManagementTab.getPostStrengthData);
 router.get("/get-strength-absolute-data/:Id", hrManagementTab.getPostStrengthAbsoluteData);
-router.get("/get-permanent-abolished-post/", hrManagementTab.getPermanentAbolishedPost);
-router.get("/get-permanent-abolished-post-org/:organisationID", hrManagementTab.getPermanentAbolishedPostOrg);
-router.get("/get-filled-post/:postId", hrManagementTab.getFilledPost);
-router.get("/get-vacant-post/:postId", hrManagementTab.getVacantPost);
-router.post("/post-revival-date", hrManagementTab.postReviveDate);
-router.post("/update-revive-post-approval", hrManagementTab.updateRevivePostApprovalDetails);
+router.get("/get-permanent-abolished-post/", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getPermanentAbolishedPost);
+router.get("/get-permanent-abolished-post-org/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getPermanentAbolishedPostOrg);
+router.get("/get-filled-post/:postId", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getFilledPost);
+router.get("/get-vacant-post/:postId", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getVacantPost);
+router.post("/post-revival-date", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrManagementTab.postReviveDate);
+router.post("/update-revive-post-approval", auth, requireModulePermission("HR_MANAGEMENT", "update"), hrManagementTab.updateRevivePostApprovalDetails);
 
-router.delete("/delete-hr-post-data/:postId/:postCode", hrManagementTab.deleteHrPostData);
-router.get("/get-hr-all-data/:organisationID", hrManagementTab.getHRAllData);
-router.get('/get-transfer-in-employees-by-organisation/:organisationID', hrEmployeeTab.getTransferInEmployeeListByOrgId);
-router.get('/get-emp-details-for-vacancy-management/:employeeID', hrEmployeeTab.getEmpDetailsForVacancyManagement);
-router.get('/get-chd-in-employees-by-organisation/:organisationId', hrEmployeeTab.getCHDEmployeesByOrgId);
+router.delete("/delete-hr-post-data/:postId/:postCode", auth, requireModulePermission("HR_MANAGEMENT", "delete"), hrManagementTab.deleteHrPostData);
+router.get("/get-hr-all-data/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getHRAllData);
+router.get('/get-transfer-in-employees-by-organisation/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getTransferInEmployeeListByOrgId);
+router.get('/get-emp-details-for-vacancy-management/:employeeID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getEmpDetailsForVacancyManagement);
+router.get('/get-chd-in-employees-by-organisation/:organisationId', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getCHDEmployeesByOrgId);
 
 router.get("/get-organisation-name/:organisationID", postRequestTab.getOrgName);
 
@@ -1227,7 +1232,7 @@ router.post("/reject-approve-request", postRequestTab.rejectApproveRequest);
 router.post("/update-post-request-approval", postRequestTab.updatePostRequestApprovalDetail);
 router.get("/get-user-name/:userID", postRequestTab.getUserName);
 
-router.get("/get-activity-date-data/:fromDate/:toDate/:organisationID", hrPostTab.getActivityDateData);
+router.get("/get-activity-date-data/:fromDate/:toDate/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrPostTab.getActivityDateData);
 
 router.get("/get-emp-details-by-reference-id", hrEmployeeTab.getEmployeeDetailsByReferenceId);
 router.get("/get-emp-details-by-reference-id-and-emp-name/:referenceID", hrEmployeeTab.getEmployeeDetailsByReferenceIdOnly);
@@ -1247,7 +1252,7 @@ router.get("/get-sanctioned-strength-details/:userID", hrManagementTab.getDetail
 router.get("/get-total-filled-post-details/:organisationID", hrManagementTab.getDetailedTotalFilledPosts);
 router.get("/get-total-vacant-posts-details/:organisationID", hrManagementTab.getTotalVacantPosts);
 router.get("/get-abolised-vacant-posts-details/:organisationID", hrManagementTab.getAbolishedVacantPosts);
-router.get("/get-year-and-month/:organisationID", hrManagementTab.getYearAndMonth);
+router.get("/get-year-and-month/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getYearAndMonth);
 
 router.post("/revised-hr-post", revisedHrPost.createRevisedHrPost);
 router.get("/revised-hr-post/:organisationID", revisedHrPost.getRevisedHrPost);
@@ -1265,50 +1270,57 @@ router.get("/get-emp-leave-history-details/:employeeID", hrEmployeeTab.getEmpLea
 router.get("/get-post-names-by-org/:selectedOrganisationId", hrEmployeeTab.getPostNamesByOrgId);
 router.post('/update-employee-status/:status/:empID/:referenceID', hrEmployeeTab.updateEmployeeStatus);
 
-router.get('/get-hr-department-list/:organisationID', hrEmployeeTab.getHrDepartmentList);
-router.get('/get-hr-division-list', hrEmployeeTab.getHrDivisionList);
-router.get('/get-hr-post-list/:organisationID', hrEmployeeTab.getHrPostList);
-router.get('/get-hr-post-details/:organisationID', hrEmployeeTab.getHrPostDetails);
-router.get('/get-hr-vacancy-details/:postId/:isLive', hrEmployeeTab.getHrVacancyDetails);
-router.get('/get-employee-details-by-org/:organisationID', hrEmployeeTab.getEmployeeDetailsByOrgID);
-router.get('/get-employee-details-by-empId/:empID', hrEmployeeTab.getEmployeeDetailsByEmpId);
-router.get('/get-employee-list-by-org/:orgID', hrEmployeeTab.getEmployeeListByOrgId);
-router.get('/get-employee-list-by-organisation-dep-post/:roleID/:orgID/:depID/:postID', hrEmployeeTab.getEmployeeListByOrgDepPost);
-router.get('/get-post-code-by-postId/:postID/:methodOfApp', hrEmployeeTab.getPostCodeByPostId);
-router.get("/get-all-hr-post-by-org/:orgID",vacancyStatusTab.getAllHrPostByOrgID);
-router.get('/get-hr-postList-by-department-organisation/:departmentID/:organisationID', revisedHrPost.getPostListByDepAndOrg);
+router.get('/get-hr-department-list/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getHrDepartmentList);
+router.get('/get-hr-division-list', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getHrDivisionList);
+router.get('/get-hr-post-list/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getHrPostList);
+router.get('/get-hr-post-details/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getHrPostDetails);
+router.get('/get-hr-vacancy-details/:postId/:isLive', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getHrVacancyDetails);
+router.get('/get-employee-details-by-org/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getEmployeeDetailsByOrgID);
+router.get('/get-employee-details-by-empId/:empID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getEmployeeDetailsByEmpId);
+router.get('/get-employee-list-by-org/:orgID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getEmployeeListByOrgId);
+router.get('/get-employee-list-by-organisation-dep-post/:roleID/:orgID/:depID/:postID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getEmployeeListByOrgDepPost);
+router.get('/get-post-code-by-postId/:postID/:methodOfApp', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getPostCodeByPostId);
+router.get("/get-all-hr-post-by-org/:orgID", auth, requireModulePermission("HR_MANAGEMENT", "read"), vacancyStatusTab.getAllHrPostByOrgID);
+router.get('/get-hr-postList-by-department-organisation/:departmentID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), revisedHrPost.getPostListByDepAndOrg);
 
 router.post("/delete-hr-post-codes",revisedHrPost.deleteHrPostCodes);
-router.put("/update-hr-employee-activity",vacancyStatusTab.updateHrEmployeeActivity);
-router.get('/get-employee-list-holding-designation/:orgID/:depID/:postID', hrEmployeeTab.getEmployeeListHoldingDesig);
+router.put("/update-hr-employee-activity", auth, requireModulePermission("HR_MANAGEMENT", "update"), vacancyStatusTab.updateHrEmployeeActivity);
+// HR lists with server-side pagination (?page=&limit=, limit=all for export; organisation from the token)
+router.get('/hr/employees', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.listEmployeesHoldingDesignation);
+router.get('/hr/vacancy-overview', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.listVacancyOverview);
+router.get('/hr/anticipated-vacancies', auth, requireModulePermission("HR_MANAGEMENT", "read"), vacancyStatusTab.listAnticipatedVacancies);
+router.get('/hr/abolished-posts', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.listAbolishedPosts);
+router.get('/hr/abolished-posts/facets', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.listAbolishedPostFilters);
+
+router.get('/get-employee-list-holding-designation/:orgID/:depID/:postID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getEmployeeListHoldingDesig);
 router.get('/get-employee-transaction-history-by-org/:empMasterID/:orgID/:roleID',hrEmployeeTab.getTransactionHstryOfEmp);
 router.put("/update-filled-post-activity-data",revisedHrPost.updateFilledPostActivity);
 
 //vacancy status
-router.put("/update-all-vacancies", hrEmployeeTab.updatedVaccancyPosts);
+router.put("/update-all-vacancies", auth, requireModulePermission("HR_MANAGEMENT", "update"), hrEmployeeTab.updatedVaccancyPosts);
 // router.get('/get-hr-postList-by-department-organisation/:departmentID/:organisationID', revisedHrPost.getPostListByDepAndOrg);
-router.put("/update-post-strength-log", revisedHrPost.updatePostStrengthLog);
+router.put("/update-post-strength-log", auth, requireModulePermission("HR_MANAGEMENT", "update"), revisedHrPost.updatePostStrengthLog);
 router.get('/get-employeeId-from-post-strength/:organisationID', revisedHrPost.getEmployeeIdFromPostStrength);
 router.get('/get-post-names-by-post-code/:postCode', revisedHrPost.getPostNamesByPostCode);
 router.get('/get-deputed-employees-by-organisation/:organisationId', hrEmployeeTab.getDeputedEmployeeListByOrgId);
-router.get('/get-vacancy-log-details-by-postcode/:postCode', revisedHrPost.getVaccancyLogDetailsByPostCode);
-router.get('/get-deputed-employees-by-orgId/:organisationId/:organisationID', hrEmployeeTab.getDeputedEmployeesByOrgId);
+router.get('/get-vacancy-log-details-by-postcode/:postCode', auth, requireModulePermission("HR_MANAGEMENT", "read"), revisedHrPost.getVaccancyLogDetailsByPostCode);
+router.get('/get-deputed-employees-by-orgId/:organisationId/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getDeputedEmployeesByOrgId);
 router.get('/get-employee-list-by-orgID/:organisationID', hrEmployeeTab.getHrEmployeeListByOrgId);
-router.get('/get-composite-employee-list-by-orgID/:organisationID', hrEmployeeTab.getHrCompositeEmployeeListByOrgId);
+router.get('/get-composite-employee-list-by-orgID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getHrCompositeEmployeeListByOrgId);
 
 //hr dash
-router.get(`/get-hr-promotion-postcode/:postID`,vacancyStatusTab.getPromotionVacantPostCode);
+router.get(`/get-hr-promotion-postcode/:postID`, auth, requireModulePermission("HR_MANAGEMENT", "read"), vacancyStatusTab.getPromotionVacantPostCode);
 router.get("/get-hr-all-employee-data/:roleID/:organisationID", hrManagementTab.getHRAllEmployeeData);
-router.get('/get-hr-dashboard-content/:clusterID/:organisationID',vacancyStatusTab.getHRDashboardContentData);
+router.get('/get-hr-dashboard-content/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), vacancyStatusTab.getHRDashboardContentData);
 router.get('/get-abolishing-post-within-month/:clusterID/:organisationID', vacancyStatusTab.getAbolishingPostWithinAmonth);
 router.get('/get-emp-going-to-retire-within-six-months/:clusterID/:organisationID', vacancyStatusTab.getEmpGoingToRetireWithinSixMonths);
 router.get('/get-pwbd-wise-count/:clusterID/:organisationID', vacancyStatusTab.getPwbdWiseCount);
 router.get('/get-experienced-emp-count/:clusterID/:organisationID', vacancyStatusTab.getExperiencedEmpCount);
 router.get('/get-gender-wise-cont-by-org/:clusterID/:organisationID', vacancyStatusTab.getGenderWiseContByOrg);
-router.get('/get-department-wise-post-status/:clusterID/:organisationID', vacancyStatusTab.getDepartmentWiseEmpContByOrg);
+router.get('/get-department-wise-post-status/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), vacancyStatusTab.getDepartmentWiseEmpContByOrg);
 router.get('/get-community-wise-count-by-org/:clusterID/:organisationID', vacancyStatusTab.getCommunityWiseCountByOrg);
-router.get('/get-hr-dashboard-content-data-filter/:clusterID/:organisationID/:year/:month', vacancyStatusTab.getHRDashboardContentDataFiltered);
-router.get('/get-department-wise-emp-count-by-org-data-filter/:clusterID/:organisationID/:year/:month', vacancyStatusTab.getDepartmentWiseEmpContByOrgFiltered);
+router.get('/get-hr-dashboard-content-data-filter/:clusterID/:organisationID/:year/:month', auth, requireModulePermission("HR_MANAGEMENT", "read"), vacancyStatusTab.getHRDashboardContentDataFiltered);
+router.get('/get-department-wise-emp-count-by-org-data-filter/:clusterID/:organisationID/:year/:month', auth, requireModulePermission("HR_MANAGEMENT", "read"), vacancyStatusTab.getDepartmentWiseEmpContByOrgFiltered);
 router.get('/get-admin-hr-dashboard-content/:clusterID/:organisationID', vacancyStatusTab.getAdminHRDashboardContentData);
 router.get('/get-admin-hr-gender-wise-cont-by-org/:clusterID/:organisationID', vacancyStatusTab.getAdminViewGenderWiseContByOrg);
 router.get('/get-admin-view-experienced-emp-count/:clusterID/:organisationID', vacancyStatusTab.getAdminViewExperiencedEmpCount);
@@ -1317,67 +1329,67 @@ router.get('/get-admin-view-community-wise-count-by-org/:clusterID/:organisation
 router.get('/get-admin-view-department-wise-post-status/:clusterID/:organisationID', vacancyStatusTab.getAdminViewDepartmentWiseEmpContByOrg);
 
 router.post('/revoke-revive-hr-vacant-post', revisedHrPost.upload.single('file'), revisedHrPost.revokeHRVacantPost);
-router.get('/get-hr-mis-total-manpower-actual/:departmentID/:classID/:orgCategory/:deptCategory',hrReportTab.getTotalManpowerSanctionActual);
-router.get('/get-hr-mis-gender-wise-major-port/:orgCategory',hrReportTab.getHRGenderWiseCountMajorReport);
-router.get('/get-total-manpower-class-wise-report/:orgCategory/:deptCategory',hrReportTab.getTotalManpowerClassWiseReport);
-router.get('/get-hr-staffing-overview-report/:orgCategory',hrReportTab.getHRStaffingOverviewReport);
-router.get('/get-deputed-end-employee-data-org/:organisationID',hrEmployeeTab.getDeputedEndEmployeeData);
-router.get('/get-training-details-report/:roleID/:organisationID',hrReportTab.getTrainingDetailsReport);
-router.get('/get-contract-details-report/:roleID/:organisationID',hrReportTab.getContractDetailsReport);
+router.get('/get-hr-mis-total-manpower-actual/:departmentID/:classID/:orgCategory/:deptCategory', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportTab.getTotalManpowerSanctionActual);
+router.get('/get-hr-mis-gender-wise-major-port/:orgCategory', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportTab.getHRGenderWiseCountMajorReport);
+router.get('/get-total-manpower-class-wise-report/:orgCategory/:deptCategory', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportTab.getTotalManpowerClassWiseReport);
+router.get('/get-hr-staffing-overview-report/:orgCategory', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportTab.getHRStaffingOverviewReport);
+router.get('/get-deputed-end-employee-data-org/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getDeputedEndEmployeeData);
+router.get('/get-training-details-report/:roleID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportTab.getTrainingDetailsReport);
+router.get('/get-contract-details-report/:roleID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportTab.getContractDetailsReport);
 
-router.post('/create-hr-training-data', hrTrainingTab.createHRTraining);
-router.put('/update-hr-training-data', hrTrainingTab.updateHRTraining);
-router.get('/get-hr-staff-transact-data/:organisationID/:trainingID',hrTrainingTab.getHRStaffTransactData);
-router.get('/get-hr-training-data-by-org/:organisationID/:roleID',hrTrainingTab.getHRTrainingDataByOrg);
-router.get('/get-hr-training-data-by-id/:trainingID',hrTrainingTab.getHRTrainingDataByID);
-router.post("/submit-contract-data", hrTrainingTab.createContractData);
-router.get("/get-contract-data/:roleId/:organisationID", hrTrainingTab.getContractData);
-router.get("/get-official-data-by-total/:contractId/:officialTotal", hrTrainingTab.getOfficialDataByTotal);
-router.get("/get-non-official-data-by-total/:contractId/:NonOffTotal", hrTrainingTab.getNonOfficialDataByTotal);
-router.get("/get-contractual-data-by-id/:contractId", hrTrainingTab.getContractualDataByID);
-router.get("/check-aadhar-number-existence/:aadharNumber", hrHelperTab.checkAadharNumberExistence);
-router.get("/check-reference-number-existence/:refNo/:orgID", hrHelperTab.checkReferenceNumberExistence);
-router.get("/get-hr-training-title-by-org/:organisationID/:trainingType", hrTrainingTab.getTrainingTitleData);
-router.get("/get-hr-training-type", hrTrainingTab.getHRTrainingType);
-router.get("/get-hr-assessment-data-by-org/:organisationID", vacancyStatusTab.getHRAssessmentData);
-router.post("/submit-hr-vacancy-anticipation",vacancyStatusTab.saveHrVacancyAnticipation);
-router.get("/get-hr-anticipated-vacancies-by-org/:departmentId/:postId/:className/:organisationID/:selectedYears", vacancyStatusTab.getAnticipatedVacanciesByOrg);
-router.post("/submit-anticipated-vacancies",vacancyStatusTab.submitAnticipatedVacancies);
-router.get("/get-mmt-organisation-by-cluster-id/:clusterID",vacancyStatusTab.getOrganisationByCluster);
-router.put("/update-hr-post-activity",vacancyStatusTab.updateHRPostActivitiy);
-router.put("/update-reason-process-not-initiated",vacancyStatusTab.updateReasonForProcessNotInitiated)
-router.delete("/delete-contractual-data/:contractId/:organisationID",hrTrainingTab.deleteContracturalData);
-router.get('/get-hr-training-details-data-by-org',hrTrainingTab.getHRTrainingDetailsDataByOrg);
-router.delete("/delete-training-data/:trainingID/:organisationID",hrTrainingTab.deleteTrainingData);
-router.get("/get-all-training-data/:userID",hrTrainingTab.getAllTrainingData);
-router.get("/get-all-contractual-data/:userID",hrTrainingTab.getAllContractualData);
-router.get("/get-financial-year-by-organisation/:organisationID/:financialYear",hrTrainingTab.checkFinancialYearExist);
-router.put("/update-activity-data",hrManagementTab.updateActivityData);
+router.post('/hr/create-hr-training-data', auth, requireModulePermission("HR_MANAGEMENT", "create"), hrTrainingTab.createHRTraining);
+router.put('/hr/update-hr-training-data/:trainingID', auth, requireModulePermission("HR_MANAGEMENT", "update"), hrTrainingTab.updateHRTraining);
+router.get('/hr/get-hr-staff-transact-data/:organisationID/:trainingID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.getHRStaffTransactData);
+router.get('/get-hr-training-data-by-org/:organisationID/:roleID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.getHRTrainingDataByOrg);
+router.get('/hr/get-hr-training-data-by-id/:trainingID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.getHRTrainingDataByID);
+router.post("/hr/contractual-employment", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrTrainingTab.createContractData);
+router.get("/get-contract-data/:roleId/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.getContractData);
+router.get("/get-official-data-by-total/:contractId/:officialTotal", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.getOfficialDataByTotal);
+router.get("/get-non-official-data-by-total/:contractId/:NonOffTotal", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.getNonOfficialDataByTotal);
+router.get("/get-contractual-data-by-id/:contractId", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.getContractualDataByID);
+router.get("/check-aadhar-number-existence/:aadharNumber", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrHelperTab.checkAadharNumberExistence);
+router.get("/check-reference-number-existence/:refNo/:orgID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrHelperTab.checkReferenceNumberExistence);
+router.get("/hr/get-hr-training-title-by-org/:organisationID/:trainingType", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.getTrainingTitleData);
+router.get("/hr/get-hr-training-type", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.getHRTrainingType);
+router.get("/get-hr-assessment-data-by-org/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), vacancyStatusTab.getHRAssessmentData);
+router.post("/submit-hr-vacancy-anticipation", auth, requireModulePermission("HR_MANAGEMENT", "create"), vacancyStatusTab.saveHrVacancyAnticipation);
+router.get("/get-hr-anticipated-vacancies-by-org/:departmentId/:postId/:className/:organisationID/:selectedYears", auth, requireModulePermission("HR_MANAGEMENT", "read"), vacancyStatusTab.getAnticipatedVacanciesByOrg);
+router.post("/submit-anticipated-vacancies", auth, requireModulePermission("HR_MANAGEMENT", "create"), vacancyStatusTab.submitAnticipatedVacancies);
+router.get("/get-mmt-organisation-by-cluster-id/:clusterID", auth, requireModulePermission("HR_MANAGEMENT", "read"), vacancyStatusTab.getOrganisationByCluster);
+router.put("/update-hr-post-activity", auth, requireModulePermission("HR_MANAGEMENT", "update"), vacancyStatusTab.updateHRPostActivitiy);
+router.put("/update-reason-process-not-initiated", auth, requireModulePermission("HR_MANAGEMENT", "update"), vacancyStatusTab.updateReasonForProcessNotInitiated);
+router.delete("/delete-contractual-data/:contractId/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "delete"), hrTrainingTab.deleteContracturalData);
+router.get('/get-hr-training-details-data-by-org', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.getHRTrainingDetailsDataByOrg);
+router.delete("/delete-training-data/:trainingID/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "delete"), hrTrainingTab.deleteTrainingData);
+router.get("/get-all-training-data/:userID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.getAllTrainingData);
+router.get("/get-all-contractual-data/:userID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.getAllContractualData);
+router.get("/get-financial-year-by-organisation/:organisationID/:financialYear", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.checkFinancialYearExist);
+router.put("/update-activity-data", auth, requireModulePermission("HR_MANAGEMENT", "update"), hrManagementTab.updateActivityData);
 
-router.get("/get-deputation-end-employees/:employeeId/:empMasterId/:empReferenceId",hrManagementTab.getDeputationEndEmployees);
+router.get("/get-deputation-end-employees/:employeeId/:empMasterId/:empReferenceId", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getDeputationEndEmployees);
 
 
-router.post("/submit-report-input-1-5",hrReportInputTab.createHrReportInput1_5);
-router.post("/submit-report-input-1-6",hrReportInputTab.createHrReportInput1_6);
-router.post("/add-hr-vacancy-report-input-1-2",hrReportInputTab.createHrvacancyData);
-router.post("/add-hr-vacancy-report-input-1-3",hrReportInputTab.createHrreport1_3);
-router.post("/add-hr-vacancy-report-input-1-4",hrReportInputTab.createHrreportinput1_4);
-router.post("/add-hr-vacancy-report-input-1-8",hrReportInputTab.createHrreportinput1_8);
-router.post("/submit-report-input-1-7",hrReportInputTab.createHrreportinput1_7);
-router.post("/add-hr-vacancy-report-input-1-1",hrReportInputTab.submitReportInput1_1);
-router.get("/check-financial-hr-report-input",hrReportInputTab.checkFinancialYearExists);
+router.post("/submit-report-input-1-5", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrReportInputTab.createHrReportInput1_5);
+router.post("/submit-report-input-1-6", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrReportInputTab.createHrReportInput1_6);
+router.post("/add-hr-vacancy-report-input-1-2", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrReportInputTab.createHrvacancyData);
+router.post("/add-hr-vacancy-report-input-1-3", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrReportInputTab.createHrreport1_3);
+router.post("/add-hr-vacancy-report-input-1-4", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrReportInputTab.createHrreportinput1_4);
+router.post("/add-hr-vacancy-report-input-1-8", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrReportInputTab.createHrreportinput1_8);
+router.post("/submit-report-input-1-7", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrReportInputTab.createHrreportinput1_7);
+router.post("/add-hr-vacancy-report-input-1-1", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrReportInputTab.submitReportInput1_1);
+router.get("/check-financial-hr-report-input", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportInputTab.checkFinancialYearExists);
 
 //update
-router.get("/hr-report-input-list/:userID", hrReportInputTab. getHrreportInputformList);
-router.get('/update-Hr-report-Input/:organisationID/:financialYear/:month', hrReportInputTab.getUpdatehrReportdata);
-router.get('/update-Hr-report-Input-update1_3/:organisationID/:financialYear/:month', hrReportInputTab.getUpdatehrReport1_3data);
-router.get('/update-Hr-report-Input-update1_4/:organisationID/:financialYear/:month', hrReportInputTab.getUpdatehrReport1_4data);
-router.get('/update-Hr-report-Input-update1_6/:organisationID/:financialYear/:month', hrReportInputTab.getUpdatehrReport1_6data);
-router.get('/update-Hr-report-Input-update1_8/:organisationID/:financialYear/:month', hrReportInputTab.getUpdatehrReport1_8data);
-router.get('/update-Hr-report-Input-update1_7/:organisationID/:financialYear/:month', hrReportInputTab.getUpdatehrReport1_7data);
-router.get('/update-Hr-report-Input-update1_5/:organisationID/:financialYear/:month', hrReportInputTab.getUpdatehrReport1_5data);
-router.post("/update-hr-vacancy-report-input-1-1",hrReportInputTab.updateReportInput1_1);
-router.get('/update-Hr-report-Input1_1/:organisationID/:financialYear', hrReportInputTab.getUpdatehrReport1_1data);
+router.get("/hr-report-input-list/:userID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportInputTab.getHrreportInputformList);
+router.get('/update-Hr-report-Input/:organisationID/:financialYear/:month', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportInputTab.getUpdatehrReportdata);
+router.get('/update-Hr-report-Input-update1_3/:organisationID/:financialYear/:month', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportInputTab.getUpdatehrReport1_3data);
+router.get('/update-Hr-report-Input-update1_4/:organisationID/:financialYear/:month', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportInputTab.getUpdatehrReport1_4data);
+router.get('/update-Hr-report-Input-update1_6/:organisationID/:financialYear/:month', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportInputTab.getUpdatehrReport1_6data);
+router.get('/update-Hr-report-Input-update1_8/:organisationID/:financialYear/:month', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportInputTab.getUpdatehrReport1_8data);
+router.get('/update-Hr-report-Input-update1_7/:organisationID/:financialYear/:month', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportInputTab.getUpdatehrReport1_7data);
+router.get('/update-Hr-report-Input-update1_5/:organisationID/:financialYear/:month', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportInputTab.getUpdatehrReport1_5data);
+router.post("/update-hr-vacancy-report-input-1-1", auth, requireModulePermission("HR_MANAGEMENT", "update"), hrReportInputTab.updateReportInput1_1);
+router.get('/update-Hr-report-Input1_1/:organisationID/:financialYear', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportInputTab.getUpdatehrReport1_1data);
 // -------------------------------------------------------------------------------------------------------
 router.get('/get-hr-other-org-vacany-details/:organisationID', otherOrgVacancyDetailsTab.getOtherOrgVacancyDetails);
 router.get('/get-hr-dashboard-content-other-org/:clusterID/:organisationID', otherOrgVacancyDetailsTab.getHRDashboardContentOtherOrgData);
@@ -1805,26 +1817,13 @@ router.get("/iwai-getDetail-financialprogress/:organisationID/:modOfImp/:columnN
 router.get('/lumpsum-report', lumpsumReportTab.lumpsumReport);
 
 
-//financial parameters for major ports
-router.post("/financial-parameter", financialParameterTab.createFinancialParameter);
-router.get("/financial-parameter/:userID", financialParameterTab.getFinancialParameter);
-router.get("/monthly-financial-parameter/:userID", financialParameterTab.getMonthlyFinancialParameter);
-router.get("/quarterly-financial-parameter/:userID", financialParameterTab.getQuarterlyFinancialParameter);
-router.get("/annually-financial-parameter/:userID", financialParameterTab.getAnnuallyFinancialParameter);
 router.get("/get-organisation-name/:organisationID", financialParameterTab.getOrganisationName);
 //financial Report for major ports
 router.post("/filtered-financial-report", financialParameterTab.getFilteredFinancialReport);
 //Financial Chart Data
 router.get("/Financial-Chart-Data/:getCurrentFinancialYear", financialParameterTab.getFinancialChartData);
 router.get("/Financial-Fin-Year-Chart-Data", financialParameterTab.getFinancialFinYearChartData);
-router.post("/financial-mopsw-parameter", financialParameterTab.createMopswFinancialParameters);
-router.get("/kpi-finanacial-data-update/:finanacialparameterID", financialParameterTab.getKpifinancialparameterData);
-router.post("/update-financial-data-parameter", financialParameterTab.updateFinanacialkpidataupdate);
 
-//KPI Financial Target
-router.get("/get-monthly-financial-target", financialParameterTab.getMonthlyFinancialTargetData);
-router.get("/get-quaterly-financial-target", financialParameterTab.getQuaterlyFinancialTargetData);
-router.get("/get-annually-financial-target", financialParameterTab.getAnnuallyFinancialTargetData);
 
 // -------------------------------------------kpi-----------------------------------------------------
 router.post('/add-kpi2-1-1', dgsTabList.createDgsKpi2_1_1Data);
@@ -1973,10 +1972,6 @@ router.get("/cruise-passenger-data", cruiseTab.getCruisePassengerData);
 router.get("/monthly-cruise-data", cruiseTab.getMonthlyCruiseData);
 router.get("/quarterly-cruise-data", cruiseTab.getQuarterlyCruiseData);
 router.get("/annually-cruise-data", cruiseTab.getAnnuallyCruiseData);
-router.get('/get-cruie-passengers-target', TrafficVesselTab.getCruiepassengersTargetData);
-
-//vessel traffic Dashbord
-router.get("/get-curise-chart/:orgID/:monthId/:finYear", TrafficVesselTab.getCurisePassengerChart);
 
 //Digital portals
 router.post('/digital-data', digitalPortalTab.createDigitalData);
@@ -2070,17 +2065,91 @@ router.get('/annually-major-ports-data/:userID', MajorPorts.getAnnuallyMajorPort
 // router.get("/quarterly-traffic-data/:userID", TrafficTab.getQuarterlyTrafficData);
 // router.get("/annually-traffic-data/:userID", TrafficTab.getAnnuallyTrafficData);
 
-router.get('/get-fiscal-year-target-data', TrafficTab.getFiscalYearTargetData);
-router.post('/submit-fiscal-year-target-data', TrafficTab.submitFiscalYearTargetData);
-router.get('/get-fiscal-year-target-list', TrafficTab.getFiscalYearTargetList);
-router.post('/update-fiscal-year-target-data', TrafficTab.updateFiscalYearTargetData);
-router.post('/submit-commodity-data', TrafficTab.submitCommodityData);
-router.get('/get-commodity-data', TrafficTab.getCommodityData);
-router.get('/get-commodities-by-group', TrafficTab.getCommoditiesByGroup);
-router.get('/get-traffic-actual-data', TrafficTab.getTrafficActualData);
-router.get('/get-roro-traffic-actual-data', TrafficTab.getrorotrafficData);
-router.get('/get-traffic-commodity-groups', TrafficTab.getTrafficCommodityGroup);
-router.get('/get-traffic-commodities', TrafficTab.getTrafficCommodities);
+// Traffic data entry: identity and organisation come from the JWT; data scope and
+// ministry/organisation write rules are enforced in the controller
+const TRAFFIC_MODULE = "KPI_MAJOR_PORTS";
+router.get('/kpi/traffic/masters', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficEntry.getTrafficMasters);
+router.get('/kpi/traffic/entry-status', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficEntry.getTrafficEntryStatus);
+router.get('/kpi/traffic/actuals', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficEntry.getTrafficActuals);
+router.get('/kpi/traffic/period', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficEntry.getTrafficPeriod);
+router.post('/kpi/traffic/period', auth, requireAnyModulePermission(TRAFFIC_MODULE, ["create", "update"]), TrafficEntry.saveTrafficPeriod);
+router.delete('/kpi/traffic/period', auth, requireModulePermission(TRAFFIC_MODULE, "delete"), TrafficEntry.deleteTrafficPeriod);
+router.get('/kpi/traffic/targets', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficEntry.getTrafficTargets);
+router.post('/kpi/traffic/targets', auth, requireModulePermission(TRAFFIC_MODULE, "create"), TrafficEntry.createTrafficTarget);
+router.put('/kpi/traffic/targets/:id', auth, requireModulePermission(TRAFFIC_MODULE, "update"), TrafficEntry.updateTrafficTarget);
+router.delete('/kpi/traffic/targets/:id', auth, requireModulePermission(TRAFFIC_MODULE, "delete"), TrafficEntry.deleteTrafficTarget);
+router.get('/kpi/traffic/access', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficEntry.getTrafficAccessGrants);
+router.post('/kpi/traffic/access', auth, requireModulePermission(TRAFFIC_MODULE, "create"), TrafficEntry.createTrafficAccessGrant);
+router.patch('/kpi/traffic/access/:accessId/revoke', auth, requireModulePermission(TRAFFIC_MODULE, "update"), TrafficEntry.revokeTrafficAccessGrant);
+// Traffic dashboard: the earlier portal's queries behind login, permission and organisation scope
+router.get('/kpi/traffic/dashboard/traffic', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.traffic);
+router.get('/kpi/traffic/dashboard/cargo', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.cargo);
+router.get('/kpi/traffic/dashboard/performance', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.performance);
+router.get('/kpi/traffic/dashboard/coastal', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.coastal);
+router.get('/kpi/traffic/dashboard/summary', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.summary);
+router.get('/kpi/traffic/dashboard/drill/traffic', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.drillTraffic);
+router.get('/kpi/traffic/dashboard/drill/cargo', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.drillCargo);
+router.get('/kpi/traffic/dashboard/drill/performance', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.drillPerformance);
+router.get('/kpi/traffic/dashboard/drill/coastal', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.drillCoastal);
+router.get('/kpi/traffic/dashboard/drill/cargo-wise', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.drillCargoWise);
+
+// Port Performance data entry: same rules as Traffic (identity and organisation from the JWT,
+// data scope and ministry/organisation write rules in the controller)
+router.get('/kpi/port-performance/masters', auth, requireModulePermission(TRAFFIC_MODULE, "read"), PortPerformanceEntry.getPortPerformanceMasters);
+router.get('/kpi/port-performance/entry-status', auth, requireModulePermission(TRAFFIC_MODULE, "read"), PortPerformanceEntry.getPortPerformanceEntryStatus);
+router.get('/kpi/port-performance/actuals', auth, requireModulePermission(TRAFFIC_MODULE, "read"), PortPerformanceEntry.getPortPerformanceActuals);
+router.get('/kpi/port-performance/period', auth, requireModulePermission(TRAFFIC_MODULE, "read"), PortPerformanceEntry.getPortPerformancePeriod);
+router.post('/kpi/port-performance/period', auth, requireAnyModulePermission(TRAFFIC_MODULE, ["create", "update"]), PortPerformanceEntry.savePortPerformancePeriod);
+router.delete('/kpi/port-performance/period', auth, requireModulePermission(TRAFFIC_MODULE, "delete"), PortPerformanceEntry.deletePortPerformancePeriod);
+router.get('/kpi/port-performance/targets', auth, requireModulePermission(TRAFFIC_MODULE, "read"), PortPerformanceEntry.getPortPerformanceTargets);
+router.get('/kpi/port-performance/targets/record', auth, requireModulePermission(TRAFFIC_MODULE, "read"), PortPerformanceEntry.getPortPerformanceTargetRecord);
+router.put('/kpi/port-performance/targets/record', auth, requireAnyModulePermission(TRAFFIC_MODULE, ["create", "update"]), PortPerformanceEntry.savePortPerformanceTargetRecord);
+router.delete('/kpi/port-performance/targets/record', auth, requireModulePermission(TRAFFIC_MODULE, "delete"), PortPerformanceEntry.deletePortPerformanceTargetRecord);
+router.get('/kpi/port-performance/access', auth, requireModulePermission(TRAFFIC_MODULE, "read"), PortPerformanceEntry.getPortPerformanceAccessGrants);
+router.post('/kpi/port-performance/access', auth, requireModulePermission(TRAFFIC_MODULE, "create"), PortPerformanceEntry.createPortPerformanceAccessGrant);
+router.patch('/kpi/port-performance/access/:accessId/revoke', auth, requireModulePermission(TRAFFIC_MODULE, "update"), PortPerformanceEntry.revokePortPerformanceAccessGrant);
+
+// Financial Parameters data entry: identity and organisation from the JWT; organisation users
+// own the monthly actuals and ministry users the targets (enforced in the controller). No entry window.
+router.get('/kpi/financial-parameters/masters', auth, requireModulePermission(TRAFFIC_MODULE, "read"), FinancialParameterEntry.getFinancialParameterMasters);
+router.get('/kpi/financial-parameters/actuals', auth, requireModulePermission(TRAFFIC_MODULE, "read"), FinancialParameterEntry.getFinancialParameterActuals);
+router.get('/kpi/financial-parameters/actuals/:id', auth, requireModulePermission(TRAFFIC_MODULE, "read"), FinancialParameterEntry.getFinancialParameterActual);
+router.post('/kpi/financial-parameters/actuals', auth, requireModulePermission(TRAFFIC_MODULE, "create"), FinancialParameterEntry.createFinancialParameterActual);
+router.put('/kpi/financial-parameters/actuals/:id', auth, requireModulePermission(TRAFFIC_MODULE, "update"), FinancialParameterEntry.updateFinancialParameterActual);
+router.delete('/kpi/financial-parameters/actuals/:id', auth, requireModulePermission(TRAFFIC_MODULE, "delete"), FinancialParameterEntry.deleteFinancialParameterActual);
+router.get('/kpi/financial-parameters/targets', auth, requireModulePermission(TRAFFIC_MODULE, "read"), FinancialParameterEntry.getFinancialParameterTargets);
+router.post('/kpi/financial-parameters/targets', auth, requireModulePermission(TRAFFIC_MODULE, "create"), FinancialParameterEntry.createFinancialParameterTarget);
+router.put('/kpi/financial-parameters/targets/:id', auth, requireModulePermission(TRAFFIC_MODULE, "update"), FinancialParameterEntry.updateFinancialParameterTarget);
+router.delete('/kpi/financial-parameters/targets/:id', auth, requireModulePermission(TRAFFIC_MODULE, "delete"), FinancialParameterEntry.deleteFinancialParameterTarget);
+// Financial dashboard: the earlier portal's queries behind login, read permission and input validation
+router.get('/kpi/financial-parameters/dashboard/summary', auth, requireModulePermission(TRAFFIC_MODULE, "read"), FinancialDashboard.summary);
+router.get('/kpi/financial-parameters/dashboard/drill', auth, requireModulePermission(TRAFFIC_MODULE, "read"), FinancialDashboard.drill);
+
+// Cruise and Passenger Traffic data entry: same rules as Financial Parameters (identity and organisation
+// from the JWT; organisation users own the monthly actuals, ministry users the targets). No entry window.
+router.get('/kpi/cruise-passenger-traffic/masters', auth, requireModulePermission(TRAFFIC_MODULE, "read"), CruisePassengerTrafficEntry.getCruisePassengerMasters);
+router.get('/kpi/cruise-passenger-traffic/actuals', auth, requireModulePermission(TRAFFIC_MODULE, "read"), CruisePassengerTrafficEntry.getCruisePassengerActuals);
+router.get('/kpi/cruise-passenger-traffic/actuals/:id', auth, requireModulePermission(TRAFFIC_MODULE, "read"), CruisePassengerTrafficEntry.getCruisePassengerActual);
+router.post('/kpi/cruise-passenger-traffic/actuals', auth, requireModulePermission(TRAFFIC_MODULE, "create"), CruisePassengerTrafficEntry.createCruisePassengerActual);
+router.put('/kpi/cruise-passenger-traffic/actuals/:id', auth, requireModulePermission(TRAFFIC_MODULE, "update"), CruisePassengerTrafficEntry.updateCruisePassengerActual);
+router.delete('/kpi/cruise-passenger-traffic/actuals/:id', auth, requireModulePermission(TRAFFIC_MODULE, "delete"), CruisePassengerTrafficEntry.deleteCruisePassengerActual);
+router.get('/kpi/cruise-passenger-traffic/targets', auth, requireModulePermission(TRAFFIC_MODULE, "read"), CruisePassengerTrafficEntry.getCruisePassengerTargets);
+router.post('/kpi/cruise-passenger-traffic/targets', auth, requireModulePermission(TRAFFIC_MODULE, "create"), CruisePassengerTrafficEntry.createCruisePassengerTarget);
+router.put('/kpi/cruise-passenger-traffic/targets/:id', auth, requireModulePermission(TRAFFIC_MODULE, "update"), CruisePassengerTrafficEntry.updateCruisePassengerTarget);
+router.delete('/kpi/cruise-passenger-traffic/targets/:id', auth, requireModulePermission(TRAFFIC_MODULE, "delete"), CruisePassengerTrafficEntry.deleteCruisePassengerTarget);
+
+// Renewable Energy data entry: same rules as Cruise and Passenger Traffic (identity and organisation
+// from the JWT; organisation users own the monthly actuals, ministry users the targets). No entry window.
+router.get('/kpi/renewable-energy/masters', auth, requireModulePermission(TRAFFIC_MODULE, "read"), RenewableEnergyEntry.getRenewableEnergyMasters);
+router.get('/kpi/renewable-energy/actuals', auth, requireModulePermission(TRAFFIC_MODULE, "read"), RenewableEnergyEntry.getRenewableEnergyActuals);
+router.get('/kpi/renewable-energy/actuals/:id', auth, requireModulePermission(TRAFFIC_MODULE, "read"), RenewableEnergyEntry.getRenewableEnergyActual);
+router.post('/kpi/renewable-energy/actuals', auth, requireModulePermission(TRAFFIC_MODULE, "create"), RenewableEnergyEntry.createRenewableEnergyActual);
+router.put('/kpi/renewable-energy/actuals/:id', auth, requireModulePermission(TRAFFIC_MODULE, "update"), RenewableEnergyEntry.updateRenewableEnergyActual);
+router.delete('/kpi/renewable-energy/actuals/:id', auth, requireModulePermission(TRAFFIC_MODULE, "delete"), RenewableEnergyEntry.deleteRenewableEnergyActual);
+router.get('/kpi/renewable-energy/targets', auth, requireModulePermission(TRAFFIC_MODULE, "read"), RenewableEnergyEntry.getRenewableEnergyTargets);
+router.post('/kpi/renewable-energy/targets', auth, requireModulePermission(TRAFFIC_MODULE, "create"), RenewableEnergyEntry.createRenewableEnergyTarget);
+router.put('/kpi/renewable-energy/targets/:id', auth, requireModulePermission(TRAFFIC_MODULE, "update"), RenewableEnergyEntry.updateRenewableEnergyTarget);
+router.delete('/kpi/renewable-energy/targets/:id', auth, requireModulePermission(TRAFFIC_MODULE, "delete"), RenewableEnergyEntry.deleteRenewableEnergyTarget);
 
 router.get('/get-kpi-traffic-dashboard/:organisationID/:fy/:months',TrafficTab.getKPITrafficDashboard);
 router.get('/get-kpi-traffic-commodies-wise-dashboard/:organisationID/:fy/:months',TrafficTab.getKPICargoDashboard);
@@ -2091,9 +2160,6 @@ router.get('/detailed-kpi-cargo-card-dashboard',TrafficTab.detailedKPICargoCardD
 router.get('/get-all-traffic-dashboard-kpis/:organisationID/:fy/:months',TrafficTab.getAllTrafficDashboardKPIs);
 router.get('/detailed-all-traffic-dashboard-kpi',TrafficTab.detailedAllTrafficDashboardKPIs);
 
-router.get('/detailed-kpi-financial-card-dashboard',financialParameterTab.detailedKPIFinancialCardDashboard);
-router.get('/get-kpi-financial-dashboard/:organisationID/:fy/:months',financialParameterTab.getKPIFinancialDashboard);
-// router.get('/get-kpi-cargo-dashboard/:organisationID/:fy/:months',financialParameterTab.getKPIcargoDashboard);
 router.get('/get-top-financial-performing-ports/:kpi/:fy',financialParameterTab.getTopFinancialPerformingPorts);
 router.get('/get-least-financial-performing-ports/:kpi/:fy',financialParameterTab.getLeastFinancialPerformingPorts);
 
@@ -2102,16 +2168,6 @@ router.get('/get-container-traffic-k-1-1-1-a-report', TrafficReportTab.getContai
 
 router.get('/get-month-traffic-trend-data', TrafficTab.getMonthTrafficTrendData);
 router.get('/get-year-traffic-trend-data', TrafficTab.getYearTrafficTrendData);
-
-//vessel traffic
-router.get('/get-vessel-traffic-data', TrafficVesselTab.getVesselTrafficData);
-router.post('/submit-vessel-traffic-data', TrafficVesselTab.submitVesselTrafficData);
-router.post('/update-vessel-traffic-data', TrafficVesselTab.updateVesselTrafficData);
-router.post('/submit-target-data', TrafficVesselTab.submitTargetData);
-router.get('/get-target-data', TrafficVesselTab.getTargetData);
-router.post('/update-target-data', TrafficVesselTab.updateTargetData);
-router.get('/get-yearly-vessel-traffic-list', TrafficVesselTab.getYearlyVesselTrafficList);
-router.get('/get-monthly-vessel-traffic-list', TrafficVesselTab.getMonthlyVesselTrafficList);
 
 //vessel traffic reports
 router.get('/get-vessel-traffic-k-1-10-1-report', TrafficVesselReportTab.getVesselTraffic_k_1_10_1_Report);
@@ -2164,28 +2220,16 @@ router.get('/get-container-trt-port-performance-k-1-21-1-report', PortPerformanc
 router.get('/get-container-trt-port-performance-k-1-21-2-report', PortPerformanceContainerTrtReportTab.getContainerTrtPortPerformance_k_1_21_2_Report);
 router.get('/get-container-trt-port-performance-k-1-21-3-report', PortPerformanceContainerTrtReportTab.getContainerTrtPortPerformance_k_1_21_3_Report);
 
-//KPI Time Performance
-router.get('/get-kpi-time-performance-data', KpiTimePerformanceTab.getKpiTimePerformanceData);
-router.post('/submit-kpi-time-performance-data', KpiTimePerformanceTab.submitKpiTimePerformanceData);
-router.get('/get-kpi-time-performance-list', KpiTimePerformanceTab.getKpiTimePerformanceList);
-router.post('/update-kpi-time-performance-data', KpiTimePerformanceTab.updateKpiTimePerformanceData);
-router.post('/submit-kpi-time-performance-target-data', KpiTimePerformanceTab.submitKpiTimePerformanceTargetData);
-router.get('/get-kpi-time-performance-target-data', KpiTimePerformanceTab.getKpiTimePerformanceTargetData);
-router.get('/get-major-ports', KpiTimePerformanceTab.getMajorPorts);
-router.get('/get-kpi-types', KpiTimePerformanceTab.getKpiTypes);
-router.get('/get-target-kpi-time-performance-list', KpiTimePerformanceTab.getTargetKpiTimePerformanceList);
-
-// KPI Renewable Energy
-router.get('/get-kpi-renewable-energy-data', KpiRenewableEnergyTab.getKpiRenewableEnergyData);
-router.get('/get-kpi-renewable-energy-list', KpiRenewableEnergyTab.getKpiRenewableEnergyList);
-router.post('/submit-kpi-renewable-energy-data', KpiRenewableEnergyTab.submitKpiRenewableEnergyData);
-router.post('/update-kpi-renewable-energy-data', KpiRenewableEnergyTab.updateKpiRenewableEnergyData);
-router.post('/submit-kpi-renewable-energy-target-data', KpiRenewableEnergyTab.submitKpiRenewableEnergyTargetData);
-router.get('/get-kpi-renewable-energy-target-data', KpiRenewableEnergyTab.getKpiRenewableEnergyTargetData);
-// router.post('/update-kpi-renewable-energy-target-data', KpiRenewableEnergyTab.updateKpiRenewableEnergyTargetData);
-router.get('/get-renewable-energy-target', KpiRenewableEnergyTab.getRenewableenergyTargetData);
-router.get('/get-renewable-target-data', KpiRenewableEnergyTab.getRenewbleTargetData);
-router.post('/update-renewable-energy-target-data', KpiRenewableEnergyTab.updateRenewableEnergyTargetData);
+//KPI Time Performance: replaced by the authenticated /kpi/port-performance/* routes
+// router.get('/get-kpi-time-performance-data', KpiTimePerformanceTab.getKpiTimePerformanceData);
+// router.post('/submit-kpi-time-performance-data', KpiTimePerformanceTab.submitKpiTimePerformanceData);
+// router.get('/get-kpi-time-performance-list', KpiTimePerformanceTab.getKpiTimePerformanceList);
+// router.post('/update-kpi-time-performance-data', KpiTimePerformanceTab.updateKpiTimePerformanceData);
+// router.post('/submit-kpi-time-performance-target-data', KpiTimePerformanceTab.submitKpiTimePerformanceTargetData);
+// router.get('/get-kpi-time-performance-target-data', KpiTimePerformanceTab.getKpiTimePerformanceTargetData);
+// router.get('/get-major-ports', KpiTimePerformanceTab.getMajorPorts);
+// router.get('/get-kpi-types', KpiTimePerformanceTab.getKpiTypes);
+// router.get('/get-target-kpi-time-performance-list', KpiTimePerformanceTab.getTargetKpiTimePerformanceList);
 
 //KPI 12.1- 12.3
 router.get('/get-kpi-majorports-12-1-report', financialReportTab.getKPIMajorPorts_12_1);
