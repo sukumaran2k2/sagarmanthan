@@ -10,7 +10,7 @@ import { useCachedRequest } from '../../Traffic/usePagedList';
 import { RefreshBar } from '../../Traffic/components/ListToolbar';
 import { allMonthsFor, fiscalYearLabels, shortFiscalYear } from '../../Traffic/dashboard/dashboardConfig';
 import {
-  CardGrid, DashboardSelect, DashboardSidebar, KpiCard, MonthPicker, PanelHeading,
+  CardGrid, DASHBOARD_CONTENT_CLASS, DashboardSelect, DashboardSidebar, KpiCard, MonthPicker, PanelHeading,
 } from '../../Traffic/dashboard/DashboardParts';
 import { FINANCIAL_CARDS, FINANCIAL_DASHBOARD_PANELS } from './financialDashboardConfig';
 import FinancialDrillDown from './FinancialDrillDown';
@@ -78,11 +78,11 @@ export default function FinancialDashboard({ triggerNotification }) {
   const data = { summary: summary.value };
 
   return (
-    <div className="flex flex-col lg:flex-row bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm min-h-[70vh]">
+    <div className="flex flex-col lg:flex-row gap-3 lg:gap-0 min-h-[70vh]">
       <DashboardSidebar panels={FINANCIAL_DASHBOARD_PANELS} active={panel.id} onSelect={() => setDrillKpi(null)} />
 
-      <div className="flex-1 min-w-0 p-4 space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 bg-white dark:bg-slate-900 rounded-lg">
+      <div className={DASHBOARD_CONTENT_CLASS}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <DashboardSelect
             label="Organisation"
             value={isMinistryView ? organisationId : organisationOptions[0]?.value ?? ''}

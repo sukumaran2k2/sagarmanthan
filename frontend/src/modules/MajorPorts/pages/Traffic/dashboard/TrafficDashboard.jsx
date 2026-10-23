@@ -16,7 +16,8 @@ import {
   shortFiscalYear,
 } from './dashboardConfig';
 import {
-  CardGrid, DashboardSelect, DashboardSidebar, KpiCard, MonthPicker, PanelHeading,
+  CardGrid, DASHBOARD_CONTENT_CLASS, DashboardSelect, DashboardSidebar, KpiCard, MonthPicker, PanelHeading,
+  SectionDivider, SubSectionTitle,
 } from './DashboardParts';
 import { OverallKpiTable, TrafficKpiSummaryTable } from './DashboardTables';
 import KpiDrillDown from './KpiDrillDown';
@@ -123,11 +124,11 @@ export default function TrafficDashboard({ triggerNotification }) {
   const activeDrill = drills[drills.length - 1];
 
   return (
-    <div className="flex flex-col lg:flex-row bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm min-h-[70vh]">
+    <div className="flex flex-col lg:flex-row gap-3 lg:gap-0 min-h-[70vh]">
       <DashboardSidebar panels={DASHBOARD_PANELS} active={panel.id} onSelect={selectPanel} />
 
-      <div className="flex-1 min-w-0 p-4 space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 bg-white dark:bg-slate-900 rounded-lg">
+      <div className={DASHBOARD_CONTENT_CLASS}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           {panel.type !== 'summary' && (
             <DashboardSelect
               label="Organisation"
@@ -188,12 +189,7 @@ export default function TrafficDashboard({ triggerNotification }) {
             {panel.sections?.map((section, index) => (
               <div key={section.title || index}>
                 {section.title ? (
-                  <h4 className={section.small
-                    ? 'text-sm font-semibold text-[#0b2c52] dark:text-blue-200 mb-2.5'
-                    : 'text-xl font-bold text-[#151616] dark:text-slate-100 mt-5 mb-3'}
-                  >
-                    {section.title}
-                  </h4>
+                  section.small ? <SubSectionTitle title={section.title} /> : <SectionDivider title={section.title} />
                 ) : null}
                 <CardGrid>
                   {section.cards.map((cardConfig) => (

@@ -11,14 +11,8 @@ import {
   totalMetric,
 } from './dashboardConfig';
 
-// Same report look as the other modules' Reports pages
-const REPORT_THEME = {
-  themeClass: 'yp-pro-grid',
-  brandColor: '#4b2424',
-  brandColorHover: '#6b3535',
-  accentColor: '#f7f3f3',
-  oddRowColor: '#f8faf6',
-};
+import { DASHBOARD_TABLE_THEME as REPORT_THEME } from './drillConfig';
+
 const EYEBROW = 'KPI - Major Ports · Traffic';
 const DEFAULT_COL_DEF = { sortable: false, filter: false, resizable: true, minWidth: 100, cellClass: 'text-center', headerClass: 'text-center' };
 const LABEL_COL = { pinned: 'left', minWidth: 210, cellClass: 'font-bold', cellStyle: { justifyContent: 'flex-start', textAlign: 'left' } };
