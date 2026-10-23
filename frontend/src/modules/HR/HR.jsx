@@ -105,7 +105,7 @@ export default function HRDashboardView({ onGoHome, triggerNotification }) {
       { id: 'contractual-employment', label: 'Contractual Employment', icon: UserPlus },
       { id: 'training-details', label: 'Training Details', icon: BookOpen },
     ];
-    if (permissions.canUseInputForm) {
+    if (permissions.canUseInputForm || isOtherOrgActive) {
       list.push({
         id: 'input-form',
         label: isEditMode && currentTab === 'input-form' ? 'Update Form' : 'Input Form',
@@ -113,7 +113,7 @@ export default function HRDashboardView({ onGoHome, triggerNotification }) {
       });
     }
     return list;
-  }, [permissions.canUseInputForm, isEditMode, currentTab]);
+  }, [permissions.canUseInputForm, isOtherOrgActive, isEditMode, currentTab]);
 
   // Standard Tabs for Major Ports
   const majorPortTabs = useMemo(() => {
@@ -313,7 +313,7 @@ export default function HRDashboardView({ onGoHome, triggerNotification }) {
 
           <Route path="reports/*" element={<HrReports notify={notify} />} />
 
-          {permissions.canUseInputForm && (
+          {(permissions.canUseInputForm || isOtherOrgActive) && (
             <Route
               path="input-form/*"
               element={

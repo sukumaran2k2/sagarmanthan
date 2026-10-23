@@ -8,6 +8,7 @@ import {
   getSessionOrganisationName,
   getUiViewCode,
   isOrganisationUser,
+  isOtherOrganisationUser,
   isViewOnlyAdmin,
 } from '../../../utils/authSession';
 
@@ -51,6 +52,7 @@ export function canViewHrAdministration(identity = getHrIdentity()) {
 // Contractual and training data are entered by organisation users; the ministry only
 // sees the organisation-wise summaries.
 export function canUseHrInputForm(identity, crud) {
+  if (isOtherOrganisationUser()) return true;
   return identity.isOrgUser && (crud.create || crud.update);
 }
 
