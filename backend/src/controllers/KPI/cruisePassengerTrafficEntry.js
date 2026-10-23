@@ -17,6 +17,8 @@ import {
     validateOrganisation,
     buildPagination,
     parseListQuery,
+    logSource,
+    runLoggedWrite,
 } from "./kpiEntryCommon.js";
 
 /**
@@ -71,6 +73,15 @@ if (![...ACTUAL_COLUMNS, ...TARGET_COLUMNS].every((c) => SAFE_IDENTIFIER.test(c)
 
 // Older rows may hold "2025 - 2026"; every lookup compares the year without spaces
 const FY_SQL = (alias) => `REPLACE(${alias}.fiscal_year, ' ', '')`;
+
+const ACTUAL_LOG = logSource({
+    section: "CRUISE_PASSENGER_TRAFFIC", recordType: "ACTUAL", table: "tbl_traffic_vessel",
+    fiscalYearSql: FY_SQL("x"), monthSql: "x.month", columns: [...ACTUAL_COLUMNS, "handles_passenger_ferry"],
+});
+const TARGET_LOG = logSource({
+    section: "CRUISE_PASSENGER_TRAFFIC", recordType: "TARGET", table: "tbl_traffic_vessel_target",
+    fiscalYearSql: FY_SQL("x"), columns: TARGET_COLUMNS,
+});
 
 function requireOrganisation(req, res) {
     return requireOrganisationWriter(req, res, "Cruise and passenger traffic is entered by the port organisation. Ministry users can view it.");
@@ -318,31 +329,32 @@ async function createCruisePassengerActual(req, res) {
 
     try {
         const conn = await pool;
-        const request = conn.request();
-        request.input("organisationId", sql.Int, organisationId);
-        request.input("fiscalYear", sql.NVarChar(50), fiscalYear);
-        request.input("month", sql.Int, month);
-        request.input("handlesFerry", sql.Bit, handlesFerry);
-        request.input("userId", sql.Int, userId);
-        bindValues(request, ACTUAL_COLUMNS, values);
+        const result = await runLoggedWrite(conn, ACTUAL_LOG, { action: "CREATE", userId }, (request) => {
+            request.input("organisationId", sql.Int, organisationId);
+            request.input("fiscalYear", sql.NVarChar(50), fiscalYear);
+            request.input("month", sql.Int, month);
+            request.input("handlesFerry", sql.Bit, handlesFerry);
+            request.input("userId", sql.Int, userId);
+            bindValues(request, ACTUAL_COLUMNS, values);
 
-        // The check and insert run under one lock, so two saves can never create two records
-        const result = await request.query(`
-            IF EXISTS (
-                SELECT 1 FROM tbl_traffic_vessel v WITH (UPDLOCK, HOLDLOCK)
-                WHERE v.organisation_id = @organisationId
-                  AND ${FY_SQL("v")} = @fiscalYear
-                  AND v.month = @month
-            )
-                SELECT CAST(NULL AS INT) AS id;
-            ELSE
-                INSERT INTO tbl_traffic_vessel
-                    (fiscal_year, month, organisation_id, ${ACTUAL_COLUMNS.join(", ")},
-                     handles_passenger_ferry, created_by, created_date)
-                OUTPUT INSERTED.id AS id
-                VALUES (@fiscalYear, @month, @organisationId, ${ACTUAL_COLUMNS.map((c) => `@${c}`).join(", ")},
-                        @handlesFerry, @userId, GETDATE());
-        `);
+            // The check and insert run under one lock, so two saves can never create two records
+            return request.query(`
+                IF EXISTS (
+                    SELECT 1 FROM tbl_traffic_vessel v WITH (UPDLOCK, HOLDLOCK)
+                    WHERE v.organisation_id = @organisationId
+                      AND ${FY_SQL("v")} = @fiscalYear
+                      AND v.month = @month
+                )
+                    SELECT CAST(NULL AS INT) AS id;
+                ELSE
+                    INSERT INTO tbl_traffic_vessel
+                        (fiscal_year, month, organisation_id, ${ACTUAL_COLUMNS.join(", ")},
+                         handles_passenger_ferry, created_by, created_date)
+                    OUTPUT INSERTED.id AS id
+                    VALUES (@fiscalYear, @month, @organisationId, ${ACTUAL_COLUMNS.map((c) => `@${c}`).join(", ")},
+                            @handlesFerry, @userId, GETDATE());
+            `);
+        });
 
         const id = result.recordset[0]?.id;
         if (!id) {
@@ -368,19 +380,20 @@ async function updateCruisePassengerActual(req, res) {
 
     try {
         const conn = await pool;
-        const request = conn.request();
-        request.input("id", sql.Int, id);
-        request.input("organisationId", sql.Int, organisationId);
-        request.input("handlesFerry", sql.Bit, handlesFerry);
-        request.input("userId", sql.Int, userId);
-        bindValues(request, ACTUAL_COLUMNS, values);
-        const result = await request.query(`
-            UPDATE tbl_traffic_vessel
-            SET ${ACTUAL_COLUMNS.map((c) => `${c} = @${c}`).join(", ")},
-                handles_passenger_ferry = @handlesFerry,
-                updated_by = @userId, updated_date = GETDATE()
-            WHERE id = @id AND organisation_id = @organisationId
-        `);
+        const result = await runLoggedWrite(conn, ACTUAL_LOG, { action: "UPDATE", id, userId }, (request) => {
+            request.input("id", sql.Int, id);
+            request.input("organisationId", sql.Int, organisationId);
+            request.input("handlesFerry", sql.Bit, handlesFerry);
+            request.input("userId", sql.Int, userId);
+            bindValues(request, ACTUAL_COLUMNS, values);
+            return request.query(`
+                UPDATE tbl_traffic_vessel
+                SET ${ACTUAL_COLUMNS.map((c) => `${c} = @${c}`).join(", ")},
+                    handles_passenger_ferry = @handlesFerry,
+                    updated_by = @userId, updated_date = GETDATE()
+                WHERE id = @id AND organisation_id = @organisationId
+            `);
+        });
         if (!result.rowsAffected[0]) return sendError(res, 404, "This cruise and passenger traffic record no longer exists.");
         return res.status(200).json({ success: true, message: "Cruise and passenger traffic updated." });
     } catch (err) {
@@ -392,18 +405,21 @@ async function updateCruisePassengerActual(req, res) {
 async function deleteCruisePassengerActual(req, res) {
     const organisationId = requireOrganisation(req, res);
     if (!organisationId) return undefined;
+    const userId = resolveUserId(req);
+    if (!userId) return sendError(res, 401, "Your session has expired. Please sign in again.");
     const id = toPositiveIntOrNull(req.params.id);
     if (!id) return sendError(res, 400, "Invalid record.");
 
     try {
         const conn = await pool;
-        const request = conn.request();
-        request.input("id", sql.Int, id);
-        request.input("organisationId", sql.Int, organisationId);
-        const result = await request.query(`
-            DELETE FROM tbl_traffic_vessel
-            WHERE id = @id AND organisation_id = @organisationId
-        `);
+        const result = await runLoggedWrite(conn, ACTUAL_LOG, { action: "DELETE", id, userId }, (request) => {
+            request.input("id", sql.Int, id);
+            request.input("organisationId", sql.Int, organisationId);
+            return request.query(`
+                DELETE FROM tbl_traffic_vessel
+                WHERE id = @id AND organisation_id = @organisationId
+            `);
+        });
         if (!result.rowsAffected[0]) return sendError(res, 404, "This cruise and passenger traffic record no longer exists.");
         return res.status(200).json({ success: true, message: "Cruise and passenger traffic deleted." });
     } catch (error) {
@@ -490,23 +506,24 @@ async function createCruisePassengerTarget(req, res) {
         const organisation = await validateOrganisation(conn, organisationId);
         if (!organisation) return sendError(res, 400, "The selected organisation does not exist.");
 
-        const request = conn.request();
-        request.input("fiscalYear", sql.VarChar(50), fiscalYear);
-        request.input("organisationId", sql.Int, organisationId);
-        request.input("userId", sql.Int, userId);
-        bindValues(request, TARGET_COLUMNS, values);
-        const result = await request.query(`
-            IF EXISTS (
-                SELECT 1 FROM tbl_traffic_vessel_target t WITH (UPDLOCK, HOLDLOCK)
-                WHERE t.organisation_id = @organisationId AND ${FY_SQL("t")} = @fiscalYear
-            )
-                SELECT CAST(NULL AS INT) AS id;
-            ELSE
-                INSERT INTO tbl_traffic_vessel_target
-                    (fiscal_year, organisation_id, ${TARGET_COLUMNS.join(", ")}, created_by, created_date)
-                OUTPUT INSERTED.id AS id
-                VALUES (@fiscalYear, @organisationId, ${TARGET_COLUMNS.map((c) => `@${c}`).join(", ")}, @userId, GETDATE());
-        `);
+        const result = await runLoggedWrite(conn, TARGET_LOG, { action: "CREATE", userId }, (request) => {
+            request.input("fiscalYear", sql.VarChar(50), fiscalYear);
+            request.input("organisationId", sql.Int, organisationId);
+            request.input("userId", sql.Int, userId);
+            bindValues(request, TARGET_COLUMNS, values);
+            return request.query(`
+                IF EXISTS (
+                    SELECT 1 FROM tbl_traffic_vessel_target t WITH (UPDLOCK, HOLDLOCK)
+                    WHERE t.organisation_id = @organisationId AND ${FY_SQL("t")} = @fiscalYear
+                )
+                    SELECT CAST(NULL AS INT) AS id;
+                ELSE
+                    INSERT INTO tbl_traffic_vessel_target
+                        (fiscal_year, organisation_id, ${TARGET_COLUMNS.join(", ")}, created_by, created_date)
+                    OUTPUT INSERTED.id AS id
+                    VALUES (@fiscalYear, @organisationId, ${TARGET_COLUMNS.map((c) => `@${c}`).join(", ")}, @userId, GETDATE());
+            `);
+        });
 
         const id = result.recordset[0]?.id;
         if (!id) {
@@ -531,16 +548,17 @@ async function updateCruisePassengerTarget(req, res) {
 
     try {
         const conn = await pool;
-        const request = conn.request();
-        request.input("id", sql.Int, id);
-        request.input("userId", sql.Int, userId);
-        bindValues(request, TARGET_COLUMNS, values);
-        const result = await request.query(`
-            UPDATE tbl_traffic_vessel_target
-            SET ${TARGET_COLUMNS.map((c) => `${c} = @${c}`).join(", ")},
-                updated_by = @userId, updated_date = GETDATE()
-            WHERE id = @id
-        `);
+        const result = await runLoggedWrite(conn, TARGET_LOG, { action: "UPDATE", id, userId }, (request) => {
+            request.input("id", sql.Int, id);
+            request.input("userId", sql.Int, userId);
+            bindValues(request, TARGET_COLUMNS, values);
+            return request.query(`
+                UPDATE tbl_traffic_vessel_target
+                SET ${TARGET_COLUMNS.map((c) => `${c} = @${c}`).join(", ")},
+                    updated_by = @userId, updated_date = GETDATE()
+                WHERE id = @id
+            `);
+        });
         if (!result.rowsAffected[0]) return sendError(res, 404, "These targets no longer exist.");
         return res.status(200).json({ success: true, message: "Targets updated." });
     } catch (error) {
@@ -551,14 +569,17 @@ async function updateCruisePassengerTarget(req, res) {
 
 async function deleteCruisePassengerTarget(req, res) {
     if (!requireMinistryWriter(req, res, "Cruise and passenger traffic targets")) return undefined;
+    const userId = resolveUserId(req);
+    if (!userId) return sendError(res, 401, "Your session has expired. Please sign in again.");
     const id = toPositiveIntOrNull(req.params.id);
     if (!id) return sendError(res, 400, "Invalid target.");
 
     try {
         const conn = await pool;
-        const request = conn.request();
-        request.input("id", sql.Int, id);
-        const result = await request.query("DELETE FROM tbl_traffic_vessel_target WHERE id = @id");
+        const result = await runLoggedWrite(conn, TARGET_LOG, { action: "DELETE", id, userId }, (request) => {
+            request.input("id", sql.Int, id);
+            return request.query("DELETE FROM tbl_traffic_vessel_target WHERE id = @id");
+        });
         if (!result.rowsAffected[0]) return sendError(res, 404, "These targets no longer exist.");
         return res.status(200).json({ success: true, message: "Targets deleted." });
     } catch (error) {
