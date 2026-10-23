@@ -41,6 +41,34 @@ import { OVOD_TOASTS } from '../toastMessages';
 // Thrown when the API returns no rows, to fall through to the built-in sample hierarchy
 const FALLBACK_NOTICE = 'Using fallback hierarchical dataset';
 
+// Rolls up progress bottom-up: each parent = average of its direct children's progress
+function computeRollupProgress(tree) {
+  const childrenMap = new Map();
+  tree.forEach(node => {
+    if (node.parentId) {
+      if (!childrenMap.has(node.parentId)) childrenMap.set(node.parentId, []);
+      childrenMap.get(node.parentId).push(node.id);
+    }
+  });
+  const nodeMap = new Map(tree.map(n => [n.id, { ...n }]));
+
+  // Process from deepest level up to root so each level uses already-updated child values
+  const maxLevel = Math.max(...tree.map(n => n.level ?? 0));
+  for (let lvl = maxLevel - 1; lvl >= 0; lvl--) {
+    nodeMap.forEach(node => {
+      if ((node.level ?? 0) === lvl) {
+        const childIds = childrenMap.get(node.id) || [];
+        if (childIds.length > 0) {
+          const sum = childIds.reduce((acc, cid) => acc + (Number(nodeMap.get(cid)?.progress) || 0), 0);
+          node.progress = Math.round(sum / childIds.length);
+        }
+      }
+    });
+  }
+
+  return tree.map(n => nodeMap.get(n.id));
+}
+
 export default function InterventionList({ triggerNotification }) {
   const gridRef = useRef(null);
 
@@ -309,7 +337,7 @@ export default function InterventionList({ triggerNotification }) {
           tree.forEach(n => {
             n.hasChildren = parentIds.has(n.id);
           });
-          setRawData(tree);
+          setRawData(computeRollupProgress(tree));
           return;
         }
       }
@@ -321,7 +349,7 @@ export default function InterventionList({ triggerNotification }) {
       // The deliberate fallback (no rows returned) is not an error; a failed request is
       if (err.message !== FALLBACK_NOTICE) notify(COMMON_TOASTS.loadFailed('The intervention list'));
       // Full 5-Level Deepdown Hierarchy matching both user screenshots!
-      setRawData([
+      setRawData(computeRollupProgress([
         {
           id: 'a1-ncb1',
           parentId: null,
@@ -1172,7 +1200,7 @@ export default function InterventionList({ triggerNotification }) {
           fundReqGt5Yrs: 0,
           remarks: "Centralized maritime BI dashboards deployed."
         }
-      ]);
+      ]));
     } finally {
       if (!isStale()) setLoading(false);
     }
