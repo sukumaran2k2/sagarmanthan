@@ -479,7 +479,7 @@ export default function TrainingDataForm({ triggerNotification, onCancel }) {
         <div>
           <div className="flex items-center gap-2 pb-2.5 mb-4 border-b border-slate-200 dark:border-slate-800">
             <GraduationCap className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
-            <h4 className="text-xs font-black uppercase tracking-wider text-[#0f417a] dark:text-blue-400">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-[#0f417a] dark:text-blue-400">
               Training Program Information
             </h4>
           </div>
@@ -597,7 +597,7 @@ export default function TrainingDataForm({ triggerNotification, onCancel }) {
         <div>
           <div className="flex items-center gap-2 pb-2.5 mb-4 border-b border-slate-200 dark:border-slate-800">
             <Clock className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
-            <h4 className="text-xs font-black uppercase tracking-wider text-[#0f417a] dark:text-blue-400">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-[#0f417a] dark:text-blue-400">
               Schedule & Location Logistics
             </h4>
           </div>
@@ -735,10 +735,10 @@ export default function TrainingDataForm({ triggerNotification, onCancel }) {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2.5 border-b border-slate-200 dark:border-slate-800">
             <div className="flex items-center gap-2.5">
               <Users className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
-              <h4 className="text-xs font-black uppercase tracking-wider text-[#0f417a] dark:text-blue-400">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-[#0f417a] dark:text-blue-400">
                 Participant Nominations
               </h4>
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-[#0f417a] dark:bg-blue-900/40 dark:text-blue-300">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-[#0f417a] dark:bg-blue-900/40 dark:text-blue-300">
                 {participants.filter((p) => p.staffId).length} / {participants.length} Nominated
               </span>
             </div>
@@ -757,7 +757,7 @@ export default function TrainingDataForm({ triggerNotification, onCancel }) {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 text-[10px] font-black uppercase tracking-wider border-b border-slate-200 dark:border-slate-700">
+                  <tr className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 text-[10px] font-bold uppercase tracking-wider border-b border-slate-200 dark:border-slate-700">
                     <th className="py-3 px-3.5 w-12 text-center">#</th>
                     <th className="py-3 px-3.5 min-w-[220px]">Staff ID / Personnel No. <span className="text-red-500">*</span></th>
                     <th className="py-3 px-3.5 min-w-[180px]">Employee Name</th>

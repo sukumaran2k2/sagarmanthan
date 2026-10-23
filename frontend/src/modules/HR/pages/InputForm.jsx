@@ -91,7 +91,7 @@ export default function InputForm({ triggerNotification }) {
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in min-h-[500px]">
           <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
             <div>
-              <h3 className="text-sm font-black uppercase tracking-wider font-display">
+              <h3 className="text-sm font-bold uppercase tracking-wider font-display">
                 {currentTab === 'training-data' 
                   ? (isEditMode ? 'Update Training Data' : 'Training Details Input Form') 
                   : currentTab === 'non-port-monthly-upload'

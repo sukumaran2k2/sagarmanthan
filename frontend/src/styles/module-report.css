@@ -102,7 +102,7 @@
 .yp-pro-grid .ag-floating-bottom-row,
 .mopsw-pro-grid .ag-floating-bottom-row {
   background-color: var(--module-report-odd-row-bg) !important;
-  font-weight: 900 !important;
+  font-weight: 700 !important;
   border-top: 2px solid var(--module-report-border) !important;
 }
 

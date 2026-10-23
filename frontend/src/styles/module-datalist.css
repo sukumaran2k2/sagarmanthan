@@ -135,7 +135,7 @@
   font-family: var(--font-sans, 'Google Sans', sans-serif);
   padding: 0.625rem 1rem;
   font-size: var(--module-subtab-font-size);
-  font-weight: 900;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   border-bottom-width: 2px;

@@ -79,7 +79,7 @@
 
 .module-form-banner-title {
   font-size: var(--module-form-header-size);
-  font-weight: 900;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-family: var(--module-form-font-family);
@@ -99,7 +99,7 @@
 .module-form-section-heading {
   font-family: var(--module-form-font-family);
   font-size: var(--module-form-section-title-size);
-  font-weight: 900;
+  font-weight: 700;
   color: var(--module-form-section-title-color);
   text-transform: uppercase;
   letter-spacing: 0.05em;
