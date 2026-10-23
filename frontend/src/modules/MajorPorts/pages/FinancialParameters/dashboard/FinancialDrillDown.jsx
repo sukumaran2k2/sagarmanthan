@@ -1,13 +1,12 @@
 import { useCallback, useMemo } from 'react';
-import { ArrowLeft } from 'lucide-react';
 import ReportTable from '../../../../../components/ReportTable';
 import { fetchFinancialDashboardPart } from '../../../api';
 import { useNotifier, COMMON_TOASTS } from '../../../../../utils/notify';
 import { useCachedRequest } from '../../Traffic/usePagedList';
 import { RefreshBar } from '../../Traffic/components/ListToolbar';
 import { describePeriod } from '../../Traffic/dashboard/dashboardConfig';
-import { YoyLegend } from '../../Traffic/dashboard/KpiDrillDown';
-import { yoyCellStyle } from '../../Traffic/dashboard/drillConfig';
+import { DrillHeader, YoyLegend } from '../../Traffic/dashboard/KpiDrillDown';
+import { DASHBOARD_TABLE_THEME, yoyCellStyle } from '../../Traffic/dashboard/drillConfig';
 import { financialCard, splitFinancialDrillRows } from './financialDashboardConfig';
 
 const DEFAULT_COL_DEF = { sortable: true, filter: true, resizable: true, minWidth: 100, cellClass: 'text-center', headerClass: 'text-center' };
@@ -67,21 +66,9 @@ export default function FinancialDrillDown({ kpi, filters, labels, onBack, trigg
   }, [labels]);
 
   return (
-    <div className="module-card relative space-y-4 animate-fade-in overflow-hidden">
+    <div className="relative space-y-4 animate-fade-in">
       <RefreshBar active={refreshing && !loading} />
-      <div className="rounded-lg px-4 py-3 bg-gradient-to-tl from-[#a3d9e8] to-[#bbd0d3] dark:from-slate-800 dark:to-slate-700 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={onBack}
-          aria-label="Back"
-          className="p-1.5 rounded-lg text-[#0c3c6b] dark:text-slate-100 hover:bg-white/40 cursor-pointer"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </button>
-        <h2 className="flex-1 text-center text-xl md:text-[28px] font-extrabold text-[#0c3c6b] dark:text-slate-50">
-          Detail of KPI Financial Dashboard
-        </h2>
-      </div>
+      <DrillHeader title="Detail of KPI Financial Dashboard" onBack={onBack} />
 
       <YoyLegend />
 
@@ -99,11 +86,7 @@ export default function FinancialDrillDown({ kpi, filters, labels, onBack, trigg
           triggerNotification={triggerNotification}
           autoHeaderHeight
           reportExport
-          themeClass="yp-pro-grid"
-          brandColor="#4b2424"
-          brandColorHover="#6b3535"
-          accentColor="#f7f3f3"
-          oddRowColor="#f8faf6"
+          {...DASHBOARD_TABLE_THEME}
         />
       </div>
     </div>
