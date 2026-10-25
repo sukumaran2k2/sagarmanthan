@@ -1,13 +1,29 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   ArrowLeft, Calendar, DollarSign, Building2, Briefcase, 
   FileText, CheckCircle2, AlertTriangle, Layers, Users, 
   TrendingUp, Download, Eye, Image, Edit, Clock, Tag, Globe, Sparkles
 } from 'lucide-react';
-import { API_BASE } from '../api';
+import { downloadGmisDocument } from '../api';
 
 export default function GMISDetailView({ mou, onBack, onEdit }) {
+  const [downloadError, setDownloadError] = useState('');
   if (!mou) return null;
+
+  const handleDownload = async () => {
+    setDownloadError('');
+    try {
+      const res = await downloadGmisDocument(mou.document_uploader);
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = mou.document_uploader;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch {
+      setDownloadError('Could not download the document.');
+    }
+  };
 
   const getStatusBadge = (status) => {
     const s = String(status || '').toLowerCase();
@@ -291,15 +307,15 @@ export default function GMISDetailView({ mou, onBack, onEdit }) {
               <span>Signed MoU Document</span>
             </h3>
             <div className="flex items-center gap-3">
-              <a
-                href={`${API_BASE}/download-gmismou-pdf-document?filename=${mou.document_uploader}`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-xl border border-blue-200 transition shadow-xs dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800"
+              <button
+                type="button"
+                onClick={handleDownload}
+                className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-xl border border-blue-200 transition shadow-xs cursor-pointer dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800"
               >
                 <FileText className="h-4 w-4" />
                 <span>Download Signed MoU ({mou.document_uploader})</span>
-              </a>
+              </button>
+              {downloadError && <span className="text-xs font-semibold text-red-600">{downloadError}</span>}
             </div>
           </div>
         )}
