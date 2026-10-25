@@ -371,6 +371,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           title: 'Consultant Appointment',
           icon: UserPlus,
           items: [
+            m('CONSULTANT_APPOINTMENT', { label: 'Consultant Dashboard', icon: LayoutDashboard }),
             ...(canCreateConsultant ? [m('CONSULTANT_APPOINTMENT', { label: 'Consultant Input Form', icon: FileEdit })] : []),
             m('CONSULTANT_APPOINTMENT', { label: 'Consultant Data List', icon: ClipboardList }),
             m('CONSULTANT_APPOINTMENT', { label: 'Consultant Reports', icon: FilePieChart }),

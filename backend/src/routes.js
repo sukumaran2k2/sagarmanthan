@@ -63,6 +63,7 @@ import reviewItemsTab from "./controllers/Governance/reviewItems.js"
 import youngProfessionalsTab from "./controllers/HR/youngProfessionals.js";
 import candidateDocumentTab from "./controllers/HR/appointmentOrderUploader.js";
 import consultantAppointmentTab from "./controllers/HR/consultantAppointment.js";
+import consultantAppointmentDashboard from "./controllers/HR/consultantAppointmentDashboard.js";
 import candidateCaDocumentTab from "./controllers/HR/caAppointmentOrderUploader.js";
 import hrDepartmentTab from "./controllers/HR/hrDepartment.js";
 import hrPostTab from "./controllers/HR/hrPost.js";
@@ -1153,6 +1154,7 @@ router.get("/candidate-detail-document/:candidate_id", auth, requireModulePermis
 
 router.put("/relieve-young-professional", auth, requireModulePermission("YOUNG_PROFESSIONAL", "update"), youngProfessionalsTab.relieveYoungProfessional);
 //consultant appointment
+router.get("/consultant-appointment-dashboard", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentDashboard.getConsultantAppointmentDashboard);
 router.get("/consultant-appointment", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentTab.getConsultantAppointment);
 router.post("/consultant-appointment", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "create"), consultantAppointmentTab.createConsultantAppointment);
 router.put("/consultant-appointment", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "update"), consultantAppointmentTab.updateConsultantAppointment);
