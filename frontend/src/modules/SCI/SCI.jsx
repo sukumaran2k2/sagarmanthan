@@ -2,43 +2,31 @@ import { useState, useEffect } from 'react';
 import { Ship, Anchor, MapPin, Landmark, Wrench, Recycle, Users2, Building, Construction } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
-import VesselAvailabilityOwnShipsDataList from './pages/VesselAvailabilityOwnShips/DataList';
 import VesselAvailabilityOwnShipsInputForm from './pages/VesselAvailabilityOwnShips/InputForm';
+import { resolveSCIListView } from './views';
 import VesselAvailabilityOwnShipsReports from './pages/VesselAvailabilityOwnShips/Reports';
-import TimeVoyageBulkDataList from './pages/TimeVoyageBulk/DataList';
 import TimeVoyageBulkInputForm from './pages/TimeVoyageBulk/InputForm';
 import TimeVoyageBulkReports from './pages/TimeVoyageBulk/Reports';
-import TimeVoyageTankerDataList from './pages/TimeVoyageTanker/DataList';
 import TimeVoyageTankerInputForm from './pages/TimeVoyageTanker/InputForm';
 import TimeVoyageTankerReports from './pages/TimeVoyageTanker/Reports';
-import TimeVoyageOffshoreDataList from './pages/TimeVoyageOffshore/DataList';
 import TimeVoyageOffshoreInputForm from './pages/TimeVoyageOffshore/InputForm';
 import TimeVoyageOffshoreReports from './pages/TimeVoyageOffshore/Reports';
-import VesselAvailabilityLinerDataList from './pages/VesselAvailabilityLiner/DataList';
 import VesselAvailabilityLinerInputForm from './pages/VesselAvailabilityLiner/InputForm';
 import VesselAvailabilityLinerReports from './pages/VesselAvailabilityLiner/Reports';
-import VesselProcurementDataList from './pages/VesselProcurement/DataList';
 import VesselProcurementInputForm from './pages/VesselProcurement/InputForm';
 import VesselProcurementReports from './pages/VesselProcurement/Reports';
-import SecondhandVesselProcurementDataList from './pages/VesselProcurementSecondhand/DataList';
 import SecondhandVesselProcurementInputForm from './pages/VesselProcurementSecondhand/InputForm';
 import SecondhandVesselProcurementReports from './pages/VesselProcurementSecondhand/Reports';
-import ShipDryDockingDataList from './pages/ShipDryDocking/DataList';
 import ShipDryDockingInputForm from './pages/ShipDryDocking/InputForm';
 import ShipDryDockingReports from './pages/ShipDryDocking/Reports';
-import RepairAndMaintenanceDataList from './pages/RepairAndMaintenance/DataList';
 import RepairAndMaintenanceInputForm from './pages/RepairAndMaintenance/InputForm';
 import RepairAndMaintenanceReports from './pages/RepairAndMaintenance/Reports';
-import SaleAndRecyclingDataList from './pages/SaleAndRecycling/DataList';
 import SaleAndRecyclingInputForm from './pages/SaleAndRecycling/InputForm';
 import SaleAndRecyclingReports from './pages/SaleAndRecycling/Reports';
-import SaleAndGreenRecyclingDataList from './pages/SaleAndGreenRecycling/DataList';
 import SaleAndGreenRecyclingInputForm from './pages/SaleAndGreenRecycling/InputForm';
 import SaleAndGreenRecyclingReports from './pages/SaleAndGreenRecycling/Reports';
-import ManningOfOwnedShipsDataList from './pages/ManningOfOwnedShips/DataList';
 import ManningOfOwnedShipsInputForm from './pages/ManningOfOwnedShips/InputForm';
 import ManningOfOwnedShipsReports from './pages/ManningOfOwnedShips/Reports';
-import ShipManagementBusinessDataList from './pages/ShipManagementBusiness/DataList';
 import ShipManagementBusinessInputForm from './pages/ShipManagementBusiness/InputForm';
 import ShipManagementBusinessReports from './pages/ShipManagementBusiness/Reports';
 import { useSCIPermissions } from './hooks/useSCIPermissions';
@@ -105,6 +93,14 @@ export default function SCIView({ activeTab, triggerNotification }) {
   const [loading, setLoading] = useState(false);
   const [editData, setEditData] = useState(null);
 
+  // Server-side pagination + search, one entry per section
+  const LIST_LIMIT = 10;
+  const [listState, setListState] = useState({});
+  const [listPagination, setListPagination] = useState({});
+  const [listYears, setListYears] = useState({});
+  const setSectionPage = (page) => setListState((p) => ({ ...p, [activeSection]: { ...(p[activeSection] || { search: '' }), page } }));
+  const setSectionSearch = (search) => setListState((p) => ({ ...p, [activeSection]: { page: 1, search } }));
+
   // Keep the URL's ?section=&tab= query params in sync with the current view,
   // so refreshing, bookmarking, or using browser back/forward preserves the
   // exact section and tab the user was on.
@@ -137,92 +133,49 @@ export default function SCIView({ activeTab, triggerNotification }) {
   if (canView) tabs.push({ id: 'list', label: 'Data List' });
   if (canView) tabs.push({ id: 'report', label: 'Reports' });
 
+  const LIST_FETCHERS = {
+    vesselAvailOwnShips: fetchVesselAvailabilityOwnShips,
+    timeVoyageBulk: fetchTimeVoyageBulk,
+    timeVoyageTanker: fetchTimeVoyageTanker,
+    timeVoyageOffshore: fetchTimeVoyageOffshore,
+    vesselAvailLiner: fetchVesselAvailabilityLiner,
+    vesselProcurement: fetchVesselProcurement,
+    secondhandVesselProcurement: fetchSecondhandVesselProcurement,
+    shipDryDocking: fetchShipDryDocking,
+    repairAndMaintenance: fetchRepairAndMaintenance,
+    saleAndRecycling: fetchSaleAndRecycling,
+    saleAndGreenRecycling: fetchSaleAndGreenRecycling,
+    manningOwnedShips: fetchManningOfOwnedShips,
+    shipManagementBusiness: fetchShipManagementBusiness,
+  };
+
   const fetchData = () => {
-    if (activeSection === 'vesselAvailOwnShips') {
-      setLoading(true);
-      fetchVesselAvailabilityOwnShips(1)
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'timeVoyageBulk') {
-      setLoading(true);
-      fetchTimeVoyageBulk(1)
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'timeVoyageTanker') {
-      setLoading(true);
-      fetchTimeVoyageTanker(1)
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'timeVoyageOffshore') {
-      setLoading(true);
-      fetchTimeVoyageOffshore(1)
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'vesselAvailLiner') {
-      setLoading(true);
-      fetchVesselAvailabilityLiner(1)
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'vesselProcurement') {
-      setLoading(true);
-      fetchVesselProcurement(1)
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'secondhandVesselProcurement') {
-      setLoading(true);
-      fetchSecondhandVesselProcurement(1)
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'shipDryDocking') {
-      setLoading(true);
-      fetchShipDryDocking(1)
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'repairAndMaintenance') {
-      setLoading(true);
-      fetchRepairAndMaintenance(1)
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'saleAndRecycling') {
-      setLoading(true);
-      fetchSaleAndRecycling(1)
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'saleAndGreenRecycling') {
-      setLoading(true);
-      fetchSaleAndGreenRecycling(1)
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'manningOwnedShips') {
-      setLoading(true);
-      fetchManningOfOwnedShips(1)
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'shipManagementBusiness') {
-      setLoading(true);
-      fetchShipManagementBusiness(1)
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading data:', err))
-        .finally(() => setLoading(false));
+    const fetcher = LIST_FETCHERS[activeSection];
+    if (!fetcher) return;
+    const st = listState[activeSection] || { page: 1, search: '' };
+    setLoading(true);
+    fetcher(1, { page: st.page, limit: LIST_LIMIT, search: st.search })
+      .then((res) => {
+        setRowData(res.data?.data || []);
+        setListPagination((prev) => ({ ...prev, [activeSection]: res.data?.pagination || { total: 0, page: 1, limit: LIST_LIMIT, totalPages: 0 } }));
+      })
+      .catch((err) => console.error('Error loading data:', err))
+      .finally(() => setLoading(false));
+    if (!listYears[activeSection]) {
+      fetcher(1, { page: 1, limit: 100 })
+        .then((res) => {
+          const all = res.data?.data || [];
+          const yrs = [...new Set(all.map((r) => r.financial_year).filter(Boolean))].sort().reverse();
+          setListYears((prev) => ({ ...prev, [activeSection]: yrs }));
+        })
+        .catch(() => {});
     }
   };
 
     useEffect(() => {
     setEditData(null);
     fetchData();
-  }, [activeSection]);
+  }, [activeSection, listState[activeSection]?.page, listState[activeSection]?.search]);
 
   const handleEdit = (row) => {
     setEditData(row);
@@ -309,73 +262,81 @@ export default function SCIView({ activeTab, triggerNotification }) {
   }
 
   const renderSection = () => {
-    const commonListProps = { rowData, loading, onEdit: handleEdit, onDelete: handleDelete, canEdit, canRemove };
+    const commonListProps = {
+      rowData, loading, onEdit: handleEdit, onDelete: handleDelete, canEdit, canRemove,
+      pagination: listPagination[activeSection] || { total: 0, page: 1, limit: LIST_LIMIT, totalPages: 0 },
+      onPageChange: setSectionPage,
+      searchQuery: listState[activeSection]?.search || '',
+      onSearchChange: setSectionSearch,
+      years: listYears[activeSection] || [],
+    };
     const commonFormProps = { editData, onBack: () => { setEditData(null); setActiveSubTab('list'); }, onSuccess: handleSuccess, triggerNotification };
+    const ListView = resolveSCIListView(activeSection);
 
     if (activeSection === 'vesselAvailOwnShips') {
       if (activeSubTab === 'report') return <VesselAvailabilityOwnShipsReports />;
       if (activeSubTab === 'add') return <VesselAvailabilityOwnShipsInputForm {...commonFormProps} />;
-      return <VesselAvailabilityOwnShipsDataList {...commonListProps} />;
+      return <ListView {...commonListProps} />;
     }
     if (activeSection === 'timeVoyageBulk') {
       if (activeSubTab === 'report') return <TimeVoyageBulkReports />;
       if (activeSubTab === 'add') return <TimeVoyageBulkInputForm {...commonFormProps} />;
-      return <TimeVoyageBulkDataList {...commonListProps} />;
+      return <ListView {...commonListProps} />;
     }
     if (activeSection === 'timeVoyageTanker') {
       if (activeSubTab === 'report') return <TimeVoyageTankerReports />;
       if (activeSubTab === 'add') return <TimeVoyageTankerInputForm {...commonFormProps} />;
-      return <TimeVoyageTankerDataList {...commonListProps} />;
+      return <ListView {...commonListProps} />;
     }
     if (activeSection === 'timeVoyageOffshore') {
       if (activeSubTab === 'report') return <TimeVoyageOffshoreReports />;
       if (activeSubTab === 'add') return <TimeVoyageOffshoreInputForm {...commonFormProps} />;
-      return <TimeVoyageOffshoreDataList {...commonListProps} />;
+      return <ListView {...commonListProps} />;
     }
     if (activeSection === 'vesselAvailLiner') {
       if (activeSubTab === 'report') return <VesselAvailabilityLinerReports />;
       if (activeSubTab === 'add') return <VesselAvailabilityLinerInputForm {...commonFormProps} />;
-      return <VesselAvailabilityLinerDataList {...commonListProps} />;
+      return <ListView {...commonListProps} />;
     }
     if (activeSection === 'vesselProcurement') {
       if (activeSubTab === 'report') return <VesselProcurementReports />;
       if (activeSubTab === 'add') return <VesselProcurementInputForm {...commonFormProps} />;
-      return <VesselProcurementDataList {...commonListProps} />;
+      return <ListView {...commonListProps} />;
     }
     if (activeSection === 'secondhandVesselProcurement') {
       if (activeSubTab === 'report') return <SecondhandVesselProcurementReports />;
       if (activeSubTab === 'add') return <SecondhandVesselProcurementInputForm {...commonFormProps} />;
-      return <SecondhandVesselProcurementDataList {...commonListProps} />;
+      return <ListView {...commonListProps} />;
     }
     if (activeSection === 'shipDryDocking') {
       if (activeSubTab === 'report') return <ShipDryDockingReports />;
       if (activeSubTab === 'add') return <ShipDryDockingInputForm {...commonFormProps} />;
-      return <ShipDryDockingDataList {...commonListProps} />;
+      return <ListView {...commonListProps} />;
     }
     if (activeSection === 'repairAndMaintenance') {
       if (activeSubTab === 'report') return <RepairAndMaintenanceReports />;
       if (activeSubTab === 'add') return <RepairAndMaintenanceInputForm {...commonFormProps} />;
-      return <RepairAndMaintenanceDataList {...commonListProps} />;
+      return <ListView {...commonListProps} />;
     }
     if (activeSection === 'saleAndRecycling') {
       if (activeSubTab === 'report') return <SaleAndRecyclingReports />;
       if (activeSubTab === 'add') return <SaleAndRecyclingInputForm {...commonFormProps} />;
-      return <SaleAndRecyclingDataList {...commonListProps} />;
+      return <ListView {...commonListProps} />;
     }
     if (activeSection === 'saleAndGreenRecycling') {
       if (activeSubTab === 'report') return <SaleAndGreenRecyclingReports />;
       if (activeSubTab === 'add') return <SaleAndGreenRecyclingInputForm {...commonFormProps} />;
-      return <SaleAndGreenRecyclingDataList {...commonListProps} />;
+      return <ListView {...commonListProps} />;
     }
     if (activeSection === 'manningOwnedShips') {
       if (activeSubTab === 'report') return <ManningOfOwnedShipsReports />;
       if (activeSubTab === 'add') return <ManningOfOwnedShipsInputForm {...commonFormProps} />;
-      return <ManningOfOwnedShipsDataList {...commonListProps} />;
+      return <ListView {...commonListProps} />;
     }
     if (activeSection === 'shipManagementBusiness') {
       if (activeSubTab === 'report') return <ShipManagementBusinessReports />;
       if (activeSubTab === 'add') return <ShipManagementBusinessInputForm {...commonFormProps} />;
-      return <ShipManagementBusinessDataList {...commonListProps} />;
+      return <ListView {...commonListProps} />;
     }
     return null;
   };
