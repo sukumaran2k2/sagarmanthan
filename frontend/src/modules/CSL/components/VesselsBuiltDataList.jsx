@@ -1,15 +1,23 @@
-import { useState, useMemo, useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { Edit, Trash2 } from 'lucide-react';
 import Table from '../../../components/Table';
 import TablePagination from '../../../components/TablePagination';
 import DataListToolbar from '../../../components/DataListToolbar';
 import { exportDataListToPdf } from '../../../utils/exportReportPdf';
+import { COMMON_TOASTS } from '../../../utils/notify';
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
   no_of_vessels_built: 'Number Of Vessels Built',
   tonnage_of_vessels_built: 'Tonnage Of Vessels Built (GT)',
   value_of_vessels_built: 'Value Of Vessels Built (INR Cr.)',
+};
+
+const DEFAULT_VISIBLE_COLS = {
+  financial_year: true,
+  no_of_vessels_built: true,
+  tonnage_of_vessels_built: true,
+  value_of_vessels_built: true,
 };
 
 export default function VesselsBuiltDataList({
@@ -24,12 +32,17 @@ export default function VesselsBuiltDataList({
   searchQuery = '',
   onSearchChange,
   years = [],
+  financialYear = '',
+  onFinancialYearChange,
+  visibleCols: storedVisibleCols = null,
+  onVisibleColsChange,
+  notify,
 }) {
-  const [visibleCols, setVisibleCols] = useState({
-    financial_year: true,
-    no_of_vessels_built: true,
-    tonnage_of_vessels_built: true,
-    value_of_vessels_built: true,
+  // Column visibility is kept in the CSL store per section; null means "not changed yet"
+  const visibleCols = storedVisibleCols ?? DEFAULT_VISIBLE_COLS;
+  const setVisibleCols = (updater) => onVisibleColsChange?.((prev) => {
+    const current = prev ?? DEFAULT_VISIBLE_COLS;
+    return typeof updater === 'function' ? updater(current) : updater;
   });
   const gridRef = useRef(null);
 
@@ -41,9 +54,13 @@ export default function VesselsBuiltDataList({
         const line = [i + 1, ...Object.keys(visibleCols).filter((c) => visibleCols[c]).map((c) => row[c] ?? '')];
         tsv += line.join('\t') + '\n';
       });
-      navigator.clipboard.writeText(tsv);
+      navigator.clipboard.writeText(tsv).then(
+        () => notify?.(COMMON_TOASTS.copySuccess(rowData.length)),
+        () => notify?.(COMMON_TOASTS.copyFailed()),
+      );
     } else if (type === 'Excel') {
       gridRef.current?.api?.exportDataAsCsv({ fileName: 'csl_vessels_built' });
+      notify?.(COMMON_TOASTS.excelExported('csl_vessels_built.csv'));
     } else if (type === 'PDF') {
       exportDataListToPdf({
         title: 'CSL Vessels Built Data List',
@@ -52,6 +69,7 @@ export default function VesselsBuiltDataList({
         rowData: rowData,
         fileName: 'csl_vessels_built',
       });
+      notify?.(COMMON_TOASTS.downloadStarted('csl_vessels_built.pdf'));
     }
   };
 
@@ -91,14 +109,14 @@ export default function VesselsBuiltDataList({
   ], [canEdit, canRemove, onEdit, onDelete, visibleCols]);
 
   return (
-    <div className="space-y-6">
+    <div className="module-card space-y-4">
       <DataListToolbar
         leftContent={
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Financial Year</span>
             <select
-              value={searchQuery}
-              onChange={(e) => onSearchChange && onSearchChange(e.target.value)}
+              value={financialYear}
+              onChange={(e) => onFinancialYearChange && onFinancialYearChange(e.target.value)}
               className="text-xs px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
             >
               <option value="">Show All</option>
@@ -118,7 +136,7 @@ export default function VesselsBuiltDataList({
         columnLabels={COLUMN_LABELS}
       />
 
-      <div className="ag-theme-quartz rounded-xl border border-slate-200 dark:border-slate-700 shadow-md overflow-x-auto">
+      <div className="ag-theme-quartz module-datalist-grid rounded-xl border border-slate-200 dark:border-slate-700 shadow-md overflow-x-auto">
         <Table
           ref={gridRef}
           theme="legacy"
