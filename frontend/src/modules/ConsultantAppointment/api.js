@@ -55,6 +55,10 @@ api.interceptors.response.use(
   }
 );
 
+export function fetchConsultantAppointmentDashboard() {
+  return api.get('/consultant-appointment-dashboard');
+}
+
 export function fetchConsultantAppointments(params = {}) {
   return api.get('/consultant-appointment', { params });
 }

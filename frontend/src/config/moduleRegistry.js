@@ -260,11 +260,13 @@ export const MODULE_PAGES = {
 
   CONSULTANT_APPOINTMENT: {
     tabs: [
+      'Consultant Dashboard',
       'Consultant Input Form',
       'Consultant Data List',
       'Consultant Reports',
     ],
     uiTabs: [
+      'Consultant Dashboard',
       'Consultant Input Form',
       'Consultant Data List',
       'Consultant Reports',

@@ -174,6 +174,7 @@ export const ROUTE_MAP = {
 
   // Consultant routes
   'Consultant Appointment': 'hr/consultant-appointment/data-list',
+  'Consultant Dashboard': 'hr/consultant-appointment/dashboard',
   'Consultant Input Form': 'hr/consultant-appointment/input-form',
   'Consultant Data List': 'hr/consultant-appointment/data-list',
   'Consultant Reports': 'hr/consultant-appointment/reports',
@@ -218,6 +219,7 @@ export const getTabFromSlug = (slug) => {
   if (cleanSlug.startsWith('hr/hr-management/contractual-employment')) return 'Contractual Employment';
   if (cleanSlug.startsWith('hr/hr-management/training-details')) return 'Training Details';
   if (cleanSlug.startsWith('hr/young-professionals')) return 'YP Data List';
+  if (cleanSlug.startsWith('hr/consultant-appointment/dashboard')) return 'Consultant Dashboard';
   if (cleanSlug.startsWith('hr/consultant-appointment')) return 'Consultant Data List';
   if (cleanSlug.startsWith('strategies/gmis-mou')) return 'GMIS & IMW MoUs';
   if (cleanSlug.startsWith('strategies/miv-2030')) return 'MIV 2030';
@@ -324,6 +326,7 @@ const getBreadcrumbs = (tab) => {
     'Input Form': ['HR & Institutional', 'Young Professionals'],
     'Report': ['HR & Institutional', 'Young Professionals'],
     'Consultant Appointment': ['HR & Institutional', 'Consultant Appointment'],
+    'Consultant Dashboard': ['HR & Institutional', 'Consultant Appointment'],
     'Consultant Input Form': ['HR & Institutional', 'Consultant Appointment'],
     'Consultant Data List': ['HR & Institutional', 'Consultant Appointment'],
     'Consultant Reports': ['HR & Institutional', 'Consultant Appointment'],
