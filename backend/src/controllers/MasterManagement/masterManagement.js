@@ -157,26 +157,18 @@ async function createMmt(req, res) {
         case "mmt_ministry":
             query = "INSERT into mmt_ministry (ministry_name) values (@name)";
             break;
-        case "mmt_organisation":
-            organisationName = req.body.organisationName;
-            organisationCode = req.body.organisationCode;
-            organisationCategory = req.body.organisationCategory;
-            stateId = req.body.state;
-            district = req.body.district;
-            wingId = req.body.wing;
-            divisionCode = req.body.division;
+       case "mmt_organisation":
+        organisationName = req.body.organisationName;
+        organisationCode = req.body.organisationCode;
+        organisationCategory = req.body.organisationCategory;
 
-            request.input("organisationName", organisationName);
-            request.input("organisationCode", organisationCode);
-            request.input("organisationCategory", organisationCategory);
-            request.input("stateId", stateId);
-            request.input("district", district);
-            request.input("wingId", wingId);
-            request.input("divisionCode", divisionCode);
+        request.input("organisationName", organisationName);
+        request.input("organisationCode", organisationCode);
+        request.input("organisationCategory", organisationCategory);
 
             query = `
-                    INSERT INTO mmt_organisation (organisation_name, organisation_code, organisation_category_id, state_id, district_id, wing_id, division_id)
-                    VALUES (@organisationName, @organisationCode, @organisationCategory, @stateId, @district, @wingId, @divisionCode);
+                    INSERT INTO mmt_organisation (organisation_name, organisation_code, organisation_category_id)
+                    VALUES (@organisationName, @organisationCode, @organisationCategory);
                 `;
             break;
 

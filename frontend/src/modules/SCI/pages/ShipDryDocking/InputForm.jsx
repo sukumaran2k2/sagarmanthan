@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Save } from 'lucide-react';
 import { createShipDryDocking, updateShipDryDocking } from '../../api';
 import { getCurrentUserId } from '../../../../utils/authSession';
+import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../../utils/notify';
+import { SCI_TOASTS } from '../../toastMessages';
 
 const FINANCIAL_YEAR_OPTIONS = Array.from({ length: 15 }, (_, i) => {
   const start = 2014 + i;
@@ -14,6 +16,7 @@ export default function ShipDryDockingInputForm({
   onSuccess,
   triggerNotification,
 }) {
+  const notify = useNotifier(triggerNotification);
   const isEdit = !!editData;
   const [submitting, setSubmitting] = useState(false);
 
@@ -36,12 +39,12 @@ export default function ShipDryDockingInputForm({
     setTouched(Object.fromEntries(FIELDS.map(([key]) => [key, true])));
 
     if (FIELDS.some(([, val]) => val === '' || val === null || val === undefined)) {
-      triggerNotification ? triggerNotification('Please fill in all required fields highlighted in red.', 'error') : alert('Please fill in all required fields highlighted in red.');
+      notify(COMMON_TOASTS.mandatoryFieldsMissing());
       return;
     }
     const numericValues = [dryDockingscheduled, dryDockingscompleted].map(Number);
     if (numericValues.some((n) => isNaN(n) || n < 0)) {
-      triggerNotification ? triggerNotification('Please enter valid, non-negative values.', 'error') : alert('Please enter valid, non-negative values.');
+      notify(SCI_TOASTS.invalidValues());
       return;
     }
 
@@ -55,7 +58,7 @@ export default function ShipDryDockingInputForm({
           SciDrydockIdOrg: editData.sci_ship_dry_docking_id,
           userID: getCurrentUserId(),
         });
-        triggerNotification && triggerNotification('Ship Dry-Docking entry updated successfully', 'success');
+        notify(SCI_TOASTS.updated('Ship Dry-Docking'));
       } else {
         const response = await createShipDryDocking({
           financialYear,
@@ -64,35 +67,33 @@ export default function ShipDryDockingInputForm({
           userID: getCurrentUserId(),
         });
         if (response.status === 205) {
-          triggerNotification
-            ? triggerNotification('Data already exists for the selected financial year.', 'error')
-            : alert('Data already exists for the selected financial year.');
+          notify(SCI_TOASTS.duplicate());
           setSubmitting(false);
           return;
         }
-        triggerNotification && triggerNotification('Ship Dry-Docking entry added successfully', 'success');
+        notify(SCI_TOASTS.added('Ship Dry-Docking'));
       }
       if (onSuccess) onSuccess();
     } catch (err) {
       console.error('Error saving entry:', err);
-      triggerNotification ? triggerNotification('Failed to save entry.', 'error') : alert('Failed to save entry.');
+      notify(SCI_TOASTS.saveFailed(isEdit, getErrorMessage(err)));
     } finally {
       setSubmitting(false);
     }
   };
 
   const inputCls = (invalid) =>
-    `w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${invalid ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-800 dark:text-slate-100`;
-  const labelCls = 'block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider';
+    `module-form-input${invalid ? ' !border-red-500' : ''}`;
+  const labelCls = 'module-form-label';
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in">
-      <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
+    <div className="module-form-card overflow-hidden animate-fade-in">
+      <div className="module-form-banner">
         <div>
-          <h3 className="text-sm font-black uppercase tracking-wider">
+          <h3 className="module-form-banner-title">
             {isEdit ? 'Update Entry' : 'Add Entry'}
           </h3>
-          <p className="text-[10px] text-blue-200 font-semibold tracking-wide mt-0.5">SCI - Ship Dry-Docking (Own Ships)</p>
+          <p className="module-form-banner-subtext">SCI - Ship Dry-Docking (Own Ships)</p>
         </div>
       </div>
 
@@ -127,7 +128,9 @@ export default function ShipDryDockingInputForm({
         </div>
 
         <div className="flex items-center justify-between space-x-3 pt-5 border-t border-slate-200 dark:border-slate-700">
-          <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">Fields marked with <span className="text-red-500">*</span> are mandatory.</p>
+          <span className="text-xs text-rose-500 font-bold italic">
+            * Asterisks marked with red are mandatory fields
+          </span>
           <div className="flex items-center space-x-3">
           {onBack && (
             <button type="button" onClick={onBack} className="px-4.5 py-2.5 border border-slate-250 dark:border-slate-700 text-slate-655 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer">

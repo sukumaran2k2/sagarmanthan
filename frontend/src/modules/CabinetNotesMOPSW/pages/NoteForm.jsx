@@ -16,14 +16,14 @@ import {
   uploadNoteDocuments,
 } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
+import { COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { CABINET_NOTES_TOASTS } from '../toastMessages';
 
 const EMPTY_FORM = emptyForm();
 
-const labelClass =
-  'block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider';
-const inputClass =
-  'w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-250 dark:border-slate-800 rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200 disabled:opacity-60 disabled:cursor-not-allowed';
-const selectClass = `${inputClass} cursor-pointer dark:[color-scheme:dark]`;
+const labelClass = 'module-form-label';
+const inputClass = 'module-form-input disabled:opacity-60 disabled:cursor-not-allowed';
+const selectClass = 'module-form-select cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed dark:[color-scheme:dark]';
 const sectionCardClass =
   'rounded-2xl border border-slate-200 bg-slate-50/50 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/40';
 
@@ -37,29 +37,25 @@ export default function NoteForm({
   notify,
 }) {
   const isEdit = !!initialForm?.mopswCabinetID;
-  const [form, setForm] = useState(EMPTY_FORM);
+  // The shell keys the form per note, so it starts from that note (or empty) on every open
+  const [form, setForm] = useState(() => (initialForm ? { ...EMPTY_FORM, ...initialForm } : { ...EMPTY_FORM }));
   const [submitting, setSubmitting] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState([]);
+  const noteId = initialForm?.mopswCabinetID;
   const [noteDocs, setNoteDocs] = useState([]);
-  const [loadingDocs, setLoadingDocs] = useState(false);
+  const [loadingDocs, setLoadingDocs] = useState(!!noteId);
   const fileInputRef = useRef(null);
 
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
 
+  // Documents already uploaded for the note being edited
   useEffect(() => {
-    setForm(initialForm ? { ...EMPTY_FORM, ...initialForm } : { ...EMPTY_FORM });
-    setSelectedFiles([]);
-
-    if (initialForm?.mopswCabinetID) {
-      setLoadingDocs(true);
-      fetchNoteDocuments(initialForm.mopswCabinetID)
-        .then((res) => setNoteDocs(Array.isArray(res.data) ? res.data : []))
-        .catch(() => setNoteDocs([]))
-        .finally(() => setLoadingDocs(false));
-    } else {
-      setNoteDocs([]);
-    }
-  }, [initialForm]);
+    if (!noteId) return;
+    fetchNoteDocuments(noteId)
+      .then((res) => setNoteDocs(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setNoteDocs([]))
+      .finally(() => setLoadingDocs(false));
+  }, [noteId]);
 
   const setField = (key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -114,13 +110,13 @@ export default function NoteForm({
     const valid = [];
     for (const file of files) {
       if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-        notify?.('Invalid file type. Only PDF files are allowed.', 'error');
+        notify?.(COMMON_TOASTS.invalidFileType('PDF'));
         e.target.value = '';
         setSelectedFiles([]);
         return;
       }
       if (file.size > 10 * 1024 * 1024) {
-        notify?.('File size exceeds 10 MB. Please choose a smaller file.', 'error');
+        notify?.(COMMON_TOASTS.fileTooLarge(10));
         e.target.value = '';
         setSelectedFiles([]);
         return;
@@ -135,11 +131,11 @@ export default function NoteForm({
     if (readOnly) return;
 
     if (!form.subject?.trim() || !form.wing || !form.division) {
-      notify?.('Please fill subject, wing, and division.', 'error');
+      notify?.(CABINET_NOTES_TOASTS.missingRequired());
       return;
     }
     if (wordCount > 250) {
-      notify?.('Remarks cannot exceed 250 words.', 'error');
+      notify?.(CABINET_NOTES_TOASTS.remarksTooLong());
       return;
     }
 
@@ -162,14 +158,11 @@ export default function NoteForm({
         await uploadNoteDocuments(fd);
       }
 
-      notify?.(
-        isEdit ? 'Cabinet note updated successfully.' : 'Cabinet note created successfully.',
-        'success'
-      );
+      notify?.(isEdit ? CABINET_NOTES_TOASTS.updated() : CABINET_NOTES_TOASTS.created());
       onSuccess?.();
     } catch (err) {
       console.error(err);
-      notify?.(err?.response?.data?.message || 'Failed to save cabinet note.', 'error');
+      notify?.(CABINET_NOTES_TOASTS.saveFailed(isEdit, getErrorMessage(err)));
     } finally {
       setSubmitting(false);
     }
@@ -182,13 +175,13 @@ export default function NoteForm({
       : 'Add Cabinet Notes-MoPSW';
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in">
-      <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
+    <div className="module-form-card overflow-hidden animate-fade-in">
+      <div className="module-form-banner">
         <div>
-          <h3 className="text-sm font-black uppercase tracking-wider font-display">
+          <h3 className="module-form-banner-title">
             {formTitle}
           </h3>
-          <p className="text-[10px] text-[#eadede] font-semibold tracking-wide mt-0.5">
+          <p className="module-form-banner-subtext">
             Ministry of Ports, Shipping and Waterways
           </p>
         </div>
@@ -197,7 +190,7 @@ export default function NoteForm({
       <form onSubmit={handleSubmit} className="p-6 space-y-6">
         <div className="grid grid-cols-1 xl:grid-cols-[minmax(340px,0.95fr)_minmax(0,1.45fr)] gap-6 items-start">
           <div className={sectionCardClass}>
-            <h3 className="text-[13px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-wide border-b border-slate-200 dark:border-slate-800 pb-2 mb-4">
+            <h3 className="module-form-section-title border-b border-slate-200 dark:border-slate-800 pb-2 mb-4">
               Note Information
             </h3>
 
@@ -324,7 +317,7 @@ export default function NoteForm({
                               downloadNoteDocument(
                                 form.mopswCabinetID,
                                 doc.cabinet_notes_mopsw_document
-                              ).catch(() => notify?.('Download failed.', 'error'))
+                              ).catch(() => notify?.(CABINET_NOTES_TOASTS.downloadFailed()))
                             }
                             className="inline-flex items-center gap-1 font-bold text-[#0f417a] dark:text-blue-400 hover:underline cursor-pointer bg-transparent border-0 p-0 text-left"
                           >
@@ -346,7 +339,7 @@ export default function NoteForm({
           </div>
 
           <div className={sectionCardClass}>
-            <h3 className="text-[13px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-wide border-b border-slate-200 dark:border-slate-800 pb-2 mb-4">
+            <h3 className="module-form-section-title border-b border-slate-200 dark:border-slate-800 pb-2 mb-4">
               Stages Checklist & Dates
             </h3>
             <div className="space-y-3">
@@ -387,7 +380,11 @@ export default function NoteForm({
           )}
         </div>
 
-        <div className="flex items-center justify-end space-x-3 pt-5 border-t border-slate-100 dark:border-slate-800">
+        <div className="flex items-center justify-between space-x-3 pt-5 border-t border-slate-100 dark:border-slate-800">
+          <span className="text-xs text-rose-500 font-bold italic">
+            * Asterisks marked with red are mandatory fields
+          </span>
+          <div className="flex items-center space-x-3">
           <button
             type="button"
             onClick={onBack}
@@ -412,6 +409,7 @@ export default function NoteForm({
                   : 'Save Cabinet Note'}
             </button>
           )}
+          </div>
         </div>
       </form>
     </div>

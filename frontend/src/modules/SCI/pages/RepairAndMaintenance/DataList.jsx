@@ -1,14 +1,24 @@
-import { useState, useMemo, useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { Edit, Trash2 } from 'lucide-react';
 import Table from '../../../../components/Table';
+import TablePagination from '../../../../components/TablePagination';
 import DataListToolbar from '../../../../components/DataListToolbar';
 import { exportDataListToPdf } from '../../../../utils/exportReportPdf';
+import { exportDataListToCsv } from '../../../../utils/exportDataListCsv';
+import { COMMON_TOASTS } from '../../../../utils/notify';
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
   total_repair_and_maintanace_cost: 'Total Repair & Maintenance Costs (Rs. Lakhs)',
   total_operational_revenue: 'Total Operational Revenue (Rs. Lakhs)',
   percentage_repair_and_maintanace_cost: 'Repair & Maintenance Costs (%)',
+};
+
+const DEFAULT_VISIBLE_COLS = {
+  financial_year: true,
+  total_repair_and_maintanace_cost: true,
+  total_operational_revenue: true,
+  percentage_repair_and_maintanace_cost: true,
 };
 
 export default function RepairAndMaintenanceDataList({
@@ -18,17 +28,42 @@ export default function RepairAndMaintenanceDataList({
   onDelete,
   canEdit = true,
   canRemove = false,
+  financialYear = '',
+  onFinancialYearChange,
+  searchQuery = '',
+  onSearchChange,
+  currentPage = 1,
+  onPageChange,
+  pageSize = 10,
+  onPageSizeChange,
+  visibleCols: storedVisibleCols = null,
+  onVisibleColsChange,
+  notify,
 }) {
-  const [yearFilter, setYearFilter] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [pageSize, setPageSize] = useState(10);
-  const [visibleCols, setVisibleCols] = useState({
-    financial_year: true,
-    total_repair_and_maintanace_cost: true,
-    total_operational_revenue: true,
-    percentage_repair_and_maintanace_cost: true,
+  // List state is kept in the SCI store per section; null columns means "not changed yet"
+  const visibleCols = storedVisibleCols ?? DEFAULT_VISIBLE_COLS;
+  const setVisibleCols = (updater) => onVisibleColsChange?.((prev) => {
+    const current = prev ?? DEFAULT_VISIBLE_COLS;
+    return typeof updater === 'function' ? updater(current) : updater;
   });
   const gridRef = useRef(null);
+
+  const years = useMemo(
+    () => [...new Set(rowData.map((r) => r.financial_year))].sort().reverse(),
+    [rowData]
+  );
+
+  const filteredData = useMemo(() => {
+    let data = financialYear ? rowData.filter((r) => r.financial_year === financialYear) : rowData;
+    if (!searchQuery.trim()) return data;
+    const q = searchQuery.toLowerCase();
+    return data.filter((r) => (r.financial_year || '').toLowerCase().includes(q));
+  }, [rowData, financialYear, searchQuery]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize));
+  // A stored page can be past the end once the data or filters change
+  const page = Math.min(currentPage, totalPages);
+  const pageRows = useMemo(() => filteredData.slice((page - 1) * pageSize, page * pageSize), [filteredData, page, pageSize]);
 
   const handleExport = (type) => {
     if (type === 'Copy') {
@@ -38,9 +73,14 @@ export default function RepairAndMaintenanceDataList({
         const line = [i + 1, ...cols.map((c) => row[c] ?? '')];
         tsv += line.join('\t') + '\n';
       });
-      navigator.clipboard.writeText(tsv);
+      navigator.clipboard.writeText(tsv).then(
+        () => notify?.(COMMON_TOASTS.copySuccess(filteredData.length)),
+        () => notify?.(COMMON_TOASTS.copyFailed()),
+      );
     } else if (type === 'Excel') {
-      gridRef.current?.api?.exportDataAsCsv({ fileName: 'sci_repair_and_maintenance' });
+      // Every filtered row, not just the page on show
+      exportDataListToCsv({ columnLabels: COLUMN_LABELS, visibleCols, rowData: filteredData, fileName: 'sci_repair_and_maintenance' });
+      notify?.(COMMON_TOASTS.excelExported('sci_repair_and_maintenance.csv'));
     } else if (type === 'PDF') {
       exportDataListToPdf({
         title: 'SCI Repair & Maintenance Data List',
@@ -49,23 +89,12 @@ export default function RepairAndMaintenanceDataList({
         rowData: filteredData,
         fileName: 'sci_repair_and_maintenance',
       });
+      notify?.(COMMON_TOASTS.downloadStarted('sci_repair_and_maintenance.pdf'));
     }
   };
 
-  const years = useMemo(
-    () => [...new Set(rowData.map((r) => r.financial_year))].sort().reverse(),
-    [rowData]
-  );
-
-  const filteredData = useMemo(() => {
-    let data = yearFilter ? rowData.filter((r) => r.financial_year === yearFilter) : rowData;
-    if (!searchQuery.trim()) return data;
-    const q = searchQuery.toLowerCase();
-    return data.filter((r) => (r.financial_year || '').toLowerCase().includes(q));
-  }, [rowData, yearFilter, searchQuery]);
-
   const colDefs = useMemo(() => [
-    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, width: 70, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
+    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1 + (page - 1) * pageSize, width: 70, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
     ...(visibleCols.financial_year ? [{ headerName: 'Financial Year', field: 'financial_year', flex: 1, minWidth: 140, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
     ...(visibleCols.total_repair_and_maintanace_cost ? [{ headerName: 'Total Repair & Maintenance Costs (Rs. Lakhs)', field: 'total_repair_and_maintanace_cost', flex: 1.4, minWidth: 250, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
     ...(visibleCols.total_operational_revenue ? [{ headerName: 'Total Operational Revenue (Rs. Lakhs)', field: 'total_operational_revenue', flex: 1.3, minWidth: 220, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
@@ -79,7 +108,7 @@ export default function RepairAndMaintenanceDataList({
           {canEdit && (
             <button
               onClick={() => onEdit && onEdit(params.data)}
-              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-[#0f417a] dark:text-blue-400 rounded-lg transition cursor-pointer"
+              className="p-1.5 hover:bg-amber-50 dark:hover:bg-slate-800 text-amber-600 dark:text-amber-400 rounded-lg transition cursor-pointer"
               title="Update Entry"
             >
               <Edit className="h-4 w-4" />
@@ -97,17 +126,17 @@ export default function RepairAndMaintenanceDataList({
         </>
       )
     }] : []),
-  ], [canEdit, canRemove, onEdit, onDelete, visibleCols]);
+  ], [canEdit, canRemove, onEdit, onDelete, visibleCols, page, pageSize]);
 
   return (
-    <div className="space-y-6">
+    <div className="module-card space-y-4">
       <DataListToolbar
         leftContent={
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Financial Year</span>
             <select
-              value={yearFilter}
-              onChange={(e) => setYearFilter(e.target.value)}
+              value={financialYear}
+              onChange={(e) => onFinancialYearChange?.(e.target.value)}
               className="text-xs px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
             >
               <option value="">Show All</option>
@@ -116,10 +145,10 @@ export default function RepairAndMaintenanceDataList({
           </div>
         }
         searchTerm={searchQuery}
-        onSearchChange={setSearchQuery}
+        onSearchChange={onSearchChange}
         searchPlaceholder="Search"
         pageSize={pageSize}
-        onPageSizeChange={setPageSize}
+        onPageSizeChange={onPageSizeChange}
         totalRows={loading ? '...' : filteredData.length}
         onCopy={() => handleExport('Copy')}
         onExportExcel={() => handleExport('Excel')}
@@ -129,18 +158,30 @@ export default function RepairAndMaintenanceDataList({
         columnLabels={COLUMN_LABELS}
       />
 
-      <Table
-        ref={gridRef}
-        rowData={filteredData}
-        columnDefs={colDefs}
-        loading={loading}
-        pagination={true}
-        paginationPageSize={pageSize}
-        domLayout="autoHeight"
-        rowHeight={50}
-        headerHeight={42}
-        color="#0f417a"
-      />
+      <div className="module-datalist-grid">
+        <Table
+          ref={gridRef}
+          rowData={pageRows}
+          columnDefs={colDefs}
+          loading={loading}
+          pagination={false}
+          domLayout="autoHeight"
+          rowHeight={50}
+          headerHeight={42}
+          color="#0f417a"
+        />
+      </div>
+
+      {totalPages > 1 && (
+        <TablePagination
+          currentPage={page - 1}
+          totalPages={totalPages}
+          totalRows={filteredData.length}
+          pageSize={pageSize}
+          onPageChange={(pageIndex) => onPageChange?.(pageIndex + 1)}
+          color="#0f417a"
+        />
+      )}
     </div>
   );
 }

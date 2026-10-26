@@ -1,4 +1,3 @@
-import React from 'react';
 import { Copy } from 'lucide-react';
 
 export default function CopyButton({
@@ -51,11 +50,10 @@ export default function CopyButton({
     }
 
     const rowList = (data && data.length > 0) ? data : rows;
+    // Nothing to copy: say so instead of reporting a successful copy.
     if (!rowList || rowList.length === 0) {
-      if (typeof onSuccess === 'function') {
-        onSuccess();
-      } else if (typeof triggerNotification === 'function') {
-        triggerNotification('Table copied to clipboard!', 'success');
+      if (typeof triggerNotification === 'function') {
+        triggerNotification('No data to copy.', 'warning');
       }
       return;
     }

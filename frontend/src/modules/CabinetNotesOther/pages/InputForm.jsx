@@ -483,18 +483,12 @@ export default function InputForm({
         await createCabinetMinistry(payload);
       }
       if (triggerNotification) {
-        triggerNotification(
-          isEdit ? "Cabinet Note updated successfully." : "Cabinet Note created successfully.",
-          "success"
-        );
+        triggerNotification(isEdit ? "Cabinet Note updated successfully." : "Cabinet Note created successfully.");
       }
       onSuccess();
     } catch (err) {
       console.error("Save error details:", err.response?.data || err.message || err);
-      const errorMsg = err.response?.data?.error || "Failed to save Cabinet Note. Please try again.";
-      if (triggerNotification) {
-        triggerNotification(errorMsg, "error");
-      }
+      alert(err.response?.data?.error || "Failed to save Cabinet Note. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -685,7 +679,7 @@ export default function InputForm({
                       </div>
                     </div>
 
-                    {/* Stage-specific optional remark field */}
+                    {/* Stage-specific optional remark field matching CabinetNotesMOPSW */}
                     {!isStageDisabled && !!currentStage.date && (
                       <div className="border-t border-slate-100 dark:border-slate-800 pt-2">
                         <input
@@ -821,19 +815,24 @@ export default function InputForm({
         </div>
 
         {/* Submit Bar matching CabinetNotesMOPSW */}
-        <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800 flex justify-end space-x-3">
+        <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <span className="text-xs text-rose-500 font-bold italic">
+            * Asterisks marked with red are mandatory fields
+          </span>
           {!readOnly && (
-            <button
-              type="submit"
-              disabled={submitting || !isFormValid || (isEdit && !isDirty)}
-              className={`flex items-center space-x-2 text-xs transition px-5 py-2.5 rounded-xl font-bold tracking-wider uppercase ${(submitting || !isFormValid || (isEdit && !isDirty))
-                  ? 'bg-slate-300 dark:bg-slate-800 text-slate-500 dark:text-slate-500 cursor-not-allowed border border-slate-200 dark:border-slate-700'
-                  : 'bg-[#0f417a] text-white hover:bg-blue-800 cursor-pointer'
-                }`}
-            >
-              <Save className="h-4 w-4" />
-              <span>{isEdit ? "Update Note" : "Save Cabinet Note"}</span>
-            </button>
+            <div className="flex items-center space-x-3">
+              <button
+                type="submit"
+                disabled={submitting || !isFormValid || (isEdit && !isDirty)}
+                className={`flex items-center space-x-2 text-xs transition px-5 py-2.5 rounded-xl font-bold tracking-wider uppercase ${(submitting || !isFormValid || (isEdit && !isDirty))
+                    ? 'bg-slate-300 dark:bg-slate-800 text-slate-500 dark:text-slate-500 cursor-not-allowed border border-slate-200 dark:border-slate-700'
+                    : 'bg-[#0f417a] text-white hover:bg-blue-800 cursor-pointer'
+                  }`}
+              >
+                <Save className="h-4 w-4" />
+                <span>{isEdit ? "Update Note" : "Save Cabinet Note"}</span>
+              </button>
+            </div>
           )}
         </div>
       </form>

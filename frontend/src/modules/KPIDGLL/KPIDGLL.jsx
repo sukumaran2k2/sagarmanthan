@@ -1,29 +1,32 @@
-import { useState, useEffect } from 'react';
-import { Lightbulb, Radio, Activity, Wifi, MapPin, IndianRupee, Construction } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useLocation, useSearchParams } from 'react-router-dom';
+import { Lightbulb, Radio, Activity, Wifi, MapPin, IndianRupee } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
-import LightHouseMasterDataList from './pages/LightHouseMaster/DataList';
+import LightHouseMasterDataList from './components/LightHouseMasterDataList';
+import VTMSIntegrationDataList from './components/VTMSIntegrationDataList';
+import NAISUptimeDataList from './components/NAISUptimeDataList';
+import NAISIntegrationDataList from './components/NAISIntegrationDataList';
+import TouristDestinationsDataList from './components/TouristDestinationsDataList';
+import FinancialPerformanceDataList from './components/FinancialPerformanceDataList';
 import LightHouseMasterInputForm from './pages/LightHouseMaster/InputForm';
 import LightHouseMasterReports from './pages/LightHouseMaster/Reports';
-import VTMSIntegrationDataList from './pages/VTMSIntegration/DataList';
 import VTMSIntegrationInputForm from './pages/VTMSIntegration/InputForm';
 import VTMSIntegrationReports from './pages/VTMSIntegration/Reports';
-import NAISUptimeDataList from './pages/NAISUptime/DataList';
 import NAISUptimeInputForm from './pages/NAISUptime/InputForm';
 import NAISUptimeReports from './pages/NAISUptime/Reports';
-import NAISIntegrationDataList from './pages/NAISIntegration/DataList';
 import NAISIntegrationInputForm from './pages/NAISIntegration/InputForm';
 import NAISIntegrationReports from './pages/NAISIntegration/Reports';
-import TouristDestinationsDataList from './pages/TouristDestinations/DataList';
 import TouristDestinationsInputForm from './pages/TouristDestinations/InputForm';
 import TouristDestinationsReports from './pages/TouristDestinations/Reports';
-import FinancialPerformanceDataList from './pages/FinancialPerformance/DataList';
 import FinancialPerformanceInputForm from './pages/FinancialPerformance/InputForm';
 import FinancialPerformanceReports from './pages/FinancialPerformance/Reports';
 import { useKPIDGLLPermissions } from './hooks/useKPIDGLLPermissions';
+import { useDgllStore } from './store/useDgllStore';
 import { getCurrentUserId } from '../../utils/authSession';
+import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../utils/notify';
+import { DGLL_TOASTS } from './toastMessages';
 import {
-  fetchStates, fetchDistricts,
   fetchLightHouseMaster, deleteLightHouseMaster,
   fetchVtmsIntegration, deleteVtmsIntegration,
   fetchNaisUptime, deleteNaisUptime,
@@ -32,312 +35,237 @@ import {
   fetchFinancialPerformance, deleteFinancialPerformance,
 } from './api';
 
+const byYear = (r) => r.financial_year;
+
+// What each list fetches and deletes. `name` is used in messages; `period` names a row in the
+// delete confirmation. The list endpoints take a userID but don't filter by it.
+// Tourist Destinations shows two lists (destinations and their yearly targets) in one section.
+const LISTS = {
+  lightHouseMaster: { name: 'Light House Master', fetchList: (p) => fetchLightHouseMaster(1, p), remove: deleteLightHouseMaster,
+    idField: 'lights_house_id', period: (r) => r.light_house_name },
+  vtmsIntegration: { name: 'VTMS Integration', fetchList: (p) => fetchVtmsIntegration(1, p), remove: deleteVtmsIntegration,
+    idField: 'vtms_id', period: byYear },
+  naisUptime: { name: 'NAIS Uptime', fetchList: (p) => fetchNaisUptime(1, p), remove: deleteNaisUptime,
+    idField: 'nais_id', period: byYear },
+  naisIntegration: { name: 'NAIS Integration', fetchList: (p) => fetchNaisIntegration(1, p), remove: deleteNaisIntegration,
+    idField: 'nais_integration_id', period: byYear },
+  touristDestinations: { name: 'Tourist Destination', fetchList: (p) => fetchTouristDestinations(1, p), remove: deleteTouristDestination,
+    idField: 'tourist_destination_id', period: (r) => r.finacial_year },
+  touristTargets: { name: 'Target Details', fetchList: (p) => fetchTargetDetails(1, p), remove: deleteTargetDetail,
+    idField: 'tourist_destination_target_id', period: (r) => r.year },
+  financialPerformance: { name: 'Financial Performance', fetchList: fetchFinancialPerformance, remove: deleteFinancialPerformance,
+    idField: 'financial_id', period: (r) => r.financialyear },
+};
+
 // The 6 real DGLL KPI sections. Hydrographic Surveys / Vessel Accidents were
 // deprecated in the old system (confirmed via commented-out old menu entries
 // and no matching backend routes), so they're intentionally excluded here.
 const SECTIONS = [
-  { id: 'lightHouseMaster', code: 'K-3.1', label: 'DGLL - Light House Master', icon: Lightbulb, ready: true },
-  { id: 'vtmsIntegration', code: 'K-3.2', label: 'DGLL - VTMS Integration', icon: Radio, ready: true },
-  { id: 'naisUptime', code: 'K-3.3', label: 'DGLL - NAIS Uptime', icon: Activity, ready: true },
-  { id: 'naisIntegration', code: 'K-3.4', label: 'DGLL - NAIS Integration', icon: Wifi, ready: true },
-  { id: 'touristDestinations', code: 'K-3.5', label: 'DGLL - Lighthouse as Tourist Destinations', icon: MapPin, ready: true },
-  { id: 'financialPerformance', code: 'K-3.6', label: 'DGLL - Financial Performance', icon: IndianRupee, ready: true },
+  { id: 'lightHouseMaster', code: 'K-3.1', label: 'DGLL - Light House Master', icon: Lightbulb,
+    DataList: LightHouseMasterDataList, InputForm: LightHouseMasterInputForm, Reports: LightHouseMasterReports },
+  { id: 'vtmsIntegration', code: 'K-3.2', label: 'DGLL - VTMS Integration', icon: Radio,
+    DataList: VTMSIntegrationDataList, InputForm: VTMSIntegrationInputForm, Reports: VTMSIntegrationReports },
+  { id: 'naisUptime', code: 'K-3.3', label: 'DGLL - NAIS Uptime', icon: Activity,
+    DataList: NAISUptimeDataList, InputForm: NAISUptimeInputForm, Reports: NAISUptimeReports },
+  { id: 'naisIntegration', code: 'K-3.4', label: 'DGLL - NAIS Integration', icon: Wifi,
+    DataList: NAISIntegrationDataList, InputForm: NAISIntegrationInputForm, Reports: NAISIntegrationReports },
+  { id: 'touristDestinations', code: 'K-3.5', label: 'DGLL - Lighthouse as Tourist Destinations', icon: MapPin,
+    DataList: TouristDestinationsDataList, InputForm: TouristDestinationsInputForm, Reports: TouristDestinationsReports },
+  { id: 'financialPerformance', code: 'K-3.6', label: 'DGLL - Financial Performance', icon: IndianRupee,
+    DataList: FinancialPerformanceDataList, InputForm: FinancialPerformanceInputForm, Reports: FinancialPerformanceReports },
 ];
+const SECTION_BY_ID = Object.fromEntries(SECTIONS.map((s) => [s.id, s]));
+const TAB_IDS = ['add', 'list', 'report'];
+const EMPTY_PAGINATION = { total: 0, page: 1, limit: 10, totalPages: 0 };
+const EMPTY_COUNTS = { active: 0, inactive: 0 };
 
-export default function KPIDGLLView({ activeTab, triggerNotification }) {
-  const permissions = useKPIDGLLPermissions();
-  const { canAdd, canEdit, canView, canRemove } = permissions;
+export default function KPIDGLLView({ activeTab: menuTab, triggerNotification }) {
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const notify = useNotifier(triggerNotification);
+  const { canAdd, canEdit, canView, canRemove } = useKPIDGLLPermissions();
 
-  const VALID_SECTION_IDS = SECTIONS.map((s) => s.id);
+  // Section and tab live in the URL (?section=&tab=), so refresh, bookmarks and Back work
+  const sectionId = SECTION_BY_ID[searchParams.get('section')] ? searchParams.get('section') : 'lightHouseMaster';
+  const defaultTab = menuTab === 'DGLL Reports' ? 'report' : 'list';
+  const requestedTab = TAB_IDS.includes(searchParams.get('tab')) ? searchParams.get('tab') : defaultTab;
+  const section = SECTION_BY_ID[sectionId];
 
-  const getInitialStateFromURL = () => {
-    const params = new URLSearchParams(window.location.search);
-    const urlSection = params.get('section');
-    const urlTab = params.get('tab');
-    return {
-      section: VALID_SECTION_IDS.includes(urlSection) ? urlSection : 'lightHouseMaster',
-      subTab: ['add', 'list', 'report'].includes(urlTab)
-        ? urlTab
-        : (activeTab === 'DGLL Reports' ? 'report' : 'list'),
-    };
-  };
+  // Tourist Destinations shows one of its two lists at a time
+  const touristTable = useDgllStore((state) => state.touristTable);
+  const setTouristTable = useDgllStore((state) => state.setTouristTable);
+  const listId = sectionId === 'touristDestinations' && touristTable === 'target' ? 'touristTargets' : sectionId;
+  const list = LISTS[listId];
 
-  const [activeSection, setActiveSection] = useState(() => getInitialStateFromURL().section);
-  const [activeSubTab, setActiveSubTab] = useState(() => getInitialStateFromURL().subTab);
+  // The record being edited travels with the route entry (and only counts for its own section),
+  // so it is gone as soon as the form is opened any other way. `list` says which Tourist table it is from.
+  const routeState = location.state?.section === sectionId ? location.state : null;
+  const routeItem = routeState?.item ?? null;
+  // Editing needs edit rights; a new entry needs add rights
+  const formAllowed = routeItem ? canEdit : canAdd;
+  // Fall back to a tab the user can open
+  let activeTab = requestedTab;
+  if (requestedTab === 'add' && !formAllowed) activeTab = canView ? 'list' : 'add';
+  else if (requestedTab !== 'add' && !canView) activeTab = 'add';
+  const editData = activeTab === 'add' ? routeItem : null;
+  const editList = editData ? routeState.list : null;
 
-  const [states, setStates] = useState([]);
-  const [districts, setDistricts] = useState([]);
-  const [rowData, setRowData] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [editData, setEditData] = useState(null);
+  const go = useCallback((nextSection, nextTab, state, replace = false) => {
+    setSearchParams({ section: nextSection, tab: nextTab }, { state, replace });
+  }, [setSearchParams]);
 
-  // Tourist Destinations has two related entities and its own tab switcher
-  // inside a single InputForm, but otherwise follows the same activeSubTab
-  // pattern as every other section.
-  const [touristDestRows, setTouristDestRows] = useState([]);
-  const [targetDetailRows, setTargetDetailRows] = useState([]);
-  const [touristFormTab, setTouristFormTab] = useState('destination');
-  const [destinationEditData, setDestinationEditData] = useState(null);
-  const [targetEditData, setTargetEditData] = useState(null);
-
-  // Keep the URL's ?section=&tab= query params in sync with the current view,
-  // so refreshing, bookmarking, or using browser back/forward preserves the
-  // exact section and tab the user was on.
+  // Write the defaults into the URL on first load, as before, so the breadcrumb shows the tab
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    params.set('section', activeSection);
-    params.set('tab', activeSubTab);
-    const newSearch = `?${params.toString()}`;
-    if (window.location.search !== newSearch) {
-      window.history.pushState(null, '', `${window.location.pathname}${newSearch}`);
+    if (searchParams.get('section') !== sectionId || searchParams.get('tab') !== activeTab) {
+      go(sectionId, activeTab, location.state, true);
     }
-  }, [activeSection, activeSubTab]);
+  }, [searchParams, sectionId, activeTab, go, location.state]);
 
-  // Restore state when the user navigates via the browser's back/forward buttons.
-  useEffect(() => {
-    const handlePopState = () => {
-      const { section, subTab } = getInitialStateFromURL();
-      setActiveSection(section);
-      setActiveSubTab(subTab);
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
-
-  const currentSection = SECTIONS.find((s) => s.id === activeSection);
-
-  const tabs = [];
-  if (canAdd) tabs.push({ id: 'add', label: 'Input Form' });
-  if (canView) tabs.push({ id: 'list', label: 'Data List' });
-  if (canView) tabs.push({ id: 'report', label: 'Reports' });
+  // This list's state, one selector each so other lists' changes don't re-render
+  const listSlice = useDgllStore((state) => state[listId]);
+  const listActions = useDgllStore((state) => state[`${listId}Actions`]);
+  const years = useDgllStore((state) => state.years[listId]);
+  const loadYears = useDgllStore((state) => state.loadYears);
+  const states = useDgllStore((state) => state.states);
+  const districts = useDgllStore((state) => state.districts);
+  const loadLookups = useDgllStore((state) => state.loadLookups);
 
   useEffect(() => {
-    fetchStates().then((res) => setStates(res.data || [])).catch((err) => console.error('Error loading states:', err));
-    fetchDistricts().then((res) => setDistricts(res.data || [])).catch((err) => console.error('Error loading districts:', err));
-  }, []);
+    if (canView) loadYears(listId);
+  }, [canView, listId, loadYears]);
 
-  const fetchData = () => {
-    if (activeSection === 'lightHouseMaster') {
-      setLoading(true);
-      fetchLightHouseMaster(1) // backend takes userID but query is currently unfiltered by it
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading Light House Master data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'vtmsIntegration') {
-      setLoading(true);
-      fetchVtmsIntegration(1) // backend takes userID but query is currently unfiltered by it
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading VTMS Integration data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'naisUptime') {
-      setLoading(true);
-      fetchNaisUptime(1) // backend takes userID but query is currently unfiltered by it
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading NAIS Uptime data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'naisIntegration') {
-      setLoading(true);
-      fetchNaisIntegration(1) // backend takes userID but query is currently unfiltered by it
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading NAIS Integration data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'touristDestinations') {
-      setLoading(true);
-      Promise.all([
-        fetchTouristDestinations(1), // backend takes userID but query is currently unfiltered by it
-        fetchTargetDetails(1),
-      ])
-        .then(([destRes, targetRes]) => {
-          setTouristDestRows(destRes.data || []);
-          setTargetDetailRows(targetRes.data || []);
-        })
-        .catch((err) => console.error('Error loading Tourist Destinations data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'financialPerformance') {
-      setLoading(true);
-      fetchFinancialPerformance()
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading Financial Performance data:', err))
-        .finally(() => setLoading(false));
-    }
-  };
+  // States and districts are only needed by the Light House Master form
+  useEffect(() => {
+    if (sectionId === 'lightHouseMaster' && activeTab === 'add') loadLookups();
+  }, [sectionId, activeTab, loadLookups]);
+
+  // Search applies 300 ms after the user stops typing
+  useEffect(() => {
+    const timer = setTimeout(() => listActions.setDebouncedSearch(listSlice.searchTerm), 300);
+    return () => clearTimeout(timer);
+  }, [listSlice.searchTerm, listActions]);
+
+  // Fetched rows are tagged with the request they answer; a mismatch means it is still loading.
+  // Only the latest request may update them (an older response can arrive last).
+  const [reloadKey, setReloadKey] = useState(0);
+  const [result, setResult] = useState(null);
+  // Light House Master's Active / Inactive counts, kept on screen while its next page loads
+  const [lhCounts, setLhCounts] = useState(EMPTY_COUNTS);
+  const latestRequestRef = useRef(0);
+  const { debouncedSearch, currentPage, pageSize, status, financialYear } = listSlice;
+  // Light House Master filters by status; the other lists by year
+  const filter = useMemo(
+    () => (listId === 'lightHouseMaster' ? { status } : { financialYear }),
+    [listId, status, financialYear],
+  );
+  const requestKey = JSON.stringify([listId, debouncedSearch, filter, currentPage, pageSize, reloadKey]);
 
   useEffect(() => {
-    setEditData(null);
-    fetchData();
-  }, [activeSection]);
-
-  const handleEdit = (row) => {
-    setEditData(row);
-    setActiveSubTab('add');
-  };
-
-  const handleSuccess = () => {
-    setEditData(null);
-    fetchData();
-  };
-
-  const handleEditDestination = (row) => {
-    setDestinationEditData(row);
-    setTargetEditData(null);
-    setActiveSubTab('add');
-  };
-
-  const handleEditTarget = (row) => {
-    setTargetEditData(row);
-    setDestinationEditData(null);
-    setActiveSubTab('add');
-  };
-
-  const handleTouristFormBack = () => {
-    setDestinationEditData(null);
-    setTargetEditData(null);
-  };
-
-  const handleTouristFormSuccess = () => {
-    setDestinationEditData(null);
-    setTargetEditData(null);
-    fetchData();
-  };
-
-  const handleDelete = (row) => {
-    if (activeSection === 'lightHouseMaster') {
-      if (!window.confirm(`Delete the Light House Master entry for ${row.light_house_name}? This cannot be undone.`)) return;
-      deleteLightHouseMaster(row.lights_house_id, getCurrentUserId())
-        .then(() => {
-          triggerNotification && triggerNotification('Light House Master entry deleted successfully', 'success');
-          fetchData();
-        })
-        .catch((err) => {
-          console.error('Error deleting Light House Master entry:', err);
-          triggerNotification ? triggerNotification('Failed to delete entry.', 'error') : alert('Failed to delete entry.');
-        });
-    } else if (activeSection === 'vtmsIntegration') {
-      if (!window.confirm(`Delete the VTMS Integration entry for ${row.financial_year}? This cannot be undone.`)) return;
-      deleteVtmsIntegration(row.vtms_id, getCurrentUserId())
-        .then(() => {
-          triggerNotification && triggerNotification('VTMS Integration entry deleted successfully', 'success');
-          fetchData();
-        })
-        .catch((err) => {
-          console.error('Error deleting VTMS Integration entry:', err);
-          triggerNotification ? triggerNotification('Failed to delete entry.', 'error') : alert('Failed to delete entry.');
-        });
-    } else if (activeSection === 'naisUptime') {
-      if (!window.confirm(`Delete the NAIS Uptime entry for ${row.financial_year}? This cannot be undone.`)) return;
-      deleteNaisUptime(row.nais_id, getCurrentUserId())
-        .then(() => {
-          triggerNotification && triggerNotification('NAIS Uptime entry deleted successfully', 'success');
-          fetchData();
-        })
-        .catch((err) => {
-          console.error('Error deleting NAIS Uptime entry:', err);
-          triggerNotification ? triggerNotification('Failed to delete entry.', 'error') : alert('Failed to delete entry.');
-        });
-    } else if (activeSection === 'naisIntegration') {
-      if (!window.confirm(`Delete the NAIS Integration entry for ${row.financial_year}? This cannot be undone.`)) return;
-      deleteNaisIntegration(row.nais_integration_id, getCurrentUserId())
-        .then(() => {
-          triggerNotification && triggerNotification('NAIS Integration entry deleted successfully', 'success');
-          fetchData();
-        })
-        .catch((err) => {
-          console.error('Error deleting NAIS Integration entry:', err);
-          triggerNotification ? triggerNotification('Failed to delete entry.', 'error') : alert('Failed to delete entry.');
-        });
-    } else if (activeSection === 'financialPerformance') {
-      if (!window.confirm(`Delete the Financial Performance entry for ${row.financialyear}? This cannot be undone.`)) return;
-      deleteFinancialPerformance(row.financial_id, getCurrentUserId())
-        .then(() => {
-          triggerNotification && triggerNotification('Financial Performance entry deleted successfully', 'success');
-          fetchData();
-        })
-        .catch((err) => {
-          console.error('Error deleting Financial Performance entry:', err);
-          triggerNotification ? triggerNotification('Failed to delete entry.', 'error') : alert('Failed to delete entry.');
-        });
-    }
-  };
-
-  const handleDeleteDestination = (row) => {
-    if (!window.confirm(`Delete the Tourist Destination entry for ${row.finacial_year}? This cannot be undone.`)) return;
-    deleteTouristDestination(row.tourist_destination_id, getCurrentUserId())
-      .then(() => {
-        triggerNotification && triggerNotification('Tourist Destination entry deleted successfully', 'success');
-        fetchData();
+    if (!canView || activeTab !== 'list') return;
+    const requestId = ++latestRequestRef.current;
+    const isStale = () => requestId !== latestRequestRef.current;
+    list.fetchList({ page: currentPage, limit: pageSize, search: debouncedSearch, ...filter })
+      .then((res) => {
+        if (isStale()) return;
+        setResult({ key: requestKey, rows: res.data?.data || [], pagination: res.data?.pagination || { ...EMPTY_PAGINATION, limit: pageSize } });
+        if (res.data?.counts) setLhCounts(res.data.counts);
       })
       .catch((err) => {
-        console.error('Error deleting Tourist Destination entry:', err);
-        triggerNotification ? triggerNotification('Failed to delete entry.', 'error') : alert('Failed to delete entry.');
+        if (isStale()) return;
+        console.error(`Error loading DGLL ${list.name}:`, err);
+        setResult({ key: requestKey, rows: [], pagination: { ...EMPTY_PAGINATION, limit: pageSize } });
+        notify(COMMON_TOASTS.loadFailed(`${list.name} entries`));
       });
-  };
+  }, [requestKey, canView, activeTab, list, currentPage, pageSize, debouncedSearch, filter, notify]);
 
-  const handleDeleteTarget = (row) => {
-    if (!window.confirm(`Delete the Target Details entry for ${row.year}? This cannot be undone.`)) return;
-    deleteTargetDetail(row.tourist_destination_target_id, getCurrentUserId())
+  const loading = result?.key !== requestKey;
+  const rows = result?.rows ?? [];
+  const pagination = result?.pagination ?? { ...EMPTY_PAGINATION, limit: pageSize };
+
+  // A deleted row can leave the page empty; step back so the list doesn't look blank
+  useEffect(() => {
+    if (!loading && rows.length === 0 && currentPage > 1) listActions.setCurrentPage(currentPage - 1);
+  }, [loading, rows.length, currentPage, listActions]);
+
+  const handleEdit = useCallback((row) => {
+    go(sectionId, 'add', { section: sectionId, list: listId, item: row });
+  }, [go, sectionId, listId]);
+
+  const handleDelete = useCallback((row) => {
+    const period = list.period(row);
+    if (!window.confirm(`Delete the ${list.name} entry for ${period}? This cannot be undone.`)) return;
+    list.remove(row[list.idField], getCurrentUserId())
       .then(() => {
-        triggerNotification && triggerNotification('Target Details entry deleted successfully', 'success');
-        fetchData();
+        notify(DGLL_TOASTS.deleted(list.name, period));
+        setReloadKey((k) => k + 1);
       })
       .catch((err) => {
-        console.error('Error deleting Target Details entry:', err);
-        triggerNotification ? triggerNotification('Failed to delete entry.', 'error') : alert('Failed to delete entry.');
+        console.error(`Error deleting DGLL ${list.name} entry:`, err);
+        notify(DGLL_TOASTS.deleteFailed(getErrorMessage(err)));
       });
-  };
+  }, [list, notify]);
 
-  if (!canAdd && !canView && !canEdit) {
+  // Replace the form entry so browser Back can't reopen the pre-save snapshot
+  const handleSuccess = useCallback(() => {
+    setReloadKey((k) => k + 1);
+    go(sectionId, canView ? 'list' : 'add', undefined, true);
+  }, [go, sectionId, canView]);
+
+  const handleBack = useCallback(() => go(sectionId, 'list'), [go, sectionId]);
+
+  const tabs = useMemo(() => {
+    const items = [];
+    if (canAdd) items.push({ id: 'add', label: 'Input Form' });
+    if (canView) items.push({ id: 'list', label: 'Data List' });
+    if (canView) items.push({ id: 'report', label: 'Reports' });
+    return items;
+  }, [canAdd, canView]);
+
+  if (!canAdd && !canView) {
     return <RestrictedAccess moduleName="KPI - DGLL" />;
   }
 
+  const { DataList, InputForm, Reports } = section;
+  const editKey = editData ? `${editList}-${editData[LISTS[editList]?.idField]}` : 'new';
+  // Tourist Destinations edits either table from one form
+  const formProps = sectionId === 'touristDestinations'
+    ? {
+      destinationEditData: editList === 'touristDestinations' ? editData : null,
+      targetEditData: editList === 'touristTargets' ? editData : null,
+    }
+    : { editData, states, districts };
+
   return (
-    <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800 dark:text-slate-100">
-      <div className="flex flex-col gap-5 pb-5">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <div className="module-page-container space-y-6 animate-fade-in">
+      <div className="flex flex-col gap-5">
+        <div className="module-header-container">
           <div>
-            <h1 className="text-xl font-black text-[#0f417a] dark:text-blue-400 tracking-wide uppercase font-display">
-              KPI - DGLL
-            </h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
-              Directorate General of Lighthouses & Lightships -- track KPI data across all sections.
-            </p>
+            <h1 className="module-header-title">KPI - DGLL</h1>
+            <p className="module-header-subtitle">Directorate General of Lighthouses & Lightships -- track KPI data across all sections.</p>
           </div>
-
-          <InternalNavigation
-            tabs={tabs}
-            currentTab={activeSubTab}
-            onTabChange={(tabId) => {
-              setEditData(null);
-              setDestinationEditData(null);
-              setTargetEditData(null);
-              setTouristFormTab('destination');
-              setActiveSubTab(tabId);
-            }}
-          />
+          <InternalNavigation tabs={tabs} currentTab={activeTab} onTabChange={(tabId) => go(sectionId, tabId)} />
         </div>
-
-        <div className="border-b border-slate-200 dark:border-slate-700" />
 
         <div>
           <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-2">Section</span>
           <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1">
             {SECTIONS.map((s) => {
               const Icon = s.icon;
+              const active = sectionId === s.id;
               return (
                 <button
                   key={s.id}
-                  onClick={() => setActiveSection(s.id)}
+                  type="button"
+                  onClick={() => go(s.id, activeTab)}
                   className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-left transition cursor-pointer border flex-shrink-0 ${
-                    activeSection === s.id ? 'bg-[#0f417a]/10 dark:bg-blue-500/10 border-[#0f417a]/30 dark:border-blue-500/40' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    active ? 'bg-[#0f417a]/10 dark:bg-blue-500/10 border-[#0f417a]/30 dark:border-blue-500/40' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
                   }`}
                 >
-                  <Icon className={`h-4 w-4 flex-shrink-0 ${activeSection === s.id ? 'text-[#0f417a] dark:text-blue-400' : 'text-slate-400'}`} />
+                  <Icon className={`h-4 w-4 flex-shrink-0 ${active ? 'text-[#0f417a] dark:text-blue-400' : 'text-slate-400'}`} />
                   <div className="min-w-0">
                     <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block">{s.code}</span>
-                    <span className={`text-xs font-bold whitespace-nowrap ${activeSection === s.id ? 'text-[#0f417a] dark:text-blue-400' : 'text-slate-700 dark:text-slate-200'}`}>{s.label}</span>
+                    <span className={`text-xs font-bold whitespace-nowrap ${active ? 'text-[#0f417a] dark:text-blue-400' : 'text-slate-700 dark:text-slate-200'}`}>{s.label}</span>
                   </div>
-                  {!s.ready && (
-                    <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950 px-1.5 py-0.5 rounded-full flex-shrink-0 ml-1">Soon</span>
-                  )}
                 </button>
               );
             })}
@@ -346,137 +274,41 @@ export default function KPIDGLLView({ activeTab, triggerNotification }) {
         </div>
       </div>
 
-      <div className={(activeSubTab === 'report' || activeSubTab === 'add') ? 'mt-2' : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 shadow-sm mt-2'}>
-        {!currentSection.ready ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <Construction className="h-10 w-10 text-slate-300 dark:text-slate-600 mb-3" />
-            <p className="text-sm font-bold text-slate-500 dark:text-slate-400">{currentSection.label}</p>
-            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">This section is coming soon.</p>
-          </div>
-        ) : activeSection === 'lightHouseMaster' ? (
-          activeSubTab === 'report' ? (
-            <LightHouseMasterReports />
-          ) : activeSubTab === 'add' ? (
-            <LightHouseMasterInputForm
-              editData={editData}
-              states={states}
-              districts={districts}
-              onSuccess={handleSuccess}
-              triggerNotification={triggerNotification}
-            />
-          ) : (
-            <LightHouseMasterDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-            />
-          )
-        ) : activeSection === 'vtmsIntegration' ? (
-          activeSubTab === 'report' ? (
-            <VTMSIntegrationReports />
-          ) : activeSubTab === 'add' ? (
-            <VTMSIntegrationInputForm
-              editData={editData}
-              onSuccess={handleSuccess}
-              triggerNotification={triggerNotification}
-            />
-          ) : (
-            <VTMSIntegrationDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-            />
-          )
-        ) : activeSection === 'naisUptime' ? (
-          activeSubTab === 'report' ? (
-            <NAISUptimeReports />
-          ) : activeSubTab === 'add' ? (
-            <NAISUptimeInputForm
-              editData={editData}
-              onSuccess={handleSuccess}
-              triggerNotification={triggerNotification}
-            />
-          ) : (
-            <NAISUptimeDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-            />
-          )
-        ) : activeSection === 'naisIntegration' ? (
-          activeSubTab === 'report' ? (
-            <NAISIntegrationReports />
-          ) : activeSubTab === 'add' ? (
-            <NAISIntegrationInputForm
-              editData={editData}
-              onSuccess={handleSuccess}
-              triggerNotification={triggerNotification}
-            />
-          ) : (
-            <NAISIntegrationDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-            />
-          )
-        ) : activeSection === 'touristDestinations' ? (
-          activeSubTab === 'report' ? (
-            <TouristDestinationsReports />
-          ) : activeSubTab === 'add' ? (
-            <TouristDestinationsInputForm
-              destinationEditData={destinationEditData}
-              targetEditData={targetEditData}
-              initialTab={touristFormTab}
-              onBack={handleTouristFormBack}
-              onSuccess={handleTouristFormSuccess}
-              triggerNotification={triggerNotification}
-            />
-          ) : (
-            <TouristDestinationsDataList
-              destinationRows={touristDestRows}
-              targetRows={targetDetailRows}
-              loading={loading}
-              onEditDestination={handleEditDestination}
-              onEditTarget={handleEditTarget}
-              onDeleteDestination={handleDeleteDestination}
-              onDeleteTarget={handleDeleteTarget}
-              canEdit={canEdit}
-              canRemove={canRemove}
-            />
-          )
-        ) : activeSection === 'financialPerformance' ? (
-          activeSubTab === 'report' ? (
-            <FinancialPerformanceReports />
-          ) : activeSubTab === 'add' ? (
-            <FinancialPerformanceInputForm
-              editData={editData}
-              onSuccess={handleSuccess}
-              triggerNotification={triggerNotification}
-            />
-          ) : (
-            <FinancialPerformanceDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-            />
-          )
-        ) : null}
-      </div>
+      {activeTab === 'report' ? (
+        <Reports notify={notify} />
+      ) : activeTab === 'add' ? (
+        <InputForm
+          key={`${sectionId}-${editKey}`}
+          {...formProps}
+          onBack={canView ? handleBack : undefined}
+          onSuccess={handleSuccess}
+          triggerNotification={triggerNotification}
+        />
+      ) : (
+        <DataList
+          rowData={rows}
+          loading={loading}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          canEdit={canEdit}
+          canRemove={canRemove}
+          pagination={pagination}
+          onPageChange={listActions.setCurrentPage}
+          searchQuery={listSlice.searchTerm}
+          onSearchChange={listActions.setSearchTerm}
+          financialYear={financialYear}
+          onFinancialYearChange={(fy) => listActions.setFilters({ financialYear: fy })}
+          years={years || []}
+          statusFilter={status}
+          onStatusChange={(next) => listActions.setFilters({ status: next })}
+          counts={lhCounts}
+          activeTable={touristTable}
+          onTableChange={setTouristTable}
+          visibleCols={listSlice.visibleCols}
+          onVisibleColsChange={listActions.setVisibleCols}
+          notify={notify}
+        />
+      )}
     </div>
   );
 }

@@ -154,6 +154,9 @@ async function addCapex(req, res) {
     await request.query(`
             INSERT INTO tbl_capex (
                 created_by,
+                created_date,
+                updated_by,
+                updated_date,
                 capex_financial_year,
                 capex_organisation_id,
                 capex_gbs_value,
@@ -163,6 +166,9 @@ async function addCapex(req, res) {
             )
             VALUES (
                 @userId,
+                GETDATE(),
+                @userId,
+                GETDATE(),
                 @financialYear,
                 @organisationId,
                 @gbsValue,
@@ -562,241 +568,6 @@ async function getCapexDataEntry(req, res) {
     }
 }
 
-async function getCapexDashboard(req, res) {
-    try {
-        const clusterID = parseInt(req.params.clusterID, 10) || 0;
-        const financialYear = req.params.financialYear || null;
-        const conn = await pool;
-        const request = conn.request();
-        request.input("clusterID", clusterID);
-        request.input("financialYear", financialYear);
-
-    const combinedResult = await request.query(`
-      WITH ${MONTHLY_TOTALS_CTE}
-            SELECT
-            SUM(tc.capex_total_value) AS totalPlannedExpenditure,
-        SUM(ISNULL(tcm.total_Capex, 0)) AS totalActualExpenditure,
-            CASE 
-                WHEN SUM(tc.capex_total_value) = 0 THEN 0
-          ELSE (SUM(ISNULL(tcm.total_Capex, 0)) / SUM(tc.capex_total_value)) * 100
-            END AS expenditurePercentage
-        FROM tbl_capex tc
-      LEFT JOIN CapexMonthlyTotals tcm ON tc.capex_id = tcm.capex_id
-        INNER JOIN mmt_organisation o ON tc.capex_organisation_id = o.organisation_id
-        INNER JOIN mmt_hr_cluster cid ON o.hr_cluster_id = cid.hr_cluster_id
-        WHERE
-            (@financialYear IS NULL OR tc.capex_financial_year = @financialYear)
-        AND (@clusterID = 0 OR o.hr_cluster_id = @clusterID)
-    `);
-
-        return res.json({
-            combinedTotals: combinedResult.recordset[0],
-      message: "Filtered by financial year only",
-        });
-    } catch (error) {
-        console.error("Error fetching CAPEX dashboard data:", error);
-        return res.status(500).json({ message: "Internal Server Error" });
-    }
-}
-
-async function getCapexDashboardBarGraph(req, res) {
-  try {
-    const clusterID = parseInt(req.params.clusterID, 10) || 0;
-    const financialYear = req.params.financialYear || null;
-    const conn = await pool;
-    const request = conn.request();
-    request.input("clusterID", clusterID);
-    request.input("financialYear", financialYear);
-
-    const { recordset } = await request.query(`
-      WITH ${MONTHLY_TOTALS_CTE}
-      SELECT
-        o.organisation_code,
-        tc.capex_total_value AS planned,
-        ISNULL(SUM(tcm.total_Capex), 0) AS actual
-      FROM tbl_capex tc
-      INNER JOIN mmt_organisation o ON tc.capex_organisation_id = o.organisation_id
-      INNER JOIN mmt_hr_cluster cid ON o.hr_cluster_id = cid.hr_cluster_id
-      LEFT JOIN CapexMonthlyTotals tcm ON tc.capex_id = tcm.capex_id
-      WHERE
-        (@financialYear IS NULL OR tc.capex_financial_year = @financialYear)
-        AND (@clusterID = 0 OR o.hr_cluster_id = @clusterID)
-      GROUP BY o.organisation_code, tc.capex_total_value
-      ORDER BY o.organisation_code
-    `);
-
-    if (!recordset.length) {
-      return res.status(404).json({ error: "No data available" });
-    }
-
-    res.json({
-      labels: recordset.map((r) => r.organisation_code),
-      datasets: [
-        { label: "Planned Expenditure", data: recordset.map((r) => r.planned) },
-        { label: "Actual Expenditure", data: recordset.map((r) => r.actual) },
-      ],
-    });
-  } catch (err) {
-    console.error("Database Error:", err);
-    res.status(500).json({ error: "Internal server error" });
-  }
-}
-
-async function getCapexDashboardorg(req, res) {
-    try {
-        const financialYear = req.params.financialYear || null;
-    const organisationID = req.params.organisationID
-      ? parseInt(req.params.organisationID, 10)
-      : 0;
-        const conn = await pool;
-        const request = conn.request();
-        request.input("financialYear", financialYear);
-        request.input("organisationID", organisationID);
-
-    const combinedResult = await request.query(`
-            WITH Planned AS (
-                SELECT
-                    capex_organisation_id,
-                    capex_financial_year,
-                    SUM(capex_total_value) AS totalPlannedExpenditure
-                FROM tbl_capex
-                GROUP BY capex_organisation_id, capex_financial_year
-            ),
-            Actual AS (
-                SELECT
-                    tc.capex_organisation_id,
-                    tc.capex_financial_year,
-          SUM(ISNULL(tcm.amount, 0)) AS totalActualExpenditure
-                FROM tbl_capex tc
-        LEFT JOIN tbl_capex_monthly tcm ON tc.capex_id = tcm.capex_id
-                GROUP BY tc.capex_organisation_id, tc.capex_financial_year
-            )
-            SELECT
-                o.organisation_id,
-                o.organisation_name,
-                p.capex_financial_year,
-                p.totalPlannedExpenditure,
-                COALESCE(a.totalActualExpenditure, 0) AS totalActualExpenditure,
-                CASE 
-                    WHEN p.totalPlannedExpenditure = 0 THEN 0
-          ELSE (COALESCE(a.totalActualExpenditure, 0) / p.totalPlannedExpenditure) * 100
-                END AS expenditurePercentage
-            FROM Planned p
-            LEFT JOIN Actual a
-                ON p.capex_organisation_id = a.capex_organisation_id
-               AND p.capex_financial_year = a.capex_financial_year
-      INNER JOIN mmt_organisation o ON p.capex_organisation_id = o.organisation_id
-      INNER JOIN mmt_hr_cluster cid ON o.hr_cluster_id = cid.hr_cluster_id
-            WHERE
-                (@financialYear IS NULL OR p.capex_financial_year = @financialYear)
-                AND (@organisationID = 0 OR o.organisation_id = @organisationID)
-    `);
-
-        return res.json({
-            combinedTotals: combinedResult.recordset[0] || {
-                totalPlannedExpenditure: 0,
-                totalActualExpenditure: 0,
-        expenditurePercentage: 0,
-            },
-      message: "Filtered by financial year, cluster, and organisation",
-        });
-    } catch (error) {
-        console.error("Error fetching CAPEX dashboard data:", error);
-        return res.status(500).json({ message: "Internal Server Error" });
-    }
-}
-
-async function getfinancialYearDataOrgwise(req, res) {
-    try {
-        const organisationID = req.params.organisationID;
-          const financialYear = req.params.financialYear || null;
-        const conn = await pool;
-        const request = conn.request();
-        request.input("organisationID", organisationID);
-              request.input("financialYear", financialYear);
-
-    const combinedResult = await request.query(`
-           SELECT 
-            c.capex_organisation_id AS organisation_id,
-            c.capex_financial_year AS financial_year,
-        CASE m.month_number
-          WHEN 1 THEN 'Jan' WHEN 2 THEN 'Feb' WHEN 3 THEN 'Mar'
-          WHEN 4 THEN 'Apr' WHEN 5 THEN 'May' WHEN 6 THEN 'Jun'
-          WHEN 7 THEN 'Jul' WHEN 8 THEN 'Aug' WHEN 9 THEN 'Sep'
-          WHEN 10 THEN 'Oct' WHEN 11 THEN 'Nov' WHEN 12 THEN 'Dec'
-        END AS month,
-        SUM(CASE WHEN m.funding_type = 'GBS'  THEN ISNULL(m.amount, 0) ELSE 0 END) AS GBS,
-        SUM(CASE WHEN m.funding_type = 'IEBR' THEN ISNULL(m.amount, 0) ELSE 0 END) AS IEBR,
-        SUM(CASE WHEN m.funding_type = 'PPP'  THEN ISNULL(m.amount, 0) ELSE 0 END) AS PPP
-        FROM tbl_capex c
-      JOIN tbl_capex_monthly m ON c.capex_id = m.capex_id
-        WHERE 
-        c.capex_organisation_id = @organisationID
-        AND (@financialYear IS NULL OR c.capex_financial_year = @financialYear)
-        GROUP BY 
-            c.capex_organisation_id,
-            c.capex_financial_year,
-        m.month_number
-        ORDER BY 
-            c.capex_organisation_id,
-            c.capex_financial_year,
-        CASE m.month_number
-          WHEN 4 THEN 1 WHEN 5 THEN 2 WHEN 6 THEN 3 WHEN 7 THEN 4
-          WHEN 8 THEN 5 WHEN 9 THEN 6 WHEN 10 THEN 7 WHEN 11 THEN 8
-          WHEN 12 THEN 9 WHEN 1 THEN 10 WHEN 2 THEN 11 WHEN 3 THEN 12
-          ELSE 0
-        END
-    `);
-
-        return res.json(combinedResult.recordset);
-    } catch (error) {
-        console.error("Error fetching CAPEX dashboard data:", error);
-        return res.status(500).json({ message: "Internal Server Error" });
-    }
-}
-
-async function getCapexDashboardBarGraphorg(req, res) {
-  try {
-    const organisationID = req.params.organisationID
-      ? parseInt(req.params.organisationID, 10)
-      : 0;
-    const conn = await pool;
-    const request = conn.request();
-    request.input("organisationID", organisationID);
-
-    const { recordset } = await request.query(`
-      SELECT
-        tc.capex_financial_year,
-        SUM(tc.capex_total_value) AS planned,
-        ISNULL(SUM(tcm.totalActual), 0) AS actual
-    FROM tbl_capex tc
-    LEFT JOIN (
-        SELECT capex_id, SUM(ISNULL(amount, 0)) AS totalActual
-        FROM tbl_capex_monthly
-        GROUP BY capex_id
-      ) tcm ON tc.capex_id = tcm.capex_id
-      WHERE (@organisationID = 0 OR tc.capex_organisation_id = @organisationID)
-      GROUP BY tc.capex_financial_year
-      ORDER BY tc.capex_financial_year
-    `);
-
-    if (!recordset.length) {
-      return res.status(404).json({ error: "No data available" });
-    }
-
-    res.json({
-      labels: recordset.map((r) => r.capex_financial_year),
-      datasets: [
-        { label: "Planned Expenditure", data: recordset.map((r) => r.planned) },
-        { label: "Actual Expenditure", data: recordset.map((r) => r.actual) },
-      ],
-    });
-  } catch (err) {
-    console.error("Database Error:", err);
-    res.status(500).json({ error: "Internal server error" });
-  }
-}
-
 export default {
   addCapex,
   getCapexExpediture,
@@ -805,9 +576,4 @@ export default {
   getCapexData,
   editCapexExpediture,
   getCapexDataEntry,
-  getCapexDashboard,
-  getCapexDashboardBarGraph,
-  getfinancialYearDataOrgwise,
-  getCapexDashboardorg,
-  getCapexDashboardBarGraphorg,
 };

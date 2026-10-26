@@ -209,7 +209,9 @@ export default function ModuleUploadView({
             </div>
           </div>
 
-          <p className="mt-3 text-[10px] font-semibold text-slate-400">Fields marked with <span className="text-rose-500">*</span> are mandatory.</p>
+          <span className="mt-3 block text-xs text-rose-500 font-bold italic">
+            * Asterisks marked with red are mandatory fields
+          </span>
 
           {/* Validation Alert */}
           {fileValidationError && (

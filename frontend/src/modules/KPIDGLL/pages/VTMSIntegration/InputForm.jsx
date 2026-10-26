@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Save } from 'lucide-react';
 import { createVtmsIntegration, updateVtmsIntegration } from '../../api';
 import { getCurrentUserId } from '../../../../utils/authSession';
+import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../../utils/notify';
+import { DGLL_TOASTS } from '../../toastMessages';
 
 // Financial year range matches the legacy site's dgllVtmsintegration.html hardcoded dropdown
 // (2012-2013 through 2028-2029), generated here instead of hand-listed to avoid the
@@ -17,6 +19,7 @@ export default function VTMSIntegrationInputForm({
   onSuccess,
   triggerNotification,
 }) {
+  const notify = useNotifier(triggerNotification);
   const isEdit = !!editData;
   const [submitting, setSubmitting] = useState(false);
 
@@ -34,12 +37,12 @@ export default function VTMSIntegrationInputForm({
     setTouched({ financialYear: true, vtmsIntegration: true });
 
     if (!financialYear) {
-      triggerNotification ? triggerNotification('Please select the financial year.', 'error') : alert('Please select the financial year.');
+      notify(COMMON_TOASTS.requiredSelect('financial year'));
       return;
     }
     const numPorts = parseInt(vtmsIntegration, 10);
     if (isNaN(numPorts) || numPorts < 0) {
-      triggerNotification ? triggerNotification('Please enter the number of Ports VTMS system integrated.', 'error') : alert('Please enter the number of Ports VTMS system integrated.');
+      notify(DGLL_TOASTS.invalidValues());
       return;
     }
 
@@ -52,7 +55,7 @@ export default function VTMSIntegrationInputForm({
           VtmsIdOrg: editData.vtms_id,
           userID: getCurrentUserId(),
         });
-        triggerNotification && triggerNotification('VTMS Integration entry updated successfully', 'success');
+        notify(DGLL_TOASTS.updated('VTMS Integration'));
         if (onSuccess) onSuccess();
       } else {
         const response = await createVtmsIntegration({
@@ -62,44 +65,42 @@ export default function VTMSIntegrationInputForm({
         });
 
         if (response.status === 205) {
-          triggerNotification
-            ? triggerNotification('Data already exists for the selected financial year.', 'error')
-            : alert('Data already exists for the selected financial year.');
+          notify(DGLL_TOASTS.duplicate('financial year'));
           return;
         }
 
-        triggerNotification && triggerNotification('VTMS Integration entry added successfully', 'success');
+        notify(DGLL_TOASTS.added('VTMS Integration'));
         if (onSuccess) onSuccess();
       }
     } catch (err) {
       console.error('Error saving VTMS Integration entry:', err);
-      triggerNotification ? triggerNotification('Failed to save entry.', 'error') : alert('Failed to save entry.');
+      notify(DGLL_TOASTS.saveFailed(isEdit, getErrorMessage(err)));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in">
-      <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
+    <div className="module-form-card overflow-hidden animate-fade-in">
+      <div className="module-form-banner">
         <div>
-          <h3 className="text-sm font-black uppercase tracking-wider">
+          <h3 className="module-form-banner-title">
             {isEdit ? 'Update VTMS Integration Entry' : 'Add VTMS Integration Entry'}
           </h3>
-          <p className="text-[10px] text-blue-200 font-semibold tracking-wide mt-0.5">DGLL - VTMS Integration</p>
+          <p className="module-form-banner-subtext">DGLL - VTMS Integration</p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="p-6 space-y-5">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Financial Year <span className="text-red-500">*</span></label>
+            <label className="module-form-label">Financial Year <span className="text-red-500">*</span></label>
             <select
               value={financialYear}
               onChange={(e) => setFinancialYear(e.target.value)}
               onBlur={() => handleBlur('financialYear')}
               disabled={isEdit}
-              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${isFieldInvalid('financialYear', financialYear) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-700 dark:text-slate-200 cursor-pointer disabled:opacity-50`}
+              className={`module-form-input${isFieldInvalid('financialYear', financialYear) ? ' !border-red-500' : ''} cursor-pointer disabled:opacity-50`}
             >
               <option value="">--Select Financial Year--</option>
               {FINANCIAL_YEAR_OPTIONS.map((y) => <option key={y} value={y}>{y}</option>)}
@@ -110,13 +111,13 @@ export default function VTMSIntegrationInputForm({
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Number of Ports VTMS System Integrated <span className="text-red-500">*</span></label>
+            <label className="module-form-label">Number of Ports VTMS System Integrated <span className="text-red-500">*</span></label>
             <input
               type="number" min="0" value={vtmsIntegration}
               onChange={(e) => setVtmsIntegration(e.target.value)}
               onBlur={() => handleBlur('vtmsIntegration')}
               placeholder="e.g. 12"
-              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${touched.vtmsIntegration && (vtmsIntegration === '' || isNaN(parseInt(vtmsIntegration, 10)) || parseInt(vtmsIntegration, 10) < 0) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-800 dark:text-slate-100`}
+              className={`module-form-input${touched.vtmsIntegration && (vtmsIntegration === '' || isNaN(parseInt(vtmsIntegration, 10)) || parseInt(vtmsIntegration, 10) < 0) ? ' !border-red-500' : ''}`}
             />
             {touched.vtmsIntegration && (vtmsIntegration === '' || isNaN(parseInt(vtmsIntegration, 10)) || parseInt(vtmsIntegration, 10) < 0) && (
               <p className="text-[10px] font-bold text-red-500 mt-1">Enter a valid number of ports (0 or more).</p>
@@ -125,7 +126,9 @@ export default function VTMSIntegrationInputForm({
         </div>
 
         <div className="flex items-center justify-between space-x-3 pt-5 border-t border-slate-200 dark:border-slate-700">
-          <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">Fields marked with <span className="text-red-500">*</span> are mandatory.</p>
+          <span className="text-xs text-rose-500 font-bold italic">
+            * Asterisks marked with red are mandatory fields
+          </span>
           <div className="flex items-center space-x-3">
           {onBack && (
             <button

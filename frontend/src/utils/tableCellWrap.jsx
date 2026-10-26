@@ -1,4 +1,10 @@
-﻿// mopsw-wrap-cell is required by Table.jsx / index.css (autoHeight + flex centering).
+/**
+ * Shared AG Grid cell-wrap helpers.
+ * Pair with wrapText + autoHeight so row height grows with multi-line content.
+ * Class `mopsw-wrap-cell` is required by Table.jsx / index.css overrides
+ * (keeps flex centering from breaking autoHeight measurement).
+ */
+
 export const WRAP_CELL_CLASS = 'mopsw-wrap-cell';
 
 export const WRAP_CELL_STYLE = {
@@ -29,6 +35,11 @@ export function renderWrappedText(value, className = '', emptyFallback = '-') {
   );
 }
 
+/**
+ * Spread into an AG Grid column def for wrapped, auto-height cells.
+ * @param {string} [extraCellClass]
+ * @param {Record<string, unknown>} [styleOverrides]
+ */
 export function getWrapColumnProps(extraCellClass = '', styleOverrides = {}) {
   return {
     wrapText: true,

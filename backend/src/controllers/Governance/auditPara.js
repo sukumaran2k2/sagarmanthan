@@ -2,6 +2,9 @@
 import { pool } from "../../db.js";
 import fs from 'fs';
 
+// Stage flags are BIT columns; the form sends 'Yes' / 'No' (true / 1 are accepted too).
+const toBit = (v) => (v === true || v === 1 || /^(yes|true|1)$/i.test(String(v ?? '').trim()) ? 1 : 0);
+
 async function createAuditPara (req, res) 
 {
     const auditParaNumber = req.body.auditParaNumber;
@@ -9,18 +12,18 @@ async function createAuditPara (req, res)
     const wing = req.body.wing;
     const division = req.body.division;
     const category = req.body.category;
-    let yetSentForComment = req.body.yetSentForComment;
+    let yetSentForComment = toBit(req.body.yetSentForComment);
     let yetSentForCommentDate = req.body.yetSentForCommentDate;
-    const commentSoughtOrg = req.body.commentSoughtOrg;
+    const commentSoughtOrg = toBit(req.body.commentSoughtOrg);
     let commentSoughtOrgDate = req.body.commentSoughtOrgDate;
-    const commentReceived = req.body.commentReceived;
+    const commentReceived = toBit(req.body.commentReceived);
     let commentReceivedDate = req.body.commentReceivedDate;
-    const underClarification = req.body.underClarification;    
-    const commentFurnished = req.body.commentFurnished;
+    const underClarification = toBit(req.body.underClarification);    
+    const commentFurnished = toBit(req.body.commentFurnished);
     let commentFurnishedDate = req.body.commentFurnishedDate;
-    const cagAccepted = req.body.cagAccepted;
+    const cagAccepted = toBit(req.body.cagAccepted);
     let cagAcceptedDate = req.body.cagAcceptedDate;
-    const disposed = req.body.disposed;
+    const disposed = toBit(req.body.disposed);
     let disposedDate = req.body.disposedDate;
     const remarks = req.body.remarks;
     const userID = req.body.userID;
@@ -171,18 +174,18 @@ async function updateAuditPara(req, res)
     const auditParaNumber = req.body.auditParaNumber;
     const subject = req.body.subject;
     const category = req.body.category;
-    const yetSentForComment = req.body.yetSentForComment;
+    const yetSentForComment = toBit(req.body.yetSentForComment);
     let yetSentForCommentDate = req.body.yetSentForCommentDate;
-    const commentSoughtOrg = req.body.commentSoughtOrg;
+    const commentSoughtOrg = toBit(req.body.commentSoughtOrg);
     let commentSoughtOrgDate = req.body.commentSoughtOrgDate;
-    const commentReceived = req.body.commentReceived;
+    const commentReceived = toBit(req.body.commentReceived);
     let commentReceivedDate = req.body.commentReceivedDate;
-    const underClarification = req.body.underClarification;    
-    const commentFurnished = req.body.commentFurnished;        
+    const underClarification = toBit(req.body.underClarification);    
+    const commentFurnished = toBit(req.body.commentFurnished);        
     let commentFurnishedDate = req.body.commentFurnishedDate;
-    const cagAccepted = req.body.cagAccepted;
+    const cagAccepted = toBit(req.body.cagAccepted);
     let cagAcceptedDate = req.body.cagAcceptedDate;
-    const disposed = req.body.disposed;
+    const disposed = toBit(req.body.disposed);
     let disposedDate = req.body.disposedDate;
     const remarks = req.body.remarks;
     const userID = req.body.userID;

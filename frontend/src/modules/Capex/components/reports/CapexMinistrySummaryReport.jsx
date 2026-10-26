@@ -215,6 +215,8 @@ export default function CapexMinistrySummaryReport({ showToast }) {
             className="!rounded-[9px] !py-[9px] !px-[16px]"
           />
           <ExportDropdown
+            color="#4b2424"
+            hoverColor="#6b3535"
             onExportExcel={handleExportExcel}
             onExportPdf={handleExportPdf}
             color={BRAND}

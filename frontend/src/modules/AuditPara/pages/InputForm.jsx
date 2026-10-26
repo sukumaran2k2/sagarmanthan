@@ -3,6 +3,8 @@ import { Save } from 'lucide-react';
 import { createAuditPara, updateAuditPara } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
 import { CATEGORIES } from '../constants';
+import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { AUDIT_PARA_TOASTS } from '../toastMessages';
 
 const stageLabels = {
   1: '1. Received at Ministry',
@@ -26,12 +28,17 @@ export default function InputForm({
   triggerNotification,
 }) {
   const isEdit = !!editData;
+  const notify = useNotifier(triggerNotification);
   const [submitting, setSubmitting] = useState(false);
 
   const [formNumber, setFormNumber] = useState(editData?.paraNumber || '');
   const [formSubject, setFormSubject] = useState(editData?.subject || '');
-  const [formWing, setFormWing] = useState(editData?.wing || wings[0]?.wing_name || '');
-  const [formDivision, setFormDivision] = useState(editData?.division || divisions[0]?.division_name || '');
+  const [formWing, setFormWing] = useState(editData?.wing || '');
+  const [formDivision, setFormDivision] = useState(editData?.division || '');
+  // Until the user picks one, the first option is selected; wings / divisions can still be
+  // loading when the form opens, so this is resolved on each render rather than once
+  const wingValue = formWing || wings[0]?.wing_name || '';
+  const divisionValue = formDivision || divisions[0]?.division_name || '';
   const [formCategory, setFormCategory] = useState(editData?.category || 'Audit Para');
   const [formRemarks, setFormRemarks] = useState(editData?.remarks || '');
 
@@ -91,20 +98,20 @@ export default function InputForm({
     e.preventDefault();
     setTouched({ formNumber: true, formSubject: true, formWing: true, formDivision: true });
 
-    if (!formNumber.trim() || !formSubject.trim()) {
-      triggerNotification ? triggerNotification('Please fill in all required fields highlighted in red.', 'error') : alert('Please fill in all required fields highlighted in red.');
+    if (!formNumber.trim() || !formSubject.trim() || !wingValue || !divisionValue) {
+      notify(COMMON_TOASTS.mandatoryFieldsMissing());
       return;
     }
 
     const combinedRemarks = [formRemarks, ...Object.values(stages).map((s) => s.remark).filter(Boolean)].join(' ');
     const wordCount = combinedRemarks.trim().split(/\s+/).filter(Boolean).length;
     if (wordCount > 250) {
-      triggerNotification ? triggerNotification('Remarks cannot exceed 250 words.', 'error') : alert('Remarks cannot exceed 250 words.');
+      notify(AUDIT_PARA_TOASTS.remarksTooLong());
       return;
     }
 
-    const wingObj = wings.find((w) => w.wing_name === formWing) || {};
-    const divisionObj = divisions.find((d) => d.division_name === formDivision) || {};
+    const wingObj = wings.find((w) => w.wing_name === wingValue) || {};
+    const divisionObj = divisions.find((d) => d.division_name === divisionValue) || {};
 
     let selectedStage = 1;
     for (let i = 1; i <= 7; i++) {
@@ -140,28 +147,28 @@ export default function InputForm({
       if (isEdit) {
         payload.auditParaID = editData.id;
         await updateAuditPara(payload);
-        triggerNotification && triggerNotification('Audit Para updated successfully', 'success');
+        notify(AUDIT_PARA_TOASTS.updated(formNumber.trim()));
       } else {
         await createAuditPara(payload);
-        triggerNotification && triggerNotification('Audit Para registered successfully', 'success');
+        notify(AUDIT_PARA_TOASTS.created(formNumber.trim()));
       }
       if (onSuccess) onSuccess();
     } catch (err) {
       console.error('Error saving Audit Para:', err);
-      triggerNotification ? triggerNotification('Failed to save Audit Para.', 'error') : alert('Failed to save Audit Para.');
+      notify(AUDIT_PARA_TOASTS.saveFailed(isEdit, getErrorMessage(err)));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in">
-      <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
+    <div className="module-form-card overflow-hidden animate-fade-in">
+      <div className="module-form-banner">
         <div>
-          <h3 className="text-sm font-black uppercase tracking-wider">
+          <h3 className="module-form-banner-title">
             {isEdit ? 'Update Audit Para Entry' : 'Register New Audit Para'}
           </h3>
-          <p className="text-[10px] text-blue-200 font-semibold tracking-wide mt-0.5">Ministry of Ports, Shipping and Waterways</p>
+          <p className="module-form-banner-subtext">Ministry of Ports, Shipping and Waterways</p>
         </div>
       </div>
 
@@ -169,12 +176,12 @@ export default function InputForm({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <div className="lg:col-span-5 space-y-5">
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Para Number <span className="text-red-500">*</span></label>
+              <label className="module-form-label">Para Number <span className="text-red-500">*</span></label>
               <input
                 type="text" value={formNumber} onChange={(e) => setFormNumber(e.target.value)}
                 onBlur={() => handleBlur('formNumber')}
                 placeholder="e.g. 5.1" required
-                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${isFieldInvalid('formNumber', formNumber) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-800 dark:text-slate-100`}
+                className={`module-form-input${isFieldInvalid('formNumber', formNumber) ? ' !border-red-500' : ''}`}
               />
               {isFieldInvalid('formNumber', formNumber) && (
                 <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>
@@ -182,12 +189,12 @@ export default function InputForm({
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Subject <span className="text-red-500">*</span></label>
+              <label className="module-form-label">Subject <span className="text-red-500">*</span></label>
               <input
                 type="text" value={formSubject} onChange={(e) => setFormSubject(e.target.value)}
                 onBlur={() => handleBlur('formSubject')}
                 placeholder="Audit subject description..." required
-                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${isFieldInvalid('formSubject', formSubject) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-800 dark:text-slate-100`}
+                className={`module-form-input${isFieldInvalid('formSubject', formSubject) ? ' !border-red-500' : ''}`}
               />
               {isFieldInvalid('formSubject', formSubject) && (
                 <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>
@@ -195,55 +202,55 @@ export default function InputForm({
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Wing <span className="text-red-500">*</span></label>
+              <label className="module-form-label">Wing <span className="text-red-500">*</span></label>
               <select
-                value={formWing} onChange={(e) => setFormWing(e.target.value)}
+                value={wingValue} onChange={(e) => setFormWing(e.target.value)}
                 onBlur={() => handleBlur('formWing')} required
-                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${isFieldInvalid('formWing', formWing) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-700 dark:text-slate-200 cursor-pointer`}
+                className={`module-form-select cursor-pointer${isFieldInvalid('formWing', wingValue) ? ' !border-red-500' : ''}`}
               >
                 {wings.map((w) => <option key={w.wing_id} value={w.wing_name}>{w.wing_name}</option>)}
               </select>
-              {isFieldInvalid('formWing', formWing) && (
+              {isFieldInvalid('formWing', wingValue) && (
                 <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>
               )}
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Division <span className="text-red-500">*</span></label>
+              <label className="module-form-label">Division <span className="text-red-500">*</span></label>
               <select
-                value={formDivision} onChange={(e) => setFormDivision(e.target.value)}
+                value={divisionValue} onChange={(e) => setFormDivision(e.target.value)}
                 onBlur={() => handleBlur('formDivision')} required
-                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${isFieldInvalid('formDivision', formDivision) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-700 dark:text-slate-200 cursor-pointer`}
+                className={`module-form-select cursor-pointer${isFieldInvalid('formDivision', divisionValue) ? ' !border-red-500' : ''}`}
               >
                 {divisions.map((d) => <option key={d.division_id} value={d.division_name}>{d.division_name}</option>)}
               </select>
-              {isFieldInvalid('formDivision', formDivision) && (
+              {isFieldInvalid('formDivision', divisionValue) && (
                 <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>
               )}
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Category <span className="text-red-500">*</span></label>
+              <label className="module-form-label">Category <span className="text-red-500">*</span></label>
               <select
                 value={formCategory} onChange={(e) => setFormCategory(e.target.value)} required
-                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-250 dark:border-slate-700 rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 focus:border-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                className="module-form-select cursor-pointer"
               >
                 {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">General Remarks (Max 250 words)</label>
+              <label className="module-form-label">General Remarks (Max 250 words)</label>
               <textarea
                 value={formRemarks} onChange={(e) => setFormRemarks(e.target.value)}
                 placeholder="Enter remarks..." rows={4}
-                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-250 dark:border-slate-700 rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 focus:border-[#0f417a] font-medium text-slate-800 dark:text-slate-100"
+                className="module-form-input !font-medium"
               />
             </div>
           </div>
 
           <div className="lg:col-span-7 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 overflow-y-auto space-y-4 bg-slate-50 dark:bg-slate-950 max-h-[560px]">
-            <h4 className="text-xs font-black uppercase text-slate-800 dark:text-slate-200 tracking-wider pb-2 border-b border-slate-200 dark:border-slate-800">
+            <h4 className="module-form-section-title pb-2 border-b border-slate-200 dark:border-slate-800">
               Stages Checklist & Dates
             </h4>
             <div className="space-y-3.5">

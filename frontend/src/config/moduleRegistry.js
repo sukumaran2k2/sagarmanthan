@@ -88,13 +88,13 @@ export const MODULE_PAGES = {
     tabs: [
       'Major Ports Dashboard',
       'Major Ports Input Form',
-      'Major Ports Reports',
+      'Major Ports Entry Access',
       'Ports Reports',
     ],
     uiTabs: [
       'Major Ports Dashboard',
       'Major Ports Input Form',
-      'Major Ports Reports',
+      'Major Ports Entry Access',
     ],
   },
 
@@ -198,21 +198,41 @@ export const MODULE_PAGES = {
   HR_MANAGEMENT: {
     tabs: [
       'HR Dashboard',
+      'Organisation Structure',
+      'Organization Structure',
       'Employee Database',
       'List of Abolished Ports',
       'List of Abolished Posts',
+      'Abolished Posts',
+      'Vacancy Management',
+      'HR Administration & Actions',
       'Contractual Employment',
       'Training Details',
       'HR Reports',
+      'HR Input Form',
+      'Add Post',
+      'hr/hr-management/vacancy-management',
+      'hr/hr-management/administration',
+      'hr/hr-management/abolished-posts',
+      'hr/hr-management/contractual-employment',
+      'hr/hr-management/training-details',
+      'hr/hr-management/input-form',
     ],
     uiTabs: [
       'HR Dashboard',
+      'Organisation Structure',
+      'Organization Structure',
       'Employee Database',
       'List of Abolished Ports',
       'List of Abolished Posts',
+      'Abolished Posts',
+      'Vacancy Management',
+      'HR Administration & Actions',
       'Contractual Employment',
       'Training Details',
       'HR Reports',
+      'HR Input Form',
+      'Add Post',
     ],
   },
 
@@ -240,11 +260,13 @@ export const MODULE_PAGES = {
 
   CONSULTANT_APPOINTMENT: {
     tabs: [
+      'Consultant Dashboard',
       'Consultant Input Form',
       'Consultant Data List',
       'Consultant Reports',
     ],
     uiTabs: [
+      'Consultant Dashboard',
       'Consultant Input Form',
       'Consultant Data List',
       'Consultant Reports',
@@ -365,7 +387,8 @@ export const MODULE_PAGES = {
   },
 
   FORM_BUILDER: {
-    tabs: ['Create Dynamic Form', 'View Submissions'],
+    tabs: ['Create Dynamic Form', 'View Submissions', 'Form Builder', 'FormBuilder', 'Form Studio', 'Form Directory', 'Inbox Forms', 'Edit Form'],
+    uiTabs: ['Create Dynamic Form', 'View Submissions', 'Form Builder', 'FormBuilder', 'Form Studio', 'Form Directory', 'Inbox Forms', 'Edit Form'],
   },
 
   MOPSW_TRACKER: {
@@ -384,6 +407,7 @@ export const MODULE_PAGES = {
 export const PUBLIC_UI_TABS = [
   'landing',
   'profile',
+  'Contact Us',
   'Ministry Contacts',
   'Helpdesk Support',
 ];

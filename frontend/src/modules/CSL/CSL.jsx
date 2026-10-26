@@ -1,27 +1,31 @@
-import { useState, useEffect } from 'react';
-import { Ship, Anchor, Truck, Gauge, Hammer, Wrench, Construction } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useLocation, useSearchParams } from 'react-router-dom';
+import { Ship, Anchor, Truck, Gauge, Hammer, Wrench } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
-import VesselsBuiltDataList from './pages/VesselsBuilt/DataList';
+import VesselsBuiltDataList from './components/VesselsBuiltDataList';
+import ShipBuildingOrdersDataList from './components/ShipBuildingOrdersDataList';
+import ShipDeliveryPerformanceDataList from './components/ShipDeliveryPerformanceDataList';
+import CapacityUtilizationDataList from './components/CapacityUtilizationDataList';
+import FabricationOfSteelsDataList from './components/FabricationOfSteelsDataList';
+import ShipsRepairedDataList from './components/ShipsRepairedDataList';
 import VesselsBuiltInputForm from './pages/VesselsBuilt/InputForm';
 import VesselsBuiltReports from './pages/VesselsBuilt/Reports';
-import ShipBuildingOrdersDataList from './pages/ShipBuildingOrders/DataList';
 import ShipBuildingOrdersInputForm from './pages/ShipBuildingOrders/InputForm';
 import ShipBuildingOrdersReports from './pages/ShipBuildingOrders/Reports';
-import ShipDeliveryPerformanceDataList from './pages/ShipDeliveryPerformance/DataList';
 import ShipDeliveryPerformanceInputForm from './pages/ShipDeliveryPerformance/InputForm';
 import ShipDeliveryPerformanceReports from './pages/ShipDeliveryPerformance/Reports';
-import CapacityUtilizationDataList from './pages/CapacityUtilization/DataList';
 import CapacityUtilizationInputForm from './pages/CapacityUtilization/InputForm';
 import CapacityUtilizationReports from './pages/CapacityUtilization/Reports';
-import FabricationOfSteelsDataList from './pages/FabricationOfSteels/DataList';
 import FabricationOfSteelsInputForm from './pages/FabricationOfSteels/InputForm';
 import FabricationOfSteelsReports from './pages/FabricationOfSteels/Reports';
-import ShipsRepairedDataList from './pages/ShipsRepaired/DataList';
 import ShipsRepairedInputForm from './pages/ShipsRepaired/InputForm';
 import ShipsRepairedReports from './pages/ShipsRepaired/Reports';
 import { useCSLPermissions } from './hooks/useCSLPermissions';
+import { useCslStore } from './store/useCslStore';
 import { getCurrentUserId } from '../../utils/authSession';
+import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../utils/notify';
+import { CSL_TOASTS } from './toastMessages';
 import {
   fetchVesselsBuilt, deleteVesselsBuilt,
   fetchShipBuildingOrders, deleteShipBuildingOrders,
@@ -31,251 +35,188 @@ import {
   fetchShipsRepaired, deleteShipsRepaired,
 } from './api';
 
-// The 6 real CSL KPI sections (K-4.1 through K-4.6), confirmed against the
-// legacy site's cslMenuList.html and the backend's fully-routed CRUD +
-// report endpoints for all 6. Built out one section at a time -- only
-// Vessels Built (K-4.1) is wired up so far.
+const quarterPeriod = (row) => `${row.financial_year} ${row.financial_quater}`;
+
+// The 6 CSL KPI sections (K-4.1 to K-4.6): what each one fetches, deletes and renders.
+// `name` is used in messages; `period` names a row in the delete confirmation.
 const SECTIONS = [
-  { id: 'vesselsBuilt', code: 'K-4.1', label: 'CSL - Vessels Built', icon: Ship, ready: true },
-  { id: 'shipBuildingOrders', code: 'K-4.2', label: 'CSL - Ship Building Orders', icon: Anchor, ready: true },
-  { id: 'shipDelivery', code: 'K-4.3', label: 'CSL - Ship Delivery Performance', icon: Truck, ready: true },
-  { id: 'capacityUtilization', code: 'K-4.4', label: 'CSL - Capacity Utilization', icon: Gauge, ready: true },
-  { id: 'fabricationOfSteels', code: 'K-4.5', label: 'CSL - Fabrication of Steels', icon: Hammer, ready: true },
-  { id: 'shipsRepaired', code: 'K-4.6', label: 'CSL - Ships Repaired', icon: Wrench, ready: true },
+  { id: 'vesselsBuilt', code: 'K-4.1', label: 'CSL - Vessels Built', name: 'Vessels Built', icon: Ship,
+    fetchList: fetchVesselsBuilt, remove: deleteVesselsBuilt, idField: 'csl_vessel_id', period: (r) => r.financial_year,
+    DataList: VesselsBuiltDataList, InputForm: VesselsBuiltInputForm, Reports: VesselsBuiltReports },
+  { id: 'shipBuildingOrders', code: 'K-4.2', label: 'CSL - Ship Building Orders', name: 'Ship Building Orders', icon: Anchor,
+    fetchList: fetchShipBuildingOrders, remove: deleteShipBuildingOrders, idField: 'csl_shipbuilding_id', period: quarterPeriod,
+    DataList: ShipBuildingOrdersDataList, InputForm: ShipBuildingOrdersInputForm, Reports: ShipBuildingOrdersReports },
+  { id: 'shipDelivery', code: 'K-4.3', label: 'CSL - Ship Delivery Performance', name: 'Ship Delivery Performance', icon: Truck,
+    fetchList: fetchShipDeliveryPerformance, remove: deleteShipDeliveryPerformance, idField: 'csl_shipdelivery_id', period: quarterPeriod,
+    DataList: ShipDeliveryPerformanceDataList, InputForm: ShipDeliveryPerformanceInputForm, Reports: ShipDeliveryPerformanceReports },
+  { id: 'capacityUtilization', code: 'K-4.4', label: 'CSL - Capacity Utilization', name: 'Capacity Utilization', icon: Gauge,
+    fetchList: fetchCapacityUtilization, remove: deleteCapacityUtilization, idField: 'csl_capacity_utilization_id', period: (r) => r.financial_year,
+    DataList: CapacityUtilizationDataList, InputForm: CapacityUtilizationInputForm, Reports: CapacityUtilizationReports },
+  { id: 'fabricationOfSteels', code: 'K-4.5', label: 'CSL - Fabrication of Steels', name: 'Fabrication of Steels', icon: Hammer,
+    fetchList: fetchFabricationOfSteels, remove: deleteFabricationOfSteels, idField: 'csl_fabrication_id', period: (r) => `${r.financial_year}${r.month ? ` ${r.month}` : ''}`,
+    DataList: FabricationOfSteelsDataList, InputForm: FabricationOfSteelsInputForm, Reports: FabricationOfSteelsReports },
+  { id: 'shipsRepaired', code: 'K-4.6', label: 'CSL - Ships Repaired', name: 'Ships Repaired', icon: Wrench,
+    fetchList: fetchShipsRepaired, remove: deleteShipsRepaired, idField: 'csl_ships_reapired_id', period: quarterPeriod,
+    DataList: ShipsRepairedDataList, InputForm: ShipsRepairedInputForm, Reports: ShipsRepairedReports },
 ];
+const SECTION_BY_ID = Object.fromEntries(SECTIONS.map((s) => [s.id, s]));
+const TAB_IDS = ['add', 'list', 'report'];
+const EMPTY_PAGINATION = { total: 0, page: 1, limit: 10, totalPages: 0 };
 
-export default function CSLView({ activeTab, triggerNotification }) {
-  const permissions = useCSLPermissions();
-  const { canAdd, canEdit, canView, canRemove } = permissions;
+export default function CSLView({ triggerNotification }) {
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const notify = useNotifier(triggerNotification);
+  const { canAdd, canEdit, canView, canRemove } = useCSLPermissions();
 
-  const VALID_SECTION_IDS = SECTIONS.map((s) => s.id);
+  // Section and tab live in the URL (?section=&tab=), so refresh, bookmarks and Back work
+  const sectionId = SECTION_BY_ID[searchParams.get('section')] ? searchParams.get('section') : 'vesselsBuilt';
+  const requestedTab = TAB_IDS.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'list';
+  const section = SECTION_BY_ID[sectionId];
 
-  const getInitialStateFromURL = () => {
-    const params = new URLSearchParams(window.location.search);
-    const urlSection = params.get('section');
-    const urlTab = params.get('tab');
-    return {
-      section: VALID_SECTION_IDS.includes(urlSection) ? urlSection : 'vesselsBuilt',
-      subTab: ['add', 'list', 'report'].includes(urlTab)
-        ? urlTab
-        : (activeTab === 'CSL Reports' ? 'report' : 'list'),
-    };
-  };
+  // The record being edited travels with the route entry (and only counts for its own section),
+  // so it is gone as soon as the form is opened any other way
+  const routeItem = location.state?.section === sectionId ? (location.state.item ?? null) : null;
+  // Editing needs edit rights; a new entry needs add rights
+  const formAllowed = routeItem ? canEdit : canAdd;
+  // Fall back to a tab the user can open
+  let activeTab = requestedTab;
+  if (requestedTab === 'add' && !formAllowed) activeTab = canView ? 'list' : 'add';
+  else if (requestedTab !== 'add' && !canView) activeTab = 'add';
+  const editData = activeTab === 'add' ? routeItem : null;
 
-  const [activeSection, setActiveSection] = useState(() => getInitialStateFromURL().section);
-  const [activeSubTab, setActiveSubTab] = useState(() => getInitialStateFromURL().subTab);
+  const go = useCallback((nextSection, nextTab, state, replace = false) => {
+    setSearchParams({ section: nextSection, tab: nextTab }, { state, replace });
+  }, [setSearchParams]);
 
-  const [rowData, setRowData] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [editData, setEditData] = useState(null);
-
-  // Keep the URL's ?section=&tab= query params in sync with the current view,
-  // so refreshing, bookmarking, or using browser back/forward preserves the
-  // exact section and tab the user was on.
+  // Write the defaults into the URL on first load, as before, so the breadcrumb shows the tab
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    params.set('section', activeSection);
-    params.set('tab', activeSubTab);
-    const newSearch = `?${params.toString()}`;
-    if (window.location.search !== newSearch) {
-      window.history.pushState(null, '', `${window.location.pathname}${newSearch}`);
+    if (searchParams.get('section') !== sectionId || searchParams.get('tab') !== activeTab) {
+      go(sectionId, activeTab, location.state, true);
     }
-  }, [activeSection, activeSubTab]);
+  }, [searchParams, sectionId, activeTab, go, location.state]);
 
-  // Restore state when the user navigates via the browser's back/forward buttons.
+  // This section's list state, one selector each so other sections' changes don't re-render
+  const listSlice = useCslStore((state) => state[sectionId]);
+  const listActions = useCslStore((state) => state[`${sectionId}Actions`]);
+  const years = useCslStore((state) => state.years[sectionId]);
+  const loadYears = useCslStore((state) => state.loadYears);
+
   useEffect(() => {
-    const handlePopState = () => {
-      const { section, subTab } = getInitialStateFromURL();
-      setActiveSection(section);
-      setActiveSubTab(subTab);
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+    if (canView) loadYears(sectionId);
+  }, [canView, sectionId, loadYears]);
 
-  const currentSection = SECTIONS.find((s) => s.id === activeSection);
+  // Search applies 300 ms after the user stops typing
+  useEffect(() => {
+    const timer = setTimeout(() => listActions.setDebouncedSearch(listSlice.searchTerm), 300);
+    return () => clearTimeout(timer);
+  }, [listSlice.searchTerm, listActions]);
 
-  const tabs = [];
-  if (canAdd) tabs.push({ id: 'add', label: 'Input Form' });
-  if (canView) tabs.push({ id: 'list', label: 'Data List' });
-  if (canView) tabs.push({ id: 'report', label: 'Reports' });
+  // Fetched rows are tagged with the request they answer; a mismatch means it is still loading.
+  // Only the latest request may update them (an older response can arrive last).
+  const [reloadKey, setReloadKey] = useState(0);
+  const [result, setResult] = useState(null);
+  const latestRequestRef = useRef(0);
+  const { debouncedSearch, financialYear, currentPage, pageSize } = listSlice;
+  const requestKey = JSON.stringify([sectionId, debouncedSearch, financialYear, currentPage, pageSize, reloadKey]);
 
-  const fetchData = () => {
-    if (activeSection === 'vesselsBuilt') {
-      setLoading(true);
-      fetchVesselsBuilt(1) // backend takes userID but query is currently unfiltered by it
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading Vessels Built data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'shipBuildingOrders') {
-      setLoading(true);
-      fetchShipBuildingOrders(1) // backend takes userID but query is currently unfiltered by it
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading Ship Building Orders data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'shipDelivery') {
-      setLoading(true);
-      fetchShipDeliveryPerformance(1) // backend takes userID but query is currently unfiltered by it
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading Ship Delivery Performance data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'capacityUtilization') {
-      setLoading(true);
-      fetchCapacityUtilization(1) // backend takes userID but query is currently unfiltered by it
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading Capacity Utilization data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'fabricationOfSteels') {
-      setLoading(true);
-      fetchFabricationOfSteels(1) // backend takes userID but query is currently unfiltered by it
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading Fabrication of Steels data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'shipsRepaired') {
-      setLoading(true);
-      fetchShipsRepaired(1) // backend takes userID but query is currently unfiltered by it
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading Ships Repaired data:', err))
-        .finally(() => setLoading(false));
-    }
-  };
+  useEffect(() => {
+    if (!canView || activeTab !== 'list') return;
+    const requestId = ++latestRequestRef.current;
+    const isStale = () => requestId !== latestRequestRef.current;
+    section.fetchList(1, { page: currentPage, limit: pageSize, search: debouncedSearch, financialYear })
+      .then((res) => {
+        if (isStale()) return;
+        setResult({ key: requestKey, rows: res.data?.data || [], pagination: res.data?.pagination || { ...EMPTY_PAGINATION, limit: pageSize } });
+      })
+      .catch((err) => {
+        if (isStale()) return;
+        console.error(`Error loading CSL ${section.name}:`, err);
+        setResult({ key: requestKey, rows: [], pagination: { ...EMPTY_PAGINATION, limit: pageSize } });
+        notify(COMMON_TOASTS.loadFailed(`${section.name} entries`));
+      });
+  }, [requestKey, canView, activeTab, section, currentPage, pageSize, debouncedSearch, financialYear, notify]);
 
-    useEffect(() => {
-    setEditData(null);
-    fetchData();
-  }, [activeSection]);
+  const loading = result?.key !== requestKey;
+  const rows = result?.rows ?? [];
+  const pagination = result?.pagination ?? { ...EMPTY_PAGINATION, limit: pageSize };
 
-  const handleEdit = (row) => {
-    setEditData(row);
-    setActiveSubTab('add');
-  };
+  // A deleted row can leave the page empty; step back so the list doesn't look blank
+  useEffect(() => {
+    if (!loading && rows.length === 0 && currentPage > 1) listActions.setCurrentPage(currentPage - 1);
+  }, [loading, rows.length, currentPage, listActions]);
 
-  const handleSuccess = () => {
-    setEditData(null);
-    setActiveSubTab('list');
-    fetchData();
-  };
+  const handleEdit = useCallback((row) => {
+    go(sectionId, 'add', { section: sectionId, item: row });
+  }, [go, sectionId]);
 
-  const handleDelete = (row) => {
-    if (activeSection === 'vesselsBuilt') {
-      if (!window.confirm(`Delete the Vessels Built entry for ${row.financial_year}? This cannot be undone.`)) return;
-      deleteVesselsBuilt(row.csl_vessel_id, getCurrentUserId())
-        .then(() => {
-          triggerNotification && triggerNotification('Vessels Built entry deleted successfully', 'success');
-          fetchData();
-        })
-        .catch((err) => {
-          console.error('Error deleting Vessels Built entry:', err);
-          triggerNotification ? triggerNotification('Failed to delete entry.', 'error') : alert('Failed to delete entry.');
-        });
-    } else if (activeSection === 'shipBuildingOrders') {
-      if (!window.confirm(`Delete the Ship Building Orders entry for ${row.financial_year} ${row.financial_quater}? This cannot be undone.`)) return;
-      deleteShipBuildingOrders(row.csl_shipbuilding_id, getCurrentUserId())
-        .then(() => {
-          triggerNotification && triggerNotification('Ship Building Orders entry deleted successfully', 'success');
-          fetchData();
-        })
-        .catch((err) => {
-          console.error('Error deleting Ship Building Orders entry:', err);
-          triggerNotification ? triggerNotification('Failed to delete entry.', 'error') : alert('Failed to delete entry.');
-        });
-    } else if (activeSection === 'shipDelivery') {
-      if (!window.confirm(`Delete the Ship Delivery Performance entry for ${row.financial_year} ${row.financial_quater}? This cannot be undone.`)) return;
-      deleteShipDeliveryPerformance(row.csl_shipdelivery_id, getCurrentUserId())
-        .then(() => {
-          triggerNotification && triggerNotification('Ship Delivery Performance entry deleted successfully', 'success');
-          fetchData();
-        })
-        .catch((err) => {
-          console.error('Error deleting Ship Delivery Performance entry:', err);
-          triggerNotification ? triggerNotification('Failed to delete entry.', 'error') : alert('Failed to delete entry.');
-        });
-    } else if (activeSection === 'capacityUtilization') {
-      if (!window.confirm(`Delete the Capacity Utilization entry for ${row.financial_year}? This cannot be undone.`)) return;
-      deleteCapacityUtilization(row.csl_capacity_utilization_id, getCurrentUserId())
-        .then(() => {
-          triggerNotification && triggerNotification('Capacity Utilization entry deleted successfully', 'success');
-          fetchData();
-        })
-        .catch((err) => {
-          console.error('Error deleting Capacity Utilization entry:', err);
-          triggerNotification ? triggerNotification('Failed to delete entry.', 'error') : alert('Failed to delete entry.');
-        });
-    } else if (activeSection === 'fabricationOfSteels') {
-      if (!window.confirm(`Delete the Fabrication of Steels entry for ${row.financial_year}${row.month ? ' ' + row.month : ''}? This cannot be undone.`)) return;
-      deleteFabricationOfSteels(row.csl_fabrication_id, getCurrentUserId())
-        .then(() => {
-          triggerNotification && triggerNotification('Fabrication of Steels entry deleted successfully', 'success');
-          fetchData();
-        })
-        .catch((err) => {
-          console.error('Error deleting Fabrication of Steels entry:', err);
-          triggerNotification ? triggerNotification('Failed to delete entry.', 'error') : alert('Failed to delete entry.');
-        });
-    } else if (activeSection === 'shipsRepaired') {
-      if (!window.confirm(`Delete the Ships Repaired entry for ${row.financial_year} ${row.financial_quater}? This cannot be undone.`)) return;
-      deleteShipsRepaired(row.csl_ships_reapired_id, getCurrentUserId())
-        .then(() => {
-          triggerNotification && triggerNotification('Ships Repaired entry deleted successfully', 'success');
-          fetchData();
-        })
-        .catch((err) => {
-          console.error('Error deleting Ships Repaired entry:', err);
-          triggerNotification ? triggerNotification('Failed to delete entry.', 'error') : alert('Failed to delete entry.');
-        });
-    }
-  };
+  const handleDelete = useCallback((row) => {
+    const period = section.period(row);
+    if (!window.confirm(`Delete the ${section.name} entry for ${period}? This cannot be undone.`)) return;
+    section.remove(row[section.idField], getCurrentUserId())
+      .then(() => {
+        notify(CSL_TOASTS.deleted(section.name, period));
+        setReloadKey((k) => k + 1);
+      })
+      .catch((err) => {
+        console.error(`Error deleting CSL ${section.name} entry:`, err);
+        notify(CSL_TOASTS.deleteFailed(getErrorMessage(err)));
+      });
+  }, [section, notify]);
 
-  if (!canAdd && !canView && !canEdit) {
+  // Replace the form entry so browser Back can't reopen the pre-save snapshot
+  const handleSuccess = useCallback(() => {
+    setReloadKey((k) => k + 1);
+    go(sectionId, canView ? 'list' : 'add', undefined, true);
+  }, [go, sectionId, canView]);
+
+  const handleBack = useCallback(() => go(sectionId, 'list'), [go, sectionId]);
+
+  const tabs = useMemo(() => {
+    const list = [];
+    if (canAdd) list.push({ id: 'add', label: 'Input Form' });
+    if (canView) list.push({ id: 'list', label: 'Data List' });
+    if (canView) list.push({ id: 'report', label: 'Reports' });
+    return list;
+  }, [canAdd, canView]);
+
+  if (!canAdd && !canView) {
     return <RestrictedAccess moduleName="KPI - CSL" />;
   }
 
+  const { DataList, InputForm, Reports } = section;
+
   return (
-    <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800 dark:text-slate-100">
-      <div className="flex flex-col gap-5 pb-5">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <div className="module-page-container space-y-6 animate-fade-in">
+      <div className="flex flex-col gap-5">
+        <div className="module-header-container">
           <div>
-            <h1 className="text-xl font-black text-[#0f417a] dark:text-blue-400 tracking-wide uppercase font-display">
-              KPI - CSL
-            </h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
-              Cochin Shipyard Limited -- track KPI data across all sections.
-            </p>
+            <h1 className="module-header-title">KPI - CSL</h1>
+            <p className="module-header-subtitle">Cochin Shipyard Limited -- track KPI data across all sections.</p>
           </div>
-
-          <InternalNavigation
-            tabs={tabs}
-            currentTab={activeSubTab}
-            onTabChange={(tabId) => {
-              setEditData(null);
-              setActiveSubTab(tabId);
-            }}
-          />
+          <InternalNavigation tabs={tabs} currentTab={activeTab} onTabChange={(tabId) => go(sectionId, tabId)} />
         </div>
-
-        <div className="border-b border-slate-200 dark:border-slate-700" />
 
         <div>
           <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-2">Section</span>
           <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1">
             {SECTIONS.map((s) => {
               const Icon = s.icon;
+              const active = sectionId === s.id;
               return (
                 <button
                   key={s.id}
-                  onClick={() => setActiveSection(s.id)}
+                  type="button"
+                  onClick={() => go(s.id, activeTab)}
                   className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-left transition cursor-pointer border flex-shrink-0 ${
-                    activeSection === s.id ? 'bg-[#0f417a]/10 dark:bg-blue-500/10 border-[#0f417a]/30 dark:border-blue-500/40' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    active ? 'bg-[#0f417a]/10 dark:bg-blue-500/10 border-[#0f417a]/30 dark:border-blue-500/40' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
                   }`}
                 >
-                  <Icon className={`h-4 w-4 flex-shrink-0 ${activeSection === s.id ? 'text-[#0f417a] dark:text-blue-400' : 'text-slate-400'}`} />
+                  <Icon className={`h-4 w-4 flex-shrink-0 ${active ? 'text-[#0f417a] dark:text-blue-400' : 'text-slate-400'}`} />
                   <div className="min-w-0">
                     <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block">{s.code}</span>
-                    <span className={`text-xs font-bold whitespace-nowrap ${activeSection === s.id ? 'text-[#0f417a] dark:text-blue-400' : 'text-slate-700 dark:text-slate-200'}`}>{s.label}</span>
+                    <span className={`text-xs font-bold whitespace-nowrap ${active ? 'text-[#0f417a] dark:text-blue-400' : 'text-slate-700 dark:text-slate-200'}`}>{s.label}</span>
                   </div>
-                  {!s.ready && (
-                    <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950 px-1.5 py-0.5 rounded-full flex-shrink-0 ml-1">Soon</span>
-                  )}
                 </button>
               );
             })}
@@ -284,135 +225,36 @@ export default function CSLView({ activeTab, triggerNotification }) {
         </div>
       </div>
 
-      <div className={(activeSubTab === 'report' || activeSubTab === 'add') ? 'mt-2' : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 shadow-sm mt-2'}>
-        {!currentSection.ready ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <Construction className="h-10 w-10 text-slate-300 dark:text-slate-600 mb-3" />
-            <p className="text-sm font-bold text-slate-500 dark:text-slate-400">{currentSection.label}</p>
-            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">This section is coming soon.</p>
-          </div>
-        ) : activeSection === 'vesselsBuilt' ? (
-          activeSubTab === 'report' ? (
-            <VesselsBuiltReports />
-          ) : activeSubTab === 'add' ? (
-            <VesselsBuiltInputForm
-              editData={editData}
-              onBack={() => { setEditData(null); setActiveSubTab('list'); }}
-              onSuccess={handleSuccess}
-              triggerNotification={triggerNotification}
-            />
-          ) : (
-            <VesselsBuiltDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-            />
-          )
-        ) : activeSection === 'shipBuildingOrders' ? (
-          activeSubTab === 'report' ? (
-            <ShipBuildingOrdersReports />
-          ) : activeSubTab === 'add' ? (
-            <ShipBuildingOrdersInputForm
-              editData={editData}
-              onBack={() => { setEditData(null); setActiveSubTab('list'); }}
-              onSuccess={handleSuccess}
-              triggerNotification={triggerNotification}
-            />
-          ) : (
-            <ShipBuildingOrdersDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-            />
-          )
-        ) : activeSection === 'shipDelivery' ? (
-          activeSubTab === 'report' ? (
-            <ShipDeliveryPerformanceReports />
-          ) : activeSubTab === 'add' ? (
-            <ShipDeliveryPerformanceInputForm
-              editData={editData}
-              onBack={() => { setEditData(null); setActiveSubTab('list'); }}
-              onSuccess={handleSuccess}
-              triggerNotification={triggerNotification}
-            />
-          ) : (
-            <ShipDeliveryPerformanceDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-            />
-          )
-        ) : activeSection === 'capacityUtilization' ? (
-          activeSubTab === 'report' ? (
-            <CapacityUtilizationReports />
-          ) : activeSubTab === 'add' ? (
-            <CapacityUtilizationInputForm
-              editData={editData}
-              onBack={() => { setEditData(null); setActiveSubTab('list'); }}
-              onSuccess={handleSuccess}
-              triggerNotification={triggerNotification}
-            />
-          ) : (
-            <CapacityUtilizationDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-            />
-          )
-        ) : activeSection === 'fabricationOfSteels' ? (
-          activeSubTab === 'report' ? (
-            <FabricationOfSteelsReports />
-          ) : activeSubTab === 'add' ? (
-            <FabricationOfSteelsInputForm
-              editData={editData}
-              onBack={() => { setEditData(null); setActiveSubTab('list'); }}
-              onSuccess={handleSuccess}
-              triggerNotification={triggerNotification}
-            />
-          ) : (
-            <FabricationOfSteelsDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-            />
-          )
-        ) : activeSection === 'shipsRepaired' ? (
-          activeSubTab === 'report' ? (
-            <ShipsRepairedReports />
-          ) : activeSubTab === 'add' ? (
-            <ShipsRepairedInputForm
-              editData={editData}
-              onBack={() => { setEditData(null); setActiveSubTab('list'); }}
-              onSuccess={handleSuccess}
-              triggerNotification={triggerNotification}
-            />
-          ) : (
-            <ShipsRepairedDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-            />
-          )
-        ) : null}
-      </div>
+      {activeTab === 'report' ? (
+        <Reports notify={notify} />
+      ) : activeTab === 'add' ? (
+        <InputForm
+          key={`${sectionId}-${editData?.[section.idField] ?? 'new'}`}
+          editData={editData}
+          onBack={canView ? handleBack : undefined}
+          onSuccess={handleSuccess}
+          triggerNotification={triggerNotification}
+        />
+      ) : (
+        <DataList
+          rowData={rows}
+          loading={loading}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          canEdit={canEdit}
+          canRemove={canRemove}
+          pagination={pagination}
+          onPageChange={listActions.setCurrentPage}
+          searchQuery={listSlice.searchTerm}
+          onSearchChange={listActions.setSearchTerm}
+          financialYear={financialYear}
+          onFinancialYearChange={(fy) => listActions.setFilters({ financialYear: fy })}
+          years={years || []}
+          visibleCols={listSlice.visibleCols}
+          onVisibleColsChange={listActions.setVisibleCols}
+          notify={notify}
+        />
+      )}
     </div>
   );
 }

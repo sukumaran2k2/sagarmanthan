@@ -5,6 +5,7 @@ import RestrictedAccess from '../../components/RestrictedAccess';
 import DataList from './pages/DataList';
 import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
+import Dashboard from './pages/Dashboard';
 import { useConsultantPermissions } from './hooks/useConsultantPermissions';
 import { fetchWings, fetchDivisions, deleteConsultantAppointment } from './api';
 import { getCurrentUserId } from '../../utils/authSession';
@@ -21,6 +22,7 @@ export default function ConsultantAppointmentView({ triggerNotification }) {
 
   const tabs = useMemo(() => {
     const list = [];
+    if (canView) list.push({ id: 'dashboard', label: 'Dashboard' });
     if (canAdd) list.push({ id: 'input-form', label: 'Input Form' });
     if (canView) list.push({ id: 'data-list', label: 'Data List' });
     if (canView) list.push({ id: 'reports', label: 'Report' });
@@ -29,6 +31,7 @@ export default function ConsultantAppointmentView({ triggerNotification }) {
 
   const currentTab = useMemo(() => {
     const path = location.pathname.toLowerCase();
+    if (path.includes('/dashboard')) return 'dashboard';
     if (path.includes('/input-form') || path.includes('/add') || path.includes('/edit')) return 'input-form';
     if (path.includes('/reports') || path.includes('/report')) return 'reports';
     return 'data-list';
@@ -98,7 +101,8 @@ export default function ConsultantAppointmentView({ triggerNotification }) {
           currentTab={currentTab}
           onTabChange={(tabId) => {
             if (tabId !== 'input-form') setEditData(null);
-            if (tabId === 'input-form') navigate('/hr/consultant-appointment/input-form');
+            if (tabId === 'dashboard') navigate('/hr/consultant-appointment/dashboard');
+            else if (tabId === 'input-form') navigate('/hr/consultant-appointment/input-form');
             else if (tabId === 'reports') navigate('/hr/consultant-appointment/reports');
             else navigate('/hr/consultant-appointment/data-list');
           }}
@@ -107,6 +111,8 @@ export default function ConsultantAppointmentView({ triggerNotification }) {
 
       <div className="space-y-8">
         <Routes>
+          <Route path="dashboard" element={canView ? <Dashboard /> : <Navigate to="../input-form" replace />} />
+
           <Route path="data-list" element={
             <DataList
               onEdit={handleEdit}

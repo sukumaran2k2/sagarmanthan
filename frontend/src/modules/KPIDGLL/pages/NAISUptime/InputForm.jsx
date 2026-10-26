@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Save } from 'lucide-react';
 import { createNaisUptime, updateNaisUptime } from '../../api';
 import { getCurrentUserId } from '../../../../utils/authSession';
+import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../../utils/notify';
+import { DGLL_TOASTS } from '../../toastMessages';
 
 // Financial year range matches the pattern used for VTMS Integration
 // (2012-2013 through 2028-2029), generated programmatically.
@@ -16,6 +18,7 @@ export default function NAISUptimeInputForm({
   onSuccess,
   triggerNotification,
 }) {
+  const notify = useNotifier(triggerNotification);
   const isEdit = !!editData;
   const [submitting, setSubmitting] = useState(false);
 
@@ -39,12 +42,12 @@ export default function NAISUptimeInputForm({
     setTouched({ financialYear: true, naisAvailability: true });
 
     if (!financialYear) {
-      triggerNotification ? triggerNotification('Please select the financial year.', 'error') : alert('Please select the financial year.');
+      notify(COMMON_TOASTS.requiredSelect('financial year'));
       return;
     }
     const availability = parseFloat(naisAvailability);
     if (isNaN(availability) || availability < 0 || availability > 100) {
-      triggerNotification ? triggerNotification('Please enter a valid NAIS availability percentage (0-100).', 'error') : alert('Please enter a valid NAIS availability percentage (0-100).');
+      notify(DGLL_TOASTS.invalidPercentage('NAIS availability'));
       return;
     }
 
@@ -57,7 +60,7 @@ export default function NAISUptimeInputForm({
           NaisIdOrg: editData.nais_id,
           userID: getCurrentUserId(),
         });
-        triggerNotification && triggerNotification('NAIS Uptime entry updated successfully', 'success');
+        notify(DGLL_TOASTS.updated('NAIS Uptime'));
         if (onSuccess) onSuccess();
       } else {
         const response = await createNaisUptime({
@@ -67,44 +70,42 @@ export default function NAISUptimeInputForm({
         });
 
         if (response.status === 205) {
-          triggerNotification
-            ? triggerNotification('Data already exists for the selected financial year.', 'error')
-            : alert('Data already exists for the selected financial year.');
+          notify(DGLL_TOASTS.duplicate('financial year'));
           return;
         }
 
-        triggerNotification && triggerNotification('NAIS Uptime entry added successfully', 'success');
+        notify(DGLL_TOASTS.added('NAIS Uptime'));
         if (onSuccess) onSuccess();
       }
     } catch (err) {
       console.error('Error saving NAIS Uptime entry:', err);
-      triggerNotification ? triggerNotification('Failed to save entry.', 'error') : alert('Failed to save entry.');
+      notify(DGLL_TOASTS.saveFailed(isEdit, getErrorMessage(err)));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in">
-      <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
+    <div className="module-form-card overflow-hidden animate-fade-in">
+      <div className="module-form-banner">
         <div>
-          <h3 className="text-sm font-black uppercase tracking-wider">
+          <h3 className="module-form-banner-title">
             {isEdit ? 'Update NAIS Uptime Entry' : 'Add NAIS Uptime Entry'}
           </h3>
-          <p className="text-[10px] text-blue-200 font-semibold tracking-wide mt-0.5">DGLL - NAIS Uptime</p>
+          <p className="module-form-banner-subtext">DGLL - NAIS Uptime</p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="p-6 space-y-5">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Financial Year <span className="text-red-500">*</span></label>
+            <label className="module-form-label">Financial Year <span className="text-red-500">*</span></label>
             <select
               value={financialYear}
               onChange={(e) => setFinancialYear(e.target.value)}
               onBlur={() => handleBlur('financialYear')}
               disabled={isEdit}
-              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${isFieldInvalid('financialYear', financialYear) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-700 dark:text-slate-200 cursor-pointer disabled:opacity-50`}
+              className={`module-form-input${isFieldInvalid('financialYear', financialYear) ? ' !border-red-500' : ''} cursor-pointer disabled:opacity-50`}
             >
               <option value="">--Select Financial Year--</option>
               {FINANCIAL_YEAR_OPTIONS.map((y) => <option key={y} value={y}>{y}</option>)}
@@ -115,13 +116,13 @@ export default function NAISUptimeInputForm({
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Availability / Uptime of NAIS (%) <span className="text-red-500">*</span></label>
+            <label className="module-form-label">Availability / Uptime of NAIS (%) <span className="text-red-500">*</span></label>
             <input
               type="number" min="0" max="100" step="any" value={naisAvailability}
               onChange={(e) => setNaisAvailability(e.target.value)}
               onBlur={() => handleBlur('naisAvailability')}
               placeholder="e.g. 98.5"
-              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${isAvailabilityInvalid() ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-800 dark:text-slate-100`}
+              className={`module-form-input${isAvailabilityInvalid() ? ' !border-red-500' : ''}`}
             />
             {isAvailabilityInvalid() && (
               <p className="text-[10px] font-bold text-red-500 mt-1">Enter a valid percentage (0-100).</p>
@@ -130,7 +131,9 @@ export default function NAISUptimeInputForm({
         </div>
 
         <div className="flex items-center justify-between space-x-3 pt-5 border-t border-slate-200 dark:border-slate-700">
-          <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">Fields marked with <span className="text-red-500">*</span> are mandatory.</p>
+          <span className="text-xs text-rose-500 font-bold italic">
+            * Asterisks marked with red are mandatory fields
+          </span>
           <div className="flex items-center space-x-3">
           {onBack && (
             <button

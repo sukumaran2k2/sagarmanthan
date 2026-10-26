@@ -3,18 +3,20 @@ import { TrendingUp, Search, X, BarChart3, List } from 'lucide-react';
 import * as am5 from '@amcharts/amcharts5';
 import * as am5xy from '@amcharts/amcharts5/xy';
 import am5themes_Animated from '@amcharts/amcharts5/themes/Animated';
+import { newChartRoot } from '../../../../utils/amCharts';
 import { fetchVtmsIntegrationReport } from '../../api';
 import Table from '../../../../components/Table';
 import ExportDropdown from '../../../../components/ExportDropdown';
 import CopyButton from '../../../../components/CopyButton';
 import ChartExportMenu from '../../../../components/ChartExportMenu';
 import { exportReportToPdf } from '../../../../utils/exportReportPdf';
+import { COMMON_TOASTS } from '../../../../utils/notify';
 
-export default function VTMSIntegrationReports() {
+export default function VTMSIntegrationReports({ notify }) {
   const gridRef = useRef(null);
   const chartDivRef = useRef(null);
   const chartRootRef = useRef(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [rowData, setRowData] = useState([]);
   const [columnDefs, setColumnDefs] = useState([]);
   const [chartData, setChartData] = useState([]);
@@ -25,9 +27,8 @@ export default function VTMSIntegrationReports() {
 
   const title = 'Form No. DGLL K-3.2 - Abstract - VTMS Integration';
 
-  const fetchData = () => {
-    setLoading(true);
-    setError(null);
+  // Load once on open
+  useEffect(() => {
     fetchVtmsIntegrationReport()
       .then((res) => {
         const data = res.data?.rowData || res.data || [];
@@ -46,6 +47,7 @@ export default function VTMSIntegrationReports() {
 
         const gridCols = cols.length ? cols.map((c) => ({
           ...c,
+          pinned: c.field === 'Metric' ? 'left' : undefined,
           cellClass: c.field === 'Metric'
             ? 'font-bold text-slate-800 dark:text-slate-100 flex items-center border-r border-slate-200 dark:border-slate-700'
             : 'text-center font-semibold flex items-center justify-center border-r border-slate-100 dark:border-slate-700',
@@ -62,17 +64,16 @@ export default function VTMSIntegrationReports() {
       .catch((err) => {
         console.error('Error loading VTMS Integration report:', err);
         setError('Failed to load report data.');
+        notify?.(COMMON_TOASTS.loadFailed('The report'));
       })
       .finally(() => setLoading(false));
-  };
-
-  useEffect(() => { fetchData(); }, []);
+  }, [notify]);
 
   useLayoutEffect(() => {
     if (!chartDivRef.current || !chartData.length) return;
     if (chartRootRef.current) chartRootRef.current.dispose();
 
-    const root = am5.Root.new(chartDivRef.current);
+    const root = newChartRoot(chartDivRef.current);
     chartRootRef.current = root;
     setChartRoot(root);
     root.setThemes([am5themes_Animated.new(root)]);
@@ -103,7 +104,7 @@ export default function VTMSIntegrationReports() {
     );
     barSeries.columns.template.setAll({ fill: am5.color(0x90c4e4), stroke: am5.color(0x90c4e4), cornerRadiusTL: 3, cornerRadiusTR: 3, width: am5.percent(80) });
     barSeries.columns.template.states.create('hover', { fill: am5.color(0x5ba3d0) });
-    barSeries.bullets.push((root, series, dataItem) => {
+    barSeries.bullets.push((root) => {
       const label = am5.Label.new(root, { fill: am5.color(0x475569), centerX: am5.p50, centerY: am5.p100, dy: -6, fontSize: 10, fontWeight: '600', populateText: true, text: '{valueY}' });
       return am5.Bullet.new(root, { sprite: label });
     });
@@ -134,11 +135,17 @@ export default function VTMSIntegrationReports() {
     if (!filteredRowData.length) return;
     let tsv = columnDefs.map((c) => c.headerName).join('\t') + '\n';
     filteredRowData.forEach((row) => { tsv += columnDefs.map((c) => row[c.field] ?? '').join('\t') + '\n'; });
-    navigator.clipboard.writeText(tsv);
+    navigator.clipboard.writeText(tsv).then(
+      () => notify?.(COMMON_TOASTS.copySuccess(filteredRowData.length)),
+      () => notify?.(COMMON_TOASTS.copyFailed()),
+    );
   };
 
   const handleExport = (type) => {
-    if (type === 'Excel' && gridRef.current?.api) gridRef.current.api.exportDataAsCsv({ fileName: 'vtms_integration_report.csv' });
+    if (type === 'Excel' && gridRef.current?.api) {
+      gridRef.current.api.exportDataAsCsv({ fileName: 'vtms_integration_report.csv' });
+      notify?.(COMMON_TOASTS.excelExported('vtms_integration_report.csv'));
+    }
     else if (type === 'PDF') {
       exportReportToPdf({
         title,
@@ -147,6 +154,7 @@ export default function VTMSIntegrationReports() {
         rowData: filteredRowData,
         fileName: 'vtms_integration_report',
       });
+      notify?.(COMMON_TOASTS.downloadStarted('vtms_integration_report.pdf'));
     }
   };
 
@@ -217,25 +225,11 @@ export default function VTMSIntegrationReports() {
           <div ref={chartDivRef} style={{ width: '100%', height: '400px' }} />
         </div>
       ) : (
-        <div className="ag-theme-quartz vtms-report-grid mt-4" style={{ width: '100%' }}>
-          <Table ref={gridRef} theme="legacy" rowData={filteredRowData} columnDefs={columnDefs} defaultColDef={defaultColDef} domLayout="autoHeight" rowHeight={48} headerHeight={42} suppressColumnVirtualisation={true} animateRows={true} enableExport={false} color="#4b2424" />
+        <div className="ag-theme-quartz kpi-report-grid mt-4" style={{ width: '100%' }}>
+          <Table ref={gridRef} loading={loading} theme="legacy" rowData={filteredRowData} columnDefs={columnDefs} defaultColDef={defaultColDef} domLayout="autoHeight" rowHeight={48} headerHeight={42} suppressColumnVirtualisation={true} animateRows={true} enableExport={false} color="#4b2424" />
         </div>
       )}
 
-      <style dangerouslySetInnerHTML={{ __html: `
-        .vtms-report-grid.ag-theme-quartz { --ag-font-family: 'Inter', system-ui, sans-serif; --ag-row-height: 48px; --ag-active-color: #4b2424; }
-        .vtms-report-grid .ag-root-wrapper { border: none !important; border-radius: 0 !important; }
-        .vtms-report-grid .ag-header { background: #4b2424 !important; border-bottom: 2px solid #3a1a1a !important; }
-        .vtms-report-grid .ag-header-cell { color: #ffffff !important; font-weight: 600 !important; font-size: 11px !important; text-transform: uppercase !important; letter-spacing: 0.05em !important; border-right: 1px solid rgba(255,255,255,0.15) !important; }
-        .vtms-report-grid .ag-header-cell-label { justify-content: center !important; }
-        .vtms-report-grid .ag-row-even { background: #ffffff !important; }
-        .vtms-report-grid .ag-row-odd { background: #f8faf6 !important; }
-        .vtms-report-grid .ag-cell { border-right: 1px solid #D3D6D9 !important; }
-        .dark .vtms-report-grid .ag-header { background: #0f172a !important; }
-        .dark .vtms-report-grid .ag-row-even { background: #090d16 !important; }
-        .dark .vtms-report-grid .ag-row-odd { background: #0f172a !important; }
-        .dark .vtms-report-grid .ag-cell { border-right: 1px solid #1e293b !important; color: #e2e8f0 !important; }
-      `}} />
       </div>
     </div>
   );

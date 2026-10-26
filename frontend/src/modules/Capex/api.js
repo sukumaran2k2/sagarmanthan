@@ -98,24 +98,32 @@ export function fetchCapexYoYReport() {
   return api.get('/capex-yoy-report');
 }
 
-export function fetchCapexDashboard(clusterId, financialYear) {
-  return api.get(`/get-capex-dashboard/${clusterId}/${financialYear}`);
+export function fetchCapexDashboardFilters() {
+  return api.get('/get-capex-dashboard-filters');
 }
 
-export function fetchCapexDashboardBarGraph(clusterId, financialYear) {
-  return api.get(`/get-capex-dashboard-bar-graph/${clusterId}/${financialYear}`);
+// Filters left as 'all' are not sent.
+export function fetchCapexDashboardSummary({ financialYear, groupId, organisationId } = {}) {
+  const params = {};
+  if (financialYear && financialYear !== 'all') params.financialYear = financialYear;
+  if (groupId && groupId !== 'all') params.groupId = groupId;
+  if (organisationId && organisationId !== 'all') params.organisationId = organisationId;
+  return api.get('/get-capex-dashboard-summary', { params });
 }
 
-export function fetchCapexDashboardOrg(financialYear, organisationId) {
-  return api.get(`/get-capex-dashboard-org/${financialYear}/${organisationId}`);
+export function fetchCapexDashboardFySummary({ financialYear, groupId, organisationId } = {}) {
+  const params = {};
+  if (financialYear && financialYear !== 'all') params.financialYear = financialYear;
+  if (groupId && groupId !== 'all') params.groupId = groupId;
+  if (organisationId && organisationId !== 'all') params.organisationId = organisationId;
+  return api.get('/get-capex-dashboard-fy-summary', { params });
 }
 
-export function fetchCapexOrgWiseTable(organisationId, financialYear) {
-  return api.get(`/get-capex-org-wise-table/${organisationId}/${financialYear}`);
-}
-
-export function fetchCapexDashboardBarGraphOrg(organisationId) {
-  return api.get(`/get-capex-dashboard-bar-graph-org/${organisationId}`);
+export function fetchCapexDashboardYoy({ groupId, organisationId } = {}) {
+  const params = {};
+  if (groupId && groupId !== 'all') params.groupId = groupId;
+  if (organisationId && organisationId !== 'all') params.organisationId = organisationId;
+  return api.get('/get-capex-dashboard-yoy', { params });
 }
 
 export default api;

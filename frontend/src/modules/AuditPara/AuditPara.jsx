@@ -1,22 +1,32 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
 import DataList from './pages/DataList';
 import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
 import { useAuditParaPermissions } from './hooks/useAuditParaPermissions';
-import { fetchAuditParas, fetchWings, fetchDivisions, deleteAuditPara } from './api';
+import { useAuditParaStore } from './store/useAuditParaStore';
+import { fetchAuditParas, deleteAuditPara } from './api';
 import { getCurrentUserId } from '../../utils/authSession';
+import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../utils/notify';
+import { AUDIT_PARA_TOASTS } from './toastMessages';
+
+const BASE = '/governance/audit-paras';
+
+// Stage flags are BIT columns (true/false); everything downstream (reports, status text,
+// edit form) expects 'Yes' / 'No'.
+const yesNo = (v) => (v === true || v === 1 || /^(yes|true|1)$/i.test(String(v ?? '').trim()) ? 'Yes' : 'No');
 
 function parseAuditParaRow(r) {
   const steps = {
-    1: r.received_at_ministry || 'No',
-    2: r.comments_sought || 'No',
-    3: r.comments_rec || 'No',
-    4: r.under_clarification || 'No',
-    5: r.comments_furnished || 'No',
-    6: r.cag_accepted || 'No',
-    7: r.disposed || 'No',
+    1: yesNo(r.received_at_ministry),
+    2: yesNo(r.comments_sought),
+    3: yesNo(r.comments_rec),
+    4: yesNo(r.under_clarification),
+    5: yesNo(r.comments_furnished),
+    6: yesNo(r.cag_accepted),
+    7: yesNo(r.disposed),
   };
   const dates = {
     1: r.date_of_receipt ? new Date(r.date_of_receipt).toISOString().split('T')[0] : '',
@@ -41,108 +51,129 @@ function parseAuditParaRow(r) {
   };
 }
 
-export default function AuditParaView({ activeSubTab: activeSubTabProp, setActiveSubTab: setActiveSubTabProp, triggerNotification }) {
+export default function AuditParaView({ triggerNotification }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const notify = useNotifier(triggerNotification);
   const permissions = useAuditParaPermissions();
   const { canAdd, canEdit, canRemove, canView } = permissions;
 
-  const [activeSubTab, setActiveSubTab] = useState(canAdd ? 'add' : (canView ? 'list' : 'add'));
-  const [loading, setLoading] = useState(false);
+  // Reference data from the store (one selector per field, so list filter changes don't re-render the shell)
+  const wings = useAuditParaStore((state) => state.wings);
+  const divisions = useAuditParaStore((state) => state.divisions);
+  const loadWingsAndDivisions = useAuditParaStore((state) => state.loadWingsAndDivisions);
+
+  // The record being edited travels with the route entry, so it is gone as soon as
+  // the user opens the form any other way (tab, sidebar, new session)
+  const editData = location.state?.item ?? null;
+
+  // Fetched paras are shared by the Data List and the Report, so they live here (not in the store)
   const [rowData, setRowData] = useState([]);
-  const [editData, setEditData] = useState(null);
-  const [wings, setWings] = useState([]);
-  const [divisions, setDivisions] = useState([]);
+  // The first load starts on mount, so loading starts true for users who can see the list
+  const [loading, setLoading] = useState(canView);
+  const latestRequestRef = useRef(0);
 
-  const tabs = [];
-  if (canAdd) tabs.push({ id: 'add', label: 'Input Form' });
-  if (canView) tabs.push({ id: 'list', label: 'Data List' });
-  if (canView) tabs.push({ id: 'report', label: 'Reports' });
+  const tabs = useMemo(() => {
+    const list = [];
+    if (canAdd) list.push({ id: 'input-form', label: 'Input Form' });
+    if (canView) list.push({ id: 'list-view', label: 'Data List' });
+    if (canView) list.push({ id: 'report', label: 'Reports' });
+    return list;
+  }, [canAdd, canView]);
+
+  const currentTab = useMemo(() => {
+    const path = location.pathname.toLowerCase();
+    if (path.includes('/input-form')) return 'input-form';
+    if (path.includes('/report')) return 'report';
+    return 'list-view';
+  }, [location.pathname]);
 
   useEffect(() => {
-    fetchWings()
-      .then((res) => setWings(res.data || []))
-      .catch((err) => console.error('Error loading wings:', err));
+    loadWingsAndDivisions();
+  }, [loadWingsAndDivisions]);
 
-    fetchDivisions()
-      .then((res) => setDivisions(res.data || []))
-      .catch((err) => console.error('Error loading divisions:', err));
-  }, []);
+  // Only the latest request may update the list (an older response can arrive last)
+  const loadParas = useCallback(() => {
+    const requestId = ++latestRequestRef.current;
+    const isStale = () => requestId !== latestRequestRef.current;
+    return fetchAuditParas(getCurrentUserId())
+      .then((res) => {
+        if (!isStale()) setRowData((res.data || []).map(parseAuditParaRow));
+      })
+      .catch((err) => {
+        if (isStale()) return;
+        console.error('Error loading Audit Paras:', err);
+        setRowData([]);
+        notify(COMMON_TOASTS.loadFailed('Audit paras'));
+      })
+      .finally(() => {
+        if (!isStale()) setLoading(false);
+      });
+  }, [notify]);
 
-  const fetchData = () => {
+  // Reload after a save, delete or refresh
+  const fetchData = useCallback(() => {
     setLoading(true);
-    fetchAuditParas(getCurrentUserId())
-      .then((res) => setRowData((res.data || []).map(parseAuditParaRow)))
-      .catch((err) => console.error('Error loading Audit Paras:', err))
-      .finally(() => setLoading(false));
-  };
+    return loadParas();
+  }, [loadParas]);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (canView) loadParas();
+  }, [canView, loadParas]);
 
-  const handleEdit = (para) => setEditData(para);
+  const handleEdit = useCallback((para) => {
+    navigate(`${BASE}/input-form`, { state: { item: para } });
+  }, [navigate]);
 
-  const handleDelete = (para) => {
+  const handleDelete = useCallback((para) => {
     if (!window.confirm(`Delete Audit Para "${para.paraNumber}"? This cannot be undone.`)) return;
     deleteAuditPara(para.id, getCurrentUserId())
       .then(() => {
-        triggerNotification && triggerNotification('Audit Para deleted successfully', 'success');
+        notify(AUDIT_PARA_TOASTS.deleted(para.paraNumber));
         fetchData();
       })
       .catch((err) => {
         console.error('Error deleting Audit Para:', err);
-        triggerNotification ? triggerNotification('Failed to delete Audit Para.', 'error') : alert('Failed to delete Audit Para.');
+        notify(AUDIT_PARA_TOASTS.deleteFailed(getErrorMessage(err)));
       });
-  };
+  }, [notify, fetchData]);
 
-  const handleSuccess = () => {
-    setEditData(null);
+  // Replace the form entry so browser Back can't reopen the pre-save snapshot
+  const handleSuccess = useCallback(() => {
     fetchData();
-    setActiveSubTab('list');
-    if (setActiveSubTabProp) setActiveSubTabProp('Audit Paras');
-  };
+    navigate(canView ? `${BASE}/list-view` : `${BASE}/input-form`, { replace: true });
+  }, [fetchData, navigate, canView]);
 
-  const handleBack = () => {
-    setEditData(null);
-    setActiveSubTab('list');
-  };
+  const handleBack = useCallback(() => {
+    navigate(`${BASE}/list-view`);
+  }, [navigate]);
 
-  if (!canAdd && !canView && !canEdit) {
+  // Edit rights alone don't help: records are only reached from the Data List
+  if (!canAdd && !canView) {
     return <RestrictedAccess moduleName="Audit Paras" />;
   }
 
+  const defaultTab = canAdd ? 'input-form' : 'list-view';
+
   return (
-    <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800 dark:text-slate-100">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-700 pb-4">
+    <div className="module-page-container space-y-6 animate-fade-in">
+      <div className="module-header-container">
         <div>
-          <h1 className="text-xl font-black text-[#0f417a] dark:text-blue-400 tracking-wide uppercase font-display">
-            Audit Paras
-          </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
+          <h1 className="module-header-title">Audit Paras</h1>
+          <p className="module-header-subtitle">
             Manage Audit Para records, divisional comments, and track progress status wing-wise.
           </p>
         </div>
         <InternalNavigation
           tabs={tabs}
-          currentTab={activeSubTab}
-          onTabChange={(tabId) => {
-            if (tabId !== 'add') setEditData(null);
-            setActiveSubTab(tabId);
-          }}
+          currentTab={currentTab}
+          onTabChange={(tabId) => navigate(`${BASE}/${tabId}`)}
         />
       </div>
 
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 shadow-sm">
-        {activeSubTab === 'list' && (
-          editData ? (
-            <InputForm
-              wings={wings}
-              divisions={divisions}
-              onBack={handleBack}
-              onSuccess={handleSuccess}
-              triggerNotification={triggerNotification}
-              editData={editData}
-            />
-          ) : (
+      <div className="space-y-8">
+        <Routes>
+          <Route path="list-view" element={canView ? (
             <DataList
               rowData={rowData}
               loading={loading}
@@ -152,24 +183,32 @@ export default function AuditParaView({ activeSubTab: activeSubTabProp, setActiv
               onDelete={handleDelete}
               canEdit={canEdit}
               canRemove={canRemove}
+              triggerNotification={triggerNotification}
             />
-          )
-        )}
+          ) : <Navigate to={`${BASE}/input-form`} replace />} />
 
-        {activeSubTab === 'add' && (
-          <InputForm
-            wings={wings}
-            divisions={divisions}
-            onBack={canView ? handleBack : undefined}
-            onSuccess={handleSuccess}
-            triggerNotification={triggerNotification}
-            editData={null}
-          />
-        )}
+          {/* Editing needs edit rights; adding needs add rights */}
+          <Route path="input-form" element={(editData ? canEdit : canAdd) ? (
+            <InputForm
+              key={editData?.id ?? 'new'}
+              wings={wings}
+              divisions={divisions}
+              onBack={canView ? handleBack : undefined}
+              onSuccess={handleSuccess}
+              triggerNotification={triggerNotification}
+              editData={editData}
+            />
+          ) : <Navigate to={`${BASE}/list-view`} replace />} />
 
-        {activeSubTab === 'report' && (
-          <Reports rowData={rowData} wings={wings} divisions={divisions} />
-        )}
+          <Route path="report" element={canView ? (
+            <div className="module-card">
+              <Reports rowData={rowData} wings={wings} divisions={divisions} loading={loading} onRefresh={fetchData} />
+            </div>
+          ) : <Navigate to={`${BASE}/input-form`} replace />} />
+
+          <Route index element={<Navigate to={defaultTab} replace />} />
+          <Route path="*" element={<Navigate to={defaultTab} replace />} />
+        </Routes>
       </div>
     </div>
   );

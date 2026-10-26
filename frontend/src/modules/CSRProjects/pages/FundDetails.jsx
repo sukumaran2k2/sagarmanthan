@@ -731,9 +731,9 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
 
               {/* Modal Footer */}
               <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                <p className="text-[10px] text-slate-400 italic">
-                  Fields marked with <span className="text-red-500">*</span> are mandatory
-                </p>
+                <span className="text-xs text-rose-500 font-bold italic">
+                  * Asterisks marked with red are mandatory fields
+                </span>
                 <div className="flex items-center space-x-2">
                   <button
                     type="button"

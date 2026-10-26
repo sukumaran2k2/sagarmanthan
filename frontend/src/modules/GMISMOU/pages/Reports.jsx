@@ -37,21 +37,11 @@ import {
 
 import { getCurrentUserId } from '../../../utils/authSession';
 
-
-/* =========================================================
-   BRAND CONFIG
-========================================================= */
-
 const BRAND = '#4b2424';
 const BRAND_HOVER = '#6b3535';
 const BRAND_SOFT = '#8c4242';
 const ACCENT = '#f5eeea';
 const BORDER = '#e8d5c8';
-
-
-/* =========================================================
-   REPORT TABS
-========================================================= */
 
 const REPORT_TABS = [
   {
@@ -91,10 +81,6 @@ const REPORT_TABS = [
     icon: Archive,
   },
 ];
-
-/* =========================================================
-   FORMATTERS
-========================================================= */
 
 const numberFormatter = (params) => {
   if (
@@ -139,12 +125,6 @@ const percentageFormatter = (params) => {
   })}%`;
 };
 
-
-/* =========================================================
-   PERCENTAGE COLOR-CODING (mirrors the red/yellow/green
-   "% of BE Achieved" badge styling from the reference UI)
-========================================================= */
-
 const percentageCellStyle = (params) => {
   if (
     params.value === null ||
@@ -179,23 +159,55 @@ const percentageCellStyle = (params) => {
   };
 };
 
+const implementationProgressCellStyle = (params) => {
+  const rawValue = params.value;
+
+  const value = Number(
+    String(rawValue ?? '')
+      .replace('%', '')
+      .trim()
+  );
+
+  let backgroundColor = '#fee2e2'; // < 50 = Red
+  let color = '#b91c1c';
+
+  if (Number.isFinite(value)) {
+    if (value > 100) {
+      backgroundColor = '#dbeafe';
+      color = '#1d4ed8';
+    } else if (value >= 75) {
+      backgroundColor = '#dcfce7';
+      color = '#15803d';
+    } else if (value >= 50) {
+      backgroundColor = '#ffedd5';
+      color = '#c2410c';
+    }
+  }
+
+  return {
+    backgroundColor,
+    color,
+    fontWeight: 800,
+    textAlign: 'center',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  };
+};
+
 const centerCellStyle = () => ({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
   textAlign: 'center',
 });
-/* =========================================================
-   COMMON STAGE COLUMNS
-========================================================= */
 
 const stageColumns = [
   {
     headerName: 'Yet To be Started',
     field: 'Yet To be Started',
     width: 150,
-    cellClass:
-      'text-center text-slate-700',
+    cellClass:'text-center text-slate-700',
     headerClass: 'text-center',
     valueFormatter: numberFormatter,
     cellStyle: centerCellStyle,
@@ -205,8 +217,7 @@ const stageColumns = [
     headerName: 'Feasibility / DPR / Planning / Study Phase',
     field: 'Feasibility / DPR / Planning / Study Phase',
     width: 230,
-    cellClass:
-      'text-center text-slate-700',
+    cellClass: 'text-center text-slate-700',
     headerClass: 'text-center',
     valueFormatter: numberFormatter,
   },
@@ -215,8 +226,7 @@ const stageColumns = [
     headerName: 'Approval Phase',
     field: 'Approval Phase',
     width: 140,
-    cellClass:
-      'text-center text-slate-700',
+    cellClass:'text-center text-slate-700',
     headerClass: 'text-center',
     valueFormatter: numberFormatter,
   },
@@ -225,8 +235,7 @@ const stageColumns = [
     headerName: 'Tendering Stage',
     field: 'Tendering Stage',
     width: 140,
-    cellClass:
-      'text-center text-slate-700',
+    cellClass:'text-center text-slate-700',
     headerClass: 'text-center',
     valueFormatter: numberFormatter,
   },
@@ -235,8 +244,7 @@ const stageColumns = [
     headerName: 'Work Under Implementation',
     field: 'Work Under Implementation',
     width: 190,
-    cellClass:
-      'text-center text-slate-700',
+    cellClass:'text-center text-slate-700',
     headerClass: 'text-center',
     valueFormatter: numberFormatter,
   },
@@ -245,8 +253,7 @@ const stageColumns = [
     headerName: 'Work Completed',
     field: 'Work Completed',
     width: 150,
-    cellClass:
-      'text-center text-slate-700 ',
+    cellClass: 'text-center text-slate-700 ',
     headerClass: 'text-center',
     valueFormatter: numberFormatter,
   },
@@ -255,8 +262,7 @@ const stageColumns = [
     headerName: 'Dropped',
     field: 'Dropped',
     width: 120,
-    cellClass:
-      'text-center text-slate-700',
+    cellClass:'text-center text-slate-700',
     headerClass: 'text-center',
     valueFormatter: numberFormatter,
   },
@@ -272,26 +278,14 @@ export default function GMISReports({
   triggerNotification,
 }) {
 
-  const [selectedReport, setSelectedReport] =
-    useState('report-1');
-
-  const [loading, setLoading] =
-    useState(false);
-
-  const [reportData, setReportData] =
-    useState([]);
-
-  const [detailData, setDetailData] =
-    useState([]);
-
-  const [quickFilter, setQuickFilter] =
-    useState('');
-
-  const [isFilterOpen, setIsFilterOpen] =
-    useState(true);
-
-  const [isExportOpen, setIsExportOpen] =
-    useState(false);
+  const [selectedReport, setSelectedReport] = useState('report-1');
+  const [loading, setLoading] = useState(false);
+  const [reportData, setReportData] = useState([]);
+  const [detailData, setDetailData] = useState([]);
+  const [quickFilter, setQuickFilter] = useState('');
+  const [selectedOrganisation, setSelectedOrganisation] = useState('');
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [isExportOpen, setIsExportOpen] = useState(false);
 
   const gridApiRef = useRef(null);
 
@@ -299,12 +293,6 @@ export default function GMISReports({
     gridApiRef.current = params.api;
     params.api.autoSizeAllColumns();
   }, []);
-
-
-
-  /* =======================================================
-     DRILL DOWN
-  ======================================================= */
 
   const [drillDownPath, setDrillDownPath] =
     useState([
@@ -315,8 +303,7 @@ export default function GMISReports({
       },
     ]);
 
-  const currentView =
-    drillDownPath[drillDownPath.length - 1];
+  const currentView = drillDownPath[drillDownPath.length - 1];
 
 
   const handleBack = () => {
@@ -327,56 +314,38 @@ export default function GMISReports({
     }
   };
 
-
-  /* =======================================================
-     LOAD REPORT
-  ======================================================= */
-
   const loadReportData = useCallback(async () => {
 
     setLoading(true);
-
     try {
 
-      const userId =
-        getCurrentUserId() || 1;
+      const userId = getCurrentUserId() || 1;
 
       let res;
-
       switch (selectedReport) {
 
         case 'report-1':
-          res =
-            await getEventWiseSummary(userId);
+          res = await getEventWiseSummary(userId);
           break;
 
         case 'report-2':
-          res =
-            await getorgWisePerformanceRankingReport(
-              userId
-            );
+          res = await getorgWisePerformanceRankingReport( userId );
           break;
 
         case 'report-3':
-          res =
-            await getVibascellWiseSummary(userId);
+          res = await getVibascellWiseSummary(userId);
           break;
 
         case 'report-4':
-          res =
-            await getCategoryWiseSummary(userId);
+          res = await getCategoryWiseSummary(userId);
           break;
 
         case 'report-5':
-          res =
-            await getPhysicalAndFinancialProgressWise(
-              userId
-            );
+          res = await getPhysicalAndFinancialProgressWise( userId );
           break;
 
         case 'report-6':
-          res =
-            await getDroppedMousReport(userId);
+          res = await getDroppedMousReport(userId);
           break;
 
         default:
@@ -387,28 +356,12 @@ export default function GMISReports({
           };
       }
 
-
-      console.log(
-        `${selectedReport} API Response:`,
-        res
-      );
-
-
-      const rows =
-        res?.data?.rows || [];
-
-
+      const rows = res?.data?.rows || [];
       setReportData(rows);
 
     } catch (err) {
-
-      console.error(
-        `Failed to load ${selectedReport}:`,
-        err
-      );
-
+      console.error( `Failed to load ${selectedReport}:`, err );
       setReportData([]);
-
       if (triggerNotification) {
         triggerNotification(
           'Failed to generate report'
@@ -416,9 +369,7 @@ export default function GMISReports({
       }
 
     } finally {
-
       setLoading(false);
-
     }
 
   }, [
@@ -426,6 +377,14 @@ export default function GMISReports({
     triggerNotification,
   ]);
 
+  useEffect(() => {
+  if (selectedReport === 'report-5') {
+    setIsFilterOpen(true);
+  } else {
+    setIsFilterOpen(false);
+    setSelectedOrganisation('');
+  }
+}, [selectedReport]);
 
   useEffect(() => {
     loadReportData();
@@ -439,15 +398,46 @@ export default function GMISReports({
     }
   }, [reportData, selectedReport]);
 
- 
-  /* =======================================================
-     SEARCHED DATA
-  ======================================================= */
+  const organisationOptions = useMemo(() => {
+
+    if (selectedReport !== 'report-5') {
+      return [];
+    }
+
+    const orgSet = new Set();
+
+    reportData.forEach((row) => {
+      const org = row['Organisation'];
+      if (org) {
+        orgSet.add(org);
+      }
+    });
+
+    return Array.from(orgSet).sort((a, b) =>
+      String(a).localeCompare(String(b))
+    );
+
+  }, [
+    selectedReport,
+    reportData,
+  ]);
 
   const filteredReportData = useMemo(() => {
 
+    let data = reportData;
+
+    if (
+      selectedReport === 'report-5' &&
+      selectedOrganisation
+    ) {
+      data = data.filter(
+        (row) =>
+          row['Organisation'] === selectedOrganisation
+      );
+    }
+
     if (!quickFilter.trim()) {
-      return reportData;
+      return data;
     }
 
     const term =
@@ -455,7 +445,7 @@ export default function GMISReports({
         .trim()
         .toLowerCase();
 
-    return reportData.filter((row) =>
+    return data.filter((row) =>
       Object.values(row).some((value) =>
         String(value ?? '')
           .toLowerCase()
@@ -466,13 +456,9 @@ export default function GMISReports({
   }, [
     reportData,
     quickFilter,
+    selectedReport,
+    selectedOrganisation,
   ]);
-  
-
-
-  /* =======================================================
-     COPY / EXPORT HELPERS
-  ======================================================= */
 
   const buildTabularExport = useCallback(() => {
 
@@ -593,11 +579,6 @@ export default function GMISReports({
     triggerNotification,
   ]);
 
-
-  /* =======================================================
-     REPORT 1
-  ======================================================= */
-
   const report1Columns = useMemo(
     () => [
 
@@ -606,8 +587,7 @@ export default function GMISReports({
         field: 'sNo',
         width: 75,
         pinned: 'left',
-        cellClass:
-          'font-mono text-center font-bold text-slate-600 dark:text-slate-400',
+        cellClass:'font-mono text-center font-bold text-slate-600 dark:text-slate-400',
         headerClass: 'text-center',
 
         valueGetter: (params) => {
@@ -626,37 +606,27 @@ export default function GMISReports({
         flex: 1.5,
         minWidth: 180,
         pinned: 'left',
-
-        cellClass:
-          'p-2 border border-[#d7c4b7] font-bold text-[#4b2424] text-left',
+        cellClass: 'p-2 border border-[#d7c4b7] font-bold text-[#4b2424] text-left',
       },
 
       {
         headerName: 'Total MoUs',
         field: 'Total MoUs',
         width: 130,
-
-        cellClass:
-          'p-2 border border-[#d7c4b7] text-right ',
-
+        cellClass: 'p-2 border border-[#d7c4b7] text-right ',
         headerClass: 'text-center',
 
-        valueFormatter:
-          numberFormatter,
+        valueFormatter: numberFormatter,
       },
 
       {
         headerName: 'Total Cost (₹ Cr.)',
         field: 'Total Amount',
         width: 180,
-
-        cellClass:
-          'p-2 border text-right text-slate-700',
-
+        cellClass: 'p-2 border text-right text-slate-700',
         headerClass: 'text-right',
 
-        valueFormatter:
-          currencyFormatter,
+        valueFormatter: currencyFormatter,
       },
 
       groupedStageColumns,
@@ -664,11 +634,6 @@ export default function GMISReports({
     ],
     []
   );
-
-
-  /* =======================================================
-     REPORT 2
-  ======================================================= */
 
   const report2Columns = useMemo(() => {
 
@@ -683,19 +648,16 @@ export default function GMISReports({
       Object.keys(reportData[0]);
 
     return [
-
       {
         headerName: 'S.No',
         field: '__sno',
         width: 90,
+        minWidth: 90,
         pinned: 'left',
         headerClass: 'text-center',
-
-        cellClass:
-          'font-mono text-center font-bold text-slate-600',
+        cellClass:'font-mono text-center font-bold text-slate-600',
 
         valueGetter: (params) => {
-
           if (params.node?.rowPinned) {
             return '';
           }
@@ -706,21 +668,113 @@ export default function GMISReports({
 
       ...keys.map((key) => {
 
-        // Detect the organisation-name-like column so it can be
-        // pinned and styled distinctly, same as the other reports.
         const isOrgColumn =
           key.toLowerCase().includes('organisation') ||
           key.toLowerCase().includes('organization');
 
+        const isImplementationProgress =
+          key.trim().toLowerCase() === 'implementation progress';
+
+        const isPerformanceRank =
+          key.trim().toLowerCase() === 'performance rank';
+
+        if (isImplementationProgress) {
+
+          return {
+            headerName: 'Implementation Progress (%)',
+            field: key,
+            width: 220,
+            minWidth: 220,
+            headerClass: 'text-center',
+
+            cellStyle: implementationProgressCellStyle,
+
+            valueFormatter: (params) => {
+
+              if (
+                params.value === null ||
+                params.value === undefined ||
+                params.value === ''
+              ) {
+                return '0.00%';
+              }
+
+              const value = Number(
+                String(params.value)
+                  .replace('%', '')
+                  .trim()
+              );
+
+              return Number.isFinite(value)
+                ? `${value.toFixed(2)}%`
+                : '0.00%';
+            },
+          };
+        }
+
+        if (isPerformanceRank) {
+
+          return {
+            headerName: 'Performance Rank',
+            field: key,
+            width: 170,
+            minWidth: 170,
+            headerClass: 'text-center',
+
+            cellRenderer: (params) => {
+
+              const value = params.value;
+
+              if (
+                value === null ||
+                value === undefined ||
+                value === ''
+              ) {
+                return (
+                  <span className="text-slate-400">
+                    -
+                  </span>
+                );
+              }
+
+              let badgeClass = 'bg-slate-50 text-slate-700';
+
+              if (value <= 3) {
+                badgeClass = 'bg-emerald-50 text-emerald-800';
+              } else if (value <= 10) {
+                badgeClass = 'bg-amber-50 text-amber-800';
+              } else {
+                badgeClass = 'bg-rose-50 text-rose-800';
+              }
+
+              return (
+                <span
+                  className={`
+                    px-2.5
+                    py-1
+                    rounded-full
+                    text-[11px]
+                    font-black
+                    ${badgeClass}
+                  `}
+                >
+                  {value}
+                </span>
+              );
+            },
+          };
+        }
+
         return {
 
-          headerName: key,
+          headerName: key.toLowerCase() === 'total cost' ? 'Total Cost (₹ Cr.)' : key,
           field: key,
-          minWidth: isOrgColumn ? 220 : 150,
-          flex: isOrgColumn ? 1.8 : 1,
-
-          // Pin the organisation column to the left, right after S.No
+          width: isOrgColumn ? 240 : 160,
+          minWidth: isOrgColumn ? 240 : 160,
           pinned: isOrgColumn ? 'left' : undefined,
+
+          wrapText: true,
+          autoHeight: true,
 
           valueFormatter: (params) => {
 
@@ -732,9 +786,14 @@ export default function GMISReports({
               return '-';
             }
 
-            if (
-              typeof params.value === 'number'
-            ) {
+            if (typeof params.value === 'number') {
+              if (key.toLowerCase() === 'total cost') {
+                return `₹ ${params.value.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}`;
+              }
+
               return params.value.toLocaleString();
             }
 
@@ -756,10 +815,6 @@ export default function GMISReports({
     reportData,
   ]);
 
-  /* =======================================================
-     REPORT 3
-  ======================================================= */
-
   const report3Columns = useMemo(
     () => [
 
@@ -767,11 +822,10 @@ export default function GMISReports({
         headerName: 'S.No',
         field: 'sNo',
         width: 90,
+        minWidth: 90,
         pinned: 'left',
         headerClass: 'text-center',
-
-        cellClass:
-          'font-mono text-center font-bold text-slate-600 dark:text-slate-400',
+        cellClass: 'font-mono text-center font-bold text-slate-600 dark:text-slate-400',
 
         valueGetter: (params) => {
 
@@ -784,87 +838,66 @@ export default function GMISReports({
       },
 
       {
-        headerName:
-          'Vibhas/NAVIC Cell Name',
-
-        field:
-          'Navic / Vibhas Name',
-
-        flex: 1.8,
-        minWidth: 250,
+        headerName: 'Vibhas/NAVIC Cell Name',
+        field: 'Navic / Vibhas Name',
+        width: 260,
+        minWidth: 260,
         pinned: 'left',
+        cellClass: 'font-bold text-[#4b2424] dark:text-amber-200',
 
-        cellClass:
-          'font-bold text-[#4b2424] dark:text-amber-200',
-
-        valueFormatter: (params) =>
-          params.value || '-',
+        valueFormatter: (params) => params.value || '-',
       },
 
       {
         headerName: 'Total MoUs',
         field: 'Total MoUs',
         width: 130,
-
         headerClass: 'text-center',
+        cellClass:'font-black text-center text-[#4b2424] dark:text-amber-200',
 
-        cellClass:
-          'font-black text-center text-[#4b2424] dark:text-amber-200',
-
-        valueFormatter:
-          numberFormatter,
+        valueFormatter: numberFormatter,
       },
 
       {
-        headerName:
-          'Total Cost (₹ Cr.)',
-
-        field:
-          'Total Cost',
-
+        headerName: 'Total Cost (₹ Cr.)',
+        field: 'Total Cost',
         width: 180,
-
         headerClass: 'text-right',
+        cellClass:'text-right text-slate-700',
 
-        cellClass:
-          'text-right text-slate-700',
-
-        valueFormatter:
-          currencyFormatter,
+        valueFormatter: currencyFormatter,
       },
 
       groupedStageColumns,
 
-      {
-        headerName:
-          'Implementation Progress (%)',
+     {
+      headerName: 'Implementation Progress (%)',
+      field: 'Implementation Progress (%)',
+      width: 210,
+      headerClass: 'text-center',
 
-        field:
-          'Implementation Progress Value',
+      cellStyle: implementationProgressCellStyle,
 
-        width: 210,
+      valueFormatter: (params) => {
+      if (
+        params.value === null ||
+        params.value === undefined ||
+        params.value === ''
+      ) {
+        return '0.00%';
+      }
 
-        headerClass:
-          'text-center',
+      const value = Number(
+        String(params.value)
+          .replace('%', '')
+          .trim()
+      );
 
-        cellStyle: percentageCellStyle,
-
-        valueFormatter: (params) => {
-
-          if (
-            params.value === null ||
-            params.value === undefined ||
-            params.value === ''
-          ) {
-            return '0.00%';
-          }
-
-          return `${Number(
-            params.value
-          ).toFixed(2)}%`;
-
-        },
-      },
+      return Number.isFinite(value)
+        ? `${value.toFixed(2)}%`
+        : '0.00%';
+    },
+    },
 
       {
         headerName:'Performance Rank',
@@ -874,8 +907,7 @@ export default function GMISReports({
 
         cellRenderer: (params) => {
 
-          const value =
-            params.value;
+          const value = params.value;
 
           if (
             value === null ||
@@ -889,23 +921,16 @@ export default function GMISReports({
             );
           }
 
-          let badgeClass =
-            'bg-slate-50 text-slate-700';
+          let badgeClass = 'bg-slate-50 text-slate-700';
 
           if (value <= 3) {
-
-            badgeClass =
-              'bg-emerald-50 text-emerald-800';
+            badgeClass = 'bg-emerald-50 text-emerald-800';
 
           } else if (value <= 10) {
-
-            badgeClass =
-              'bg-amber-50 text-amber-800';
+            badgeClass = 'bg-amber-50 text-amber-800';
 
           } else {
-
-            badgeClass =
-              'bg-rose-50 text-rose-800';
+            badgeClass = 'bg-rose-50 text-rose-800';
 
           }
 
@@ -931,93 +956,16 @@ export default function GMISReports({
     []
   );
 
-
-  /* =======================================================
-     REPORT 4
-  ======================================================= */
-
   const report4Columns = useMemo(
     () => [
-
       {
-        headerName:
-          'MoU Category',
-
-        field:
-          'MoU Category',
-
-        flex: 1.8,
-        minWidth: 250,
-        pinned: 'left',
-
-        cellClass:
-          'font-bold text-[#4b2424] dark:text-amber-200',
-
-        valueFormatter: (params) =>
-          params.value || '-',
-      },
-
-      {
-        headerName:
-          'No. of MoUs',
-
-        field:
-          'Total MoUs',
-
-        width: 140,
-
-        headerClass:
-          'text-center',
-
-        cellClass:
-          'text-right text-slate-700',
-
-        valueFormatter:
-          numberFormatter,
-      },
-
-      {
-        headerName:
-          'Total Amount (₹ Cr.)',
-
-        field:
-          'Total Amount',
-
-        width: 180,
-
-        headerClass:
-          'text-right',
-
-        cellClass:
-          'text-right text-slate-700',
-
-        valueFormatter:
-          currencyFormatter,
-      },
-
-      groupedStageColumns,
-
-    ],
-    []
-  );
-
-
-  /* =======================================================
-     REPORT 5
-  ======================================================= */
-
-  const report5Columns = useMemo(
-    () => [
-
-      {
-        headerName: 'S.No',
+      headerName: 'S.No',
         field: 'sNo',
-        width: 75,
+        width: 90,
+        minWidth: 90,
         pinned: 'left',
         headerClass: 'text-center',
-
-        cellClass:
-          'font-mono text-center font-bold text-slate-600 dark:text-slate-400',
+        cellClass: 'font-mono text-center font-bold text-slate-600 dark:text-slate-400',
 
         valueGetter: (params) => {
 
@@ -1030,128 +978,129 @@ export default function GMISReports({
       },
 
       {
-        headerName:
-          'Organisation',
-
-        field:
-          'Organisation',
-
-        flex: 1.4,
-        minWidth: 180,
-
-        cellClass:
-          'font-bold text-[#4b2424] dark:text-amber-200',
-      },
-
-      {
-        headerName:
-          'MoU / Project',
-
-        field:
-          'MoU / Project',
-
-        flex: 2,
+        headerName: 'MoU Category',
+        field: 'MoU Category',
+        flex: 1.8,
         minWidth: 250,
+        pinned: 'left',
+        cellClass: 'font-bold text-[#4b2424] dark:text-amber-200',
 
-        cellClass:
-          'font-semibold text-slate-800 dark:text-slate-200',
+        valueFormatter: (params) => params.value || '-',
       },
 
       {
-        headerName:
-          'Current Status',
+        headerName: 'No. of MoUs',
+        field:'Total MoUs',
+        width: 140,
+        headerClass: 'text-center',
+        cellClass: 'text-right text-slate-700',
 
-        field:
-          'Current Status',
+        valueFormatter: numberFormatter,
+      },
 
+      {
+        headerName: 'Total Amount (₹ Cr.)',
+        field: 'Total Amount',
         width: 180,
+        headerClass: 'text-right',
+        cellClass: 'text-right text-slate-700',
 
-        cellClass:
-          'text-slate-700 dark:text-slate-300',
+        valueFormatter: currencyFormatter,
       },
 
-      {
-        headerName:
-          'Original Amount (₹ Cr.)',
-
-        field:
-          'Original Amount (₹ Cr)',
-
-        width: 180,
-
-        headerClass:
-          'text-right',
-
-        cellClass:
-          'text-right text-slate-700',
-
-        valueFormatter:
-          currencyFormatter,
-      },
-
-      {
-        headerName:
-          'Revised Amount (₹ Cr.)',
-
-        field:
-          'Revised Amount (₹ Cr)',
-
-        width: 180,
-
-        headerClass:
-          'text-right',
-
-        cellClass:
-          'text-right text-slate-700',
-
-        valueFormatter:
-          currencyFormatter,
-      },
-
-      {
-        headerName:
-          'Financial Progress (%)',
-
-        field:
-          'Financial Progress (%)',
-
-        width: 170,
-
-        headerClass:
-          'text-center',
-
-        cellStyle: percentageCellStyle,
-
-        valueFormatter:
-          percentageFormatter,
-      },
-
-      {
-        headerName:
-          'Physical Progress (%)',
-
-        field:
-          'Physical Progress (%)',
-
-        width: 170,
-
-        headerClass:
-          'text-center',
-
-        cellStyle: percentageCellStyle,
-
-        valueFormatter:
-          percentageFormatter,
-      },
+      groupedStageColumns,
 
     ],
     []
   );
 
+  const report5Columns = useMemo(
+    () => [
 
-  /* =======================================================
-     REPORT 6
-  ======================================================= */
+      {
+        headerName: 'S.No',
+        field: 'sNo',
+        width: 75,
+        pinned: 'left',
+        headerClass: 'text-center',
+        cellClass: 'font-mono text-center font-bold text-slate-600 dark:text-slate-400',
+
+        valueGetter: (params) => {
+
+          if (params.node?.rowPinned) {
+            return '';
+          }
+
+          return params.node.rowIndex + 1;
+        },
+      },
+
+      {
+        headerName: 'Organisation',
+        field: 'Organisation',
+        flex: 1.4,
+        minWidth: 180,
+        cellClass: 'font-bold text-[#4b2424] dark:text-amber-200',
+      },
+
+      {
+        headerName:'MoU / Project',
+        field: 'MoU / Project',
+        flex: 2,
+        minWidth: 250,
+        cellClass: 'font-semibold text-slate-800 dark:text-slate-200',
+      },
+
+      {
+        headerName: 'Current Status',
+        field: 'Current Status',
+        width: 180,
+        cellClass: 'text-slate-700 dark:text-slate-300',
+      },
+
+      {
+        headerName: 'Original Amount (₹ Cr.)',
+        field: 'Original Amount (₹ Cr)',
+        width: 180,
+        headerClass:'text-right',
+        cellClass:'text-right text-slate-700',
+
+        valueFormatter: currencyFormatter,
+      },
+
+      {
+        headerName: 'Revised Amount (₹ Cr.)',
+        field: 'Revised Amount (₹ Cr)',
+        width: 180,
+        headerClass: 'text-right',
+        cellClass: 'text-right text-slate-700',
+
+        valueFormatter: currencyFormatter,
+      },
+
+      {
+        headerName: 'Financial Progress (%)',
+        field: 'Financial Progress (%)',
+        width: 170,
+        headerClass: 'text-center',
+
+        cellStyle: percentageCellStyle,
+        valueFormatter: percentageFormatter,
+      },
+
+      {
+        headerName: 'Physical Progress (%)',
+        field: 'Physical Progress (%)',
+        width: 170,
+        headerClass: 'text-center',
+
+        cellStyle: percentageCellStyle,
+        valueFormatter: percentageFormatter,
+      },
+
+    ],
+    []
+  );
 
   const report6Columns = useMemo(() => {
 
@@ -1188,8 +1137,7 @@ export default function GMISReports({
       },
 
       ...keys.map((key) => ({
-
-        headerName: key,
+        headerName: key.toLowerCase() === 'amount'? 'Amount (₹ Cr.)': key,
         field: key,
         minWidth: 150,
         flex: 1,
@@ -1204,9 +1152,14 @@ export default function GMISReports({
             return '-';
           }
 
-          if (
-            typeof params.value === 'number'
-          ) {
+          if (typeof params.value === 'number') {
+            if (key.toLowerCase() === 'amount') {
+              return `₹ ${params.value.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}`;
+            }
+
             return params.value.toLocaleString();
           }
 
@@ -1224,11 +1177,6 @@ export default function GMISReports({
     selectedReport,
     reportData,
   ]);
-
-
-  /* =======================================================
-     COLUMN MAP
-  ======================================================= */
 
   const columnsByReport = useMemo(
     () => ({
@@ -1249,10 +1197,6 @@ export default function GMISReports({
     ]
   );
 
-
-  /* =======================================================
-     TOTAL STATISTICS
-  ======================================================= */
 
   const totalStats = useMemo(() => {
 
@@ -1344,11 +1288,6 @@ export default function GMISReports({
 
   }, [reportData]);
 
-
-  /* =======================================================
-     PINNED TOTAL
-  ======================================================= */
-
   const pinnedBottomRowData =
     useMemo(() => {
 
@@ -1404,6 +1343,50 @@ export default function GMISReports({
 
       }
 
+      if (selectedReport === 'report-2') {
+        const totalRow = {
+          __sno: '',
+        };
+
+        if (reportData.length > 0) {
+          Object.keys(reportData[0]).forEach((key) => {
+            const values = reportData.map((row) => row[key]);
+
+            const numericValues = values
+              .map((value) => Number(value))
+              .filter((value) => Number.isFinite(value));
+
+            if (numericValues.length > 0) {
+              const lowerKey = key.toLowerCase();
+
+              if (
+                lowerKey.includes('percentage') ||
+                lowerKey.includes('progress') ||
+                lowerKey.includes('rank')
+              ) {
+                return;
+              }
+
+              totalRow[key] = numericValues.reduce(
+                (sum, value) => sum + value,
+                0
+              );
+            }
+          });
+        }
+
+        const totalLabelKey = Object.keys(reportData[0] || {}).find(
+          (key) =>
+            key.toLowerCase().includes('organisation') ||
+            key.toLowerCase().includes('organization')
+        );
+
+        if (totalLabelKey) {
+          totalRow[totalLabelKey] = 'Total';
+        }
+
+        return [totalRow];
+      }
 
       if (
         selectedReport === 'report-3'
@@ -1492,8 +1475,123 @@ export default function GMISReports({
 
       }
 
+      if (selectedReport === 'report-5') {
+        const totalRow = {
+          sNo: '',
+          Organisation: 'Total',
+          'MoU / Project': '',
+          'Current Status': '',
+        };
 
-      return undefined;
+        totalRow['Original Amount (₹ Cr)'] = reportData.reduce(
+          (sum, row) =>
+            sum + Number(row['Original Amount (₹ Cr)'] || 0),
+          0
+        );
+
+        totalRow['Revised Amount (₹ Cr)'] = reportData.reduce(
+          (sum, row) =>
+            sum + Number(row['Revised Amount (₹ Cr)'] || 0),
+          0
+        );
+
+        const financialValues = reportData
+          .map((row) => Number(row['Financial Progress (%)']))
+          .filter((value) => Number.isFinite(value));
+
+        const physicalValues = reportData
+          .map((row) => Number(row['Physical Progress (%)']))
+          .filter((value) => Number.isFinite(value));
+
+        totalRow['Financial Progress (%)'] =
+          financialValues.length
+            ? Number(
+                (
+                  financialValues.reduce((a, b) => a + b, 0) /
+                  financialValues.length
+                ).toFixed(2)
+              )
+            : 0;
+
+        totalRow['Physical Progress (%)'] =
+          physicalValues.length
+            ? Number(
+                (
+                  physicalValues.reduce((a, b) => a + b, 0) /
+                  physicalValues.length
+                ).toFixed(2)
+              )
+            : 0;
+
+        return [totalRow];
+      }
+
+    if (selectedReport === 'report-6') {
+      const totalRow = {
+        __sno: '',
+      };
+
+      if (reportData.length > 0) {
+        const keys = Object.keys(reportData[0]);
+
+        keys.forEach((key) => {
+          const lowerKey = key.trim().toLowerCase();
+
+          const isTextColumn =
+            lowerKey.includes('first party') ||
+            lowerKey.includes('second party') ||
+            lowerKey.includes('organisation') ||
+            lowerKey.includes('organization') ||
+            lowerKey.includes('mou') ||
+            lowerKey.includes('project') ||
+            lowerKey.includes('status') ||
+            lowerKey.includes('event') ||
+            lowerKey.includes('category');
+
+          const isNonTotalColumn =
+            lowerKey.includes('percentage') ||
+            lowerKey.includes('progress') ||
+            lowerKey.includes('rank');
+
+          if (isTextColumn || isNonTotalColumn) {
+            totalRow[key] = '';
+            return;
+          }
+
+          const numericValues = reportData
+            .map((row) => Number(row[key]))
+            .filter((value) => Number.isFinite(value));
+
+          if (numericValues.length > 0) {
+            totalRow[key] = numericValues.reduce(
+              (sum, value) => sum + value,
+              0
+            );
+          } else {
+            totalRow[key] = '';
+          }
+        });
+
+        // Show "Total" in the first suitable text column
+        const textKey = keys.find((key) => {
+          const lowerKey = key.trim().toLowerCase();
+
+          return (
+            lowerKey.includes('organisation') ||
+            lowerKey.includes('organization') ||
+            lowerKey.includes('mou') ||
+            lowerKey.includes('project')
+          );
+        });
+
+        if (textKey) {
+          totalRow[textKey] = 'Total';
+        }
+      }
+
+      return [totalRow];
+    }
+    return undefined;
 
     }, [
       reportData,
@@ -1501,18 +1599,14 @@ export default function GMISReports({
       totalStats,
     ]);
 
-
-  /* =======================================================
-     DEFAULT GRID
-  ======================================================= */
-
   const defaultColDef =
     useMemo(
       () => ({
         sortable: true,
         filter: true,
         resizable: true,
-
+        wrapText: true,
+        autoHeight: true,
         cellStyle: {
           display: 'flex',
           alignItems: 'center',
@@ -1521,11 +1615,6 @@ export default function GMISReports({
       }),
       []
     );
-
-
-  /* =======================================================
-     REPORT META
-  ======================================================= */
 
   const selectedReportMeta =
     useMemo(
@@ -1543,24 +1632,15 @@ export default function GMISReports({
     selectedReport === 'report-3' ||
     selectedReport === 'report-4';
 
-
-  /* =======================================================
-     FILTER STATE
-  ======================================================= */
-
   const hasActiveFilters =
-    Boolean(quickFilter.trim());
+    Boolean(quickFilter.trim()) ||
+    Boolean(selectedOrganisation);
 
 
   const handleResetFilters = () => {
     setQuickFilter('');
+    setSelectedOrganisation('');
   };
-
-
-  /* =======================================================
-     AS-ON-DATE LINE (mirrors "As on date / Report for the
-     month" line from the reference UI)
-  ======================================================= */
 
   const asOnDateLabel = useMemo(() => {
 
@@ -1583,11 +1663,6 @@ export default function GMISReports({
 
   }, []);
 
-
-  /* =======================================================
-     SUBTITLE
-  ======================================================= */
-
   const subtitle = useMemo(() => {
 
     return (
@@ -1604,11 +1679,6 @@ export default function GMISReports({
     totalStats,
   ]);
 
-
-  /* =======================================================
-     RENDER
-  ======================================================= */
-
   return (
 
     <div
@@ -1621,8 +1691,6 @@ export default function GMISReports({
 
       {/* ===================================================
           REPORT TABS
-          (kept as its own strip, OUTSIDE the content card,
-          so switching reports doesn't disturb the card below)
       =================================================== */}
 
       <div
@@ -1665,6 +1733,7 @@ export default function GMISReports({
                   setReportData([]);
                   setDetailData([]);
                   setQuickFilter('');
+                  setSelectedOrganisation('');
                   setIsExportOpen(false);
 
                   setSelectedReport(
@@ -1738,12 +1807,6 @@ export default function GMISReports({
         </div>
 
       </div>
-
-
-      {/* ===================================================
-          KPI CARDS
-          (kept OUTSIDE the content card, as its own row)
-      =================================================== */}
 
       {currentView.type === 'abstract' &&
         isStageReport && (
@@ -2021,14 +2084,6 @@ export default function GMISReports({
 
         )}
 
-
-      {/* ===================================================
-          REPORT CONTENT WRAPPER
-          Everything below (header strip, filter panel, note,
-          table) sits inside ONE bordered/rounded card, matching
-          the screenshot's single-container layout.
-      =================================================== */}
-
       <div
         className="
           rounded-2xl
@@ -2184,277 +2239,11 @@ export default function GMISReports({
 
           </div>
 
-
-          {/* ACTIONS */}
-
-          <div
-            className="
-              flex
-              items-center
-              gap-2.5
-              flex-wrap
-            "
-          >
-
-            {/* SEARCH */}
-
-            <div
-              className="
-                relative
-                w-60
-              "
-            >
-
-              <Search
-                size={14}
-                className="
-                  absolute
-                  left-3
-                  top-1/2
-                  -translate-y-1/2
-                  pointer-events-none
-                "
-                style={{
-                  color: BRAND_SOFT,
-                }}
-              />
-
-              <input
-                type="text"
-                placeholder="Search report..."
-                value={quickFilter}
-                onChange={(e) =>
-                  setQuickFilter(
-                    e.target.value
-                  )
-                }
-                className="
-                  w-full
-                  pl-9
-                  pr-8
-                  py-2
-                  text-[13.5px]
-                  font-medium
-                  rounded-[9px]
-                  outline-none
-                  border
-                  bg-white
-                  transition
-                  focus:ring-[3px]
-                  focus:ring-[#4b2424]/10
-                "
-                style={{
-                  color: BRAND,
-                  borderColor: '#eadede',
-                }}
-              />
-
-              {quickFilter && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    setQuickFilter('')
-                  }
-                  className="
-                    absolute
-                    right-2
-                    top-1/2
-                    -translate-y-1/2
-                    text-slate-400
-                    hover:text-[#4b2424]
-                    cursor-pointer
-                    bg-transparent
-                    border-0
-                  "
-                >
-                  ×
-                </button>
-              )}
-
-            </div>
-
-
-            {/* COPY */}
-
-            <button
-              type="button"
-              onClick={handleCopy}
-              className="
-                inline-flex
-                items-center
-                gap-1.5
-                px-3.5
-                py-2
-                rounded-[9px]
-                bg-white
-                border
-                text-xs
-                font-bold
-                text-slate-600
-                hover:text-[#4b2424]
-                hover:border-[#4b2424]
-                transition
-                cursor-pointer
-              "
-              style={{
-                borderColor: '#eadede',
-              }}
-              title="Copy report data"
-            >
-              <Copy size={14} />
-              Copy
-            </button>
-
-
-            {/* EXPORT */}
-
-            <div className="relative">
-
-              <button
-                type="button"
-                onClick={() =>
-                  setIsExportOpen((open) => !open)
-                }
-                className="
-                  inline-flex
-                  items-center
-                  gap-1.5
-                  px-3.5
-                  py-2
-                  rounded-[9px]
-                  text-xs
-                  font-bold
-                  text-white
-                  transition
-                  cursor-pointer
-                  border
-                "
-                style={{
-                  background: BRAND,
-                  borderColor: BRAND,
-                }}
-                title="Export report"
-              >
-                <Download size={14} />
-                Export
-                <ChevronDown size={13} />
-              </button>
-
-              {isExportOpen && (
-
-                <div
-                  className="
-                    absolute
-                    right-0
-                    mt-1.5
-                    w-40
-                    bg-white
-                    rounded-[10px]
-                    border
-                    shadow-lg
-                    z-10
-                    overflow-hidden
-                  "
-                  style={{
-                    borderColor: '#eadede',
-                  }}
-                >
-
-                  <button
-                    type="button"
-                    onClick={handleExportCSV}
-                    className="
-                      w-full
-                      text-left
-                      px-3.5
-                      py-2.5
-                      text-xs
-                      font-semibold
-                      text-slate-700
-                      hover:bg-[#f5eeea]
-                      cursor-pointer
-                      bg-transparent
-                      border-0
-                    "
-                  >
-                    Export as CSV
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleExportCSV}
-                    className="
-                      w-full
-                      text-left
-                      px-3.5
-                      py-2.5
-                      text-xs
-                      font-semibold
-                      text-slate-700
-                      hover:bg-[#f5eeea]
-                      cursor-pointer
-                      bg-transparent
-                      border-0
-                      border-t
-                    "
-                    style={{
-                      borderColor: '#eadede',
-                    }}
-                  >
-                    Export as Excel
-                  </button>
-
-                </div>
-
-              )}
-
-            </div>
-
-
-            {/* REFRESH */}
-
-            <button
-              type="button"
-              onClick={loadReportData}
-              className="
-                inline-flex
-                items-center
-                justify-center
-                w-9
-                h-9
-                rounded-[9px]
-                bg-white
-                border
-                text-slate-500
-                hover:text-[#4b2424]
-                hover:border-[#4b2424]
-                transition
-                cursor-pointer
-              "
-              style={{
-                borderColor: '#eadede',
-              }}
-              title="Refresh Data"
-            >
-
-              <RefreshCw
-                size={15}
-                className={
-                  loading
-                    ? 'animate-spin'
-                    : ''
-                }
-              />
-
-            </button>
-
-          </div>
-
         </div>
 
 
         {/* ---- Filter panel ---- */}
-
+        {selectedReport === 'report-5' && (
         <div>
 
           <button
@@ -2552,106 +2341,52 @@ export default function GMISReports({
             >
 
               <div
-                className="
+                className={`
                   grid
                   grid-cols-1
                   sm:grid-cols-2
+                  ${selectedReport === 'report-5' ? 'lg:grid-cols-3' : ''}
                   gap-4
-                "
+                `}
               >
 
-                <div>
 
-                  <label
-                    className="
-                      block
-                      text-[11.5px]
-                      font-extrabold
-                      mb-1.5
-                    "
-                    style={{
-                      color: BRAND,
-                    }}
-                  >
-                    Selected Report
-                  </label>
+                {/* ---- NEW: Organisation filter (Report 1.5 only) ---- */}
 
-                  <div
-                    className="
-                      w-full
-                      text-xs
-                      px-3
-                      py-2
-                      rounded-[10px]
-                      font-bold
-                    "
-                    style={{
-                      background:
-                        '#fcf9f7',
-                      border:
-                        '1px solid #d7c4b7',
-                      color: BRAND,
-                    }}
-                  >
-                    {selectedReportMeta.title}
-                  </div>
+                {selectedReport === 'report-5' && (
 
-                </div>
+                  <div>
 
-
-                <div>
-
-                  <label
-                    className="
-                      block
-                      text-[11.5px]
-                      font-extrabold
-                      mb-1.5
-                    "
-                    style={{
-                      color: BRAND,
-                    }}
-                  >
-                    Quick Search
-                  </label>
-
-                  <div
-                    className="
-                      relative
-                    "
-                  >
-
-                    <Search
-                      size={13}
+                    <label
                       className="
-                        absolute
-                        left-3
-                        top-1/2
-                        -translate-y-1/2
+                        block
+                        text-[11.5px]
+                        font-extrabold
+                        mb-1.5
                       "
                       style={{
-                        color: BRAND_SOFT,
+                        color: BRAND,
                       }}
-                    />
+                    >
+                      Organisation
+                    </label>
 
-                    <input
-                      type="text"
-                      value={quickFilter}
+                    <select
+                      value={selectedOrganisation}
                       onChange={(e) =>
-                        setQuickFilter(
+                        setSelectedOrganisation(
                           e.target.value
                         )
                       }
-                      placeholder="Search report data..."
                       className="
                         w-full
-                        pl-9
-                        pr-3
+                        px-3
                         py-2
                         text-xs
                         rounded-[10px]
                         font-semibold
                         outline-none
+                        cursor-pointer
                       "
                       style={{
                         background:
@@ -2660,11 +2395,28 @@ export default function GMISReports({
                           '1px solid #d7c4b7',
                         color: BRAND,
                       }}
-                    />
+                    >
+
+                      <option value="">
+                        All Organisations
+                      </option>
+
+                      {organisationOptions.map(
+                        (org) => (
+                          <option
+                            key={org}
+                            value={org}
+                          >
+                            {org}
+                          </option>
+                        )
+                      )}
+
+                    </select>
 
                   </div>
 
-                </div>
+                )}
 
               </div>
 
@@ -2723,36 +2475,7 @@ export default function GMISReports({
 
         </div>
 
-
-        {/* ---- Note ---- */}
-
-        {isStageReport && (
-
-          <div
-            className="
-              p-3.5
-              text-xs
-              font-bold
-              text-left
-            "
-            style={{
-              background: '#fcf9f7',
-              borderBottom: `1px solid ${BORDER}`,
-              color: BRAND,
-            }}
-          >
-
-            Note : The summary values shown above
-            are calculated from the currently loaded
-            GMIS MoU report data.
-
-          </div>
-
         )}
-
-
-        {/* ---- Table ---- */}
-
         <div>
 
           <ReportTable
@@ -2818,6 +2541,9 @@ export default function GMISReports({
             pagination={
               true
             }
+            suppressHorizontalScroll={false}     
+            alwaysShowHorizontalScroll={true}   
+            domLayout="normal"     
 
             themeClass={
               'yp-pro-grid'
@@ -2846,88 +2572,6 @@ export default function GMISReports({
           />
 
         </div>
-
-      </div>
-
-
-      {/* ===================================================
-          FOOTER STATUS
-      =================================================== */}
-
-      <div
-        className="
-          flex
-          flex-wrap
-          gap-3
-          text-[11px]
-          text-slate-600
-        "
-      >
-
-        <span
-          className="
-            inline-flex
-            items-center
-            gap-1.5
-          "
-        >
-
-          <span
-            className="
-              h-2.5
-              w-2.5
-              rounded-full
-              bg-emerald-500
-            "
-          />
-
-          Completed / Good
-
-        </span>
-
-
-        <span
-          className="
-            inline-flex
-            items-center
-            gap-1.5
-          "
-        >
-
-          <span
-            className="
-              h-2.5
-              w-2.5
-              rounded-full
-              bg-amber-500
-            "
-          />
-
-          In Progress
-
-        </span>
-
-
-        <span
-          className="
-            inline-flex
-            items-center
-            gap-1.5
-          "
-        >
-
-          <span
-            className="
-              h-2.5
-              w-2.5
-              rounded-full
-              bg-rose-500
-            "
-          />
-
-          Dropped
-
-        </span>
 
       </div>
 

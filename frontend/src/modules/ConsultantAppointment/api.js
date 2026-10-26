@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+export const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 const api = axios.create({ baseURL: API_BASE });
 
@@ -54,6 +54,10 @@ api.interceptors.response.use(
     }
   }
 );
+
+export function fetchConsultantAppointmentDashboard() {
+  return api.get('/consultant-appointment-dashboard');
+}
 
 export function fetchConsultantAppointments(params = {}) {
   return api.get('/consultant-appointment', { params });

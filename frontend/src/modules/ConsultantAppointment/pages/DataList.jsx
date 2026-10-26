@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import Table from '../../../components/Table';
-import { Search, X, Edit, Trash2, ChevronDown, Users, Filter, Plus } from 'lucide-react';
+import { Search, X, Edit, Trash2, ChevronDown, Users, Filter } from 'lucide-react';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import CandidateDrilldownView from './CandidateDrilldownView';
@@ -144,10 +144,15 @@ export default function DataList({
   const [drilldownAppointment, setDrilldownAppointment] = useState(null);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
 
+  const [allCount, setAllCount] = useState(0);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [completedCount, setCompletedCount] = useState(0);
+
   // Reset stage filter when switching tabs
   const handleTabChange = (tab) => {
     setActiveTab(tab);
-    if (tab !== 'pending') setSelectedStage('');
+    setCurrentPage(1);
+    if (tab === 'completed') setSelectedStage('');
   };
 
   const activeFiltersCount = (selectedWing ? 1 : 0) + (selectedDivision ? 1 : 0) + (selectedStage ? 1 : 0);
@@ -175,6 +180,7 @@ export default function DataList({
 
   const handleWingChange = (val) => {
     setSelectedWing(val);
+    setSelectedDivision('');
     setCurrentPage(1);
   };
 
@@ -201,7 +207,9 @@ export default function DataList({
         limit: pageSize,
         search: debouncedSearch,
         wing: selectedWing,
-        division: selectedDivision
+        division: selectedDivision,
+        status: activeTab,
+        stage: selectedStage
       });
 
       const payload = res.data;
@@ -213,15 +221,36 @@ export default function DataList({
         setData(parsed);
         setTotalCount(payload.pagination.total || 0);
         setTotalPages(payload.pagination.totalPages || 1);
+        if (payload.pagination.allCount !== undefined) {
+          setAllCount(payload.pagination.allCount || 0);
+          setPendingCount(payload.pagination.pendingCount || 0);
+          setCompletedCount(payload.pagination.completedCount || 0);
+        }
       } else {
         const list = Array.isArray(payload) ? payload : [];
         const parsed = list.map((item, idx) => ({
           ...parseAppointmentRow(item),
           sNo: idx + 1
         }));
-        setData(parsed);
-        setTotalCount(list.length);
-        setTotalPages(Math.ceil(list.length / pageSize) || 1);
+        const total = parsed.length;
+        const comp = parsed.filter(item => item.status === 'Contract Signed').length;
+        const pend = total - comp;
+        setAllCount(total);
+        setCompletedCount(comp);
+        setPendingCount(pend);
+
+        let filtered = parsed;
+        if (activeTab === 'pending') {
+          filtered = filtered.filter(item => item.status !== 'Contract Signed');
+        } else if (activeTab === 'completed') {
+          filtered = filtered.filter(item => item.status === 'Contract Signed');
+        }
+        if (selectedStage && selectedStage !== 'All Stages') {
+          filtered = filtered.filter(item => item.status === selectedStage);
+        }
+        setData(filtered);
+        setTotalCount(filtered.length);
+        setTotalPages(Math.ceil(filtered.length / pageSize) || 1);
       }
     } catch (err) {
       console.error("Error fetching consultant appointments:", err);
@@ -229,7 +258,7 @@ export default function DataList({
     } finally {
       setLoading(false);
     }
-  }, [currentPage, pageSize, debouncedSearch, selectedWing, selectedDivision]);
+  }, [currentPage, pageSize, debouncedSearch, selectedWing, selectedDivision, activeTab, selectedStage]);
 
   useEffect(() => {
     fetchData();
@@ -238,24 +267,39 @@ export default function DataList({
   const wingOptions = useMemo(() => {
     return wings.map(w => ({
       value: w.wing_name,
-      label: w.wing_name
+      label: w.wing_name,
+      wing_id: w.wing_id
     }));
   }, [wings]);
 
   const divisionOptions = useMemo(() => {
-    return divisions.map(d => ({
+    if (!selectedWing) return [];
+    let filtered = divisions;
+    const matchingWing = wings.find(w => 
+      (w.wing_name && String(w.wing_name) === String(selectedWing)) || 
+      (w.wing_id && String(w.wing_id) === String(selectedWing))
+    );
+    const targetWingId = matchingWing ? matchingWing.wing_id : null;
+    if (targetWingId !== undefined && targetWingId !== null) {
+      filtered = divisions.filter(d => String(d.wing_id) === String(targetWingId));
+    } else {
+      filtered = divisions.filter(d => String(d.wing_name) === String(selectedWing));
+    }
+    return filtered.map(d => ({
       value: d.division_name,
       label: d.division_name
     }));
-  }, [divisions]);
+  }, [divisions, wings, selectedWing]);
 
-  const pendingCount = useMemo(() => {
-    return data.filter(item => item.status !== 'Contract Signed').length;
-  }, [data]);
-
-  const completedCount = useMemo(() => {
-    return data.filter(item => item.status === 'Contract Signed').length;
-  }, [data]);
+  // Sync division selection if current division is not in filtered list
+  useEffect(() => {
+    if (selectedDivision) {
+      const exists = divisionOptions.some(d => String(d.value) === String(selectedDivision));
+      if (!exists) {
+        setSelectedDivision('');
+      }
+    }
+  }, [divisionOptions, selectedDivision]);
   const handleExport = (type) => {
     if (type === 'Copy') {
       if (gridApi) {
@@ -366,17 +410,24 @@ export default function DataList({
       {
         field: 'sNo',
         headerName: 'S.No',
-        minWidth: 95,
-        cellClass: 'font-mono text-slate-800 dark:text-white font-bold text-center',
+        minWidth: 80,
+        width: 85,
+        wrapText: true,
+        autoHeight: true,
+        cellClass: 'font-mono text-slate-800 dark:text-white font-bold text-center flex items-center justify-center',
         headerClass: 'text-center',
-        pinned: 'left'
+        pinned: 'left',
+        cellStyle: { textAlign: 'center', justifyContent: 'center', display: 'flex', alignItems: 'center' }
       },
       {
         field: 'wing',
         headerName: 'Wing',
         flex: 1.5,
         minWidth: 150,
-        cellClass: 'font-bold text-slate-800 dark:text-white',
+        wrapText: true,
+        autoHeight: true,
+        cellClass: 'font-bold text-slate-800 dark:text-white flex items-center',
+        cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4', display: 'flex', alignItems: 'center' },
         hide: !visibleCols.wing,
         pinned: 'left'
       },
@@ -384,24 +435,35 @@ export default function DataList({
         field: 'division',
         headerName: 'Division',
         flex: 1.2,
-        minWidth: 120,
-        cellClass: 'text-slate-700 dark:text-slate-100 font-medium',
+        minWidth: 130,
+        wrapText: true,
+        autoHeight: true,
+        headerClass: 'text-center',
+        cellClass: 'text-slate-700 dark:text-slate-100 font-medium text-center flex items-center justify-center',
+        cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' },
         hide: !visibleCols.division
       },
       {
         field: 'appointmentType',
         headerName: 'Appointment Type',
         flex: 1.2,
-        minWidth: 130,
-        cellClass: 'text-slate-700 dark:text-slate-100 font-medium',
+        minWidth: 140,
+        wrapText: true,
+        autoHeight: true,
+        headerClass: 'text-center',
+        cellClass: 'text-slate-700 dark:text-slate-100 font-medium text-center flex items-center justify-center',
+        cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' },
         hide: !visibleCols.appointmentType
       },
       {
         field: 'status',
         headerName: 'Status',
-        flex: 2,
-        minWidth: 200,
-        cellClass: 'font-semibold text-blue-700 dark:text-blue-400',
+        flex: 3,
+        minWidth: 260,
+        wrapText: true,
+        autoHeight: true,
+        cellClass: 'font-semibold text-blue-700 dark:text-blue-400 flex items-center',
+        cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4', display: 'flex', alignItems: 'center' },
         hide: !visibleCols.status
       },
       {
@@ -409,7 +471,11 @@ export default function DataList({
         headerName: 'Number of Resources',
         flex: 1,
         minWidth: 155,
+        wrapText: true,
+        autoHeight: true,
         headerClass: 'text-center',
+        cellClass: 'flex items-center justify-center',
+        cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' },
         cellRenderer: (params) => {
           const row = params.data;
           const count = params.value || 1;
@@ -434,7 +500,10 @@ export default function DataList({
         headerName: 'Last Updated',
         flex: 1.3,
         minWidth: 165,
-        cellClass: 'font-mono text-slate-700 dark:text-slate-300 text-xs font-semibold text-center',
+        wrapText: true,
+        autoHeight: true,
+        cellClass: 'font-mono text-slate-700 dark:text-slate-300 text-xs font-semibold text-center flex items-center justify-center',
+        cellStyle: { textAlign: 'center', justifyContent: 'center', display: 'flex', alignItems: 'center', whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4' },
         headerClass: 'text-center',
         hide: !visibleCols.lastUpdated
       }
@@ -447,8 +516,11 @@ export default function DataList({
         pinned: 'right',
         lockPinned: true,
         suppressMovable: true,
+        wrapText: true,
+        autoHeight: true,
         headerClass: 'text-center',
-        cellClass: 'text-center',
+        cellClass: 'text-center flex items-center justify-center',
+        cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' },
         cellRenderer: (params) => {
           const row = params.data;
           return (
@@ -456,7 +528,7 @@ export default function DataList({
               {canEdit && (
                 <button
                   onClick={() => onEdit(row)}
-                  className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-[#0f417a] dark:text-blue-400 transition cursor-pointer"
+                  className="p-1.5 hover:bg-orange-50 dark:hover:bg-slate-800 rounded-lg text-orange-500 hover:text-orange-600 dark:text-orange-400 transition cursor-pointer"
                   title="Update Appointment"
                 >
                   <Edit className="h-4 w-4" />
@@ -481,13 +553,16 @@ export default function DataList({
     }
 
     return cols;
-  }, [onEdit, onDelete, visibleCols, canEdit, canRemove, fetchData]);
+  }, [visibleCols, canEdit, canRemove, onEdit, onDelete, fetchData]);
 
   if (drilldownAppointment) {
     return (
       <CandidateDrilldownView
         appointment={drilldownAppointment}
-        onBack={() => setDrilldownAppointment(null)}
+        onBack={() => {
+          setDrilldownAppointment(null);
+          fetchData();
+        }}
         triggerNotification={triggerNotification}
         canEdit={canEdit}
         canAdd={canAdd}
@@ -498,8 +573,8 @@ export default function DataList({
 
   return (
     <div className="space-y-6 animate-fade-in relative">
-      {/* Pending / Completed tabs matching YP DataList */}
-      <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-1 mb-4 select-none px-1">
+      {/* Sub-Tabs: PENDING, CONTRACT SIGNED */}
+      <div className="flex items-center space-x-1 border-b border-slate-200 dark:border-slate-800 pb-0 mb-4 select-none px-1">
         <button
           onClick={() => handleTabChange('pending')}
           className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
@@ -518,7 +593,7 @@ export default function DataList({
               : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
           }`}
         >
-          COMPLETED ({completedCount})
+          CONTRACT SIGNED ({completedCount})
         </button>
       </div>
 
@@ -654,18 +729,6 @@ export default function DataList({
               color="#0f417a"
               hoverColor="#1e5ea8"
             />
-
-            {/* Optional Add Button */}
-            {canAdd && onAddClick && (
-              <button
-                onClick={onAddClick}
-                className="px-3 py-1.5 bg-[#0f417a] hover:bg-[#1a5ba3] text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>Add</span>
-              </button>
-            )}
-
           </div>
         </div>
 
@@ -681,7 +744,7 @@ export default function DataList({
                 <select
                   value={selectedWing}
                   onChange={(e) => handleWingChange(e.target.value)}
-                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                  className="appearance-none w-full text-xs pl-2.5 pr-8 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
                 >
                   <option value="">All Wings</option>
                   {wingOptions.map((w) => (
@@ -701,9 +764,14 @@ export default function DataList({
                 <select
                   value={selectedDivision}
                   onChange={(e) => handleDivisionChange(e.target.value)}
-                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                  disabled={!selectedWing}
+                  className={`appearance-none w-full text-xs pl-2.5 pr-8 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer ${
+                    !selectedWing ? 'opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-800/60' : ''
+                  }`}
                 >
-                  <option value="">All Divisions</option>
+                  <option value="">
+                    {!selectedWing ? 'Select Wing First' : 'All Divisions'}
+                  </option>
                   {divisionOptions.map((d) => (
                     <option key={d.value} value={d.value}>{d.label}</option>
                   ))}
@@ -712,8 +780,8 @@ export default function DataList({
               </div>
             </div>
 
-            {/* Stage Selector (Pending tab) */}
-            {activeTab === 'pending' && (
+            {/* Stage Selector */}
+            {activeTab !== 'completed' && (
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   Stage
@@ -722,10 +790,10 @@ export default function DataList({
                   <select
                     value={selectedStage}
                     onChange={(e) => setSelectedStage(e.target.value)}
-                    className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                    className="appearance-none w-full text-xs pl-2.5 pr-8 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
                   >
                     <option value="">All Stages</option>
-                    {PENDING_STAGES.map(stage => (
+                    {(activeTab === 'pending' ? PENDING_STAGES : STAGES.map(s => s.label)).map(stage => (
                       <option key={stage} value={stage}>{stage}</option>
                     ))}
                   </select>
@@ -748,7 +816,16 @@ export default function DataList({
             minWidth: 90,
             filter: false,
             sortable: true,
-            resizable: true
+            resizable: true,
+            wrapText: true,
+            autoHeight: true,
+            cellStyle: {
+              whiteSpace: 'normal',
+              wordBreak: 'break-word',
+              lineHeight: '1.4',
+              display: 'flex',
+              alignItems: 'center'
+            }
           }}
         />
 

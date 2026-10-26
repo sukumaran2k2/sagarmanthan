@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import Table from '../../../components/Table';
 import TablePagination from '../../../components/TablePagination';
-import { Search, X, Edit, UserMinus, BarChart3, List, ChevronDown, Filter, Loader2 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
+import { Search, X, Edit, UserMinus, ChevronDown, Filter, Loader2 } from 'lucide-react';
 import api, { fetchYoungProfessionals, relieveYoungProfessional } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
 import ExportDropdown from '../../../components/ExportDropdown';
@@ -31,7 +31,6 @@ export default function DataList({
   const [selectedWing, setSelectedWing] = useState('');
   const [selectedDivision, setSelectedDivision] = useState('');
   const [activeStatusTab, setActiveStatusTab] = useState('active'); // 'active' | 'relieved'
-  const [viewMode, setViewMode] = useState('table'); // 'table' | 'chart'
   const [showFilterPanel, setShowFilterPanel] = useState(false);
 
   // Relieve Modal
@@ -49,8 +48,7 @@ export default function DataList({
     name: true,
     role: true,
     wing: true,
-    division: true,
-    status: true
+    division: true
   });
 
   // Debounce search input
@@ -65,6 +63,7 @@ export default function DataList({
   // Reset to page 1 on filter changes
   const handleWingChange = (val) => {
     setSelectedWing(val);
+    setSelectedDivision('');
     setCurrentPage(1);
   };
 
@@ -154,36 +153,46 @@ export default function DataList({
     if (wings.length > 0) {
       return wings.map(w => ({
         value: w.wing_name ?? w.label ?? w.value ?? String(w),
-        label: w.wing_name ?? w.label ?? w.value ?? String(w)
+        label: w.wing_name ?? w.label ?? w.value ?? String(w),
+        wing_id: w.wing_id
       }));
     }
     return STATIC_WINGS.map(name => ({ value: name, label: name }));
   }, [wings]);
 
   const divisionOptions = useMemo(() => {
+    if (!selectedWing) return [];
     if (divisions.length > 0) {
-      return divisions.map(d => ({
+      const matchingWing = wings.find(w => 
+        String(w.wing_name ?? w.label ?? w.value ?? '') === String(selectedWing) || 
+        String(w.wing_id ?? '') === String(selectedWing)
+      );
+      const targetWingId = matchingWing ? matchingWing.wing_id : null;
+      let filtered = divisions;
+      if (targetWingId !== undefined && targetWingId !== null) {
+        filtered = divisions.filter(d => String(d.wing_id) === String(targetWingId));
+      } else {
+        filtered = divisions.filter(d => 
+          String(d.wing_name ?? d.wing ?? '') === String(selectedWing)
+        );
+      }
+      return filtered.map(d => ({
         value: d.division_name ?? d.label ?? d.value ?? String(d),
         label: d.division_name ?? d.label ?? d.value ?? String(d)
       }));
     }
     return STATIC_DIVISIONS.map(name => ({ value: name, label: name }));
-  }, [divisions]);
+  }, [divisions, wings, selectedWing]);
 
-  // Group data by wing for the chart visualization
-  const chartData = useMemo(() => {
-    const counts = {};
-    data.forEach(item => {
-      const w = item.wing || 'Unknown';
-      counts[w] = (counts[w] || 0) + 1;
-    });
-    return Object.keys(counts).map(key => ({
-      name: key,
-      'In Position': counts[key]
-    }));
-  }, [data]);
-
-  const COLORS = ['#0f417a', '#1e5ea8', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+  // Sync division selection if current division is not in filtered list
+  useEffect(() => {
+    if (selectedDivision) {
+      const exists = divisionOptions.some(d => String(d.value) === String(selectedDivision));
+      if (!exists) {
+        setSelectedDivision('');
+      }
+    }
+  }, [divisionOptions, selectedDivision]);
 
   const handleOpenRelieve = (yp) => {
     setSelectedYp(yp);
@@ -406,40 +415,24 @@ export default function DataList({
         }
       },
       {
-        field: 'is_active',
-        headerName: 'Status',
-        width: 120,
-        hide: !visibleCols.status,
-        cellRenderer: (params) => {
-          const isActive = params.value === 1 || params.value === true;
-          return (
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${
-              isActive
-                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-400'
-                : 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-400'
-            }`}>
-              <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${isActive ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
-              {isActive ? 'Active' : 'Relieved'}
-            </span>
-          );
-        }
-      },
-      {
         headerName: 'Action',
         width: 110,
         pinned: 'right',
+        headerClass: 'text-center',
+        cellClass: 'text-center flex items-center justify-center',
+        cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' },
         cellRenderer: (params) => {
           const item = params.data;
           if (!item) return null;
           const isActive = item.is_active === 1 || item.is_active === true;
 
           return (
-            <div className="flex items-center space-x-1.5 h-full py-1">
+            <div className="flex items-center justify-center space-x-1.5 w-full h-full py-1">
               {canEdit && (
                 <button
                   onClick={() => onEdit(item)}
                   title="Edit Young Professional"
-                  className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-lg transition cursor-pointer"
+                  className="p-1.5 text-orange-500 hover:text-orange-600 hover:bg-orange-50 dark:text-orange-400 dark:hover:bg-slate-800 rounded-lg transition cursor-pointer"
                 >
                   <Edit className="h-4 w-4" />
                 </button>
@@ -555,91 +548,69 @@ export default function DataList({
               )}
             </div>
 
-            {viewMode === 'table' && (
-              <>
-                {/* Rows Limit Select Dropdown */}
-                <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-xs select-none dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200">
-                  <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
-                  <select
-                    value={pageSize}
-                    onChange={(e) => {
-                      setPageSize(Number(e.target.value));
-                      setCurrentPage(1);
-                    }}
-                    className="bg-transparent border-none text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
-                  >
-                    <option value="10">10</option>
-                    <option value="25">25</option>
-                    <option value="50">50</option>
-                    <option value="100">100</option>
-                  </select>
-                </div>
-
-                {/* Total Count Badge */}
-                <div className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
-                  Total: {totalCount}
-                </div>
-
-                {/* Column Visibility Dropdown */}
-                <div className="relative" ref={colDropdownRef}>
-                  <button
-                    onClick={() => setDropdownOpen(!dropdownOpen)}
-                    className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold hover:bg-slate-50 transition cursor-pointer flex items-center space-x-1.5 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800"
-                  >
-                    <span>Visibility</span>
-                    <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
-                  </button>
-                  {dropdownOpen && (
-                    <div className="absolute right-0 mt-1.5 w-44 bg-white border border-slate-200 rounded-xl shadow-lg p-2 z-50 animate-fade-in flex flex-col space-y-0.5 dark:bg-slate-900 dark:border-slate-800">
-                      {Object.keys(visibleCols).map(col => (
-                        <label key={col} className="flex items-center space-x-2 px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 capitalize cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={visibleCols[col]}
-                            onChange={() => setVisibleCols(prev => ({ ...prev, [col]: !prev[col] }))}
-                            className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
-                          />
-                          <span>{col === 'status' ? 'Status' : col}</span>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Copy Button */}
-                <CopyButton
-                  onCopy={() => handleExport('Copy')}
-                  color="#0f417a"
-                  hoverBg="#f1f5f9"
-                />
-
-                {/* Export Dropdown */}
-                <ExportDropdown
-                  onExportExcel={() => handleExport('Excel')}
-                  onExportPdf={() => handleExport('PDF')}
-                  color="#0f417a"
-                  hoverColor="#1d5594"
-                />
-              </>
-            )}
-
-            {/* Toggle Switch Button Pair */}
-            <div className="flex items-center border border-slate-200 rounded-lg p-0.5 bg-slate-50 dark:bg-slate-900 dark:border-slate-800">
-              <button
-                onClick={() => setViewMode('chart')}
-                className={`p-1.5 rounded transition cursor-pointer ${viewMode === 'chart' ? 'bg-white dark:bg-slate-800 shadow text-[#0f417a] dark:text-blue-400' : 'text-slate-400 hover:text-slate-700'}`}
-                title="Chart View"
+            {/* Rows Limit Select Dropdown */}
+            <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-xs select-none dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200">
+              <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="bg-transparent border-none text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
               >
-                <BarChart3 className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => setViewMode('table')}
-                className={`p-1.5 rounded transition cursor-pointer ${viewMode === 'table' ? 'bg-white dark:bg-slate-800 shadow text-[#0f417a] dark:text-blue-400' : 'text-slate-400 hover:text-slate-700'}`}
-                title="Table View"
-              >
-                <List className="h-4 w-4" />
-              </button>
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
             </div>
+
+            {/* Total Count Badge */}
+            <div className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
+              Total: {totalCount}
+            </div>
+
+            {/* Column Visibility Dropdown */}
+            <div className="relative" ref={colDropdownRef}>
+              <button
+                onClick={() => setDropdownOpen(!dropdownOpen)}
+                className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold hover:bg-slate-50 transition cursor-pointer flex items-center space-x-1.5 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                <span>Visibility</span>
+                <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+              </button>
+              {dropdownOpen && (
+                <div className="absolute right-0 mt-1.5 w-44 bg-white border border-slate-200 rounded-xl shadow-lg p-2 z-50 animate-fade-in flex flex-col space-y-0.5 dark:bg-slate-900 dark:border-slate-800">
+                  {Object.keys(visibleCols).map(col => (
+                    <label key={col} className="flex items-center space-x-2 px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 capitalize cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={visibleCols[col]}
+                        onChange={() => setVisibleCols(prev => ({ ...prev, [col]: !prev[col] }))}
+                        className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                      <span>{col === 'status' ? 'Status' : col}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Copy Button */}
+            <CopyButton
+              onCopy={() => handleExport('Copy')}
+              color="#0f417a"
+              hoverBg="#f1f5f9"
+            />
+
+            {/* Export Dropdown */}
+            <ExportDropdown
+              onExportExcel={() => handleExport('Excel')}
+              onExportPdf={() => handleExport('PDF')}
+              color="#0f417a"
+              hoverColor="#1d5594"
+            />
 
           </div>
         </div>
@@ -656,7 +627,7 @@ export default function DataList({
                 <select
                   value={selectedWing}
                   onChange={(e) => handleWingChange(e.target.value)}
-                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                  className="appearance-none w-full text-xs pl-2.5 pr-8 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
                 >
                   <option value="">All Wings</option>
                   {wingOptions.map((w) => (
@@ -676,9 +647,14 @@ export default function DataList({
                 <select
                   value={selectedDivision}
                   onChange={(e) => handleDivisionChange(e.target.value)}
-                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                  disabled={!selectedWing}
+                  className={`appearance-none w-full text-xs pl-2.5 pr-8 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer ${
+                    !selectedWing ? 'opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-800/60' : ''
+                  }`}
                 >
-                  <option value="">All Divisions</option>
+                  <option value="">
+                    {!selectedWing ? 'Select Wing First' : 'All Divisions'}
+                  </option>
                   {divisionOptions.map((d) => (
                     <option key={d.value} value={d.value}>{d.label}</option>
                   ))}
@@ -689,171 +665,153 @@ export default function DataList({
           </div>
         )}
 
-        {viewMode === 'table' ? (
-          <div className="ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
-            <Table
-              rowData={data}
-              columnDefs={columnDefs}
-              loading={loading}
-              pagination={false}
-              enableExport={false}
-              onGridReady={(params) => setGridApi(params.api)}
-              defaultColDef={{
-                minWidth: 90,
-                filter: false,
-                sortable: true,
-                resizable: true
-              }}
-            />
-            
-            {/* Server-Side Pagination Bar */}
-            <TablePagination
-              currentPage={currentPage - 1}
-              totalPages={totalPages}
-              totalRows={totalCount}
-              pageSize={pageSize}
-              onPageChange={(zeroIdx) => setCurrentPage(zeroIdx + 1)}
-              onPrevPage={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-              onNextPage={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-              color="#0f417a"
-            />
+        <div className="ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
+          <Table
+            rowData={data}
+            columnDefs={columnDefs}
+            loading={loading}
+            pagination={false}
+            enableExport={false}
+            onGridReady={(params) => setGridApi(params.api)}
+            defaultColDef={{
+              minWidth: 90,
+              filter: false,
+              sortable: true,
+              resizable: true
+            }}
+          />
+          
+          {/* Server-Side Pagination Bar */}
+          <TablePagination
+            currentPage={currentPage - 1}
+            totalPages={totalPages}
+            totalRows={totalCount}
+            pageSize={pageSize}
+            onPageChange={(zeroIdx) => setCurrentPage(zeroIdx + 1)}
+            onPrevPage={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+            onNextPage={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+            color="#0f417a"
+          />
 
-            <style dangerouslySetInnerHTML={{
-              __html: `
-              .ag-theme-quartz.rounded-xl,
-              .ag-theme-quartz.rounded-2xl {
-                border-radius: 16px !important;
-              }
-              .ag-theme-quartz .ag-root-wrapper {
-                border-radius: 16px 16px 0 0 !important;
-              }
-              .ag-theme-quartz .ag-header {
-                background-color: #0f417a !important;
-                border-bottom: 2px solid #0a2d55 !important;
-              }
-              .ag-theme-quartz .ag-header-cell {
-                color: #ffffff !important;
-                font-weight: 700 !important;
-                text-transform: uppercase !important;
-                font-size: 11px !important;
-                letter-spacing: 0.05em !important;
-              }
-              .ag-theme-quartz .ag-header-cell .ag-icon {
-                color: #ffffff !important;
-              }
-              .ag-theme-quartz .ag-header-cell-label {
-                color: #ffffff !important;
-              }
-              .ag-theme-quartz .ag-row {
-                font-size: 13px !important;
-                border-bottom: 1px solid #f1f5f9 !important;
-              }
-              .ag-theme-quartz .ag-row-hover {
-                background-color: #f8fafc !important;
-              }
-              .dark .ag-theme-quartz .ag-row-hover {
-                background-color: #1e293b !important;
-              }
-              `
-            }} />
-          </div>
-        ) : (
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 dark:bg-slate-900 dark:border-slate-800">
-            <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-4">
-              Young Professionals Distribution by Wing ({activeStatusTab === 'active' ? 'Active' : 'Relieved'})
-            </h4>
-            <div className="h-80 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
-                  <XAxis dataKey="name" angle={-45} textAnchor="end" interval={0} tick={{ fontSize: 11 }} />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip />
-                  <Bar dataKey="In Position" fill="#0f417a" radius={[4, 4, 0, 0]}>
-                    {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        )}
+          <style dangerouslySetInnerHTML={{
+            __html: `
+            .ag-theme-quartz.rounded-xl,
+            .ag-theme-quartz.rounded-2xl {
+              border-radius: 16px !important;
+            }
+            .ag-theme-quartz .ag-root-wrapper {
+              border-radius: 16px 16px 0 0 !important;
+            }
+            .ag-theme-quartz .ag-header {
+              background-color: #0f417a !important;
+              border-bottom: 2px solid #0a2d55 !important;
+            }
+            .ag-theme-quartz .ag-header-cell {
+              color: #ffffff !important;
+              font-weight: 700 !important;
+              text-transform: uppercase !important;
+              font-size: 11px !important;
+              letter-spacing: 0.05em !important;
+            }
+            .ag-theme-quartz .ag-header-cell .ag-icon {
+              color: #ffffff !important;
+            }
+            .ag-theme-quartz .ag-header-cell-label {
+              color: #ffffff !important;
+            }
+            .ag-theme-quartz .ag-row {
+              font-size: 13px !important;
+              border-bottom: 1px solid #f1f5f9 !important;
+            }
+            .ag-theme-quartz .ag-row-hover {
+              background-color: #f8fafc !important;
+            }
+            .dark .ag-theme-quartz .ag-row-hover {
+              background-color: #1e293b !important;
+            }
+            `
+          }} />
+        </div>
 
       </div>
 
       {/* Relieve Modal Dialog */}
-      {relieveModalOpen && selectedYp && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-100 dark:bg-slate-900 dark:border-slate-800 animate-scale-up">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex items-center space-x-2">
-                <div className="p-2 bg-rose-50 text-rose-600 rounded-lg dark:bg-rose-950/40 dark:text-rose-400">
-                  <UserMinus className="h-5 w-5" />
-                </div>
-                <h3 className="font-bold text-slate-800 dark:text-slate-100">Relieve Candidate</h3>
-              </div>
-              <button
-                onClick={() => setRelieveModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition cursor-pointer"
+      {relieveModalOpen && selectedYp
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-[99999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 overflow-hidden"
+              onClick={() => !submittingRelieve && setRelieveModalOpen(false)}
+            >
+              <div
+                className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl animate-scale-up my-auto"
+                onClick={(e) => e.stopPropagation()}
               >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+                <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800">
+                  <h3 className="text-sm font-black text-slate-800 dark:text-slate-100">Relieve Candidate</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    You are about to relieve{' '}
+                    <span className="font-semibold text-slate-700 dark:text-slate-200">
+                      {selectedYp.name}
+                    </span>{' '}
+                    from the organization.
+                  </p>
+                </div>
 
-            <form onSubmit={handleRelieveSubmit} className="mt-4 space-y-4">
-              <div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  You are about to relieve <strong className="text-slate-700 dark:text-slate-200">{selectedYp.name}</strong> from the organization.
-                </p>
-              </div>
+                <form onSubmit={handleRelieveSubmit}>
+                  <div className="px-5 py-4 space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Last Working Date <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={lastWorkingDate}
+                        onChange={(e) => setLastWorkingDate(e.target.value)}
+                        disabled={submittingRelieve}
+                        className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs p-2.5 font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-rose-400"
+                      />
+                    </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Last Working Date <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={lastWorkingDate}
-                  onChange={(e) => setLastWorkingDate(e.target.value)}
-                  className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 font-semibold"
-                />
-              </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Remarks / Reason
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={remarks}
+                        onChange={(e) => setRemarks(e.target.value)}
+                        placeholder="Enter remarks for relieving..."
+                        disabled={submittingRelieve}
+                        className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs p-3 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none"
+                      />
+                    </div>
+                  </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Remarks / Reason
-                </label>
-                <textarea
-                  rows="3"
-                  value={remarks}
-                  onChange={(e) => setRemarks(e.target.value)}
-                  placeholder="Enter remarks for relieving..."
-                  className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200"
-                ></textarea>
+                  <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setRelieveModalOpen(false)}
+                      disabled={submittingRelieve}
+                      className="px-3 py-2 text-xs font-bold rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-60 transition cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submittingRelieve}
+                      className="px-3 py-2 text-xs font-bold rounded-lg bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-60 transition cursor-pointer flex items-center gap-1.5"
+                    >
+                      {submittingRelieve && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                      <span>{submittingRelieve ? 'Relieving...' : 'Relieve Candidate'}</span>
+                    </button>
+                  </div>
+                </form>
               </div>
-
-              <div className="flex items-center justify-end space-x-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setRelieveModalOpen(false)}
-                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl dark:text-slate-400 dark:hover:bg-slate-800 transition cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submittingRelieve}
-                  className="px-4 py-2 text-xs font-bold bg-rose-600 text-white hover:bg-rose-700 rounded-xl shadow-xs transition cursor-pointer disabled:opacity-50 flex items-center space-x-1.5"
-                >
-                  {submittingRelieve && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                  <span>Relieve Candidate</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            </div>,
+            document.body
+          )
+        : null}
 
     </div>
   );
