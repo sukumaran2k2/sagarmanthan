@@ -111,3 +111,30 @@
   white-space: normal !important;
   line-height: 1.4 !important;
 }
+
+/* ── KPI Report Grid (CSL, IMU, DGLL, SCI Reports pages) ─────── */
+/* One copy of the grid styling each KPI report page used to inline in a <style> block.
+   Row height: --ag-row-height on the element overrides the default 48px where a page needs it. */
+.kpi-report-grid.ag-theme-quartz {
+  --ag-font-family: 'Inter', system-ui, sans-serif;
+  --ag-row-height: 48px;
+  --ag-active-color: #4b2424;
+}
+.kpi-report-grid .ag-root-wrapper { border: none !important; border-radius: 0 !important; }
+.kpi-report-grid .ag-header { background: #4b2424 !important; border-bottom: 2px solid #3a1a1a !important; }
+.kpi-report-grid .ag-header-cell {
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  font-size: 11px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.15) !important;
+}
+.kpi-report-grid .ag-header-cell-label { justify-content: center !important; }
+.kpi-report-grid .ag-row-even { background: #ffffff !important; }
+.kpi-report-grid .ag-row-odd { background: #f8faf6 !important; }
+.kpi-report-grid .ag-cell { border-right: 1px solid #D3D6D9 !important; }
+.dark .kpi-report-grid .ag-header { background: #0f172a !important; }
+.dark .kpi-report-grid .ag-row-even { background: #090d16 !important; }
+.dark .kpi-report-grid .ag-row-odd { background: #0f172a !important; }
+.dark .kpi-report-grid .ag-cell { border-right: 1px solid #1e293b !important; color: #e2e8f0 !important; }

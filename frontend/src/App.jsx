@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import MainLayout, { ROUTE_MAP, getTabFromSlug } from './layouts/MainLayout';
 import LoginView from './modules/Login/Login';
@@ -165,15 +165,17 @@ export default function App() {
   const [eOfficeKpi, setEOfficeKpi] = useState('file-pendency');
 
   // options: { variant, duration } — used by the standardized notifier (utils/notify.js);
-  // legacy 3-argument calls keep the original look and 4s lifetime
-  const triggerNotification = (message, type = 'success', title = '', options = {}) => {
+  // legacy 3-argument calls keep the original look and 4s lifetime.
+  // Stable across renders: modules build notify() from it and use it in effect dependencies,
+  // so a new function on every toast would refetch their lists.
+  const triggerNotification = useCallback((message, type = 'success', title = '', options = {}) => {
     const id = Date.now() + Math.random();
     const duration = options.duration ?? 4000;
     setToasts(prev => [...prev, { id, message, type, title, variant: options.variant, duration }]);
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
     }, duration + 300);
-  };
+  }, []);
 
   const removeToast = (id) => {
     setToasts(prev => prev.filter(t => t.id !== id));
@@ -492,9 +494,9 @@ export default function App() {
             <Route path="governance/gem-procurements/*" element={<GEMProcurementView triggerNotification={triggerNotification} />} />
 
             {/* Legal Routes */}
-            <Route path="legal/courtcases" element={<ActsAndRulesView />} />
+            <Route path="legal/courtcases" element={<ActsAndRulesView triggerNotification={triggerNotification} />} />
             <Route path="legal/acts-rules/*" element={<BillsPreConstitutionsView triggerNotification={triggerNotification} />} />
-            <Route path="legal/acts-and-rules" element={<ActsAndRulesView />} />
+            <Route path="legal/acts-and-rules" element={<ActsAndRulesView triggerNotification={triggerNotification} />} />
 
             {/* HR Routes */}
             <Route path="hr/hr-management/*" element={

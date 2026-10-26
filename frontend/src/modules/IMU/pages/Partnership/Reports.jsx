@@ -3,24 +3,26 @@ import { TrendingUp, Search, X } from 'lucide-react';
 import * as am5 from '@amcharts/amcharts5';
 import * as am5xy from '@amcharts/amcharts5/xy';
 import am5themes_Animated from '@amcharts/amcharts5/themes/Animated';
+import { newChartRoot } from '../../../../utils/amCharts';
 import { fetchPartnershipReport } from '../../api';
 import Table from '../../../../components/Table';
 import ExportDropdown from '../../../../components/ExportDropdown';
 import CopyButton from '../../../../components/CopyButton';
 import { exportReportToPdf } from '../../../../utils/exportReportPdf';
+import { COMMON_TOASTS } from '../../../../utils/notify';
 import ChartExportMenu from '../../../../components/ChartExportMenu';
 
 // Confirmed from the legacy site: two separate charts -- Academic
 // Domestic/International on one, Industry Domestic/International on
 // another -- both sourced from the same single report endpoint (unlike
 // K-5.1, which needed two separate API calls for its two charts).
-export default function PartnershipReports() {
+export default function PartnershipReports({ notify }) {
   const gridRef = useRef(null);
   const academicChartDivRef = useRef(null);
   const academicChartRootRef = useRef(null);
   const industryChartDivRef = useRef(null);
   const industryChartRootRef = useRef(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [rowData, setRowData] = useState([]);
   const [columnDefs, setColumnDefs] = useState([]);
   const [academicChartData, setAcademicChartData] = useState([]);
@@ -31,9 +33,8 @@ export default function PartnershipReports() {
 
   const title = 'Form No. IMU K-5.4 - Abstract - Partnerships/MoUs - Academic';
 
-  const fetchData = () => {
-    setLoading(true);
-    setError(null);
+  // Load once on open
+  useEffect(() => {
     fetchPartnershipReport()
       .then((res) => {
         const data = res.data?.rowData || [];
@@ -73,17 +74,16 @@ export default function PartnershipReports() {
       .catch((err) => {
         console.error('Error loading Partnership report:', err);
         setError('Failed to load report data.');
+        notify?.(COMMON_TOASTS.loadFailed('The report'));
       })
       .finally(() => setLoading(false));
-  };
-
-  useEffect(() => { fetchData(); }, []);
+  }, [notify]);
 
   const buildLineChart = (divRef, rootRef, data, seriesConfig, isPrimary) => {
     if (!divRef.current || !data.length) return null;
     if (rootRef.current) rootRef.current.dispose();
 
-    const root = am5.Root.new(divRef.current);
+    const root = newChartRoot(divRef.current);
     rootRef.current = root;
     if (isPrimary) setChartRoot(root);
     root.setThemes([am5themes_Animated.new(root)]);
@@ -169,11 +169,17 @@ export default function PartnershipReports() {
     if (!filteredRowData.length) return;
     let tsv = columnDefs.map((c) => c.headerName).join('\t') + '\n';
     filteredRowData.forEach((row) => { tsv += columnDefs.map((c) => row[c.field] ?? '').join('\t') + '\n'; });
-    navigator.clipboard.writeText(tsv);
+    navigator.clipboard.writeText(tsv).then(
+      () => notify?.(COMMON_TOASTS.copySuccess(filteredRowData.length)),
+      () => notify?.(COMMON_TOASTS.copyFailed()),
+    );
   };
 
   const handleExport = (type) => {
-    if (type === 'Excel' && gridRef.current?.api) gridRef.current.api.exportDataAsCsv({ fileName: 'imu_partnership_report.csv' });
+    if (type === 'Excel' && gridRef.current?.api) {
+      gridRef.current.api.exportDataAsCsv({ fileName: 'imu_partnership_report.csv' });
+      notify?.(COMMON_TOASTS.excelExported('imu_partnership_report.csv'));
+    }
     else if (type === 'PDF') {
       exportReportToPdf({
         title,
@@ -182,6 +188,7 @@ export default function PartnershipReports() {
         rowData: filteredRowData,
         fileName: 'imu_partnership_report',
       });
+      notify?.(COMMON_TOASTS.downloadStarted('imu_partnership_report.pdf'));
     }
   };
 
@@ -239,26 +246,12 @@ export default function PartnershipReports() {
             <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Industry Partnerships/MoUs</p>
             <div ref={industryChartDivRef} style={{ width: '100%', height: '360px' }} />
           </div>
-          <div className="ag-theme-quartz imu-partnership-report-grid mt-4" style={{ width: '100%' }}>
-            <Table ref={gridRef} theme="legacy" rowData={filteredRowData} columnDefs={columnDefs} defaultColDef={defaultColDef} domLayout="autoHeight" rowHeight={48} headerHeight={42} suppressColumnVirtualisation={true} animateRows={true} enableExport={false} color="#4b2424" />
+          <div className="ag-theme-quartz kpi-report-grid mt-4" style={{ width: '100%' }}>
+            <Table ref={gridRef} loading={loading} theme="legacy" rowData={filteredRowData} columnDefs={columnDefs} defaultColDef={defaultColDef} domLayout="autoHeight" rowHeight={48} headerHeight={42} suppressColumnVirtualisation={true} animateRows={true} enableExport={false} color="#4b2424" />
           </div>
         </>
       )}
 
-      <style dangerouslySetInnerHTML={{ __html: `
-        .imu-partnership-report-grid.ag-theme-quartz { --ag-font-family: 'Inter', system-ui, sans-serif; --ag-row-height: 48px; --ag-active-color: #4b2424; }
-        .imu-partnership-report-grid .ag-root-wrapper { border: none !important; border-radius: 0 !important; }
-        .imu-partnership-report-grid .ag-header { background: #4b2424 !important; border-bottom: 2px solid #3a1a1a !important; }
-        .imu-partnership-report-grid .ag-header-cell { color: #ffffff !important; font-weight: 600 !important; font-size: 11px !important; text-transform: uppercase !important; letter-spacing: 0.05em !important; border-right: 1px solid rgba(255,255,255,0.15) !important; }
-        .imu-partnership-report-grid .ag-header-cell-label { justify-content: center !important; }
-        .imu-partnership-report-grid .ag-row-even { background: #ffffff !important; }
-        .imu-partnership-report-grid .ag-row-odd { background: #f8faf6 !important; }
-        .imu-partnership-report-grid .ag-cell { border-right: 1px solid #D3D6D9 !important; }
-        .dark .imu-partnership-report-grid .ag-header { background: #0f172a !important; }
-        .dark .imu-partnership-report-grid .ag-row-even { background: #090d16 !important; }
-        .dark .imu-partnership-report-grid .ag-row-odd { background: #0f172a !important; }
-        .dark .imu-partnership-report-grid .ag-cell { border-right: 1px solid #1e293b !important; color: #e2e8f0 !important; }
-      `}} />
       </div>
     </div>
   );

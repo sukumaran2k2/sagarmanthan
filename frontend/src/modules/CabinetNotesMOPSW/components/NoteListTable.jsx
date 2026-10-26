@@ -17,6 +17,8 @@ import {
   getWrapColumnProps,
   renderWrappedText,
 } from '../../../utils/tableCellWrap';
+import { COMMON_TOASTS } from '../../../utils/notify';
+import { DEFAULT_VISIBLE_COLS } from '../store/useCabinetNotesStore';
 
 function formatDate(value) {
   if (!value || value === '--') return '--';
@@ -34,6 +36,7 @@ export default function NoteListTable({
   canDelete = false,
   filters,
   onFiltersChange,
+  onResetFilters,
   category = 'active',
   onCategoryChange,
   counts = { active: 0, completed: 0 },
@@ -45,21 +48,18 @@ export default function NoteListTable({
   onEdit,
   onDelete,
   onDocs,
+  // Filter panel and column visibility are kept in the module store
+  showFilterPanel = false,
+  onShowFilterPanelChange,
+  visibleCols = DEFAULT_VISIBLE_COLS,
+  onVisibleColsChange,
+  notify,
 }) {
   const [gridApi, setGridApi] = useState(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
   const colDropdownRef = useRef(null);
-  const [visibleCols, setVisibleCols] = useState({
-    subject: true,
-    wing: true,
-    division: true,
-    status: true,
-    remarks: true,
-    docs: true,
-    lastUpdated: true,
-    actions: true,
-  });
+  const setShowFilterPanel = (updater) => onShowFilterPanelChange?.(updater);
+  const setVisibleCols = (updater) => onVisibleColsChange?.(updater);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -238,12 +238,8 @@ export default function NoteListTable({
   };
 
   const clearFilters = () => {
-    onFiltersChange?.({
-      ...filters,
-      wingId: 'All',
-      divisionId: 'All',
-      status: 'All',
-    });
+    onResetFilters?.();
+    notify?.(COMMON_TOASTS.filtersReset());
   };
 
   const handleExport = (type) => {
@@ -260,7 +256,7 @@ export default function NoteListTable({
         const line = [];
         columnDefs.forEach((col) => {
           if (col.headerName && col.headerName !== 'Update' && !col.hide) {
-            let val = '';
+            let val;
             if (col.field === 'sNo') val = row.sNo;
             else if (col.field === 'lastUpdated') val = formatDate(row.lastUpdated);
             else val = row[col.field] ?? '';
@@ -269,24 +265,35 @@ export default function NoteListTable({
         });
         tsv += `${line.join('\t')}\n`;
       });
-      navigator.clipboard.writeText(tsv).catch(() => {});
+      navigator.clipboard.writeText(tsv).then(
+        () => notify?.(COMMON_TOASTS.copySuccess(displayRows.length)),
+        () => notify?.(COMMON_TOASTS.copyFailed()),
+      );
       return;
     }
 
     if (type === 'Excel') {
-      if (!gridApi) return;
+      if (!gridApi) {
+        notify?.(COMMON_TOASTS.tableNotReady('export'));
+        return;
+      }
       gridApi.exportDataAsCsv({
         fileName: 'Cabinet_Notes_MoPSW_Register_export.csv',
         columnKeys: columnDefs
           .filter((c) => c.field && c.headerName !== 'Update' && !c.hide)
           .map((c) => c.field),
       });
+      notify?.(COMMON_TOASTS.excelExported('Cabinet_Notes_MoPSW_Register_export.csv'));
       return;
     }
 
     if (type === 'PDF') {
       const printWindow = window.open('', '_blank');
-      if (!printWindow) return;
+      if (!printWindow) {
+        notify?.(COMMON_TOASTS.popupBlocked());
+        return;
+      }
+      notify?.(COMMON_TOASTS.pdfPreparing());
       let headersHtml = '';
       columnDefs.forEach((col) => {
         if (col.headerName && col.headerName !== 'Update' && !col.hide) {
@@ -298,7 +305,7 @@ export default function NoteListTable({
         rowsHtml += '<tr>';
         columnDefs.forEach((col) => {
           if (col.headerName && col.headerName !== 'Update' && !col.hide) {
-            let val = '';
+            let val;
             if (col.field === 'sNo') val = row.sNo;
             else if (col.field === 'lastUpdated') val = formatDate(row.lastUpdated);
             else val = row[col.field] ?? '';
@@ -362,17 +369,13 @@ export default function NoteListTable({
         </button>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
+      <div className="module-card space-y-4">
         <div className="flex flex-col lg:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
           <div className="flex items-center gap-2.5 w-full lg:w-auto">
             <button
               type="button"
               onClick={() => setShowFilterPanel((prev) => !prev)}
-              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
-                showFilterPanel || activeFiltersCount > 0
-                  ? 'bg-blue-50 border-blue-300 text-[#0f417a] dark:bg-blue-950/50 dark:border-blue-700 dark:text-blue-300'
-                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200'
-              }`}
+              className={`module-filter-btn ${showFilterPanel || activeFiltersCount > 0 ? 'active' : ''}`}
             >
               <Filter size={14} className="text-[#0f417a] dark:text-blue-400" />
               <span>Filter</span>
@@ -407,7 +410,7 @@ export default function NoteListTable({
                 placeholder="Search subject, remarks..."
                 value={filters.search}
                 onChange={(e) => setFilter('search', e.target.value)}
-                className="w-full pl-9 pr-8 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 focus:outline-none placeholder-slate-400 text-slate-800 dark:text-slate-200"
+                className="w-full module-search-input"
               />
               {filters.search ? (
                 <button
@@ -459,18 +462,7 @@ export default function NoteListTable({
                     </span>
                     <button
                       type="button"
-                      onClick={() =>
-                        setVisibleCols({
-                          subject: true,
-                          wing: true,
-                          division: true,
-                          status: true,
-                          remarks: true,
-                          docs: true,
-                          lastUpdated: true,
-                          actions: true,
-                        })
-                      }
+                      onClick={() => setVisibleCols(DEFAULT_VISIBLE_COLS)}
                       className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
                     >
                       Show All
@@ -597,7 +589,7 @@ export default function NoteListTable({
           </div>
         )}
 
-        <div className="ag-theme-quartz w-full relative border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+        <div className="ag-theme-quartz module-datalist-grid w-full relative border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
           <Table
             rowData={displayRows}
             columnDefs={columnDefs}

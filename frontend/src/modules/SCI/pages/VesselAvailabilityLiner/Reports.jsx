@@ -5,10 +5,11 @@ import Table from '../../../../components/Table';
 import ExportDropdown from '../../../../components/ExportDropdown';
 import CopyButton from '../../../../components/CopyButton';
 import { exportReportToPdf } from '../../../../utils/exportReportPdf';
+import { COMMON_TOASTS } from '../../../../utils/notify';
 
-export default function VesselAvailabilityLinerReports() {
+export default function VesselAvailabilityLinerReports({ notify }) {
   const gridRef = useRef(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [rowData, setRowData] = useState([]);
   const [columnDefs, setColumnDefs] = useState([]);
   const [error, setError] = useState(null);
@@ -16,9 +17,8 @@ export default function VesselAvailabilityLinerReports() {
 
   const title = 'Form No. K-6.1.5 - Abstract - SCI - Vessel Availability/Utilization(%) - Liner (Owned + Chartered)';
 
-  const fetchData = () => {
-    setLoading(true);
-    setError(null);
+  // Load once on open
+  useEffect(() => {
     fetchVesselAvailabilityLinerReport()
       .then((res) => {
         const data = res.data?.rowData || [];
@@ -35,11 +35,10 @@ export default function VesselAvailabilityLinerReports() {
       .catch((err) => {
         console.error('Error loading report:', err);
         setError('Failed to load report data.');
+        notify?.(COMMON_TOASTS.loadFailed('The report'));
       })
       .finally(() => setLoading(false));
-  };
-
-  useEffect(() => { fetchData(); }, []);
+  }, [notify]);
 
   const defaultColDef = useMemo(() => ({
     sortable: true, resizable: true,
@@ -56,11 +55,17 @@ export default function VesselAvailabilityLinerReports() {
     if (!filteredRowData.length) return;
     let tsv = columnDefs.map((c) => c.headerName).join('\t') + '\n';
     filteredRowData.forEach((row) => { tsv += columnDefs.map((c) => row[c.field] ?? '').join('\t') + '\n'; });
-    navigator.clipboard.writeText(tsv);
+    navigator.clipboard.writeText(tsv).then(
+      () => notify?.(COMMON_TOASTS.copySuccess(filteredRowData.length)),
+      () => notify?.(COMMON_TOASTS.copyFailed()),
+    );
   };
 
   const handleExport = (type) => {
-    if (type === 'Excel' && gridRef.current?.api) gridRef.current.api.exportDataAsCsv({ fileName: 'sci_vessel_availability_liner_report.csv' });
+    if (type === 'Excel' && gridRef.current?.api) {
+      gridRef.current.api.exportDataAsCsv({ fileName: 'sci_vessel_availability_liner_report.csv' });
+      notify?.(COMMON_TOASTS.excelExported('sci_vessel_availability_liner_report.csv'));
+    }
     else if (type === 'PDF') {
       exportReportToPdf({
         title,
@@ -69,6 +74,7 @@ export default function VesselAvailabilityLinerReports() {
         rowData: filteredRowData,
         fileName: 'sci_vessel_availability_liner_report',
       });
+      notify?.(COMMON_TOASTS.downloadStarted('sci_vessel_availability_liner_report.pdf'));
     }
   };
 
@@ -116,25 +122,11 @@ export default function VesselAvailabilityLinerReports() {
       {error ? (
         <div className="p-8 text-center text-sm font-semibold text-red-500 dark:text-red-400">{error}</div>
       ) : (
-        <div className="ag-theme-quartz sci-vessel-liner-report-grid mt-4" style={{ width: '100%' }}>
-          <Table ref={gridRef} theme="legacy" rowData={filteredRowData} columnDefs={columnDefs} defaultColDef={defaultColDef} domLayout="autoHeight" rowHeight={48} headerHeight={42} suppressColumnVirtualisation={true} animateRows={true} enableExport={false} color="#4b2424" />
+        <div className="ag-theme-quartz kpi-report-grid mt-4" style={{ width: '100%' }}>
+          <Table ref={gridRef} loading={loading} theme="legacy" rowData={filteredRowData} columnDefs={columnDefs} defaultColDef={defaultColDef} domLayout="autoHeight" rowHeight={48} headerHeight={42} suppressColumnVirtualisation={true} animateRows={true} enableExport={false} color="#4b2424" />
         </div>
       )}
 
-      <style dangerouslySetInnerHTML={{ __html: `
-        .sci-vessel-liner-report-grid.ag-theme-quartz { --ag-font-family: 'Inter', system-ui, sans-serif; --ag-row-height: 48px; --ag-active-color: #4b2424; }
-        .sci-vessel-liner-report-grid .ag-root-wrapper { border: none !important; border-radius: 0 !important; }
-        .sci-vessel-liner-report-grid .ag-header { background: #4b2424 !important; border-bottom: 2px solid #3a1a1a !important; }
-        .sci-vessel-liner-report-grid .ag-header-cell { color: #ffffff !important; font-weight: 600 !important; font-size: 11px !important; text-transform: uppercase !important; letter-spacing: 0.05em !important; border-right: 1px solid rgba(255,255,255,0.15) !important; }
-        .sci-vessel-liner-report-grid .ag-header-cell-label { justify-content: center !important; }
-        .sci-vessel-liner-report-grid .ag-row-even { background: #ffffff !important; }
-        .sci-vessel-liner-report-grid .ag-row-odd { background: #f8faf6 !important; }
-        .sci-vessel-liner-report-grid .ag-cell { border-right: 1px solid #D3D6D9 !important; }
-        .dark .sci-vessel-liner-report-grid .ag-header { background: #0f172a !important; }
-        .dark .sci-vessel-liner-report-grid .ag-row-even { background: #090d16 !important; }
-        .dark .sci-vessel-liner-report-grid .ag-row-odd { background: #0f172a !important; }
-        .dark .sci-vessel-liner-report-grid .ag-cell { border-right: 1px solid #1e293b !important; color: #e2e8f0 !important; }
-      `}} />
       </div>
     </div>
   );

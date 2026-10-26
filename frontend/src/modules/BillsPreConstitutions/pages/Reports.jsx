@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { ChevronLeft, Search, RefreshCw, X, TrendingUp, Building2 } from 'lucide-react';
-import { fetchBillWingWiseReport, fetchBillDivisionWiseReport, fetchBillWingWiseDetail, fetchBillDivisionWiseDetail } from '../api';
+import { fetchBillDivisionWiseReport, fetchBillWingWiseDetail, fetchBillDivisionWiseDetail } from '../api';
+import { useBillsStore } from '../store/useBillsStore';
+import { COMMON_TOASTS } from '../../../utils/notify';
 import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
@@ -17,13 +19,40 @@ const COLUMN_STAGE_MAP = {
 
 const ABSTRACT_TITLE = 'Report No. 1.1 - Abstract ( Wing & Division Wise ) - Bills/Pre-Constitutions Act';
 
-export default function Reports({ triggerNotification, wings = [] }) {
+// The abstract merges every wing's division-wise report
+async function fetchAbstract(wings) {
+  const results = await Promise.all(
+    wings.map(async (w) => {
+      try {
+        const res = await fetchBillDivisionWiseReport(w.wing_id);
+        const rows = (res.data?.rowData || []).filter((r) => r.Division !== 'Total');
+        return { cols: res.data?.columnDefs || [], rows: rows.map((r) => ({ ...r, Wing: w.wing_name })) };
+      } catch {
+        return { cols: [], rows: [] };
+      }
+    })
+  );
+  return {
+    cols: results.find((r) => r.cols.length)?.cols || [],
+    rows: results.flatMap((r) => r.rows),
+  };
+}
+
+async function fetchView(view, wings) {
+  if (view.type === 'combined') return fetchAbstract(wings);
+  const response = view.type === 'detail-wing'
+    ? await fetchBillWingWiseDetail(view.wingId, view.stageId)
+    : await fetchBillDivisionWiseDetail(view.divisionId, view.stageId);
+  return { cols: response.data?.columnDefs || [], rows: response.data?.rowData || [] };
+}
+
+// `notify` takes the standard toasts; ReportTable still calls the plain triggerNotification
+export default function Reports({ notify, triggerNotification, wings = [] }) {
   const gridRef = useRef(null);
-  const [reportView, setReportView] = useState('wing');
+  // The view choice is kept in the module store, so it survives switching tabs
+  const reportView = useBillsStore((state) => state.reportView);
+  const setReportView = useBillsStore((state) => state.setReportView);
   const [drillDownPath, setDrillDownPath] = useState([{ type: 'combined' }]);
-  const [loading, setLoading] = useState(false);
-  const [data, setData] = useState([]);
-  const [columnDefs, setColumnDefs] = useState([]);
   const [quickFilter, setQuickFilter] = useState('');
 
   const currentView = drillDownPath[drillDownPath.length - 1];
@@ -52,48 +81,29 @@ export default function Reports({ triggerNotification, wings = [] }) {
     return val > 0 ? <span style={{ fontWeight: 700 }}>{val}</span> : <span style={{ color: '#94a3b8', fontWeight: 600 }}>—</span>;
   };
 
-  const fetchAbstract = useCallback(async () => {
-    const results = await Promise.all(
-      wings.map(async (w) => {
-        try {
-          const res = await fetchBillDivisionWiseReport(w.wing_id);
-          const rows = (res.data?.rowData || []).filter((r) => r.Division !== 'Total');
-          return { wing: w, cols: res.data?.columnDefs || [], rows: rows.map((r) => ({ ...r, Wing: w.wing_name })) };
-        } catch {
-          return { wing: w, cols: [], rows: [] };
-        }
+  // The result is tagged with the view, wings and reload it answers; a mismatch means it is
+  // still loading, and a late answer for an earlier view is ignored
+  const [reloadKey, setReloadKey] = useState(0);
+  const [result, setResult] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    const tag = { view: currentView, wings, reloadKey };
+    fetchView(currentView, wings)
+      .then(({ cols, rows }) => {
+        if (!cancelled) setResult({ ...tag, cols, rows });
       })
-    );
-    const mergedRows = results.flatMap((r) => r.rows);
-    const referenceCols = results.find((r) => r.cols.length)?.cols || [];
-    setColumnDefs(referenceCols);
-    setData(mergedRows);
-  }, [wings]);
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('Error loading Bills reports:', err);
+        notify?.(COMMON_TOASTS.loadFailed('The report'));
+        setResult({ ...tag, cols: [], rows: [] });
+      });
+    return () => { cancelled = true; };
+  }, [currentView, wings, reloadKey, notify]);
 
-  const fetchReportData = useCallback(async () => {
-    setLoading(true);
-    try {
-      if (currentView.type === 'combined') {
-        await fetchAbstract();
-      } else if (currentView.type === 'detail-wing') {
-        const response = await fetchBillWingWiseDetail(currentView.wingId, currentView.stageId);
-        setColumnDefs(response.data?.columnDefs || []);
-        setData(response.data?.rowData || []);
-      } else if (currentView.type === 'detail-division') {
-        const response = await fetchBillDivisionWiseDetail(currentView.divisionId, currentView.stageId);
-        setColumnDefs(response.data?.columnDefs || []);
-        setData(response.data?.rowData || []);
-      }
-    } catch (err) {
-      console.error('Error loading Bills reports:', err);
-      setData([]);
-      setColumnDefs([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [currentView, fetchAbstract]);
-
-  useEffect(() => { fetchReportData(); }, [fetchReportData]);
+  const loading = !result || result.view !== currentView || result.wings !== wings || result.reloadKey !== reloadKey;
+  const data = useMemo(() => (loading ? [] : result.rows), [loading, result]);
+  const columnDefs = useMemo(() => (loading ? [] : result.cols), [loading, result]);
 
   /* ── Aggregation by report view (wing / division / all) ──────── */
   const aggregatedData = useMemo(() => {
@@ -124,7 +134,7 @@ export default function Reports({ triggerNotification, wings = [] }) {
       return Object.entries(map).map(([Division, rows]) => ({ Division, division_id: rows[0]?.division_id, ...sumStages(rows) }))
         .sort((a, b) => a.Division.localeCompare(b.Division));
     }
-    return data.sort((a, b) => (a.Wing || '').localeCompare(b.Wing || '') || (a.Division || '').localeCompare(b.Division || ''));
+    return [...data].sort((a, b) => (a.Wing || '').localeCompare(b.Wing || '') || (a.Division || '').localeCompare(b.Division || ''));
   }, [data, reportView, isAbstractLevel]);
 
   const pinnedBottomRowData = useMemo(() => {
@@ -177,13 +187,20 @@ export default function Reports({ triggerNotification, wings = [] }) {
     aggregatedData.forEach((row) => {
       tsv += columns.filter((c) => c.headerName).map((c) => row[c.field] ?? '').join('\t') + '\n';
     });
-    navigator.clipboard.writeText(tsv);
-    triggerNotification?.('Report copied to clipboard!');
+    navigator.clipboard.writeText(tsv).then(
+      () => notify?.(COMMON_TOASTS.copySuccess(aggregatedData.length)),
+      () => notify?.(COMMON_TOASTS.copyFailed()),
+    );
   };
 
   const handleExport = (type) => {
-    if (type === 'Excel' && gridRef.current?.api) {
+    if (type === 'Excel') {
+      if (!gridRef.current?.api) {
+        notify?.(COMMON_TOASTS.tableNotReady('export'));
+        return;
+      }
       gridRef.current.api.exportDataAsCsv({ fileName: `bills_report_export.csv` });
+      notify?.(COMMON_TOASTS.excelExported('bills_report_export.csv'));
     } else if (type === 'PDF') {
       window.print();
     }
@@ -253,7 +270,7 @@ export default function Reports({ triggerNotification, wings = [] }) {
             <div className="flex items-center gap-2.5">
               <CopyButton onCopy={handleCopy} color="#4b2424" className="!rounded-xl !py-2 !px-4" />
               <ExportDropdown onExportExcel={() => handleExport('Excel')} onExportPdf={() => handleExport('PDF')} color="#4b2424" hoverColor="#6b3535" />
-              <button onClick={fetchReportData} className="flex items-center justify-center w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer">
+              <button onClick={() => setReloadKey((k) => k + 1)} className="flex items-center justify-center w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer">
                 <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
               </button>
             </div>
@@ -315,6 +332,7 @@ export default function Reports({ triggerNotification, wings = [] }) {
           title={currentView.title}
           showBackButton={true}
           onBack={handleBack}
+          triggerNotification={triggerNotification}
         />
       )}
     </div>

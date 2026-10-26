@@ -232,7 +232,7 @@ export default function IMUView({ triggerNotification }) {
       </div>
 
       {activeTab === 'report' ? (
-        <Reports />
+        <Reports notify={notify} />
       ) : activeTab === 'add' ? (
         <InputForm
           key={`${sectionId}-${editData?.[section.idField] ?? 'new'}`}
