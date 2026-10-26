@@ -85,13 +85,6 @@ export default function FundDetails({ notify, permissions }) {
   // Add / edit window: { fund } (null fund = new)
   const [formState, setFormState] = useState(null);
 
-  const total = (key) => funds.reduce((acc, f) => acc + (Number(f[key]) || 0), 0);
-  const cards = [
-    { label: 'Total CSR Allotted', value: total('csr_fund_alloted_year'), color: 'text-[#0f417a] dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-950/50', icon: Coins },
-    { label: 'Total Expenditure', value: total('project_expenditure'), color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/50', icon: TrendingUp },
-    { label: 'Available Balance', value: total('csr_fund_balance'), color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/50', icon: Coins },
-  ];
-
   const filteredFunds = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
     return funds.filter((f) => {
@@ -101,6 +94,23 @@ export default function FundDetails({ notify, permissions }) {
       return true;
     });
   }, [funds, filters, searchTerm]);
+
+  // Totals for the rows on show. Allotted and expenditure add up across years; the balance is
+  // each organisation's latest year only, because a year's opening balance already carries the
+  // earlier years' unspent funds (adding every year's balance counted that money again).
+  const cards = useMemo(() => {
+    const sum = (rows, key) => rows.reduce((acc, f) => acc + (Number(f[key]) || 0), 0);
+    const latest = new Map();
+    filteredFunds.forEach((f) => {
+      const current = latest.get(f.organisation_id);
+      if (!current || String(f.financial_year) > String(current.financial_year)) latest.set(f.organisation_id, f);
+    });
+    return [
+      { label: 'Total CSR Allotted', value: sum(filteredFunds, 'csr_fund_alloted_year'), color: 'text-[#0f417a] dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-950/50', icon: Coins },
+      { label: 'Total Expenditure', value: sum(filteredFunds, 'project_expenditure'), color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/50', icon: TrendingUp },
+      { label: 'Available Balance (latest year)', value: sum([...latest.values()], 'csr_fund_balance'), color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/50', icon: Coins },
+    ];
+  }, [filteredFunds]);
 
   // Organisation users only ever see their own organisation, so that filter isn't offered to them
   const activeFiltersCount = [!isOrgUser && filters.organisation, filters.financialYear].filter(Boolean).length;

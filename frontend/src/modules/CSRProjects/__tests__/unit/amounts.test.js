@@ -10,8 +10,10 @@ describe('CSR amounts (stored in lakh, shown in crore)', () => {
     expect(croreToLakh(croreInput(1442.07))).toBe(1442.07);
   });
 
-  it('formats crore for display, keeping small project values readable', () => {
+  it('formats crore with 2 decimals, keeping up to 4 below ₹1 Cr', () => {
     expect(formatCrore(4013)).toBe('40.13');
+    expect(formatCrore(5483.08)).toBe('54.83');
+    expect(formatCrore(3.35)).toBe('0.0335');
     expect(formatCrore(0.5)).toBe('0.005');
     expect(formatCrore(1234567)).toBe('12,345.67');
     expect(formatCrore(null)).toBe('-');
