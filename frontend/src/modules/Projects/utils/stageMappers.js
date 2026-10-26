@@ -136,7 +136,11 @@ export function mapTenderRowsFromApi(dateRows = [], costRow = null) {
     row.plannedDate = sliceDate(apiRow.planned_date);
     row.revisedDate = sliceDate(apiRow.revised_date);
     row.actualDate = sliceDate(apiRow.actual_date);
-    row.notApplicable = Boolean(toBitFlag(apiRow.not_applicable_date));
+    // N/A only applies to tendering stages 2–6 (legacy has no N/A on Tech Sanction / Award / Contract).
+    row.notApplicable =
+      row.id >= 2 && row.id <= 6
+        ? Boolean(toBitFlag(apiRow.not_applicable_date))
+        : false;
   });
 
   if (costRow) {
@@ -167,8 +171,12 @@ export function mapTenderMetaFromCostApi(costRow = null) {
     foundationLaid = 'no';
   }
 
+  const nominationRaw = costRow.on_nomination_basis;
+  const onNominationBasisAwarded =
+    nominationRaw === true || nominationRaw === 1 || nominationRaw === '1' ? '1' : '0';
+
   return {
-    onNominationBasisAwarded: String(costRow.on_nomination_basis ?? '0'),
+    onNominationBasisAwarded,
     numberOfTenderCalls: costRow.num_ut_tender_calls ?? '',
     foundationLaid,
     foundationLaidDate: sliceDate(costRow.foundation_laid_date),
@@ -184,6 +192,24 @@ export const DEFAULT_MILESTONES = [
   { id: 5, milestoneId: 4, milestone: 'Milestone 4 (>=80% and <100%)', targetedEndDate: '', actualEndDate: '', activityId: '' },
   { id: 6, milestoneId: 5, milestone: 'Final Milestone (Completion Report =100%)', targetedEndDate: '', actualEndDate: '', activityId: '' },
 ];
+
+/**
+ * Index of the milestone a physical progress value falls in (20% bands, 100% = Final),
+ * or -1 when there is no progress yet. Milestones up to this index are open for an actual date.
+ */
+export function milestoneIndexForProgress(progress) {
+  const value = Number(progress);
+  if (!Number.isFinite(value) || value <= 0) return -1;
+  if (value >= 100) return DEFAULT_MILESTONES.length - 1;
+  return Math.min(Math.floor(value / 20), DEFAULT_MILESTONES.length - 2);
+}
+
+export function findMissingMilestoneDate(milestones = [], progress) {
+  const lastIndex = milestoneIndexForProgress(progress);
+  return milestones
+    .slice(0, lastIndex + 1)
+    .find((row) => !String(row.actualEndDate || '').trim()) || null;
+}
 
 export function mapMilestonesFromApi(rows = []) {
   const list = Array.isArray(rows) ? rows : [];

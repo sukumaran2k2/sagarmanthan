@@ -18,7 +18,6 @@ import {
 } from '../api';
 import ProjectLocationMap from './ProjectLocationMap';
 
-// Map coordinates lookup for Indian maritime states / major districts
 const STATE_COORDINATES = {
   'Tamil Nadu': [13.0827, 80.2707],
   'Maharashtra': [18.9220, 72.8347],
@@ -134,8 +133,7 @@ export default function ProjectDetailView({
   const [imagesData, setImagesData] = useState({ images: [], ppt: [], pert: [] });
   const [documents, setDocuments] = useState([]);
   const [activeTimelineStage, setActiveTimelineStage] = useState('under_tendering');
-  
-  // Section collapses
+
   const [fundingOpen, setFundingOpen] = useState(true);
   const [timelineOpen, setTimelineOpen] = useState(true);
   const [photoModalImg, setPhotoModalImg] = useState(null);
@@ -191,7 +189,13 @@ export default function ProjectDetailView({
   const projectName = p.project_name || p.projectName || p.sub_project_name || p.subProjectName || project?.name || 'Project Details';
   const stageName = p.stage_name || p.stage || p.project_stage || p.projectStageName || 'Project Initiated';
   const stageLower = String(stageName).toLowerCase();
-  
+  // The list row knows about drop requests (approved or pending); the detail API only knows the status flag.
+  const isDropped =
+    String(project?.stage || '').toLowerCase().includes('drop') ||
+    String(p.project_status) === '0' ||
+    String(p.status) === '0' ||
+    String(p.sub_status) === '0';
+
   const isSagarmala = Boolean(
     p.is_sagarmala_funded === 1 ||
     p.is_sagarmala_funded === '1' ||
@@ -226,18 +230,15 @@ export default function ProjectDetailView({
   const closureCost = p.closure_cost ?? p.closureCost;
   const techSanctionCost = p.technical_sanction_cost ?? p.technicalSanctionCost;
 
-  // Location details
   const stateName = p.state_names || p.state_name || p.state || 'Tamil Nadu';
   const districtName = p.district_names || p.district_name || p.district || 'Chennai';
   const talukName = p.taluka_names || p.taluk || p.taluka_id || 'Purasawalkam';
   const villageName = p.village_names || p.village || p.village_id || 'VOC Nagar';
 
-  // State Map Center
   const mapCenter = STATE_COORDINATES[stateName] || [13.0827, 80.2707];
 
   const sourceOfFundingName = p.source_of_funding_names || p.sourceOfFunding || 'IEBR (Own Fund)';
 
-  // Funding Breakdown
   const gbs = p.gbs_components ?? p.gbsComponents;
   const multilateral = p.multilateral_components ?? p.multilateralComponents ?? p.multiFundComponents;
   const sagarmalaComp = p.sagarmala_components ?? p.sagarmalaComponents;
@@ -353,7 +354,7 @@ export default function ProjectDetailView({
             <span>Back to List</span>
           </button>
 
-          {canEdit && (
+          {canEdit && !isDropped && (
             <button
               type="button"
               onClick={() => handleEdit(p)}

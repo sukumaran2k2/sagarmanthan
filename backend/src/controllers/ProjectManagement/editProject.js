@@ -7,6 +7,35 @@ import { pool } from "../../db.js";
 import { fileURLToPath } from 'url';
 import { CONNREFUSED } from 'dns';
 
+/** Bind empty/invalid FK ids as SQL NULL (avoids `col = ,` when interpolated/empty). */
+function bindNullableInt(request, name, value) {
+    if (value === null || value === undefined || value === '') {
+        request.input(name, sql.Int, null);
+        return;
+    }
+    const n = Number(value);
+    request.input(name, sql.Int, Number.isFinite(n) ? n : null);
+}
+
+/** Normalize date strings for SQL Server (rejects '-', display text, invalid values). */
+function toSqlDateValue(value) {
+    if (value === null || value === undefined || value === '') return null;
+    const text = String(value).trim();
+    if (!text || text === '-' || text.toLowerCase() === 'null' || text.toLowerCase() === 'invalid date') {
+        return null;
+    }
+    if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10);
+    if (text.includes('T')) {
+        const sliced = text.slice(0, 10);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(sliced)) return sliced;
+    }
+    const parsed = new Date(text);
+    if (Number.isNaN(parsed.getTime())) return null;
+    const yyyy = parsed.getFullYear();
+    const mm = String(parsed.getMonth() + 1).padStart(2, '0');
+    const dd = String(parsed.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+}
 
 async function addRevisedDate(req, res) 
 {
@@ -172,11 +201,11 @@ async function updateViewProjectDetails(req, res)
     const estimatedProjectCost  = req.body.estimatedProjectCost;
     const implementationMode    = req.body.implementationMode;
     const implementationType    = req.body.implementationType;
-    const primaryImplementingAgency   = req.body.primaryImplementingAgency;
+    let primaryImplementingAgency   = req.body.primaryImplementingAgency;
     let secondaryImplementingAgency = req.body.secondaryImplementingAgency;
     const newImplementingAgencyCode = req.body.newImplementingAgencyCode;
     let projectCategory          = req.body.projectCategory;
-    const scheme                 = req.body.scheme;
+    let scheme                 = req.body.scheme;
     let initiative               = req.body.initiative;
     let projectInitiatedDate     = req.body.projectInitiatedDate;
     let targetCompletionDate     = req.body.targetCompletionDate;
@@ -195,7 +224,7 @@ async function updateViewProjectDetails(req, res)
     let pmmsyComponents          = req.body.pmmsyComponents;
     let sagarmalaComponents      = req.body.sagarmalaComponents;
     let otherSourceFundingComp   = req.body.otherSourceFundingComp;
-    const primaryFundingAgency   = req.body.primaryFundingAgency;
+    let primaryFundingAgency   = req.body.primaryFundingAgency;
     let secondaryFundingAgency   = req.body.secondaryFundingAgency;
     let state                    = req.body.state;
     let district                 = req.body.district;
@@ -235,12 +264,8 @@ async function updateViewProjectDetails(req, res)
     if (otherSourceFundingComp == "") {
         otherSourceFundingComp = null;
     }
-    if (projectInitiatedDate == "") {
-        projectInitiatedDate = null;
-    }
-    if (targetCompletionDate == "") {
-        targetCompletionDate = null;
-    }
+    projectInitiatedDate = toSqlDateValue(projectInitiatedDate);
+    targetCompletionDate = toSqlDateValue(targetCompletionDate);
     
     if (Array.isArray(projectCategory)) {
         projectCategory = projectCategory.join(",");
@@ -273,6 +298,53 @@ async function updateViewProjectDetails(req, res)
 
     const conn = await pool;
     const request = conn.request();
+
+    // If the UI accidentally sends agency/funding names instead of ids, resolve them first.
+    if (primaryImplementingAgency != null && primaryImplementingAgency !== '' && isNaN(primaryImplementingAgency)) {
+        request.input("lookupPrimaryIaName", String(primaryImplementingAgency).trim());
+        const lookup = await request.query(`
+            SELECT TOP 1 ia_id
+            FROM mmt_implementing_agency
+            WHERE LTRIM(RTRIM(ia_name)) = @lookupPrimaryIaName
+        `);
+        if (!lookup.recordset?.[0]?.ia_id) {
+            return res.status(400).json({
+                message: 'Primary implementing agency is invalid. Please re-select it from the list.',
+            });
+        }
+        primaryImplementingAgency = lookup.recordset[0].ia_id;
+    }
+
+    if (primaryFundingAgency != null && primaryFundingAgency !== '' && isNaN(primaryFundingAgency)) {
+        request.input("lookupPrimaryFaName", String(primaryFundingAgency).trim());
+        const lookup = await request.query(`
+            SELECT TOP 1 fa_id
+            FROM mmt_funding_agency
+            WHERE LTRIM(RTRIM(fa_name)) = @lookupPrimaryFaName
+        `);
+        if (!lookup.recordset?.[0]?.fa_id) {
+            return res.status(400).json({
+                message: 'Primary funding agency is invalid. Please re-select it from the list.',
+            });
+        }
+        primaryFundingAgency = lookup.recordset[0].fa_id;
+    }
+
+    if (scheme != null && scheme !== '' && isNaN(scheme)) {
+        request.input("lookupSchemeName", String(scheme).trim());
+        const lookup = await request.query(`
+            SELECT TOP 1 scheme_id
+            FROM mmt_scheme
+            WHERE LTRIM(RTRIM(scheme_name)) = @lookupSchemeName
+        `);
+        if (!lookup.recordset?.[0]?.scheme_id) {
+            return res.status(400).json({
+                message: 'Scheme is invalid. Please re-select it from the list.',
+            });
+        }
+        scheme = lookup.recordset[0].scheme_id;
+    }
+
     request.input("projectID", projectID);
     request.input("subProjectID", subProjectID);
     request.input("projectName", projectName);
@@ -324,23 +396,43 @@ async function updateViewProjectDetails(req, res)
     }
 
     if (isNaN(secondaryImplementingAgency) && secondaryImplementingAgency) {
-        const query = `
-            INSERT INTO mmt_implementing_agency (ia_name, ia_code) 
-            VALUES (@secondaryImplementingAgency, @newImplementingAgencyCode)
-        `;
-        await request.query(query);
-        const query1 = "SELECT TOP 1 ia_id FROM mmt_implementing_agency ORDER BY ia_id DESC";
-        const result1 = await request.query(query1);
-        secondaryImplementingAgency = result1.recordset[0].ia_id;
+        request.input("lookupSecondaryIaName", String(secondaryImplementingAgency).trim());
+        const existing = await request.query(`
+            SELECT TOP 1 ia_id
+            FROM mmt_implementing_agency
+            WHERE LTRIM(RTRIM(ia_name)) = @lookupSecondaryIaName
+        `);
+        if (existing.recordset?.[0]?.ia_id) {
+            secondaryImplementingAgency = existing.recordset[0].ia_id;
+        } else {
+            const query = `
+                INSERT INTO mmt_implementing_agency (ia_name, ia_code) 
+                VALUES (@secondaryImplementingAgency, @newImplementingAgencyCode)
+            `;
+            await request.query(query);
+            const query1 = "SELECT TOP 1 ia_id FROM mmt_implementing_agency ORDER BY ia_id DESC";
+            const result1 = await request.query(query1);
+            secondaryImplementingAgency = result1.recordset[0].ia_id;
+        }
     }
 
-    if (isNaN(secondaryFundingAgency) && secondaryFundingAgency) {    
-        const query = "INSERT into mmt_funding_agency (fa_name) values (@secondaryFundingAgency)";
-        await request.query(query);
-    
-        const query1 = "SELECT TOP 1 fa_id FROM mmt_funding_agency ORDER BY fa_id DESC";
-        const result1 = await request.query(query1);
-        secondaryFundingAgency = result1.recordset[0].fa_id;
+    if (isNaN(secondaryFundingAgency) && secondaryFundingAgency) {
+        request.input("lookupSecondaryFaName", String(secondaryFundingAgency).trim());
+        const existing = await request.query(`
+            SELECT TOP 1 fa_id
+            FROM mmt_funding_agency
+            WHERE LTRIM(RTRIM(fa_name)) = @lookupSecondaryFaName
+        `);
+        if (existing.recordset?.[0]?.fa_id) {
+            secondaryFundingAgency = existing.recordset[0].fa_id;
+        } else {
+            const query = "INSERT into mmt_funding_agency (fa_name) values (@secondaryFundingAgency)";
+            await request.query(query);
+        
+            const query1 = "SELECT TOP 1 fa_id FROM mmt_funding_agency ORDER BY fa_id DESC";
+            const result1 = await request.query(query1);
+            secondaryFundingAgency = result1.recordset[0].fa_id;
+        }
     }
 
     if (isNaN(projectOutput) && projectOutput) {
@@ -355,9 +447,10 @@ async function updateViewProjectDetails(req, res)
     }
 
     if (isNaN(projectOutcome) && projectOutcome) {
+        bindNullableInt(request, "linkedProjectOutputId", projectOutput);
         const query = `
             INSERT INTO mmt_outcome (project_outcome_name, project_outcome_units, project_output_id) 
-            VALUES (@projectOutcome, @newProjectOutcomeUnits, ${projectOutput})
+            VALUES (@projectOutcome, @newProjectOutcomeUnits, @linkedProjectOutputId)
         `;
         await request.query(query);
         const query1 = "SELECT TOP 1 project_outcome_id FROM mmt_outcome ORDER BY project_outcome_id DESC";
@@ -366,26 +459,38 @@ async function updateViewProjectDetails(req, res)
     }
 
     request.input("sagarmalaFunding", sagarmalaFunding);
+    // Re-bind final FK ids after optional "Others" inserts (empty → NULL).
+    bindNullableInt(request, "secondaryImplementingAgencyId", secondaryImplementingAgency);
+    bindNullableInt(request, "secondaryFundingAgencyId", secondaryFundingAgency);
+    bindNullableInt(request, "projectOutputId", projectOutput);
+    bindNullableInt(request, "projectOutcomeId", projectOutcome);
 
     try {
+        if (!projectID) {
+            return res.status(400).json({ message: 'Project ID is required to update project details.' });
+        }
+
         if (subProjectID == -1) {
             const result = await request.query(`UPDATE tbl_project SET project_name = @projectName, project_type = @projectType, project_brief = @projectBrief,
                 estimated_cost = @estimatedProjectCost, mode_of_implememtation = @implementationMode, implememtation_type = @implementationType,
-                primary_ia_id = @primaryImplementingAgency, secondary_ia_id = ${secondaryImplementingAgency}, 
+                primary_ia_id = @primaryImplementingAgency, secondary_ia_id = @secondaryImplementingAgencyId, 
                 project_category_id= @projectCategory, scheme_id = @scheme, initiative_id = @initiative, project_intiated_date = @projectInitiatedDate,
-                target_completion_date = @targetCompletionDate, project_output_id = ${projectOutput},
-                project_outcome_id = ${projectOutcome}, capacity_addition = @capacityAddition, source_of_funding_id = @sourceOfFunding,
+                target_completion_date = @targetCompletionDate, project_output_id = @projectOutputId,
+                project_outcome_id = @projectOutcomeId, capacity_addition = @capacityAddition, source_of_funding_id = @sourceOfFunding,
                 is_sagarmala_funded = @sagarmalaFunding, gbs_components = @gbsComponents, iebr_components = @iebrComponents, 
                 ppp_components= @pppComponents, loans_components = @loansComponents, multilateral_components = @multiFundComponents,
                 state_gov_fund_components = @stateGovFundComponents, pmmsy_components = @pmmsyComponents, 
                 sagarmala_components = @sagarmalaComponents, other_source_funding_comp = @otherSourceFundingComp,
-                primary_funding_agency_id = @primaryFundingAgency, secondary_funding_agency_id = ${secondaryFundingAgency},
+                primary_funding_agency_id = @primaryFundingAgency, secondary_funding_agency_id = @secondaryFundingAgencyId,
                 state_id = @state, district_id = @district, taluka_id = @taluka, 
                 village_id = @village, mp_constituency_id = @mpConstituency, on_land_acquisition = @onLandAcquistion, 
                 land_area_req = @landAreaReq, on_acquisition_completed = @onAcquisitionCompleted, percent_land_acq = @percentLandAcquired, last_updated = getDate()
                 OUTPUT INSERTED.id, INSERTED.project_id    
                 WHERE project_id = @projectID`);
 
+            if (!result.recordset?.length) {
+                return res.status(404).json({ message: 'Project not found or could not be updated.' });
+            }
             const id = result.recordset[0].id;
             const project_id = result.recordset[0].project_id;
             res.status(200).json({ id, project_id });
@@ -394,20 +499,23 @@ async function updateViewProjectDetails(req, res)
             const result = await request.query(`UPDATE tbl_sub_project SET sub_project_name = @projectName, 
                 sub_project_type = @projectType, sub_project_brief = @projectBrief, sub_estimated_cost = @estimatedProjectCost, 
                 sub_mode_of_implememtation = @implementationMode, sub_implememtation_type = @implementationType, sub_primary_ia_id = @primaryImplementingAgency, 
-                sub_secondary_ia_id = ${secondaryImplementingAgency}, sub_project_category_id= @projectCategory, sub_scheme_id = @scheme, 
+                sub_secondary_ia_id = @secondaryImplementingAgencyId, sub_project_category_id= @projectCategory, sub_scheme_id = @scheme, 
                 sub_initiative_id = @initiative, sub_project_intiated_date = @projectInitiatedDate, sub_target_completion_date = @targetCompletionDate, 
-                sub_project_output_id = ${projectOutput}, sub_project_outcome_id = ${projectOutcome}, sub_capacity_addition = @capacityAddition,
+                sub_project_output_id = @projectOutputId, sub_project_outcome_id = @projectOutcomeId, sub_capacity_addition = @capacityAddition,
                 sub_source_of_funding_id = @sourceOfFunding, sub_is_sagarmala_funded = @sagarmalaFunding, sub_gbs_components = @gbsComponents, 
                 sub_iebr_components = @iebrComponents, sub_ppp_components= @pppComponents, sub_loans_components = @loansComponents,
                 sub_multilateral_components = @multiFundComponents, sub_state_gov_fund_components = @stateGovFundComponents, sub_pmmsy_components = @pmmsyComponents, 
                 sub_sagarmala_components = @sagarmalaComponents, sub_other_source_funding_comp = @otherSourceFundingComp,
-                sub_primary_funding_agency_id = @primaryFundingAgency, sub_secondary_funding_agency_id = ${secondaryFundingAgency}, 
+                sub_primary_funding_agency_id = @primaryFundingAgency, sub_secondary_funding_agency_id = @secondaryFundingAgencyId, 
                 sub_state_id = @state, sub_district_id = @district, sub_taluka_id = @taluka, 
                 sub_village_id = @village, sub_mp_constituency_id = @mpConstituency, sub_on_land_acquisition = @onLandAcquistion, 
                 sub_land_area_req = @landAreaReq, sub_on_acquisition_completed = @onAcquisitionCompleted, sub_percent_land_acq = @percentLandAcquired, sub_last_updated = getDate()
                 OUTPUT INSERTED.id, INSERTED.project_id    
                 WHERE sub_project_id = @subProjectID`);
 
+            if (!result.recordset?.length) {
+                return res.status(404).json({ message: 'Sub-project not found or could not be updated.' });
+            }
             const id = result.recordset[0].id;
             const project_id = result.recordset[0].project_id;
             res.status(200).json({ id, project_id });
@@ -415,7 +523,9 @@ async function updateViewProjectDetails(req, res)
     }
     catch (err) {
         console.log(err);
-        return res.sendStatus(500);
+        return res.status(500).json({
+            message: err?.message || 'Unable to update project details. Please try again.',
+        });
     }
 };
 
