@@ -57,7 +57,7 @@ const getStatusGroup = (status) => {
   const v = String(status || '').toLowerCase();
   if (v.includes('completed')) return 'completed';
   if (v.includes('dropped')) return 'dropped';
-  if (v.includes('yet to') || v.includes('implement') || v.includes('in progress')) return 'active';
+  if (v.includes('yet to') || v.includes('implement') || v.includes('in progress') || v === 'no update') return 'active';
   return null;
 };
 
@@ -146,7 +146,7 @@ export default function DataList({
         goal_b1: item['Goal (B1)'] || item.goal_b1 || '-',
         intervention_b2: item['Intervention (B2)'] || item.intervention_b2 || '-',
         action_b3: item['Action (B3)'] || item.action_b3 || '-',
-        current_status: item['Current Status'] || item.current_status || 'Completed',
+        current_status: item['Current Status'] || item.current_status || 'No Update',
         updated_at: item['Last Updated Date'] ? String(item['Last Updated Date']).slice(0, 10) : '2026-08-31',
         wing: item.Wing || item.wing || '',
         vibhas: item.Vibhas || item.vibhas || ''
@@ -209,7 +209,7 @@ export default function DataList({
     });
 
     if (wings.size === 0) OVOD_WINGS.forEach(w => w.label !== 'All' && wings.add(w.label));
-    if (stages.size === 0) OVOD_STATUSES.forEach(s => s.label !== 'Show All' && stages.add(s.label));
+    OVOD_STATUSES.forEach(s => s.label !== 'Show All' && stages.add(s.label));
     if (vib.size === 0) OVOD_VIBHAS.forEach(v => v.label !== 'Show All' && vib.add(v.label));
 
     return {
@@ -261,7 +261,12 @@ export default function DataList({
       if (selectedGoalB1 !== '0' && item.goal_b1 !== selectedGoalB1) return false;
       if (selectedInterventionB2 !== '0' && item.intervention_b2 !== selectedInterventionB2) return false;
       if (selectedActionB3 !== '0' && item.action_b3 !== selectedActionB3) return false;
-      if (selectedStage !== '0' && String(item.current_status || '').toLowerCase() !== selectedStage.toLowerCase()) return false;
+      if (selectedStage !== '0') {
+        const itemStatus = String(item.current_status || '').toLowerCase();
+        const filterStage = selectedStage.toLowerCase();
+        const isNoUpdate = filterStage === 'no update' && (itemStatus === 'no update' || itemStatus === '');
+        if (!isNoUpdate && itemStatus !== filterStage) return false;
+      }
       if (selectedVibhas !== '0' && item.vibhas !== selectedVibhas) return false;
       
       if (searchTerm.trim()) {

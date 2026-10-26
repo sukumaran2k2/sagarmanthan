@@ -83,7 +83,13 @@ async function getAllResultOVDData(req, res) {
         if (vibhasID !== 0) whereClause.push("tbl_one_vision_doc.vibhas = @vibhasID");
         if (mivChapterSelect !== 0) whereClause.push("tbl_one_vision_doc.miv_chapter = @mivChapterSelect");
         if (makvThemeSelect !== 0) whereClause.push("tbl_one_vision_doc.makv_theme = @makvThemeSelect");
-        if (statusCurrent !== "0") whereClause.push("tbl_one_vision_doc.current_status = @statusCurrent");
+        if (statusCurrent !== "0") {
+            if (statusCurrent === "No Update") {
+                whereClause.push("(tbl_one_vision_doc.current_status = @statusCurrent OR tbl_one_vision_doc.current_status IS NULL)");
+            } else {
+                whereClause.push("tbl_one_vision_doc.current_status = @statusCurrent");
+            }
+        }
 
         if (vision !== 0) {
             switch (vision) {
@@ -998,12 +1004,12 @@ async function createOVDData(req, res) {
                 goal_a1, intervention_a2, goal_b1, intervention_b2, action_b3, action_a3,
                 category, wings, priority, vibhas, is_miv, is_makv, is_sgos, is_additional_item, is_gmis,
                 miv_chapter, makv_theme, target_date, expected_date, imp_agency, party_1, party_2,
-                Response, created_by
+                Response, created_by, current_status
             ) VALUES (
-                @goalA1, @a2Intervention, @goalB1, @interventionB2, @actionB3ID, @actionableA3ID, 
+                @goalA1, @a2Intervention, @goalB1, @interventionB2, @actionB3ID, @actionableA3ID,
                 @category, @wings, @priority, @ViBhas, @partOfMIV2030, @partOfMAKV2047, @partOfSGoS2, @partOfAddItem, @partOfGMIS,
                 @mivChapterSelect, @makvThemeSelect, @completionDate, @actualDate, @implementingAgency, @party1, @party2,
-                @Remarks, @userID
+                @Remarks, @userID, 'No Update'
             )
         `);
 
@@ -1136,12 +1142,12 @@ async function createOVDL2Data(req, res) {
                         goal_a1, intervention_a2, goal_b1, intervention_b2, action_b3, action_a3,
                         category, wings, priority, vibhas, is_miv, is_makv, is_sgos, is_additional_item, is_gmis,
                         miv_chapter, makv_theme, target_date, expected_date, imp_agency, party_1, party_2,
-                        Response, created_by
+                        Response, created_by, current_status
                     ) VALUES (
-                        @goalA1, @a2Intervention, @goalB1, @b2Id, @actionB3ID, @actionableA3ID, 
+                        @goalA1, @a2Intervention, @goalB1, @b2Id, @actionB3ID, @actionableA3ID,
                         @category, @wings, @priority, @ViBhas, @partOfMIV2030, @partOfMAKV2047, @partOfSGoS2, @partOfAddItem, @partOfGMIS,
                         @mivChapterSelect, @makvThemeSelect, @completionDate, @actualDate, @implementingAgency, @party1, @party2,
-                        @Remarks, @userID
+                        @Remarks, @userID, 'No Update'
                     )
                 `);
             }

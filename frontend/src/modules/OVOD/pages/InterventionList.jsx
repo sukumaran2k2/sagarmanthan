@@ -41,8 +41,10 @@ import { OVOD_TOASTS } from '../toastMessages';
 // Thrown when the API returns no rows, to fall through to the built-in sample hierarchy
 const FALLBACK_NOTICE = 'Using fallback hierarchical dataset';
 
-// Rolls up progress bottom-up: each parent = average of its direct children's progress
-function computeRollupProgress(tree) {
+const COST_FIELDS = ['totalCost', 'capitalExpenditure', 'fundSpend', 'fundReq1Yr', 'fundReq2Yrs', 'fundReq2to5Yrs', 'fundReqGt5Yrs'];
+
+// Rolls up progress (avg) and cost columns (sum) bottom-up through the full hierarchy
+function computeRollup(tree) {
   const childrenMap = new Map();
   tree.forEach(node => {
     if (node.parentId) {
@@ -52,17 +54,26 @@ function computeRollupProgress(tree) {
   });
   const nodeMap = new Map(tree.map(n => [n.id, { ...n }]));
 
-  // Process from deepest level up to root so each level uses already-updated child values
   const maxLevel = Math.max(...tree.map(n => n.level ?? 0));
   for (let lvl = maxLevel - 1; lvl >= 0; lvl--) {
     nodeMap.forEach(node => {
-      if ((node.level ?? 0) === lvl) {
-        const childIds = childrenMap.get(node.id) || [];
-        if (childIds.length > 0) {
-          const sum = childIds.reduce((acc, cid) => acc + (Number(nodeMap.get(cid)?.progress) || 0), 0);
-          node.progress = Math.round(sum / childIds.length);
-        }
-      }
+      if ((node.level ?? 0) !== lvl) return;
+      const childIds = childrenMap.get(node.id) || [];
+      if (childIds.length === 0) return;
+      const children = childIds.map(cid => nodeMap.get(cid));
+
+      // Progress: average of children
+      const progressSum = children.reduce((acc, c) => acc + (Number(c?.progress) || 0), 0);
+      node.progress = Math.round(progressSum / children.length);
+
+      // Cost columns: sum of children (skip '-' / non-numeric leaves)
+      COST_FIELDS.forEach(field => {
+        const total = children.reduce((acc, c) => {
+          const v = c?.[field];
+          return acc + (v != null && v !== '-' && !isNaN(Number(v)) ? Number(v) : 0);
+        }, 0);
+        node[field] = parseFloat(total.toFixed(2));
+      });
     });
   }
 
@@ -214,6 +225,14 @@ export default function InterventionList({ triggerNotification }) {
           }
         };
 
+        // Accumulate unique implementing agencies per node across all rows
+        const nodeOrgCodes = new Map();
+        const addOrgCode = (nodeId, code) => {
+          if (!nodeId || !code || code === '-') return;
+          if (!nodeOrgCodes.has(nodeId)) nodeOrgCodes.set(nodeId, new Set());
+          String(code).split(',').forEach(c => { const t = c.trim(); if (t) nodeOrgCodes.get(nodeId).add(t); });
+        };
+
         rawRows.forEach((item, idx) => {
           let a1, a2, a3, b1, b2, b3;
           if (Array.isArray(item.orgHierarchy)) {
@@ -240,16 +259,16 @@ export default function InterventionList({ triggerNotification }) {
 
           const orgCode = item.orgCode || item.mImpCode || item.ia_name || 'IWAI';
           const progress = item.progress != null ? item.progress : (item.Progress != null ? item.Progress : 0);
-          const totalCost = item.totalCost != null ? item.totalCost : (item['Total Cost'] != null ? item['Total Cost'] : 0);
-          const jobTitle = (item.jobTitle || item.Category || 'Process').trim();
-          const wing = item.wing || item.Wing || 'Shipping';
-          const employmentType = item.employmentType || item.Priority || 'II';
-          const Vibhas = item.Vibhas || 'States';
-          const TargetDate = formatDate(item.TargetDate || item['Target Date']);
+          const totalCost = item.total_cost != null ? item.total_cost : (item.totalCost != null ? item.totalCost : (item['Total Cost'] != null ? item['Total Cost'] : 0));
+          const jobTitle = (item.jobTitle || item.category || item.Category || 'Process').trim();
+          const wing = item.wing || item.wings || item.Wing || 'Shipping';
+          const employmentType = item.employmentType || item.priority || item.Priority || 'II';
+          const Vibhas = item.Vibhas || item.vibhas || 'States';
+          const TargetDate = formatDate(item.TargetDate || item.target_date || item['Target Date']);
           const capitalExpenditure = item.capitalExpenditure != null ? item.capitalExpenditure : (item['Capital Expenditure'] != null ? item['Capital Expenditure'] : 0);
           const sourceOfFunding = item.sourceOfFunding || item['Source of Funding'] || '-';
           const fundSpend = item.fundSpend != null ? item.fundSpend : (item['Fund Spend'] != null ? item['Fund Spend'] : 0);
-          const currentStatus = item.currentStatus || item['Current Status'] || 'In Progress';
+          const currentStatus = item.currentStatus || item.current_status || item['Current Status'] || 'In Progress';
           const fundReq1Yr = item.oneYear != null ? item.oneYear : (item['One Year'] != null ? item['One Year'] : 0);
           const fundReq2Yrs = item.threeYears != null ? item.threeYears : (item['Three Years'] != null ? item['Three Years'] : 0);
           const fundReq2to5Yrs = item.bet35Year != null ? item.bet35Year : (item['Three - Five Years'] != null ? item['Three - Five Years'] : 0);
@@ -261,6 +280,9 @@ export default function InterventionList({ triggerNotification }) {
           const b1Key = b1 ? `${a2Key || 'top'}-b1-${b1}` : null;
           const b2Key = b2 ? `${b1Key}-b2-${b2}` : null;
           const b3Key = b3 ? `${b2Key}-b3-${b3}-${idx}` : null;
+
+          // Accumulate orgCode for every ancestor node this row belongs to
+          [a1Key, a2Key, b1Key, b2Key, b3Key].forEach(key => addOrgCode(key, orgCode));
 
           if (a1Key && !seenA1.has(a1Key)) {
             seenA1.add(a1Key);
@@ -325,9 +347,9 @@ export default function InterventionList({ triggerNotification }) {
               level: 4,
               hasChildren: false,
               interventionList: b3,
-              orgCode, progress, totalCost: '-', jobTitle, wing, employmentType, Vibhas, TargetDate,
-              capitalExpenditure: '-', sourceOfFunding: '-', fundSpend: '-', currentStatus,
-              fundReq1Yr: '-', fundReq2Yrs: '-', fundReq2to5Yrs: '-', fundReqGt5Yrs: '-', remarks
+              orgCode, progress, totalCost, jobTitle, wing, employmentType, Vibhas, TargetDate,
+              capitalExpenditure, sourceOfFunding, fundSpend, currentStatus,
+              fundReq1Yr, fundReq2Yrs, fundReq2to5Yrs, fundReqGt5Yrs, remarks
             });
           }
         });
@@ -336,8 +358,11 @@ export default function InterventionList({ triggerNotification }) {
           const parentIds = new Set(tree.map(n => n.parentId).filter(Boolean));
           tree.forEach(n => {
             n.hasChildren = parentIds.has(n.id);
+            // Replace orgCode with the full de-duplicated set collected across all rows
+            const codes = nodeOrgCodes.get(n.id);
+            if (codes && codes.size > 0) n.orgCode = Array.from(codes).join(', ');
           });
-          setRawData(computeRollupProgress(tree));
+          setRawData(computeRollup(tree));
           return;
         }
       }
@@ -349,7 +374,7 @@ export default function InterventionList({ triggerNotification }) {
       // The deliberate fallback (no rows returned) is not an error; a failed request is
       if (err.message !== FALLBACK_NOTICE) notify(COMMON_TOASTS.loadFailed('The intervention list'));
       // Full 5-Level Deepdown Hierarchy matching both user screenshots!
-      setRawData(computeRollupProgress([
+      setRawData(computeRollup([
         {
           id: 'a1-ncb1',
           parentId: null,
@@ -1368,11 +1393,26 @@ export default function InterventionList({ triggerNotification }) {
       wrapText: true,
       autoHeight: true,
       wrapHeaderText: true,
-      cellRenderer: (params) => (
-        <span className="font-semibold text-slate-700 dark:text-slate-200 break-words whitespace-normal leading-snug py-1 block">
-          {params.value || 'IMU, CEMS'}
-        </span>
-      )
+      cellRenderer: (params) => {
+        const agencies = String(params.value || '').split(',').map(a => a.trim()).filter(Boolean);
+        if (agencies.length === 0) return null;
+        if (agencies.length === 1) {
+          return (
+            <span className="font-semibold text-slate-700 dark:text-slate-200 break-words whitespace-normal leading-snug py-1 block">
+              {agencies[0]}
+            </span>
+          );
+        }
+        return (
+          <div className="flex flex-wrap gap-1 py-1.5">
+            {agencies.map((agency, i) => (
+              <span key={i} className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-semibold bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 leading-tight border border-slate-200 dark:border-slate-600">
+                {agency}
+              </span>
+            ))}
+          </div>
+        );
+      }
     },
     {
       headerName: "Progress (in %)",
@@ -1595,7 +1635,7 @@ export default function InterventionList({ triggerNotification }) {
           }
         },
         {
-          headerName: "2 Years",
+          headerName: "3 Years",
           field: "fundReq2Yrs",
           width: 120,
           minWidth: 110,
@@ -1616,7 +1656,7 @@ export default function InterventionList({ triggerNotification }) {
           }
         },
         {
-          headerName: ">2 Upto 5 Years",
+          headerName: ">3 Upto 5 Years",
           field: "fundReq2to5Yrs",
           width: 150,
           minWidth: 135,
@@ -1698,32 +1738,36 @@ export default function InterventionList({ triggerNotification }) {
     { label: 'Fund Spent', key: 'fundSpend' },
     { label: 'Current Status', key: 'currentStatus' },
     { label: '1 Year (in Cr)', key: 'fundReq1Yr' },
-    { label: '2 Years (in Cr)', key: 'fundReq2Yrs' },
-    { label: '>2 Upto 5 Years (in Cr)', key: 'fundReq2to5Yrs' },
+    { label: '3 Years (in Cr)', key: 'fundReq2Yrs' },
+    { label: '>3 Upto 5 Years (in Cr)', key: 'fundReq2to5Yrs' },
     { label: '> 5 Years (in Cr)', key: 'fundReqGt5Yrs' },
     { label: 'Remarks', key: 'remarks' }
   ], []);
 
-  const exportData = useMemo(() => filteredData.map((r) => ({
+  const exportData = useMemo(() => {
+    const safeFixed = (v) => { const n = Number(v); return (v == null || v === '-' || isNaN(n)) ? '0.00' : n.toFixed(2); };
+    const safeNum   = (v) => { const n = Number(v); return (v == null || v === '-' || isNaN(n)) ? 0 : n; };
+    return filteredData.map((r) => ({
     interventionList: r.interventionList,
     orgCode: r.orgCode,
     progress: r.progress != null ? `${r.progress}%` : '0%',
-    totalCost: r.totalCost != null ? Number(r.totalCost).toFixed(2) : '0.00',
+    totalCost: safeFixed(r.totalCost),
     jobTitle: r.jobTitle,
     wing: r.wing,
     employmentType: r.employmentType,
     Vibhas: r.Vibhas,
     TargetDate: r.TargetDate,
-    capitalExpenditure: r.capitalExpenditure != null ? Number(r.capitalExpenditure).toFixed(2) : '0.00',
+    capitalExpenditure: safeFixed(r.capitalExpenditure),
     sourceOfFunding: r.sourceOfFunding,
-    fundSpend: r.fundSpend != null ? Number(r.fundSpend).toFixed(2) : '0.00',
+    fundSpend: safeFixed(r.fundSpend),
     currentStatus: r.currentStatus || 'In Progress',
-    fundReq1Yr: r.fundReq1Yr != null ? r.fundReq1Yr : 0,
-    fundReq2Yrs: r.fundReq2Yrs != null ? r.fundReq2Yrs : 0,
-    fundReq2to5Yrs: r.fundReq2to5Yrs != null ? r.fundReq2to5Yrs : 0,
-    fundReqGt5Yrs: r.fundReqGt5Yrs != null ? r.fundReqGt5Yrs : 0,
+    fundReq1Yr: safeNum(r.fundReq1Yr),
+    fundReq2Yrs: safeNum(r.fundReq2Yrs),
+    fundReq2to5Yrs: safeNum(r.fundReq2to5Yrs),
+    fundReqGt5Yrs: safeNum(r.fundReqGt5Yrs),
     remarks: r.remarks || ''
-  })), [filteredData]);
+  }));
+  }, [filteredData]);
 
   return (
     <div className="space-y-4 animate-fade-in relative select-none text-slate-800 dark:text-slate-100">

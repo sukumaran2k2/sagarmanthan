@@ -47,6 +47,8 @@ import { OVOD_TOASTS } from '../toastMessages';
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const YEARS = ['2020', '2021', '2022', '2023', '2024', '2025', '2026', '2027', '2028', '2029', '2030'];
 
+// MONTHS and YEARS still used by AddInitiativeView progress log rows (do not remove)
+
 const DEFAULT_AGENCIES = [
   { ia_id: 1, ia_name: "Chennai Port Authority" },
   { ia_id: 2, ia_name: "Cochin Port Authority" },
@@ -103,12 +105,8 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
     id: editData.id,
     goal_a1_label: editData['Goal (A1)'] || editData.goal_a1 || '',
     intervention_a2_label: editData['Intervention (A2)'] || editData.intervention_a2 || '',
-    goal_b1_label: editData['Goal (B1)'] || editData.goal_b1 || '',
-    intervention_b2_label: editData['Intervention (B2)'] || editData.intervention_b2 || '',
-    action_b3_label: editData['Action (B3)'] || editData.action_b3 || '',
-    
-    b2_id: editData.intervention_b2_id || editData.intervention_b2 || null,
-    b3_id: editData.action_b3_id || editData.action_b3 || null,
+    action_a3_label: editData['Action (A3)'] || editData.action_a3 || '',
+    a3_id: editData.action_a3_id || null,
 
     category_label: editData.Category || editData.category || '',
     agency_label: editData.ia_name || editData.organisation_name || '',
@@ -117,15 +115,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
     vibhas_label: editData.Vibhas || editData.vibhas || '',
 
     total_cost: editData.total_cost != null ? String(editData.total_cost) : '',
-    current_status: editData.current_status || 'Under Implementation - On Time',
-
-    // Output / Outcome
-    direct_emp_gen: '0',
-    indirect_emp_gen: '0',
-    direct_inv_created: '0',
-    indirect_inv_created: '0',
-    outcomes: '',
-    outcomes_remarks: '',
+    current_status: editData.current_status || 'No Update',
 
     // Timelines
     timeline_vision: '',
@@ -136,14 +126,14 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
     response_org: ''
   });
 
-  // Monthly Progress Logs State
-  const [progressLogs, setProgressLogs] = useState([
-    { id: 1, month: 'Mar', year: '2026', physical_progress: '100', financial_progress: '100' }
-  ]);
+  // Fund Requirement Rows State
+  const [financeRows, setFinanceRows] = useState([{
+    id: 1, capExpenditure: '', sourceOfFund: '', fundSpend: '',
+    oneYear: '', threeYear: '', threeFiveYear: '', greaterFive: '', detailedBreakUp: '',
+    annexureFile: null, annexureFileName: ''
+  }]);
 
-  // Modal State for Edit (B2/B3)
-  const [showEditChoiceModal, setShowEditChoiceModal] = useState(false);
-  const [editTargetType, setEditTargetType] = useState('B3'); // 'B2' or 'B3'
+  // Modal State for Edit (A3)
   const [showEditNameModal, setShowEditNameModal] = useState(false);
   const [actionNameInput, setActionNameInput] = useState('');
   const [updatingName, setUpdatingName] = useState(false);
@@ -162,53 +152,37 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
     fetchOvdItemDetails(editData.id)
       .then(res => {
         const row = res?.result?.[0] || {};
-        const logs = res?.progressLogResult || [];
 
         setFormData(prev => ({
           ...prev,
-          b2_id: row.intervention_b2 || prev.b2_id,
-          b3_id: row.action_b3 || prev.b3_id,
           total_cost: row.total_cost != null ? String(row.total_cost) : prev.total_cost,
           current_status: row.current_status || prev.current_status,
-          direct_emp_gen: row.direct_Emp_Gen != null ? String(row.direct_Emp_Gen) : '0',
-          indirect_emp_gen: row.inDirect_Emp_Gen != null ? String(row.inDirect_Emp_Gen) : '0',
-          direct_inv_created: row.direct_Inv_Created != null ? String(row.direct_Inv_Created) : '0',
-          indirect_inv_created: row.inDirect_Inv_Created != null ? String(row.inDirect_Inv_Created) : '0',
-          outcomes: row.outcomes || '',
-          outcomes_remarks: row.Outcomes_Remarks || '',
+          // Auto-populate from lookup maps (DB stores numeric IDs)
+          category_label: row.category != null ? (CATEGORY_MAP[row.category] || String(row.category)) : prev.category_label,
+          wing_label: row.wings != null ? (WINGS_MAP[row.wings] || String(row.wings)) : prev.wing_label,
+          priority_label: row.priority != null ? (PRIORITY_MAP[row.priority] || String(row.priority)) : prev.priority_label,
+          vibhas_label: row.vibhas != null ? (VIBHAS_MAP[row.vibhas] || String(row.vibhas)) : prev.vibhas_label,
           feedback_ministry: row.Feedback || '',
           response_org: row.Response || '',
           timeline_vision: row.target_date ? String(row.target_date).slice(0, 10) : '',
           expected_completion_date: row.expected_date ? String(row.expected_date).slice(0, 10) : ''
         }));
 
-        if (Array.isArray(logs) && logs.length > 0) {
-          const formattedLogs = logs.map((log, idx) => {
-            let m = 'Jan';
-            let y = '2026';
-            if (log.progress_date) {
-              const parts = String(log.progress_date).split('-');
-              if (parts.length >= 2) {
-                // If numeric month like 03-26 or name like Mar-2026
-                const monthNum = parseInt(parts[0], 10);
-                if (!isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
-                  m = MONTHS[monthNum - 1];
-                } else if (MONTHS.includes(parts[0])) {
-                  m = parts[0];
-                }
-                const yr = parts[1].length === 2 ? `20${parts[1]}` : parts[1];
-                if (YEARS.includes(yr)) y = yr;
-              }
-            }
-            return {
-              id: log.id || idx + 1,
-              month: m,
-              year: y,
-              physical_progress: log.physical_progress != null ? String(log.physical_progress) : '0',
-              financial_progress: log.financial_progress != null ? String(log.financial_progress) : '0'
-            };
-          });
-          setProgressLogs(formattedLogs);
+        const financeData = res?.financeResult || [];
+        if (Array.isArray(financeData) && financeData.length > 0) {
+          setFinanceRows(financeData.map((f, idx) => ({
+            id: idx + 1,
+            capExpenditure: f.capital_expenditure != null ? String(f.capital_expenditure) : '',
+            sourceOfFund: f.source_of_funding || '',
+            fundSpend: f.fund_spend != null ? String(f.fund_spend) : '',
+            oneYear: f.one_year != null ? String(f.one_year) : '',
+            threeYear: f.three_year != null ? String(f.three_year) : '',
+            threeFiveYear: f.three_five_year != null ? String(f.three_five_year) : '',
+            greaterFive: f.greater_five_year != null ? String(f.greater_five_year) : '',
+            detailedBreakUp: f.detail_breakup || '',
+            annexureFile: null,
+            annexureFileName: f.annexure_file || ''
+          })));
         }
       })
       .catch(err => {
@@ -217,90 +191,38 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
       .finally(() => setLoading(false));
   }, [editData]);
 
-  // Handle Progress Log Row Add
-  const handleAddLogRow = () => {
-    setProgressLogs(prev => [
-      ...prev,
-      { id: Date.now(), month: 'Jan', year: '2026', physical_progress: '0', financial_progress: '0' }
-    ]);
-  };
-
-  // Handle Progress Log Row Remove
-  const handleRemoveLogRow = (index) => {
-    if (progressLogs.length <= 1) return;
-    setProgressLogs(prev => prev.filter((_, idx) => idx !== index));
-  };
-
-  // Handle Progress Log Row Change
-  const handleLogRowChange = (index, field, value) => {
-    setProgressLogs(prev => {
-      const copy = [...prev];
-      copy[index] = { ...copy[index], [field]: value };
-      return copy;
-    });
-  };
-
-  // Clear All Log Rows
-  const handleClearAllLogs = () => {
-    setProgressLogs([
-      { id: Date.now(), month: 'Jan', year: '2026', physical_progress: '0', financial_progress: '0' }
-    ]);
-  };
-
-  // Open Edit Name Modal
+  // Open Edit A3 Name Modal directly
   const handleOpenEditChoice = () => {
-    setShowEditChoiceModal(true);
-  };
-
-  const handleConfirmEditChoice = () => {
-    setShowEditChoiceModal(false);
-    if (editTargetType === 'B2') {
-      const currentB2 = formData.intervention_b2_label;
-      const cleanName = currentB2.includes(':') ? currentB2.split(':').slice(1).join(':').trim() : currentB2;
-      setActionNameInput(cleanName);
-    } else {
-      const currentB3 = formData.action_b3_label;
-      const cleanName = currentB3.includes(':') ? currentB3.split(':').slice(1).join(':').trim() : currentB3;
-      setActionNameInput(cleanName);
-    }
+    const currentA3 = formData.action_a3_label;
+    const cleanName = currentA3.includes(':') ? currentA3.split(':').slice(1).join(':').trim() : currentA3;
+    setActionNameInput(cleanName);
     setShowEditNameModal(true);
   };
 
-  // Submit Updated B2 or B3 Name
+  // Submit Updated A3 Name
   const handleSaveActionName = async () => {
     if (!actionNameInput.trim()) return;
     setUpdatingName(true);
     try {
       const payload = {
-        bType: editTargetType,
+        bType: 'B3',
         actionInput: actionNameInput.trim(),
-        b2Intervention: editTargetType === 'B2' ? formData.b2_id : undefined,
-        b3Actions: editTargetType === 'B3' ? formData.b3_id : undefined
+        b3Actions: formData.a3_id
       };
       await updateOvdAction(payload);
-      notify(OVOD_TOASTS.nameUpdated(editTargetType));
+      notify(OVOD_TOASTS.nameUpdated('A3'));
 
-      if (editTargetType === 'B2') {
-        const prefix = formData.intervention_b2_label.includes(':') 
-          ? formData.intervention_b2_label.split(':')[0].trim() 
-          : 'B2';
-        setFormData(prev => ({
-          ...prev,
-          intervention_b2_label: `${prefix} : ${actionNameInput.trim()}`
-        }));
-      } else {
-        const prefix = formData.action_b3_label.includes(':') 
-          ? formData.action_b3_label.split(':')[0].trim() 
-          : 'B3';
-        setFormData(prev => ({
-          ...prev,
-          action_b3_label: `${prefix} : ${actionNameInput.trim()}`
-        }));
-      }
+      const prefix = formData.action_a3_label.includes(':')
+        ? formData.action_a3_label.split(':')[0].trim()
+        : 'A3';
+      setFormData(prev => ({
+        ...prev,
+        action_a3_label: `${prefix} : ${actionNameInput.trim()}`
+      }));
       setShowEditNameModal(false);
     } catch (err) {
       console.error("Error updating action name:", err);
-      notify(OVOD_TOASTS.nameUpdateFailed(editTargetType, getErrorMessage(err)));
+      notify(OVOD_TOASTS.nameUpdateFailed('A3', getErrorMessage(err)));
     } finally {
       setUpdatingName(false);
     }
@@ -326,35 +248,21 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
     setSubmitting(true);
     try {
       const userId = getUserIdFromToken();
-      const latestLog = progressLogs[progressLogs.length - 1] || {};
 
       const payload = {
         ID: editData.id,
-        completedPercentage: parseInt(latestLog.physical_progress || 0, 10),
-        financialProgress: parseInt(latestLog.financial_progress || 0, 10),
-        directEmpGen: parseInt(formData.direct_emp_gen || 0, 10),
-        inDirectEmpGen: parseInt(formData.indirect_emp_gen || 0, 10),
-        directInvCreated: parseFloat(formData.direct_inv_created || 0),
-        inDirectInvCreated: parseFloat(formData.indirect_inv_created || 0),
         totalCost: formData.total_cost ? parseFloat(formData.total_cost) : null,
         statusCurrent: formData.current_status,
-        outcomes: formData.outcomes,
-        OutcomesRemarks: formData.outcomes_remarks,
         Response: formData.response_org,
         Feedback: formData.feedback_ministry,
         completionDate: formData.timeline_vision || null,
         actualDate: formData.expected_completion_date || null,
         Delay: null,
         reasonsForDrop: null,
-        ovodFinanceData: [],
-        ovodProgressLogData: progressLogs.map(log => ({
-          progressDate: `${log.month}-${log.year}`,
-          physicalProgress: log.physical_progress != null ? String(log.physical_progress) : '0',
-          financialProgress: log.financial_progress != null ? String(log.financial_progress) : '0',
-          progress_date: `${log.month}-${log.year}`,
-          physical_progress: parseInt(log.physical_progress || 0, 10),
-          financial_progress: parseInt(log.financial_progress || 0, 10)
-        })),
+        ovodFinanceData: financeRows.filter(r =>
+          r.capExpenditure || r.sourceOfFund || r.fundSpend ||
+          r.oneYear || r.threeYear || r.threeFiveYear || r.greaterFive || r.detailedBreakUp
+        ),
         userID: userId
       };
 
@@ -406,117 +314,50 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
           {/* ========================================================================= */}
           <div className="space-y-4">
             <div className="module-form-section-header">
-              <h2 className="module-form-section-heading">
-                General Details
-              </h2>
-              
-              {/* Edit (B2/B3) Button */}
+              <h2 className="module-form-section-heading">General Details</h2>
               <button
                 type="button"
                 onClick={handleOpenEditChoice}
                 className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#2563eb] hover:bg-blue-700 text-white text-xs font-bold rounded shadow-xs transition cursor-pointer"
               >
                 <Edit2 size={12} />
-                <span>Edit (B2/B3)</span>
+                <span>Edit (A3)</span>
               </button>
             </div>
 
-            {/* Row 1: National Level Goal A1 & Intervention A2 */}
+            {/* Row 1: A1 & A2 */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="module-form-label">
-                  National Level Goal (A1)<span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.goal_a1_label}
-                  readOnly
-                  disabled
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
-                />
+                <label className="module-form-label">National Level Goal (A1)<span className="text-rose-500">*</span></label>
+                <input type="text" value={formData.goal_a1_label} readOnly disabled
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none" />
               </div>
-
               <div>
-                <label className="module-form-label">
-                  National Level Intervention (A2)<span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.intervention_a2_label}
-                  readOnly
-                  disabled
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
-                />
+                <label className="module-form-label">National Level Intervention (A2)<span className="text-rose-500">*</span></label>
+                <input type="text" value={formData.intervention_a2_label} readOnly disabled
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none" />
               </div>
             </div>
 
-            {/* Row 2: Goal B1 & Intervention B2 */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="module-form-label">
-                  Goal (B1)<span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.goal_b1_label}
-                  readOnly
-                  disabled
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
-                />
-              </div>
-
-              <div>
-                <label className="module-form-label">
-                  Intervention (B2)<span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.intervention_b2_label}
-                  readOnly
-                  disabled
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
-                />
-              </div>
-            </div>
-
-            {/* Row 3: Actionable Item (B3) */}
+            {/* Row 2: A3 */}
             <div>
-              <label className="module-form-label">
-                Actionable Item (B3)<span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={formData.action_b3_label}
-                readOnly
-                disabled
-                className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
-              />
+              <label className="module-form-label">Actionable Item (A3)<span className="text-rose-500">*</span></label>
+              <input type="text" value={formData.action_a3_label} readOnly disabled
+                className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none" />
             </div>
 
-            {/* Row 4: Category, Total Cost, Implementing Agency, Wing */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-center">
+            {/* Row 3: Category | Total Cost | Implementing Agency | Wing */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
               <div>
-                <label className="module-form-label">
-                  Category<span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.category_label}
-                  readOnly
-                  disabled
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
-                />
+                <label className="module-form-label">Category<span className="text-rose-500">*</span></label>
+                <input type="text" value={formData.category_label} readOnly disabled
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none" />
               </div>
-
               <div>
-                <label className="module-form-label">
-                  Total Cost (In. Cr)
-                </label>
+                <label className="module-form-label">Total Cost (In. Cr)</label>
                 <div className="relative">
                   <input
-                    type="number"
-                    step="0.01"
-                    name="total_cost"
+                    type="number" step="0.01" name="total_cost"
                     value={formData.total_cost}
                     onChange={(e) => setFormData(prev => ({ ...prev, total_cost: e.target.value }))}
                     placeholder="Enter cost..."
@@ -527,63 +368,31 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                   </div>
                 </div>
               </div>
-
               <div>
-                <label className="module-form-label">
-                  Implementing Agency<span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.agency_label}
-                  readOnly
-                  disabled
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
-                />
+                <label className="module-form-label">Implementing Agency<span className="text-rose-500">*</span></label>
+                <input type="text" value={formData.agency_label} readOnly disabled
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none" />
               </div>
-
               <div>
-                <label className="module-form-label">
-                  Wing<span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.wing_label}
-                  readOnly
-                  disabled
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
-                />
+                <label className="module-form-label">Wing<span className="text-rose-500">*</span></label>
+                <input type="text" value={formData.wing_label} readOnly disabled
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none" />
               </div>
             </div>
 
-            {/* Row 5: Priority & Vibhas */}
+            {/* Row 4: Priority & Vibhas */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="module-form-label">
-                  Priority<span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.priority_label}
-                  readOnly
-                  disabled
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
-                />
+                <label className="module-form-label">Priority<span className="text-rose-500">*</span></label>
+                <input type="text" value={formData.priority_label} readOnly disabled
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none" />
               </div>
-
               <div>
-                <label className="module-form-label">
-                  Vibhas/ Navic<span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.vibhas_label}
-                  readOnly
-                  disabled
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
-                />
+                <label className="module-form-label">Vibhas/ Navic<span className="text-rose-500">*</span></label>
+                <input type="text" value={formData.vibhas_label} readOnly disabled
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none" />
               </div>
             </div>
-
           </div>
 
           {/* ========================================================================= */}
@@ -591,15 +400,10 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
           {/* ========================================================================= */}
           <div className="space-y-4">
             <div className="module-form-section-header">
-              <h2 className="module-form-section-heading">
-                Status
-              </h2>
+              <h2 className="module-form-section-heading">Status</h2>
             </div>
-
             <div>
-              <label className="module-form-label">
-                Current Status<span className="text-rose-500">*</span>
-              </label>
+              <label className="module-form-label">Current Status<span className="text-rose-500">*</span></label>
               <div className="relative">
                 <select
                   name="current_status"
@@ -609,7 +413,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                   className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-emerald-500 dark:border-emerald-500 pr-10 font-semibold focus:ring-1 focus:ring-emerald-500"
                 >
                   <option value="">--Select Status--</option>
-                  {OVOD_STATUSES.filter(s => s.id !== '0').map(s => (
+                  {OVOD_STATUSES.filter(s => s.id !== '0' && s.id !== 'No Update').map(s => (
                     <option key={s.id} value={s.id}>{s.label}</option>
                   ))}
                 </select>
@@ -618,249 +422,6 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* ========================================================================= */}
-          {/* ==================== SECTION 3: MONTHLY PROGRESS LOGS =================== */}
-          {/* ========================================================================= */}
-          <div className="space-y-3">
-            <div className="module-form-section-header">
-              <h2 className="module-form-section-heading">
-                Monthly Progress Logs
-              </h2>
-              <button
-                type="button"
-                onClick={handleClearAllLogs}
-                className="bg-[#dc2626] hover:bg-rose-700 text-white px-4 py-1 text-xs font-bold rounded shadow-xs transition-colors cursor-pointer"
-              >
-                Clear All Rows
-              </button>
-            </div>
-
-            <div className="border border-slate-200 dark:border-slate-800 rounded overflow-hidden shadow-xs">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead className="bg-[#154b8a] text-white">
-                  <tr>
-                    <th className="py-2.5 px-4 text-center font-bold border-r border-blue-900/40 w-1/3">Month & Year (MM-YY)</th>
-                    <th className="py-2.5 px-4 text-center font-bold border-r border-blue-900/40 w-1/3">Physical Progress</th>
-                    <th className="py-2.5 px-4 text-center font-bold border-r border-blue-900/40 w-1/4">Financial Progress (%)</th>
-                    <th className="py-2.5 px-3 text-center font-bold w-20">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
-                  {progressLogs.map((log, index) => (
-                    <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                      
-                      {/* Month & Year */}
-                      <td className="py-2 px-3 border-r border-slate-200 dark:border-slate-800">
-                        <div className="flex items-center gap-2">
-                          <div className="relative flex-1">
-                            <select
-                              value={log.month}
-                              onChange={(e) => handleLogRowChange(index, 'month', e.target.value)}
-                              className="w-full text-xs px-2.5 py-1.5 bg-white dark:bg-slate-950 rounded border border-emerald-500 pr-7 font-semibold"
-                            >
-                              {MONTHS.map(m => (
-                                <option key={m} value={m}>{m}</option>
-                              ))}
-                            </select>
-                            <CheckCircle className="h-3.5 w-3.5 text-emerald-600 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-                          </div>
-
-                          <div className="relative flex-1">
-                            <select
-                              value={log.year}
-                              onChange={(e) => handleLogRowChange(index, 'year', e.target.value)}
-                              className="w-full text-xs px-2.5 py-1.5 bg-white dark:bg-slate-950 rounded border border-emerald-500 pr-7 font-semibold"
-                            >
-                              {YEARS.map(y => (
-                                <option key={y} value={y}>{y}</option>
-                              ))}
-                            </select>
-                            <CheckCircle className="h-3.5 w-3.5 text-emerald-600 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Physical Progress */}
-                      <td className="py-2 px-3 border-r border-slate-200 dark:border-slate-800">
-                        <div className="relative">
-                          <input
-                            type="number"
-                            min="0"
-                            max="100"
-                            value={log.physical_progress}
-                            onChange={(e) => handleLogRowChange(index, 'physical_progress', e.target.value)}
-                            className="w-full text-xs px-3 py-1.5 bg-white dark:bg-slate-950 rounded border border-emerald-500 pr-8 font-semibold text-center"
-                          />
-                          <CheckCircle className="h-3.5 w-3.5 text-emerald-600 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-                        </div>
-                      </td>
-
-                      {/* Financial Progress */}
-                      <td className="py-2 px-3 border-r border-slate-200 dark:border-slate-800">
-                        <div className="relative">
-                          <input
-                            type="number"
-                            min="0"
-                            max="100"
-                            value={log.financial_progress}
-                            onChange={(e) => handleLogRowChange(index, 'financial_progress', e.target.value)}
-                            className="w-full text-xs px-3 py-1.5 bg-white dark:bg-slate-950 rounded border border-emerald-500 pr-8 font-semibold text-center"
-                          />
-                          <CheckCircle className="h-3.5 w-3.5 text-emerald-600 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-                        </div>
-                      </td>
-
-                      {/* Actions */}
-                      <td className="py-2 px-3 text-center">
-                        <div className="flex items-center justify-center space-x-2">
-                          {progressLogs.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveLogRow(index)}
-                              title="Delete row"
-                              className="text-rose-500 hover:text-rose-700 transition cursor-pointer p-0.5"
-                            >
-                              <div className="w-5 h-5 rounded-full border border-rose-500 flex items-center justify-center">
-                                <Minus size={12} className="stroke-[2.5]" />
-                              </div>
-                            </button>
-                          )}
-
-                          {index === progressLogs.length - 1 && (
-                            <button
-                              type="button"
-                              onClick={handleAddLogRow}
-                              title="Add new progress log row"
-                              className="text-slate-600 hover:text-blue-600 transition cursor-pointer p-0.5"
-                            >
-                              <div className="w-5 h-5 rounded-full border border-slate-500 flex items-center justify-center">
-                                <Plus size={12} className="stroke-[2.5]" />
-                              </div>
-                            </button>
-                          )}
-                        </div>
-                      </td>
-
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* ========================================================================= */}
-          {/* ======================= SECTION 4: OUTPUT / OUTCOME ===================== */}
-          {/* ========================================================================= */}
-          <div className="space-y-4">
-            <div className="module-form-section-header">
-              <h2 className="module-form-section-heading">
-                Output / Outcome
-              </h2>
-            </div>
-
-            {/* Row 1: Direct & Indirect Employment Generated */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="module-form-label">
-                  Direct Employment Generated (No. Of People)<span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    min="0"
-                    value={formData.direct_emp_gen}
-                    onChange={(e) => setFormData(prev => ({ ...prev, direct_emp_gen: e.target.value }))}
-                    className="w-full text-xs px-3.5 py-2 bg-white dark:bg-slate-950 rounded border border-emerald-500 pr-8 font-semibold"
-                  />
-                  <CheckCircle className="h-4 w-4 text-emerald-600 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                </div>
-              </div>
-
-              <div>
-                <label className="module-form-label">
-                  Indirect Employment Generated (No. Of People)<span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    min="0"
-                    value={formData.indirect_emp_gen}
-                    onChange={(e) => setFormData(prev => ({ ...prev, indirect_emp_gen: e.target.value }))}
-                    className="w-full text-xs px-3.5 py-2 bg-white dark:bg-slate-950 rounded border border-emerald-500 pr-8 font-semibold"
-                  />
-                  <CheckCircle className="h-4 w-4 text-emerald-600 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                </div>
-              </div>
-            </div>
-
-            {/* Row 2: Direct & Indirect Investment Created */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="module-form-label">
-                  Direct Investment Created (In Cr.)<span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.direct_inv_created}
-                    onChange={(e) => setFormData(prev => ({ ...prev, direct_inv_created: e.target.value }))}
-                    className="w-full text-xs px-3.5 py-2 bg-white dark:bg-slate-950 rounded border border-emerald-500 pr-8 font-semibold"
-                  />
-                  <CheckCircle className="h-4 w-4 text-emerald-600 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                </div>
-              </div>
-
-              <div>
-                <label className="module-form-label">
-                  Indirect Investment Created (In Cr.)<span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.indirect_inv_created}
-                    onChange={(e) => setFormData(prev => ({ ...prev, indirect_inv_created: e.target.value }))}
-                    className="w-full text-xs px-3.5 py-2 bg-white dark:bg-slate-950 rounded border border-emerald-500 pr-8 font-semibold"
-                  />
-                  <CheckCircle className="h-4 w-4 text-emerald-600 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                </div>
-              </div>
-            </div>
-
-            {/* Row 3: Output / Outcome Textareas */}
-            <div className="space-y-3">
-              <div>
-                <label className="module-form-label leading-snug">
-                  Output / Outcome Of The Completed Initiative (Example : Reduction in turn-around time (hours), capacity created (MTPA), beneficiaries impacted (Number), Infrastructure Developed (road / rail with length in kilometres), etc.)
-                </label>
-                <textarea
-                  rows={3}
-                  value={formData.outcomes}
-                  onChange={(e) => setFormData(prev => ({ ...prev, outcomes: e.target.value }))}
-                  placeholder="Enter outcome description..."
-                  className="w-full text-xs p-3 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="module-form-label">
-                  Output/Outcomes (Remarks)
-                </label>
-                <textarea
-                  rows={3}
-                  value={formData.outcomes_remarks}
-                  onChange={(e) => setFormData(prev => ({ ...prev, outcomes_remarks: e.target.value }))}
-                  placeholder="Enter remarks..."
-                  className="w-full text-xs p-3 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-
           </div>
 
           {/* ========================================================================= */}
@@ -901,6 +462,183 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
               </div>
             </div>
           </div>
+
+          {/* ========================================================================= */}
+          {/* ====================== SECTION 5.5: FUND REQUIREMENT ==================== */}
+          {/* ========================================================================= */}
+          {formData.total_cost && String(formData.total_cost).trim() !== '' && (
+            <div className="space-y-3">
+              <div className="module-form-section-header">
+                <h2 className="module-form-section-heading">Fund Requirement</h2>
+                <button
+                  type="button"
+                  onClick={() => setFinanceRows([{
+                    id: Date.now(), capExpenditure: '', sourceOfFund: '', fundSpend: '',
+                    oneYear: '', threeYear: '', threeFiveYear: '', greaterFive: '', detailedBreakUp: '',
+                    annexureFile: null, annexureFileName: ''
+                  }])}
+                  className="bg-[#dc2626] hover:bg-rose-700 text-white px-4 py-1 text-xs font-bold rounded shadow-xs transition cursor-pointer"
+                >
+                  Clear
+                </button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-[11px] border-collapse">
+                  <thead>
+                    <tr className="bg-[#154b8a] text-white">
+                      <th className="px-2 py-2 font-semibold text-center border border-blue-900/40" rowSpan={2}>Source of Funding</th>
+                      <th className="px-2 py-2 font-semibold text-center border border-blue-900/40" rowSpan={2}>Fund Spent<br />(In. Cr)</th>
+                      <th className="px-2 py-2 font-semibold text-center border border-blue-900/40" colSpan={4}>Fund Requirement (In. Cr)</th>
+                      <th className="px-2 py-2 font-semibold text-center border border-blue-900/40" rowSpan={2}>Capital Expenditure<br />(INR Crore)</th>
+                      <th className="px-2 py-2 font-semibold text-center border border-blue-900/40" rowSpan={2}>Detailed Break up<br />of the Requirement</th>
+                      <th className="px-2 py-2 font-semibold text-center border border-blue-900/40" rowSpan={2}>Annexure &amp; Concept Note</th>
+                      <th className="px-2 py-2 font-semibold text-center border border-blue-900/40" rowSpan={2}>Actions</th>
+                    </tr>
+                    <tr className="bg-[#1e5fa3] text-white">
+                      <th className="px-2 py-1 font-semibold text-center border border-blue-900/40">1 YEAR</th>
+                      <th className="px-2 py-1 font-semibold text-center border border-blue-900/40">3 YEARS</th>
+                      <th className="px-2 py-1 font-semibold text-center border border-blue-900/40">&gt;3 years up to 5 years</th>
+                      <th className="px-2 py-1 font-semibold text-center border border-blue-900/40">&gt; 5 years</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {financeRows.map((row, idx) => {
+                      const updateRow = (field, val) =>
+                        setFinanceRows(prev => prev.map((r, i) => i === idx ? { ...r, [field]: val } : r));
+                      const numInput = (field) => (
+                        <td className="px-1 py-1 border border-slate-200 dark:border-slate-700">
+                          <input
+                            type="number" min="0" step="0.01"
+                            value={row[field]}
+                            onChange={e => updateRow(field, e.target.value)}
+                            className="w-full px-1.5 py-1 text-[11px] bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded text-slate-700 dark:text-slate-200"
+                            placeholder="0.00"
+                          />
+                        </td>
+                      );
+                      const autoCapEx = (
+                        (parseFloat(row.oneYear) || 0) +
+                        (parseFloat(row.threeYear) || 0) +
+                        (parseFloat(row.threeFiveYear) || 0) +
+                        (parseFloat(row.greaterFive) || 0)
+                      );
+                      return (
+                        <tr key={row.id} className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800">
+                          <td className="px-1 py-1 border border-slate-200 dark:border-slate-700">
+                            <select
+                              value={row.sourceOfFund}
+                              onChange={e => updateRow('sourceOfFund', e.target.value)}
+                              className="w-full px-1.5 py-1 text-[11px] bg-white dark:bg-slate-900 border-0 focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded text-slate-700 dark:text-slate-200"
+                            >
+                              <option value="">Select Source of Fund</option>
+                              <option value="GBS">GBS</option>
+                              <option value="IEBR">IEBR</option>
+                              <option value="PPP/SPV">PPP/SPV</option>
+                              <option value="Debt">Debt</option>
+                              <option value="Other (Angel investment, VC fund, etc.)">Other (Angel investment, VC fund, etc.)</option>
+                            </select>
+                          </td>
+                          {numInput('fundSpend')}
+                          {numInput('oneYear')}
+                          {numInput('threeYear')}
+                          {numInput('threeFiveYear')}
+                          {numInput('greaterFive')}
+                          <td className="px-1 py-1 border border-slate-200 dark:border-slate-700">
+                            <input
+                              type="number" min="0" step="0.01"
+                              value={row.capExpenditure !== '' ? row.capExpenditure : (autoCapEx > 0 ? autoCapEx.toFixed(2) : '')}
+                              onChange={e => updateRow('capExpenditure', e.target.value)}
+                              onFocus={() => { if (row.capExpenditure === '' && autoCapEx > 0) updateRow('capExpenditure', autoCapEx.toFixed(2)); }}
+                              className="w-full px-1.5 py-1 text-[11px] bg-[#fffbeb] dark:bg-slate-800 border-0 focus:outline-none focus:ring-1 focus:ring-amber-400 rounded text-slate-700 dark:text-slate-200 font-medium"
+                              placeholder="Auto"
+                              title="Auto-calculated from Fund Requirement total. Editable."
+                            />
+                          </td>
+                          <td className="px-1 py-1 border border-slate-200 dark:border-slate-700">
+                            <input
+                              type="text"
+                              value={row.detailedBreakUp}
+                              onChange={e => updateRow('detailedBreakUp', e.target.value)}
+                              className="w-full px-1.5 py-1 text-[11px] bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded text-slate-700 dark:text-slate-200"
+                              placeholder="Details..."
+                            />
+                          </td>
+
+                          {/* Annexure & Concept Note column */}
+                          <td className="px-1 py-1 border border-slate-200 dark:border-slate-700 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              {/* Upload button */}
+                              <label
+                                title="Upload annexure"
+                                className="inline-flex items-center justify-center w-6 h-6 rounded bg-[#f59e0b] hover:bg-amber-600 text-white cursor-pointer transition"
+                              >
+                                <Upload size={12} />
+                                <input
+                                  type="file"
+                                  className="hidden"
+                                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                                  onChange={e => {
+                                    const file = e.target.files?.[0] || null;
+                                    updateRow('annexureFile', file);
+                                    updateRow('annexureFileName', file ? file.name : '');
+                                  }}
+                                />
+                              </label>
+
+                              {/* Download/view button — active only when a file exists */}
+                              <button
+                                type="button"
+                                title={row.annexureFileName ? `Download: ${row.annexureFileName}` : 'No file uploaded'}
+                                disabled={!row.annexureFileName}
+                                className={`inline-flex items-center justify-center w-6 h-6 rounded text-white transition ${row.annexureFileName ? 'bg-[#16a34a] hover:bg-emerald-700 cursor-pointer' : 'bg-slate-300 dark:bg-slate-700 cursor-not-allowed opacity-60'}`}
+                              >
+                                <Download size={12} />
+                              </button>
+                            </div>
+                            {row.annexureFileName && (
+                              <p className="text-[9px] text-slate-500 truncate max-w-[80px] mt-0.5" title={row.annexureFileName}>
+                                {row.annexureFileName}
+                              </p>
+                            )}
+                          </td>
+
+                          {/* Actions column */}
+                          <td className="px-1 py-1 border border-slate-200 dark:border-slate-700 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              {financeRows.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setFinanceRows(prev => prev.filter((_, i) => i !== idx))}
+                                  title="Delete row"
+                                  className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-rose-500 text-rose-500 hover:text-rose-700 hover:border-rose-700 transition cursor-pointer"
+                                >
+                                  <Minus size={10} className="stroke-[2.5]" />
+                                </button>
+                              )}
+                              {idx === financeRows.length - 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setFinanceRows(prev => [
+                                    ...prev,
+                                    { id: Date.now(), capExpenditure: '', sourceOfFund: '', fundSpend: '', oneYear: '', threeYear: '', threeFiveYear: '', greaterFive: '', detailedBreakUp: '', annexureFile: null, annexureFileName: '' }
+                                  ])}
+                                  title="Add new row"
+                                  className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-slate-500 text-slate-600 hover:text-blue-600 hover:border-blue-600 transition cursor-pointer"
+                                >
+                                  <Plus size={10} className="stroke-[2.5]" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* ========================================================================= */}
           {/* ============================ SECTION 6: OTHERS ========================== */}
@@ -996,107 +734,23 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
       </div>
 
       {/* ========================================================================= */}
-      {/* ================= MODAL 1: SELECT B2 OR B3 TO EDIT ======================= */}
-      {/* ========================================================================= */}
-      {showEditChoiceModal && createPortal(
-        <div 
-          className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 animate-fade-in"
-          onClick={() => setShowEditChoiceModal(false)}
-        >
-          <div 
-            className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl animate-scale-up overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-black text-slate-800 dark:text-slate-100">
-                  Select Intervention(B2) / Actionable Item(B3) To Edit
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Choose which level you want to modify
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowEditChoiceModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            {/* Radio Selection */}
-            <div className="px-5 py-6">
-              <div className="flex items-center justify-center space-x-12">
-                <label className="inline-flex items-center space-x-2.5 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="editTarget"
-                    value="B2"
-                    checked={editTargetType === 'B2'}
-                    onChange={() => setEditTargetType('B2')}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                  />
-                  <span className="text-sm font-bold text-slate-800 dark:text-slate-200">Intervention (B2)</span>
-                </label>
-
-                <label className="inline-flex items-center space-x-2.5 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="editTarget"
-                    value="B3"
-                    checked={editTargetType === 'B3'}
-                    onChange={() => setEditTargetType('B3')}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                  />
-                  <span className="text-sm font-bold text-slate-800 dark:text-slate-200">Actionable Item (B3)</span>
-                </label>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2 bg-slate-50/60 dark:bg-slate-950/40">
-              <button
-                type="button"
-                onClick={() => setShowEditChoiceModal(false)}
-                className="px-3.5 py-2 text-xs font-bold rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmEditChoice}
-                className="px-4 py-2 text-xs font-bold rounded-lg bg-[#2563eb] hover:bg-blue-700 text-white shadow-xs transition cursor-pointer"
-              >
-                Submit
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {/* ========================================================================= */}
-      {/* ================= MODAL 2: UPDATE ACTION NAME (B2 / B3) ================= */}
+      {/* ================== MODAL: UPDATE ACTIONABLE ITEM (A3) NAME ============== */}
       {/* ========================================================================= */}
       {showEditNameModal && createPortal(
-        <div 
+        <div
           className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 animate-fade-in"
           onClick={() => !updatingName && setShowEditNameModal(false)}
         >
-          <div 
+          <div
             className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl animate-scale-up overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
             <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-black text-slate-800 dark:text-slate-100">
-                  Update Action Name
-                </h3>
+                <h3 className="text-sm font-black text-slate-800 dark:text-slate-100">Update Action Name</h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Enter new name for {editTargetType === 'B2' ? 'Intervention (B2)' : 'Actionable Item (B3)'}
+                  Enter new name for Actionable Item (A3)
                 </p>
               </div>
               <button
@@ -1112,14 +766,14 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
             {/* Input Form Body */}
             <div className="px-5 py-4 space-y-3">
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                {editTargetType === 'B2' ? 'Enter Intervention Name (B2)' : 'Enter Action Name (B3)'}
+                Enter Actionable Item Name (A3)
               </label>
               <div className="relative">
                 <textarea
                   rows={3}
                   value={actionNameInput}
                   onChange={(e) => setActionNameInput(e.target.value)}
-                  placeholder={`Enter ${editTargetType} name...`}
+                  placeholder="Enter A3 name..."
                   disabled={updatingName}
                   className="w-full text-xs p-3 bg-white dark:bg-slate-950 rounded-xl border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium resize-none"
                 />
