@@ -220,6 +220,8 @@ export const getTabFromSlug = (slug) => {
   if (cleanSlug.startsWith('hr/hr-management/training-details')) return 'Training Details';
   if (cleanSlug.startsWith('hr/young-professionals')) return 'YP Data List';
   if (cleanSlug.startsWith('hr/consultant-appointment/dashboard')) return 'Consultant Dashboard';
+  if (cleanSlug.startsWith('hr/consultant-appointment/input-form')) return 'Consultant Input Form';
+  if (cleanSlug.startsWith('hr/consultant-appointment/reports')) return 'Consultant Reports';
   if (cleanSlug.startsWith('hr/consultant-appointment')) return 'Consultant Data List';
   if (cleanSlug.startsWith('strategies/gmis-mou')) return 'GMIS & IMW MoUs';
   if (cleanSlug.startsWith('strategies/miv-2030')) return 'MIV 2030';
