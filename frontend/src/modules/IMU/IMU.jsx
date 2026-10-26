@@ -1,8 +1,14 @@
-import { useState, useEffect } from 'react';
-import { GraduationCap, BookOpen, Building2, Handshake, FlaskConical, Users, Construction } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useLocation, useSearchParams } from 'react-router-dom';
+import { GraduationCap, BookOpen, Building2, Handshake, FlaskConical, Users } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
-import { resolveIMUListView } from './views';
+import StudentEnrollmentDataList from './components/StudentEnrollmentDataList';
+import FinalYearPassPercentageDataList from './components/FinalYearPassPercentageDataList';
+import NewCourseUpgradationDataList from './components/NewCourseUpgradationDataList';
+import FacilitiesDataList from './components/FacilitiesDataList';
+import PartnershipDataList from './components/PartnershipDataList';
+import ResearchDataList from './components/ResearchDataList';
 import StudentEnrollmentInputForm from './pages/StudentEnrollment/InputForm';
 import StudentEnrollmentReports from './pages/StudentEnrollment/Reports';
 import FinalYearPassPercentageInputForm from './pages/FinalYearPassPercentage/InputForm';
@@ -16,7 +22,10 @@ import PartnershipReports from './pages/Partnership/Reports';
 import ResearchInputForm from './pages/Research/InputForm';
 import ResearchReports from './pages/Research/Reports';
 import { useIMUPermissions } from './hooks/useIMUPermissions';
+import { useImuStore } from './store/useImuStore';
 import { getCurrentUserId } from '../../utils/authSession';
+import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../utils/notify';
+import { IMU_TOASTS } from './toastMessages';
 import {
   fetchStudentEnrollment, deleteStudentEnrollment,
   fetchFinalYearPassPercentage, deleteFinalYearPassPercentage,
@@ -26,360 +35,194 @@ import {
   fetchResearch, deleteResearch,
 } from './api';
 
-// The 5 real IMU KPI sections (K-5.1 through K-5.5), confirmed against the
-// legacy site's report form numbers. Final Year Pass Percentage (K-5.1.1)
-// is a sub-section of Student Enrollment (K-5.1), not its own top-level
-// item, matching how the legacy site treats it. HR & Faculty has a legacy
-// page (imuHrFaculty.html) but no backend controller or report function --
-// left out until that's built.
+const byYear = (r) => r.financial_year;
+
+// The IMU KPI sections (K-5.1 to K-5.5; Final Year Pass % is K-5.1.1): what each one fetches,
+// deletes and renders. `name` is used in messages; `period` names a row in the delete confirmation.
+// `paged`: the server pages and searches the list. Final Year Pass % returns every row and
+// is searched and paged in the browser by its Data List.
 const SECTIONS = [
-  { id: 'studentEnrollment', code: 'K-5.1', label: 'IMU - Student Enrollment', icon: GraduationCap, ready: true },
-  { id: 'finalYearPassPercentage', code: 'K-5.1.1', label: 'IMU - Final Year Pass %', icon: Users, ready: true },
-  { id: 'newCourseUpgradation', code: 'K-5.2', label: 'IMU - New Courses & Upgradation', icon: BookOpen, ready: true },
-  { id: 'facilities', code: 'K-5.3', label: 'IMU - Facilities', icon: Building2, ready: true },
-  { id: 'partnership', code: 'K-5.4', label: 'IMU - Partnerships/MoUs', icon: Handshake, ready: true },
-  { id: 'research', code: 'K-5.5', label: 'IMU - Research, Innovation & Startups', icon: FlaskConical, ready: true },
+  { id: 'studentEnrollment', code: 'K-5.1', label: 'IMU - Student Enrollment', name: 'Student Enrollment', icon: GraduationCap, paged: true,
+    fetchList: fetchStudentEnrollment, remove: deleteStudentEnrollment, idField: 'student_id', period: byYear,
+    DataList: StudentEnrollmentDataList, InputForm: StudentEnrollmentInputForm, Reports: StudentEnrollmentReports },
+  { id: 'finalYearPassPercentage', code: 'K-5.1.1', label: 'IMU - Final Year Pass %', name: 'Final Year Pass Percentage', icon: Users, paged: false,
+    fetchList: () => fetchFinalYearPassPercentage().then((res) => ({ data: { data: res.data || [], pagination: null } })),
+    remove: deleteFinalYearPassPercentage, idField: 'id', period: (r) => `${r.programme} ${r.batch}`,
+    DataList: FinalYearPassPercentageDataList, InputForm: FinalYearPassPercentageInputForm, Reports: FinalYearPassPercentageReports },
+  { id: 'newCourseUpgradation', code: 'K-5.2', label: 'IMU - New Courses & Upgradation', name: 'New Course Upgradation', icon: BookOpen, paged: true,
+    fetchList: fetchNewCourseUpgradation, remove: deleteNewCourseUpgradation, idField: 'course_id', period: byYear,
+    DataList: NewCourseUpgradationDataList, InputForm: NewCourseUpgradationInputForm, Reports: NewCourseUpgradationReports },
+  { id: 'facilities', code: 'K-5.3', label: 'IMU - Facilities', name: 'Facilities', icon: Building2, paged: true,
+    fetchList: fetchFacilities, remove: deleteFacilities, idField: 'facilities_id', period: byYear,
+    DataList: FacilitiesDataList, InputForm: FacilitiesInputForm, Reports: FacilitiesReports },
+  { id: 'partnership', code: 'K-5.4', label: 'IMU - Partnerships/MoUs', name: 'Partnership', icon: Handshake, paged: true,
+    fetchList: fetchPartnership, remove: deletePartnership, idField: 'partnership_id', period: byYear,
+    DataList: PartnershipDataList, InputForm: PartnershipInputForm, Reports: PartnershipReports },
+  { id: 'research', code: 'K-5.5', label: 'IMU - Research, Innovation & Startups', name: 'Research', icon: FlaskConical, paged: true,
+    fetchList: fetchResearch, remove: deleteResearch, idField: 'research_id', period: byYear,
+    DataList: ResearchDataList, InputForm: ResearchInputForm, Reports: ResearchReports },
 ];
+const SECTION_BY_ID = Object.fromEntries(SECTIONS.map((s) => [s.id, s]));
+const TAB_IDS = ['add', 'list', 'report'];
+const EMPTY_PAGINATION = { total: 0, page: 1, limit: 10, totalPages: 0 };
 
-export default function IMUView({ activeTab, triggerNotification }) {
-  const permissions = useIMUPermissions();
-  const { canAdd, canEdit, canView, canRemove } = permissions;
+export default function IMUView({ triggerNotification }) {
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const notify = useNotifier(triggerNotification);
+  const { canAdd, canEdit, canView, canRemove } = useIMUPermissions();
 
-  const VALID_SECTION_IDS = SECTIONS.map((s) => s.id);
+  // Section and tab live in the URL (?section=&tab=), so refresh, bookmarks and Back work
+  const sectionId = SECTION_BY_ID[searchParams.get('section')] ? searchParams.get('section') : 'studentEnrollment';
+  const requestedTab = TAB_IDS.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'list';
+  const section = SECTION_BY_ID[sectionId];
 
-  const getInitialStateFromURL = () => {
-    const params = new URLSearchParams(window.location.search);
-    const urlSection = params.get('section');
-    const urlTab = params.get('tab');
-    return {
-      section: VALID_SECTION_IDS.includes(urlSection) ? urlSection : 'studentEnrollment',
-      subTab: ['add', 'list', 'report'].includes(urlTab)
-        ? urlTab
-        : (activeTab === 'IMU Reports' ? 'report' : 'list'),
-    };
-  };
+  // The record being edited travels with the route entry (and only counts for its own section),
+  // so it is gone as soon as the form is opened any other way
+  const routeItem = location.state?.section === sectionId ? (location.state.item ?? null) : null;
+  // Editing needs edit rights; a new entry needs add rights
+  const formAllowed = routeItem ? canEdit : canAdd;
+  // Fall back to a tab the user can open
+  let activeTab = requestedTab;
+  if (requestedTab === 'add' && !formAllowed) activeTab = canView ? 'list' : 'add';
+  else if (requestedTab !== 'add' && !canView) activeTab = 'add';
+  const editData = activeTab === 'add' ? routeItem : null;
 
-  const [activeSection, setActiveSection] = useState(() => getInitialStateFromURL().section);
-  const [activeSubTab, setActiveSubTab] = useState(() => getInitialStateFromURL().subTab);
+  const go = useCallback((nextSection, nextTab, state, replace = false) => {
+    setSearchParams({ section: nextSection, tab: nextTab }, { state, replace });
+  }, [setSearchParams]);
 
-  const [rowData, setRowData] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [editData, setEditData] = useState(null);
-
-  // Research: server-side pagination + search state
-  const [researchPage, setResearchPage] = useState(1);
-  const [researchLimit] = useState(10);
-  const [researchSearch, setResearchSearch] = useState('');
-  const [researchPagination, setResearchPagination] = useState({ total: 0, page: 1, limit: 10, totalPages: 0 });
-  const [researchYears, setResearchYears] = useState([]);
-
-  // Student Enrollment: server-side pagination + search state
-  const [studentPage, setStudentPage] = useState(1);
-  const [studentLimit] = useState(10);
-  const [studentSearch, setStudentSearch] = useState('');
-  const [studentPagination, setStudentPagination] = useState({ total: 0, page: 1, limit: 10, totalPages: 0 });
-  const [studentYears, setStudentYears] = useState([]);
-
-  // New Course Upgradation: server-side pagination + search state
-  const [coursePage, setCoursePage] = useState(1);
-  const [courseLimit] = useState(10);
-  const [courseSearch, setCourseSearch] = useState('');
-  const [coursePagination, setCoursePagination] = useState({ total: 0, page: 1, limit: 10, totalPages: 0 });
-  const [courseYears, setCourseYears] = useState([]);
-
-  // Facilities: server-side pagination + search state
-  const [facilitiesPage, setFacilitiesPage] = useState(1);
-  const [facilitiesLimit] = useState(10);
-  const [facilitiesSearch, setFacilitiesSearch] = useState('');
-  const [facilitiesPagination, setFacilitiesPagination] = useState({ total: 0, page: 1, limit: 10, totalPages: 0 });
-  const [facilitiesYears, setFacilitiesYears] = useState([]);
-
-  // Partnership: server-side pagination + search state
-  const [partnershipPage, setPartnershipPage] = useState(1);
-  const [partnershipLimit] = useState(10);
-  const [partnershipSearch, setPartnershipSearch] = useState('');
-  const [partnershipPagination, setPartnershipPagination] = useState({ total: 0, page: 1, limit: 10, totalPages: 0 });
-  const [partnershipYears, setPartnershipYears] = useState([]);
-
-  // Keep the URL's ?section=&tab= query params in sync with the current view,
-  // so refreshing, bookmarking, or using browser back/forward preserves the
-  // exact section and tab the user was on.
+  // Write the defaults into the URL on first load, as before, so the breadcrumb shows the tab
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    params.set('section', activeSection);
-    params.set('tab', activeSubTab);
-    const newSearch = `?${params.toString()}`;
-    if (window.location.search !== newSearch) {
-      window.history.pushState(null, '', `${window.location.pathname}${newSearch}`);
-      window.dispatchEvent(new Event('kpi-subtab-change'));
+    if (searchParams.get('section') !== sectionId || searchParams.get('tab') !== activeTab) {
+      go(sectionId, activeTab, location.state, true);
     }
-  }, [activeSection, activeSubTab]);
+  }, [searchParams, sectionId, activeTab, go, location.state]);
 
-  // Restore state when the user navigates via the browser's back/forward buttons.
+  // This section's list state, one selector each so other sections' changes don't re-render
+  const listSlice = useImuStore((state) => state[sectionId]);
+  const listActions = useImuStore((state) => state[`${sectionId}Actions`]);
+  const years = useImuStore((state) => state.years[sectionId]);
+  const loadYears = useImuStore((state) => state.loadYears);
+
   useEffect(() => {
-    const handlePopState = () => {
-      const { section, subTab } = getInitialStateFromURL();
-      setActiveSection(section);
-      setActiveSubTab(subTab);
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+    if (canView) loadYears(sectionId);
+  }, [canView, sectionId, loadYears]);
 
-  const currentSection = SECTIONS.find((s) => s.id === activeSection);
+  // Search applies 300 ms after the user stops typing
+  useEffect(() => {
+    const timer = setTimeout(() => listActions.setDebouncedSearch(listSlice.searchTerm), 300);
+    return () => clearTimeout(timer);
+  }, [listSlice.searchTerm, listActions]);
 
-  const tabs = [];
-  if (canAdd) tabs.push({ id: 'add', label: 'Input Form' });
-  if (canView) tabs.push({ id: 'list', label: 'Data List' });
-  if (canView) tabs.push({ id: 'report', label: 'Reports' });
+  // Fetched rows are tagged with the request they answer; a mismatch means it is still loading.
+  // Only the latest request may update them (an older response can arrive last).
+  const [reloadKey, setReloadKey] = useState(0);
+  const [result, setResult] = useState(null);
+  const latestRequestRef = useRef(0);
+  const { debouncedSearch, financialYear, currentPage, pageSize } = listSlice;
+  // Final Year Pass % is fetched whole; its search and paging happen in the browser
+  const requestKey = JSON.stringify(section.paged
+    ? [sectionId, debouncedSearch, financialYear, currentPage, pageSize, reloadKey]
+    : [sectionId, reloadKey]);
 
-  const fetchData = () => {
-    if (activeSection === 'studentEnrollment') {
-      setLoading(true);
-      fetchStudentEnrollment({ page: studentPage, limit: studentLimit, search: studentSearch })
-        .then((res) => {
-          setRowData(res.data?.data || []);
-          setStudentPagination(res.data?.pagination || { total: 0, page: 1, limit: studentLimit, totalPages: 0 });
-        })
-        .catch((err) => console.error('Error loading Student Enrollment data:', err))
-        .finally(() => setLoading(false));
-      if (studentYears.length === 0) {
-        fetchStudentEnrollment({ page: 1, limit: 100 })
-          .then((res) => {
-            const all = res.data?.data || [];
-            const distinctYears = [...new Set(all.map((r) => r.financial_year))].sort().reverse();
-            setStudentYears(distinctYears);
-          })
-          .catch(() => {});
-      }
-    } else if (activeSection === 'finalYearPassPercentage') {
-      setLoading(true);
-      fetchFinalYearPassPercentage()
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading Final Year Pass Percentage data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'newCourseUpgradation') {
-      setLoading(true);
-      fetchNewCourseUpgradation({ page: coursePage, limit: courseLimit, search: courseSearch })
-        .then((res) => {
-          setRowData(res.data?.data || []);
-          setCoursePagination(res.data?.pagination || { total: 0, page: 1, limit: courseLimit, totalPages: 0 });
-        })
-        .catch((err) => console.error('Error loading New Course Upgradation data:', err))
-        .finally(() => setLoading(false));
-      if (courseYears.length === 0) {
-        fetchNewCourseUpgradation({ page: 1, limit: 100 })
-          .then((res) => {
-            const all = res.data?.data || [];
-            const distinctYears = [...new Set(all.map((r) => r.financial_year))].sort().reverse();
-            setCourseYears(distinctYears);
-          })
-          .catch(() => {});
-      }
-    } else if (activeSection === 'facilities') {
-      setLoading(true);
-      fetchFacilities({ page: facilitiesPage, limit: facilitiesLimit, search: facilitiesSearch })
-        .then((res) => {
-          setRowData(res.data?.data || []);
-          setFacilitiesPagination(res.data?.pagination || { total: 0, page: 1, limit: facilitiesLimit, totalPages: 0 });
-        })
-        .catch((err) => console.error('Error loading Facilities data:', err))
-        .finally(() => setLoading(false));
-      if (facilitiesYears.length === 0) {
-        fetchFacilities({ page: 1, limit: 100 })
-          .then((res) => {
-            const all = res.data?.data || [];
-            const distinctYears = [...new Set(all.map((r) => r.financial_year))].sort().reverse();
-            setFacilitiesYears(distinctYears);
-          })
-          .catch(() => {});
-      }
-    } else if (activeSection === 'partnership') {
-      setLoading(true);
-      fetchPartnership({ page: partnershipPage, limit: partnershipLimit, search: partnershipSearch })
-        .then((res) => {
-          setRowData(res.data?.data || []);
-          setPartnershipPagination(res.data?.pagination || { total: 0, page: 1, limit: partnershipLimit, totalPages: 0 });
-        })
-        .catch((err) => console.error('Error loading Partnership data:', err))
-        .finally(() => setLoading(false));
-      if (partnershipYears.length === 0) {
-        fetchPartnership({ page: 1, limit: 100 })
-          .then((res) => {
-            const all = res.data?.data || [];
-            const distinctYears = [...new Set(all.map((r) => r.financial_year))].sort().reverse();
-            setPartnershipYears(distinctYears);
-          })
-          .catch(() => {});
-      }
-    } else if (activeSection === 'research') {
-      setLoading(true);
-      fetchResearch({ page: researchPage, limit: researchLimit, search: researchSearch })
-        .then((res) => {
-          setRowData(res.data?.data || []);
-          setResearchPagination(res.data?.pagination || { total: 0, page: 1, limit: researchLimit, totalPages: 0 });
-        })
-        .catch((err) => console.error('Error loading Research data:', err))
-        .finally(() => setLoading(false));
-      if (researchYears.length === 0) {
-        fetchResearch({ page: 1, limit: 100 })
-          .then((res) => {
-            const all = res.data?.data || [];
-            const distinctYears = [...new Set(all.map((r) => r.financial_year))].sort().reverse();
-            setResearchYears(distinctYears);
-          })
-          .catch(() => {});
-      }
-    }
-  };
+  useEffect(() => {
+    if (!canView || activeTab !== 'list') return;
+    const requestId = ++latestRequestRef.current;
+    const isStale = () => requestId !== latestRequestRef.current;
+    section.fetchList({ page: currentPage, limit: pageSize, search: debouncedSearch, financialYear })
+      .then((res) => {
+        if (isStale()) return;
+        setResult({ key: requestKey, rows: res.data?.data || [], pagination: res.data?.pagination || { ...EMPTY_PAGINATION, limit: pageSize } });
+      })
+      .catch((err) => {
+        if (isStale()) return;
+        console.error(`Error loading IMU ${section.name}:`, err);
+        setResult({ key: requestKey, rows: [], pagination: { ...EMPTY_PAGINATION, limit: pageSize } });
+        notify(COMMON_TOASTS.loadFailed(`${section.name} entries`));
+      });
+  }, [requestKey, canView, activeTab, section, currentPage, pageSize, debouncedSearch, financialYear, notify]);
 
-    useEffect(() => {
-    setEditData(null);
-    fetchData();
-  }, [activeSection, researchPage, researchSearch, studentPage, studentSearch, coursePage, courseSearch, facilitiesPage, facilitiesSearch, partnershipPage, partnershipSearch]);
+  const loading = result?.key !== requestKey;
+  const rows = result?.rows ?? [];
+  const pagination = result?.pagination ?? { ...EMPTY_PAGINATION, limit: pageSize };
 
-  const handleEdit = (row) => {
-    setEditData(row);
-    setActiveSubTab('add');
-  };
+  // A deleted row can leave the page empty; step back so the list doesn't look blank
+  useEffect(() => {
+    if (section.paged && !loading && rows.length === 0 && currentPage > 1) listActions.setCurrentPage(currentPage - 1);
+  }, [section.paged, loading, rows.length, currentPage, listActions]);
 
-  const handleSuccess = () => {
-    setEditData(null);
-    setActiveSubTab('list');
-    fetchData();
-  };
+  const handleEdit = useCallback((row) => {
+    go(sectionId, 'add', { section: sectionId, item: row });
+  }, [go, sectionId]);
 
-  const handleDelete = (row) => {
-    if (activeSection === 'studentEnrollment') {
-      if (!window.confirm(`Delete the Student Enrollment entry for ${row.financial_year}? This cannot be undone.`)) return;
-      deleteStudentEnrollment(row.student_id, getCurrentUserId())
-        .then(() => {
-          triggerNotification && triggerNotification('Student Enrollment entry deleted successfully', 'success');
-          fetchData();
-        })
-        .catch((err) => {
-          console.error('Error deleting Student Enrollment entry:', err);
-          triggerNotification ? triggerNotification('Failed to delete entry.', 'error') : alert('Failed to delete entry.');
-        });
-    } else if (activeSection === 'finalYearPassPercentage') {
-      if (!window.confirm(`Delete the Final Year Pass Percentage entry for ${row.programme} ${row.batch}? This cannot be undone.`)) return;
-      deleteFinalYearPassPercentage(row.id, getCurrentUserId())
-        .then(() => {
-          triggerNotification && triggerNotification('Final Year Pass Percentage entry deleted successfully', 'success');
-          fetchData();
-        })
-        .catch((err) => {
-          console.error('Error deleting Final Year Pass Percentage entry:', err);
-          triggerNotification ? triggerNotification('Failed to delete entry.', 'error') : alert('Failed to delete entry.');
-        });
-    } else if (activeSection === 'newCourseUpgradation') {
-      if (!window.confirm(`Delete the New Course Upgradation entry for ${row.financial_year}? This cannot be undone.`)) return;
-      deleteNewCourseUpgradation(row.course_id, getCurrentUserId())
-        .then(() => {
-          triggerNotification && triggerNotification('New Course Upgradation entry deleted successfully', 'success');
-          fetchData();
-        })
-        .catch((err) => {
-          console.error('Error deleting New Course Upgradation entry:', err);
-          triggerNotification ? triggerNotification('Failed to delete entry.', 'error') : alert('Failed to delete entry.');
-        });
-    } else if (activeSection === 'facilities') {
-      if (!window.confirm(`Delete the Facilities entry for ${row.financial_year}? This cannot be undone.`)) return;
-      deleteFacilities(row.facilities_id, getCurrentUserId())
-        .then(() => {
-          triggerNotification && triggerNotification('Facilities entry deleted successfully', 'success');
-          fetchData();
-        })
-        .catch((err) => {
-          console.error('Error deleting Facilities entry:', err);
-          triggerNotification ? triggerNotification('Failed to delete entry.', 'error') : alert('Failed to delete entry.');
-        });
-    } else if (activeSection === 'partnership') {
-      if (!window.confirm(`Delete the Partnership entry for ${row.financial_year}? This cannot be undone.`)) return;
-      deletePartnership(row.partnership_id, getCurrentUserId())
-        .then(() => {
-          triggerNotification && triggerNotification('Partnership entry deleted successfully', 'success');
-          fetchData();
-        })
-        .catch((err) => {
-          console.error('Error deleting Partnership entry:', err);
-          triggerNotification ? triggerNotification('Failed to delete entry.', 'error') : alert('Failed to delete entry.');
-        });
-    } else if (activeSection === 'research') {
-      if (!window.confirm(`Delete the Research entry for ${row.financial_year}? This cannot be undone.`)) return;
-      deleteResearch(row.research_id, getCurrentUserId())
-        .then(() => {
-          triggerNotification && triggerNotification('Research entry deleted successfully', 'success');
-          fetchData();
-        })
-        .catch((err) => {
-          console.error('Error deleting Research entry:', err);
-          triggerNotification ? triggerNotification('Failed to delete entry.', 'error') : alert('Failed to delete entry.');
-        });
-    }
-  };
+  const handleDelete = useCallback((row) => {
+    const period = section.period(row);
+    if (!window.confirm(`Delete the ${section.name} entry for ${period}? This cannot be undone.`)) return;
+    section.remove(row[section.idField], getCurrentUserId())
+      .then(() => {
+        notify(IMU_TOASTS.deleted(section.name, period));
+        setReloadKey((k) => k + 1);
+      })
+      .catch((err) => {
+        console.error(`Error deleting IMU ${section.name} entry:`, err);
+        notify(IMU_TOASTS.deleteFailed(getErrorMessage(err)));
+      });
+  }, [section, notify]);
 
-  const baseListProps = { rowData, loading, onEdit: handleEdit, onDelete: handleDelete, canEdit, canRemove };
-  const listPropsBySection = {
-    studentEnrollment: { ...baseListProps, pagination: studentPagination, onPageChange: setStudentPage, searchQuery: studentSearch, onSearchChange: (v) => { setStudentSearch(v); setStudentPage(1); }, years: studentYears },
-    finalYearPassPercentage: { ...baseListProps },
-    newCourseUpgradation: { ...baseListProps, pagination: coursePagination, onPageChange: setCoursePage, searchQuery: courseSearch, onSearchChange: (v) => { setCourseSearch(v); setCoursePage(1); }, years: courseYears },
-    facilities: { ...baseListProps, pagination: facilitiesPagination, onPageChange: setFacilitiesPage, searchQuery: facilitiesSearch, onSearchChange: (v) => { setFacilitiesSearch(v); setFacilitiesPage(1); }, years: facilitiesYears },
-    partnership: { ...baseListProps, pagination: partnershipPagination, onPageChange: setPartnershipPage, searchQuery: partnershipSearch, onSearchChange: (v) => { setPartnershipSearch(v); setPartnershipPage(1); }, years: partnershipYears },
-    research: { ...baseListProps, pagination: researchPagination, onPageChange: setResearchPage, searchQuery: researchSearch, onSearchChange: (v) => { setResearchSearch(v); setResearchPage(1); }, years: researchYears },
-  };
-  const ListView = resolveIMUListView(activeSection);
+  // Replace the form entry so browser Back can't reopen the pre-save snapshot
+  const handleSuccess = useCallback(() => {
+    setReloadKey((k) => k + 1);
+    go(sectionId, canView ? 'list' : 'add', undefined, true);
+  }, [go, sectionId, canView]);
 
-  if (!canAdd && !canView && !canEdit) {
+  const handleBack = useCallback(() => go(sectionId, 'list'), [go, sectionId]);
+
+  const tabs = useMemo(() => {
+    const list = [];
+    if (canAdd) list.push({ id: 'add', label: 'Input Form' });
+    if (canView) list.push({ id: 'list', label: 'Data List' });
+    if (canView) list.push({ id: 'report', label: 'Reports' });
+    return list;
+  }, [canAdd, canView]);
+
+  if (!canAdd && !canView) {
     return <RestrictedAccess moduleName="KPI - IMU" />;
   }
 
+  const { DataList, InputForm, Reports } = section;
+
   return (
-    <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800 dark:text-slate-100">
-      <div className="flex flex-col gap-5 pb-5">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <div className="module-page-container space-y-6 animate-fade-in">
+      <div className="flex flex-col gap-5">
+        <div className="module-header-container">
           <div>
-            <h1 className="text-xl font-black text-[#0f417a] dark:text-blue-400 tracking-wide uppercase font-display">
-              KPI - IMU
-            </h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
-              Indian Maritime University -- track KPI data across all sections.
-            </p>
+            <h1 className="module-header-title">KPI - IMU</h1>
+            <p className="module-header-subtitle">Indian Maritime University -- track KPI data across all sections.</p>
           </div>
-
-          <InternalNavigation
-            tabs={tabs}
-            currentTab={activeSubTab}
-            onTabChange={(tabId) => {
-              setEditData(null);
-              setActiveSubTab(tabId);
-            }}
-          />
+          <InternalNavigation tabs={tabs} currentTab={activeTab} onTabChange={(tabId) => go(sectionId, tabId)} />
         </div>
-
-        <div className="border-b border-slate-200 dark:border-slate-700" />
 
         <div>
           <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-2">Section</span>
           <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1">
             {SECTIONS.map((s) => {
               const Icon = s.icon;
+              const active = sectionId === s.id;
               return (
                 <button
                   key={s.id}
-                  onClick={() => setActiveSection(s.id)}
+                  type="button"
+                  onClick={() => go(s.id, activeTab)}
                   className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-left transition cursor-pointer border flex-shrink-0 ${
-                    activeSection === s.id ? 'bg-[#0f417a]/10 dark:bg-blue-500/10 border-[#0f417a]/30 dark:border-blue-500/40' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    active ? 'bg-[#0f417a]/10 dark:bg-blue-500/10 border-[#0f417a]/30 dark:border-blue-500/40' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
                   }`}
                 >
-                  <Icon className={`h-4 w-4 flex-shrink-0 ${activeSection === s.id ? 'text-[#0f417a] dark:text-blue-400' : 'text-slate-400'}`} />
+                  <Icon className={`h-4 w-4 flex-shrink-0 ${active ? 'text-[#0f417a] dark:text-blue-400' : 'text-slate-400'}`} />
                   <div className="min-w-0">
                     <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block">{s.code}</span>
-                    <span className={`text-xs font-bold whitespace-nowrap ${activeSection === s.id ? 'text-[#0f417a] dark:text-blue-400' : 'text-slate-700 dark:text-slate-200'}`}>{s.label}</span>
+                    <span className={`text-xs font-bold whitespace-nowrap ${active ? 'text-[#0f417a] dark:text-blue-400' : 'text-slate-700 dark:text-slate-200'}`}>{s.label}</span>
                   </div>
-                  {!s.ready && (
-                    <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950 px-1.5 py-0.5 rounded-full flex-shrink-0 ml-1">Soon</span>
-                  )}
                 </button>
               );
             })}
@@ -388,93 +231,39 @@ export default function IMUView({ activeTab, triggerNotification }) {
         </div>
       </div>
 
-      <div className={(activeSubTab === 'report' || activeSubTab === 'add') ? 'mt-2' : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 shadow-sm mt-2'}>
-        {!currentSection.ready ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <Construction className="h-10 w-10 text-slate-300 dark:text-slate-600 mb-3" />
-            <p className="text-sm font-bold text-slate-500 dark:text-slate-400">{currentSection.label}</p>
-            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">This section is coming soon.</p>
-          </div>
-        ) : activeSection === 'studentEnrollment' ? (
-          activeSubTab === 'report' ? (
-            <StudentEnrollmentReports />
-          ) : activeSubTab === 'add' ? (
-            <StudentEnrollmentInputForm
-              editData={editData}
-              onBack={() => { setEditData(null); setActiveSubTab('list'); }}
-              onSuccess={handleSuccess}
-              triggerNotification={triggerNotification}
-            />
-          ) : (
-            <ListView {...listPropsBySection[activeSection]} />
-          )
-        ) : activeSection === 'finalYearPassPercentage' ? (
-          activeSubTab === 'report' ? (
-            <FinalYearPassPercentageReports />
-          ) : activeSubTab === 'add' ? (
-            <FinalYearPassPercentageInputForm
-              editData={editData}
-              onBack={() => { setEditData(null); setActiveSubTab('list'); }}
-              onSuccess={handleSuccess}
-              triggerNotification={triggerNotification}
-            />
-          ) : (
-            <ListView {...listPropsBySection[activeSection]} />
-          )
-        ) : activeSection === 'newCourseUpgradation' ? (
-          activeSubTab === 'report' ? (
-            <NewCourseUpgradationReports />
-          ) : activeSubTab === 'add' ? (
-            <NewCourseUpgradationInputForm
-              editData={editData}
-              onBack={() => { setEditData(null); setActiveSubTab('list'); }}
-              onSuccess={handleSuccess}
-              triggerNotification={triggerNotification}
-            />
-          ) : (
-            <ListView {...listPropsBySection[activeSection]} />
-          )
-        ) : activeSection === 'facilities' ? (
-          activeSubTab === 'report' ? (
-            <FacilitiesReports />
-          ) : activeSubTab === 'add' ? (
-            <FacilitiesInputForm
-              editData={editData}
-              onBack={() => { setEditData(null); setActiveSubTab('list'); }}
-              onSuccess={handleSuccess}
-              triggerNotification={triggerNotification}
-            />
-          ) : (
-            <ListView {...listPropsBySection[activeSection]} />
-          )
-        ) : activeSection === 'partnership' ? (
-          activeSubTab === 'report' ? (
-            <PartnershipReports />
-          ) : activeSubTab === 'add' ? (
-            <PartnershipInputForm
-              editData={editData}
-              onBack={() => { setEditData(null); setActiveSubTab('list'); }}
-              onSuccess={handleSuccess}
-              triggerNotification={triggerNotification}
-            />
-          ) : (
-            <ListView {...listPropsBySection[activeSection]} />
-          )
-        ) : activeSection === 'research' ? (
-          activeSubTab === 'report' ? (
-            <ResearchReports />
-          ) : activeSubTab === 'add' ? (
-            <ResearchInputForm
-              editData={editData}
-              onBack={() => { setEditData(null); setActiveSubTab('list'); }}
-              onSuccess={handleSuccess}
-              triggerNotification={triggerNotification}
-            />
-          ) : (
-            <ListView {...listPropsBySection[activeSection]} />
-          )
-        ) : null}
-      </div>
+      {activeTab === 'report' ? (
+        <Reports />
+      ) : activeTab === 'add' ? (
+        <InputForm
+          key={`${sectionId}-${editData?.[section.idField] ?? 'new'}`}
+          editData={editData}
+          onBack={canView ? handleBack : undefined}
+          onSuccess={handleSuccess}
+          triggerNotification={triggerNotification}
+        />
+      ) : (
+        <DataList
+          rowData={rows}
+          loading={loading}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          canEdit={canEdit}
+          canRemove={canRemove}
+          pagination={pagination}
+          onPageChange={listActions.setCurrentPage}
+          searchQuery={listSlice.searchTerm}
+          onSearchChange={listActions.setSearchTerm}
+          financialYear={financialYear}
+          onFinancialYearChange={(fy) => listActions.setFilters({ financialYear: fy })}
+          years={years || []}
+          currentPage={currentPage}
+          pageSize={pageSize}
+          onPageSizeChange={listActions.setPageSize}
+          visibleCols={listSlice.visibleCols}
+          onVisibleColsChange={listActions.setVisibleCols}
+          notify={notify}
+        />
+      )}
     </div>
   );
 }

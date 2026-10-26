@@ -1,9 +1,10 @@
-import { useState, useMemo, useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { Edit, Trash2 } from 'lucide-react';
 import Table from '../../../components/Table';
 import TablePagination from '../../../components/TablePagination';
 import DataListToolbar from '../../../components/DataListToolbar';
 import { exportDataListToPdf } from '../../../utils/exportReportPdf';
+import { COMMON_TOASTS } from '../../../utils/notify';
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
@@ -19,6 +20,20 @@ const COLUMN_LABELS = {
   total_e_resources: 'Total E-Resources',
 };
 
+const DEFAULT_VISIBLE_COLS = {
+  financial_year: true,
+  no_of_classrooms: true,
+  no_of_labs: true,
+  no_of_simulators: true,
+  no_of_workshops: true,
+  no_of_library_books: true,
+  no_of_e_books: true,
+  no_of_e_journals: true,
+  no_of_e_database: true,
+  no_of_acadamic_software: true,
+  total_e_resources: true,
+};
+
 export default function FacilitiesDataList({
   rowData = [],
   loading = false,
@@ -31,19 +46,17 @@ export default function FacilitiesDataList({
   searchQuery = '',
   onSearchChange,
   years = [],
+  financialYear = '',
+  onFinancialYearChange,
+  visibleCols: storedVisibleCols = null,
+  onVisibleColsChange,
+  notify,
 }) {
-  const [visibleCols, setVisibleCols] = useState({
-    financial_year: true,
-    no_of_classrooms: true,
-    no_of_labs: true,
-    no_of_simulators: true,
-    no_of_workshops: true,
-    no_of_library_books: true,
-    no_of_e_books: true,
-    no_of_e_journals: true,
-    no_of_e_database: true,
-    no_of_acadamic_software: true,
-    total_e_resources: true,
+  // Column visibility is kept in the IMU store per section; null means "not changed yet"
+  const visibleCols = storedVisibleCols ?? DEFAULT_VISIBLE_COLS;
+  const setVisibleCols = (updater) => onVisibleColsChange?.((prev) => {
+    const current = prev ?? DEFAULT_VISIBLE_COLS;
+    return typeof updater === 'function' ? updater(current) : updater;
   });
   const gridRef = useRef(null);
 
@@ -55,9 +68,13 @@ export default function FacilitiesDataList({
         const line = [i + 1, ...cols.map((c) => row[c] ?? '')];
         tsv += line.join('\t') + '\n';
       });
-      navigator.clipboard.writeText(tsv);
+      navigator.clipboard.writeText(tsv).then(
+        () => notify?.(COMMON_TOASTS.copySuccess(rowData.length)),
+        () => notify?.(COMMON_TOASTS.copyFailed()),
+      );
     } else if (type === 'Excel') {
       gridRef.current?.api?.exportDataAsCsv({ fileName: 'imu_facilities' });
+      notify?.(COMMON_TOASTS.excelExported('imu_facilities.csv'));
     } else if (type === 'PDF') {
       exportDataListToPdf({
         title: 'IMU Facilities Data List',
@@ -66,6 +83,7 @@ export default function FacilitiesDataList({
         rowData: rowData,
         fileName: 'imu_facilities',
       });
+      notify?.(COMMON_TOASTS.downloadStarted('imu_facilities.pdf'));
     }
   };
 
@@ -112,14 +130,14 @@ export default function FacilitiesDataList({
   ], [canEdit, canRemove, onEdit, onDelete, visibleCols]);
 
   return (
-    <div className="space-y-6">
+    <div className="module-card space-y-4">
       <DataListToolbar
         leftContent={
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Financial Year</span>
             <select
-              value={searchQuery}
-              onChange={(e) => onSearchChange && onSearchChange(e.target.value)}
+              value={financialYear}
+              onChange={(e) => onFinancialYearChange && onFinancialYearChange(e.target.value)}
               className="text-xs px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
             >
               <option value="">Show All</option>
@@ -139,17 +157,19 @@ export default function FacilitiesDataList({
         columnLabels={COLUMN_LABELS}
       />
 
-      <Table
-        ref={gridRef}
-        rowData={rowData}
-        columnDefs={colDefs}
-        loading={loading}
-        pagination={false}
-        domLayout="autoHeight"
-        rowHeight={50}
-        headerHeight={42}
-        color="#0f417a"
-      />
+      <div className="module-datalist-grid">
+        <Table
+          ref={gridRef}
+          rowData={rowData}
+          columnDefs={colDefs}
+          loading={loading}
+          pagination={false}
+          domLayout="autoHeight"
+          rowHeight={50}
+          headerHeight={42}
+          color="#0f417a"
+        />
+      </div>
 
       {pagination.totalPages > 1 && (
         <TablePagination

@@ -276,6 +276,13 @@ async function getVtmsIntegration(req, res) {
             pageRequest.input("search", `%${search}%`);
             whereClause = 'WHERE (financial_year LIKE @search OR CAST(no_of_ports_vtms_integrated AS VARCHAR(50)) LIKE @search)';
         }
+        // Financial year dropdown: exact match, combined with the free-text search
+        const financialYear = (req.query.financialYear || '').trim();
+        if (financialYear) {
+            countRequest.input("financialYear", financialYear);
+            pageRequest.input("financialYear", financialYear);
+            whereClause = whereClause ? `${whereClause} AND financial_year = @financialYear` : 'WHERE financial_year = @financialYear';
+        }
 
         const [countResult, pageResult] = await Promise.all([
             countRequest.query(`SELECT COUNT(*) AS total FROM tbl_vtms_integration ${whereClause}`),
@@ -460,6 +467,13 @@ async function addNaisUptime(req, res) {
             pageRequest.input("search", `%${search}%`);
             whereClause = 'WHERE (financial_year LIKE @search OR CAST(availability_of_nais AS VARCHAR(50)) LIKE @search)';
         }
+        // Financial year dropdown: exact match, combined with the free-text search
+        const financialYear = (req.query.financialYear || '').trim();
+        if (financialYear) {
+            countRequest.input("financialYear", financialYear);
+            pageRequest.input("financialYear", financialYear);
+            whereClause = whereClause ? `${whereClause} AND financial_year = @financialYear` : 'WHERE financial_year = @financialYear';
+        }
 
         const [countResult, pageResult] = await Promise.all([
             countRequest.query(`SELECT COUNT(*) AS total FROM tbl_nais_uptime ${whereClause}`),
@@ -643,6 +657,13 @@ async function addNaisUptime(req, res) {
             pageRequest.input("search", `%${search}%`);
             whereClause = 'WHERE (financial_year LIKE @search OR CAST(nais_integrated_with_nmda AS VARCHAR(50)) LIKE @search OR CAST(no_of_nais_upgraded AS VARCHAR(50)) LIKE @search)';
         }
+        // Financial year dropdown: exact match, combined with the free-text search
+        const financialYear = (req.query.financialYear || '').trim();
+        if (financialYear) {
+            countRequest.input("financialYear", financialYear);
+            pageRequest.input("financialYear", financialYear);
+            whereClause = whereClause ? `${whereClause} AND financial_year = @financialYear` : 'WHERE financial_year = @financialYear';
+        }
 
         const [countResult, pageResult] = await Promise.all([
             countRequest.query(`SELECT COUNT(*) AS total FROM tbl_nais_integration ${whereClause}`),
@@ -824,6 +845,13 @@ async function addNaisUptime(req, res) {
             pageRequest.input("search", `%${search}%`);
             whereClause = 'WHERE (finacial_year LIKE @search OR CAST(no_lighthouses_developed_tourist_destination AS VARCHAR(50)) LIKE @search OR CAST(annual_tourist_footfall AS VARCHAR(50)) LIKE @search)';
         }
+        // Financial year dropdown: exact match, combined with the free-text search
+        const financialYear = (req.query.financialYear || '').trim();
+        if (financialYear) {
+            countRequest.input("financialYear", financialYear);
+            pageRequest.input("financialYear", financialYear);
+            whereClause = whereClause ? `${whereClause} AND finacial_year = @financialYear` : 'WHERE finacial_year = @financialYear';
+        }
 
         const [countResult, pageResult] = await Promise.all([
             countRequest.query(`SELECT COUNT(*) AS total FROM tbl_kpi_dgll_3_5_1 ${whereClause}`),
@@ -913,6 +941,13 @@ async function addNaisUptime(req, res) {
             countRequest.input("search", `%${search}%`);
             pageRequest.input("search", `%${search}%`);
             whereClause = 'WHERE (year LIKE @search OR CAST(collection_of_light_dues AS VARCHAR(50)) LIKE @search OR CAST(footfall_in_the_lighthouses AS VARCHAR(50)) LIKE @search)';
+        }
+        // Financial year dropdown: exact match, combined with the free-text search
+        const financialYear = (req.query.financialYear || '').trim();
+        if (financialYear) {
+            countRequest.input("financialYear", financialYear);
+            pageRequest.input("financialYear", financialYear);
+            whereClause = whereClause ? `${whereClause} AND year = @financialYear` : 'WHERE year = @financialYear';
         }
 
         const [countResult, pageResult] = await Promise.all([
@@ -1295,6 +1330,13 @@ async function getFinancialPerfomanceData(req, res) {
             countRequest.input("search", `%${search}%`);
             pageRequest.input("search", `%${search}%`);
             whereClause = 'WHERE (organisation_name LIKE @search OR financialyear LIKE @search)';
+        }
+        // Financial year dropdown: exact match, combined with the free-text search
+        const financialYear = (req.query.financialYear || '').trim();
+        if (financialYear) {
+            countRequest.input("financialYear", financialYear);
+            pageRequest.input("financialYear", financialYear);
+            whereClause = whereClause ? `${whereClause} AND financialyear = @financialYear` : 'WHERE financialyear = @financialYear';
         }
 
         const [countResult, pageResult] = await Promise.all([

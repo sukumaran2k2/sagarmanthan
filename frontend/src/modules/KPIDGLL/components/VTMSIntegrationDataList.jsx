@@ -1,13 +1,19 @@
-import { useState, useMemo, useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { Edit, Trash2 } from 'lucide-react';
 import Table from '../../../components/Table';
 import TablePagination from '../../../components/TablePagination';
 import DataListToolbar from '../../../components/DataListToolbar';
 import { exportDataListToPdf } from '../../../utils/exportReportPdf';
+import { COMMON_TOASTS } from '../../../utils/notify';
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
   no_of_ports_vtms_integrated: 'Number of Ports VTMS System Integrated',
+};
+
+const DEFAULT_VISIBLE_COLS = {
+  financial_year: true,
+  no_of_ports_vtms_integrated: true,
 };
 
 export default function VTMSIntegrationDataList({
@@ -22,10 +28,17 @@ export default function VTMSIntegrationDataList({
   searchQuery = '',
   onSearchChange,
   years = [],
+  financialYear = '',
+  onFinancialYearChange,
+  visibleCols: storedVisibleCols = null,
+  onVisibleColsChange,
+  notify,
 }) {
-  const [visibleCols, setVisibleCols] = useState({
-    financial_year: true,
-    no_of_ports_vtms_integrated: true,
+  // Column visibility is kept in the DGLL store per list; null means "not changed yet"
+  const visibleCols = storedVisibleCols ?? DEFAULT_VISIBLE_COLS;
+  const setVisibleCols = (updater) => onVisibleColsChange?.((prev) => {
+    const current = prev ?? DEFAULT_VISIBLE_COLS;
+    return typeof updater === 'function' ? updater(current) : updater;
   });
   const gridRef = useRef(null);
 
@@ -37,9 +50,13 @@ export default function VTMSIntegrationDataList({
         const line = [i + 1, ...cols.map((c) => row[c] ?? '')];
         tsv += line.join('\t') + '\n';
       });
-      navigator.clipboard.writeText(tsv);
+      navigator.clipboard.writeText(tsv).then(
+        () => notify?.(COMMON_TOASTS.copySuccess(rowData.length)),
+        () => notify?.(COMMON_TOASTS.copyFailed()),
+      );
     } else if (type === 'Excel') {
       gridRef.current?.api?.exportDataAsCsv({ fileName: 'vtms_integration' });
+      notify?.(COMMON_TOASTS.excelExported('vtms_integration.csv'));
     } else if (type === 'PDF') {
       exportDataListToPdf({
         title: 'VTMS Integration Data List',
@@ -48,6 +65,7 @@ export default function VTMSIntegrationDataList({
         rowData: rowData,
         fileName: 'vtms_integration',
       });
+      notify?.(COMMON_TOASTS.downloadStarted('vtms_integration.pdf'));
     }
   };
 
@@ -85,14 +103,14 @@ export default function VTMSIntegrationDataList({
   ], [canEdit, canRemove, onEdit, onDelete, visibleCols]);
 
   return (
-    <div className="space-y-6">
+    <div className="module-card space-y-4">
       <DataListToolbar
         leftContent={
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Financial Year</span>
             <select
-              value={searchQuery}
-              onChange={(e) => onSearchChange && onSearchChange(e.target.value)}
+              value={financialYear}
+              onChange={(e) => onFinancialYearChange && onFinancialYearChange(e.target.value)}
               className="text-xs px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
             >
               <option value="">Show All</option>
@@ -112,17 +130,19 @@ export default function VTMSIntegrationDataList({
         columnLabels={COLUMN_LABELS}
       />
 
-      <Table
-        ref={gridRef}
-        rowData={rowData}
-        columnDefs={colDefs}
-        loading={loading}
-        pagination={false}
-        domLayout="autoHeight"
-        rowHeight={50}
-        headerHeight={42}
-        color="#0f417a"
-      />
+      <div className="module-datalist-grid">
+        <Table
+          ref={gridRef}
+          rowData={rowData}
+          columnDefs={colDefs}
+          loading={loading}
+          pagination={false}
+          domLayout="autoHeight"
+          rowHeight={50}
+          headerHeight={42}
+          color="#0f417a"
+        />
+      </div>
 
       {pagination.totalPages > 1 && (
         <TablePagination
