@@ -26,7 +26,8 @@ jest.mock('../../api', () => ({
 }));
 
 jest.mock('../../views', () => ({
-  resolveCabinetNotesListView: () => () => <div>List loaded</div>,
+  CABINET_NOTES_LIST_VIEWS: { STANDARD: () => <div>List loaded</div> },
+  listViewKey: () => 'STANDARD',
 }));
 
 // The Dashboard tab draws amCharts (ES modules only, which Jest can't load); this test doesn't open it
