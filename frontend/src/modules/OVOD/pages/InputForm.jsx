@@ -116,6 +116,16 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
 
     total_cost: editData.total_cost != null ? String(editData.total_cost) : '',
     current_status: editData.current_status || 'No Update',
+    reasons_for_delay: '',
+    reasons_for_drop: '',
+
+    // Output / Outcome (shown when Completed)
+    direct_employment: '',
+    indirect_employment: '',
+    direct_investment: '',
+    indirect_investment: '',
+    output_outcome_desc: '',
+    output_outcome_remarks: '',
 
     // Timelines
     timeline_vision: '',
@@ -125,6 +135,11 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
     feedback_ministry: '',
     response_org: ''
   });
+
+  // Monthly Progress Log Rows State (shown only when Under Implementation)
+  const [progressLogRows, setProgressLogRows] = useState([
+    { id: 1, month: '', year: '', physicalProgress: '', financialProgress: '' }
+  ]);
 
   // Fund Requirement Rows State
   const [financeRows, setFinanceRows] = useState([{
@@ -257,8 +272,14 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
         Feedback: formData.feedback_ministry,
         completionDate: formData.timeline_vision || null,
         actualDate: formData.expected_completion_date || null,
-        Delay: null,
-        reasonsForDrop: null,
+        Delay: formData.reasons_for_delay || null,
+        reasonsForDrop: formData.reasons_for_drop || null,
+        directEmployment: formData.direct_employment ? parseFloat(formData.direct_employment) : null,
+        indirectEmployment: formData.indirect_employment ? parseFloat(formData.indirect_employment) : null,
+        directInvestment: formData.direct_investment ? parseFloat(formData.direct_investment) : null,
+        indirectInvestment: formData.indirect_investment ? parseFloat(formData.indirect_investment) : null,
+        outputOutcomeDesc: formData.output_outcome_desc || null,
+        outputOutcomeRemarks: formData.output_outcome_remarks || null,
         ovodFinanceData: financeRows.filter(r =>
           r.capExpenditure || r.sourceOfFund || r.fundSpend ||
           r.oneYear || r.threeYear || r.threeFiveYear || r.greaterFive || r.detailedBreakUp
@@ -423,6 +444,223 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
               </div>
             </div>
           </div>
+
+          {/* Reasons for Dropped — shown only when Dropped */}
+          {formData.current_status === 'Dropped' && (
+            <div>
+              <label className="module-form-label">Reasons For Dropped</label>
+              <textarea
+                value={formData.reasons_for_drop}
+                onChange={e => setFormData(prev => ({ ...prev, reasons_for_drop: e.target.value }))}
+                rows={4}
+                placeholder="Describe reasons for dropping this initiative..."
+                className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500 resize-none"
+              />
+            </div>
+          )}
+
+          {/* Reasons for Delay — shown only when Delayed */}
+          {formData.current_status && formData.current_status.toLowerCase().includes('delayed') && (
+            <div>
+              <label className="module-form-label">
+                Reasons For Delay (if Any) / Brief Status <span className="font-normal text-slate-400">(Not More Than 200 Words)</span>
+              </label>
+              <textarea
+                value={formData.reasons_for_delay}
+                onChange={e => setFormData(prev => ({ ...prev, reasons_for_delay: e.target.value }))}
+                maxLength={1400}
+                rows={4}
+                placeholder="Describe reasons for delay or current brief status..."
+                className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500 resize-none"
+              />
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* ================= SECTION 2.5: MONTHLY PROGRESS LOGS =================== */}
+          {/* Shown only when status is Under Implementation                           */}
+          {/* ========================================================================= */}
+          {formData.current_status && (formData.current_status.toLowerCase().includes('under implementation') || formData.current_status === 'Completed') && (
+            <div className="space-y-3">
+              <div className="module-form-section-header">
+                <h2 className="module-form-section-heading">Monthly Progress Logs</h2>
+                <button
+                  type="button"
+                  onClick={() => setProgressLogRows([{ id: Date.now(), month: '', year: '', physicalProgress: '', financialProgress: '' }])}
+                  className="px-3 py-1.5 text-xs font-semibold rounded bg-rose-600 hover:bg-rose-700 text-white transition"
+                >
+                  Clear All Rows
+                </button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-[11px] border-collapse">
+                  <thead>
+                    <tr className="bg-[#154b8a] text-white">
+                      <th className="px-3 py-2 font-semibold text-center border border-blue-900/40">Month &amp; Year (MM-YY)</th>
+                      <th className="px-3 py-2 font-semibold text-center border border-blue-900/40">Physical Progress</th>
+                      <th className="px-3 py-2 font-semibold text-center border border-blue-900/40">Financial Progress (%)</th>
+                      <th className="px-3 py-2 font-semibold text-center border border-blue-900/40">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {progressLogRows.map((row, idx) => {
+                      const updateLog = (field, val) =>
+                        setProgressLogRows(prev => prev.map((r, i) => i === idx ? { ...r, [field]: val } : r));
+                      return (
+                        <tr key={row.id} className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800">
+                          <td className="px-1 py-1 border border-slate-200 dark:border-slate-700">
+                            <div className="flex gap-1">
+                              <select
+                                value={row.month}
+                                onChange={e => updateLog('month', e.target.value)}
+                                className="flex-1 px-1.5 py-1 text-[11px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded text-slate-700 dark:text-slate-200"
+                              >
+                                <option value="">Month</option>
+                                {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
+                              </select>
+                              <select
+                                value={row.year}
+                                onChange={e => updateLog('year', e.target.value)}
+                                className="flex-1 px-1.5 py-1 text-[11px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded text-slate-700 dark:text-slate-200"
+                              >
+                                <option value="">Year</option>
+                                {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                              </select>
+                            </div>
+                          </td>
+                          <td className="px-1 py-1 border border-slate-200 dark:border-slate-700">
+                            <input
+                              type="text"
+                              value={row.physicalProgress}
+                              onChange={e => updateLog('physicalProgress', e.target.value)}
+                              placeholder="Physical Progress %"
+                              className="w-full px-1.5 py-1 text-[11px] bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded text-slate-700 dark:text-slate-200"
+                            />
+                          </td>
+                          <td className="px-1 py-1 border border-slate-200 dark:border-slate-700">
+                            <input
+                              type="text"
+                              value={row.financialProgress}
+                              onChange={e => updateLog('financialProgress', e.target.value)}
+                              placeholder="Financial Progress %"
+                              className="w-full px-1.5 py-1 text-[11px] bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded text-slate-700 dark:text-slate-200"
+                            />
+                          </td>
+                          <td className="px-1 py-1 border border-slate-200 dark:border-slate-700 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              {progressLogRows.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setProgressLogRows(prev => prev.filter((_, i) => i !== idx))}
+                                  title="Delete row"
+                                  className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-rose-500 text-rose-500 hover:text-rose-700 hover:border-rose-700 transition cursor-pointer"
+                                >
+                                  <Minus size={10} className="stroke-[2.5]" />
+                                </button>
+                              )}
+                              {idx === progressLogRows.length - 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setProgressLogRows(prev => [
+                                    ...prev,
+                                    { id: Date.now(), month: '', year: '', physicalProgress: '', financialProgress: '' }
+                                  ])}
+                                  title="Add row"
+                                  className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-slate-500 text-slate-600 hover:text-blue-600 hover:border-blue-600 transition cursor-pointer"
+                                >
+                                  <Plus size={10} className="stroke-[2.5]" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Output / Outcome — shown only when Completed */}
+          {formData.current_status === 'Completed' && (
+            <div className="space-y-4">
+              <div className="module-form-section-header">
+                <h2 className="module-form-section-heading">Output / Outcome</h2>
+              </div>
+
+              {/* Employment & Investment grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="module-form-label">Direct Employment Generated (No. Of People)<span className="text-rose-500">*</span></label>
+                  <input
+                    type="number" min="0"
+                    value={formData.direct_employment}
+                    onChange={e => setFormData(prev => ({ ...prev, direct_employment: e.target.value }))}
+                    className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500"
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className="module-form-label">Indirect Employment Generated (No. Of People)<span className="text-rose-500">*</span></label>
+                  <input
+                    type="number" min="0"
+                    value={formData.indirect_employment}
+                    onChange={e => setFormData(prev => ({ ...prev, indirect_employment: e.target.value }))}
+                    className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500"
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className="module-form-label">Direct Investment Created (In Cr.)<span className="text-rose-500">*</span></label>
+                  <input
+                    type="number" min="0" step="0.01"
+                    value={formData.direct_investment}
+                    onChange={e => setFormData(prev => ({ ...prev, direct_investment: e.target.value }))}
+                    className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500"
+                    placeholder="0.00"
+                  />
+                </div>
+                <div>
+                  <label className="module-form-label">Indirect Investment Created (In Cr.)<span className="text-rose-500">*</span></label>
+                  <input
+                    type="number" min="0" step="0.01"
+                    value={formData.indirect_investment}
+                    onChange={e => setFormData(prev => ({ ...prev, indirect_investment: e.target.value }))}
+                    className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500"
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+
+              {/* Description + Remarks side by side */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="module-form-label text-[11px] leading-tight">
+                    Output / Outcome Of The Completed Initiative{' '}
+                    <span className="font-normal text-slate-400 italic">
+                      (Example: Reduction in turn-around time (hours) capacity created (MTPA), beneficiaries impacted (Number), Infrastructure Developed (road/rail with length in kilometres), etc)
+                    </span>
+                  </label>
+                  <textarea
+                    value={formData.output_outcome_desc}
+                    onChange={e => setFormData(prev => ({ ...prev, output_outcome_desc: e.target.value }))}
+                    rows={4}
+                    className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500 resize-none"
+                  />
+                </div>
+                <div>
+                  <label className="module-form-label">Output/Outcomes<br />(Remarks)</label>
+                  <textarea
+                    value={formData.output_outcome_remarks}
+                    onChange={e => setFormData(prev => ({ ...prev, output_outcome_remarks: e.target.value }))}
+                    rows={4}
+                    className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500 resize-none"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ========================================================================= */}
           {/* ========================== SECTION 5: TIMELINES ========================= */}
