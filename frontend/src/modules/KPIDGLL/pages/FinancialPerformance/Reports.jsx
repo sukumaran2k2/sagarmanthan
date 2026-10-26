@@ -5,6 +5,7 @@ import Table from '../../../../components/Table';
 import ExportDropdown from '../../../../components/ExportDropdown';
 import CopyButton from '../../../../components/CopyButton';
 import { exportReportToPdf } from '../../../../utils/exportReportPdf';
+import { COMMON_TOASTS } from '../../../../utils/notify';
 
 // Unlike the other DGLL reports, Financial Performance is a financial
 // statement (section headers, line items, computed subtotals) rather than a
@@ -12,9 +13,9 @@ import { exportReportToPdf } from '../../../../utils/exportReportPdf';
 // represent mixed aggregation levels like "Total Revenue" alongside its own
 // line items. The legacy site's equivalent report is table-only too, with no
 // chart, so this follows the same structure.
-export default function FinancialPerformanceReports() {
+export default function FinancialPerformanceReports({ notify }) {
   const gridRef = useRef(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [rowData, setRowData] = useState([]);
   const [columnDefs, setColumnDefs] = useState([]);
   const [error, setError] = useState(null);
@@ -22,9 +23,8 @@ export default function FinancialPerformanceReports() {
 
   const title = 'Form No. DGLL K-3.6 - Abstract - Financial Performance - Overall (INR Crores)';
 
-  const fetchData = () => {
-    setLoading(true);
-    setError(null);
+  // Load once on open
+  useEffect(() => {
     fetchFinancialPerformanceReport()
       .then((res) => {
         const data = res.data?.rowData || res.data || [];
@@ -52,11 +52,10 @@ export default function FinancialPerformanceReports() {
       .catch((err) => {
         console.error('Error loading Financial Performance report:', err);
         setError('Failed to load report data.');
+        notify?.(COMMON_TOASTS.loadFailed('The report'));
       })
       .finally(() => setLoading(false));
-  };
-
-  useEffect(() => { fetchData(); }, []);
+  }, [notify]);
 
   const defaultColDef = useMemo(() => ({
     sortable: false, resizable: true,
@@ -73,11 +72,17 @@ export default function FinancialPerformanceReports() {
     if (!filteredRowData.length) return;
     let tsv = columnDefs.map((c) => c.headerName).join('\t') + '\n';
     filteredRowData.forEach((row) => { tsv += columnDefs.map((c) => row[c.field] ?? '').join('\t') + '\n'; });
-    navigator.clipboard.writeText(tsv);
+    navigator.clipboard.writeText(tsv).then(
+      () => notify?.(COMMON_TOASTS.copySuccess(filteredRowData.length)),
+      () => notify?.(COMMON_TOASTS.copyFailed()),
+    );
   };
 
   const handleExport = (type) => {
-    if (type === 'Excel' && gridRef.current?.api) gridRef.current.api.exportDataAsCsv({ fileName: 'financial_performance_report.csv' });
+    if (type === 'Excel' && gridRef.current?.api) {
+      gridRef.current.api.exportDataAsCsv({ fileName: 'financial_performance_report.csv' });
+      notify?.(COMMON_TOASTS.excelExported('financial_performance_report.csv'));
+    }
     else if (type === 'PDF') {
       exportReportToPdf({
         title,
@@ -86,6 +91,7 @@ export default function FinancialPerformanceReports() {
         rowData: filteredRowData,
         fileName: 'dgll_financial_performance_report',
       });
+      notify?.(COMMON_TOASTS.downloadStarted('dgll_financial_performance_report.pdf'));
     }
   };
 
@@ -133,25 +139,11 @@ export default function FinancialPerformanceReports() {
       {error ? (
         <div className="p-8 text-center text-sm font-semibold text-red-500 dark:text-red-400">{error}</div>
       ) : (
-        <div className="ag-theme-quartz financial-performance-report-grid mt-4" style={{ width: '100%' }}>
-          <Table ref={gridRef} theme="legacy" rowData={filteredRowData} columnDefs={columnDefs} defaultColDef={defaultColDef} domLayout="autoHeight" rowHeight={44} headerHeight={42} suppressColumnVirtualisation={true} animateRows={true} enableExport={false} color="#4b2424" />
+        <div className="ag-theme-quartz kpi-report-grid mt-4" style={{ width: '100%', '--ag-row-height': '44px' }}>
+          <Table ref={gridRef} loading={loading} theme="legacy" rowData={filteredRowData} columnDefs={columnDefs} defaultColDef={defaultColDef} domLayout="autoHeight" rowHeight={44} headerHeight={42} suppressColumnVirtualisation={true} animateRows={true} enableExport={false} color="#4b2424" />
         </div>
       )}
 
-      <style dangerouslySetInnerHTML={{ __html: `
-        .financial-performance-report-grid.ag-theme-quartz { --ag-font-family: 'Inter', system-ui, sans-serif; --ag-row-height: 44px; --ag-active-color: #4b2424; }
-        .financial-performance-report-grid .ag-root-wrapper { border: none !important; border-radius: 0 !important; }
-        .financial-performance-report-grid .ag-header { background: #4b2424 !important; border-bottom: 2px solid #3a1a1a !important; }
-        .financial-performance-report-grid .ag-header-cell { color: #ffffff !important; font-weight: 600 !important; font-size: 11px !important; text-transform: uppercase !important; letter-spacing: 0.05em !important; border-right: 1px solid rgba(255,255,255,0.15) !important; }
-        .financial-performance-report-grid .ag-header-cell-label { justify-content: center !important; }
-        .financial-performance-report-grid .ag-row-even { background: #ffffff !important; }
-        .financial-performance-report-grid .ag-row-odd { background: #f8faf6 !important; }
-        .financial-performance-report-grid .ag-cell { border-right: 1px solid #D3D6D9 !important; }
-        .dark .financial-performance-report-grid .ag-header { background: #0f172a !important; }
-        .dark .financial-performance-report-grid .ag-row-even { background: #090d16 !important; }
-        .dark .financial-performance-report-grid .ag-row-odd { background: #0f172a !important; }
-        .dark .financial-performance-report-grid .ag-cell { border-right: 1px solid #1e293b !important; color: #e2e8f0 !important; }
-      `}} />
       </div>
     </div>
   );

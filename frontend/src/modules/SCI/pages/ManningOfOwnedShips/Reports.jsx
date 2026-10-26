@@ -3,22 +3,24 @@ import { TrendingUp, Search, X, BarChart3, List } from 'lucide-react';
 import * as am5 from '@amcharts/amcharts5';
 import * as am5xy from '@amcharts/amcharts5/xy';
 import am5themes_Animated from '@amcharts/amcharts5/themes/Animated';
+import { newChartRoot } from '../../../../utils/amCharts';
 import { fetchManningOfOwnedShipsReport } from '../../api';
 import Table from '../../../../components/Table';
 import ExportDropdown from '../../../../components/ExportDropdown';
 import CopyButton from '../../../../components/CopyButton';
 import ChartExportMenu from '../../../../components/ChartExportMenu';
 import { exportReportToPdf } from '../../../../utils/exportReportPdf';
+import { COMMON_TOASTS } from '../../../../utils/notify';
 
 // Confirmed from the legacy site: dual-axis chart with all 3 metrics
 // genuinely charted (unlike K-6.4.2, where a 3rd metric was declared but
 // never plotted) -- Vessels Audited and Ships Compliant as columns on the
 // left axis, Compliance % as a line on the right axis.
-export default function ManningOfOwnedShipsReports() {
+export default function ManningOfOwnedShipsReports({ notify }) {
   const gridRef = useRef(null);
   const chartDivRef = useRef(null);
   const chartRootRef = useRef(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [rowData, setRowData] = useState([]);
   const [columnDefs, setColumnDefs] = useState([]);
   const [chartData, setChartData] = useState([]);
@@ -29,9 +31,8 @@ export default function ManningOfOwnedShipsReports() {
 
   const title = 'Form No. K-6.5.1 - Abstract - SCI - Manning of Owned Ships - % Compliance with International Standards (STCW, MLC)';
 
-  const fetchData = () => {
-    setLoading(true);
-    setError(null);
+  // Load once on open
+  useEffect(() => {
     fetchManningOfOwnedShipsReport()
       .then((res) => {
         const data = res.data?.rowData || [];
@@ -66,17 +67,16 @@ export default function ManningOfOwnedShipsReports() {
       .catch((err) => {
         console.error('Error loading report:', err);
         setError('Failed to load report data.');
+        notify?.(COMMON_TOASTS.loadFailed('The report'));
       })
       .finally(() => setLoading(false));
-  };
-
-  useEffect(() => { fetchData(); }, []);
+  }, [notify]);
 
   useLayoutEffect(() => {
     if (!chartDivRef.current || !chartData.length) return;
     if (chartRootRef.current) chartRootRef.current.dispose();
 
-    const root = am5.Root.new(chartDivRef.current);
+    const root = newChartRoot(chartDivRef.current);
     chartRootRef.current = root;
     setChartRoot(root);
     root.setThemes([am5themes_Animated.new(root)]);
@@ -166,11 +166,17 @@ export default function ManningOfOwnedShipsReports() {
     if (!filteredRowData.length) return;
     let tsv = columnDefs.map((c) => c.headerName).join('\t') + '\n';
     filteredRowData.forEach((row) => { tsv += columnDefs.map((c) => row[c.field] ?? '').join('\t') + '\n'; });
-    navigator.clipboard.writeText(tsv);
+    navigator.clipboard.writeText(tsv).then(
+      () => notify?.(COMMON_TOASTS.copySuccess(filteredRowData.length)),
+      () => notify?.(COMMON_TOASTS.copyFailed()),
+    );
   };
 
   const handleExport = (type) => {
-    if (type === 'Excel' && gridRef.current?.api) gridRef.current.api.exportDataAsCsv({ fileName: 'sci_manning_of_owned_ships_report.csv' });
+    if (type === 'Excel' && gridRef.current?.api) {
+      gridRef.current.api.exportDataAsCsv({ fileName: 'sci_manning_of_owned_ships_report.csv' });
+      notify?.(COMMON_TOASTS.excelExported('sci_manning_of_owned_ships_report.csv'));
+    }
     else if (type === 'PDF') {
       exportReportToPdf({
         title,
@@ -179,6 +185,7 @@ export default function ManningOfOwnedShipsReports() {
         rowData: filteredRowData,
         fileName: 'sci_manning_of_owned_ships_report',
       });
+      notify?.(COMMON_TOASTS.downloadStarted('sci_manning_of_owned_ships_report.pdf'));
     }
   };
 
@@ -249,25 +256,11 @@ export default function ManningOfOwnedShipsReports() {
           <div ref={chartDivRef} style={{ width: '100%', height: '420px' }} />
         </div>
       ) : (
-        <div className="ag-theme-quartz sci-manning-report-grid mt-4" style={{ width: '100%' }}>
-          <Table ref={gridRef} theme="legacy" rowData={filteredRowData} columnDefs={columnDefs} defaultColDef={defaultColDef} domLayout="autoHeight" rowHeight={48} headerHeight={42} suppressColumnVirtualisation={true} animateRows={true} enableExport={false} color="#4b2424" />
+        <div className="ag-theme-quartz kpi-report-grid mt-4" style={{ width: '100%' }}>
+          <Table ref={gridRef} loading={loading} theme="legacy" rowData={filteredRowData} columnDefs={columnDefs} defaultColDef={defaultColDef} domLayout="autoHeight" rowHeight={48} headerHeight={42} suppressColumnVirtualisation={true} animateRows={true} enableExport={false} color="#4b2424" />
         </div>
       )}
 
-      <style dangerouslySetInnerHTML={{ __html: `
-        .sci-manning-report-grid.ag-theme-quartz { --ag-font-family: 'Inter', system-ui, sans-serif; --ag-row-height: 48px; --ag-active-color: #4b2424; }
-        .sci-manning-report-grid .ag-root-wrapper { border: none !important; border-radius: 0 !important; }
-        .sci-manning-report-grid .ag-header { background: #4b2424 !important; border-bottom: 2px solid #3a1a1a !important; }
-        .sci-manning-report-grid .ag-header-cell { color: #ffffff !important; font-weight: 600 !important; font-size: 11px !important; text-transform: uppercase !important; letter-spacing: 0.05em !important; border-right: 1px solid rgba(255,255,255,0.15) !important; }
-        .sci-manning-report-grid .ag-header-cell-label { justify-content: center !important; }
-        .sci-manning-report-grid .ag-row-even { background: #ffffff !important; }
-        .sci-manning-report-grid .ag-row-odd { background: #f8faf6 !important; }
-        .sci-manning-report-grid .ag-cell { border-right: 1px solid #D3D6D9 !important; }
-        .dark .sci-manning-report-grid .ag-header { background: #0f172a !important; }
-        .dark .sci-manning-report-grid .ag-row-even { background: #090d16 !important; }
-        .dark .sci-manning-report-grid .ag-row-odd { background: #0f172a !important; }
-        .dark .sci-manning-report-grid .ag-cell { border-right: 1px solid #1e293b !important; color: #e2e8f0 !important; }
-      `}} />
       </div>
     </div>
   );
