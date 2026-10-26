@@ -658,7 +658,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
     storage: storage,
-    limits: { fileSize: 10000000 }
+    limits: { fileSize: 20 * 1024 * 1024 }
 });
 
 async function utProjectDocumentUploader(req, res) {

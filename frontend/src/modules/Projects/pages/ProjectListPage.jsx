@@ -50,6 +50,14 @@ const DEFAULT_PROGRESS_FILTERS = {
 };
 
 const FILTER_DEBOUNCE_MS = 300;
+
+// Kept in memory (not storage) so filters survive opening a project and coming back,
+// but are cleared by a page refresh or the Reset button.
+let savedListState = null;
+
+function getSavedListState(userId) {
+  return savedListState && savedListState.userId === userId ? savedListState : null;
+}
 const IMPLEMENTATION_MODE_OPTIONS = ['All', 'EPC', 'PPP'];
 
 const EMAIL_PATTERN = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
@@ -94,9 +102,10 @@ export default function ProjectListPage({
 
   const [rows, setRows] = useState([]);
   const [isFetching, setIsFetching] = useState(false);
-  const [filters, setFilters] = useState(DEFAULT_FILTERS);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [initialListState] = useState(() => getSavedListState(permissions.userId));
+  const [filters, setFilters] = useState(() => initialListState?.filters || DEFAULT_FILTERS);
+  const [page, setPage] = useState(() => initialListState?.page || 1);
+  const [pageSize, setPageSize] = useState(() => initialListState?.pageSize || 10);
   const [pagination, setPagination] = useState({
     total: 0,
     page: 1,
@@ -120,8 +129,17 @@ export default function ProjectListPage({
     completed: 0,
   });
 
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [debouncedProgressFilters, setDebouncedProgressFilters] = useState(DEFAULT_PROGRESS_FILTERS);
+  const [debouncedSearch, setDebouncedSearch] = useState(() => filters.search);
+  const [debouncedProgressFilters, setDebouncedProgressFilters] = useState(() => ({
+    physicalProgressMin: filters.physicalProgressMin ?? DEFAULT_PROGRESS_FILTERS.physicalProgressMin,
+    physicalProgressMax: filters.physicalProgressMax ?? DEFAULT_PROGRESS_FILTERS.physicalProgressMax,
+    financialProgressMin: filters.financialProgressMin ?? DEFAULT_PROGRESS_FILTERS.financialProgressMin,
+    financialProgressMax: filters.financialProgressMax ?? DEFAULT_PROGRESS_FILTERS.financialProgressMax,
+  }));
+
+  useEffect(() => {
+    savedListState = { userId: permissions.userId, filters, page, pageSize };
+  }, [permissions.userId, filters, page, pageSize]);
   const [listHydrated, setListHydrated] = useState(false);
   const [dropBusyId, setDropBusyId] = useState(null);
   const [dropConfirmModal, setDropConfirmModal] = useState({
@@ -465,6 +483,27 @@ export default function ProjectListPage({
     };
   }, [permissions.userId, permissions.canView, refreshTick, listHydrated]);
 
+  const fetchAllRowsForExport = useCallback(async () => {
+    const exportLimit = 5000;
+    const allRows = [];
+    let exportPage = 1;
+    let totalPages;
+
+    do {
+      const res = await fetchProjectList(
+        buildListParams({ page: exportPage, limit: exportLimit, includeCounts: false, export: true }),
+        { timeout: 180000 }
+      );
+      const payload = res?.data || {};
+      const serverRows = Array.isArray(payload?.data) ? payload.data : [];
+      allRows.push(...serverRows.map(mapProjectListRow));
+      totalPages = Number(payload?.pagination?.totalPages) || 1;
+      exportPage += 1;
+    } while (exportPage <= totalPages);
+
+    return allRows;
+  }, [buildListParams]);
+
   const closeDropConfirmModal = () => {
     if (dropBusyId) return;
     setDropConfirmModal({ open: false, row: null, reason: '' });
@@ -788,6 +827,8 @@ export default function ProjectListPage({
           setPage(1);
         }}
         exportFileName="projects_module_list"
+        onFetchAllRows={fetchAllRowsForExport}
+        notify={notify}
       />
 
       {dropConfirmModal.open

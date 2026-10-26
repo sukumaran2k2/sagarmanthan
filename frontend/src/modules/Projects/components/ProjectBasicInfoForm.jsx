@@ -1026,7 +1026,8 @@ export default function ProjectBasicInfoForm({
       }
     }
 
-    if (sectionId === 'timeline') {
+    // Timeline fields are rendered in the General Details tab, so 'basic' must check them too.
+    if (sectionId === 'timeline' || sectionId === 'basic') {
       if (!formData.projectInitiatedDate) {
         nextErrors.projectInitiatedDate = 'Project initiated date is required';
       }
@@ -1091,7 +1092,7 @@ export default function ProjectBasicInfoForm({
       if (Object.keys(secErrors).length > 0) {
         setErrors((prev) => ({ ...prev, ...secErrors }));
         setActiveSection(secKey);
-        const sectionLabel = FORM_SECTIONS.find((s) => s.id === secKey)?.label || 'current stage';
+        const sectionLabel = FORM_SECTIONS.find((s) => s.id === secKey)?.title || 'current stage';
         notify?.(`Please complete all required fields in "${sectionLabel}" before moving to the next stage.`, 'error');
         return;
       }
@@ -1708,7 +1709,7 @@ export default function ProjectBasicInfoForm({
               </div>
 
               <div>
-                <Label required>Project Intiated Date</Label>
+                <Label required>Project Initiated Date</Label>
                 <input
                   type="date"
                   value={formData.projectInitiatedDate}

@@ -153,7 +153,9 @@ async function getProjectList(req, res) {
     const userID = Number.isFinite(tokenUserID) && tokenUserID > 0 ? tokenUserID : requestedUserID;
 
     const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
-    const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 10));
+    // Export asks for the whole filtered list in one go; normal paging stays capped at 100.
+    const isExport = String(req.query.export || '0') === '1';
+    const limit = Math.min(isExport ? 10000 : 100, Math.max(1, Number.parseInt(req.query.limit, 10) || 10));
     const offset = (page - 1) * limit;
 
     const search = String(req.query.search || '').trim();

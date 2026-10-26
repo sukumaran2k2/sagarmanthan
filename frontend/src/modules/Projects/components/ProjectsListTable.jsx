@@ -125,10 +125,11 @@ export default function ProjectsListTable({
   onPageChange,
   onPageSizeChange,
   exportFileName = 'projects_module_list',
+  onFetchAllRows,
+  notify,
 }) {
   const isOrgUser = propIsOrgUser !== undefined ? propIsOrgUser : checkIsOrganisationUser();
   const navigate = useNavigate();
-  const [gridApi, setGridApi] = useState(null);
   const [viewMode, setViewMode] = useState('table');
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -502,6 +503,27 @@ export default function ProjectsListTable({
       });
     }
 
+    const pickStageCost = (row = {}) => {
+      const stageText = String(row.stage || '').toLowerCase();
+      const effectiveStage = isAllProjectsTab
+        ? stageText
+        : String(selectedStage || '').toLowerCase();
+
+      if (effectiveStage.includes('complete')) {
+        return pickPresentCost(row.closureCost, row.awardedCost, row.sanctionedCost, row.estimatedCost, row.cost);
+      }
+      if (effectiveStage.includes('implement')) {
+        return pickPresentCost(row.awardedCost, row.sanctionedCost, row.estimatedCost, row.cost);
+      }
+      if (effectiveStage.includes('tender')) {
+        return pickPresentCost(row.sanctionedCost, row.estimatedCost, row.cost);
+      }
+      if (isAllProjectsTab || isDroppedTab) {
+        return pickPresentCost(row.cost, row.estimatedCost, row.sanctionedCost, row.awardedCost, row.closureCost);
+      }
+      return pickPresentCost(row.estimatedCost, row.sanctionedCost, row.cost);
+    };
+
     if (visibleCols.sanctionedCost && !isAllProjectsTab && !isDroppedTab) {
       cols.push({
         field: 'sanctionedCost',
@@ -515,42 +537,9 @@ export default function ProjectsListTable({
           justifyContent: 'center',
           textAlign: 'center',
         },
+        valueGetter: (params) => pickStageCost(params.data) ?? '',
         cellRenderer: (params) => {
-          const row = params.data || {};
-          const stageText = String(row.stage || '').toLowerCase();
-          const effectiveStage = isAllProjectsTab
-            ? stageText
-            : String(selectedStage || '').toLowerCase();
-
-          let val = null;
-          if (effectiveStage.includes('complete')) {
-            val = pickPresentCost(
-              row.closureCost,
-              row.awardedCost,
-              row.sanctionedCost,
-              row.estimatedCost,
-              row.cost
-            );
-          } else if (effectiveStage.includes('implement')) {
-            val = pickPresentCost(
-              row.awardedCost,
-              row.sanctionedCost,
-              row.estimatedCost,
-              row.cost
-            );
-          } else if (effectiveStage.includes('tender')) {
-            val = pickPresentCost(row.sanctionedCost, row.estimatedCost, row.cost);
-          } else if (isAllProjectsTab || isDroppedTab) {
-            val = pickPresentCost(
-              row.cost,
-              row.estimatedCost,
-              row.sanctionedCost,
-              row.awardedCost,
-              row.closureCost
-            );
-          } else {
-            val = pickPresentCost(row.estimatedCost, row.sanctionedCost, row.cost);
-          }
+          const val = pickStageCost(params.data);
 
           return (
             <div className="w-full flex items-center justify-center text-center">
@@ -622,12 +611,26 @@ export default function ProjectsListTable({
           justifyContent: 'center',
           textAlign: 'center',
         },
+        valueGetter: (params) => {
+          const val = params.data?.stage || 'Project Initiated';
+          if (String(val).toLowerCase().includes('drop') && params.data?.dropStatus === 'Pending Approval') {
+            return 'Drop Pending Approval';
+          }
+          return val;
+        },
         cellRenderer: (params) => {
-          const val = params.value || params.data?.stage || 'Project Initiated';
+          const val = params.data?.stage || 'Project Initiated';
           const s = String(val).toLowerCase();
 
           let badgeContent;
-          if (s.includes('drop')) {
+          if (s.includes('drop') && params.data?.dropStatus === 'Pending Approval') {
+            badgeContent = (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 shadow-xs">
+                <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                <span>Drop Pending Approval</span>
+              </span>
+            );
+          } else if (s.includes('drop')) {
             badgeContent = (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-300 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800 shadow-xs">
                 <Trash2 className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400 shrink-0" />
@@ -893,7 +896,7 @@ export default function ProjectsListTable({
             statusBadge = (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 tracking-tight whitespace-nowrap shadow-xs">
                 <Clock className="h-3 w-3 shrink-0 text-amber-600 dark:text-amber-400" />
-                <span>Waiting for Approval</span>
+                <span>Pending Approval</span>
               </span>
             );
           } else if (s.includes('reject')) {
@@ -936,9 +939,17 @@ export default function ProjectsListTable({
               {canEdit ? (
                 <button
                   type="button"
-                  onClick={() => onOpenBasicInfo?.(row, { readOnly: false })}
-                  title="Edit Project"
-                  className="p-1.5 hover:bg-amber-50 dark:hover:bg-slate-800 text-amber-600 dark:text-amber-400 rounded-lg transition cursor-pointer"
+                  onClick={() => {
+                    if (isDropped) return;
+                    onOpenBasicInfo?.(row, { readOnly: false });
+                  }}
+                  disabled={isDropped}
+                  title={isDropped ? 'Dropped projects cannot be edited' : 'Edit Project'}
+                  className={`p-1.5 rounded-lg transition ${
+                    isDropped
+                      ? 'text-amber-400 dark:text-amber-500/60 opacity-50 cursor-not-allowed'
+                      : 'hover:bg-amber-50 dark:hover:bg-slate-800 text-amber-600 dark:text-amber-400 cursor-pointer'
+                  }`}
                 >
                   <Edit className="h-4 w-4" />
                 </button>
@@ -984,72 +995,98 @@ export default function ProjectsListTable({
     return cols;
   }, [visibleCols, canEdit, canView, canDropProject, dropBusyId, onOpenBasicInfo, onOpenProjectDetail, onDropProject, filters?.projectStage]);
 
-  const handleExport = (type) => {
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = async (type) => {
+    if (exporting) return;
+
+    // Open the print window inside the click, before any await, so the browser does not block it.
+    const printWindow = type === 'PDF' ? window.open('', '_blank') : null;
+    if (type === 'PDF' && !printWindow) {
+      notify?.('Please allow pop-ups to export the PDF.', 'error');
+      return;
+    }
+    printWindow?.document.write('<p style="font-family: sans-serif; padding: 20px;">Preparing export...</p>');
+
+    let exportRows = displayRows;
+    if (typeof onFetchAllRows === 'function') {
+      setExporting(true);
+      try {
+        const allRows = await onFetchAllRows();
+        exportRows = allRows.map((row, idx) => ({ ...row, sNo: idx + 1 }));
+      } catch (error) {
+        console.error(error);
+        printWindow?.close();
+        notify?.('Failed to fetch all projects for export. Please try again.', 'error');
+        return;
+      } finally {
+        setExporting(false);
+      }
+    }
+
+    if (!exportRows.length) {
+      printWindow?.close();
+      notify?.('No projects available to export.', 'info');
+      return;
+    }
+
+    const exportCols = columnDefs.filter((col) => col.headerName && col.headerName !== 'Action');
+    const cellValue = (col, row) => {
+      const val = typeof col.valueGetter === 'function'
+        ? col.valueGetter({ data: row, value: row[col.field] })
+        : row[col.field];
+      return val === undefined || val === null ? '' : String(val);
+    };
+
     if (type === 'Copy') {
-      if (gridApi) {
-        let tsv = '';
-        const headers = [];
-        columnDefs.forEach((col) => {
-          if (col.headerName && col.headerName !== 'Action') {
-            headers.push(col.headerName);
-          }
-        });
-        tsv += headers.join('\t') + '\n';
-
-        displayRows.forEach((row) => {
-          const line = [];
-          columnDefs.forEach((col) => {
-            if (col.headerName && col.headerName !== 'Action') {
-              let val = '';
-              if (typeof col.valueGetter === 'function') {
-                val = col.valueGetter({ data: row, value: row[col.field] });
-              } else {
-                val = row[col.field] !== undefined ? row[col.field] : '';
-              }
-              line.push(val);
-            }
-          });
-          tsv += line.join('\t') + '\n';
-        });
-
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(tsv);
-        }
+      let tsv = `${exportCols.map((col) => col.headerName).join('\t')}\n`;
+      exportRows.forEach((row) => {
+        tsv += `${exportCols.map((col) => cellValue(col, row).replace(/[\t\r\n]+/g, ' ')).join('\t')}\n`;
+      });
+      try {
+        await navigator.clipboard.writeText(tsv);
+        notify?.(`Copied ${exportRows.length} project(s) to clipboard.`, 'success');
+      } catch (error) {
+        console.error(error);
+        notify?.('Failed to copy to clipboard.', 'error');
       }
     } else if (type === 'Excel') {
-      if (gridApi) {
-        gridApi.exportDataAsCsv({
-          fileName: `${exportFileName}_Page_${page}.csv`,
-        });
-      }
+      const csvCell = (val) => `"${String(val).replace(/"/g, '""')}"`;
+      let csv = '﻿';
+      csv += `${exportCols.map((col) => csvCell(col.headerName)).join(',')}\r\n`;
+      exportRows.forEach((row) => {
+        csv += `${exportCols.map((col) => csvCell(cellValue(col, row))).join(',')}\r\n`;
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${exportFileName}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      notify?.(`Exported ${exportRows.length} project(s) to CSV.`, 'success');
     } else if (type === 'PDF') {
-      const printWindow = window.open('', '_blank');
       const title = 'Projects Module List';
+      const escapeHtml = (val) => String(val)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
 
-      let headersHtml = '';
-      columnDefs.forEach((col) => {
-        if (col.headerName && col.headerName !== 'Action') {
-          headersHtml += `<th style="border: 1px solid #cbd5e1; padding: 10px; text-align: left; background-color: #f8fafc; font-size: 11px; font-weight: bold; text-transform: uppercase;">${col.headerName}</th>`;
-        }
-      });
+      const headersHtml = exportCols
+        .map((col) => `<th style="border: 1px solid #cbd5e1; padding: 10px; text-align: left; background-color: #f8fafc; font-size: 11px; font-weight: bold; text-transform: uppercase;">${escapeHtml(col.headerName)}</th>`)
+        .join('');
 
-      let rowsHtml = '';
-      displayRows.forEach((row) => {
-        rowsHtml += '<tr>';
-        columnDefs.forEach((col) => {
-          if (col.headerName && col.headerName !== 'Action') {
-            let val = '';
-            if (typeof col.valueGetter === 'function') {
-              val = col.valueGetter({ data: row, value: row[col.field] });
-            } else {
-              val = row[col.field] !== undefined ? row[col.field] : '';
-            }
-            rowsHtml += `<td style="border: 1px solid #e2e8f0; padding: 8px; font-size: 11px;">${val}</td>`;
-          }
-        });
-        rowsHtml += '</tr>';
-      });
+      const rowsHtml = exportRows
+        .map((row) => `<tr>${exportCols
+          .map((col) => `<td style="border: 1px solid #e2e8f0; padding: 8px; font-size: 11px;">${escapeHtml(cellValue(col, row))}</td>`)
+          .join('')}</tr>`)
+        .join('');
 
+      printWindow.document.open();
       printWindow.document.write(`
         <html>
           <head>
@@ -1062,7 +1099,7 @@ export default function ProjectsListTable({
           </head>
           <body>
             <h1>${title}</h1>
-            <p style="font-size: 11px; color: #64748b; margin-top: 0; margin-bottom: 20px;">Generated on: ${new Date().toLocaleDateString()}</p>
+            <p style="font-size: 11px; color: #64748b; margin-top: 0; margin-bottom: 20px;">Generated on: ${new Date().toLocaleDateString()} &middot; ${exportRows.length} project(s)</p>
             <table>
               <thead>
                 <tr>${headersHtml}</tr>
@@ -1071,16 +1108,16 @@ export default function ProjectsListTable({
                 ${rowsHtml}
               </tbody>
             </table>
-            <script>
-              window.onload = function() {
-                window.print();
-                window.close();
-              };
-            </script>
           </body>
         </html>
       `);
       printWindow.document.close();
+      // The window loaded before the data arrived, so print from here rather than its onload.
+      printWindow.onafterprint = () => printWindow.close();
+      setTimeout(() => {
+        printWindow.focus();
+        printWindow.print();
+      }, 300);
     }
   };
 
@@ -1648,7 +1685,6 @@ export default function ProjectsListTable({
               loading={loading}
               pagination={false}
               enableExport={false}
-              onGridReady={(params) => setGridApi(params.api)}
               defaultColDef={{
                 minWidth: 90,
                 filter: false,

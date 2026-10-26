@@ -193,6 +193,24 @@ export const DEFAULT_MILESTONES = [
   { id: 6, milestoneId: 5, milestone: 'Final Milestone (Completion Report =100%)', targetedEndDate: '', actualEndDate: '', activityId: '' },
 ];
 
+/**
+ * Index of the milestone a physical progress value falls in (20% bands, 100% = Final),
+ * or -1 when there is no progress yet. Milestones up to this index are open for an actual date.
+ */
+export function milestoneIndexForProgress(progress) {
+  const value = Number(progress);
+  if (!Number.isFinite(value) || value <= 0) return -1;
+  if (value >= 100) return DEFAULT_MILESTONES.length - 1;
+  return Math.min(Math.floor(value / 20), DEFAULT_MILESTONES.length - 2);
+}
+
+export function findMissingMilestoneDate(milestones = [], progress) {
+  const lastIndex = milestoneIndexForProgress(progress);
+  return milestones
+    .slice(0, lastIndex + 1)
+    .find((row) => !String(row.actualEndDate || '').trim()) || null;
+}
+
 export function mapMilestonesFromApi(rows = []) {
   const list = Array.isArray(rows) ? rows : [];
   return DEFAULT_MILESTONES.map((item, index) => {

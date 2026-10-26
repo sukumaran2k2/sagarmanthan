@@ -225,10 +225,11 @@ export default function Projects({
 
   const tabs = useMemo(() => {
     if (isLess5CrRoute) {
-      const items = [{ id: 'less5cr-list', label: 'Data List' }];
+      const items = [];
       if (showLess5CrInputForm) {
         items.push({ id: 'less5cr-form', label: 'Input Form' });
       }
+      items.push({ id: 'less5cr-list', label: 'Data List' });
       return items;
     }
     const items = [];

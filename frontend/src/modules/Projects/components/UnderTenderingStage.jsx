@@ -405,6 +405,11 @@ export default function UnderTenderingStage({
       await deleteUnderTenderingDocument(folderName, docKey);
       notify?.('Tendering document deleted successfully.', 'success');
       setDeleteConfirmModal({ open: false, rowId: null });
+      setUploadPreviewByRowId((prev) => {
+        const next = { ...prev };
+        delete next[rowId];
+        return next;
+      });
       await refreshExistingDocs();
     } catch (error) {
       console.error(error);
@@ -740,6 +745,9 @@ export default function UnderTenderingStage({
           <tbody>
             {rows.map((row) => {
               const rowStatus = scheduleByRowId.get(row.id);
+              const hasRowDocument = docFoldersPresent.has(DOC_FOLDER_BY_ROW_ID[row.id]);
+              const uploadDisabled =
+                disabled || uploadingByRowId[row.id] || (nominationMode && row.id <= 6) || hasRowDocument;
               return (
               <tr key={row.id} className="border-t border-slate-200 align-top">
                 <td className="px-3 py-3 min-w-[240px]">
@@ -754,7 +762,7 @@ export default function UnderTenderingStage({
                       id={`tender-row-upload-${row.id}`}
                       type="file"
                       accept=".pdf,application/pdf"
-                      disabled={disabled || uploadingByRowId[row.id] || (nominationMode && row.id <= 6)}
+                      disabled={uploadDisabled}
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) onUploadForRow(row.id, file);
@@ -764,13 +772,16 @@ export default function UnderTenderingStage({
                     />
                     <label
                       htmlFor={`tender-row-upload-${row.id}`}
+                      title={hasRowDocument ? 'A file is already uploaded. Delete it to upload another file.' : undefined}
                       className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-bold transition ${
-                        disabled || uploadingByRowId[row.id] || (nominationMode && row.id <= 6)
-                          ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                        uploadDisabled
+                          ?'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
                           : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 cursor-pointer'
                       }`}
                     >
-                      <span>{uploadingByRowId[row.id] ? 'Uploading PDF...' : 'Upload PDF'}</span>
+                      <span>
+                        {uploadingByRowId[row.id] ? 'Uploading PDF...' : hasRowDocument ? 'PDF Uploaded' : 'Upload PDF'}
+                      </span>
                       <span className="text-[10px] font-semibold text-slate-500">(max 20 MB)</span>
                     </label>
                     <button

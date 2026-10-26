@@ -189,7 +189,13 @@ export default function ProjectDetailView({
   const projectName = p.project_name || p.projectName || p.sub_project_name || p.subProjectName || project?.name || 'Project Details';
   const stageName = p.stage_name || p.stage || p.project_stage || p.projectStageName || 'Project Initiated';
   const stageLower = String(stageName).toLowerCase();
-  
+  // The list row knows about drop requests (approved or pending); the detail API only knows the status flag.
+  const isDropped =
+    String(project?.stage || '').toLowerCase().includes('drop') ||
+    String(p.project_status) === '0' ||
+    String(p.status) === '0' ||
+    String(p.sub_status) === '0';
+
   const isSagarmala = Boolean(
     p.is_sagarmala_funded === 1 ||
     p.is_sagarmala_funded === '1' ||
@@ -348,7 +354,7 @@ export default function ProjectDetailView({
             <span>Back to List</span>
           </button>
 
-          {canEdit && (
+          {canEdit && !isDropped && (
             <button
               type="button"
               onClick={() => handleEdit(p)}

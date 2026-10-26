@@ -103,7 +103,7 @@ export function deriveDropStatus(raw = {}) {
   if (explicit && explicit !== '-' && explicit !== 'null' && explicit !== 'undefined') {
     const s = String(explicit).toLowerCase().trim();
     if (s.includes('reject')) return 'Rejected';
-    if (s.includes('wait') || s.includes('pending')) return 'Waiting for Approval';
+    if (s.includes('wait') || s.includes('pending')) return 'Pending Approval';
     if (s.includes('approve') || s.includes('drop')) return 'Approved';
   }
 
@@ -121,7 +121,7 @@ export function deriveDropStatus(raw = {}) {
   }
 
   if (reqStatus === 1 || reqStatus === '1') {
-    return 'Waiting for Approval';
+    return 'Pending Approval';
   }
 
   return null;
@@ -176,7 +176,7 @@ export function mapProjectListRow(raw = {}, index = 0) {
   let stage = textOrDash(
     raw.project_stage || raw.projectStageName || raw.stage || raw.stage_name
   );
-  if (dropStatus === 'Waiting for Approval' || dropStatus === 'Approved') {
+  if (dropStatus === 'Pending Approval' || dropStatus === 'Approved') {
     stage = 'Dropped';
   } else if (dropStatus === 'Rejected' && String(stage).toLowerCase() === 'dropped') {
     stage = 'Under Implementation';

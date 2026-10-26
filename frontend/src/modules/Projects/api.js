@@ -124,6 +124,10 @@ function toProjectListParams(params = {}) {
     query.includeCounts = params.includeCounts ? '1' : '0';
   }
 
+  if (params.export) {
+    query.export = '1';
+  }
+
   if (params.countsOnly) {
     query.countsOnly = '1';
     query.includeCounts = '1';
