@@ -1,8 +1,10 @@
-import { useState, useMemo, useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { Edit, Trash2 } from 'lucide-react';
 import Table from '../../../components/Table';
+import TablePagination from '../../../components/TablePagination';
 import DataListToolbar from '../../../components/DataListToolbar';
 import { exportDataListToPdf } from '../../../utils/exportReportPdf';
+import { COMMON_TOASTS } from '../../../utils/notify';
 
 const COLUMN_LABELS = {
   programme: 'Programme',
@@ -12,6 +14,16 @@ const COLUMN_LABELS = {
   pass_percentage: 'Pass Percentage',
 };
 
+const DEFAULT_VISIBLE_COLS = {
+  programme: true,
+  batch: true,
+  appeared: true,
+  passed: true,
+  pass_percentage: true,
+};
+
+// This section returns every row, so search and paging happen here in the browser;
+// the search text, page, page size and columns are kept in the IMU store.
 export default function FinalYearPassPercentageDataList({
   rowData = [],
   loading = false,
@@ -19,39 +31,23 @@ export default function FinalYearPassPercentageDataList({
   onDelete,
   canEdit = true,
   canRemove = false,
+  searchQuery = '',
+  onSearchChange,
+  currentPage = 1,
+  onPageChange,
+  pageSize = 10,
+  onPageSizeChange,
+  visibleCols: storedVisibleCols = null,
+  onVisibleColsChange,
+  notify,
 }) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [pageSize, setPageSize] = useState(10);
-  const [visibleCols, setVisibleCols] = useState({
-    programme: true,
-    batch: true,
-    appeared: true,
-    passed: true,
-    pass_percentage: true,
+  // Column visibility is kept in the IMU store; null means "not changed yet"
+  const visibleCols = storedVisibleCols ?? DEFAULT_VISIBLE_COLS;
+  const setVisibleCols = (updater) => onVisibleColsChange?.((prev) => {
+    const current = prev ?? DEFAULT_VISIBLE_COLS;
+    return typeof updater === 'function' ? updater(current) : updater;
   });
   const gridRef = useRef(null);
-
-  const handleExport = (type) => {
-    if (type === 'Copy') {
-      const cols = Object.keys(visibleCols).filter((c) => visibleCols[c]);
-      let tsv = ['S.No', ...cols.map((c) => COLUMN_LABELS[c])].join('\t') + '\n';
-      filteredData.forEach((row, i) => {
-        const line = [i + 1, ...cols.map((c) => row[c] ?? '')];
-        tsv += line.join('\t') + '\n';
-      });
-      navigator.clipboard.writeText(tsv);
-    } else if (type === 'Excel') {
-      gridRef.current?.api?.exportDataAsCsv({ fileName: 'imu_final_year_pass_percentage' });
-    } else if (type === 'PDF') {
-      exportDataListToPdf({
-        title: 'IMU Final Year Pass Percentage Data List',
-        columnLabels: COLUMN_LABELS,
-        visibleCols,
-        rowData: filteredData,
-        fileName: 'imu_final_year_pass_percentage',
-      });
-    }
-  };
 
   const filteredData = useMemo(() => {
     if (!searchQuery.trim()) return rowData;
@@ -62,8 +58,41 @@ export default function FinalYearPassPercentageDataList({
     );
   }, [rowData, searchQuery]);
 
+  const handleExport = (type) => {
+    if (type === 'Copy') {
+      const cols = Object.keys(visibleCols).filter((c) => visibleCols[c]);
+      let tsv = ['S.No', ...cols.map((c) => COLUMN_LABELS[c])].join('\t') + '\n';
+      filteredData.forEach((row, i) => {
+        const line = [i + 1, ...cols.map((c) => row[c] ?? '')];
+        tsv += line.join('\t') + '\n';
+      });
+      navigator.clipboard.writeText(tsv).then(
+        () => notify?.(COMMON_TOASTS.copySuccess(filteredData.length)),
+        () => notify?.(COMMON_TOASTS.copyFailed()),
+      );
+    } else if (type === 'Excel') {
+      gridRef.current?.api?.exportDataAsCsv({ fileName: 'imu_final_year_pass_percentage' });
+      notify?.(COMMON_TOASTS.excelExported('imu_final_year_pass_percentage.csv'));
+    } else if (type === 'PDF') {
+      exportDataListToPdf({
+        title: 'IMU Final Year Pass Percentage Data List',
+        columnLabels: COLUMN_LABELS,
+        visibleCols,
+        rowData: filteredData,
+        fileName: 'imu_final_year_pass_percentage',
+      });
+      notify?.(COMMON_TOASTS.downloadStarted('imu_final_year_pass_percentage.pdf'));
+    }
+  };
+
+
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize));
+  // A stored page can be past the end once the data or search changes
+  const page = Math.min(currentPage, totalPages);
+  const pageRows = useMemo(() => filteredData.slice((page - 1) * pageSize, page * pageSize), [filteredData, page, pageSize]);
+
   const colDefs = useMemo(() => [
-    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, minWidth: 90, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
+    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1 + (page - 1) * pageSize, minWidth: 90, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
     ...(visibleCols.programme ? [{ headerName: 'Programme', field: 'programme', wrapText: true, autoHeight: true, flex: 1, minWidth: 140, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
     ...(visibleCols.batch ? [{ headerName: 'Batch', field: 'batch', wrapText: true, autoHeight: true, flex: 1, minWidth: 110, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
     ...(visibleCols.appeared ? [{ headerName: 'Appeared', field: 'appeared', wrapText: true, autoHeight: true, flex: 1, minWidth: 130, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
@@ -96,16 +125,16 @@ export default function FinalYearPassPercentageDataList({
         </>
       )
     }] : []),
-  ], [canEdit, canRemove, onEdit, onDelete, visibleCols]);
+  ], [canEdit, canRemove, onEdit, onDelete, visibleCols, page, pageSize]);
 
   return (
-    <div className="space-y-6">
+    <div className="module-card space-y-4">
       <DataListToolbar
         searchTerm={searchQuery}
-        onSearchChange={setSearchQuery}
+        onSearchChange={onSearchChange}
         searchPlaceholder="Search programme or batch..."
         pageSize={pageSize}
-        onPageSizeChange={setPageSize}
+        onPageSizeChange={onPageSizeChange}
         totalRows={loading ? '...' : filteredData.length}
         onCopy={() => handleExport('Copy')}
         onExportExcel={() => handleExport('Excel')}
@@ -115,18 +144,30 @@ export default function FinalYearPassPercentageDataList({
         columnLabels={COLUMN_LABELS}
       />
 
-      <Table
-        ref={gridRef}
-        rowData={filteredData}
-        columnDefs={colDefs}
-        loading={loading}
-        pagination={true}
-        paginationPageSize={pageSize}
-        domLayout="autoHeight"
-        rowHeight={50}
-        headerHeight={42}
-        color="#0f417a"
-      />
+      <div className="module-datalist-grid">
+        <Table
+          ref={gridRef}
+          rowData={pageRows}
+          columnDefs={colDefs}
+          loading={loading}
+          pagination={false}
+          domLayout="autoHeight"
+          rowHeight={50}
+          headerHeight={42}
+          color="#0f417a"
+        />
+      </div>
+
+      {totalPages > 1 && (
+        <TablePagination
+          currentPage={page - 1}
+          totalPages={totalPages}
+          totalRows={filteredData.length}
+          pageSize={pageSize}
+          onPageChange={(pageIndex) => onPageChange?.(pageIndex + 1)}
+          color="#0f417a"
+        />
+      )}
     </div>
   );
 }
