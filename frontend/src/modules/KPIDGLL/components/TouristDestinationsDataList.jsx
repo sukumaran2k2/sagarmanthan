@@ -1,9 +1,10 @@
-import { useState, useMemo, useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { Edit, Trash2 } from 'lucide-react';
 import Table from '../../../components/Table';
 import TablePagination from '../../../components/TablePagination';
 import DataListToolbar from '../../../components/DataListToolbar';
 import { exportDataListToPdf } from '../../../utils/exportReportPdf';
+import { COMMON_TOASTS } from '../../../utils/notify';
 
 const DEST_COLUMN_LABELS = {
   finacial_year: 'Financial Year',
@@ -20,17 +21,26 @@ const TARGET_COLUMN_LABELS = {
   footfall_in_the_lighthouses: 'Expected Footfall',
 };
 
+const DEST_DEFAULT_VISIBLE_COLS = {
+  finacial_year: true,
+  no_lighthouses_developed_tourist_destination: true,
+  annual_tourist_footfall: true,
+};
+const TARGET_DEFAULT_VISIBLE_COLS = {
+  year: true,
+  collection_of_light_dues: true,
+  footfall_in_the_lighthouses: true,
+};
+
 // Mirrors the legacy site's two-toggle-button list view: "Lighthouse Table"
 // and "KPI Target Details" show one table at a time, not both at once.
 export default function TouristDestinationsDataList({
   activeTable = 'destination',
   onTableChange,
-  rows = [],
+  rowData: rows = [],
   loading = false,
-  onEditDestination,
-  onEditTarget,
-  onDeleteDestination,
-  onDeleteTarget,
+  onEdit,
+  onDelete,
   canEdit = true,
   canRemove = false,
   pagination = { total: 0, page: 1, limit: 10, totalPages: 0 },
@@ -38,22 +48,25 @@ export default function TouristDestinationsDataList({
   searchQuery = '',
   onSearchChange,
   years = [],
+  financialYear = '',
+  onFinancialYearChange,
+  visibleCols: storedVisibleCols = null,
+  onVisibleColsChange,
+  notify,
 }) {
-  const [destVisibleCols, setDestVisibleCols] = useState({
-    finacial_year: true,
-    no_lighthouses_developed_tourist_destination: true,
-    annual_tourist_footfall: true,
-  });
-  const [targetVisibleCols, setTargetVisibleCols] = useState({
-    year: true,
-    collection_of_light_dues: true,
-    footfall_in_the_lighthouses: true,
-  });
   const gridRef = useRef(null);
 
+  // Each table has its own list in the DGLL store (search, year, page, columns);
+  // the props belong to the table on show. null columns means "not changed yet".
   const isDestination = activeTable === 'destination';
-  const visibleCols = isDestination ? destVisibleCols : targetVisibleCols;
-  const setVisibleCols = isDestination ? setDestVisibleCols : setTargetVisibleCols;
+  const defaultVisibleCols = isDestination ? DEST_DEFAULT_VISIBLE_COLS : TARGET_DEFAULT_VISIBLE_COLS;
+  const visibleCols = storedVisibleCols ?? defaultVisibleCols;
+  const setVisibleCols = (updater) => onVisibleColsChange?.((prev) => {
+    const current = prev ?? defaultVisibleCols;
+    return typeof updater === 'function' ? updater(current) : updater;
+  });
+  const destVisibleCols = isDestination ? visibleCols : DEST_DEFAULT_VISIBLE_COLS;
+  const targetVisibleCols = isDestination ? TARGET_DEFAULT_VISIBLE_COLS : visibleCols;
   const columnLabels = isDestination ? DEST_COLUMN_LABELS : TARGET_COLUMN_LABELS;
 
   const destinationColDefs = useMemo(() => [
@@ -68,7 +81,7 @@ export default function TouristDestinationsDataList({
         <>
           {canEdit && (
             <button
-              onClick={() => onEditDestination && onEditDestination(params.data)}
+              onClick={() => onEdit && onEdit(params.data)}
               className="p-1.5 hover:bg-amber-50 dark:hover:bg-slate-800 text-amber-600 dark:text-amber-400 rounded-lg transition cursor-pointer"
               title="Update Entry"
             >
@@ -77,7 +90,7 @@ export default function TouristDestinationsDataList({
           )}
           {canRemove && (
             <button
-              onClick={() => onDeleteDestination && onDeleteDestination(params.data)}
+              onClick={() => onDelete && onDelete(params.data)}
               className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600 dark:text-red-400 rounded-lg transition cursor-pointer"
               title="Delete Entry"
             >
@@ -87,7 +100,7 @@ export default function TouristDestinationsDataList({
         </>
       )
     }] : []),
-  ], [canEdit, canRemove, onEditDestination, onDeleteDestination, destVisibleCols]);
+  ], [canEdit, canRemove, onEdit, onDelete, destVisibleCols]);
 
   const targetColDefs = useMemo(() => [
     { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, minWidth: 90, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
@@ -101,7 +114,7 @@ export default function TouristDestinationsDataList({
         <>
           {canEdit && (
             <button
-              onClick={() => onEditTarget && onEditTarget(params.data)}
+              onClick={() => onEdit && onEdit(params.data)}
               className="p-1.5 hover:bg-amber-50 dark:hover:bg-slate-800 text-amber-600 dark:text-amber-400 rounded-lg transition cursor-pointer"
               title="Update Entry"
             >
@@ -110,7 +123,7 @@ export default function TouristDestinationsDataList({
           )}
           {canRemove && (
             <button
-              onClick={() => onDeleteTarget && onDeleteTarget(params.data)}
+              onClick={() => onDelete && onDelete(params.data)}
               className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600 dark:text-red-400 rounded-lg transition cursor-pointer"
               title="Delete Entry"
             >
@@ -120,7 +133,7 @@ export default function TouristDestinationsDataList({
         </>
       )
     }] : []),
-  ], [canEdit, canRemove, onEditTarget, onDeleteTarget, targetVisibleCols]);
+  ], [canEdit, canRemove, onEdit, onDelete, targetVisibleCols]);
 
   const colDefs = isDestination ? destinationColDefs : targetColDefs;
   const fileNameBase = isDestination ? 'tourist_destinations' : 'tourist_destinations_target_details';
@@ -133,9 +146,13 @@ export default function TouristDestinationsDataList({
         const line = [i + 1, ...cols.map((c) => row[c] ?? '')];
         tsv += line.join('\t') + '\n';
       });
-      navigator.clipboard.writeText(tsv);
+      navigator.clipboard.writeText(tsv).then(
+        () => notify?.(COMMON_TOASTS.copySuccess(rows.length)),
+        () => notify?.(COMMON_TOASTS.copyFailed()),
+      );
     } else if (type === 'Excel') {
       gridRef.current?.api?.exportDataAsCsv({ fileName: fileNameBase });
+      notify?.(COMMON_TOASTS.excelExported(`${fileNameBase}.csv`));
     } else if (type === 'PDF') {
       exportDataListToPdf({
         title: isDestination ? 'Tourist Destinations Data List' : 'Tourist Destinations Target Details Data List',
@@ -144,6 +161,7 @@ export default function TouristDestinationsDataList({
         rowData: rows,
         fileName: fileNameBase,
       });
+      notify?.(COMMON_TOASTS.downloadStarted(`${fileNameBase}.pdf`));
     }
   };
 
@@ -173,7 +191,7 @@ export default function TouristDestinationsDataList({
           KPI Target Details
         </button>
       </div>
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 shadow-sm space-y-6">
+      <div className="module-card space-y-4">
 
         <DataListToolbar
           leftContent={
@@ -182,8 +200,8 @@ export default function TouristDestinationsDataList({
                 {isDestination ? 'Financial Year' : 'Target Year'}
               </span>
               <select
-                value={searchQuery}
-                onChange={(e) => onSearchChange && onSearchChange(e.target.value)}
+                value={financialYear}
+                onChange={(e) => onFinancialYearChange && onFinancialYearChange(e.target.value)}
                 className="text-xs px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
               >
                 <option value="">Show All</option>
@@ -203,17 +221,19 @@ export default function TouristDestinationsDataList({
           columnLabels={columnLabels}
         />
 
-        <Table
-          ref={gridRef}
-          rowData={rows}
-          columnDefs={colDefs}
-          loading={loading}
-          pagination={false}
-          domLayout="autoHeight"
-          rowHeight={50}
-          headerHeight={42}
-          color="#0f417a"
-        />
+        <div className="module-datalist-grid">
+          <Table
+            ref={gridRef}
+            rowData={rows}
+            columnDefs={colDefs}
+            loading={loading}
+            pagination={false}
+            domLayout="autoHeight"
+            rowHeight={50}
+            headerHeight={42}
+            color="#0f417a"
+          />
+        </div>
 
         {pagination.totalPages > 1 && (
           <TablePagination
