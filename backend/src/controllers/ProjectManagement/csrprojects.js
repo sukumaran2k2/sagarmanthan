@@ -1644,29 +1644,32 @@ async function getCSRProjectDashboard(req, res) {
         request.input("financialYear", financialYear);
         request.input("focusID", focusID);
 
+        // Each table is totalled on its own: joining projects, funds and expenditure in one query
+        // repeated every fund row once per project (and every project once per expenditure row),
+        // so the fund allotted came out many times too high. Funds have no focus area, so the
+        // fund total follows the organisation and year filters only; expenditure is that of the
+        // filtered projects.
         const combinedQuery = `
+        WITH Projects AS (
+            SELECT tc.csr_project_id, tc.project_value
+            FROM tbl_csr_projects tc
+            INNER JOIN mmt_organisation o ON tc.organisation_id = o.organisation_id
+            WHERE
+                (@organisationID = 0 OR tc.organisation_id = @organisationID) AND
+                (@financialYear IS NULL OR @financialYear = '' OR tc.financial_year = @financialYear) AND
+                (@focusID = 0 OR tc.csr_focus = @focusID)
+        )
         SELECT
-            COUNT(DISTINCT tc.csr_project_id) AS total_csr_projects,
-            ROUND(SUM(tcf.csr_fund_alloted_year) / 100.0, 2) AS csr_fund,
-            ROUND(SUM(tc.project_value) / 100.0, 2) AS total_project_value,
-            ROUND(
-                SUM(
-                    CASE 
-                        WHEN tce.year = tcf.financial_year
-                            AND tc.organisation_id = tcf.organisation_id
-                        THEN tce.csr_expenditure_cost
-                        ELSE 0
-                    END
-                )/ 100.0, 
-            2) AS total_expenditure
-        FROM tbl_csr_projects tc
-        LEFT JOIN tbl_csr_fund tcf ON tc.financial_year = tcf.financial_year AND tc.organisation_id = tcf.organisation_id
-        LEFT JOIN tbl_csr_expenditure tce ON tc.csr_project_id = tce.csr_project_id
-        INNER JOIN mmt_organisation o ON tc.organisation_id = o.organisation_id
-        WHERE
-            (@organisationID = 0 OR o.organisation_id = @organisationID) AND
-            (@financialYear IS NULL OR @financialYear = '' OR tc.financial_year = @financialYear) AND 
-            (@focusID = 0 OR tc.csr_focus = @focusID)
+            (SELECT COUNT(*) FROM Projects) AS total_csr_projects,
+            (SELECT ROUND(SUM(project_value) / 100.0, 2) FROM Projects) AS total_project_value,
+            (SELECT ROUND(SUM(f.csr_fund_alloted_year) / 100.0, 2)
+               FROM tbl_csr_fund f
+               INNER JOIN mmt_organisation o ON f.organisation_id = o.organisation_id
+               WHERE (@organisationID = 0 OR f.organisation_id = @organisationID)
+                 AND (@financialYear IS NULL OR @financialYear = '' OR f.financial_year = @financialYear)) AS csr_fund,
+            (SELECT ROUND(SUM(e.csr_expenditure_cost) / 100.0, 2)
+               FROM tbl_csr_expenditure e
+               INNER JOIN Projects p ON p.csr_project_id = e.csr_project_id) AS total_expenditure
         `; 
 
         const combinedResult = await request.query(combinedQuery);
@@ -1697,30 +1700,34 @@ async function getCsrFundAllocatted(req, res) {
     request.input("financialYear", financialYear);
     request.input("focusID", focusID);
 
+    // Per financial year: the fund allotted that year and the expenditure recorded in that year
+    // (as in Reports 1.1-1.3), each totalled on its own so no row is counted twice
     const sqlQuery = `
+      WITH Funds AS (
+        SELECT f.financial_year, SUM(f.csr_fund_alloted_year) AS allotted
+        FROM tbl_csr_fund f
+        INNER JOIN mmt_organisation o ON f.organisation_id = o.organisation_id
+        WHERE (@organisationID = 0 OR f.organisation_id = @organisationID)
+          AND (@financialYear IS NULL OR @financialYear = '' OR f.financial_year = @financialYear)
+        GROUP BY f.financial_year
+      ),
+      Spend AS (
+        SELECT e.year AS financial_year, SUM(e.csr_expenditure_cost) AS spent
+        FROM tbl_csr_expenditure e
+        INNER JOIN tbl_csr_projects tc ON tc.csr_project_id = e.csr_project_id
+        INNER JOIN mmt_organisation o ON tc.organisation_id = o.organisation_id
+        WHERE (@organisationID = 0 OR tc.organisation_id = @organisationID)
+          AND (@financialYear IS NULL OR @financialYear = '' OR e.year = @financialYear)
+          AND (@focusID = 0 OR tc.csr_focus = @focusID)
+        GROUP BY e.year
+      )
       SELECT
-        tcf.financial_year,
-        ROUND(SUM(tcf.csr_fund_alloted_year) / 100.0, 2) AS total_fund_allocated,
-        ROUND(
-            SUM(
-                CASE 
-                    WHEN tce.year = tcf.financial_year
-                        AND tc.organisation_id = tcf.organisation_id
-                    THEN tce.csr_expenditure_cost
-                    ELSE 0
-                END
-            ) / 100.0,
-        2) AS total_expenditure
-    FROM tbl_csr_fund tcf
-    LEFT JOIN tbl_csr_projects tc ON tcf.financial_year = tc.financial_year AND tcf.organisation_id = tc.organisation_id
-    LEFT JOIN tbl_csr_expenditure tce ON tc.csr_project_id = tce.csr_project_id
-    INNER JOIN mmt_organisation o ON tcf.organisation_id = o.organisation_id
-    WHERE
-        (@organisationID = 0 OR tcf.organisation_id = @organisationID)
-        AND (@financialYear IS NULL OR @financialYear = '' OR tcf.financial_year = @financialYear) AND
-        (@focusID = 0 OR tc.csr_focus = @focusID)
-    GROUP BY tcf.financial_year
-    ORDER BY tcf.financial_year;
+        f.financial_year,
+        ROUND(f.allotted / 100.0, 2) AS total_fund_allocated,
+        ROUND(COALESCE(s.spent, 0) / 100.0, 2) AS total_expenditure
+      FROM Funds f
+      LEFT JOIN Spend s ON s.financial_year = f.financial_year
+      ORDER BY f.financial_year;
     `;
 
     const { recordset } = await request.query(sqlQuery);
