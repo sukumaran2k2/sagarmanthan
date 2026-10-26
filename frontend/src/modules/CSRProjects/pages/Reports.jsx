@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useShallow } from 'zustand/react/shallow';
+import { Coins, Filter, ChevronDown, X, RotateCcw } from 'lucide-react';
 import ReportTable from '../../../components/ReportTable';
 import {
   fetchCsrFundYearWiseReport,
@@ -7,45 +9,15 @@ import {
   fetchCsrProjectsYearWiseSummary,
   fetchCsrProjectsOrgWiseSummary,
   fetchCsrProjectsFocusWiseSummary,
-  fetchOrganisations,
-  getUserIdFromToken
 } from '../api';
 import { FINANCIAL_YEARS, CSR_FOCUS_AREAS } from '../utils/constants';
-import { Coins, Filter, ChevronDown, X, RotateCcw } from 'lucide-react';
-import { getDataScopeCode, getSessionClaims, getSessionOrganisationId, getSessionOrganisationName } from '../../../utils/authSession';
+import { reportsFor, resolveReport } from '../utils/reports';
+import { useCsrStore } from '../store/useCsrStore';
+import { lakhToCrore } from '../utils/amounts';
+import { COMMON_TOASTS } from '../../../utils/notify';
 
-const REPORT_TITLES = {
-  'fund-year-wise-report': 'Report No.: C.S.R 1.1 - CSR Fund Year Wise Report',
-  'fund-org-wise-report': 'Report No.: C.S.R 1.2 - CSR Fund Organisation Wise Report',
-  'fund-org-trend-report': 'Report No.: C.S.R 1.3 - Organisation-wise CSR Fund Trend',
-  'projects-year-wise-summary': 'Report No.: C.S.R 1.4 - Financial Year-wise CSR Projects Summary',
-  'projects-org-wise-summary': 'Report No.: C.S.R 1.5 - Organisation-wise CSR Projects Summary',
-  'projects-focus-wise-summary': 'Report No.: C.S.R 1.6 - CSR Focus/Project Area-wise CSR Projects Summary',
-};
-
-// The 3 org-facing reports carry their own numbering (1.1/1.2/1.3) on the
-// Organisation sheet, distinct from their number on the Mopsw sheet
-// (1.3/1.4/1.6) -- same underlying report, different sheet, different
-// number, shown depending on who's viewing it.
-const REPORT_TITLES_ORG = {
-  'fund-org-trend-report': 'Report No.: C.S.R 1.1 - CSR Fund - Summary Report',
-  'projects-year-wise-summary': 'Report No.: C.S.R 1.2 - Financial Year-wise CSR Projects Summary',
-  'projects-focus-wise-summary': 'Report No.: C.S.R 1.3 - CSR Focus/Project Area-wise CSR Projects Summary',
-};
-
-const REPORT_LABELS = {
-  'fund-year-wise-report': 'CSR Fund Year Wise Report',
-  'fund-org-wise-report': 'CSR Fund Organisation Wise Report',
-  'fund-org-trend-report': 'Organisation-wise CSR Fund Trend',
-  'projects-year-wise-summary': 'Financial Year-wise CSR Projects Summary',
-  'projects-org-wise-summary': 'Organisation-wise CSR Projects Summary',
-  'projects-focus-wise-summary': 'CSR Focus/Project Area-wise CSR Projects Summary',
-};
-
-// Utilisation % color tiers, matching the scheme used in the Capex module's
-// reports (feature/capex-module, capexUtils.js getCapexStatusMeta): >100%
-// blue (above allotted), 75-100% emerald (good), 50-<75% amber (moderate),
-// <50% red (low).
+// Utilisation % colour tiers, as in the CAPEX reports: >100% blue (above allotted),
+// 75-100% emerald (good), 50-<75% amber (moderate), <50% red (low).
 const getUtilisationColor = (value) => {
   if (value == null) return '#475569';
   if (value > 100) return '#2563eb';
@@ -54,128 +26,79 @@ const getUtilisationColor = (value) => {
   return '#dc2626';
 };
 
-export default function Reports({
-  initialReportType = 'fund-year-wise-report',
-  onReportTypeChange,
-  triggerNotification
-}) {
-  const isOrgUser = useMemo(() => {
-    const scope = String(getDataScopeCode() || '').toUpperCase();
-    if (scope === 'ORGANISATION') return true;
-    if (scope === 'MINISTRY' || scope === 'MASTER') return false;
-    const claims = getSessionClaims();
-    const roleId = Number(claims?.roleId || claims?.role_id || claims?.role || 1);
-    return roleId === 6 || roleId === 7;
-  }, []);
+// How each report is fetched. The server scopes every report by the login: organisation
+// users get their own organisation, and nothing from the ministry-only reports.
+const FETCHERS = {
+  'fund-year-wise-report': () => fetchCsrFundYearWiseReport('all'),
+  'fund-org-wise-report': ({ fy }) => fetchCsrFundOrgWiseReport(fy),
+  'fund-org-trend-report': ({ org }) => fetchCsrFundOrgTrendReport(org || 'all'),
+  'projects-year-wise-summary': () => fetchCsrProjectsYearWiseSummary('all'),
+  'projects-org-wise-summary': () => fetchCsrProjectsOrgWiseSummary(),
+  'projects-focus-wise-summary': () => fetchCsrProjectsFocusWiseSummary('all'),
+};
 
-  const userOrgId = getSessionOrganisationId();
-  const userOrgName = getSessionOrganisationName();
+// Which filter a report offers: the FY reports take a year; the fund trend needs an
+// organisation (organisation users always get their own, so they have nothing to choose)
+const filterKind = (reportType, isOrgUser) => {
+  if (reportType === 'fund-org-wise-report') return 'fy';
+  if (reportType === 'fund-org-trend-report' && !isOrgUser) return 'org';
+  return null;
+};
 
-  const [reportType, setReportType] = useState(initialReportType || 'fund-year-wise-report');
+export default function Reports({ notify, triggerNotification, isOrgUser }) {
+  const { storedType, reportFY, reportOrg, organisations } = useCsrStore(useShallow((state) => ({
+    storedType: state.reportType,
+    reportFY: state.reportFY,
+    reportOrg: state.reportOrg,
+    organisations: state.organisations,
+  })));
+  const { setReportType, setReportFY, setReportOrg, resetReportFilters } = useCsrStore(useShallow((state) => ({
+    setReportType: state.setReportType,
+    setReportFY: state.setReportFY,
+    setReportOrg: state.setReportOrg,
+    resetReportFilters: state.resetReportFilters,
+  })));
+
+  const report = resolveReport(storedType, isOrgUser);
+  const reportType = report.id;
+  const filter = filterKind(reportType, isOrgUser);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
-  const [organisations, setOrganisations] = useState([]);
-  const [filterFY, setFilterFY] = useState('all');
-  const [filterOrgTrend, setFilterOrgTrend] = useState('');
-
+  // Rows tagged with the request they answer; the fund trend waits for an organisation
+  const needsOrg = filter === 'org' && !reportOrg;
+  const requestKey = JSON.stringify([reportType, reportFY, reportOrg, reloadKey]);
+  const [result, setResult] = useState(null); // { key, rows }
   useEffect(() => {
-    if (initialReportType) {
-      setReportType(initialReportType);
-      setFilterFY(initialReportType === 'fund-org-wise-report' ? FINANCIAL_YEARS[0] : 'all');
-      if (initialReportType === 'fund-org-trend-report') {
-        setFilterOrgTrend(isOrgUser && userOrgId ? String(userOrgId) : '');
-      }
-    }
-  }, [initialReportType]);
+    if (needsOrg) return undefined;
+    let cancelled = false;
+    FETCHERS[reportType]({ fy: reportFY, org: reportOrg })
+      .then((res) => {
+        if (!cancelled) setResult({ key: requestKey, rows: Array.isArray(res) ? res : [] });
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('CSR report fetch failed:', err);
+        setResult({ key: requestKey, rows: [] });
+        notify(COMMON_TOASTS.loadFailed(report.label));
+      });
+    return () => { cancelled = true; };
+  }, [requestKey, reportType, reportFY, reportOrg, needsOrg, report.label, notify]);
+  const loading = !needsOrg && result?.key !== requestKey;
+  // The server returns amounts in lakh (the *_Lakh fields); they are shown in crore, so the
+  // grid, the totals row and the exports all read the same figures
+  const reportData = useMemo(() => {
+    if (needsOrg || result?.key !== requestKey) return [];
+    return result.rows.map((row) => Object.fromEntries(Object.entries(row).map(([k, v]) => (
+      k.endsWith('_Lakh') && v != null ? [k, lakhToCrore(v)] : [k, v]
+    ))));
+  }, [needsOrg, result, requestKey]);
 
-  // Org-scoped users only see the 3 org-facing reports (1.3, 1.4, 1.6) --
-  // the other 3 (1.1, 1.2, 1.5) compare/list across all organisations,
-  // which isn't meaningful for a single-org view. Redirect if a stale or
-  // default value lands them on a hidden one.
-  const MOPSW_ONLY_REPORTS = ['fund-year-wise-report', 'fund-org-wise-report', 'projects-org-wise-summary'];
-  useEffect(() => {
-    if (isOrgUser && MOPSW_ONLY_REPORTS.includes(reportType)) {
-      handleSwitchReportType('fund-org-trend-report');
-    }
-  }, [isOrgUser, reportType]);
-
-  const handleSwitchReportType = (type) => {
-    setReportType(type);
-    onReportTypeChange?.(type);
-    setFilterFY(type === 'fund-org-wise-report' ? FINANCIAL_YEARS[0] : 'all');
-    if (type === 'fund-org-trend-report') {
-      setFilterOrgTrend(isOrgUser && userOrgId ? String(userOrgId) : '');
-    }
-  };
-
-  const hasActiveFilters = reportType === 'fund-org-trend-report' ? !!filterOrgTrend : filterFY !== 'all';
-
+  const hasActiveFilters = filter === 'fy' ? reportFY !== 'all' : filter === 'org' ? !!reportOrg : false;
   const resetFilters = () => {
-    if (reportType === 'fund-org-trend-report') {
-      setFilterOrgTrend(isOrgUser && userOrgId ? String(userOrgId) : '');
-    } else {
-      setFilterFY('all');
-    }
-    triggerNotification?.('Filters have been reset', 'info');
+    resetReportFilters();
+    notify(COMMON_TOASTS.filtersReset());
   };
-
-  const [loading, setLoading] = useState(false);
-  const [reportData, setReportData] = useState([]);
-
-  useEffect(() => {
-    fetchOrganisations()
-      .then(res => setOrganisations(Array.isArray(res) ? res : []))
-      .catch(() => setOrganisations([]));
-  }, []);
-
-  const loadReportData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const userID = getUserIdFromToken();
-      if (reportType === 'fund-year-wise-report') {
-        const res = await fetchCsrFundYearWiseReport('all', userID);
-        setReportData(Array.isArray(res) ? res : []);
-      } else if (reportType === 'fund-org-wise-report') {
-        const res = await fetchCsrFundOrgWiseReport(filterFY, userID);
-        setReportData(Array.isArray(res) ? res : []);
-      } else if (reportType === 'fund-org-trend-report') {
-        const res = await fetchCsrFundOrgTrendReport(filterOrgTrend || 'all', userID);
-        setReportData(Array.isArray(res) ? res : []);
-      } else if (reportType === 'projects-year-wise-summary') {
-        const res = await fetchCsrProjectsYearWiseSummary(isOrgUser && userOrgId ? String(userOrgId) : 'all', userID);
-        setReportData(Array.isArray(res) ? res : []);
-      } else if (reportType === 'projects-org-wise-summary') {
-        const res = await fetchCsrProjectsOrgWiseSummary(userID);
-        setReportData(Array.isArray(res) ? res : []);
-      } else if (reportType === 'projects-focus-wise-summary') {
-        const res = await fetchCsrProjectsFocusWiseSummary(isOrgUser && userOrgId ? String(userOrgId) : 'all', userID);
-        setReportData(Array.isArray(res) ? res : []);
-      }
-    } catch (err) {
-      console.warn("CSR report fetch notice:", err.message);
-      setReportData([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [reportType, filterFY, filterOrgTrend, isOrgUser, userOrgId]);
-
-  useEffect(() => {
-    loadReportData();
-  }, [loadReportData]);
-
-  // Client-side scoping: org users only ever see their own organisation's rows
-  const filteredData = useMemo(() => {
-    if (!reportData || reportData.length === 0) return [];
-    if (!isOrgUser) return reportData;
-
-    return reportData.filter(row => {
-      const rowOrgId = String(row.organisation_id || row.organisationID || row['Organisation ID'] || '');
-      const rowOrgName = String(row.Organisation_Name || row.organisation_name || '').toLowerCase();
-      if (userOrgId && rowOrgId && rowOrgId !== String(userOrgId)) return false;
-      if (userOrgName && rowOrgName && rowOrgName !== userOrgName.toLowerCase()) return false;
-      return true;
-    });
-  }, [reportData, isOrgUser, userOrgId, userOrgName]);
 
   const columns = useMemo(() => {
     // Report 1.1 - CSR Fund Year Wise Report
@@ -205,7 +128,7 @@ export default function Reports({
           cellStyle: { textAlign: 'center', fontWeight: 700, justifyContent: 'center' }
         },
         {
-          headerName: "CSR Fund Allotted (₹ Lakh)",
+          headerName: "CSR Fund Allotted (₹ Cr)",
           field: "CSR_Fund_Allotted_Lakh",
           minWidth: 200,
           flex: 1.5,
@@ -215,7 +138,7 @@ export default function Reports({
           valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-'
         },
         {
-          headerName: "Project Expenditure (₹ Lakh)",
+          headerName: "Project Expenditure (₹ Cr)",
           field: "Project_Expenditure_Lakh",
           minWidth: 200,
           flex: 1.5,
@@ -230,7 +153,7 @@ export default function Reports({
           )
         },
         {
-          headerName: "CSR Fund Balance (₹ Lakh)",
+          headerName: "CSR Fund Balance (₹ Cr)",
           field: "CSR_Fund_Balance_Lakh",
           minWidth: 200,
           flex: 1.5,
@@ -276,7 +199,7 @@ export default function Reports({
           cellStyle: { fontWeight: 700, color: '#4b2424' }
         },
         {
-          headerName: "Opening CSR Balance (₹ Lakh)",
+          headerName: "Opening CSR Balance (₹ Cr)",
           field: "Opening_CSR_Balance_Lakh",
           minWidth: 200,
           flex: 1.5,
@@ -286,7 +209,7 @@ export default function Reports({
           valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-'
         },
         {
-          headerName: "CSR Fund Allotted (₹ Lakh)",
+          headerName: "CSR Fund Allotted (₹ Cr)",
           field: "CSR_Fund_Allotted_Lakh",
           minWidth: 200,
           flex: 1.5,
@@ -296,7 +219,7 @@ export default function Reports({
           valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-'
         },
         {
-          headerName: "Project Expenditure (₹ Lakh)",
+          headerName: "Project Expenditure (₹ Cr)",
           field: "Project_Expenditure_Lakh",
           minWidth: 200,
           flex: 1.5,
@@ -311,7 +234,7 @@ export default function Reports({
           )
         },
         {
-          headerName: "CSR Fund Balance (₹ Lakh)",
+          headerName: "CSR Fund Balance (₹ Cr)",
           field: "CSR_Fund_Balance_Lakh",
           minWidth: 200,
           flex: 1.5,
@@ -356,7 +279,7 @@ export default function Reports({
           cellStyle: { fontWeight: 700, color: '#4b2424' }
         },
         {
-          headerName: "CSR Fund Allotted (₹ Lakh)",
+          headerName: "CSR Fund Allotted (₹ Cr)",
           field: "CSR_Fund_Allotted_Lakh",
           minWidth: 200,
           flex: 1.5,
@@ -366,7 +289,7 @@ export default function Reports({
           valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-'
         },
         {
-          headerName: "Project Expenditure (₹ Lakh)",
+          headerName: "Project Expenditure (₹ Cr)",
           field: "Project_Expenditure_Lakh",
           minWidth: 200,
           flex: 1.5,
@@ -381,7 +304,7 @@ export default function Reports({
           )
         },
         {
-          headerName: "CSR Fund Balance (₹ Lakh)",
+          headerName: "CSR Fund Balance (₹ Cr)",
           field: "CSR_Fund_Balance_Lakh",
           minWidth: 200,
           flex: 1.5,
@@ -434,7 +357,7 @@ export default function Reports({
           cellStyle: { textAlign: 'center', fontWeight: 800, color: '#4b2424', justifyContent: 'center' }
         },
         {
-          headerName: "CSR Fund Allotted (₹ Lakh)",
+          headerName: "CSR Fund Allotted (₹ Cr)",
           field: "CSR_Fund_Allotted_Lakh",
           minWidth: 200,
           flex: 1.5,
@@ -592,7 +515,7 @@ export default function Reports({
           cellStyle: { textAlign: 'center', fontWeight: 800, color: '#4b2424', justifyContent: 'center' }
         },
         {
-          headerName: "CSR Fund Allotted (₹ Lakh)",
+          headerName: "CSR Fund Allotted (₹ Cr)",
           field: "CSR_Fund_Allotted_Lakh",
           minWidth: 200,
           flex: 1.5,
@@ -650,12 +573,12 @@ export default function Reports({
   }, [reportType]);
 
   const pinnedBottomRowData = useMemo(() => {
-    if (!filteredData || filteredData.length === 0) return undefined;
+    if (!reportData || reportData.length === 0) return undefined;
 
     if (reportType === 'fund-year-wise-report') {
-      const totalAllotted = filteredData.reduce((acc, r) => acc + (Number(r.CSR_Fund_Allotted_Lakh) || 0), 0);
-      const totalExp = filteredData.reduce((acc, r) => acc + (Number(r.Project_Expenditure_Lakh) || 0), 0);
-      const totalBal = filteredData.reduce((acc, r) => acc + (Number(r.CSR_Fund_Balance_Lakh) || 0), 0);
+      const totalAllotted = reportData.reduce((acc, r) => acc + (Number(r.CSR_Fund_Allotted_Lakh) || 0), 0);
+      const totalExp = reportData.reduce((acc, r) => acc + (Number(r.Project_Expenditure_Lakh) || 0), 0);
+      const totalBal = reportData.reduce((acc, r) => acc + (Number(r.CSR_Fund_Balance_Lakh) || 0), 0);
       return [{
         'S No': 'Total',
         Financial_Year: '',
@@ -668,10 +591,10 @@ export default function Reports({
     }
 
     if (reportType === 'fund-org-wise-report') {
-      const totalOpening = filteredData.reduce((acc, r) => acc + (Number(r.Opening_CSR_Balance_Lakh) || 0), 0);
-      const totalAllotted = filteredData.reduce((acc, r) => acc + (Number(r.CSR_Fund_Allotted_Lakh) || 0), 0);
-      const totalExp = filteredData.reduce((acc, r) => acc + (Number(r.Project_Expenditure_Lakh) || 0), 0);
-      const totalBal = filteredData.reduce((acc, r) => acc + (Number(r.CSR_Fund_Balance_Lakh) || 0), 0);
+      const totalOpening = reportData.reduce((acc, r) => acc + (Number(r.Opening_CSR_Balance_Lakh) || 0), 0);
+      const totalAllotted = reportData.reduce((acc, r) => acc + (Number(r.CSR_Fund_Allotted_Lakh) || 0), 0);
+      const totalExp = reportData.reduce((acc, r) => acc + (Number(r.Project_Expenditure_Lakh) || 0), 0);
+      const totalBal = reportData.reduce((acc, r) => acc + (Number(r.CSR_Fund_Balance_Lakh) || 0), 0);
       return [{
         'S No': 'Total',
         Organisation_Name: '',
@@ -684,9 +607,9 @@ export default function Reports({
     }
 
     if (reportType === 'fund-org-trend-report') {
-      const totalAllotted = filteredData.reduce((acc, r) => acc + (Number(r.CSR_Fund_Allotted_Lakh) || 0), 0);
-      const totalExp = filteredData.reduce((acc, r) => acc + (Number(r.Project_Expenditure_Lakh) || 0), 0);
-      const totalBal = filteredData.reduce((acc, r) => acc + (Number(r.CSR_Fund_Balance_Lakh) || 0), 0);
+      const totalAllotted = reportData.reduce((acc, r) => acc + (Number(r.CSR_Fund_Allotted_Lakh) || 0), 0);
+      const totalExp = reportData.reduce((acc, r) => acc + (Number(r.Project_Expenditure_Lakh) || 0), 0);
+      const totalBal = reportData.reduce((acc, r) => acc + (Number(r.CSR_Fund_Balance_Lakh) || 0), 0);
       return [{
         'S No': 'Total',
         Financial_Year: '',
@@ -701,12 +624,12 @@ export default function Reports({
       return [{
         'S No': 'Total',
         Financial_Year: '',
-        Total_CSR_Projects: filteredData.reduce((acc, r) => acc + (Number(r.Total_CSR_Projects) || 0), 0),
-        CSR_Fund_Allotted_Lakh: filteredData.reduce((acc, r) => acc + (Number(r.CSR_Fund_Allotted_Lakh) || 0), 0),
-        Approved_By_Board: filteredData.reduce((acc, r) => acc + (Number(r.Approved_By_Board) || 0), 0),
-        Yet_to_Start: filteredData.reduce((acc, r) => acc + (Number(r.Yet_to_Start) || 0), 0),
-        Under_Implementation: filteredData.reduce((acc, r) => acc + (Number(r.Under_Implementation) || 0), 0),
-        Completed: filteredData.reduce((acc, r) => acc + (Number(r.Completed) || 0), 0),
+        Total_CSR_Projects: reportData.reduce((acc, r) => acc + (Number(r.Total_CSR_Projects) || 0), 0),
+        CSR_Fund_Allotted_Lakh: reportData.reduce((acc, r) => acc + (Number(r.CSR_Fund_Allotted_Lakh) || 0), 0),
+        Approved_By_Board: reportData.reduce((acc, r) => acc + (Number(r.Approved_By_Board) || 0), 0),
+        Yet_to_Start: reportData.reduce((acc, r) => acc + (Number(r.Yet_to_Start) || 0), 0),
+        Under_Implementation: reportData.reduce((acc, r) => acc + (Number(r.Under_Implementation) || 0), 0),
+        Completed: reportData.reduce((acc, r) => acc + (Number(r.Completed) || 0), 0),
       }];
     }
 
@@ -714,11 +637,11 @@ export default function Reports({
       return [{
         'S No': 'Total',
         Organisation_Name: '',
-        Total_CSR_Projects: filteredData.reduce((acc, r) => acc + (Number(r.Total_CSR_Projects) || 0), 0),
-        Approved_By_Board: filteredData.reduce((acc, r) => acc + (Number(r.Approved_By_Board) || 0), 0),
-        Yet_to_Start: filteredData.reduce((acc, r) => acc + (Number(r.Yet_to_Start) || 0), 0),
-        Under_Implementation: filteredData.reduce((acc, r) => acc + (Number(r.Under_Implementation) || 0), 0),
-        Completed: filteredData.reduce((acc, r) => acc + (Number(r.Completed) || 0), 0),
+        Total_CSR_Projects: reportData.reduce((acc, r) => acc + (Number(r.Total_CSR_Projects) || 0), 0),
+        Approved_By_Board: reportData.reduce((acc, r) => acc + (Number(r.Approved_By_Board) || 0), 0),
+        Yet_to_Start: reportData.reduce((acc, r) => acc + (Number(r.Yet_to_Start) || 0), 0),
+        Under_Implementation: reportData.reduce((acc, r) => acc + (Number(r.Under_Implementation) || 0), 0),
+        Completed: reportData.reduce((acc, r) => acc + (Number(r.Completed) || 0), 0),
       }];
     }
 
@@ -726,25 +649,25 @@ export default function Reports({
       return [{
         'S No': 'Total',
         CSR_Focus: '',
-        Total_CSR_Projects: filteredData.reduce((acc, r) => acc + (Number(r.Total_CSR_Projects) || 0), 0),
-        CSR_Fund_Allotted_Lakh: filteredData.reduce((acc, r) => acc + (Number(r.CSR_Fund_Allotted_Lakh) || 0), 0),
-        Approved_By_Board: filteredData.reduce((acc, r) => acc + (Number(r.Approved_By_Board) || 0), 0),
-        Yet_to_Start: filteredData.reduce((acc, r) => acc + (Number(r.Yet_to_Start) || 0), 0),
-        Under_Implementation: filteredData.reduce((acc, r) => acc + (Number(r.Under_Implementation) || 0), 0),
-        Completed: filteredData.reduce((acc, r) => acc + (Number(r.Completed) || 0), 0),
+        Total_CSR_Projects: reportData.reduce((acc, r) => acc + (Number(r.Total_CSR_Projects) || 0), 0),
+        CSR_Fund_Allotted_Lakh: reportData.reduce((acc, r) => acc + (Number(r.CSR_Fund_Allotted_Lakh) || 0), 0),
+        Approved_By_Board: reportData.reduce((acc, r) => acc + (Number(r.Approved_By_Board) || 0), 0),
+        Yet_to_Start: reportData.reduce((acc, r) => acc + (Number(r.Yet_to_Start) || 0), 0),
+        Under_Implementation: reportData.reduce((acc, r) => acc + (Number(r.Under_Implementation) || 0), 0),
+        Completed: reportData.reduce((acc, r) => acc + (Number(r.Completed) || 0), 0),
       }];
     }
 
     return undefined;
-  }, [filteredData, reportType]);
+  }, [reportData, reportType]);
 
   const defaultColDef = useMemo(() => ({ sortable: true, filter: true, resizable: true }), []);
 
-  const toolbarExtra = (reportType === 'projects-year-wise-summary' || reportType === 'projects-org-wise-summary' || reportType === 'projects-focus-wise-summary' || (reportType === 'fund-org-trend-report' && isOrgUser)) ? null : (
+  const toolbarExtra = filter && (
     <div className="flex items-center gap-2">
       <button
         type="button"
-        onClick={() => setShowFilterPanel(prev => !prev)}
+        onClick={() => setShowFilterPanel((open) => !open)}
         className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-[9px] text-[13px] font-semibold border transition cursor-pointer ${
           showFilterPanel || hasActiveFilters
             ? 'bg-[#f7f3f3] border-[#4b2424] text-[#4b2424] dark:bg-amber-950/50 dark:border-amber-700 dark:text-amber-300'
@@ -772,14 +695,12 @@ export default function Reports({
     </div>
   );
 
-  const filterPanel = (showFilterPanel && reportType !== 'projects-year-wise-summary' && reportType !== 'projects-org-wise-summary' && reportType !== 'projects-focus-wise-summary' && !(reportType === 'fund-org-trend-report' && isOrgUser)) ? (
+  const filterPanel = filter && showFilterPanel ? (
     <div className="space-y-3 select-none">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <Filter className="h-3.5 w-3.5 text-[#4b2424] dark:text-amber-400" />
-          <span className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
-            {`Filter ${REPORT_LABELS[reportType] || ''}`}
-          </span>
+          <span className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">Filter {report.label}</span>
         </div>
         {hasActiveFilters && (
           <button type="button" onClick={resetFilters} className="text-xs font-bold text-rose-600 hover:text-rose-700 dark:text-rose-400 flex items-center space-x-1 cursor-pointer">
@@ -788,37 +709,21 @@ export default function Reports({
           </button>
         )}
       </div>
-
       <div className="max-w-md">
-        {reportType === 'fund-org-trend-report' ? (
+        {filter === 'org' ? (
           <div>
-            <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-              Organisation
-            </label>
-            <select
-              value={filterOrgTrend}
-              onChange={e => setFilterOrgTrend(e.target.value)}
-              disabled={isOrgUser}
-              className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl font-semibold text-slate-800 dark:text-slate-200 focus:ring-1 focus:ring-amber-500 focus:outline-none cursor-pointer disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:cursor-not-allowed"
-            >
+            <label className="module-form-label">Organisation</label>
+            <select value={reportOrg} onChange={(e) => setReportOrg(e.target.value)} className="module-form-select">
               <option value="">-- Select an Organisation --</option>
-              {organisations.map(o => (
-                <option key={o.organisation_id} value={o.organisation_id}>{o.organisation_name}</option>
-              ))}
+              {organisations.map((o) => <option key={o.organisation_id} value={o.organisation_id}>{o.organisation_name}</option>)}
             </select>
           </div>
         ) : (
           <div>
-            <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Financial Year</label>
-            <select
-              value={filterFY}
-              onChange={e => setFilterFY(e.target.value)}
-              className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl font-semibold text-slate-800 dark:text-slate-200 focus:ring-1 focus:ring-amber-500 focus:outline-none cursor-pointer"
-            >
+            <label className="module-form-label">Financial Year</label>
+            <select value={reportFY} onChange={(e) => setReportFY(e.target.value)} className="module-form-select">
               <option value="all">Show All Financial Years</option>
-              {FINANCIAL_YEARS.map(fy => (
-                <option key={fy} value={fy}>{fy}</option>
-              ))}
+              {FINANCIAL_YEARS.map((fy) => <option key={fy} value={fy}>{fy}</option>)}
             </select>
           </div>
         )}
@@ -826,116 +731,38 @@ export default function Reports({
     </div>
   ) : null;
 
-  const currentReportTitle = (isOrgUser ? REPORT_TITLES_ORG[reportType] : REPORT_TITLES[reportType]) || '';
-  const currentEyebrow = REPORT_LABELS[reportType] || '';
-
   return (
-    <div className="space-y-4 animate-fade-in text-slate-800 dark:text-slate-100">
-
-      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 select-none">
-        <div className="flex space-x-1">
-          {!isOrgUser && (
+    <div className="space-y-4">
+      <div className="module-subtabs-strip flex-wrap">
+        {reportsFor(isOrgUser).map((r) => (
           <button
+            key={r.id}
             type="button"
-            onClick={() => handleSwitchReportType('fund-year-wise-report')}
-            className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
-              reportType === 'fund-year-wise-report'
-                ? 'border-[#4b2424] text-[#4b2424] bg-[#f7f3f3] dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-400 rounded-t-lg'
-                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-            }`}
+            onClick={() => setReportType(r.id)}
+            className={`module-subtab-btn flex items-center gap-2 ${reportType === r.id ? 'active' : ''}`}
           >
             <Coins className="h-4 w-4" />
-            <span>CSR FUND YEAR WISE REPORT</span>
+            <span>{r.tab}</span>
           </button>
-          )}
-
-          {!isOrgUser && (
-          <button
-            type="button"
-            onClick={() => handleSwitchReportType('fund-org-wise-report')}
-            className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
-              reportType === 'fund-org-wise-report'
-                ? 'border-[#4b2424] text-[#4b2424] bg-[#f7f3f3] dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-400 rounded-t-lg'
-                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-            }`}
-          >
-            <Coins className="h-4 w-4" />
-            <span>CSR FUND ORGANISATION WISE REPORT</span>
-          </button>
-          )}
-
-          <button
-            type="button"
-            onClick={() => handleSwitchReportType('fund-org-trend-report')}
-            className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
-              reportType === 'fund-org-trend-report'
-                ? 'border-[#4b2424] text-[#4b2424] bg-[#f7f3f3] dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-400 rounded-t-lg'
-                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-            }`}
-          >
-            <Coins className="h-4 w-4" />
-            <span>ORGANISATION-WISE CSR FUND TREND</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleSwitchReportType('projects-year-wise-summary')}
-            className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
-              reportType === 'projects-year-wise-summary'
-                ? 'border-[#4b2424] text-[#4b2424] bg-[#f7f3f3] dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-400 rounded-t-lg'
-                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-            }`}
-          >
-            <Coins className="h-4 w-4" />
-            <span>FINANCIAL YEAR-WISE PROJECTS SUMMARY</span>
-          </button>
-
-          {!isOrgUser && (
-          <button
-            type="button"
-            onClick={() => handleSwitchReportType('projects-org-wise-summary')}
-            className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
-              reportType === 'projects-org-wise-summary'
-                ? 'border-[#4b2424] text-[#4b2424] bg-[#f7f3f3] dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-400 rounded-t-lg'
-                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-            }`}
-          >
-            <Coins className="h-4 w-4" />
-            <span>ORGANISATION-WISE PROJECTS SUMMARY</span>
-          </button>
-          )}
-
-          <button
-            type="button"
-            onClick={() => handleSwitchReportType('projects-focus-wise-summary')}
-            className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
-              reportType === 'projects-focus-wise-summary'
-                ? 'border-[#4b2424] text-[#4b2424] bg-[#f7f3f3] dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-400 rounded-t-lg'
-                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-            }`}
-          >
-            <Coins className="h-4 w-4" />
-            <span>CSR FOCUS AREA-WISE PROJECTS SUMMARY</span>
-          </button>
-        </div>
+        ))}
       </div>
 
-      {reportType === 'fund-org-trend-report' && !filterOrgTrend && (
+      {needsOrg && (
         <div className="flex items-center gap-2.5 px-4 py-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-xl text-xs font-semibold text-amber-800 dark:text-amber-300">
           <Filter className="h-3.5 w-3.5 flex-shrink-0" />
-          <span>Select an organisation from the Filter panel above to generate this report.</span>
+          <span>Select an organisation from the Filter panel to generate this report.</span>
         </div>
       )}
 
       <ReportTable
-        title={currentReportTitle}
+        title={(isOrgUser && report.orgTitle) || report.title}
         subtitle={null}
-        eyebrow={currentEyebrow}
+        eyebrow={report.label}
         showBackButton={false}
         loading={loading}
-        onRefresh={loadReportData}
-        rawData={filteredData}
-        viewData={filteredData}
+        onRefresh={() => setReloadKey((k) => k + 1)}
+        rawData={reportData}
+        viewData={reportData}
         columns={columns}
         defaultColDef={defaultColDef}
         pinnedBottomRowData={pinnedBottomRowData}
@@ -951,23 +778,14 @@ export default function Reports({
         totalLabel="Total"
       />
 
-      {(reportType === 'fund-year-wise-report' || reportType === 'fund-org-wise-report' || reportType === 'fund-org-trend-report') && (
+      {['fund-year-wise-report', 'fund-org-wise-report', 'fund-org-trend-report'].includes(reportType) && (
         <div className="flex flex-wrap gap-3 text-[11px] text-slate-600 dark:text-slate-400 px-1">
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> 75–100% Good
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-amber-600" /> 50–&lt;75% Moderate
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-red-500" /> &lt;50% Low
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-blue-500" /> &gt;100% Above Fund Allotted
-          </span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> 75–100% Good</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-amber-600" /> 50–&lt;75% Moderate</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-red-500" /> &lt;50% Low</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-blue-500" /> &gt;100% Above Fund Allotted</span>
         </div>
       )}
-
     </div>
   );
 }
