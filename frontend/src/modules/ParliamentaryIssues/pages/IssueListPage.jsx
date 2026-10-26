@@ -1,151 +1,133 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { X } from 'lucide-react';
 import RestrictedAccess from '../../../components/RestrictedAccess';
 import IssueListTable from '../components/IssueListTable';
-import IssueForm from './IssueForm';
 import {
   deleteParliamentaryIssue,
-  fetchDivisions,
   fetchParliamentaryIssueById,
   fetchParliamentaryIssues,
-  fetchParliamentaryStages,
-  fetchWings,
 } from '../api';
 import { mapIssueListRow, mapIssueToForm } from '../utils/mapIssue';
 import { useParliamentaryPermissions } from '../hooks/useParliamentaryPermissions';
+import { useParliamentaryStore } from '../store/useParliamentaryStore';
 import { issueTypesFromStages } from '../utils/stageHelpers';
 import { getCurrentUserId } from '../../../utils/authSession';
+import { COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { PARLIAMENTARY_TOASTS } from '../toastMessages';
 
-const DEFAULT_FILTERS = {
-  wingId: 'All',
-  divisionId: 'All',
-  issueType: 'All',
-  status: 'All',
-  search: '',
-};
+const EMPTY_PAGINATION = { total: 0, page: 1, limit: 10, totalPages: 0 };
+const FILTER_KEYS = ['wingId', 'divisionId', 'issueType', 'status'];
 
 export default function IssueListPage({
   notify,
+  onEdit,
   onGoHome,
 }) {
   const permissions = useParliamentaryPermissions();
-  const [rows, setRows] = useState([]);
-  const [wings, setWings] = useState([]);
-  const [divisions, setDivisions] = useState([]);
-  const [stages, setStages] = useState([]);
-  const [issueTypeOptions, setIssueTypeOptions] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [filters, setFilters] = useState(DEFAULT_FILTERS);
-  const [category, setCategory] = useState('active');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [counts, setCounts] = useState({ active: 0, completed: 0 });
-  const [pagination, setPagination] = useState({
-    total: 0,
-    page: 1,
-    limit: 10,
-    totalPages: 0,
-  });
-  const [mode, setMode] = useState('list');
-  const [formData, setFormData] = useState(null);
+  const { canView } = permissions;
+
+  // Reference data and list state from the store, so they survive switching tabs
+  const { wings, divisions, stages } = useParliamentaryStore(useShallow((state) => ({
+    wings: state.wings, divisions: state.divisions, stages: state.stages,
+  })));
+  const {
+    category, filters, searchTerm, debouncedSearch, currentPage, pageSize, showFilterPanel, visibleCols,
+  } = useParliamentaryStore(useShallow((state) => ({
+    category: state.category,
+    filters: state.filters,
+    searchTerm: state.searchTerm,
+    debouncedSearch: state.debouncedSearch,
+    currentPage: state.currentPage,
+    pageSize: state.pageSize,
+    showFilterPanel: state.showFilterPanel,
+    visibleCols: state.visibleCols,
+  })));
+  const actions = useParliamentaryStore(useShallow((state) => ({
+    setSearchTerm: state.setSearchTerm,
+    setDebouncedSearch: state.setDebouncedSearch,
+    setFilters: state.setFilters,
+    resetFilters: state.resetFilters,
+    setCategory: state.setCategory,
+    setCurrentPage: state.setCurrentPage,
+    setPageSize: state.setPageSize,
+    setShowFilterPanel: state.setShowFilterPanel,
+    setVisibleCols: state.setVisibleCols,
+  })));
+  const issueTypeOptions = useMemo(() => issueTypesFromStages(stages), [stages]);
+
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
-  const [debouncedSearch, setDebouncedSearch] = useState('');
 
+  // Search applies 300 ms after the user stops typing (and then returns to page 1)
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(filters.search), 300);
+    const timer = setTimeout(() => actions.setDebouncedSearch(searchTerm), 300);
     return () => clearTimeout(timer);
-  }, [filters.search]);
+  }, [searchTerm, actions]);
+
+  // Fetched rows are tagged with the request they answer; a mismatch means it is still loading.
+  // Only the latest request may update them (an older response can arrive last).
+  const [reloadKey, setReloadKey] = useState(0);
+  const [result, setResult] = useState(null);
+  // The Active / Completed totals come with each page; keep the last ones while the next loads
+  const [counts, setCounts] = useState({ active: 0, completed: 0 });
+  const latestRequestRef = useRef(0);
+  const requestKey = JSON.stringify([category, filters, debouncedSearch, currentPage, pageSize, reloadKey]);
 
   useEffect(() => {
-    setPage(1);
-  }, [debouncedSearch]);
-
-  const loadList = useCallback(async (signal) => {
-    if (!permissions.canView) return;
-    setLoading(true);
-    try {
-      const commonParams = {
-        wingId: filters.wingId,
-        divisionId: filters.divisionId,
-        issueType: filters.issueType,
-        status: filters.status,
-        search: debouncedSearch,
-      };
-
-      const listRes = await fetchParliamentaryIssues(
-        { page, limit: pageSize, category, ...commonParams },
-        { signal }
-      );
-
-      const payload = listRes?.data || {};
-      const data = Array.isArray(payload.data) ? payload.data : [];
-      setRows(data.map(mapIssueListRow));
-
-      setPagination({
-        total: Number(payload.pagination?.total) || 0,
-        page: Number(payload.pagination?.page) || page,
-        limit: Number(payload.pagination?.limit) || pageSize,
-        totalPages: Number(payload.pagination?.totalPages) || 0,
-      });
-
-      if (payload.counts) {
-        setCounts({
-          active: Number(payload.counts.active) || 0,
-          completed: Number(payload.counts.completed) || 0,
+    if (!canView) return;
+    const requestId = ++latestRequestRef.current;
+    const isStale = () => requestId !== latestRequestRef.current;
+    fetchParliamentaryIssues({ page: currentPage, limit: pageSize, category, ...filters, search: debouncedSearch })
+      .then((res) => {
+        if (isStale()) return;
+        const payload = res?.data || {};
+        const data = Array.isArray(payload.data) ? payload.data : [];
+        setResult({
+          key: requestKey,
+          rows: data.map(mapIssueListRow),
+          pagination: {
+            total: Number(payload.pagination?.total) || 0,
+            page: Number(payload.pagination?.page) || currentPage,
+            limit: Number(payload.pagination?.limit) || pageSize,
+            totalPages: Number(payload.pagination?.totalPages) || 0,
+          },
         });
-      }
-    } catch (err) {
-      if (err?.code === 'ERR_CANCELED') return;
-      console.error(err);
-      notify?.(err?.response?.data?.message || 'Failed to load parliamentary issues.', 'error');
-      setRows([]);
-    } finally {
-      if (!signal?.aborted) setLoading(false);
-    }
-  }, [
-    permissions.canView,
-    notify,
-    page,
-    pageSize,
-    category,
-    filters.wingId,
-    filters.divisionId,
-    filters.issueType,
-    filters.status,
-    debouncedSearch,
-  ]);
-
-  useEffect(() => {
-    Promise.all([fetchWings(), fetchDivisions(), fetchParliamentaryStages()])
-      .then(([wingsRes, divisionsRes, stagesRes]) => {
-        setWings(Array.isArray(wingsRes.data) ? wingsRes.data : []);
-        setDivisions(Array.isArray(divisionsRes.data) ? divisionsRes.data : []);
-        const stageRows = Array.isArray(stagesRes.data) ? stagesRes.data : [];
-        setStages(stageRows);
-        setIssueTypeOptions(issueTypesFromStages(stageRows));
+        if (payload.counts) {
+          setCounts({
+            active: Number(payload.counts.active) || 0,
+            completed: Number(payload.counts.completed) || 0,
+          });
+        }
       })
-      .catch((err) => console.error(err));
-  }, []);
+      .catch((err) => {
+        if (isStale()) return;
+        console.error('Error loading parliamentary issues:', err);
+        setResult({ key: requestKey, rows: [], pagination: { ...EMPTY_PAGINATION, limit: pageSize } });
+        notify?.(COMMON_TOASTS.loadFailed('Parliamentary issues'));
+      });
+  }, [requestKey, canView, category, filters, debouncedSearch, currentPage, pageSize, notify]);
 
+  const loading = result?.key !== requestKey;
+  const rows = result?.rows ?? [];
+  const pagination = result?.pagination ?? { ...EMPTY_PAGINATION, limit: pageSize };
+
+  // A deleted row can leave the page empty; step back so the list doesn't look blank
   useEffect(() => {
-    const controller = new AbortController();
-    loadList(controller.signal);
-    return () => controller.abort();
-  }, [loadList]);
+    if (!loading && rows.length === 0 && currentPage > 1) actions.setCurrentPage(currentPage - 1);
+  }, [loading, rows.length, currentPage, actions]);
 
-  const handleEdit = async (row) => {
-    if (!permissions.canEdit && !permissions.canView) return;
+  // Open the full issue (the list row only has summary fields) in the form
+  const handleEdit = useCallback(async (row) => {
     try {
       const res = await fetchParliamentaryIssueById(row.id);
       const record = Array.isArray(res.data) ? res.data[0] : res.data;
-      setFormData(mapIssueToForm(record));
-      setMode('form');
+      onEdit?.(mapIssueToForm(record));
     } catch (err) {
       console.error(err);
-      notify?.('Failed to load issue for edit.', 'error');
+      notify?.(PARLIAMENTARY_TOASTS.openFailed(getErrorMessage(err)));
     }
-  };
+  }, [onEdit, notify]);
 
   const handleDelete = (row) => {
     if (!permissions.canRemove) return;
@@ -162,65 +144,30 @@ export default function IssueListPage({
     setDeleting(true);
     try {
       await deleteParliamentaryIssue(deleteTarget.id, getCurrentUserId());
-      notify?.('Parliamentary issue deleted successfully.', 'success');
+      notify?.(PARLIAMENTARY_TOASTS.deleted());
       setDeleteTarget(null);
-      loadList();
+      setReloadKey((k) => k + 1);
     } catch (err) {
       console.error(err);
-      notify?.(err?.response?.data?.message || 'Failed to delete issue.', 'error');
+      notify?.(PARLIAMENTARY_TOASTS.deleteFailed(getErrorMessage(err)));
     } finally {
       setDeleting(false);
     }
   };
 
+  // The table edits filters and search as one object, as before
   const handleFiltersChange = (next) => {
-    setFilters(next);
-    if (next.search === filters.search) setPage(1);
+    if (next.search !== searchTerm) actions.setSearchTerm(next.search);
+    const changed = Object.fromEntries(FILTER_KEYS
+      .filter((k) => next[k] !== filters[k]).map((k) => [k, next[k]]));
+    if (Object.keys(changed).length) actions.setFilters(changed);
   };
 
-  const handleCategoryChange = (next) => {
-    setCategory(next);
-    setFilters((prev) => ({
-      ...prev,
-      status: 'All',
-      issueType: next === 'completed' ? 'All' : prev.issueType,
-    }));
-    setPage(1);
-  };
-
-  const handlePageSizeChange = (next) => {
-    setPageSize(next);
-    setPage(1);
-  };
-
-  if (!permissions.canView) {
+  if (!canView) {
     return (
       <RestrictedAccess
         moduleName="Parliamentary Issues"
         onGoHome={onGoHome}
-      />
-    );
-  }
-
-  if (mode === 'form') {
-    return (
-      <IssueForm
-        wings={wings}
-        divisions={divisions}
-        stages={stages}
-        issueTypeOptions={issueTypeOptions}
-        initialForm={formData}
-        readOnly={!permissions.canEdit && !!formData}
-        onBack={() => {
-          setMode('list');
-          setFormData(null);
-        }}
-        onSuccess={() => {
-          setMode('list');
-          setFormData(null);
-          loadList();
-        }}
-        notify={notify}
       />
     );
   }
@@ -237,16 +184,21 @@ export default function IssueListPage({
         canEdit={permissions.canEdit}
         canView={permissions.canView}
         canDelete={permissions.canRemove}
-        filters={filters}
+        filters={{ ...filters, search: searchTerm }}
         onFiltersChange={handleFiltersChange}
+        onResetFilters={actions.resetFilters}
         category={category}
-        onCategoryChange={handleCategoryChange}
+        onCategoryChange={actions.setCategory}
         counts={counts}
-        page={page}
+        page={currentPage}
         pageSize={pageSize}
         pagination={pagination}
-        onPageChange={setPage}
-        onPageSizeChange={handlePageSizeChange}
+        onPageChange={actions.setCurrentPage}
+        onPageSizeChange={actions.setPageSize}
+        showFilterPanel={showFilterPanel}
+        onShowFilterPanelChange={actions.setShowFilterPanel}
+        visibleCols={visibleCols}
+        onVisibleColsChange={actions.setVisibleCols}
         onEdit={handleEdit}
         onDelete={handleDelete}
         notify={notify}

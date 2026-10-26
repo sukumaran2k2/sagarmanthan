@@ -21,13 +21,14 @@ import {
   fetchMatterWingDetail,
   fetchMatterWingDivisionReport,
   fetchMatterWingWiseReport,
-  fetchParliamentaryStages,
   fetchPscDivisionDetail,
   fetchPscDivisionWiseReport,
   fetchPscWingDetail,
   fetchPscWingDivisionReport,
   fetchPscWingWiseReport,
 } from '../api';
+import { useParliamentaryStore } from '../store/useParliamentaryStore';
+import { COMMON_TOASTS } from '../../../utils/notify';
 
 const WING_FIELDS = new Set(['Wing Id', 'Wing ID', 'Wing Name', 'Wing']);
 const DIVISION_FIELDS = new Set(['Division Id', 'Division ID', 'Division Name', 'Division']);
@@ -149,83 +150,82 @@ function flattenColumns(cols = []) {
   return cols.flatMap((col) => (col.children ? flattenColumns(col.children) : [col]));
 }
 
-export default function ParliamentaryIssuesReports({ notify }) {
-  const [stages, setStages] = useState([]);
-  const [reportTabs, setReportTabs] = useState([]);
-  const [activeTabId, setActiveTabId] = useState(null);
-  const [reportView, setReportView] = useState('wing');
-  const [drillDownPath, setDrillDownPath] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [reportData, setReportData] = useState([]);
-  const [reportCols, setReportCols] = useState([]);
+// `notify` takes the standard toasts; ReportTable still calls the plain triggerNotification
+export default function ParliamentaryIssuesReports({ notify, triggerNotification }) {
+  // Stages come from the module store (loaded once by the shell); the tab and view choices are kept there too
+  const stages = useParliamentaryStore((state) => state.stages);
+  const reportView = useParliamentaryStore((state) => state.reportView);
+  const setReportView = useParliamentaryStore((state) => state.setReportView);
+  const activeTabId = useParliamentaryStore((state) => state.reportTabId);
+  const setActiveTabId = useParliamentaryStore((state) => state.setReportTabId);
 
-  useEffect(() => {
-    fetchParliamentaryStages()
-      .then((res) => {
-        const stageRows = Array.isArray(res.data) ? res.data : [];
-        setStages(stageRows);
-        const tabs = tabsFromStages(stageRows);
-        setReportTabs(tabs);
-        if (tabs.length) {
-          setActiveTabId(tabs[0].id);
-          setDrillDownPath([buildRootView(tabs[0])]);
-        }
-      })
-      .catch((err) => {
-        console.error(err);
-        notify?.('Failed to load parliamentary stages.', 'error');
-      });
-  }, [notify]);
-
+  const reportTabs = useMemo(() => tabsFromStages(stages), [stages]);
   const activeTab =
     reportTabs.find((t) => t.id === activeTabId) || reportTabs[0] || null;
+  const rootView = useMemo(() => (activeTab ? buildRootView(activeTab) : null), [activeTab]);
+
+  // Drill-down steps below the tab's summary; they belong to the tab they were opened in,
+  // so switching tab starts again from its summary
+  const [drill, setDrill] = useState({ tabId: null, steps: [] });
+  const drillDownPath = useMemo(() => {
+    if (!rootView) return [];
+    return [rootView, ...(drill.tabId === activeTab.id ? drill.steps : [])];
+  }, [rootView, drill, activeTab]);
+  const setDrillDownPath = useCallback((updater) => {
+    if (!rootView) return;
+    setDrill((prev) => {
+      const path = [rootView, ...(prev.tabId === activeTab.id ? prev.steps : [])];
+      const next = typeof updater === 'function' ? updater(path) : updater;
+      return { tabId: activeTab.id, steps: next.slice(1) };
+    });
+  }, [rootView, activeTab]);
+
   const currentView = drillDownPath[drillDownPath.length - 1];
   const isSummary = currentView?.type === 'summary';
-
-  useEffect(() => {
-    if (!activeTab) return;
-    setDrillDownPath([buildRootView(activeTab)]);
-  }, [activeTab?.id]);
 
   const stageMap = useMemo(() => {
     if (!activeTab) return {};
     return buildDrilldownStageMap(stages, activeTab.issueType);
   }, [stages, activeTab]);
 
-  const fetchReportData = useCallback(async () => {
+  // The result is tagged with the view, report view and reload it answers; a mismatch means
+  // it is still loading, and a late answer for an earlier view is ignored
+  const [reloadKey, setReloadKey] = useState(0);
+  const [result, setResult] = useState(null);
+  useEffect(() => {
     const fetcher =
       currentView?.type === 'summary' && activeTab
         ? summaryFetcher(activeTab, reportView)
         : currentView?.fetcher;
     if (!fetcher) return;
-    setLoading(true);
-    try {
-      const response = await fetcher();
-      const payload = response.data || {};
-      if (Array.isArray(payload)) {
-        setReportData(stripTimesFromReportRows(payload));
-        setReportCols(
-          payload[0]
-            ? Object.keys(payload[0]).map((key) => ({ headerName: key, field: key }))
-            : []
-        );
-      } else {
-        setReportData(stripTimesFromReportRows(payload.rowData || []));
-        setReportCols(payload.columnDefs || []);
-      }
-    } catch (err) {
-      console.error(err);
-      notify?.(err?.response?.data?.message || 'Failed to load report.', 'error');
-      setReportData([]);
-      setReportCols([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [activeTab, currentView, notify, reportView]);
+    let cancelled = false;
+    const tag = { view: currentView, reportView, reloadKey };
+    fetcher()
+      .then((response) => {
+        if (cancelled) return;
+        const payload = response.data || {};
+        if (Array.isArray(payload)) {
+          setResult({
+            ...tag,
+            data: stripTimesFromReportRows(payload),
+            cols: payload[0] ? Object.keys(payload[0]).map((key) => ({ headerName: key, field: key })) : [],
+          });
+        } else {
+          setResult({ ...tag, data: stripTimesFromReportRows(payload.rowData || []), cols: payload.columnDefs || [] });
+        }
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error(err);
+        notify?.(COMMON_TOASTS.loadFailed('The report'));
+        setResult({ ...tag, data: [], cols: [] });
+      });
+    return () => { cancelled = true; };
+  }, [activeTab, currentView, reportView, reloadKey, notify]);
 
-  useEffect(() => {
-    fetchReportData();
-  }, [fetchReportData]);
+  const loading = !result || result.view !== currentView || result.reportView !== reportView || result.reloadKey !== reloadKey;
+  const reportData = useMemo(() => (loading ? [] : result.data), [loading, result]);
+  const reportCols = useMemo(() => (loading ? [] : result.cols), [loading, result]);
 
   const viewData = useMemo(() => {
     if (!isSummary) return reportData;
@@ -248,8 +248,8 @@ export default function ParliamentaryIssuesReports({ notify }) {
     return reportData.map((row, idx) => ({ ...row, 'S No': idx + 1 }));
   }, [isSummary, reportData, reportView]);
 
-  const mapColumnRenderers = useCallback(
-    (cols) =>
+  const columns = useMemo(() => {
+    const mapColumnRenderers = (cols) =>
       cols.map((col) => {
         if (col.children) {
           return { ...col, children: mapColumnRenderers(col.children) };
@@ -414,11 +414,8 @@ export default function ParliamentaryIssuesReports({ notify }) {
             });
           },
         };
-      }),
-    [currentView, stageMap, isSummary, reportView]
-  );
+      });
 
-  const columns = useMemo(() => {
     const mapped = mapColumnRenderers(reportCols);
     const isSerial = (col) => {
       const field = col.field || '';
@@ -480,32 +477,33 @@ export default function ParliamentaryIssuesReports({ notify }) {
       return col;
     });
     return [...serial, ...rest];
-  }, [mapColumnRenderers, reportCols, isSummary, reportView]);
+  }, [currentView, stageMap, reportCols, isSummary, reportView, setDrillDownPath]);
 
   const reportTitle = isSummary
     ? form82Title(abstractLevel(reportView), currentView?.family, currentView?.issueType)
     : currentView?.title;
 
+  const { wingName, divisionName } = currentView || {};
   const reportSubtitle = useMemo(() => {
     const asOn = formatAsOnDate();
     const month = formatReportMonth();
     return (
       <>
-        {currentView?.wingName && (
+        {wingName && (
           <>
             <span>
               For Wing:{' '}
-              <strong className="text-[#4b2424] dark:text-[#eadede]">{currentView.wingName}</strong>
+              <strong className="text-[#4b2424] dark:text-[#eadede]">{wingName}</strong>
             </span>
             <span className="text-[#eadede] dark:text-slate-600">•</span>
           </>
         )}
-        {currentView?.divisionName && (
+        {divisionName && (
           <>
             <span>
               For Division:{' '}
               <strong className="text-[#4b2424] dark:text-[#eadede]">
-                {currentView.divisionName}
+                {divisionName}
               </strong>
             </span>
             <span className="text-[#eadede] dark:text-slate-600">•</span>
@@ -522,7 +520,7 @@ export default function ParliamentaryIssuesReports({ notify }) {
         </span>
       </>
     );
-  }, [currentView?.wingName, currentView?.divisionName]);
+  }, [wingName, divisionName]);
 
   const reportViewSelect = isSummary ? (
     <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-50/90 via-indigo-50/80 to-blue-50/90 dark:from-slate-900 dark:via-indigo-950/40 dark:to-slate-900 border-2 border-indigo-400/60 dark:border-indigo-500/60 text-xs shadow-sm">
@@ -552,7 +550,7 @@ export default function ParliamentaryIssuesReports({ notify }) {
 
   if (!activeTab || !currentView) {
     return (
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 text-sm text-slate-500 dark:text-slate-400">
+      <div className="module-card text-sm text-slate-500 dark:text-slate-400">
         Loading report masters…
       </div>
     );
@@ -567,7 +565,7 @@ export default function ParliamentaryIssuesReports({ notify }) {
             type="button"
             onClick={() => setActiveTabId(tab.id)}
             className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-              activeTabId === tab.id
+              activeTab?.id === tab.id
                 ? 'border-[#4b2424] text-[#4b2424] dark:border-[#eadede] dark:text-[#eadede] bg-[#f7f3f3] dark:bg-slate-800 rounded-t-lg'
                 : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
             }`}
@@ -588,8 +586,8 @@ export default function ParliamentaryIssuesReports({ notify }) {
           viewData={viewData}
           columns={columns}
           loading={loading}
-          onRefresh={fetchReportData}
-          triggerNotification={notify}
+          onRefresh={() => setReloadKey((k) => k + 1)}
+          triggerNotification={triggerNotification}
           pagination
           brandColor="#4b2424"
           brandColorHover="#6b3535"
