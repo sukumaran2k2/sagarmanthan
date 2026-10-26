@@ -8,7 +8,12 @@ import { fileURLToPath } from 'url';
 import { CONNREFUSED } from 'dns';
 import { count } from 'console';
 import { addLastUpdatedDate, addContractPhysicalProgress } from "./lastUpdatedDate.js";
-import { addLastUpdatedStagePP } from "./lastUpdatedStage.js";
+import {
+    loadStageSnapshot,
+    getGateRemovalBlockMessage,
+    syncProjectStage,
+    STAGE_GATE_LOCKED,
+} from "./projectStage.js";
 
 async function utProjectDatesAction(req, res) 
 {
@@ -39,7 +44,6 @@ async function utProjectDatesAction(req, res)
     let workAwardedActualDate = req.body.workAwardedActualDate;
     let contractSignedPlannedDate = req.body.contractSignedPlannedDate;
     let contractSignedActualDate = req.body.contractSignedActualDate;
-    // let projectStageID = req.body.projectStageID;
 
     if (techSanctionPlannedDate == "") {
         techSanctionPlannedDate = null;
@@ -89,7 +93,6 @@ async function utProjectDatesAction(req, res)
     if (contractSignedActualDate == "") {
         contractSignedActualDate = null;
     }
-    // console.log(techSanctionPlannedDate, "2")
 
     if(onNominationBasisAwarded == 1)
     {
@@ -110,8 +113,6 @@ async function utProjectDatesAction(req, res)
         }
     }
 
-    // console.log(techSanctionPlannedDate, "3")
-    
     const conn = await pool;
     const request = conn.request();
     request.input("projectID", projectID);
@@ -145,10 +146,18 @@ async function utProjectDatesAction(req, res)
     request.input("workAwardedActualDate", workAwardedActualDate);
     request.input("contractSignedPlannedDate", contractSignedPlannedDate);
     request.input("contractSignedActualDate", contractSignedActualDate);
-    // request.input("projectStageID", projectStageID);
     request.input("userID", userID);
     
     try {
+        const before = await loadStageSnapshot(projectID, subProjectID);
+        const blockMessage = getGateRemovalBlockMessage(before, {
+            ...before,
+            contractSignedDate: contractSignedActualDate,
+        });
+        if (blockMessage) {
+            return res.status(409).json({ message: blockMessage, error: STAGE_GATE_LOCKED });
+        }
+
         let isTechExists, lastUpdatedStatus;
         if (subProjectID == -1) {
             isTechExists = await request.query(`SELECT project_id FROM tbl_project_date WHERE project_id = @projectID AND sub_stage_id = 3;`);
@@ -157,7 +166,6 @@ async function utProjectDatesAction(req, res)
             isTechExists = await request.query(`SELECT sub_project_id FROM tbl_project_date WHERE sub_project_id = @subProjectID AND sub_stage_id = 3;`);
         }
         if (isTechExists.recordset.length > 0) {
-            // console.log("update")
             if (subProjectID == -1) {
                 const result = await request.query(`UPDATE tbl_project_date SET not_applicable_date = @isTechSancNotApplicable, planned_date = @techSanctionPlannedDate, 
                 actual_date = @techSanctionActualDate WHERE project_id = @projectID AND sub_stage_id = 3`);
@@ -173,7 +181,6 @@ async function utProjectDatesAction(req, res)
 
         }
         else {
-            // console.log("insert")  
             const result = await request.query(`INSERT INTO tbl_project_date (project_id, sub_project_id, sub_stage_id, not_applicable_date,
                 planned_date, actual_date)
                 VALUES (@projectID, @subProjectID, 3, @isTechSancNotApplicable, @techSanctionPlannedDate, @techSanctionActualDate)`);
@@ -400,80 +407,22 @@ async function utProjectDatesAction(req, res)
             addContractPhysicalProgress(projectID, subProjectID, userID, req, res);
         }
 
-        // if (subProjectID == -1) {
-        //     // console.log("utStageId", projectStageID);
-        //     const result = await request.query(`UPDATE tbl_project SET project_stage_id = @projectStageID WHERE project_id = @projectID;`);
-        // }
-        // else {
-        //     const result = await request.query(`UPDATE tbl_sub_project SET sub_project_stage_id = @projectStageID WHERE sub_project_id = @subProjectID;`);
-        // }
-        let awardProjectCost;
-
-        if( subProjectID == -1 ){
-
-            awardProjectCost = await request.query(`Select ISNULL(tbl_sub_project.sub_award_project_cost,tbl_project.award_project_cost)
-        FROM 
-            tbl_project
-        LEFT JOIN 
-            tbl_sub_project ON tbl_sub_project.project_id = tbl_project.project_id
-        WHERE 
-            tbl_project.project_id = @projectID`);
-
-        } else {
-            awardProjectCost = await request.query(`Select ISNULL(tbl_sub_project.sub_award_project_cost,tbl_project.award_project_cost)
-        FROM 
-            tbl_project
-        LEFT JOIN 
-            tbl_sub_project ON tbl_sub_project.project_id = tbl_project.project_id
-        WHERE 
-            tbl_sub_project.project_id = @projectID AND tbl_sub_project.sub_project_id = @subProjectID;`);
-        }
-
-        if( awardProjectCost == ""){
-            awardProjectCost = null;
-        }
-
-        if (
-            contractSignedActualDate !== null &&
-            awardProjectCost !== null 
-        ) {
-            const lastUpdatedStage = await addLastUpdatedStagePP(projectID, subProjectID, req, res);
-        }
-
-        // if (
-        //     techSanctionPlannedDate !== null ||
-        //     techSanctionActualDate !== null ||
-        //     tenderDocumentPlannedDate !== null ||
-        //     tenderDocumentActualDate !== null ||
-        //     tenderNoticePlannedDate !== null ||
-        //     tenderNoticeActualDate !== null ||
-        //     techEvalPlannedDate !== null ||
-        //     techEvalActualDate !== null ||
-        //     finEvalPlannedDate !== null ||
-        //     finEvalActualDate !== null ||
-        //     sanctCompetentAuthPlannedDate !== null ||
-        //     sanctCompetentAuthActualDate !== null ||
-        //     workAwardedPlannedDate !== null ||
-        //     workAwardedActualDate !== null ||
-        //     contractSignedPlannedDate !== null ||
-        //     contractSignedActualDate !== null
-        // ) {
-        //     const lastUpdatedStage = await addLastUpdatedStageUT(projectID, subProjectID, req, res);
-        // }
-
+        await syncProjectStage(projectID, subProjectID, before);
 
         res.sendStatus(lastUpdatedStatus);
     }
     catch (err) {
         console.log(err);
-        return res.sendStatus(500);
+        return res.status(500).json({
+            message: err?.message || 'Unable to save under tendering stage details.',
+            error: 'UNDER_TENDERING_SAVE_FAILED',
+        });
     }
 };
 
 async function getDisplayUtProjectDates(req, res) {
     const projectID = req.params.projectID;
     const subProjectID = req.params.subProjectID;
-    // console.log("projectdatesui", projectID)
 
     const conn = await pool;
     const request = conn.request();
@@ -495,7 +444,10 @@ async function getDisplayUtProjectDates(req, res) {
     }
     catch (err) {
         console.log(err);
-        return res.sendStatus(500);
+        return res.status(500).json({
+            message: err?.message || 'Unable to save under tendering cost and calls details.',
+            error: 'UNDER_TENDERING_COST_SAVE_FAILED',
+        });
     }
 };
 
@@ -522,9 +474,7 @@ async function getRevisionHistory(req, res) {
             where sub_project_id = @subProjectID AND sub_stage_id = @projectSubStageID order by revised_on DESC`);
         }
 
-        // res.sendStatus(200);  
         res.json(result.recordset);
-        // console.log(result.recordset.length)  
     }
     catch (err) {
         console.log(err);
@@ -543,7 +493,6 @@ async function addUtCostandCalls(req, res) {
     let foundationLaid = req.body.foundationLaid;
     let foundationLaidDate = req.body.foundationLaidDate;
     let foundationTentativeDate = req.body.foundationTentativeDate;
-    // let projectStageID = req.body.projectStageID;
 
     if (!awardProjectCost) {
         awardProjectCost = null;
@@ -569,15 +518,9 @@ async function addUtCostandCalls(req, res) {
     request.input("foundationLaid", foundationLaid);
     request.input("foundationLaidDate", foundationLaidDate);
     request.input("foundationTentativeDate", foundationTentativeDate);
-    // request.input("projectStageID", projectStageID);
-
-    // console.log("techSanctionCost", techSanctionCost)
-    // console.log("awardProjectCost", awardProjectCost)
-    // console.log("projectStageID",projectStageID) 
 
     let awardedCostQuery;
     if (subProjectID == -1) {
-        // console.log("projectStageID",projectStageID) 
 
         awardedCostQuery = (` UPDATE tbl_project SET 
             technical_sanction_cost = @techSanctionCost,award_project_cost = @awardProjectCost, on_nomination_basis = @onNominationBasisAwarded,
@@ -593,7 +536,14 @@ async function addUtCostandCalls(req, res) {
         WHERE sub_project_id = @subProjectID ` )
     }
     try {
-        const result = await request.query(awardedCostQuery);
+        const before = await loadStageSnapshot(projectID, subProjectID);
+        const blockMessage = getGateRemovalBlockMessage(before, { ...before, awardCost: awardProjectCost });
+        if (blockMessage) {
+            return res.status(409).json({ message: blockMessage, error: STAGE_GATE_LOCKED });
+        }
+
+        await request.query(awardedCostQuery);
+        await syncProjectStage(projectID, subProjectID, before);
 
         res.sendStatus(200);
     }
@@ -661,7 +611,6 @@ async function checkProjectStageID(req, res) {
         }
         const result1 = await request.query(checkProStageId)
 
-        // res.json(result.recordset);
         res.json({ result1: result1.recordset[0] });
     }
     catch (err) {
@@ -709,7 +658,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
     storage: storage,
-    limits: { fileSize: 10000000 }
+    limits: { fileSize: 20 * 1024 * 1024 }
 });
 
 async function utProjectDocumentUploader(req, res) {
@@ -793,11 +742,6 @@ async function getUnderTenderingCheckPoints(req, res) {
                 WHERE tbl_project_date.sub_project_id = @subProjectID AND sub_stage_id = 10;`);
         }
 
-        // const resultValue = result.recordsets[0][0].resultValue;
-
-        // const actualDate = result.recordsets[1].length > 0 ? result.recordsets[1][0].actualDate : null;
-
-        // res.json({ resultValue, actualDate });
         if (result.recordset.length === 0) {
             res.json([{ actualDate: null }]);
         } else {

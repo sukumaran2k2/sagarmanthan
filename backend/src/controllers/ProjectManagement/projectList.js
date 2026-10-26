@@ -1,7 +1,9 @@
 import { pool } from "../../db.js";
+import sql from "mssql";
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { getDataScope } from "../../middleware/dataScope.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -21,8 +23,11 @@ async function projectFolderDownloadLog(req, res)
    
     try {
      
-            const query = ` INSERT INTO tbl_project_folder_download_log ( user_id, email_id, requested_datetime) 
-            VALUES ( @userID, @emailId, CURRENT_TIMESTAMP ) `;
+            // Same flow as previous portal: queue the request here.
+            // Offline job `backend/projectMediaFileDownload.py` picks status=0 rows,
+            // builds the ZIP, emails the download link, then sets status=1.
+            const query = ` INSERT INTO tbl_project_folder_download_log ( user_id, email_id, requested_datetime, status) 
+            VALUES ( @userID, @emailId, CURRENT_TIMESTAMP, 0 ) `;
 
         const result = await request.query(query);
 
@@ -43,8 +48,6 @@ async function projectMediaLinkDownload(req, res) {
         const request = conn.request();
         request.input('fileName', fileName);
 
-        // console.log(fileName, "fileName")
-
         const file_path = path.join(__dirname, "../../../fileuploads/project-media-files-download", fileName);
         const staticFileName = "Project Media Files.zip";  // Desired filename for download
 
@@ -61,22 +64,6 @@ async function projectMediaLinkDownload(req, res) {
                 fs.rm(file_path, () => {});
             })
                      
-            // // Listen for the "finish" event to know when the file has been fully downloaded
-            // fileStream.on('end', () => {
-            //     console.log('Download complete, removing the file.');
-            //     fs.rm(file_path, (err) => {
-            //         if (err) {
-            //             console.error('Error removing file:', err);
-            //         }
-            //     });
-            // });
-
-            // // Listen for the "close" event to handle download cancellation
-            // res.on('close', () => {
-            //     console.log('Download canceled, file will not be removed.');
-            //     // You can optionally handle cleanup if needed, but for now, we just log that the download was canceled.
-            // });
-
         } else {
             console.error("File not found on the server.");
             res.status(404).send({ message: "File not found" });
@@ -88,54 +75,267 @@ async function projectMediaLinkDownload(req, res) {
     }
 }
 
+function bindProjectListFilterInputs(request, {
+    effectiveOrganisationId,
+    schemeId,
+    isSagarmalaFundedRaw,
+    search,
+    projectStage,
+    projectCategory,
+    implementationMode,
+    implementationType,
+    state,
+    district,
+    physicalProgressMin,
+    physicalProgressMax,
+    financialProgressMin,
+    financialProgressMax,
+    hasUnderTenderingSubStage,
+    underTenderingSubStage,
+    hasPlanningSubStage,
+    planningSubStage,
+}) {
+    if (Number.isFinite(effectiveOrganisationId) && effectiveOrganisationId > 0) {
+        request.input('organisationId', sql.Int, effectiveOrganisationId);
+    }
+    if (Number.isFinite(schemeId) && schemeId > 0) {
+        request.input('schemeId', sql.Int, schemeId);
+    }
+    if (isSagarmalaFundedRaw === '0' || isSagarmalaFundedRaw === '1') {
+        request.input('isSagarmalaFunded', sql.Int, Number(isSagarmalaFundedRaw));
+    }
+    if (search) {
+        request.input('search', sql.NVarChar(255), `%${search}%`);
+    }
+    if (projectStage && projectStage !== 'All') {
+        request.input('projectStage', sql.NVarChar(255), projectStage);
+        request.input('projectStageLike', sql.NVarChar(255), `%${projectStage}%`);
+    }
+    if (projectCategory && projectCategory !== 'All') {
+        request.input('projectCategory', sql.NVarChar(255), `%${projectCategory}%`);
+    }
+    if (implementationMode && implementationMode !== 'All') {
+        request.input('implementationMode', sql.NVarChar(255), `%${implementationMode}%`);
+    }
+    if (implementationType && implementationType !== 'All') {
+        request.input('implementationType', sql.NVarChar(255), `%${implementationType}%`);
+    }
+    if (state) {
+        request.input('state', sql.NVarChar(255), `%${state}%`);
+    }
+    if (district) {
+        request.input('district', sql.NVarChar(255), `%${district}%`);
+    }
+    if (Number.isFinite(physicalProgressMin)) {
+        request.input('physicalProgressMin', sql.Float, physicalProgressMin);
+    }
+    if (Number.isFinite(physicalProgressMax)) {
+        request.input('physicalProgressMax', sql.Float, physicalProgressMax);
+    }
+    if (Number.isFinite(financialProgressMin)) {
+        request.input('financialProgressMin', sql.Float, financialProgressMin);
+    }
+    if (Number.isFinite(financialProgressMax)) {
+        request.input('financialProgressMax', sql.Float, financialProgressMax);
+    }
+    if (hasUnderTenderingSubStage) {
+        request.input('underTenderingSubStage', sql.Int, underTenderingSubStage);
+    }
+    if (hasPlanningSubStage) {
+        request.input('planningSubStage', sql.Int, planningSubStage);
+    }
+}
+
 async function getProjectList(req, res) {
     const conn = await pool;
-    const userID = Number(req.params.userID);
+    const requestedUserID = Number(req.params.userID);
+    const tokenUserID = Number(req.user?.userId || req.user?.user_id);
+    const userID = Number.isFinite(tokenUserID) && tokenUserID > 0 ? tokenUserID : requestedUserID;
 
     const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
-    const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 10));
+    // Export asks for the whole filtered list in one go; normal paging stays capped at 100.
+    const isExport = String(req.query.export || '0') === '1';
+    const limit = Math.min(isExport ? 10000 : 100, Math.max(1, Number.parseInt(req.query.limit, 10) || 10));
     const offset = (page - 1) * limit;
 
     const search = String(req.query.search || '').trim();
+    const includeCounts = String(req.query.includeCounts || '0') === '1';
+    const countsOnly = String(req.query.countsOnly || '0') === '1';
     const projectStage = String(req.query.projectStage || '').trim();
     const projectCategory = String(req.query.projectCategory || '').trim();
+    const schemeId = Number.parseInt(req.query.schemeId, 10);
+    const isSagarmalaFundedRaw = String(req.query.isSagarmalaFunded ?? '').trim();
+    const implementationMode = String(req.query.implementationMode || '').trim();
+    const implementationType = String(req.query.implementationType || '').trim();
     const state = String(req.query.state || '').trim();
-    const organisationId = Number.parseInt(req.query.organisationId, 10);
+    const district = String(req.query.district || '').trim();
+    const requestedOrganisationId = Number.parseInt(req.query.organisationId, 10);
+    const physicalProgressMinRaw = req.query.physicalProgressMin;
+    const physicalProgressMaxRaw = req.query.physicalProgressMax;
+    const financialProgressMinRaw = req.query.financialProgressMin;
+    const financialProgressMaxRaw = req.query.financialProgressMax;
+    const physicalProgressMin = physicalProgressMinRaw === '' || physicalProgressMinRaw == null ? null : Number(physicalProgressMinRaw);
+    const physicalProgressMax = physicalProgressMaxRaw === '' || physicalProgressMaxRaw == null ? null : Number(physicalProgressMaxRaw);
+    const financialProgressMin = financialProgressMinRaw === '' || financialProgressMinRaw == null ? null : Number(financialProgressMinRaw);
+    const financialProgressMax = financialProgressMaxRaw === '' || financialProgressMaxRaw == null ? null : Number(financialProgressMaxRaw);
 
+    const underTenderingSubStage = Number.parseInt(req.query.underTenderingSubStage, 10);
+    const hasUnderTenderingSubStage = Number.isInteger(underTenderingSubStage) && underTenderingSubStage >= 3 && underTenderingSubStage <= 10;
+    const needsProgressFilter =
+        Number.isFinite(physicalProgressMin) ||
+        Number.isFinite(physicalProgressMax) ||
+        Number.isFinite(financialProgressMin) ||
+        Number.isFinite(financialProgressMax);
+  
+
+    const planningSubStage = Number.parseInt(req.query.planningSubStage, 10);
+    const hasPlanningSubStage = Number.isInteger(planningSubStage) && planningSubStage >= 0 && planningSubStage <= 11 && planningSubStage !== 4;
+    
     try {
-        const roleRequest = conn.request();
-        roleRequest.input('userID', userID);
-        const userResult = await roleRequest.query('SELECT role_id, organisation_id FROM tbl_user WHERE user_id = @userID');
+        const dataScope = getDataScope(req.user || {});
+        const jwtOrgId = Number(dataScope.organisationId);
 
-        if (!userResult.recordset?.length) {
-            return res.status(404).json({ message: 'User not found' });
-        }
+        let organisation_id = null;
+        const needsUserOrgFallback =
+            dataScope.isOrganisation && !(Number.isFinite(jwtOrgId) && jwtOrgId > 0);
 
-        const { role_id, organisation_id } = userResult.recordset[0];
-        const privilegedRoles = new Set([2, 3, 4, 5, 8]);
+        if (needsUserOrgFallback) {
+            const roleRequest = conn.request();
+            roleRequest.input('userID', sql.Int, userID);
+            const userResult = await roleRequest.query(
+                'SELECT role_id, organisation_id FROM tbl_user WHERE user_id = @userID'
+            );
 
-        let submittedByFilter = '';
-        if (!privilegedRoles.has(Number(role_id))) {
-            const usersRequest = conn.request();
-            usersRequest.input('organisationID', organisation_id);
-            const usersResult = await usersRequest.query('SELECT user_id FROM tbl_user WHERE organisation_id = @organisationID');
-            const userIds = usersResult.recordset
-                .map((row) => Number(row.user_id))
-                .filter((n) => Number.isFinite(n));
-
-            if (!userIds.length) {
-                return res.json({ data: [], pagination: { total: 0, page, limit, totalPages: 0, counts: { all: 0, planning: 0, tendering: 0, ui: 0, completed: 0 } } });
+            if (!userResult.recordset?.length) {
+                return res.status(404).json({ message: 'User not found' });
             }
-
-            submittedByFilter = ` AND ISNULL(sp.sub_submitted_by, p.submitted_by) IN (${userIds.join(',')})`;
+            organisation_id = userResult.recordset[0].organisation_id;
         }
 
-        const scopeByOrganisation = Number.isFinite(organisationId) && organisationId > 0
+        let effectiveOrganisationId = Number.isFinite(requestedOrganisationId) && requestedOrganisationId > 0
+            ? requestedOrganisationId
+            : null;
+
+        if (dataScope.isOrganisation) {
+            const fallbackOrgId = Number(organisation_id);
+            effectiveOrganisationId = Number.isFinite(jwtOrgId) && jwtOrgId > 0
+                ? jwtOrgId
+                : (Number.isFinite(fallbackOrgId) && fallbackOrgId > 0 ? fallbackOrgId : null);
+
+            if (!Number.isFinite(effectiveOrganisationId) || effectiveOrganisationId <= 0) {
+                return res.json({
+                    data: [],
+                    pagination: {
+                        total: 0,
+                        page,
+                        limit,
+                        totalPages: 0,
+                        counts: { all: 0, planning: 0, tendering: 0, ui: 0, completed: 0, dropped: 0 },
+                    },
+                });
+            }
+        } else if (!dataScope.isWide && Number.isFinite(jwtOrgId) && jwtOrgId > 0) {
+            effectiveOrganisationId = jwtOrgId;
+        }
+
+        const scopeByOrganisation = Number.isFinite(effectiveOrganisationId) && effectiveOrganisationId > 0
             ? ' AND ISNULL(sp.sub_organisation_id, p.organisation_id) = @organisationId'
             : '';
 
-        const baseQuery = `
-            WITH base AS (
+
+        // Under Tendering sub stage = first applicable step (3-10) without an actual date.
+        // Steps marked Not Applicable, and steps 3-8 of on-nomination awards, are skipped.
+        // When every step is done the project stays on the last step (Contract Signed),
+        // so each Under Tendering project falls in exactly one sub stage.
+        const tenderingSubStageJoin = hasUnderTenderingSubStage
+            ? `
+            OUTER APPLY (
+                SELECT ISNULL(MIN(step.sub_stage_id), 10) AS current_sub_stage_id
+                FROM (VALUES (3), (4), (5), (6), (7), (8), (9), (10)) AS step(sub_stage_id)
+                WHERE NOT (
+                        ISNULL(TRY_CAST(CASE WHEN sp.sub_project_id IS NULL THEN p.on_nomination_basis ELSE sp.sub_on_nomination_basis END AS INT), 0) = 1
+                        AND step.sub_stage_id BETWEEN 3 AND 8
+                    )
+                  AND NOT EXISTS (
+                        SELECT 1
+                        FROM tbl_project_date pd
+                        WHERE TRY_CAST(pd.sub_stage_id AS INT) = step.sub_stage_id
+                          AND (pd.actual_date IS NOT NULL OR ISNULL(TRY_CAST(pd.not_applicable_date AS INT), 0) = 1)
+                          AND (
+                                (sp.sub_project_id IS NOT NULL AND pd.sub_project_id = sp.sub_project_id)
+                                OR (
+                                    sp.sub_project_id IS NULL
+                                    AND pd.project_id = p.project_id
+                                    AND (pd.sub_project_id IS NULL OR TRY_CAST(pd.sub_project_id AS INT) = -1)
+                                )
+                              )
+                    )
+            ) tenderingSubStage
+        `
+            : '';
+
+        const tenderingSubStageSelect = hasUnderTenderingSubStage
+            ? 'tenderingSubStage.current_sub_stage_id AS tendering_sub_stage_id'
+            : 'CAST(NULL AS INT) AS tendering_sub_stage_id';
+
+        const progressSelect = needsProgressFilter
+            ? `
+            physicalProgress.physical_progress,
+            financialProgress.financial_progress,
+        `
+            : `
+            CAST(NULL AS float) AS physical_progress,
+            CAST(NULL AS float) AS financial_progress,
+        `;
+
+        const progressJoins = needsProgressFilter
+            ? `
+            LEFT JOIN (
+                SELECT project_id AS entity_id, MAX(physical_progress) AS physical_progress
+                FROM tbl_project_physical_progress
+                WHERE sub_project_id = '-1'
+                GROUP BY project_id
+                UNION ALL
+                SELECT sub_project_id AS entity_id, MAX(physical_progress) AS physical_progress
+                FROM tbl_project_physical_progress
+                WHERE sub_project_id != '-1'
+                GROUP BY sub_project_id
+            ) AS physicalProgress ON physicalProgress.entity_id = ISNULL(sp.sub_project_id, p.project_id)
+            LEFT JOIN (
+                SELECT
+                    e.project_id AS entity_id,
+                    (SUM(
+                        COALESCE(e.gbs_components, 0) + COALESCE(e.iebr_components, 0) +
+                        COALESCE(e.ppp_components, 0) + COALESCE(e.loans_components, 0) +
+                        COALESCE(e.multilateral_components, 0) + COALESCE(e.state_gov_fund_components, 0) +
+                        COALESCE(e.pmmsy_components, 0) + COALESCE(e.sagarmala_components, 0) +
+                        COALESCE(e.other_source_funding_comp, 0)
+                    ) / NULLIF(p2.award_project_cost, 0)) * 100 AS financial_progress
+                FROM tbl_project_expenditure e
+                LEFT JOIN tbl_project p2 ON p2.project_id = e.project_id
+                WHERE e.sub_project_id = '-1'
+                GROUP BY e.project_id, p2.award_project_cost
+                UNION ALL
+                SELECT
+                    e.sub_project_id AS entity_id,
+                    (SUM(
+                        COALESCE(e.gbs_components, 0) + COALESCE(e.iebr_components, 0) +
+                        COALESCE(e.ppp_components, 0) + COALESCE(e.loans_components, 0) +
+                        COALESCE(e.multilateral_components, 0) + COALESCE(e.state_gov_fund_components, 0) +
+                        COALESCE(e.pmmsy_components, 0) + COALESCE(e.sagarmala_components, 0) +
+                        COALESCE(e.other_source_funding_comp, 0)
+                    ) / NULLIF(sp2.sub_award_project_cost, 0)) * 100 AS financial_progress
+                FROM tbl_project_expenditure e
+                LEFT JOIN tbl_sub_project sp2 ON sp2.sub_project_id = e.sub_project_id
+                WHERE e.sub_project_id != '-1'
+                GROUP BY e.sub_project_id, sp2.sub_award_project_cost
+            ) AS financialProgress ON financialProgress.entity_id = ISNULL(sp.sub_project_id, p.project_id)
+        `
+            : '';
+
+        // Slim keyset: no STRING_AGG / full drop detail / progress unless filters require progress.
+        const keyedCte = `
+            WITH keyed AS (
                 SELECT
                     p.project_id,
                     p.sagarmala_project_id,
@@ -143,78 +343,50 @@ async function getProjectList(req, res) {
                     p.project_name,
                     sp.sub_project_name,
                     ISNULL(sp.sub_project_category_id, p.project_category_id) AS project_category_id,
-                    (
-                        SELECT STRING_AGG(pc.project_category_name, ', ')
-                        FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), ISNULL(sp.sub_project_category_id, p.project_category_id))), ',') x
-                        JOIN mmt_project_category pc ON TRY_CAST(x.value AS int) = pc.project_category_id
-                    ) AS project_category_names,
+                    ISNULL(sp.sub_scheme_id, p.scheme_id) AS scheme_id,
+                    sch.scheme_name,
                     ISNULL(sp.sub_state_id, p.state_id) AS state_id,
-                    (
-                        SELECT STRING_AGG(st.state_name, ', ')
-                        FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), ISNULL(sp.sub_state_id, p.state_id))), ',') x
-                        JOIN mmt_state st ON TRY_CAST(x.value AS int) = st.state_id
-                    ) AS state_names,
+                    ISNULL(sp.sub_district_id, p.district_id) AS district_id,
                     ISNULL(sp.sub_organisation_id, p.organisation_id) AS organisation_id,
                     org.organisation_name,
+                    ISNULL(sp.sub_mode_of_implememtation, p.mode_of_implememtation) AS mode_of_implememtation,
+                    ISNULL(sp.sub_implememtation_type, p.implememtation_type) AS implememtation_type,
                     ISNULL(sp.sub_status, p.status) AS project_status,
                     CASE
                         WHEN ISNULL(sp.sub_status, p.status) = 0 THEN 99
-                        WHEN dropReq.drop_status IN ('Waiting for Approval', 'Pending Approval from MoPSW') THEN 99
+                        WHEN dropPending.drop_status IN ('Waiting for Approval', 'Pending Approval from MoPSW') THEN 99
                         ELSE ISNULL(sp.sub_current_project_stage_id, p.current_project_stage_id)
                     END AS current_project_stage_id,
                     CASE
                         WHEN ISNULL(sp.sub_status, p.status) = 0 THEN 'Dropped'
-                        WHEN dropReq.drop_status IN ('Waiting for Approval', 'Pending Approval from MoPSW') THEN 'Dropped'
+                        WHEN dropPending.drop_status IN ('Waiting for Approval', 'Pending Approval from MoPSW') THEN 'Dropped'
                         ELSE stage.stage_name
                     END AS stage_name,
                     ISNULL(sp.sub_estimated_cost, p.estimated_cost) AS estimated_cost,
                     ISNULL(sp.sub_sanctioned_cost, p.sanctioned_cost) AS sanctioned_cost,
+                    ISNULL(sp.sub_technical_sanction_cost, p.technical_sanction_cost) AS technical_sanction_cost,
+                    ISNULL(sp.sub_award_project_cost, p.award_project_cost) AS award_project_cost,
+                    ISNULL(sp.sub_closure_cost, p.closure_cost) AS closure_cost,
                     ISNULL(sp.sub_primary_ia_id, p.primary_ia_id) AS primary_ia_id,
                     ISNULL(ia.ia_name, '') AS primary_ia_name,
-                    physicalProgress.physical_progress,
-                    financialProgress.financial_progress,
-                    CASE
-                        WHEN ISNULL(sp.sub_status, p.status) = 0 OR dropReq.drop_status IS NOT NULL THEN COALESCE(dropReq.drop_req_at, dropReq.drop_date, sp.sub_last_updated, p.last_updated)
-                        ELSE NULL
-                    END AS drop_req_at,
-                    CASE
-                        WHEN ISNULL(sp.sub_status, p.status) = 0 OR dropReq.drop_status IS NOT NULL THEN COALESCE(dropReq.drop_req_approved_at, CASE WHEN ISNULL(sp.sub_status, p.status) = 0 THEN COALESCE(dropReq.drop_date, sp.sub_last_updated, p.last_updated) ELSE NULL END)
-                        ELSE NULL
-                    END AS drop_req_approved_at,
-                    CASE
-                        WHEN ISNULL(sp.sub_status, p.status) = 0 OR dropReq.drop_status IS NOT NULL THEN COALESCE(dropReq.drop_date, sp.sub_last_updated, p.last_updated)
-                        ELSE NULL
-                    END AS drop_date,
-                    CASE
-                        WHEN ISNULL(sp.sub_status, p.status) = 0 OR dropReq.drop_status IS NOT NULL THEN ISNULL(dropReq.drop_remarks, '-')
-                        ELSE '-'
-                    END AS drop_remarks,
-                    CASE
-                        WHEN ISNULL(sp.sub_status, p.status) = 0 THEN 'Approved'
-                        WHEN dropReq.drop_status IS NOT NULL THEN dropReq.drop_status
-                        ELSE NULL
-                    END AS drop_status,
-                    dropReq.drop_request_status,
-                    dropReq.reject_request_status,
+                    ${progressSelect}
+                    ${tenderingSubStageSelect},
                     ISNULL(sp.sub_is_sagarmala_funded, p.is_sagarmala_funded) AS is_sagarmala_funded,
                     ISNULL(sp.sub_source_of_funding_id, p.source_of_funding_id) AS source_of_funding_id,
                     ISNULL(sp.sub_sagarmala_components, p.sagarmala_components) AS sagarmala_components,
+                    sp.sub_last_updated,
+                    p.last_updated,
                     CAST(p.project_id AS varchar(50)) AS project_id_text,
                     CAST(ISNULL(sp.sub_project_id, -1) AS varchar(50)) AS sub_project_id_text
                 FROM tbl_project p
                 LEFT JOIN tbl_sub_project sp ON sp.project_id = p.project_id
+                ${tenderingSubStageJoin}
                 LEFT JOIN mmt_organisation org ON org.organisation_id = ISNULL(sp.sub_organisation_id, p.organisation_id)
                 LEFT JOIN mmt_implementing_agency ia ON ia.ia_id = ISNULL(sp.sub_primary_ia_id, p.primary_ia_id)
+                LEFT JOIN mmt_scheme sch ON sch.scheme_id = ISNULL(sp.sub_scheme_id, p.scheme_id)
                 LEFT JOIN tbl_project_stage stage ON stage.stage_id = ISNULL(sp.sub_current_project_stage_id, p.current_project_stage_id)
                 OUTER APPLY (
                     SELECT TOP 1
-                        dr.submitted_on AS drop_req_at,
-                        dr.drop_date AS drop_req_approved_at,
-                        COALESCE(dr.drop_date, dr.submitted_on) AS drop_date,
-                        COALESCE(NULLIF(CAST(dr.remarks AS nvarchar(1000)), ''), NULLIF(CAST(dr.drop_rejected_remarks AS nvarchar(1000)), ''), '-') AS drop_remarks,
-                        dr.status AS drop_request_status,
-                        dr.reject_request_status,
-                        dr.drop_rejected_remarks,
                         CASE
                             WHEN dr.reject_request_status = 0 THEN 'Rejected'
                             WHEN dr.status = 0 THEN 'Approved'
@@ -230,63 +402,14 @@ async function getProjectList(req, res) {
                               OR TRIM(CAST(dr.sub_project_id AS varchar(50))) IN ('-1', '-', '0', '', 'null', 'undefined')
                           ))
                           OR (sp.sub_project_id IS NULL AND (
-                              dr.sub_project_id IS NULL 
+                              dr.sub_project_id IS NULL
                               OR TRIM(CAST(dr.sub_project_id AS varchar(50))) IN ('-1', '-', '0', '', 'null', 'undefined')
                           ))
                       )
-                    ORDER BY 
-                        COALESCE(dr.submitted_on, dr.drop_date) DESC
-                ) AS dropReq
-                LEFT JOIN (
-                    SELECT project_id AS entity_id, MAX(physical_progress) AS physical_progress
-                    FROM tbl_project_physical_progress
-                    WHERE sub_project_id = '-1'
-                    GROUP BY project_id
-                    UNION
-                    SELECT sub_project_id AS entity_id, MAX(physical_progress) AS physical_progress
-                    FROM tbl_project_physical_progress
-                    WHERE sub_project_id != '-1'
-                    GROUP BY sub_project_id
-                ) AS physicalProgress ON physicalProgress.entity_id = ISNULL(sp.sub_project_id, p.project_id)
-                LEFT JOIN (
-                    SELECT
-                        e.project_id AS entity_id,
-                        (SUM(
-                            COALESCE(e.gbs_components, 0) +
-                            COALESCE(e.iebr_components, 0) +
-                            COALESCE(e.ppp_components, 0) +
-                            COALESCE(e.loans_components, 0) +
-                            COALESCE(e.multilateral_components, 0) +
-                            COALESCE(e.state_gov_fund_components, 0) +
-                            COALESCE(e.pmmsy_components, 0) +
-                            COALESCE(e.sagarmala_components, 0) +
-                            COALESCE(e.other_source_funding_comp, 0)
-                        ) / NULLIF(p2.award_project_cost, 0)) * 100 AS financial_progress
-                    FROM tbl_project_expenditure e
-                    LEFT JOIN tbl_project p2 ON p2.project_id = e.project_id
-                    WHERE e.sub_project_id = '-1'
-                    GROUP BY e.project_id, p2.award_project_cost
-                    UNION
-                    SELECT
-                        e.sub_project_id AS entity_id,
-                        (SUM(
-                            COALESCE(e.gbs_components, 0) +
-                            COALESCE(e.iebr_components, 0) +
-                            COALESCE(e.ppp_components, 0) +
-                            COALESCE(e.loans_components, 0) +
-                            COALESCE(e.multilateral_components, 0) +
-                            COALESCE(e.state_gov_fund_components, 0) +
-                            COALESCE(e.pmmsy_components, 0) +
-                            COALESCE(e.sagarmala_components, 0) +
-                            COALESCE(e.other_source_funding_comp, 0)
-                        ) / NULLIF(sp2.sub_award_project_cost, 0)) * 100 AS financial_progress
-                    FROM tbl_project_expenditure e
-                    LEFT JOIN tbl_sub_project sp2 ON sp2.sub_project_id = e.sub_project_id
-                    WHERE e.sub_project_id != '-1'
-                    GROUP BY e.sub_project_id, sp2.sub_award_project_cost
-                ) AS financialProgress ON financialProgress.entity_id = ISNULL(sp.sub_project_id, p.project_id)
+                    ORDER BY COALESCE(dr.submitted_on, dr.drop_date) DESC
+                ) AS dropPending
+                ${progressJoins}
                 WHERE 1=1
-                ${submittedByFilter}
                 ${scopeByOrganisation}
             )
         `;
@@ -300,18 +423,92 @@ async function getProjectList(req, res) {
                 OR ISNULL(sub_project_name, '') LIKE @search
                 OR ISNULL(organisation_name, '') LIKE @search
                 OR ISNULL(primary_ia_name, '') LIKE @search
-                OR ISNULL(state_names, '') LIKE @search
-                OR ISNULL(project_category_names, '') LIKE @search
+                OR ISNULL(scheme_name, '') LIKE @search
+                OR ISNULL(mode_of_implememtation, '') LIKE @search
+                OR ISNULL(implememtation_type, '') LIKE @search
+                OR EXISTS (
+                    SELECT 1
+                    FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), project_category_id)), ',') x
+                    JOIN mmt_project_category pc ON TRY_CAST(LTRIM(RTRIM(x.value)) AS int) = pc.project_category_id
+                    WHERE pc.project_category_name LIKE @search
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), state_id)), ',') x
+                    JOIN mmt_state st ON TRY_CAST(LTRIM(RTRIM(x.value)) AS int) = st.state_id
+                    WHERE st.state_name LIKE @search
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), district_id)), ',') x
+                    JOIN mmt_district dt ON TRY_CAST(LTRIM(RTRIM(x.value)) AS int) = dt.district_id
+                    WHERE dt.district_name LIKE @search
+                )
             )`);
         }
         if (projectCategory && projectCategory !== 'All') {
-            filterWhereClauses.push('ISNULL(project_category_names, \'\') LIKE @projectCategory');
+            filterWhereClauses.push(`EXISTS (
+                SELECT 1
+                FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), project_category_id)), ',') x
+                JOIN mmt_project_category pc ON TRY_CAST(LTRIM(RTRIM(x.value)) AS int) = pc.project_category_id
+                WHERE pc.project_category_name LIKE @projectCategory
+            )`);
+        }
+        if (Number.isFinite(schemeId) && schemeId > 0) {
+            filterWhereClauses.push('scheme_id = @schemeId');
+        }
+        if (isSagarmalaFundedRaw === '0' || isSagarmalaFundedRaw === '1') {
+            filterWhereClauses.push('COALESCE(is_sagarmala_funded, 0) = @isSagarmalaFunded');
+        }
+        if (implementationMode && implementationMode !== 'All') {
+            filterWhereClauses.push('ISNULL(mode_of_implememtation, \'\') LIKE @implementationMode');
+        }
+        if (implementationType && implementationType !== 'All') {
+            filterWhereClauses.push('ISNULL(implememtation_type, \'\') LIKE @implementationType');
         }
         if (state) {
-            filterWhereClauses.push('ISNULL(state_names, \'\') LIKE @state');
+            filterWhereClauses.push(`EXISTS (
+                SELECT 1
+                FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), state_id)), ',') x
+                JOIN mmt_state st ON TRY_CAST(LTRIM(RTRIM(x.value)) AS int) = st.state_id
+                WHERE st.state_name LIKE @state
+            )`);
+        }
+        if (district) {
+            filterWhereClauses.push(`EXISTS (
+                SELECT 1
+                FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), district_id)), ',') x
+                JOIN mmt_district dt ON TRY_CAST(LTRIM(RTRIM(x.value)) AS int) = dt.district_id
+                WHERE dt.district_name LIKE @district
+            )`);
+        }
+        if (Number.isFinite(physicalProgressMin)) {
+            filterWhereClauses.push('COALESCE(physical_progress, 0) >= @physicalProgressMin');
+        }
+        if (Number.isFinite(physicalProgressMax)) {
+            filterWhereClauses.push('COALESCE(physical_progress, 0) <= @physicalProgressMax');
+        }
+        if (Number.isFinite(financialProgressMin)) {
+            filterWhereClauses.push('COALESCE(financial_progress, 0) >= @financialProgressMin');
+        }
+        if (Number.isFinite(financialProgressMax)) {
+            filterWhereClauses.push('COALESCE(financial_progress, 0) <= @financialProgressMax');
         }
 
+        // Sub stage filters only narrow the list inside their own tab; tab badge
+        // counts (countsWhere) stay unaffected.
+        const isPlanningStage = ['Planning & Sanctioning', 'Planning', 'Project Initiated', 'planning'].includes(projectStage);
+        const isTenderingStage = ['Under Tendering', 'Tendering', 'tendering'].includes(projectStage);
+
         const whereClauses = [...filterWhereClauses];
+        if (hasPlanningSubStage && isPlanningStage) {
+            // The stored stage is the last completed planning step.
+            whereClauses.push('ISNULL(current_project_stage_id, 0) = @planningSubStage');
+        }
+        if (hasUnderTenderingSubStage && isTenderingStage) {
+            whereClauses.push('tendering_sub_stage_id = @underTenderingSubStage');
+        }
+
         if (projectStage && projectStage !== 'All') {
             if (projectStage === 'Planning & Sanctioning' || projectStage === 'Planning' || projectStage === 'Project Initiated' || projectStage === 'planning') {
                 whereClauses.push('(stage_name != \'Dropped\' AND current_project_stage_id != 99 AND (current_project_stage_id BETWEEN 0 AND 11 OR ISNULL(stage_name, \'\') LIKE \'%Planning%\' OR ISNULL(stage_name, \'\') LIKE \'%Initiated%\' OR current_project_stage_id IS NULL))');
@@ -331,43 +528,29 @@ async function getProjectList(req, res) {
         const outerWhere = whereClauses.length ? ` WHERE ${whereClauses.join(' AND ')}` : '';
         const countsWhere = filterWhereClauses.length ? ` WHERE ${filterWhereClauses.join(' AND ')}` : '';
 
-        const countRequest = conn.request();
-        const dataRequest = conn.request();
+        const filterBindArgs = {
+            effectiveOrganisationId,
+            schemeId,
+            isSagarmalaFundedRaw,
+            search,
+            projectStage,
+            projectCategory,
+            implementationMode,
+            implementationType,
+            state,
+            district,
+            physicalProgressMin,
+            physicalProgressMax,
+            financialProgressMin,
+            financialProgressMax,
+            hasUnderTenderingSubStage,
+            underTenderingSubStage,
+            hasPlanningSubStage,
+            planningSubStage,
+        };
 
-        if (Number.isFinite(organisationId) && organisationId > 0) {
-            countRequest.input('organisationId', organisationId);
-            dataRequest.input('organisationId', organisationId);
-        }
-        if (search) {
-            const searchLike = `%${search}%`;
-            countRequest.input('search', searchLike);
-            dataRequest.input('search', searchLike);
-        }
-        if (projectStage && projectStage !== 'All') {
-            countRequest.input('projectStage', projectStage);
-            dataRequest.input('projectStage', projectStage);
-            countRequest.input('projectStageLike', `%${projectStage}%`);
-            dataRequest.input('projectStageLike', `%${projectStage}%`);
-        }
-        if (projectCategory && projectCategory !== 'All') {
-            const categoryLike = `%${projectCategory}%`;
-            countRequest.input('projectCategory', categoryLike);
-            dataRequest.input('projectCategory', categoryLike);
-        }
-        if (state) {
-            const stateLike = `%${state}%`;
-            countRequest.input('state', stateLike);
-            dataRequest.input('state', stateLike);
-        }
-
-        dataRequest.input('offset', offset);
-        dataRequest.input('limit', limit);
-
-        const countResult = await countRequest.query(`${baseQuery} SELECT COUNT(1) AS total FROM base ${outerWhere};`);
-        const total = Number(countResult.recordset?.[0]?.total || 0);
-
-        const countsResult = await countRequest.query(`
-            ${baseQuery}
+        const countsSql = `
+            ${keyedCte}
             SELECT
                 COUNT(1) AS allCount,
                 SUM(CASE WHEN stage_name != 'Dropped' AND current_project_stage_id != 99 AND (current_project_stage_id BETWEEN 0 AND 11 OR ISNULL(stage_name, '') LIKE '%Planning%' OR ISNULL(stage_name, '') LIKE '%Initiated%' OR current_project_stage_id IS NULL) THEN 1 ELSE 0 END) AS planningCount,
@@ -375,32 +558,241 @@ async function getProjectList(req, res) {
                 SUM(CASE WHEN stage_name != 'Dropped' AND current_project_stage_id != 99 AND (current_project_stage_id = 13 OR ISNULL(stage_name, '') LIKE '%Implement%') THEN 1 ELSE 0 END) AS uiCount,
                 SUM(CASE WHEN stage_name != 'Dropped' AND current_project_stage_id != 99 AND (current_project_stage_id = 14 OR ISNULL(stage_name, '') LIKE '%Complete%') THEN 1 ELSE 0 END) AS completedCount,
                 SUM(CASE WHEN stage_name = 'Dropped' OR current_project_stage_id = 99 THEN 1 ELSE 0 END) AS droppedCount
-            FROM base
+            FROM keyed
             ${countsWhere};
-        `);
-        const cRow = countsResult.recordset?.[0] || {};
-        const counts = {
-            all: Number(cRow.allCount || 0),
-            planning: Number(cRow.planningCount || 0),
-            tendering: Number(cRow.tenderingCount || 0),
-            ui: Number(cRow.uiCount || 0),
-            completed: Number(cRow.completedCount || 0),
-            dropped: Number(cRow.droppedCount || 0),
-        };
+        `;
 
-        const dataResult = await dataRequest.query(`
-            ${baseQuery}
-            SELECT *
-            FROM base
-            ${outerWhere}
-            ORDER BY current_project_stage_id, project_id DESC
-            OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY;
-        `);
+        // countsOnly: skip page hydrate — used by deferred badge fetch on the client.
+        if (countsOnly && includeCounts) {
+            const countRequest = conn.request();
+            bindProjectListFilterInputs(countRequest, filterBindArgs);
+            const countsResult = await countRequest.query(countsSql);
+            const cRow = countsResult.recordset?.[0] || {};
+            return res.json({
+                data: [],
+                pagination: {
+                    total: Number(cRow.allCount || 0),
+                    page: 1,
+                    limit: 1,
+                    totalPages: 0,
+                    counts: {
+                        all: Number(cRow.allCount || 0),
+                        planning: Number(cRow.planningCount || 0),
+                        tendering: Number(cRow.tenderingCount || 0),
+                        ui: Number(cRow.uiCount || 0),
+                        completed: Number(cRow.completedCount || 0),
+                        dropped: Number(cRow.droppedCount || 0),
+                    },
+                },
+            });
+        }
 
+        // Phase A+B: page slim keys, then hydrate names/progress/drop detail for the page only.
+        const dataSql = `
+            ${keyedCte},
+            page_keys AS (
+                SELECT
+                    k.*,
+                    COUNT(1) OVER() AS total_count
+                FROM keyed k
+                ${outerWhere}
+                ORDER BY k.current_project_stage_id, k.project_id DESC
+                OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
+            )
+            SELECT
+                pk.project_id,
+                pk.sagarmala_project_id,
+                pk.sub_project_id,
+                pk.project_name,
+                pk.sub_project_name,
+                pk.project_category_id,
+                (
+                    SELECT STRING_AGG(pc.project_category_name, ', ')
+                    FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), pk.project_category_id)), ',') x
+                    JOIN mmt_project_category pc ON TRY_CAST(LTRIM(RTRIM(x.value)) AS int) = pc.project_category_id
+                ) AS project_category_names,
+                pk.scheme_id,
+                pk.scheme_name,
+                pk.state_id,
+                (
+                    SELECT STRING_AGG(st.state_name, ', ')
+                    FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), pk.state_id)), ',') x
+                    JOIN mmt_state st ON TRY_CAST(LTRIM(RTRIM(x.value)) AS int) = st.state_id
+                ) AS state_names,
+                pk.district_id,
+                (
+                    SELECT STRING_AGG(dt.district_name, ', ')
+                    FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), pk.district_id)), ',') x
+                    JOIN mmt_district dt ON TRY_CAST(LTRIM(RTRIM(x.value)) AS int) = dt.district_id
+                ) AS district_names,
+                pk.organisation_id,
+                pk.organisation_name,
+                pk.mode_of_implememtation,
+                pk.implememtation_type,
+                pk.project_status,
+                pk.current_project_stage_id,
+                pk.stage_name,
+                pk.estimated_cost,
+                pk.sanctioned_cost,
+                pk.technical_sanction_cost,
+                pk.award_project_cost,
+                pk.closure_cost,
+                pk.primary_ia_id,
+                pk.primary_ia_name,
+                COALESCE(pagePhysical.physical_progress, pk.physical_progress) AS physical_progress,
+                COALESCE(pageFinancial.financial_progress, pk.financial_progress) AS financial_progress,
+                pk.tendering_sub_stage_id,
+                CASE
+                    WHEN pk.project_status = 0 OR dropReq.drop_status IS NOT NULL
+                    THEN COALESCE(dropReq.drop_req_at, dropReq.drop_date, pk.sub_last_updated, pk.last_updated)
+                    ELSE NULL
+                END AS drop_req_at,
+                CASE
+                    WHEN pk.project_status = 0 OR dropReq.drop_status IS NOT NULL
+                    THEN COALESCE(
+                        dropReq.drop_req_approved_at,
+                        CASE WHEN pk.project_status = 0 THEN COALESCE(dropReq.drop_date, pk.sub_last_updated, pk.last_updated) ELSE NULL END
+                    )
+                    ELSE NULL
+                END AS drop_req_approved_at,
+                CASE
+                    WHEN pk.project_status = 0 OR dropReq.drop_status IS NOT NULL
+                    THEN COALESCE(dropReq.drop_date, pk.sub_last_updated, pk.last_updated)
+                    ELSE NULL
+                END AS drop_date,
+                CASE
+                    WHEN pk.project_status = 0 OR dropReq.drop_status IS NOT NULL
+                    THEN ISNULL(dropReq.drop_remarks, '-')
+                    ELSE '-'
+                END AS drop_remarks,
+                CASE
+                    WHEN pk.project_status = 0 THEN 'Approved'
+                    WHEN dropReq.drop_status IS NOT NULL THEN dropReq.drop_status
+                    ELSE NULL
+                END AS drop_status,
+                dropReq.drop_request_status,
+                dropReq.reject_request_status,
+                dropReq.drop_requested_by_id,
+                dropReq.drop_requested_by_name,
+                dropReq.drop_approved_by_id,
+                dropReq.drop_approved_by_name,
+                pk.is_sagarmala_funded,
+                pk.source_of_funding_id,
+                pk.sagarmala_components,
+                pk.project_id_text,
+                pk.sub_project_id_text,
+                pk.total_count
+            FROM page_keys pk
+            OUTER APPLY (
+                SELECT TOP 1
+                    dr.submitted_on AS drop_req_at,
+                    dr.drop_date AS drop_req_approved_at,
+                    COALESCE(dr.drop_date, dr.submitted_on) AS drop_date,
+                    COALESCE(NULLIF(CAST(dr.remarks AS nvarchar(1000)), ''), NULLIF(CAST(dr.drop_rejected_remarks AS nvarchar(1000)), ''), '-') AS drop_remarks,
+                    dr.submitted_by AS drop_requested_by_id,
+                    uReq.name AS drop_requested_by_name,
+                    dr.approved_by AS drop_approved_by_id,
+                    uApp.name AS drop_approved_by_name,
+                    dr.status AS drop_request_status,
+                    dr.reject_request_status,
+                    CASE
+                        WHEN dr.reject_request_status = 0 THEN 'Rejected'
+                        WHEN dr.status = 0 THEN 'Approved'
+                        WHEN dr.status = 1 THEN 'Waiting for Approval'
+                        ELSE NULL
+                    END AS drop_status
+                FROM tbl_project_drop_request dr
+                LEFT JOIN tbl_user uReq ON uReq.user_id = dr.submitted_by
+                LEFT JOIN tbl_user uApp ON uApp.user_id = dr.approved_by
+                WHERE dr.project_id = pk.project_id
+                  AND (
+                      (pk.sub_project_id IS NOT NULL AND (
+                          CAST(dr.sub_project_id AS varchar(50)) = CAST(pk.sub_project_id AS varchar(50))
+                          OR dr.sub_project_id IS NULL
+                          OR TRIM(CAST(dr.sub_project_id AS varchar(50))) IN ('-1', '-', '0', '', 'null', 'undefined')
+                      ))
+                      OR (pk.sub_project_id IS NULL AND (
+                          dr.sub_project_id IS NULL
+                          OR TRIM(CAST(dr.sub_project_id AS varchar(50))) IN ('-1', '-', '0', '', 'null', 'undefined')
+                      ))
+                  )
+                ORDER BY COALESCE(dr.submitted_on, dr.drop_date) DESC
+            ) AS dropReq
+            OUTER APPLY (
+                SELECT MAX(pp.physical_progress) AS physical_progress
+                FROM tbl_project_physical_progress pp
+                WHERE (
+                    pk.sub_project_id IS NULL
+                    AND pp.project_id = pk.project_id
+                    AND CAST(pp.sub_project_id AS varchar(50)) = '-1'
+                ) OR (
+                    pk.sub_project_id IS NOT NULL
+                    AND CAST(pp.sub_project_id AS varchar(50)) = CAST(pk.sub_project_id AS varchar(50))
+                )
+            ) AS pagePhysical
+            OUTER APPLY (
+                SELECT
+                    (SUM(
+                        COALESCE(e.gbs_components, 0) + COALESCE(e.iebr_components, 0) +
+                        COALESCE(e.ppp_components, 0) + COALESCE(e.loans_components, 0) +
+                        COALESCE(e.multilateral_components, 0) + COALESCE(e.state_gov_fund_components, 0) +
+                        COALESCE(e.pmmsy_components, 0) + COALESCE(e.sagarmala_components, 0) +
+                        COALESCE(e.other_source_funding_comp, 0)
+                    ) / NULLIF(
+                        CASE
+                            WHEN pk.sub_project_id IS NULL THEN pk.award_project_cost
+                            ELSE pk.award_project_cost
+                        END
+                    , 0)) * 100 AS financial_progress
+                FROM tbl_project_expenditure e
+                WHERE (
+                    pk.sub_project_id IS NULL
+                    AND e.project_id = pk.project_id
+                    AND CAST(e.sub_project_id AS varchar(50)) = '-1'
+                ) OR (
+                    pk.sub_project_id IS NOT NULL
+                    AND CAST(e.sub_project_id AS varchar(50)) = CAST(pk.sub_project_id AS varchar(50))
+                )
+            ) AS pageFinancial
+            ORDER BY pk.current_project_stage_id, pk.project_id DESC;
+        `;
+
+        const dataRequest = conn.request();
+        bindProjectListFilterInputs(dataRequest, filterBindArgs);
+        dataRequest.input('offset', sql.Int, offset);
+        dataRequest.input('limit', sql.Int, limit);
+
+        let counts = null;
+        let dataResult;
+
+        if (includeCounts) {
+            const countRequest = conn.request();
+            bindProjectListFilterInputs(countRequest, filterBindArgs);
+            const [countsResult, pageResult] = await Promise.all([
+                countRequest.query(countsSql),
+                dataRequest.query(dataSql),
+            ]);
+            dataResult = pageResult;
+            const cRow = countsResult.recordset?.[0] || {};
+            counts = {
+                all: Number(cRow.allCount || 0),
+                planning: Number(cRow.planningCount || 0),
+                tendering: Number(cRow.tenderingCount || 0),
+                ui: Number(cRow.uiCount || 0),
+                completed: Number(cRow.completedCount || 0),
+                dropped: Number(cRow.droppedCount || 0),
+            };
+        } else {
+            dataResult = await dataRequest.query(dataSql);
+        }
+
+        const recordset = dataResult.recordset || [];
+        const total = Number(recordset[0]?.total_count || 0);
+        const data = recordset.map(({ total_count, ...row }) => row);
         const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
 
         return res.json({
-            data: dataResult.recordset,
+            data,
             pagination: {
                 total,
                 page,
@@ -410,7 +802,7 @@ async function getProjectList(req, res) {
             },
         });
     } catch (err) {
-        console.log(err);
+        console.error('getProjectList error:', err);
         return res.sendStatus(500);
     }
 }
@@ -621,22 +1013,6 @@ async function getProjectListLegacy(req, res) {
         ORDER BY current_project_stage_id 
 
         ;`);
-
-            // LEFT JOIN 
-            // (
-            //     SELECT tbl_project_activity.project_id, tbl_project_activity.updated_date
-            //     FROM tbl_project
-            //     LEFT JOIN tbl_project_activity ON tbl_project_activity.project_id = tbl_project.project_id
-            //     WHERE tbl_project_activity.sub_project_id = '-1'
-
-            //     UNION 
-
-            //     SELECT tbl_project_activity.sub_project_id, tbl_project_activity.updated_date
-            //     FROM tbl_sub_project
-            //     LEFT JOIN tbl_project_activity ON tbl_project_activity.sub_project_id = tbl_sub_project.sub_project_id
-            //     WHERE tbl_project_activity.sub_project_id != '-1'
-
-            // ) AS lastUpdatedProject_activity ON lastUpdatedProject_activity.project_id = ISNULL(tbl_sub_project.sub_project_id, tbl_project.project_id)
 
             res.json(result.recordset);
         }
@@ -864,8 +1240,18 @@ async function getProjectListLegacy(req, res) {
 async function getProjectAllData(req, res) {
     const conn = await pool;
     const userID = req.params.userID;
+
     try {
-        const userResult = await conn.query(` SELECT role_id FROM tbl_user WHERE user_id = ${userID} `);
+        const roleRequest = conn.request();
+        roleRequest.input("userID", userID);
+        const userResult = await roleRequest.query(
+            `SELECT role_id FROM tbl_user WHERE user_id = @userID`
+        );
+
+        if (!userResult.recordset?.length) {
+            return res.json([]);
+        }
+
         const { role_id } = userResult.recordset[0];
 
         const currentDate = new Date();
@@ -877,800 +1263,48 @@ async function getProjectAllData(req, res) {
             financialYear = `${currentYear - 1}-${currentYear}`;
         }
 
-        let firstDateCurrentFy, todayDate;
-        let currentMonth = currentDate.getMonth() + 1;
-        
+        let firstDateCurrentFy;
+        let todayDate;
+        const currentMonth = currentDate.getMonth() + 1;
+
         if (currentMonth <= 3 && currentMonth >= 1) {
             firstDateCurrentFy = (currentYear - 1) + "-04-01";
-            todayDate =  currentDate.toISOString().split('T')[0]; // Current date.
-
-        }
-        else {
+            todayDate = currentDate.toISOString().split('T')[0];
+        } else {
             firstDateCurrentFy = (currentYear) + "-04-01";
-            todayDate =  currentDate.toISOString().split('T')[0]; // Current date.
+            todayDate = currentDate.toISOString().split('T')[0];
         }
-        // cozznsole.log(currentMonth, firstDateCurrentFy, todayDate, "firstDateCurrentFy, todayDate")
 
-        if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8) {
-            // const result = await conn.query(`Select * from projectExportAll`);
-            const result = await conn.query(`
-            WITH ProjectDetails AS 
-            (   SELECT
-                    mmt_organisation.organisation_name,
-                    ISNULL(tbl_sub_project.sub_organisation_id, tbl_project.organisation_id) AS organisation_id,
-                    tbl_project.project_id, tbl_sub_project.sub_project_id,
-                    tbl_project.project_name,tbl_sub_project.sub_project_name,
-                    ISNULL(tbl_sub_project.sub_sagarmala_project_id,tbl_project.sagarmala_project_id) AS sagarmala_project_id,
-                    ISNULL(tbl_sub_project.sub_project_brief,tbl_project.project_brief) AS project_brief,
-                    ISNULL(tbl_sub_project.sub_estimated_cost,tbl_project.estimated_cost) AS estimated_cost,
-                    ISNULL(tbl_sub_project.sub_sanctioned_cost,tbl_project.sanctioned_cost) AS sanctioned_cost,
-                    ISNULL(tbl_sub_project.sub_technical_sanction_cost, technical_sanction_cost) AS technical_sanction_cost,
-                    ISNULL(tbl_sub_project.sub_award_project_cost, award_project_cost) AS award_project_cost,
-                    ISNULL(tbl_sub_project.sub_project_type,tbl_project.project_type) AS project_type,
-                    ISNULL(tbl_sub_project.sub_closure_cost,tbl_project.closure_cost) AS closure_cost,
-                    ISNULL(tbl_sub_project.sub_actual_date_of_completion,tbl_project.actual_date_of_completion) AS actual_date_of_completion,
-                    ISNULL(tbl_sub_project.sub_mode_of_implememtation,tbl_project.mode_of_implememtation) AS mode_of_implememtation,
-                    ISNULL(tbl_sub_project.sub_implememtation_type,tbl_project.implememtation_type) AS implememtation_type,
-                    ISNULL(tbl_sub_project.sub_project_intiated_date,tbl_project.project_intiated_date) AS project_intiated_date,
-                    ISNULL(tbl_sub_project.sub_target_completion_date,tbl_project.target_completion_date) AS target_completion_date,
-                    ISNULL(tbl_sub_project.sub_prefeasiblity_actual_date,tbl_project.prefeasiblity_actual_date) AS prefeasibility_actual_date,
-                    ISNULL(tbl_sub_project.sub_dpr_actual_date,tbl_project.dpr_actual_date) AS dpr_actual_date,
-                    ISNULL(tbl_sub_project.sub_chairman_approval_date,tbl_project.chairman_approval_date) AS chairman_approval_date,
-                    ISNULL(tbl_sub_project.sub_ministry_submission_date,tbl_project.ministry_submission_date) AS ministry_submission_date,
-                    ISNULL(tbl_sub_project.sub_da_approval_date,tbl_project.da_approval_date) AS da_approval_date,
-                    ISNULL(tbl_sub_project.sub_ifw_approval_date,tbl_project.ifw_approval_date) AS ifw_approval_date,
-                    ISNULL(tbl_sub_project.sub_imc_approval_date,tbl_project.imc_approval_date) AS imc_approval_date,
-                    ISNULL(tbl_sub_project.sub_response_com_rec_approval_date,tbl_project.response_com_rec_approval_date) AS response_com_rec_approval_date,
-                    ISNULL(tbl_sub_project.sub_sfc_approval_date,tbl_project.sfc_approval_date) AS sfc_approval_date,
-                    ISNULL(tbl_sub_project.sub_admin_approval_approval_date, tbl_project.admin_approval_approval_date) AS admin_approval_approval_date,
-                    mmt_implementing_agency.ia_name AS primary_ia_name, 
-                    sec_imp_agency.ia_name AS sec_imp_agency, num_ut_tender_calls,
-                    ISNULL((
-                        SELECT STRING_AGG(mpc.project_category_name, ', ')
-                        FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), tbl_sub_project.sub_project_category_id)), ',') AS sps
-                        JOIN mmt_project_category AS mpc ON TRY_CAST(sps.value AS int) = mpc.project_category_id
-                    ), (
-                        SELECT STRING_AGG(mpc.project_category_name, ', ')
-                        FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), tbl_project.project_category_id)), ',') AS ps
-                        JOIN mmt_project_category AS mpc ON TRY_CAST(ps.value AS int) = mpc.project_category_id
-                    )) AS project_category_names ,
-                    ISNULL((
-                        SELECT STRING_AGG(mi.initiative_name, ', ')
-                        FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), tbl_project.initiative_id)), ',') AS pi
-                        JOIN mmt_initiative AS mi ON TRY_CAST(pi.value AS int) = mi.initiative_id
-                    ), (
-                        SELECT STRING_AGG(mi.initiative_name, ', ')
-                        FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), tbl_sub_project.sub_initiative_id)), ',') AS si
-                        JOIN mmt_initiative AS mi ON TRY_CAST(si.value AS int) = mi.initiative_id
-                    ) ) AS initiative_names,
-					ISNULL((
-						SELECT STRING_AGG(msf.source_of_funding_name, ', ')
-						FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), tbl_sub_project.sub_source_of_funding_id)), ',') AS ssf
-						JOIN mmt_source_of_funding AS msf ON TRY_CAST(ssf.value AS int) = msf.source_of_funding_id
-					),(
-						SELECT STRING_AGG(msf.source_of_funding_name, ', ')
-						FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), tbl_project.source_of_funding_id)), ',') AS sf
-						JOIN mmt_source_of_funding AS msf ON TRY_CAST(sf.value AS int) = msf.source_of_funding_id
-					)) AS source_of_funding_names, 
-                    mmt_funding_agency.fa_name AS primary_fa_name, secondary_funding_agency_name.fa_name AS secondary_fa_name,
-                     tbl_project.state_id,      
-                    tbl_sub_project.sub_state_id,
-                    (
-                        SELECT STRING_AGG(st1.state_name, ', ')
-                        FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), tbl_project.state_id)), ',') AS st
-                        JOIN mmt_state AS st1 ON TRY_CAST(st.value AS int) = st1.state_id
-                    ) AS state_names,
-                    (
-                        SELECT STRING_AGG(sst1.state_name, ', ')
-                        FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), tbl_sub_project.sub_state_id)), ',') AS sst
-                        JOIN mmt_state AS sst1 ON TRY_CAST(sst.value AS int) = sst1.state_id
-                    ) AS sub_state_names, 
-                    tbl_project.district_id,
-                    tbl_sub_project.sub_district_id,
-                    (
-                        SELECT STRING_AGG(dt1.district_name, ', ')
-                        FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), tbl_project.district_id)), ',') AS dt
-                        JOIN mmt_district AS dt1 ON TRY_CAST(dt.value AS int) = dt1.district_id
-                    ) AS district_names,
-                    (
-                        SELECT STRING_AGG(sdt1.district_name, ', ')
-                        FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), tbl_sub_project.sub_district_id)), ',') AS sdt
-                        JOIN mmt_district AS sdt1 ON TRY_CAST(sdt.value AS int) = sdt1.district_id
-                    ) AS sub_district_names,
-                    tbl_project.mp_constituency_id,
-                    tbl_sub_project.sub_mp_constituency_id,
-                    (
-                        SELECT STRING_AGG(mp1.mpc_name, ', ')
-                        FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), tbl_project.mp_constituency_id)), ',') AS mp
-                        JOIN mmt_mp_constituency AS mp1 ON TRY_CAST(mp.value AS int) = mp1.mpc_id
-                    ) AS mp_constituency_names,
-                    (
-                        SELECT STRING_AGG(smp1.mpc_name, ', ')
-                        FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), tbl_sub_project.sub_mp_constituency_id)), ',') AS smp
-                        JOIN mmt_mp_constituency AS smp1 ON TRY_CAST(smp.value AS int) = smp1.mpc_id
-                    ) AS sub_mp_constituency_names, 
-                    mmt_outcome.project_outcome_name AS project_outcome_name,
-					mmt_output.project_output_name AS project_output_name,
-                    ISNULL(tbl_sub_project.sub_taluka_id, tbl_project.taluka_id) AS taluka_id,
-                    ISNULL(tbl_sub_project.sub_village_id, tbl_project.village_id) AS village_id,
-                    ISNULL(tbl_sub_project.sub_is_sagarmala_funded, tbl_project.is_sagarmala_funded) AS is_sagarmala_funded,
-                    ISNULL(tbl_sub_project.sub_gbs_components, tbl_project.gbs_components) AS gbs_components,
-                    ISNULL(tbl_sub_project.sub_iebr_components, tbl_project.iebr_components) AS iebr_components,
-                    ISNULL(tbl_sub_project.sub_ppp_components, tbl_project.ppp_components) AS ppp_components,
-                    ISNULL(tbl_sub_project.sub_loans_components,tbl_project.loans_components) AS loans_components,
-                    ISNULL(tbl_sub_project.sub_multilateral_components, tbl_project.multilateral_components) AS multilateral_components,
-                    ISNULL(tbl_sub_project.sub_state_gov_fund_components, tbl_project.state_gov_fund_components) AS state_gov_fund_components,          
-                    ISNULL(tbl_sub_project.sub_pmmsy_components, tbl_project.pmmsy_components) AS pmmsy_components,
-                    ISNULL(tbl_sub_project.sub_sagarmala_components, tbl_project.sagarmala_components) AS sagarmala_components,
-                    ISNULL(tbl_sub_project.sub_other_source_funding_comp, tbl_project.other_source_funding_comp) AS other_source_funding_comp,
-                    ISNULL(tbl_sub_project.sub_capacity_addition, tbl_project.capacity_addition) AS capacity_addition,
-                    ISNULL(tbl_sub_project.sub_foundation_laid, tbl_project.foundation_laid) AS foundation_laid,
-                    ISNULL(tbl_sub_project.sub_foundation_laid_date, tbl_project.foundation_laid_date) AS foundation_laid_date,
-                    ISNULL(tbl_sub_project.sub_foundation_tentative_date, tbl_project.foundation_tentative_date) AS foundation_tentative_date,
-                    ISNULL(tbl_sub_project.sub_inauguration_value, tbl_project.inauguration_value) AS inauguration_value,
-                    ISNULL(tbl_sub_project.sub_inauguration_date, tbl_project.inauguration_date) AS inauguration_date,
-                    ISNULL(tbl_sub_project.sub_tentative_inauguration_date, tbl_project.tentative_inauguration_date) AS tentative_inauguration_date,
-                    CASE WHEN tbl_sub_project.sub_on_land_acquisition = 1 THEN 'Yes' 
-                        WHEN tbl_project.on_land_acquisition = 1 THEN 'Yes' ELSE 'No' END AS on_land_acquisition,
-                    ISNULL(tbl_sub_project.sub_land_area_req, tbl_project.land_area_req) AS land_area_req,
-                    CASE WHEN tbl_sub_project.sub_on_acquisition_completed = 1 THEN 'Yes' 
-                        WHEN tbl_project.on_acquisition_completed = 1 THEN 'Yes' ELSE 'No' END AS on_acquisition_completed,
-                    ISNULL(tbl_sub_project.sub_percent_land_acq, tbl_project.percent_land_acq) AS percent_land_acq,
-                    mmt_scheme.scheme_name AS scheme_name,tbl_project.submitted_by, tbl_sub_project.sub_submitted_by,
-                    tbl_project_stage.stage_name AS stage_name, tbl_project.status,tbl_sub_project.sub_status, 
-                    ISNULL(tbl_sub_project.sub_last_updated, tbl_project.last_updated) AS last_updated_date   
-                FROM 
-                    tbl_project
+        let organisationId = null;
 
-                LEFT JOIN tbl_sub_project ON tbl_sub_project.project_id = tbl_project.project_id 
-                LEFT JOIN mmt_implementing_agency ON mmt_implementing_agency.ia_id = ISNULL(tbl_sub_project.sub_primary_ia_id, tbl_project.primary_ia_id)
-                LEFT JOIN mmt_implementing_agency AS sec_imp_agency ON sec_imp_agency.ia_id = ISNULL(tbl_project.secondary_ia_id, tbl_sub_project.sub_secondary_ia_id)
-                LEFT JOIN mmt_funding_agency ON mmt_funding_agency.fa_id = ISNULL(tbl_sub_project.sub_primary_funding_agency_id, tbl_project.primary_funding_agency_id)
-                LEFT JOIN (SELECT fa_id, fa_name FROM mmt_funding_agency) secondary_funding_agency_name ON secondary_funding_agency_name.fa_id = ISNULL(tbl_sub_project.sub_secondary_funding_agency_id,tbl_project.secondary_funding_agency_id)
-                LEFT JOIN mmt_scheme ON mmt_scheme.scheme_id = ISNULL(tbl_sub_project.sub_scheme_id,tbl_project.scheme_id)
-                LEFT JOIN mmt_organisation ON mmt_organisation.organisation_id = ISNULL(tbl_sub_project.sub_organisation_id, tbl_project.organisation_id)
-                LEFT JOIN mmt_state ON mmt_state.state_id = TRY_CAST(ISNULL(tbl_sub_project.sub_state_id, tbl_project.state_id) AS int)
-                LEFT JOIN mmt_district ON mmt_district.district_id = TRY_CAST(ISNULL(tbl_sub_project.sub_district_id, tbl_project.district_id) AS int)
-                LEFT JOIN mmt_mp_constituency ON mmt_mp_constituency.mpc_id = TRY_CAST(ISNULL(tbl_sub_project.sub_mp_constituency_id, tbl_project.mp_constituency_id) AS int)
-                LEFT JOIN tbl_project_stage AS tbl_project_stage ON tbl_project_stage.stage_id = ISNULL(tbl_sub_project.sub_current_project_stage_id,tbl_project.current_project_stage_id)
-				LEFT JOIN mmt_outcome AS mmt_outcome ON mmt_outcome.project_outcome_id = ISNULL(tbl_sub_project.sub_project_outcome_id,tbl_project.project_outcome_id)
-				LEFT JOIN mmt_output AS mmt_output ON mmt_output.project_output_id = ISNULL(tbl_sub_project.sub_project_output_id,tbl_project.project_output_id)),
-            
-            ProjectProgress AS 
-            ( SELECT 
-                    tbl_project.project_id, tbl_sub_project.sub_project_id AS sub_project_id,
-                    MAX(tbl_project_physical_progress.physical_progress) AS physical_progress,
-                    MAX(CASE WHEN tbl_project_date.sub_stage_id = 3 THEN tbl_project_date.actual_date ELSE NULL END) AS tech_sanction_date,
-                    MAX(CASE WHEN tbl_project_date.sub_stage_id = 4 THEN tbl_project_date.actual_date ELSE NULL END) AS tender_doc_approved_date,
-                    MAX(CASE WHEN tbl_project_date.sub_stage_id = 5 THEN tbl_project_date.actual_date ELSE NULL END) AS tender_notice_issued_date,
-                    MAX(CASE WHEN tbl_project_date.sub_stage_id = 6 THEN tbl_project_date.actual_date ELSE NULL END) AS technical_evaluation_completed_date,
-                    MAX(CASE WHEN tbl_project_date.sub_stage_id = 7 THEN tbl_project_date.actual_date ELSE NULL END) AS financial_evaluation_completed_date,
-                    MAX(CASE WHEN tbl_project_date.sub_stage_id = 8 THEN tbl_project_date.actual_date ELSE NULL END) AS sanction_of_authority_obtained_date,
-                    MAX(CASE WHEN tbl_project_date.sub_stage_id = 9 THEN tbl_project_date.actual_date ELSE NULL END) AS work_awarded_date,
-                    MAX(CASE WHEN tbl_project_date.sub_stage_id = 10 THEN tbl_project_date.actual_date ELSE NULL END) AS contract_sign_date,
+        if (!(role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8)) {
+            const orgRequest = conn.request();
+            orgRequest.input("userID", userID);
+            const orgResult = await orgRequest.query(
+                `SELECT organisation_id FROM tbl_user WHERE user_id = @userID`
+            );
+            const organisationID = Number(orgResult.recordset?.[0]?.organisation_id);
+            const dataScope = getDataScope(req.user || {});
+            const jwtOrgId = Number(dataScope.organisationId);
+            const effectiveOrgId = Number.isFinite(jwtOrgId) && jwtOrgId > 0
+                ? jwtOrgId
+                : organisationID;
 
-                    MAX(CASE WHEN tbl_project_date.sub_stage_id = 3 THEN tbl_project_date.planned_date ELSE NULL END) AS planned_tech_sanction_date,
-                    MAX(CASE WHEN tbl_project_date.sub_stage_id = 4 THEN tbl_project_date.planned_date ELSE NULL END) AS planned_tender_doc_approved_date,
-                    MAX(CASE WHEN tbl_project_date.sub_stage_id = 5 THEN tbl_project_date.planned_date ELSE NULL END) AS planned_tender_notice_issued_date,
-                    MAX(CASE WHEN tbl_project_date.sub_stage_id = 6 THEN tbl_project_date.planned_date ELSE NULL END) AS planned_technical_evaluation_completed_date,
-                    MAX(CASE WHEN tbl_project_date.sub_stage_id = 7 THEN tbl_project_date.planned_date ELSE NULL END) AS planned_financial_evaluation_completed_date,
-                    MAX(CASE WHEN tbl_project_date.sub_stage_id = 8 THEN tbl_project_date.planned_date ELSE NULL END) AS planned_sanction_of_authority_obtained_date,
-                    MAX(CASE WHEN tbl_project_date.sub_stage_id = 9 THEN tbl_project_date.planned_date ELSE NULL END) AS planned_work_awarded_date,
-                    MAX(CASE WHEN tbl_project_date.sub_stage_id = 10 THEN tbl_project_date.planned_date ELSE NULL END) AS planned_contract_sign_date
-                FROM 
-                    tbl_project
-                LEFT JOIN tbl_sub_project ON tbl_sub_project.project_id = tbl_project.project_id
-                LEFT JOIN tbl_project_physical_progress ON tbl_project_physical_progress.project_id = tbl_project.project_id AND tbl_project_physical_progress.sub_project_id = ISNULL(tbl_sub_project.sub_project_id, -1)
-                LEFT JOIN tbl_project_date ON tbl_project_date.project_id = tbl_project.project_id AND tbl_project_date.sub_project_id = ISNULL(tbl_sub_project.sub_project_id, -1)
-                GROUP BY 
-                    tbl_project.project_id,tbl_sub_project.sub_project_id
-            ),
+            if (!Number.isFinite(effectiveOrgId) || effectiveOrgId <= 0) {
+                return res.json([]);
+            }
 
-			MilestoneDates AS 
-            ( SELECT 
-                    tbl_project.project_id, tbl_sub_project.sub_project_id AS sub_project_id,
-                    MAX(CASE WHEN tbl_project_activity.milestone_id = 0 THEN tbl_project_activity.start_date ELSE NULL END) AS milestone_0_target_date,
-                    MAX(CASE WHEN tbl_project_activity.milestone_id = 0 THEN tbl_project_activity.end_date ELSE NULL END) AS milestone_0_actual_date,
-                    MAX(CASE WHEN tbl_project_activity.milestone_id = 1 THEN tbl_project_activity.start_date ELSE NULL END) AS milestone_1_target_date,
-                    MAX(CASE WHEN tbl_project_activity.milestone_id = 1 THEN tbl_project_activity.end_date ELSE NULL END) AS milestone_1_actual_date,
-                    MAX(CASE WHEN tbl_project_activity.milestone_id = 2 THEN tbl_project_activity.start_date ELSE NULL END) AS milestone_2_target_date,
-                    MAX(CASE WHEN tbl_project_activity.milestone_id = 2 THEN tbl_project_activity.end_date ELSE NULL END) AS milestone_2_actual_date,
-                    MAX(CASE WHEN tbl_project_activity.milestone_id = 3 THEN tbl_project_activity.start_date ELSE NULL END) AS milestone_3_target_date,
-                    MAX(CASE WHEN tbl_project_activity.milestone_id = 3 THEN tbl_project_activity.end_date ELSE NULL END) AS milestone_3_actual_date,
-                    MAX(CASE WHEN tbl_project_activity.milestone_id = 4 THEN tbl_project_activity.start_date ELSE NULL END) AS milestone_4_target_date,
-                    MAX(CASE WHEN tbl_project_activity.milestone_id = 4 THEN tbl_project_activity.end_date ELSE NULL END) AS milestone_4_actual_date,
-                    MAX(CASE WHEN tbl_project_activity.milestone_id = 5 THEN tbl_project_activity.start_date ELSE NULL END) AS milestone_5_target_date,
-                    MAX(CASE WHEN tbl_project_activity.milestone_id = 5 THEN tbl_project_activity.end_date ELSE NULL END) AS milestone_5_actual_date,
-                    MAX(CASE WHEN tbl_project_activity.milestone_id = 1 THEN tbl_project_activity.delay_reason ELSE NULL END) AS delay_reason
-                FROM 
-                    tbl_project
-                LEFT JOIN tbl_sub_project ON tbl_sub_project.project_id = tbl_project.project_id
-                LEFT JOIN tbl_project_activity ON tbl_project_activity.project_id = tbl_project.project_id AND tbl_project_activity.sub_project_id = ISNULL(tbl_sub_project.sub_project_id, -1)
-                GROUP BY 
-                    tbl_project.project_id,	tbl_sub_project.sub_project_id
-            ),
-
-            ExpenditureTillDate AS 
-            (SELECT 
-            tbl_project_expenditure.project_id, 
-            tbl_project_expenditure.sub_project_id, 
-            SUM(
-                COALESCE(tbl_project_expenditure.gbs_components, 0) + 
-                COALESCE(tbl_project_expenditure.iebr_components, 0) + 
-                COALESCE(tbl_project_expenditure.ppp_components, 0) + 
-                COALESCE(tbl_project_expenditure.loans_components, 0) + 
-                COALESCE(tbl_project_expenditure.multilateral_components, 0) + 
-                COALESCE(tbl_project_expenditure.state_gov_fund_components, 0) +                 
-                COALESCE(tbl_project_expenditure.pmmsy_components, 0) + 
-                COALESCE(tbl_project_expenditure.sagarmala_components, 0) + 
-                COALESCE(tbl_project_expenditure.other_source_funding_comp, 0)
-            ) AS expenditure_till_date,
-            CASE
-                WHEN (COALESCE(tbl_project.award_project_cost, 0) + COALESCE(tbl_sub_project.sub_award_project_cost, 0)) = 0 THEN 0
-                ELSE (SUM(
-                    COALESCE(tbl_project_expenditure.gbs_components, 0) + 
-                    COALESCE(tbl_project_expenditure.iebr_components, 0) + 
-                    COALESCE(tbl_project_expenditure.ppp_components, 0) + 
-                    COALESCE(tbl_project_expenditure.loans_components, 0) + 
-                    COALESCE(tbl_project_expenditure.multilateral_components, 0) + 
-                    COALESCE(tbl_project_expenditure.state_gov_fund_components, 0) +                     
-                    COALESCE(tbl_project_expenditure.pmmsy_components, 0) + 
-                    COALESCE(tbl_project_expenditure.sagarmala_components, 0) + 
-                    COALESCE(tbl_project_expenditure.other_source_funding_comp, 0)
-                ) / NULLIF((COALESCE(tbl_project.award_project_cost, 0) + COALESCE(tbl_sub_project.sub_award_project_cost, 0)), 0)) * 100
-            END AS financial_progress
-        FROM 
-            tbl_project_expenditure
-        LEFT JOIN 
-            tbl_project ON tbl_project.project_id = tbl_project_expenditure.project_id
-        LEFT JOIN 
-            tbl_sub_project ON tbl_sub_project.sub_project_id = tbl_project_expenditure.sub_project_id
-        GROUP BY
-            tbl_project_expenditure.project_id, 
-            tbl_project_expenditure.sub_project_id, 
-            tbl_project.award_project_cost, 
-            tbl_sub_project.sub_award_project_cost
-            ),
-
-            ExpenditureTillDateFY AS 
-            (
-                SELECT 
-                    tbl_project_expenditure.project_id, 
-                    tbl_project_expenditure.sub_project_id, 
-                    SUM(
-                        COALESCE(tbl_project_expenditure.gbs_components, 0) + 
-                        COALESCE(tbl_project_expenditure.iebr_components, 0) + 
-                        COALESCE(tbl_project_expenditure.ppp_components, 0) + 
-                        COALESCE(tbl_project_expenditure.loans_components, 0) + 
-                        COALESCE(tbl_project_expenditure.multilateral_components, 0) + 
-                        COALESCE(tbl_project_expenditure.state_gov_fund_components, 0) +                 
-                        COALESCE(tbl_project_expenditure.pmmsy_components, 0) + 
-                        COALESCE(tbl_project_expenditure.sagarmala_components, 0) + 
-                        COALESCE(tbl_project_expenditure.other_source_funding_comp, 0)
-                ) AS expenditure_till_date_currentFY_only
-                
-                FROM 
-                    tbl_project_expenditure
-                LEFT JOIN 
-                    tbl_project ON tbl_project.project_id = tbl_project_expenditure.project_id
-                LEFT JOIN 
-                    tbl_sub_project ON tbl_sub_project.sub_project_id = tbl_project_expenditure.sub_project_id
-
-                WHERE 
-                    tbl_project_expenditure.expenditure_date BETWEEN '${firstDateCurrentFy}' AND '${todayDate}'
-                GROUP BY
-                    tbl_project_expenditure.project_id, 
-                    tbl_project_expenditure.sub_project_id
-            ),
-
-            
-            ExpenditureTillPreviousFY AS 
-            (
-                SELECT 
-                    tbl_project_expenditure.project_id, 
-                    tbl_project_expenditure.sub_project_id, 
-                    SUM(
-                        COALESCE(tbl_project_expenditure.gbs_components, 0) + 
-                        COALESCE(tbl_project_expenditure.iebr_components, 0) + 
-                        COALESCE(tbl_project_expenditure.ppp_components, 0) + 
-                        COALESCE(tbl_project_expenditure.loans_components, 0) + 
-                        COALESCE(tbl_project_expenditure.multilateral_components, 0) + 
-                        COALESCE(tbl_project_expenditure.state_gov_fund_components, 0) +                 
-                        COALESCE(tbl_project_expenditure.pmmsy_components, 0) + 
-                        COALESCE(tbl_project_expenditure.sagarmala_components, 0) + 
-                        COALESCE(tbl_project_expenditure.other_source_funding_comp, 0)
-                ) AS expenditure_till_PreviousFY
-                
-                FROM 
-                    tbl_project_expenditure
-                Inner JOIN 
-                    tbl_project ON tbl_project.project_id = tbl_project_expenditure.project_id
-                Inner JOIN 
-                    tbl_sub_project ON tbl_sub_project.sub_project_id = tbl_project_expenditure.sub_project_id
-
-                WHERE 
-                    tbl_project_expenditure.expenditure_date < '${firstDateCurrentFy}' 
-                GROUP BY
-                    tbl_project_expenditure.project_id, 
-                    tbl_project_expenditure.sub_project_id
-            ),
-
-
-            Outlays AS 
-            ( SELECT 
-                    tbl_project.project_id,tbl_sub_project.sub_project_id,tbl_project_expenditure_outlay.expenditure_outlay
-                FROM 
-                    tbl_project_expenditure_outlay
-                LEFT JOIN 
-                    tbl_project ON tbl_project.project_id = tbl_project_expenditure_outlay.project_id
-                LEFT JOIN 
-                    tbl_sub_project ON tbl_sub_project.sub_project_id = tbl_project_expenditure_outlay.sub_project_id
-                WHERE 
-                    tbl_project_expenditure_outlay.year = '${financialYear}'
-                GROUP BY
-                    tbl_project.project_id,tbl_sub_project.sub_project_id,tbl_project_expenditure_outlay.expenditure_outlay
-            ),
-
-
-            RevisedTargetDates AS (
-                SELECT 
-                    project_id,
-                    sub_project_id,
-                    MAX(CASE WHEN rn = 1 THEN revised_target_completion_date END) AS revised_target_date_1,
-                    MAX(CASE WHEN rn = 2 THEN revised_target_completion_date END) AS revised_target_date_2,
-                    MAX(CASE WHEN rn = 3 THEN revised_target_completion_date END) AS revised_target_date_3
-                FROM (
-                    SELECT *,
-                        ROW_NUMBER() OVER (PARTITION BY project_id, sub_project_id ORDER BY revised_on) AS rn
-                    FROM tbl_project_target_date_history
-                ) t
-                GROUP BY project_id, sub_project_id
-            )
-
-
-            SELECT 
-                PD.organisation_id, PD.organisation_name, PD.project_id, PD.sub_project_id, PD.project_name, PD.sub_project_name, 
-                PD.sagarmala_project_id, PD.project_brief, PD.estimated_cost,PD.sanctioned_cost, PD.technical_sanction_cost, 
-                PD.project_type, PD.mode_of_implememtation, PD.implememtation_type, PD.project_intiated_date,PD.target_completion_date,
-                PD.prefeasibility_actual_date, PD.dpr_actual_date, PD.chairman_approval_date, PD.ministry_submission_date,
-                PD.da_approval_date, PD.ifw_approval_date, PD.imc_approval_date, PD.response_com_rec_approval_date, PD.sfc_approval_date,
-                PD.admin_approval_approval_date, PD.primary_ia_name, PD.sec_imp_agency, PD.primary_fa_name,PD.secondary_fa_name, 
-                PD.actual_date_of_completion, PD.closure_cost, PD.state_names, PD.sub_state_names, PD.district_names, 
-                PD.sub_district_names, PD.taluka_id, PD.village_id, PD.mp_constituency_names, PD.sub_mp_constituency_names, 
-                PD.project_category_names, PD.initiative_names, PD.is_sagarmala_funded, PD.source_of_funding_names, 
-                PD.gbs_components, PD.iebr_components, PD.ppp_components,PD.loans_components,PD.multilateral_components, 
-                PD.state_gov_fund_components, PD.pmmsy_components, PD.sagarmala_components, PD.other_source_funding_comp, 
-                PD.capacity_addition, PD.foundation_laid, PD.foundation_laid_date, PD.foundation_tentative_date,
-                PD.inauguration_value, PD.inauguration_date, PD.tentative_inauguration_date, PD.on_land_acquisition, PD.project_output_name, PD.project_outcome_name,
-                PD.land_area_req, PD.on_acquisition_completed,PD.percent_land_acq,PD.status, PD.sub_status, PD.submitted_by,
-                 PD.sub_submitted_by, PD.scheme_name,PD.stage_name,PD.last_updated_date, PD.num_ut_tender_calls, 
-                PD.award_project_cost, PP.tech_sanction_date,PP.tender_doc_approved_date,PP.tender_notice_issued_date,
-                PP.technical_evaluation_completed_date,PP.financial_evaluation_completed_date, PP.sanction_of_authority_obtained_date,
-                PP.work_awarded_date,PP.contract_sign_date, 
-                PP.planned_tech_sanction_date,PP.planned_tender_doc_approved_date,PP.planned_tender_notice_issued_date,
-                PP.planned_technical_evaluation_completed_date,PP.planned_financial_evaluation_completed_date,
-                PP.planned_sanction_of_authority_obtained_date, PP.planned_work_awarded_date,PP.planned_contract_sign_date, 
-                
-                
-                PP.physical_progress, MD.milestone_0_target_date,MD.milestone_0_actual_date,
-                MD.milestone_1_target_date,MD.milestone_1_actual_date, MD.milestone_2_target_date,MD.milestone_2_actual_date,
-                MD.milestone_3_target_date,MD.milestone_3_actual_date, MD.milestone_4_target_date,MD.milestone_4_actual_date,
-                MD.milestone_5_target_date,MD.milestone_5_actual_date, ETD.expenditure_till_date, ETD.financial_progress, 
-                expenditureFY.expenditure_till_date_currentFY_only, expenditurePreviousFY.expenditure_till_PreviousFY, OO.expenditure_outlay,
-                RTD.revised_target_date_1, RTD.revised_target_date_2, RTD.revised_target_date_3, MD.delay_reason
-
-			FROM 
-				ProjectDetails PD
-			LEFT JOIN ProjectProgress PP ON PD.project_id = PP.project_id AND ISNULL(PD.sub_project_id, -1) = ISNULL(PP.sub_project_id, -1)
-			LEFT JOIN MilestoneDates MD ON PD.project_id = MD.project_id AND ISNULL(PD.sub_project_id, -1) = ISNULL(MD.sub_project_id, -1)
-            LEFT JOIN Outlays OO ON PD.project_id = OO.project_id AND ISNULL(PD.sub_project_id, -1) = ISNULL(OO.sub_project_id, -1)
-            LEFT JOIN ExpenditureTillDate ETD ON PD.project_id = ETD.project_id AND ISNULL(PD.sub_project_id, -1) = ISNULL(ETD.sub_project_id, -1)
-            LEFT JOIN ExpenditureTillDateFY expenditureFY ON PD.project_id = expenditureFY.project_id AND ISNULL(PD.sub_project_id, -1) = ISNULL(expenditureFY.sub_project_id, -1)
-            LEFT JOIN ExpenditureTillPreviousFY expenditurePreviousFY ON PD.project_id = expenditurePreviousFY.project_id AND ISNULL(PD.sub_project_id, -1) = ISNULL(expenditurePreviousFY.sub_project_id, -1)
-            LEFT JOIN RevisedTargetDates RTD ON PD.project_id = RTD.project_id AND ISNULL(PD.sub_project_id, -1) = ISNULL(RTD.sub_project_id, -1)
-           
-            WHERE ((PD.sub_project_id IS NOT NULL AND PD.sub_status = 1) OR (PD.sub_project_id IS NULL AND PD.status = 1));  
-                
-        `);
-            res.json(result.recordset);
+            organisationId = effectiveOrgId;
         }
-        else {
-            const orgResult = await conn.query(`SELECT organisation_id FROM tbl_user WHERE user_id = ${userID}`);
-            const organisationID = orgResult.recordset[0].organisation_id;
 
-            const usersResult = await conn.query(`SELECT user_id FROM tbl_user WHERE organisation_id = ${organisationID}`);
-            const userIDs = usersResult.recordset.map(user => user.user_id);
+        const request = conn.request();
+        request.input("OrganisationId", sql.Int, organisationId);
+        request.input("FyStart", sql.Date, firstDateCurrentFy);
+        request.input("Today", sql.Date, todayDate);
+        request.input("FinancialYear", sql.NVarChar(9), financialYear);
 
-            // const result = await conn.query (organsationBased );
-
-            //NOTE : Query table details
-            // Heading          Aliasing    Related Tables
-            // ProjectDetails   PD          tbl_project,tbl_sub_project
-            // ProjectProgress  PP          tbl_project,tbl_sub_project,tbl_project_date
-            // MilestoneDates   AD          tbl_project,tbl_sub_project,tbl_project_date 
-            // Outlays          OO          tbl_project,tbl_sub_project,tbl_project_expenditure_outlay 
-
-            const result = await conn.query(` WITH ProjectDetails AS 
-            (   SELECT
-                    mmt_organisation.organisation_name,
-                    ISNULL(tbl_sub_project.sub_organisation_id, tbl_project.organisation_id) AS organisation_id,
-                    tbl_project.project_id, tbl_sub_project.sub_project_id,
-                    tbl_project.project_name,tbl_sub_project.sub_project_name,
-                    ISNULL(tbl_sub_project.sub_sagarmala_project_id,tbl_project.sagarmala_project_id) AS sagarmala_project_id,
-                    ISNULL(tbl_sub_project.sub_project_brief,tbl_project.project_brief) AS project_brief,
-                    ISNULL(tbl_sub_project.sub_estimated_cost,tbl_project.estimated_cost) AS estimated_cost,
-                    ISNULL(tbl_sub_project.sub_sanctioned_cost,tbl_project.sanctioned_cost) AS sanctioned_cost,
-                    ISNULL(tbl_sub_project.sub_technical_sanction_cost, technical_sanction_cost) AS technical_sanction_cost,
-                    ISNULL(tbl_sub_project.sub_award_project_cost, award_project_cost) AS award_project_cost,
-                    ISNULL(tbl_sub_project.sub_project_type,tbl_project.project_type) AS project_type,
-                    ISNULL(tbl_sub_project.sub_closure_cost,tbl_project.closure_cost) AS closure_cost,
-                    ISNULL(tbl_sub_project.sub_actual_date_of_completion,tbl_project.actual_date_of_completion) AS actual_date_of_completion,
-                    ISNULL(tbl_sub_project.sub_mode_of_implememtation,tbl_project.mode_of_implememtation) AS mode_of_implememtation,
-                    ISNULL(tbl_sub_project.sub_implememtation_type,tbl_project.implememtation_type) AS implememtation_type,
-                    ISNULL(tbl_sub_project.sub_project_intiated_date,tbl_project.project_intiated_date) AS project_intiated_date,
-                    ISNULL(tbl_sub_project.sub_target_completion_date,tbl_project.target_completion_date) AS target_completion_date,
-                    ISNULL(tbl_sub_project.sub_prefeasiblity_actual_date,tbl_project.prefeasiblity_actual_date) AS prefeasibility_actual_date,
-                    ISNULL(tbl_sub_project.sub_dpr_actual_date,tbl_project.dpr_actual_date) AS dpr_actual_date,
-                    ISNULL(tbl_sub_project.sub_chairman_approval_date,tbl_project.chairman_approval_date) AS chairman_approval_date,
-                    ISNULL(tbl_sub_project.sub_ministry_submission_date,tbl_project.ministry_submission_date) AS ministry_submission_date,
-                    ISNULL(tbl_sub_project.sub_da_approval_date,tbl_project.da_approval_date) AS da_approval_date,
-                    ISNULL(tbl_sub_project.sub_ifw_approval_date,tbl_project.ifw_approval_date) AS ifw_approval_date,
-                    ISNULL(tbl_sub_project.sub_imc_approval_date,tbl_project.imc_approval_date) AS imc_approval_date,
-                    ISNULL(tbl_sub_project.sub_response_com_rec_approval_date,tbl_project.response_com_rec_approval_date) AS response_com_rec_approval_date,
-                    ISNULL(tbl_sub_project.sub_sfc_approval_date,tbl_project.sfc_approval_date) AS sfc_approval_date,
-                    ISNULL(tbl_sub_project.sub_admin_approval_approval_date, tbl_project.admin_approval_approval_date) AS admin_approval_approval_date,
-                    mmt_implementing_agency.ia_name AS primary_ia_name,
-                    sec_imp_agency.ia_name AS sec_imp_agency, num_ut_tender_calls,
-                    ISNULL((
-                        SELECT STRING_AGG(mpc.project_category_name, ', ')
-                        FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), tbl_sub_project.sub_project_category_id)), ',') AS sps
-                        JOIN mmt_project_category AS mpc ON TRY_CAST(sps.value AS int) = mpc.project_category_id
-                    ), (
-                        SELECT STRING_AGG(mpc.project_category_name, ', ')
-                        FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), tbl_project.project_category_id)), ',') AS ps
-                        JOIN mmt_project_category AS mpc ON TRY_CAST(ps.value AS int) = mpc.project_category_id
-                    )) AS project_category_names ,
-                    ISNULL((
-                        SELECT STRING_AGG(mi.initiative_name, ', ')
-                        FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), tbl_project.initiative_id)), ',') AS pi
-                        JOIN mmt_initiative AS mi ON TRY_CAST(pi.value AS int) = mi.initiative_id
-                    ), (
-                        SELECT STRING_AGG(mi.initiative_name, ', ')
-                        FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), tbl_sub_project.sub_initiative_id)), ',') AS si
-                        JOIN mmt_initiative AS mi ON TRY_CAST(si.value AS int) = mi.initiative_id
-                    ) ) AS initiative_names,
-					ISNULL((
-						SELECT STRING_AGG(msf.source_of_funding_name, ', ')
-						FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), tbl_sub_project.sub_source_of_funding_id)), ',') AS ssf
-						JOIN mmt_source_of_funding AS msf ON TRY_CAST(ssf.value AS int) = msf.source_of_funding_id
-					),(
-						SELECT STRING_AGG(msf.source_of_funding_name, ', ')
-						FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), tbl_project.source_of_funding_id)), ',') AS sf
-						JOIN mmt_source_of_funding AS msf ON TRY_CAST(sf.value AS int) = msf.source_of_funding_id
-					)) AS source_of_funding_names, 
-                    mmt_funding_agency.fa_name AS primary_fa_name, secondary_funding_agency_name.fa_name AS secondary_fa_name,
-                    tbl_project.state_id,      
-                    tbl_sub_project.sub_state_id,
-                    (
-                        SELECT STRING_AGG(st1.state_name, ', ')
-                        FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), tbl_project.state_id)), ',') AS st
-                        JOIN mmt_state AS st1 ON TRY_CAST(st.value AS int) = st1.state_id
-                    ) AS state_names,
-                    (
-                        SELECT STRING_AGG(sst1.state_name, ', ')
-                        FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), tbl_sub_project.sub_state_id)), ',') AS sst
-                        JOIN mmt_state AS sst1 ON TRY_CAST(sst.value AS int) = sst1.state_id
-                    ) AS sub_state_names, 
-                    tbl_project.district_id,
-                    tbl_sub_project.sub_district_id,
-                    (
-                        SELECT STRING_AGG(dt1.district_name, ', ')
-                        FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), tbl_project.district_id)), ',') AS dt
-                        JOIN mmt_district AS dt1 ON TRY_CAST(dt.value AS int) = dt1.district_id
-                    ) AS district_names,
-                    (
-                        SELECT STRING_AGG(sdt1.district_name, ', ')
-                        FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), tbl_sub_project.sub_district_id)), ',') AS sdt
-                        JOIN mmt_district AS sdt1 ON TRY_CAST(sdt.value AS int) = sdt1.district_id
-                    ) AS sub_district_names,
-                    tbl_project.mp_constituency_id,
-                    tbl_sub_project.sub_mp_constituency_id,
-                    (
-                        SELECT STRING_AGG(mp1.mpc_name, ', ')
-                        FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), tbl_project.mp_constituency_id)), ',') AS mp
-                        JOIN mmt_mp_constituency AS mp1 ON TRY_CAST(mp.value AS int) = mp1.mpc_id
-                    ) AS mp_constituency_names,
-                    (
-                        SELECT STRING_AGG(smp1.mpc_name, ', ')
-                        FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), tbl_sub_project.sub_mp_constituency_id)), ',') AS smp
-                        JOIN mmt_mp_constituency AS smp1 ON TRY_CAST(smp.value AS int) = smp1.mpc_id
-                    ) AS sub_mp_constituency_names,
-                    mmt_outcome.project_outcome_name AS project_outcome_name,
-					mmt_output.project_output_name AS project_output_name,
-                    ISNULL(tbl_sub_project.sub_taluka_id, tbl_project.taluka_id) AS taluka_id,
-                    ISNULL(tbl_sub_project.sub_village_id, tbl_project.village_id) AS village_id,
-                    ISNULL(tbl_sub_project.sub_is_sagarmala_funded, tbl_project.is_sagarmala_funded) AS is_sagarmala_funded,
-                    ISNULL(tbl_sub_project.sub_gbs_components, tbl_project.gbs_components) AS gbs_components,
-                    ISNULL(tbl_sub_project.sub_iebr_components, tbl_project.iebr_components) AS iebr_components,
-                    ISNULL(tbl_sub_project.sub_ppp_components, tbl_project.ppp_components) AS ppp_components,
-                    ISNULL(tbl_sub_project.sub_loans_components,tbl_project.loans_components) AS loans_components,
-                    ISNULL(tbl_sub_project.sub_multilateral_components, tbl_project.multilateral_components) AS multilateral_components,
-                    ISNULL(tbl_sub_project.sub_state_gov_fund_components, tbl_project.state_gov_fund_components) AS state_gov_fund_components,          
-                    ISNULL(tbl_sub_project.sub_pmmsy_components, tbl_project.pmmsy_components) AS pmmsy_components,
-                    ISNULL(tbl_sub_project.sub_sagarmala_components, tbl_project.sagarmala_components) AS sagarmala_components,
-                    ISNULL(tbl_sub_project.sub_other_source_funding_comp, tbl_project.other_source_funding_comp) AS other_source_funding_comp,
-                    ISNULL(tbl_sub_project.sub_capacity_addition, tbl_project.capacity_addition) AS capacity_addition,
-                    ISNULL(tbl_sub_project.sub_foundation_laid, tbl_project.foundation_laid) AS foundation_laid,
-                    ISNULL(tbl_sub_project.sub_foundation_laid_date, tbl_project.foundation_laid_date) AS foundation_laid_date,
-                    ISNULL(tbl_sub_project.sub_foundation_tentative_date, tbl_project.foundation_tentative_date) AS foundation_tentative_date,
-                    ISNULL(tbl_sub_project.sub_inauguration_value, tbl_project.inauguration_value) AS inauguration_value,
-                    ISNULL(tbl_sub_project.sub_inauguration_date, tbl_project.inauguration_date) AS inauguration_date,
-                    ISNULL(tbl_sub_project.sub_tentative_inauguration_date, tbl_project.tentative_inauguration_date) AS tentative_inauguration_date,
-                    CASE WHEN tbl_sub_project.sub_on_land_acquisition = 1 THEN 'Yes' 
-                        WHEN tbl_project.on_land_acquisition = 1 THEN 'Yes' ELSE 'No' END AS on_land_acquisition,
-                    ISNULL(tbl_sub_project.sub_land_area_req, tbl_project.land_area_req) AS land_area_req,
-                    CASE WHEN tbl_sub_project.sub_on_acquisition_completed = 1 THEN 'Yes' 
-                        WHEN tbl_project.on_acquisition_completed = 1 THEN 'Yes' ELSE 'No' END AS on_acquisition_completed,
-                    ISNULL(tbl_sub_project.sub_percent_land_acq, tbl_project.percent_land_acq) AS percent_land_acq,
-                    mmt_scheme.scheme_name AS scheme_name,tbl_project.submitted_by, tbl_sub_project.sub_submitted_by,
-                    tbl_project_stage.stage_name AS stage_name, tbl_project.status,tbl_sub_project.sub_status, 
-                    ISNULL(tbl_sub_project.sub_last_updated, tbl_project.last_updated) AS last_updated_date   
-                FROM 
-                    tbl_project
-
-                LEFT JOIN tbl_sub_project ON tbl_sub_project.project_id = tbl_project.project_id 
-                LEFT JOIN mmt_implementing_agency ON mmt_implementing_agency.ia_id = ISNULL(tbl_sub_project.sub_primary_ia_id, tbl_project.primary_ia_id)
-                LEFT JOIN mmt_implementing_agency AS sec_imp_agency ON sec_imp_agency.ia_id = ISNULL(tbl_project.secondary_ia_id, tbl_sub_project.sub_secondary_ia_id)
-                LEFT JOIN mmt_funding_agency ON mmt_funding_agency.fa_id = ISNULL(tbl_sub_project.sub_primary_funding_agency_id, tbl_project.primary_funding_agency_id)
-                LEFT JOIN (SELECT fa_id, fa_name FROM mmt_funding_agency) secondary_funding_agency_name ON secondary_funding_agency_name.fa_id = ISNULL(tbl_sub_project.sub_secondary_funding_agency_id,tbl_project.secondary_funding_agency_id)
-                LEFT JOIN mmt_scheme ON mmt_scheme.scheme_id = ISNULL(tbl_sub_project.sub_scheme_id,tbl_project.scheme_id)
-                LEFT JOIN mmt_organisation ON mmt_organisation.organisation_id = ISNULL(tbl_sub_project.sub_organisation_id, tbl_project.organisation_id)
-                LEFT JOIN mmt_state ON mmt_state.state_id = TRY_CAST(ISNULL(tbl_sub_project.sub_state_id, tbl_project.state_id) AS int)
-                LEFT JOIN mmt_district ON mmt_district.district_id = TRY_CAST(ISNULL(tbl_sub_project.sub_district_id, tbl_project.district_id) AS int)
-                LEFT JOIN mmt_mp_constituency ON mmt_mp_constituency.mpc_id = TRY_CAST(ISNULL(tbl_sub_project.sub_mp_constituency_id, tbl_project.mp_constituency_id) AS int)
-                LEFT JOIN tbl_project_stage AS tbl_project_stage ON tbl_project_stage.stage_id = ISNULL(tbl_sub_project.sub_current_project_stage_id,tbl_project.current_project_stage_id)
-				LEFT JOIN mmt_outcome AS mmt_outcome ON mmt_outcome.project_outcome_id = ISNULL(tbl_sub_project.sub_project_outcome_id,tbl_project.project_outcome_id)
-				LEFT JOIN mmt_output AS mmt_output ON mmt_output.project_output_id = ISNULL(tbl_sub_project.sub_project_output_id,tbl_project.project_output_id)),
-            
-            ProjectProgress AS 
-            ( SELECT 
-                    tbl_project.project_id, tbl_sub_project.sub_project_id AS sub_project_id,
-                    MAX(tbl_project_physical_progress.physical_progress) AS physical_progress,
-                    MAX(CASE WHEN tbl_project_date.sub_stage_id = 3 THEN tbl_project_date.actual_date ELSE NULL END) AS tech_sanction_date,
-                    MAX(CASE WHEN tbl_project_date.sub_stage_id = 4 THEN tbl_project_date.actual_date ELSE NULL END) AS tender_doc_approved_date,
-                    MAX(CASE WHEN tbl_project_date.sub_stage_id = 5 THEN tbl_project_date.actual_date ELSE NULL END) AS tender_notice_issued_date,
-                    MAX(CASE WHEN tbl_project_date.sub_stage_id = 6 THEN tbl_project_date.actual_date ELSE NULL END) AS technical_evaluation_completed_date,
-                    MAX(CASE WHEN tbl_project_date.sub_stage_id = 7 THEN tbl_project_date.actual_date ELSE NULL END) AS financial_evaluation_completed_date,
-                    MAX(CASE WHEN tbl_project_date.sub_stage_id = 8 THEN tbl_project_date.actual_date ELSE NULL END) AS sanction_of_authority_obtained_date,
-                    MAX(CASE WHEN tbl_project_date.sub_stage_id = 9 THEN tbl_project_date.actual_date ELSE NULL END) AS work_awarded_date,
-                    MAX(CASE WHEN tbl_project_date.sub_stage_id = 10 THEN tbl_project_date.actual_date ELSE NULL END) AS contract_sign_date,
-
-                    MAX(CASE WHEN tbl_project_date.sub_stage_id = 3 THEN tbl_project_date.planned_date ELSE NULL END) AS planned_tech_sanction_date,
-                    MAX(CASE WHEN tbl_project_date.sub_stage_id = 4 THEN tbl_project_date.planned_date ELSE NULL END) AS planned_tender_doc_approved_date,
-                    MAX(CASE WHEN tbl_project_date.sub_stage_id = 5 THEN tbl_project_date.planned_date ELSE NULL END) AS planned_tender_notice_issued_date,
-                    MAX(CASE WHEN tbl_project_date.sub_stage_id = 6 THEN tbl_project_date.planned_date ELSE NULL END) AS planned_technical_evaluation_completed_date,
-                    MAX(CASE WHEN tbl_project_date.sub_stage_id = 7 THEN tbl_project_date.planned_date ELSE NULL END) AS planned_financial_evaluation_completed_date,
-                    MAX(CASE WHEN tbl_project_date.sub_stage_id = 8 THEN tbl_project_date.planned_date ELSE NULL END) AS planned_sanction_of_authority_obtained_date,
-                    MAX(CASE WHEN tbl_project_date.sub_stage_id = 9 THEN tbl_project_date.planned_date ELSE NULL END) AS planned_work_awarded_date,
-                    MAX(CASE WHEN tbl_project_date.sub_stage_id = 10 THEN tbl_project_date.planned_date ELSE NULL END) AS planned_contract_sign_date
-                FROM 
-                    tbl_project
-                LEFT JOIN tbl_sub_project ON tbl_sub_project.project_id = tbl_project.project_id
-                LEFT JOIN tbl_project_physical_progress ON tbl_project_physical_progress.project_id = tbl_project.project_id AND tbl_project_physical_progress.sub_project_id = ISNULL(tbl_sub_project.sub_project_id, -1)
-                LEFT JOIN tbl_project_date ON tbl_project_date.project_id = tbl_project.project_id AND tbl_project_date.sub_project_id = ISNULL(tbl_sub_project.sub_project_id, -1)
-                GROUP BY 
-                    tbl_project.project_id,tbl_sub_project.sub_project_id
-            ),
-
-			MilestoneDates AS 
-            ( SELECT 
-                    tbl_project.project_id, tbl_sub_project.sub_project_id AS sub_project_id,
-                    MAX(CASE WHEN tbl_project_activity.milestone_id = 0 THEN tbl_project_activity.start_date ELSE NULL END) AS milestone_0_target_date,
-                    MAX(CASE WHEN tbl_project_activity.milestone_id = 0 THEN tbl_project_activity.end_date ELSE NULL END) AS milestone_0_actual_date,
-                    MAX(CASE WHEN tbl_project_activity.milestone_id = 1 THEN tbl_project_activity.start_date ELSE NULL END) AS milestone_1_target_date,
-                    MAX(CASE WHEN tbl_project_activity.milestone_id = 1 THEN tbl_project_activity.end_date ELSE NULL END) AS milestone_1_actual_date,
-                    MAX(CASE WHEN tbl_project_activity.milestone_id = 2 THEN tbl_project_activity.start_date ELSE NULL END) AS milestone_2_target_date,
-                    MAX(CASE WHEN tbl_project_activity.milestone_id = 2 THEN tbl_project_activity.end_date ELSE NULL END) AS milestone_2_actual_date,
-                    MAX(CASE WHEN tbl_project_activity.milestone_id = 3 THEN tbl_project_activity.start_date ELSE NULL END) AS milestone_3_target_date,
-                    MAX(CASE WHEN tbl_project_activity.milestone_id = 3 THEN tbl_project_activity.end_date ELSE NULL END) AS milestone_3_actual_date,
-                    MAX(CASE WHEN tbl_project_activity.milestone_id = 4 THEN tbl_project_activity.start_date ELSE NULL END) AS milestone_4_target_date,
-                    MAX(CASE WHEN tbl_project_activity.milestone_id = 4 THEN tbl_project_activity.end_date ELSE NULL END) AS milestone_4_actual_date,
-                    MAX(CASE WHEN tbl_project_activity.milestone_id = 5 THEN tbl_project_activity.start_date ELSE NULL END) AS milestone_5_target_date,
-                    MAX(CASE WHEN tbl_project_activity.milestone_id = 5 THEN tbl_project_activity.end_date ELSE NULL END) AS milestone_5_actual_date,
-                    MAX(CASE WHEN tbl_project_activity.milestone_id = 1 THEN tbl_project_activity.delay_reason ELSE NULL END) AS delay_reason
-                FROM 
-                    tbl_project
-                LEFT JOIN tbl_sub_project ON tbl_sub_project.project_id = tbl_project.project_id
-                LEFT JOIN tbl_project_activity ON tbl_project_activity.project_id = tbl_project.project_id AND tbl_project_activity.sub_project_id = ISNULL(tbl_sub_project.sub_project_id, -1)
-                GROUP BY 
-                    tbl_project.project_id,	tbl_sub_project.sub_project_id
-            ),
-
-            ExpenditureTillDate AS 
-            ( SELECT 
-                tbl_project_expenditure.project_id, 
-                tbl_project_expenditure.sub_project_id, 
-                SUM(
-                    COALESCE(tbl_project_expenditure.gbs_components, 0) + 
-                    COALESCE(tbl_project_expenditure.iebr_components, 0) + 
-                    COALESCE(tbl_project_expenditure.ppp_components, 0) + 
-                    COALESCE(tbl_project_expenditure.loans_components, 0) + 
-                    COALESCE(tbl_project_expenditure.multilateral_components, 0) + 
-                    COALESCE(tbl_project_expenditure.state_gov_fund_components, 0) + 
-                    COALESCE(tbl_project_expenditure.pmmsy_components, 0) +                 
-                    COALESCE(tbl_project_expenditure.sagarmala_components, 0) + 
-                    COALESCE(tbl_project_expenditure.other_source_funding_comp, 0)
-                ) AS expenditure_till_date,
-                CASE
-                    WHEN (COALESCE(tbl_project.award_project_cost, 0) + COALESCE(tbl_sub_project.sub_award_project_cost, 0)) = 0 THEN 0
-                    ELSE (SUM(
-                        COALESCE(tbl_project_expenditure.gbs_components, 0) + 
-                        COALESCE(tbl_project_expenditure.iebr_components, 0) + 
-                        COALESCE(tbl_project_expenditure.ppp_components, 0) + 
-                        COALESCE(tbl_project_expenditure.loans_components, 0) + 
-                        COALESCE(tbl_project_expenditure.multilateral_components, 0) + 
-                        COALESCE(tbl_project_expenditure.state_gov_fund_components, 0) + 
-                        COALESCE(tbl_project_expenditure.pmmsy_components, 0) +                     
-                        COALESCE(tbl_project_expenditure.sagarmala_components, 0) + 
-                        COALESCE(tbl_project_expenditure.other_source_funding_comp, 0)
-                    ) / NULLIF((COALESCE(tbl_project.award_project_cost, 0) + COALESCE(tbl_sub_project.sub_award_project_cost, 0)), 0)) * 100
-                END AS financial_progress
-            FROM 
-                tbl_project_expenditure
-            LEFT JOIN 
-                tbl_project ON tbl_project.project_id = tbl_project_expenditure.project_id
-            LEFT JOIN 
-                tbl_sub_project ON tbl_sub_project.sub_project_id = tbl_project_expenditure.sub_project_id
-            GROUP BY
-                tbl_project_expenditure.project_id, 
-                tbl_project_expenditure.sub_project_id, 
-                tbl_project.award_project_cost, 
-                tbl_sub_project.sub_award_project_cost
-            ),
-
-            ExpenditureTillDateFY AS 
-            (
-                SELECT 
-                    tbl_project_expenditure.project_id, 
-                    tbl_project_expenditure.sub_project_id, 
-                    SUM(
-                        COALESCE(tbl_project_expenditure.gbs_components, 0) + 
-                        COALESCE(tbl_project_expenditure.iebr_components, 0) + 
-                        COALESCE(tbl_project_expenditure.ppp_components, 0) + 
-                        COALESCE(tbl_project_expenditure.loans_components, 0) + 
-                        COALESCE(tbl_project_expenditure.multilateral_components, 0) + 
-                        COALESCE(tbl_project_expenditure.state_gov_fund_components, 0) +                 
-                        COALESCE(tbl_project_expenditure.pmmsy_components, 0) + 
-                        COALESCE(tbl_project_expenditure.sagarmala_components, 0) + 
-                        COALESCE(tbl_project_expenditure.other_source_funding_comp, 0)
-                ) AS expenditure_till_date_currentFY_only
-                
-                FROM 
-                    tbl_project_expenditure
-                LEFT JOIN 
-                    tbl_project ON tbl_project.project_id = tbl_project_expenditure.project_id
-                LEFT JOIN 
-                    tbl_sub_project ON tbl_sub_project.sub_project_id = tbl_project_expenditure.sub_project_id
-
-                WHERE 
-                    tbl_project_expenditure.expenditure_date BETWEEN '${firstDateCurrentFy}' AND '${todayDate}'
-                GROUP BY
-                    tbl_project_expenditure.project_id, 
-                    tbl_project_expenditure.sub_project_id
-            ),
-
-            
-            ExpenditureTillPreviousFY AS 
-            (
-                SELECT 
-                    tbl_project_expenditure.project_id, 
-                    tbl_project_expenditure.sub_project_id, 
-                    SUM(
-                        COALESCE(tbl_project_expenditure.gbs_components, 0) + 
-                        COALESCE(tbl_project_expenditure.iebr_components, 0) + 
-                        COALESCE(tbl_project_expenditure.ppp_components, 0) + 
-                        COALESCE(tbl_project_expenditure.loans_components, 0) + 
-                        COALESCE(tbl_project_expenditure.multilateral_components, 0) + 
-                        COALESCE(tbl_project_expenditure.state_gov_fund_components, 0) +                 
-                        COALESCE(tbl_project_expenditure.pmmsy_components, 0) + 
-                        COALESCE(tbl_project_expenditure.sagarmala_components, 0) + 
-                        COALESCE(tbl_project_expenditure.other_source_funding_comp, 0)
-                ) AS expenditure_till_PreviousFY
-                
-                FROM 
-                    tbl_project_expenditure
-                LEFT JOIN 
-                    tbl_project ON tbl_project.project_id = tbl_project_expenditure.project_id
-                LEFT JOIN 
-                    tbl_sub_project ON tbl_sub_project.sub_project_id = tbl_project_expenditure.sub_project_id
-
-                WHERE 
-                    tbl_project_expenditure.expenditure_date < '${firstDateCurrentFy}' 
-                GROUP BY
-                    tbl_project_expenditure.project_id, 
-                    tbl_project_expenditure.sub_project_id
-            ),
-
-
-
-
-            Outlays AS 
-            ( SELECT 
-                    tbl_project.project_id,tbl_sub_project.sub_project_id,tbl_project_expenditure_outlay.expenditure_outlay
-                FROM 
-                    tbl_project_expenditure_outlay
-                LEFT JOIN 
-                    tbl_project ON tbl_project.project_id = tbl_project_expenditure_outlay.project_id
-                LEFT JOIN 
-                    tbl_sub_project ON tbl_sub_project.sub_project_id = tbl_project_expenditure_outlay.sub_project_id
-                WHERE 
-                    tbl_project_expenditure_outlay.year = '${financialYear}'
-                GROUP BY
-                    tbl_project.project_id,tbl_sub_project.sub_project_id,tbl_project_expenditure_outlay.expenditure_outlay
-            ),
-
-            RevisedTargetDates AS (
-                SELECT 
-                    project_id,
-                    sub_project_id,
-                    MAX(CASE WHEN rn = 1 THEN revised_target_completion_date END) AS revised_target_date_1,
-                    MAX(CASE WHEN rn = 2 THEN revised_target_completion_date END) AS revised_target_date_2,
-                    MAX(CASE WHEN rn = 3 THEN revised_target_completion_date END) AS revised_target_date_3
-                FROM (
-                    SELECT *,
-                        ROW_NUMBER() OVER (PARTITION BY project_id, sub_project_id ORDER BY revised_on) AS rn
-                    FROM tbl_project_target_date_history
-                ) t
-                GROUP BY project_id, sub_project_id
-            )
-
-
-            SELECT 
-                PD.organisation_id, PD.organisation_name, PD.project_id, PD.sub_project_id, PD.project_name, PD.sub_project_name, 
-                PD.sagarmala_project_id, PD.project_brief, PD.estimated_cost,PD.sanctioned_cost,PD.technical_sanction_cost, 
-                PD.project_type,PD.mode_of_implememtation, PD.implememtation_type, PD.project_intiated_date,PD.target_completion_date,
-                PD.prefeasibility_actual_date, PD.dpr_actual_date, PD.chairman_approval_date, PD.ministry_submission_date,
-                PD.da_approval_date, PD.ifw_approval_date, PD.imc_approval_date, PD.response_com_rec_approval_date, 
-                PD.sfc_approval_date, PD.admin_approval_approval_date, PD.primary_ia_name, PD.sec_imp_agency, PD.primary_fa_name,
-                PD.secondary_fa_name, PD.actual_date_of_completion, PD.closure_cost,  PD.state_names, PD.sub_state_names, PD.district_names, 
-                PD.sub_district_names, PD.taluka_id, PD.village_id, PD.mp_constituency_names, PD.sub_mp_constituency_names, PD.project_category_names, 
-                PD.initiative_names, PD.is_sagarmala_funded, PD.source_of_funding_names, PD.gbs_components, PD.iebr_components, 
-                PD.ppp_components,PD.loans_components,PD.multilateral_components, PD.state_gov_fund_components, PD.pmmsy_components, PD.sagarmala_components, 
-                PD.other_source_funding_comp, PD.capacity_addition, PD.foundation_laid, PD.foundation_laid_date, PD.foundation_tentative_date,
-                PD.inauguration_value, PD.inauguration_date, PD.tentative_inauguration_date, PD.on_land_acquisition, PD.project_output_name, 
-                PD.project_outcome_name, PD.land_area_req, PD.on_acquisition_completed,PD.percent_land_acq,PD.status, PD.sub_status, 
-                PD.submitted_by, PD.sub_submitted_by, PD.scheme_name,PD.stage_name,PD.last_updated_date, PD.num_ut_tender_calls, 
-                PD.award_project_cost, PP.tech_sanction_date,PP.tender_doc_approved_date,PP.tender_notice_issued_date,
-                PP.technical_evaluation_completed_date,PP.financial_evaluation_completed_date, PP.sanction_of_authority_obtained_date,
-                PP.work_awarded_date,PP.contract_sign_date, 
-                PP.planned_tech_sanction_date,PP.planned_tender_doc_approved_date,PP.planned_tender_notice_issued_date,
-                PP.planned_technical_evaluation_completed_date,PP.planned_financial_evaluation_completed_date,
-                PP.planned_sanction_of_authority_obtained_date, PP.planned_work_awarded_date,PP.planned_contract_sign_date, 
-                
-                PP.physical_progress, MD.milestone_0_target_date,MD.milestone_0_actual_date,
-                MD.milestone_1_target_date,MD.milestone_1_actual_date, MD.milestone_2_target_date,MD.milestone_2_actual_date,
-                MD.milestone_3_target_date,MD.milestone_3_actual_date, MD.milestone_4_target_date,MD.milestone_4_actual_date,
-                MD.milestone_5_target_date,MD.milestone_5_actual_date, ETD.expenditure_till_date, ETD.financial_progress,
-                expenditureFY.expenditure_till_date_currentFY_only, expenditurePreviousFY.expenditure_till_PreviousFY, OO.expenditure_outlay, 
-                RTD.revised_target_date_1, RTD.revised_target_date_2, RTD.revised_target_date_3, MD.delay_reason
-			FROM 
-				ProjectDetails PD
-
-			LEFT JOIN ProjectProgress PP ON PD.project_id = PP.project_id AND ISNULL(PD.sub_project_id, -1) = ISNULL(PP.sub_project_id, -1)
-			LEFT JOIN MilestoneDates MD ON PD.project_id = MD.project_id AND ISNULL(PD.sub_project_id, -1) = ISNULL(MD.sub_project_id, -1)
-            LEFT JOIN Outlays OO ON PD.project_id = OO.project_id AND ISNULL(PD.sub_project_id, -1) = ISNULL(OO.sub_project_id, -1)
-            LEFT JOIN ExpenditureTillDate ETD ON PD.project_id = ETD.project_id AND ISNULL(PD.sub_project_id, -1) = ISNULL(ETD.sub_project_id, -1)
-            LEFT JOIN ExpenditureTillDateFY expenditureFY ON PD.project_id = expenditureFY.project_id AND ISNULL(PD.sub_project_id, -1) = ISNULL(expenditureFY.sub_project_id, -1)
-        
-            LEFT JOIN ExpenditureTillPreviousFY expenditurePreviousFY ON PD.project_id = expenditurePreviousFY.project_id AND ISNULL(PD.sub_project_id, -1) = ISNULL(expenditurePreviousFY.sub_project_id, -1)
-            LEFT JOIN RevisedTargetDates RTD ON PD.project_id = RTD.project_id AND ISNULL(PD.sub_project_id, -1) = ISNULL(RTD.sub_project_id, -1)
-
-            WHERE ISNULL(PD.sub_submitted_by, PD.submitted_by)  IN (${userIDs.join(',')}) AND 
-                ((PD.sub_project_id IS NOT NULL AND PD.sub_status = 1) OR (PD.sub_project_id IS NULL AND PD.status = 1));        
-            `);
-
-            res.json(result.recordset);
-        }
+        const result = await request.execute("usp_ProjectExportAll");
+        res.json(result.recordset);
     } catch (err) {
         console.log(err);
         return res.sendStatus(500);
@@ -1734,132 +1368,41 @@ async function getSourceOfFundingName(req, res) {
 // ------------------------------------------------------------------------------------------------------------------------------
 
 async function getExpLogsData(req, res) {
-    
     const userID = req.params.userID;
 
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input("userID", userID);
-
     try {
-        const userResult = await request.query(` SELECT role_id FROM tbl_user WHERE user_id = @userID `);
-        const { role_id } = userResult.recordset[0];
+        const conn = await pool;
+        const userResult = await conn.request()
+            .input("userID", sql.Int, userID)
+            .query(`SELECT role_id, organisation_id FROM tbl_user WHERE user_id = @userID`);
 
-        const currentDate = new Date();
-        const currentYear = currentDate.getFullYear();
-        let financialYear;
-        if (currentDate.getMonth() >= 3 && currentDate.getDate() >= 1) {
-            financialYear = `${currentYear}-${currentYear + 1}`;
-        } else {
-            financialYear = `${currentYear - 1}-${currentYear}`;
+        if (!userResult.recordset?.length) {
+            return res.json([]);
         }
 
-        if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8) {
-            // const result = await conn.query(`Select * from projectExportAll`);
-            const result = await conn.query(` 
-                    SELECT
-                    ISNULL(tbl_sub_project.sub_organisation_id, tbl_project.organisation_id) AS [Organization ID], 
-                    mmt_organisation.organisation_name AS [Organization Name],
-                    tbl_project_expenditure.project_id AS [Project Id],
-                    tbl_project_expenditure.sub_project_id AS [Sub Project Id],
-                    ISNULL(tbl_sub_project.sub_project_name, tbl_project.project_name) AS [Project Name], 
-                    tbl_project_expenditure.sagarmala_project_id AS [Sagarmala Project Id],
-                    tbl_project_expenditure.sub_sagarmala_project_id,
-                    tbl_project_expenditure.year AS [Year],
-                    tbl_project_expenditure.financial_year AS [Financial Year],
-                    CASE
-                        WHEN tbl_project_expenditure.month = 1 THEN 'January'
-                        WHEN tbl_project_expenditure.month = 2 THEN 'February'
-                        WHEN tbl_project_expenditure.month = 3 THEN 'March'
-                        WHEN tbl_project_expenditure.month = 4 THEN 'April'
-                        WHEN tbl_project_expenditure.month = 5 THEN 'May'
-                        WHEN tbl_project_expenditure.month = 6 THEN 'June'
-                        WHEN tbl_project_expenditure.month = 7 THEN 'July'
-                        WHEN tbl_project_expenditure.month = 8 THEN 'August'
-                        WHEN tbl_project_expenditure.month = 9 THEN 'September'
-                        WHEN tbl_project_expenditure.month = 10 THEN 'October'
-                        WHEN tbl_project_expenditure.month = 11 THEN 'November'
-                        WHEN tbl_project_expenditure.month = 12 THEN 'December'
-                        ELSE 'Unknown'
-                    END AS [Month],
-                
-                    tbl_project_expenditure.gbs_components AS [GBS Components (In Cr.)],
-                    tbl_project_expenditure.iebr_components AS [IEBR Components (In Cr.)],
-                    tbl_project_expenditure.ppp_components AS [PPP Components (In Cr.)],
-                    tbl_project_expenditure.loans_components AS [Loan Components (In Cr.)],
-                    tbl_project_expenditure.multilateral_components AS [Multilateral Components (In Cr.)],
-                    tbl_project_expenditure.state_gov_fund_components AS [State Govt.Fund Components (In Cr.)],
-                    tbl_project_expenditure.pmmsy_components AS [PMMSY Components (In Cr.)],
-                    tbl_project_expenditure.sagarmala_components AS [Sagarmala Components (In Cr.)],
-                    tbl_project_expenditure.other_source_funding_comp AS [Others Components (In Cr.)],
-                    tbl_project_expenditure.financial_progress AS [Financial Progress],
-                    tbl_project_expenditure.expenditure_date AS [Expenditure Date]
-                    FROM tbl_project_expenditure
-                    LEFT JOIN tbl_project ON tbl_project_expenditure.project_id = tbl_project.project_id
-                    LEFT JOIN tbl_sub_project ON tbl_project_expenditure.sub_project_id = tbl_sub_project.sub_project_id
-                    INNER JOIN  mmt_organisation ON tbl_project.organisation_id = mmt_organisation.organisation_id 
-                    ORDER BY tbl_project_expenditure.project_id, tbl_project_expenditure.sub_project_id, tbl_project_expenditure.expenditure_date;
-        `);
-            res.json(result.recordset);
+        const { role_id, organisation_id } = userResult.recordset[0];
+
+        let organisationId = null;
+
+        if (!(role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8)) {
+            const dataScope = getDataScope(req.user || {});
+            const jwtOrgId = Number(dataScope.organisationId);
+            const effectiveOrgId = Number.isFinite(jwtOrgId) && jwtOrgId > 0
+                ? jwtOrgId
+                : Number(organisation_id);
+
+            if (!Number.isFinite(effectiveOrgId) || effectiveOrgId <= 0) {
+                return res.json([]);
+            }
+
+            organisationId = effectiveOrgId;
         }
-        else {
-            const orgResult = await request.query(`SELECT organisation_id FROM tbl_user WHERE user_id = @userID`);
-            const organisationID = orgResult.recordset[0].organisation_id;
 
-            const usersResult = await conn.query(`SELECT user_id FROM tbl_user WHERE organisation_id = ${organisationID}`);
-            const userIDs = usersResult.recordset.map(user => user.user_id);
+        const result = await conn.request()
+            .input("OrganisationId", sql.Int, organisationId)
+            .execute("usp_ProjectExpenditureLogsExport");
 
-            const result = await conn.query(`  SELECT
-                    ISNULL(tbl_sub_project.sub_organisation_id, tbl_project.organisation_id) AS [Organization ID], 
-                    mmt_organisation.organisation_name AS [Organization Name],
-                    tbl_project_expenditure.project_id AS [Project Id],
-                    tbl_project_expenditure.sub_project_id AS [Sub Project Id],
-                    ISNULL(tbl_sub_project.sub_project_name, tbl_project.project_name) AS [Project Name], 
-                    tbl_project_expenditure.sagarmala_project_id AS [Sagarmala Project Id],
-                    tbl_project_expenditure.sub_sagarmala_project_id,
-                    tbl_project_expenditure.year AS [Year],
-                    tbl_project_expenditure.financial_year AS [Financial Year],
-                    CASE
-                        WHEN tbl_project_expenditure.month = 1 THEN 'January'
-                        WHEN tbl_project_expenditure.month = 2 THEN 'February'
-                        WHEN tbl_project_expenditure.month = 3 THEN 'March'
-                        WHEN tbl_project_expenditure.month = 4 THEN 'April'
-                        WHEN tbl_project_expenditure.month = 5 THEN 'May'
-                        WHEN tbl_project_expenditure.month = 6 THEN 'June'
-                        WHEN tbl_project_expenditure.month = 7 THEN 'July'
-                        WHEN tbl_project_expenditure.month = 8 THEN 'August'
-                        WHEN tbl_project_expenditure.month = 9 THEN 'September'
-                        WHEN tbl_project_expenditure.month = 10 THEN 'October'
-                        WHEN tbl_project_expenditure.month = 11 THEN 'November'
-                        WHEN tbl_project_expenditure.month = 12 THEN 'December'
-                        ELSE 'Unknown'
-                    END AS [Month],
-                
-                    tbl_project_expenditure.gbs_components AS [GBS Components (In Cr.)],
-                    tbl_project_expenditure.iebr_components AS [IEBR Components (In Cr.)],
-                    tbl_project_expenditure.ppp_components AS [PPP Components (In Cr.)],
-                    tbl_project_expenditure.loans_components AS [Loan Components (In Cr.)],
-                    tbl_project_expenditure.multilateral_components AS [Multilateral Components (In Cr.)],
-                    tbl_project_expenditure.state_gov_fund_components AS [State Govt.Fund Components (In Cr.)],
-                    tbl_project_expenditure.pmmsy_components AS [PMMSY Components (In Cr.)],
-                    tbl_project_expenditure.sagarmala_components AS [Sagarmala Components (In Cr.)],
-                    tbl_project_expenditure.other_source_funding_comp AS [Others Components (In Cr.)],
-                    tbl_project_expenditure.financial_progress AS [Financial Progress],
-                    tbl_project_expenditure.expenditure_date AS [Expenditure Date]
-                    FROM tbl_project_expenditure
-
-                    LEFT JOIN tbl_project ON tbl_project_expenditure.project_id = tbl_project.project_id
-                    LEFT JOIN tbl_sub_project ON tbl_project_expenditure.sub_project_id = tbl_sub_project.sub_project_id
-                    INNER JOIN  mmt_organisation ON tbl_project.organisation_id = mmt_organisation.organisation_id
-                    
-                    WHERE ISNULL(tbl_sub_project.sub_submitted_by, tbl_project.submitted_by)  IN (${userIDs.join(',')}) 
-                    ORDER BY tbl_project_expenditure.project_id, tbl_project_expenditure.sub_project_id, tbl_project_expenditure.expenditure_date                 
-              ;        
-            `);
-
-            res.json(result.recordset);
-        }
+        res.json(result.recordset);
     } catch (err) {
         console.log(err);
         return res.sendStatus(500);
@@ -1879,7 +1422,6 @@ async function viewProjectData(req, res)
 
     let editProjectDetailsData;
     if (subProjectID == -1) {
-        // console.log(subProjectID, "nosubproject")
 
         editProjectDetailsData = (`SELECT tbl_project.organisation_id, organisation_name, tbl_project.project_id, tbl_project.sagarmala_project_id, project_name,
             tbl_project.current_project_stage_id, stage_name, project_type, implememtation_type, 
@@ -2143,7 +1685,6 @@ async function viewProjectData(req, res)
     try {
         const result = await request.query(editProjectDetailsData);
 
-        // const result = await request.query(`SELECT * from tbl_project WHERE tbl_project.project_id = @projectID;`);
         res.json(result.recordset);
     }
     catch (err) {
@@ -2151,55 +1692,6 @@ async function viewProjectData(req, res)
         return res.sendStatus(500);
     }
 };
-
-// async function viewProjectImages(req, res) {
-//     const projectID = req.params.projectID;
-//     const subProjectID = req.params.subProjectID;
-
-//     const conn = await pool;
-//     const request = conn.request();
-
-//     try {
-//         const baseFolder = './fileuploads/Project_Documents/project_images';
-//         const projectFolder = subProjectID === '-1' ? 'mainProject' : 'subProject';
-        
-//         const query = `
-//             SELECT document_name
-//             FROM tbl_project_document
-//             WHERE project_id = @projectID
-//             AND sub_project_id = @subProjectID
-//             AND document_type = 'project_images'
-//         `;
-
-//         request.input('projectID', projectID);
-//         request.input('subProjectID', subProjectID);
-
-//         const result = await request.query(query);
-
-//         if (result.recordset.length === 0) {
-//             return res.json({ message: 'No images found for this project' });
-//         }
-//         const images = [];
-
-//         for (const row of result.recordset) {
-//             const imagePath = path.join(baseFolder, projectFolder, row.document_name);
-            
-//             if (fs.existsSync(imagePath)) {
-//                 const imageBuffer = fs.readFileSync(imagePath);
-//                 const base64Image = imageBuffer.toString('base64');
-//                 images.push({
-//                     name: row.document_name,
-//                     data: base64Image
-//                 });
-//             }
-//         }
-
-//         res.json(images);
-//     } catch (err) {
-//         console.error(err);
-//         res.status(500).json({ message: 'Internal server error' });
-//     }
-// }
 
 async function viewProjectImages(req, res) 
 {
@@ -2369,119 +1861,414 @@ async function getUnderImplementationDate(req, res) {
     }
 }
 
-async function submitCapexProjectData(req, res) {
-    const financialYear = req.body.financialYear;
-    const organisationId = req.body.organisationId;
-    const capexProjects = req.body.capexProjects;
-    const totalExpenditure = req.body.totalExpenditure;
-    const expenditureTillDate = req.body.expenditureTillDate;
-    const userId = req.body.userId;
+const PROJECT_DROP_REQUEST_APPLY = `
+            OUTER APPLY (
+                SELECT TOP 1
+                    CASE
+                        WHEN dr.reject_request_status = 0 THEN 'Rejected'
+                        WHEN dr.status = 0 THEN 'Approved'
+                        WHEN dr.status = 1 THEN 'Waiting for Approval'
+                        ELSE NULL
+                    END AS drop_status
+                FROM tbl_project_drop_request dr
+                WHERE dr.project_id = p.project_id
+                  AND (
+                      (sp.sub_project_id IS NOT NULL AND (
+                          CAST(dr.sub_project_id AS varchar(50)) = CAST(sp.sub_project_id AS varchar(50))
+                          OR dr.sub_project_id IS NULL
+                          OR TRIM(CAST(dr.sub_project_id AS varchar(50))) IN ('-1', '-', '0', '', 'null', 'undefined')
+                      ))
+                      OR (sp.sub_project_id IS NULL AND (
+                          dr.sub_project_id IS NULL
+                          OR TRIM(CAST(dr.sub_project_id AS varchar(50))) IN ('-1', '-', '0', '', 'null', 'undefined')
+                      ))
+                  )
+                ORDER BY
+                    COALESCE(dr.submitted_on, dr.drop_date) DESC
+            ) AS dropReq`;
 
+async function getProjectScheduleAlerts(req, res) {
     const conn = await pool;
-    const request = conn.request();
-
-    request.input("financialYear", financialYear);
-    request.input("organisationId", organisationId);
-    request.input("capexProjects", capexProjects);
-    request.input("totalExpenditure", totalExpenditure);
-    request.input("expenditureTillDate", expenditureTillDate);
-    request.input("userId", userId);
+    const requestedUserID = Number(req.params.userID);
+    const tokenUserID = Number(req.user?.userId || req.user?.user_id);
+    const userID = Number.isFinite(tokenUserID) && tokenUserID > 0 ? tokenUserID : requestedUserID;
 
     try {
-        const result = await request.query(`INSERT INTO tbl_project_capex (financial_year, organisation_id, projects_less_than_5cr, total_expenditure_planned, expenditure_till_date, created_by, created_date)
-        VALUES (@financialYear, @organisationId, @capexProjects, @totalExpenditure, @expenditureTillDate, @userId, getDate());`);
-        
-        res.sendStatus(201); 
+        const roleRequest = conn.request();
+        roleRequest.input('userID', userID);
+        const userResult = await roleRequest.query('SELECT role_id, organisation_id FROM tbl_user WHERE user_id = @userID');
+
+        if (!userResult.recordset?.length) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const { organisation_id } = userResult.recordset[0];
+        const dataScope = getDataScope(req.user || {});
+        const jwtOrgId = Number(dataScope.organisationId);
+
+        let effectiveOrganisationId = null;
+
+        if (dataScope.isOrganisation) {
+            const fallbackOrgId = Number(organisation_id);
+            effectiveOrganisationId = Number.isFinite(jwtOrgId) && jwtOrgId > 0
+                ? jwtOrgId
+                : (Number.isFinite(fallbackOrgId) && fallbackOrgId > 0 ? fallbackOrgId : null);
+
+            if (!Number.isFinite(effectiveOrganisationId) || effectiveOrganisationId <= 0) {
+                return res.json({ tendering: [], implementation: [] });
+            }
+        } else if (!dataScope.isWide && Number.isFinite(jwtOrgId) && jwtOrgId > 0) {
+            effectiveOrganisationId = jwtOrgId;
+        }
+
+        const scopeByOrganisation = Number.isFinite(effectiveOrganisationId) && effectiveOrganisationId > 0
+            ? ' AND ISNULL(sp.sub_organisation_id, p.organisation_id) = @organisationId'
+            : '';
+
+        const activeProjectFilter = `
+                ISNULL(sp.sub_status, p.status) != 0
+                AND (dropReq.drop_status IS NULL OR dropReq.drop_status = 'Rejected')
+                AND ISNULL(sp.sub_current_project_stage_id, p.current_project_stage_id) != 99`;
+
+        // Current open tendering step that is overdue or due within 7 days (matches SCHEDULE_AT_RISK_DAYS).
+        const tenderingQuery = `
+            SELECT TOP 100
+                p.project_id,
+                ISNULL(sp.sub_project_id, -1) AS sub_project_id,
+                p.project_name,
+                sp.sub_project_name,
+                ISNULL(sp.sub_on_nomination_basis, p.on_nomination_basis) AS on_nomination_basis,
+                step.sub_stage_id,
+                CONVERT(varchar(10), step.planned_date, 23) AS planned_date,
+                CONVERT(varchar(10), step.revised_date, 23) AS revised_date
+            FROM tbl_project p
+            LEFT JOIN tbl_sub_project sp ON sp.project_id = p.project_id
+            LEFT JOIN tbl_project_stage stage ON stage.stage_id = ISNULL(sp.sub_current_project_stage_id, p.current_project_stage_id)
+            ${PROJECT_DROP_REQUEST_APPLY}
+            OUTER APPLY (
+                SELECT TOP 1
+                    pd.sub_stage_id, pd.planned_date, pd.revised_date
+                FROM tbl_project_date pd
+                WHERE pd.project_id = p.project_id
+                  AND pd.sub_project_id = ISNULL(sp.sub_project_id, -1)
+                  AND pd.sub_stage_id BETWEEN 3 AND 10
+                  AND pd.actual_date IS NULL
+                  AND pd.not_applicable_date IS NULL
+                  AND NOT (ISNULL(sp.sub_on_nomination_basis, p.on_nomination_basis) = 1 AND pd.sub_stage_id <= 8)
+                  AND COALESCE(pd.revised_date, pd.planned_date) IS NOT NULL
+                  AND COALESCE(pd.revised_date, pd.planned_date) <= DATEADD(day, 7, CAST(GETDATE() AS date))
+                ORDER BY pd.sub_stage_id
+            ) AS step
+            WHERE ${activeProjectFilter}
+              AND step.sub_stage_id IS NOT NULL
+              AND (ISNULL(sp.sub_current_project_stage_id, p.current_project_stage_id) = 12 OR ISNULL(stage.stage_name, '') LIKE '%Tender%')${scopeByOrganisation}
+            ORDER BY COALESCE(step.revised_date, step.planned_date), p.project_name`;
+
+        // Current open milestone that is overdue or due within 7 days.
+        const implementationQuery = `
+            SELECT TOP 100
+                p.project_id,
+                ISNULL(sp.sub_project_id, -1) AS sub_project_id,
+                p.project_name,
+                sp.sub_project_name,
+                ms.milestone_id,
+                CONVERT(varchar(10), ms.start_date, 23) AS start_date
+            FROM tbl_project p
+            LEFT JOIN tbl_sub_project sp ON sp.project_id = p.project_id
+            LEFT JOIN tbl_project_stage stage ON stage.stage_id = ISNULL(sp.sub_current_project_stage_id, p.current_project_stage_id)
+            ${PROJECT_DROP_REQUEST_APPLY}
+            OUTER APPLY (
+                SELECT TOP 1
+                    pa.milestone_id, pa.start_date
+                FROM tbl_project_activity pa
+                WHERE pa.project_id = p.project_id
+                  AND pa.sub_project_id = ISNULL(sp.sub_project_id, -1)
+                  AND pa.end_date IS NULL
+                  AND pa.start_date IS NOT NULL
+                  AND pa.start_date <= DATEADD(day, 7, CAST(GETDATE() AS date))
+                ORDER BY pa.milestone_id
+            ) AS ms
+            WHERE ${activeProjectFilter}
+              AND ms.milestone_id IS NOT NULL
+              AND (ISNULL(sp.sub_current_project_stage_id, p.current_project_stage_id) = 13 OR ISNULL(stage.stage_name, '') LIKE '%Implement%')${scopeByOrganisation}
+            ORDER BY ms.start_date, p.project_name`;
+
+        const tenderingRequest = conn.request();
+        const implementationRequest = conn.request();
+        if (Number.isFinite(effectiveOrganisationId) && effectiveOrganisationId > 0) {
+            tenderingRequest.input('organisationId', effectiveOrganisationId);
+            implementationRequest.input('organisationId', effectiveOrganisationId);
+        }
+
+        const [tenderingResult, implementationResult] = await Promise.all([
+            tenderingRequest.query(tenderingQuery),
+            implementationRequest.query(implementationQuery),
+        ]);
+
+        res.json({
+            tendering: tenderingResult.recordset || [],
+            implementation: implementationResult.recordset || [],
+        });
     } catch (err) {
         console.log(err);
         return res.sendStatus(500);
     }
-};
+}
 
-async function getCapexProjectsData(req, res) {
+function resolveCapexActor(req) {
+    const dataScope = getDataScope(req.user || {});
+    const jwtUserId = Number(req.user?.userId || req.user?.user_id);
+    const jwtOrgId = Number(dataScope.organisationId);
+    return { dataScope, jwtUserId, jwtOrgId };
+}
+
+function parseRequiredCapexFields(body = {}) {
+    const financialYear = String(body.financialYear || '').trim();
+    const capexProjects = Number(body.capexProjects);
+    const totalExpenditure = Number(body.totalExpenditure);
+    const expenditureTillDate = Number(body.expenditureTillDate);
+
+    if (!financialYear) {
+        return { error: 'Financial year is required.' };
+    }
+    if (!Number.isFinite(capexProjects) || capexProjects < 0) {
+        return { error: 'Number of CAPEX projects must be a valid non-negative number.' };
+    }
+    if (!Number.isFinite(totalExpenditure) || totalExpenditure < 0) {
+        return { error: 'Total expenditure planned must be a valid non-negative number.' };
+    }
+    if (!Number.isFinite(expenditureTillDate) || expenditureTillDate < 0) {
+        return { error: 'Expenditure till date must be a valid non-negative number.' };
+    }
+
+    return { financialYear, capexProjects, totalExpenditure, expenditureTillDate };
+}
+
+async function submitCapexProjectData(req, res) {
+    const { dataScope, jwtUserId, jwtOrgId } = resolveCapexActor(req);
+    const parsed = parseRequiredCapexFields(req.body);
+    if (parsed.error) {
+        return res.status(400).json({ message: parsed.error });
+    }
+
+    const userId = Number.isFinite(jwtUserId) && jwtUserId > 0
+        ? jwtUserId
+        : Number(req.body.userId);
+
+    if (!Number.isFinite(userId) || userId <= 0) {
+        return res.status(400).json({ message: 'Valid user is required.' });
+    }
+
+    let organisationId = Number(req.body.organisationId);
+    if (dataScope.isOrganisation) {
+        if (!Number.isFinite(jwtOrgId) || jwtOrgId <= 0) {
+            return res.status(403).json({ message: 'Organisation scope is required.' });
+        }
+        organisationId = jwtOrgId;
+    } else if (!Number.isFinite(organisationId) || organisationId <= 0) {
+        return res.status(400).json({ message: 'Organisation is required.' });
+    }
+
     const conn = await pool;
-    const request = conn.request();
 
     try {
-        const result = await request.query(`
-           SELECT 
-            tbl_project_capex.financial_year,
-            tbl_project_capex.organisation_id,
-            mmt_organisation.organisation_name,
-            tbl_project_capex.projects_less_than_5cr,
-            tbl_project_capex.total_expenditure_planned,
-            tbl_project_capex.expenditure_till_date
-        FROM 
-            tbl_project_capex
-        INNER JOIN 
-            mmt_organisation ON tbl_project_capex.organisation_id = mmt_organisation.organisation_id;
-
+        const checkRequest = conn.request();
+        checkRequest.input('financialYear', parsed.financialYear);
+        checkRequest.input('organisationId', organisationId);
+        const existing = await checkRequest.query(`
+            SELECT TOP 1 financial_year
+            FROM tbl_project_capex
+            WHERE financial_year = @financialYear AND organisation_id = @organisationId;
         `);
 
-        res.json(result.recordset);
+        if (existing.recordset?.length) {
+            return res.status(409).json({
+                message: 'Data for this Financial Year already exists.',
+            });
+        }
+
+        const insertRequest = conn.request();
+        insertRequest.input('financialYear', parsed.financialYear);
+        insertRequest.input('organisationId', organisationId);
+        insertRequest.input('capexProjects', parsed.capexProjects);
+        insertRequest.input('totalExpenditure', parsed.totalExpenditure);
+        insertRequest.input('expenditureTillDate', parsed.expenditureTillDate);
+        insertRequest.input('userId', userId);
+
+        await insertRequest.query(`
+            INSERT INTO tbl_project_capex (
+                financial_year,
+                organisation_id,
+                projects_less_than_5cr,
+                total_expenditure_planned,
+                expenditure_till_date,
+                created_by,
+                created_date
+            )
+            VALUES (
+                @financialYear,
+                @organisationId,
+                @capexProjects,
+                @totalExpenditure,
+                @expenditureTillDate,
+                @userId,
+                getDate()
+            );
+        `);
+
+        return res.sendStatus(201);
     } catch (err) {
         console.log(err);
-        res.sendStatus(500);
+        return res.sendStatus(500);
     }
-};
+}
 
-async function getUpdateCapexProjectsData(req, res) {
-    const { financialYear, organisationId } = req.query;
+async function getCapexProjectsData(req, res) {
+    const { dataScope, jwtOrgId } = resolveCapexActor(req);
     const conn = await pool;
     const request = conn.request();
 
     try {
-        const query = `
-            SELECT 
+        let whereSql = '';
+        if (dataScope.isOrganisation) {
+            if (!Number.isFinite(jwtOrgId) || jwtOrgId <= 0) {
+                return res.json([]);
+            }
+            request.input('dataScopeOrgId', jwtOrgId);
+            whereSql = ' WHERE tbl_project_capex.organisation_id = @dataScopeOrgId ';
+        } else if (!dataScope.isWide) {
+            return res.json([]);
+        }
+
+        const result = await request.query(`
+            SELECT
                 tbl_project_capex.financial_year,
                 tbl_project_capex.organisation_id,
                 mmt_organisation.organisation_name,
                 tbl_project_capex.projects_less_than_5cr,
                 tbl_project_capex.total_expenditure_planned,
-                tbl_project_capex.expenditure_till_date
-            FROM 
-                tbl_project_capex
-            INNER JOIN 
-                mmt_organisation ON tbl_project_capex.organisation_id = mmt_organisation.organisation_id
-            WHERE 
-                tbl_project_capex.financial_year = @financialYear AND tbl_project_capex.organisation_id = @organisationId;
-        `;
+                tbl_project_capex.expenditure_till_date,
+                tbl_project_capex.updated_date,
+                tbl_project_capex.created_date
+            FROM tbl_project_capex
+            INNER JOIN mmt_organisation
+                ON tbl_project_capex.organisation_id = mmt_organisation.organisation_id
+            ${whereSql}
+            ORDER BY tbl_project_capex.financial_year DESC, mmt_organisation.organisation_name ASC;
+        `);
 
-        request.input('financialYear', financialYear);
-        request.input('organisationId', organisationId);
-        const result = await request.query(query);
-
-        res.json(result.recordset);
+        return res.json(result.recordset);
     } catch (err) {
         console.log(err);
-        res.sendStatus(500);
+        return res.sendStatus(500);
     }
 }
 
-async function updateCapexProjectData(req, res) {
-    const financialYear = req.body.financialYear;
-    const organisationId = req.body.organisationId;
-    const capexProjects = req.body.capexProjects;
-    const totalExpenditure = req.body.totalExpenditure;
-    const expenditureTillDate = req.body.expenditureTillDate;
-    const userId = req.body.userId;
+async function getUpdateCapexProjectsData(req, res) {
+    const { dataScope, jwtOrgId } = resolveCapexActor(req);
+    const financialYear = String(req.query.financialYear || '').trim();
+    let organisationId = Number(req.query.organisationId);
+
+    if (!financialYear) {
+        return res.status(400).json({ message: 'Financial year is required.' });
+    }
+
+    if (dataScope.isOrganisation) {
+        if (!Number.isFinite(jwtOrgId) || jwtOrgId <= 0) {
+            return res.status(403).json({ message: 'Organisation scope is required.' });
+        }
+        organisationId = jwtOrgId;
+    } else if (!dataScope.isWide) {
+        return res.json([]);
+    } else if (!Number.isFinite(organisationId) || organisationId <= 0) {
+        return res.status(400).json({ message: 'Organisation is required.' });
+    }
 
     const conn = await pool;
     const request = conn.request();
 
-    request.input("financialYear", financialYear);
-    request.input("organisationId", organisationId);
-    request.input("capexProjects", capexProjects);
-    request.input("totalExpenditure", totalExpenditure);
-    request.input("expenditureTillDate", expenditureTillDate);
-    request.input("userId", userId);
+    try {
+        request.input('financialYear', financialYear);
+        request.input('organisationId', organisationId);
+
+        const result = await request.query(`
+            SELECT
+                tbl_project_capex.financial_year,
+                tbl_project_capex.organisation_id,
+                mmt_organisation.organisation_name,
+                tbl_project_capex.projects_less_than_5cr,
+                tbl_project_capex.total_expenditure_planned,
+                tbl_project_capex.expenditure_till_date,
+                tbl_project_capex.updated_date,
+                tbl_project_capex.created_date
+            FROM tbl_project_capex
+            INNER JOIN mmt_organisation
+                ON tbl_project_capex.organisation_id = mmt_organisation.organisation_id
+            WHERE tbl_project_capex.financial_year = @financialYear
+              AND tbl_project_capex.organisation_id = @organisationId;
+        `);
+
+        return res.json(result.recordset);
+    } catch (err) {
+        console.log(err);
+        return res.sendStatus(500);
+    }
+}
+
+async function updateCapexProjectData(req, res) {
+    const { dataScope, jwtUserId, jwtOrgId } = resolveCapexActor(req);
+    const parsed = parseRequiredCapexFields(req.body);
+    if (parsed.error) {
+        return res.status(400).json({ message: parsed.error });
+    }
+
+    const userId = Number.isFinite(jwtUserId) && jwtUserId > 0
+        ? jwtUserId
+        : Number(req.body.userId);
+
+    if (!Number.isFinite(userId) || userId <= 0) {
+        return res.status(400).json({ message: 'Valid user is required.' });
+    }
+
+    let organisationId = Number(req.body.organisationId);
+    if (dataScope.isOrganisation) {
+        if (!Number.isFinite(jwtOrgId) || jwtOrgId <= 0) {
+            return res.status(403).json({ message: 'Organisation scope is required.' });
+        }
+        organisationId = jwtOrgId;
+    } else if (!Number.isFinite(organisationId) || organisationId <= 0) {
+        return res.status(400).json({ message: 'Organisation is required.' });
+    }
+
+    const conn = await pool;
+    const request = conn.request();
+
+    request.input('financialYear', parsed.financialYear);
+    request.input('organisationId', organisationId);
+    request.input('capexProjects', parsed.capexProjects);
+    request.input('totalExpenditure', parsed.totalExpenditure);
+    request.input('expenditureTillDate', parsed.expenditureTillDate);
+    request.input('userId', userId);
 
     try {
-        const result = await request.query(`UPDATE tbl_project_capex
-        SET projects_less_than_5cr = @capexProjects, total_expenditure_planned = @totalExpenditure,
-        expenditure_till_date = @expenditureTillDate, updated_by = @userId, updated_date = getDate() WHERE financial_year = @financialYear AND organisation_id = @organisationId;`);
-        
-        res.sendStatus(201); 
+        const result = await request.query(`
+            UPDATE tbl_project_capex
+            SET
+                projects_less_than_5cr = @capexProjects,
+                total_expenditure_planned = @totalExpenditure,
+                expenditure_till_date = @expenditureTillDate,
+                updated_by = @userId,
+                updated_date = getDate()
+            WHERE financial_year = @financialYear
+              AND organisation_id = @organisationId;
+        `);
+
+        const rowsAffected = Number(result?.rowsAffected?.[0] || 0);
+        if (rowsAffected === 0) {
+            return res.status(404).json({ message: 'Record not found.' });
+        }
+
+        return res.sendStatus(201);
     } catch (err) {
         console.log(err);
         return res.sendStatus(500);
@@ -2490,6 +2277,6 @@ async function updateCapexProjectData(req, res) {
 
 
 export default { getProjectList, projectFolderDownloadLog, projectMediaLinkDownload, getProjectAllData, getProjectCategoryName, getProjectInitiativeName, getSourceOfFundingName,
-    getExpLogsData, viewProjectData, viewProjectImages, getUnderTenderingDate, getUnderImplementationDate, submitCapexProjectData, 
+    getExpLogsData, viewProjectData, viewProjectImages, getUnderTenderingDate, getUnderImplementationDate, getProjectScheduleAlerts, submitCapexProjectData,
     getCapexProjectsData, getUpdateCapexProjectsData, updateCapexProjectData 
  };
