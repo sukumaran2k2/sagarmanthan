@@ -4,6 +4,7 @@ import Table from '../../../components/Table';
 import TablePagination from '../../../components/TablePagination';
 import DataListToolbar from '../../../components/DataListToolbar';
 import { exportDataListToPdf } from '../../../utils/exportReportPdf';
+import { exportDataListToCsv } from '../../../utils/exportDataListCsv';
 import { COMMON_TOASTS } from '../../../utils/notify';
 
 const COLUMN_LABELS = {
@@ -71,7 +72,7 @@ export default function FinalYearPassPercentageDataList({
         () => notify?.(COMMON_TOASTS.copyFailed()),
       );
     } else if (type === 'Excel') {
-      gridRef.current?.api?.exportDataAsCsv({ fileName: 'imu_final_year_pass_percentage' });
+      exportDataListToCsv({ columnLabels: COLUMN_LABELS, visibleCols, rowData: filteredData, fileName: 'imu_final_year_pass_percentage' });
       notify?.(COMMON_TOASTS.excelExported('imu_final_year_pass_percentage.csv'));
     } else if (type === 'PDF') {
       exportDataListToPdf({
