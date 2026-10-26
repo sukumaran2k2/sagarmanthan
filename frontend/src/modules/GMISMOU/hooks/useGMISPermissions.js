@@ -1,53 +1,58 @@
-import { useState, useEffect } from 'react';
+import { getSessionClaims, getSessionOrganisationId } from '../../../utils/authSession';
+
+// The module is registered under either code; rights are looked up in this order, as on the server.
+const GMIS_CODES = ['GMIS_MOU', 'GMIS_IMW_MOU_TRACKING'];
+// Ministry-side roles (1 SuperAdmin, 2 Secretary, 3 Joint Secretary, 4 Director, 5 Under Secretary).
+const MINISTRY_ROLE_IDS = [1, 2, 3, 4, 5];
+
+const flag = (p, ...keys) => keys.some((k) => !!p[k]);
 
 /**
- * Hook to retrieve user permissions for the GMIS & IMW MoU Tracking module.
- * Falls back to full permissions if user is superadmin/admin.
+ * GMIS & IMW MoU permissions from the login token, following the same rules the server
+ * enforces (requireModulePermission), so the page never offers an action the server refuses:
+ * - Ministry roles: everything.
+ * - View Only Admin: view only, if GMIS is enabled for them.
+ * - Others with GMIS enabled: their recorded GMIS rights; with none recorded, everything.
+ * - GMIS not enabled: nothing.
  */
 export function useGMISPermissions() {
-  const [permissions, setPermissions] = useState({
-    canAdd: true,
-    canEdit: true,
-    canRemove: true,
-    canView: true,
-    isReadOnly: false,
-    roleId: 2,
-    organisationId: null,
-  });
+  const claims = getSessionClaims() || {};
+  const roleId = Number(claims.roleId ?? claims.role_id ?? 0);
+  const roleCode = String(claims.roleCode || '').toUpperCase();
+  const organisationId = getSessionOrganisationId();
 
-  useEffect(() => {
-    try {
-      const userStr = localStorage.getItem('user');
-      if (userStr) {
-        const user = JSON.parse(userStr);
-        const roleId = Number(user.role_id || user.roleId || 2);
-        const organisationId = user.organisation_id || user.organisationId || null;
+  const allowed = (Array.isArray(claims.allowedModuleCodes) ? claims.allowedModuleCodes : []).map((c) => String(c).toUpperCase());
+  const moduleEnabled = GMIS_CODES.some((c) => allowed.includes(c));
+  const permissionList = Array.isArray(claims.modulePermissions) ? claims.modulePermissions : [];
+  const rights = GMIS_CODES
+    .map((code) => permissionList.find((p) => String(p.moduleCode || p.module_code || '').toUpperCase() === code))
+    .find(Boolean);
 
-        // Admin roles (1: SuperAdmin, 2: Ministry, 3: Admin, 4: Director, 5: Joint Sec)
-        const isAdmin = [1, 2, 3, 4, 5].includes(roleId);
+  let crud;
+  if (roleCode === 'SUPERADMIN' || MINISTRY_ROLE_IDS.includes(roleId)) {
+    crud = { create: true, read: true, update: true, delete: true };
+  } else if (!moduleEnabled) {
+    crud = { create: false, read: false, update: false, delete: false };
+  } else if (roleCode === 'VIEW_ONLY_ADMIN') {
+    crud = { create: false, read: true, update: false, delete: false };
+  } else if (rights) {
+    crud = {
+      create: flag(rights, 'create', 'canCreate', 'can_create'),
+      read: flag(rights, 'read', 'canRead', 'can_read'),
+      update: flag(rights, 'update', 'canUpdate', 'can_update'),
+      delete: flag(rights, 'delete', 'canDelete', 'can_delete'),
+    };
+  } else {
+    crud = { create: true, read: true, update: true, delete: true };
+  }
 
-        // Check custom module permissions if stored in localStorage
-        const modulePermissions = user.permissions?.['GMIS_IMW_MOU_TRACKING'] || user.permissions?.['GMIS_MOU'] || user.permissions?.['gmis_mou'] || {};
-
-        const canAdd = isAdmin || !!modulePermissions.create || !!modulePermissions.canAdd || roleId <= 6;
-        const canEdit = isAdmin || !!modulePermissions.update || !!modulePermissions.canEdit || roleId <= 6;
-        const canRemove = isAdmin || !!modulePermissions.delete || !!modulePermissions.canRemove;
-        const canView = true;
-
-        setPermissions({
-          canAdd,
-          canEdit,
-          canRemove,
-          canView,
-          isReadOnly: !canAdd && !canEdit,
-          roleId,
-          organisationId,
-        });
-      }
-    } catch (e) {
-      console.warn('Error reading GMIS permissions:', e);
-    }
-  }, []);
-
-  return permissions;
+  return {
+    canAdd: crud.create,
+    canEdit: crud.update,
+    canRemove: crud.delete,
+    canView: crud.read,
+    isReadOnly: !crud.create && !crud.update,
+    roleId,
+    organisationId,
+  };
 }

@@ -3,6 +3,32 @@ import fs from 'fs';
 import path from 'path';
 import { pool } from "../../db.js";
 import moment from 'moment';
+import { getDataScope } from '../../middleware/dataScope.js';
+
+// Ministry / master users see every MoU; organisation users only their organisation's.
+// Decided from the signed token only (never from query or URL values). Returns the SQL
+// condition and the organisation id to bind as @scopeOrgId (null when not needed).
+function gmisScope(user, column = 'tbl_gmis_mou.organisation_id') {
+    const { isWide, isOrganisation, organisationId } = getDataScope(user);
+    if (isWide) return { sql: '1 = 1', orgId: null };
+    if (!isOrganisation || !Number.isFinite(organisationId) || organisationId <= 0) return { sql: '1 = 0', orgId: null };
+    return { sql: `${column} = @scopeOrgId`, orgId: organisationId };
+}
+
+// True when the MoU exists and is within the user's scope.
+async function canAccessMou(user, mouID) {
+    const id = Number(mouID);
+    if (!Number.isInteger(id) || id <= 0) return false;
+    const scope = gmisScope(user);
+    const request = (await pool).request();
+    request.input('scopeMouId', id);
+    if (scope.orgId) request.input('scopeOrgId', scope.orgId);
+    const result = await request.query(`SELECT TOP 1 1 AS ok FROM tbl_gmis_mou WHERE id = @scopeMouId AND ${scope.sql}`);
+    return result.recordset.length > 0;
+}
+
+// "To be started" is how the data records it; older entries may say "Yet to start".
+const YET_TO_START_SQL = "(tbl_gmis_mou.present_status LIKE '%Yet to%' OR tbl_gmis_mou.present_status LIKE '%to be started%')";
 
 const uploadDestination = "./fileuploads/gmis_mou_fileupload";
 if (!fs.existsSync(uploadDestination)) 
@@ -57,8 +83,11 @@ async function getMouCategory(req, res) {
 }
 
 async function submitGmisMouData(req, res) {
+    // Organisation users can only add MoUs for their own organisation.
+    const scope = gmisScope(req.user);
+    if (scope.sql === '1 = 0') return res.status(403).send("Not allowed to add MoUs");
     const eventName = req.body.eventName;
-    const organisationId = req.body.organisationName;
+    const organisationId = scope.orgId || req.body.organisationName;
     const navicId = req.body.vibhasNavicID;
     const nameOfMou = req.body.mouProjectName;
     const nameOfSecondParty = req.body.stakeholderName;
@@ -71,7 +100,7 @@ async function submitGmisMouData(req, res) {
     const reasonForDropping = req.body.reasonForDropping || null;
     const mouBrief = req.body.mouBrief || null;
     const revisedAmount = req.body.revisedAmount || null;
-    const userID = req.body.userID || null;
+    const userID = req.user?.userId || req.body.userID || null;
     let uniqueFileName = req.body.gmisDocumentFileName; 
     const nextSteps = req.body.nextSteps || null;
     const physicalProgressDate = req.body.physicalProgressDate || null;
@@ -193,7 +222,8 @@ const fileUpload= multer({
 async function updateGmisMouData(req, res) {
     const mouID = req.body.mouID || req.body.id || req.body.mou_id;
     const eventName = req.body.eventName || req.body.event_name;
-    const organisationId = req.body.organisationName || req.body.organisation_id;
+    // Organisation users keep the MoU in their own organisation.
+    const organisationId = gmisScope(req.user).orgId || req.body.organisationName || req.body.organisation_id;
     const navicId = req.body.vibhasNavicID || req.body.navic_vibhas_id;
     const nameOfMou = req.body.mouProjectName || req.body.name_of_mou;
     const nameOfSecondParty = req.body.stakeholderName || req.body.name_of_second_party;
@@ -218,6 +248,10 @@ async function updateGmisMouData(req, res) {
     }
     if (!uniqueFileName || uniqueFileName === '') {
         uniqueFileName = null;
+    }
+
+    if (!(await canAccessMou(req.user, mouID))) {
+        return res.status(404).send("MoU not found");
     }
 
     const conn = await pool;
@@ -291,90 +325,6 @@ async function updateGmisMouData(req, res) {
     }
 }
 
-async function getGmisMouData(req, res) {
-
-    try {
-
-        const roleId = req.params.roleId;
-        const organisationId = req.params.organisationId;
-
-        const conn = await pool;
-        const request = conn.request();
-
-        request.input("organisationId", organisationId);
-        request.input("roleId", roleId);
-
-        let query = "";
-
-        // Admin Roles → Show All Organisations
-        if (roleId == 2 || roleId == 3 || roleId == 4 || roleId == 5) {
-
-            query = `
-                SELECT 
-                    tbl_gmis_mou.id,
-                    tbl_gmis_mou.event_name,
-                    tbl_gmis_mou.organisation_id,
-                    mmt_organisation.organisation_name,
-                    tbl_gmis_mou.name_of_mou,
-                    tbl_gmis_mou.name_of_second_party,
-                    tbl_gmis_mou.nature_of_second_party,
-                    tbl_gmis_mou.amount,
-                    tbl_gmis_mou.mou_category_id,
-                    mmt_mou_category.mou_category_name,
-                    tbl_gmis_mou.mou_brief,
-                    tbl_gmis_mou.present_status,
-                    tbl_gmis_mou.reason_for_dropping,
-                    tbl_gmis_mou.remark_or_detailed_status,
-                    mmt_navic_vibhas.navic_name,
-                    tbl_gmis_mou.revised_amount,
-                    tbl_gmis_mou.updated_on
-                FROM tbl_gmis_mou
-                LEFT JOIN mmt_organisation ON tbl_gmis_mou.organisation_id = mmt_organisation.organisation_id
-                LEFT JOIN mmt_navic_vibhas ON mmt_navic_vibhas.id = tbl_gmis_mou.navic_vibhas_id
-                LEFT JOIN mmt_mou_category ON tbl_gmis_mou.mou_category_id = mmt_mou_category.mou_category_id
-                ORDER BY tbl_gmis_mou.id ASC
-            `;
-
-        } else {
-
-            // Normal Users → Show Only Their Organisation
-            query = `
-                SELECT 
-                    tbl_gmis_mou.id,
-                    tbl_gmis_mou.event_name,
-                    tbl_gmis_mou.organisation_id,
-                    mmt_organisation.organisation_name,
-                    tbl_gmis_mou.name_of_mou,
-                    tbl_gmis_mou.name_of_second_party,
-                    tbl_gmis_mou.nature_of_second_party,
-                    tbl_gmis_mou.amount,
-                    tbl_gmis_mou.mou_category_id,
-                    mmt_mou_category.mou_category_name,
-                    tbl_gmis_mou.mou_brief,
-                    tbl_gmis_mou.present_status,
-                    tbl_gmis_mou.reason_for_dropping,
-                    tbl_gmis_mou.remark_or_detailed_status,
-                    mmt_navic_vibhas.navic_name,
-                    tbl_gmis_mou.revised_amount,
-                    tbl_gmis_mou.updated_on
-                FROM tbl_gmis_mou
-                LEFT JOIN mmt_organisation ON tbl_gmis_mou.organisation_id = mmt_organisation.organisation_id
-                LEFT JOIN mmt_navic_vibhas ON mmt_navic_vibhas.id = tbl_gmis_mou.navic_vibhas_id
-                LEFT JOIN mmt_mou_category ON tbl_gmis_mou.mou_category_id = mmt_mou_category.mou_category_id
-                WHERE tbl_gmis_mou.organisation_id = @organisationId
-                ORDER BY tbl_gmis_mou.id ASC
-            `;
-        }
-
-        const result = await request.query(query);
-        res.json(result.recordset);
-
-    } catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
-    }
-}
-
 async function getGmisMouPaginated(req, res) {
     try {
         const page = parseInt(req.query.page, 10) || 1;
@@ -388,19 +338,13 @@ async function getGmisMouPaginated(req, res) {
         const status = req.query.status || "";
         const offset = (page - 1) * pageSize;
 
-        const roleId = req.user?.role_id || req.query.roleId || 2;
-        const userOrgId = req.user?.organisation_id || req.query.userOrgId;
+        const scope = gmisScope(req.user);
 
         const conn = await pool;
         const request = conn.request();
 
-        let baseWhereClauses = ["1=1"];
-
-        // Org scoping if not admin
-        if (roleId != 2 && roleId != 3 && roleId != 4 && roleId != 5 && userOrgId) {
-            baseWhereClauses.push("tbl_gmis_mou.organisation_id = @userOrgId");
-            request.input("userOrgId", userOrgId);
-        }
+        let baseWhereClauses = ["1=1", scope.sql];
+        if (scope.orgId) request.input("scopeOrgId", scope.orgId);
 
         if (eventName && eventName !== "all" && eventName !== "All") {
             baseWhereClauses.push("tbl_gmis_mou.event_name = @eventName");
@@ -458,7 +402,7 @@ async function getGmisMouPaginated(req, res) {
             } else if (status.toLowerCase().includes("dropped")) {
                 dataWhereClauses.push("tbl_gmis_mou.present_status LIKE '%Dropped%'");
             } else if (status.toLowerCase().includes("yet")) {
-                dataWhereClauses.push("tbl_gmis_mou.present_status LIKE '%Yet to%'");
+                dataWhereClauses.push(YET_TO_START_SQL);
             } else {
                 dataWhereClauses.push("tbl_gmis_mou.present_status = @status");
                 request.input("status", status);
@@ -505,9 +449,7 @@ async function getGmisMouPaginated(req, res) {
         `;
 
         const countRequest = conn.request();
-        if (roleId != 2 && roleId != 3 && roleId != 4 && roleId != 5 && userOrgId) {
-            countRequest.input("userOrgId", userOrgId);
-        }
+        if (scope.orgId) countRequest.input("scopeOrgId", scope.orgId);
         if (eventName && eventName !== "all" && eventName !== "All") countRequest.input("eventName", eventName);
         if (organisationId && organisationId !== "all" && organisationId !== "All") countRequest.input("organisationId", organisationId);
         if (category && category !== "all" && category !== "All") {
@@ -527,7 +469,7 @@ async function getGmisMouPaginated(req, res) {
                 COUNT(*) AS count_all,
                 SUM(CASE WHEN tbl_gmis_mou.present_status LIKE '%Under Implementation%' THEN 1 ELSE 0 END) AS count_ui,
                 SUM(CASE WHEN tbl_gmis_mou.present_status LIKE '%Completed%' THEN 1 ELSE 0 END) AS count_completed,
-                SUM(CASE WHEN tbl_gmis_mou.present_status LIKE '%Yet to%' THEN 1 ELSE 0 END) AS count_yet_to_start,
+                SUM(CASE WHEN ${YET_TO_START_SQL} THEN 1 ELSE 0 END) AS count_yet_to_start,
                 SUM(CASE WHEN tbl_gmis_mou.present_status LIKE '%Dropped%' THEN 1 ELSE 0 END) AS count_dropped,
                 SUM(CAST(ISNULL(tbl_gmis_mou.amount, 0) AS FLOAT)) AS total_amount
             FROM tbl_gmis_mou
@@ -571,8 +513,10 @@ async function getGmisMouDataByID(req, res) {
     const mouID = req.params.mouID;
     const conn = await pool;
     const request = conn.request();
+    const scope = gmisScope(req.user);
 
     request.input("mouID", mouID);
+    if (scope.orgId) request.input("scopeOrgId", scope.orgId);
 
     try {
         const result = await request.query(`
@@ -607,7 +551,7 @@ async function getGmisMouDataByID(req, res) {
         LEFT JOIN 
             mmt_mou_category ON tbl_gmis_mou.mou_category_id = mmt_mou_category.mou_category_id
         WHERE 
-            tbl_gmis_mou.id = @mouID;
+            tbl_gmis_mou.id = @mouID AND ${scope.sql};
         `);
 
         res.json(result.recordset);
@@ -618,26 +562,6 @@ async function getGmisMouDataByID(req, res) {
     }
 }
 
-
-async function getGmisMouChartData(req, res) {
-    const conn = await pool;
-
-    try {
-        const chartOneResult = await conn.query(`  select mmt.organisation_code, count(*) AS 'total_number_of_mous' from tbl_gmis_mou gm
-        LEFT JOIN mmt_organisation mmt ON gm.organisation_id = mmt.organisation_id
-        GROUP BY mmt.organisation_code`);
-
-        const chartTwoResult = await conn.query(`select mmt.organisation_code, SUM(amount) AS 'cost_of_mou' from tbl_gmis_mou gm
-       LEFT JOIN mmt_organisation mmt ON gm.organisation_id = mmt.organisation_id
-       GROUP BY mmt.organisation_code`);
-
-        res.json({ chartOne: chartOneResult.recordset, chartTwo: chartTwoResult.recordset });
-    }
-    catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
-    }
-}
 
 // async function getGmisMouStageDetails(req, res) {
 //     const conn = await pool;
@@ -660,361 +584,6 @@ async function getGmisMouChartData(req, res) {
 // }
 
 
-async function getGmisMouStageDetails(req, res) {
-    const conn = await pool;
-
-    try {
-        const organisationId = req.params.organisationId;
-        const financialYearRaw = req.params.financialYear;
-        const financialYear =
-            financialYearRaw && financialYearRaw !== '' && financialYearRaw !== 'ALL'
-                ? financialYearRaw
-                : null;
-        const greaterThan100Cr = req.params.greaterThan100Cr || 'NO';
-
-        let query = `
-            SELECT 
-                present_status,
-                COUNT(*) AS count,
-                SUM(amount) / 100000 AS amount
-            FROM tbl_gmis_mou gm
-            WHERE 1 = 1
-        `;
-
-        // Financial Year filter
-        if (financialYear && financialYear !== '') {
-            query += ` AND event_name = @financialYear `;
-        }
-
-        // Organisation filter
-        if (organisationId && organisationId != 0) {
-            query += ` AND organisation_id = @organisationId `;
-        }
-
-        // ✅ ADD THIS (your requirement)
-        if (greaterThan100Cr === 'YES') {
-        query += ` AND gm.amount >= 100 `;
-        } else if (greaterThan100Cr === 'NO') {
-        query += ` AND gm.amount < 100  OR gm.amount IS NULL `;
-        }
-
-        query += ` GROUP BY present_status `;
-
-        const request = conn.request();
-
-        if (financialYear && financialYear !== '') {
-            request.input('financialYear', financialYear);
-        }
-
-        if (organisationId && organisationId != 0) {
-            request.input('organisationId', organisationId);
-        }
-
-        const result = await request.query(query);
-
-        res.json(result.recordset);
-
-    } catch (err) {
-        console.log(err);
-        return res.status(500).json({
-            message: "Server Error",
-            error: err.message
-        });
-    }
-}
-
-async function getYearWisegmisData(req, res) {
-  try {
-    const conn = await pool;
-    const request = conn.request();
-
-    // -----------------------------
-    // INPUTS (safe parsing)
-    // -----------------------------
-    const organisationId = parseInt(req.query.organisationId) || 0;
-
-    const financialYearRaw = req.query.financialYear;
-    
-    const financialYear =
-      financialYearRaw &&
-      financialYearRaw !== '' &&
-      financialYearRaw !== 'ALL'
-        ? financialYearRaw
-        : null;
-        console.log(financialYear,"MNEWWEW")
-
-    const greaterThan100Cr = req.query.greaterThan100Cr || 'NO';
-    console.log(greaterThan100Cr)
-
-    // -----------------------------
-    // BASE QUERY
-    // -----------------------------
-    let query = `
-      SELECT
-        LTRIM(RTRIM(gm.event_name)) AS year,
-        LTRIM(RTRIM(gm.present_status)) AS present_status,
-        COUNT(*) AS count,
-        ISNULL(SUM(gm.amount), 0) / 100000.0 AS cost_of_mou
-      FROM sagarmanthan_revamp.dbo.tbl_gmis_mou gm
-      WHERE gm.event_name LIKE 'GMIS%'
-    `;
-
-    // -----------------------------
-    // FILTER: Organisation
-    // -----------------------------
-    if (organisationId && organisationId !== 0) {
-      query += ` AND gm.organisation_id = @organisationId `;
-      request.input('organisationId', organisationId);
-    }
-
-    // -----------------------------
-    // FILTER: Financial Year
-    // -----------------------------
-    if (financialYear) {
-      query += ` AND LTRIM(RTRIM(gm.event_name)) = @financialYear `;
-      request.input('financialYear', financialYear);
-    }
-
-    // -----------------------------
-    // FILTER: Amount
-    // -----------------------------
-    if (greaterThan100Cr === 'YES') {
-      query += ` AND gm.amount >= 100 `;
-    } else if (greaterThan100Cr === 'NO') {
-      query += ` AND gm.amount < 100  OR gm.amount IS NULL `;
-    }
-
-    // -----------------------------
-    // GROUPING
-    // -----------------------------
-    query += `
-      GROUP BY
-        LTRIM(RTRIM(gm.event_name)),
-        LTRIM(RTRIM(gm.present_status))
-      ORDER BY
-        LTRIM(RTRIM(gm.event_name)) DESC
-    `;
-
-    // -----------------------------
-    // EXECUTE QUERY
-    // -----------------------------
-    const result = await request.query(query);
-    const rows = result.recordset || [];
-
-    // -----------------------------
-    // NORMALIZATION
-    // -----------------------------
-    function normalize(status) {
-      const s = (status || '').toLowerCase();
-
-      if (s.includes('work completed')) return 'workCompleted';
-      if (s.includes('work under implementation')) return 'workUnderImplementation';
-      if (s.includes('tendering')) return 'tendering';
-      if (s.includes('approval')) return 'approvalPhase';
-      if (
-        s.includes('feasibility') ||
-        s.includes('dpr') ||
-        s.includes('planning')
-      ) return 'planningPhase';
-      if (s.includes('to be started')) return 'toBeStarted';
-      if (s.includes('dropped')) return 'dropped';
-
-      return null;
-    }
-
-    // -----------------------------
-    // TRANSFORM DATA
-    // -----------------------------
-    const map = {};
-
-    for (const r of rows) {
-      const year = r.year || 'UNKNOWN';
-
-      if (!map[year]) {
-        map[year] = {
-          year,
-          workCompleted: 0,
-          workUnderImplementation: 0,
-          tendering: 0,
-          approvalPhase: 0,
-          planningPhase: 0,
-          toBeStarted: 0,
-          dropped: 0,
-          cost_of_mou: 0
-        };
-      }
-
-      const key = normalize(r.present_status);
-
-      if (key) {
-        map[year][key] += Number(r.count || 0);
-      }
-
-      map[year].cost_of_mou += Number(r.cost_of_mou || 0);
-    }
-
-    // -----------------------------
-    // RESPONSE
-    // -----------------------------
-    return res.json(Object.values(map));
-
-  } catch (err) {
-    console.error('getYearWisegmisData error:', err);
-
-    return res.status(500).json({
-      message: 'Server error',
-      error: err.message
-    });
-  }
-}
-async function getGmisDrilldownData(req, res) {
-  try {
-    const conn = await pool;
-    const request = conn.request();
-
-    const organisationId = parseInt(req.query.orgID) || 0;
-
-    const financialYearRaw = req.query.financialYear;
-    const statusRaw = req.query.status;
-
-    const financialYear =
-      financialYearRaw &&
-      financialYearRaw !== '' &&
-      financialYearRaw !== 'ALL'
-        ? financialYearRaw
-        : null;
-
-    const greaterThan100Cr = req.query.greaterThan100Cr || 'NO';
-
-    // -----------------------------
-    // STATUS NORMALIZER
-    // -----------------------------
-    function normalizeStatus(str) {
-      return (str || "")
-        .toLowerCase()
-        .replace(/[_\s/]+/g, '')
-        .trim();
-    }
-
-    const statusMap = {
-      workcompleted: 'Work completed',
-      workunderimplementation: 'Work under implementation',
-      tendering: 'Tendering stage',
-      approvalphase: 'Approval phase',
-      feasibilitydprplanningstudystage: 'Feasibility/ DPR/ Planning/ Study phase',
-      tobestarted: 'To be started',
-      dropped: 'Dropped'
-    };
-
-    let status = null;
-
-    if (statusRaw) {
-      const key = normalizeStatus(statusRaw);
-      status = statusMap[key] || statusRaw;
-    }
-
-    console.log(status, "mapped status");
-
-    console.log(financialYear, 'financialYear');
-    console.log(greaterThan100Cr, 'greaterThan100Cr');
-
-    // -----------------------------
-    // BASE QUERY
-    // -----------------------------
-    let query = `
-      SELECT
-          gm.id,
-          gm.event_name,
-          mmt.organisation_name,
-          nv.navic_name,
-          gm.name_of_mou,
-          gm.name_of_first_party,
-          gm.name_of_second_party,
-          gm.nature_of_second_party,
-          gm.amount,
-          mc.mou_category_name,
-          gm.mou_brief,
-          gm.present_status,
-          gm.reason_for_dropping,
-          gm.remark_or_detailed_status,
-          gm.revised_amount,
-          gm.next_steps,
-          gm.document_uploader
-      FROM sagarmanthan_revamp.dbo.tbl_gmis_mou gm
-      LEFT JOIN mmt_navic_vibhas nv
-          ON nv.id = gm.navic_vibhas_id
-      LEFT JOIN mmt_mou_category mc
-          ON mc.mou_category_id = gm.mou_category_id
-      LEFT JOIN mmt_organisation mmt
-          ON mmt.organisation_id = gm.organisation_id
-      WHERE gm.event_name LIKE 'GMIS%'
-    `;
-
-    // -----------------------------
-    // FILTER: Organisation
-    // -----------------------------
-    if (organisationId && organisationId !== 0) {
-      query += ` AND gm.organisation_id = @organisationId `;
-      request.input('organisationId', organisationId);
-    }
-
-    // -----------------------------
-    // FILTER: Financial Year
-    // -----------------------------
-    if (financialYear) {
-      query += ` AND LTRIM(RTRIM(gm.event_name)) = @financialYear `;
-      request.input('financialYear', financialYear);
-    }
-
-    // -----------------------------
-    // FILTER: STATUS
-    // -----------------------------
-    if (status) {
-      query += ` AND gm.present_status = @status `;
-      request.input('status', status);
-    }
-
-    if (greaterThan100Cr === 'YES') {
-    query += ` AND gm.amount >= 100 `;
-    } else if (greaterThan100Cr === 'NO') {
-    query += `  AND (gm.amount < 100 OR gm.amount IS NULL) `;
-    }
-
-    // -----------------------------
-    // ORDER BY
-    // -----------------------------
-    query += ` ORDER BY gm.id DESC `;
-
-    // -----------------------------
-    // EXECUTE
-    // -----------------------------
-    const result = await request.query(query);
-
-    return res.json(result.recordset);
-
-  } catch (err) {
-    console.error('getGmisDrilldownData error:', err);
-
-    return res.status(500).json({
-      message: 'Server error',
-      error: err.message
-    });
-  }
-}
-
-async function getGmisMouSecondParty(req, res) {
-    try {
-        const conn = await pool;
-        const request = conn.request();
-
-        const result = await request.query(`SELECT DISTINCT name_of_second_party FROM tbl_gmis_mou`);
-        res.json(result.recordset);
-    } catch (err) {
-        console.error("Database query error:", err);
-        res.sendStatus(500);
-    }
-}
-
 async function getGmisMouVibhasNavicCell(req, res) {
     try {
         const conn = await pool;
@@ -1032,583 +601,6 @@ async function getGmisMouVibhasNavicCell(req, res) {
         res.sendStatus(500);
     }
 }
-
-async function getGmisMouCategoryName(req, res) {
-    try {
-        const conn = await pool;
-        const request = conn.request();
-
-        const result = await request.query(`SELECT distinct mou_category_name FROM tbl_gmis_mou 
-            LEFT JOIN mmt_mou_category ON tbl_gmis_mou.mou_category_id = mmt_mou_category.mou_category_id`);
-        res.json(result.recordset);
-    } catch (err) {
-        console.error("Database query error:", err);
-        res.sendStatus(500);
-    }
-}
-
-async function getGmisMouPresentStatus(req, res) {
-    try {
-        const conn = await pool;
-        const request = conn.request();
-
-        const result = await request.query(`SELECT DISTINCT present_status FROM tbl_gmis_mou`);
-        res.json(result.recordset);
-    } catch (err) {
-        console.error("Database query error:", err);
-        res.sendStatus(500);
-    }
-}
-
-
-async function getOrganisationWiseCountAmount(req, res) {
-
-    const conn = await pool;
-
-    try {
-
-        const organisationId = parseInt(req.query.organisationId) || 0;
-        const financialYearRaw = req.query.financialYear;
-        const financialYear =
-            financialYearRaw && financialYearRaw !== 'ALL'
-                ? financialYearRaw
-                : null;
-  
-        const greaterThan100Cr = req.query.greaterThan100Cr || 'YES';
-
-        const request = conn.request();
-
-        if (organisationId !== 0) {
-            request.input('organisationId', organisationId);
-        }
-
-        if (financialYear) {
-            request.input('financialYear', financialYear);
-        }
-
-   
-        let whereCondition = ` WHERE 1 = 1 `;
-
-        if (financialYear) {
-            whereCondition += ` AND gm.event_name = @financialYear `;
-        }
-
-        if (organisationId !== 0) {
-            whereCondition += ` AND gm.organisation_id = @organisationId `;
-        }
-
-        // amount filter
-        if (greaterThan100Cr === 'YES') {
-            whereCondition += ` AND gm.amount > 100 `;
-        } else if (greaterThan100Cr === 'NO') {
-            whereCondition += ` AND gm.amount <= 100 `;
-        }
-
-        // -----------------------------
-        // Organisation-wise count
-        // -----------------------------
-        const amountCountWiseMou = await request.query(`
-            SELECT
-                mmt.organisation_code,
-                COUNT(*) AS total_number_of_mous,
-                COALESCE(SUM(amount),0) / 10000000 AS cost_of_mou
-            FROM tbl_gmis_mou gm
-            LEFT JOIN mmt_organisation mmt
-                ON gm.organisation_id = mmt.organisation_id
-            ${whereCondition}
-            GROUP BY mmt.organisation_code
-            ORDER BY total_number_of_mous DESC
-        `);
-
-        // -----------------------------
-        // Total count
-        // -----------------------------
-        const totalCountAndAmount = await request.query(`
-            SELECT
-                COUNT(*) AS total_mou,
-                COALESCE(SUM(amount),0) / 10000000 AS total_cost_of_mou
-            FROM tbl_gmis_mou gm
-            ${whereCondition}
-        `);
-
-        // -----------------------------
-        // Status list
-        // -----------------------------
-        const statusesResult = await request.query(`
-            SELECT DISTINCT present_status
-            FROM tbl_gmis_mou gm
-            ${whereCondition}
-        `);
-
-        const statuses = statusesResult.recordset.map(r => r.present_status);
-
-        const organisationWiseStatus = {};
-
-        // -----------------------------
-        // Status-wise loop
-        // -----------------------------
-        for (const status of statuses) {
-
-            const statusRequest = conn.request();
-
-            if (organisationId !== 0) {
-                statusRequest.input('organisationId', organisationId);
-            }
-
-            if (financialYear) {
-                statusRequest.input('financialYear', financialYear);
-            }
-
-            statusRequest.input('status', status);
-
-            let statusWhereCondition = `
-                WHERE gm.present_status = @status
-            `;
-
-            if (financialYear) {
-                statusWhereCondition += ` AND gm.event_name = @financialYear `;
-            }
-
-            if (organisationId !== 0) {
-                statusWhereCondition += ` AND gm.organisation_id = @organisationId `;
-            }
-
-            if (greaterThan100Cr === 'YES') {
-                statusWhereCondition += ` AND gm.amount > 100 `;
-            } else if (greaterThan100Cr === 'NO') {
-                statusWhereCondition += ` AND gm.amount <= 100 `;
-            }
-
-            const statusData = await statusRequest.query(`
-                SELECT
-                    mmt.organisation_code,
-                    COUNT(*) AS count
-                FROM tbl_gmis_mou gm
-                LEFT JOIN mmt_organisation mmt
-                    ON gm.organisation_id = mmt.organisation_id
-                ${statusWhereCondition}
-                GROUP BY mmt.organisation_code
-            `);
-
-            organisationWiseStatus[status] = statusData.recordset;
-        }
-
-        return res.json({
-            amountCountWiseMou: amountCountWiseMou.recordset,
-            totalCountAndAmount: totalCountAndAmount.recordset,
-            organisationWiseStatus
-        });
-
-    } catch (err) {
-        console.log(err);
-        return res.status(500).json({
-            message: "Server Error",
-            error: err.message
-        });
-    }
-}
-async function getStatusWiseCountAmount(req, res) {
-
-    const conn = await pool;
-
-    try {
-
-        const category =req.query.category;
-
-        const organisationId =parseInt(req.query.organisationId) || 0;
-
-        const financialYearRaw = req.query.financialYear;
-        const financialYear =financialYearRaw && financialYearRaw !== '' && financialYearRaw !== 'ALL'
-        ? financialYearRaw
-        : null;
-
-        const greaterThan100Cr =req.query.greaterThan100Cr || 'YES';
-
-        let query = `
-            SELECT
-                gm.present_status AS status,
-                COUNT(*) AS count,
-                ISNULL(SUM(gm.amount) / 100000.0, 0) AS amount
-
-            FROM tbl_gmis_mou gm
-
-            LEFT JOIN mmt_organisation mmt
-                ON gm.organisation_id =
-                 mmt.organisation_id
-
-            WHERE 1 = 1
-        `;
-
-        // Financial Year filter
-        if (
-            financialYear &&
-            financialYear !== ''
-        ) {
-
-            query += `
-                AND gm.event_name = @financialYear
-            `;
-        }
-
-        // Organisation filter
-        if (organisationId !== 0) {
-
-            query += `
-                AND gm.organisation_id =
-                    @organisationId
-            `;
-        }
-
-        // Greater Than 100 CR filter
-        if (greaterThan100Cr === 'YES') {
-
-            query += `
-                AND gm.amount > 100
-            `;
-        }
-
-        if (greaterThan100Cr === 'NO') {
-
-            query += `
-                AND gm.amount <= 100
-            `;
-        }
-
-        // Category filter
-        if (category === 'Other Organization') {
-
-            query += `
-                AND mmt.organisation_category_id != 1
-                AND mmt.organisation_category_id
-                    IS NOT NULL
-            `;
-        }
-
-        else if (category === 'Major Ports') {
-
-            query += `
-                AND mmt.organisation_category_id = 1
-            `;
-        }
-
-        query += `
-            GROUP BY gm.present_status
-        `;
-
-        const request = conn.request();
-
-        // Safe parameter binding
-        if (
-            financialYear &&
-            financialYear !== ''
-        ) {
-
-            request.input(
-                "financialYear",
-                financialYear
-            );
-        }
-
-        if (organisationId !== 0) {
-
-            request.input(
-                "organisationId",
-                organisationId
-            );
-        }
-
-        const result =
-            await request.query(query);
-
-        res.json(result.recordset);
-
-    } catch (err) {
-
-        console.log(err);
-
-        return res.status(500).json({
-            message: "Server Error",
-            error: err.message
-        });
-    }
-}
-async function getOrganisationWiseStatusCount(req, res) {
-
-    const conn = await pool;
-
-    try {
-
-        const organisationId = parseInt(req.params.organisationId) || 0;
-        const financialYearRaw = req.params.financialYear;
-        const financialYear =
-            financialYearRaw && financialYearRaw !== '' && financialYearRaw !== 'ALL'
-                ? financialYearRaw
-                : null;
-        const greaterThan100Cr = req.params.greaterThan100Cr || 'NO';
-
-        let query = `
-            SELECT
-                mmt.organisation_name,
-                COUNT(*) AS total_number_of_mous,
-                gm.present_status
-            FROM tbl_gmis_mou gm
-            LEFT JOIN mmt_organisation mmt
-                ON gm.organisation_id = mmt.organisation_id
-            WHERE 1 = 1
-        `;
-
-        // Financial Year filter
-        if (financialYear && financialYear !== '') {
-            query += ` AND gm.event_name = @financialYear `;
-        }
-
-        // Organisation filter
-        if (organisationId !== 0) {
-            query += ` AND gm.organisation_id = @organisationId `;
-        }
-
-
-        if (greaterThan100Cr === 'YES') {
-        query += ` AND gm.amount >= 100 `;
-        } else if (greaterThan100Cr === 'NO') {
-        query += ` AND gm.amount < 100  OR gm.amount IS NULL `;
-        }
-        // NO → no filter
-
-        query += `
-            GROUP BY
-                mmt.organisation_name,
-                gm.present_status
-        `;
-
-        const request = conn.request();
-
-        if (financialYear && financialYear !== '') {
-            request.input("financialYear", financialYear);
-        }
-
-        if (organisationId !== 0) {
-            request.input("organisationId", organisationId);
-        }
-
-        const result = await request.query(query);
-
-        res.json(result.recordset);
-
-    } catch (err) {
-
-        console.log(err);
-
-        return res.status(500).json({
-            message: "Server Error",
-            error: err.message
-        });
-    }
-}
-async function getOrganisationWiseStatusCountorgView(req, res) {
-  try {
-    const conn = await pool;
-    const request = conn.request();
-
-    const organisationID = req.params.organisationID;
-
-    request.input("organisationID", organisationID);
-
-    const result = await request.query(`
-    SELECT 
-    gm.present_status,
-    COUNT(*) AS total_number_of_mous,
-    ISNULL(SUM(gm.amount) / 100000.0, 0) AS cost_of_mou
-    FROM tbl_gmis_mou gm
-    WHERE gm.organisation_id = @organisationID and event_name = 'GMIS 2016'
-    GROUP BY gm.present_status
-    ORDER BY gm.present_status;
-    `);
-
-    res.json(result.recordset);
-
-  } catch (err) {
-    console.log(err);
-    return res.sendStatus(500);
-  }
-}
-async function getOrganisationWiseStatusCountorgView_2021(req, res) {
-  try {
-    const conn = await pool;
-    const request = conn.request();
-
-    const organisationID = req.params.organisationID;
-
-    request.input("organisationID", organisationID);
-
-    const result = await request.query(`
-    SELECT 
-    gm.present_status,
-    COUNT(*) AS total_number_of_mous,
-    ISNULL(SUM(gm.amount) / 100000.0, 0) AS cost_of_mou
-    FROM tbl_gmis_mou gm
-    WHERE gm.organisation_id = @organisationID and event_name = 'GMIS 2021'
-    GROUP BY gm.present_status
-    ORDER BY gm.present_status;
-    `);
-
-    res.json(result.recordset);
-
-  } catch (err) {
-    console.log(err);
-    return res.sendStatus(500);
-  }
-}
-
-async function getOrganisationWiseStatusCountorgView_2023(req, res) {
-  try {
-    const conn = await pool;
-    const request = conn.request();
-
-    const organisationID = req.params.organisationID;
-
-    request.input("organisationID", organisationID);
-
-    const result = await request.query(`
-    SELECT 
-    gm.present_status,
-    COUNT(*) AS total_number_of_mous,
-    ISNULL(SUM(gm.amount) / 100000.0, 0) AS cost_of_mou
-    FROM tbl_gmis_mou gm
-    WHERE gm.organisation_id = @organisationID and event_name = 'GMIS 2023'
-    GROUP BY gm.present_status
-    ORDER BY gm.present_status;
-    `);
-
-    res.json(result.recordset);
-
-  } catch (err) {
-    console.log(err);
-    return res.sendStatus(500);
-  }
-}
-
-async function getOrganisationWiseStatusCountorgView_2025(req, res) {
-  try {
-    const conn = await pool;
-    const request = conn.request();
-
-    const organisationID = req.params.organisationID;
-
-    request.input("organisationID", organisationID);
-
-    const result = await request.query(`
-    SELECT 
-    gm.present_status,
-    COUNT(*) AS total_number_of_mous,
-    ISNULL(SUM(gm.amount) / 100000.0, 0) AS cost_of_mou
-    FROM tbl_gmis_mou gm
-    WHERE gm.organisation_id = @organisationID and event_name = 'GMIS 2025'
-    GROUP BY gm.present_status
-    ORDER BY gm.present_status;
-    `);
-
-    res.json(result.recordset);
-
-  } catch (err) {
-    console.log(err);
-    return res.sendStatus(500);
-  }
-}
-
-
-
-async function getGmisMouDataByOrganisationAndStatus(req, res) {
-    const conn = await pool;
-    const request = conn.request();
-    const org = req.params.organisation;
-    const indexOfColumn = req.params.status;
-
-    let status;
-
-    switch (indexOfColumn) {
-        case '1':
-            status = "All";
-            break;
-        case '2':
-            status = "Feasibility/ DPR/ Planning/ Study phase";
-            break;
-        case '3':
-            status = "Approval phase";
-            break;
-        case '4':
-            status = "To be started";
-            break;
-        case '5':
-            status = "Tendering Stage";
-            break;
-        case '6':
-            status = "Work under implementation (work awarded and implementation started)";
-            break;
-        case '7':
-            status = "Work completed";
-            break;
-        case '8':
-            status = "Dropped";
-            break;
-        case '9':
-            status = "All";
-            break;
-        default:
-            break;
-    }
-
-    if (org !== "Total") {
-        request.input("org", org);
-    }
-    request.input("status", status);
-
-    let query = `
-        SELECT 
-            tbl_gmis_mou.id,
-            tbl_gmis_mou.organisation_id,
-            mmt_organisation.organisation_name,
-            tbl_gmis_mou.name_of_mou,
-            tbl_gmis_mou.name_of_second_party,
-            tbl_gmis_mou.nature_of_second_party,
-            tbl_gmis_mou.amount,
-            tbl_gmis_mou.mou_category_id,
-            mmt_mou_category.mou_category_name,
-            tbl_gmis_mou.mou_brief,
-            tbl_gmis_mou.present_status,
-            tbl_gmis_mou.reason_for_dropping,
-            mmt_navic_vibhas.navic_name,
-            tbl_gmis_mou.revised_amount
-        FROM 
-            tbl_gmis_mou
-        LEFT JOIN 
-            mmt_organisation ON tbl_gmis_mou.organisation_id = mmt_organisation.organisation_id
-        LEFT JOIN 
-            mmt_navic_vibhas ON mmt_navic_vibhas.id = tbl_gmis_mou.navic_vibhas_id
-        LEFT JOIN 
-            mmt_mou_category ON tbl_gmis_mou.mou_category_id = mmt_mou_category.mou_category_id
-    `;
-
-    if (org !== "Total") {
-        query += ` WHERE mmt_organisation.organisation_name = @org`;
-    }
-
-    if (status !== "All") {
-        query += org !== "Total" ? ` AND present_status = @status` : ` WHERE present_status = @status`;
-    }
-
-    query += ` ORDER BY tbl_gmis_mou.id ASC`;
-
-    try {
-        const result = await request.query(query);
-        res.json(result.recordset);
-    }
-    catch (err) {
-        console.error(err);
-        res.sendStatus(500);
-    }
-}
-
 
 // async function getOrganisationWiseCountAmountStatus(req, res) {
 //     const conn = await pool;
@@ -1671,1398 +663,6 @@ async function getGmisMouDataByOrganisationAndStatus(req, res) {
 //         return res.sendStatus(500);
 //     }
 // }
-async function getOrganisationWiseCountAmountStatus(req, res) {
-
-  const conn = await pool;
-  const request = conn.request();
-
-  const category = req.query.category;
-  const organisationId = req.query.organisationId || 0;
-  const financialYearRaw = req.query.financialYear;
-    const financialYear =
-        financialYearRaw && financialYearRaw !== '' && financialYearRaw !== 'ALL'
-            ? financialYearRaw
-            : null;
-  const greaterThan100Cr = req.query.greaterThan100Cr || 'NO'; 
-
-  let categorySql = '';
-
-  if (category === 'Major Ports') {
-    categorySql = ' AND mmt.organisation_category_id = 1';
-  } else if (category === 'Other Organization') {
-    categorySql = `
-      AND mmt.organisation_category_id != 1
-      AND mmt.organisation_category_id IS NOT NULL
-    `;
-  }
-
-  let orgSql = '';
-
-  if (organisationId && organisationId != 0) {
-    orgSql = ` AND gm.organisation_id = ${organisationId}`;
-  }
-
-  let financialYearSql = '';
-
-  if (financialYear && financialYear !== '') {
-    financialYearSql = ` AND gm.event_name = '${financialYear}'`;
-  }
-
-  let amountSql = '';
-
- 
-
-    if (greaterThan100Cr === 'YES') {
-    amountSql = ` AND gm.amount >= 100 `;
-    } 
-    else if (greaterThan100Cr === 'NO') {
-    amountSql = ` AND gm.amount < 100  OR gm.amount IS NULL `;
-    }
-
-  const baseTable = 'sagarmanthan_revamp.dbo.tbl_gmis_mou';
-
-  const statusQuery = `
-    SELECT
-      mmt.organisation_label,
-      gm.organisation_id,
-      gm.present_status,
-      COUNT(*) AS count
-    FROM ${baseTable} gm
-    LEFT JOIN mmt_organisation mmt
-      ON gm.organisation_id = mmt.organisation_id
-    WHERE 1=1
-    ${financialYearSql}
-    ${categorySql}
-    ${orgSql}
-    ${amountSql}  
-    GROUP BY
-      gm.organisation_id,
-      mmt.organisation_label,
-      gm.present_status
-  `;
-
-  const costQuery = `
-    SELECT
-      mmt.organisation_label,
-        gm.organisation_id,
-      ISNULL(SUM(gm.amount) / 100000.0, 0) AS cost_of_mou
-    FROM ${baseTable} gm
-    LEFT JOIN mmt_organisation mmt
-      ON gm.organisation_id = mmt.organisation_id
-    WHERE 1=1
-    ${financialYearSql}
-    ${categorySql}
-    ${orgSql}
-    ${amountSql}  
-    GROUP BY
-      mmt.organisation_label,
-      gm.organisation_id
-  `;
-
-  try {
-
-    const costResult = await request.query(costQuery);
-    const statusResult = await request.query(statusQuery);
-
-    const costData = costResult.recordset || [];
-    const statusData = statusResult.recordset || [];
-
-    const map = Object.create(null);
-
-    for (const c of costData) {
-      const label = c.organisation_label || 'Unknown';
-
-      map[label] = map[label] || {
-        organisation_id: c.organisation_id,
-        organisation_label: label,
-        cost_of_mou: Number(c.cost_of_mou || 0),
-        total_count: 0
-      };
-    }
-
-    for (const s of statusData) {
-      const label = s.organisation_label || 'Unknown';
-
-      map[label] = map[label] || {
-        organisation_label: label,
-        organisation_id: s.organisation_id,
-        cost_of_mou: 0,
-        total_count: 0
-      };
-
-      const key = s.present_status || 'Unknown';
-
-      map[label][key] =
-        (map[label][key] || 0) + Number(s.count || 0);
-
-      map[label].total_count += Number(s.count || 0);
-    }
-
-    return res.json(Object.values(map));
-
-  } catch (err) {
-    return res.status(500).json({
-      message: "Server error executing queries.",
-      error: err.message
-    });
-  }
-}
-
-async function getOrganisationWiseCountAmountStatusorgView(req, res) {
-  try {
-    const conn = await pool;
-    const organisationID = req.params.organisationID;
-    console.log(organisationID,"orgidrdr")
-    const request = conn.request();
-
-    // Bind parameter (IMPORTANT - prevents SQL injection)
-    request.input("organisationID", organisationID);
-
-    const query = `
-      SELECT 
-            gm.present_status,
-
-            COUNT(*) AS total_mous,
-
-            ISNULL(SUM(gm.amount) / 100000.0, 0) AS cost_of_mou
-
-        FROM sagarmanthan_revamp.dbo.tbl_gmis_mou gm
-        LEFT JOIN mmt_organisation mmt 
-            ON gm.organisation_id = mmt.organisation_id
-
-        WHERE gm.event_name = 'GMIS 2016'
-        AND (@organisationID IS NULL OR gm.organisation_id = @organisationID)
-
-        GROUP BY gm.present_status
-        ORDER BY gm.present_status
-    `;
-
-    const result = await request.query(query);
-
-    return res.json(result.recordset);
-
-  } catch (err) {
-    return res.status(500).json({
-      message: "Error fetching organisation-wise status data",
-      error: err.message
-    });
-  }
-}
-async function getOrganisationWiseCountAmountStatusorgView_2021(req, res) {
-  try {
-    const conn = await pool;
-    const organisationID = req.params.organisationID;
-    console.log(organisationID,"orgidrdr")
-    const request = conn.request();
-
-    request.input("organisationID", organisationID);
-
-    const query = `
-      SELECT 
-            gm.present_status,
-
-            COUNT(*) AS total_mous,
-
-            ISNULL(SUM(gm.amount) / 100000.0, 0) AS cost_of_mou
-
-        FROM sagarmanthan_revamp.dbo.tbl_gmis_mou gm
-        LEFT JOIN mmt_organisation mmt 
-            ON gm.organisation_id = mmt.organisation_id
-
-        WHERE gm.event_name = 'GMIS 2021'
-        AND (@organisationID IS NULL OR gm.organisation_id = @organisationID)
-
-        GROUP BY gm.present_status
-        ORDER BY gm.present_status
-    `;
-
-    const result = await request.query(query);
-
-    return res.json(result.recordset);
-
-  } catch (err) {
-    return res.status(500).json({
-      message: "Error fetching organisation-wise status data",
-      error: err.message
-    });
-  }
-}
-async function getOrganisationWiseCountAmountStatusorgView_2023(req, res) {
-  try {
-    const conn = await pool;
-    const organisationID = req.params.organisationID;
-    console.log(organisationID,"orgidrdr")
-    const request = conn.request();
-
-    request.input("organisationID", organisationID);
-
-    const query = `
-      SELECT 
-            gm.present_status,
-
-            COUNT(*) AS total_mous,
-
-            ISNULL(SUM(gm.amount) / 100000.0, 0) AS cost_of_mou
-
-        FROM sagarmanthan_revamp.dbo.tbl_gmis_mou gm
-        LEFT JOIN mmt_organisation mmt 
-            ON gm.organisation_id = mmt.organisation_id
-
-        WHERE gm.event_name = 'GMIS 2023'
-        AND (@organisationID IS NULL OR gm.organisation_id = @organisationID)
-
-        GROUP BY gm.present_status
-        ORDER BY gm.present_status
-    `;
-
-    const result = await request.query(query);
-
-    return res.json(result.recordset);
-
-  } catch (err) {
-    return res.status(500).json({
-      message: "Error fetching organisation-wise status data",
-      error: err.message
-    });
-  }
-}
-
-async function getOrganisationWiseCountAmountStatusorgView_2025(req, res) {
-  try {
-    const conn = await pool;
-    const organisationID = req.params.organisationID;
-    console.log(organisationID,"orgidrdr")
-    const request = conn.request();
-
-    request.input("organisationID", organisationID);
-
-    const query = `
-      SELECT 
-            gm.present_status,
-
-            COUNT(*) AS total_mous,
-
-            ISNULL(SUM(gm.amount) / 100000.0, 0) AS cost_of_mou
-
-        FROM sagarmanthan_revamp.dbo.tbl_gmis_mou gm
-        LEFT JOIN mmt_organisation mmt 
-            ON gm.organisation_id = mmt.organisation_id
-
-        WHERE gm.event_name = 'GMIS 2025'
-        AND (@organisationID IS NULL OR gm.organisation_id = @organisationID)
-
-        GROUP BY gm.present_status
-        ORDER BY gm.present_status
-    `;
-
-    const result = await request.query(query);
-
-    return res.json(result.recordset);
-
-  } catch (err) {
-    return res.status(500).json({
-      message: "Error fetching organisation-wise status data",
-      error: err.message
-    });
-  }
-}
-async function getOrganisationWiseCountAmountStatusorgView_2025_category(req, res) {
-  try {
-    const conn = await pool;
-    const organisationID = req.params.organisationID;
-    console.log(organisationID,"orgidrdr")
-    const request = conn.request();
-
-    request.input("organisationID", organisationID);
-
-    const query = `
-     SELECT 
-    LTRIM(RTRIM(
-        REPLACE(REPLACE(mc.mou_category_name, CHAR(13), ''), CHAR(10), '')
-    )) AS mou_category,
-
-    COUNT(*) AS total_mous,
-
-    ISNULL(SUM(gm.amount) / 100000.0, 0) AS cost_of_mou
-
-    FROM sagarmanthan_revamp.dbo.tbl_gmis_mou gm
-
-    LEFT JOIN mmt_organisation mmt 
-        ON gm.organisation_id = mmt.organisation_id
-
-    LEFT JOIN mmt_mou_category mc 
-        ON gm.mou_category_id = mc.mou_category_id
-
-    WHERE gm.event_name = 'GMIS 2025'
-    AND (@organisationID IS NULL OR gm.organisation_id = @organisationID)
-
-    GROUP BY 
-        LTRIM(RTRIM(REPLACE(REPLACE(mc.mou_category_name, CHAR(13), ''), CHAR(10), '')))
-
-    ORDER BY mou_category;
-    `;
-
-    const result = await request.query(query);
-
-    return res.json(result.recordset);
-
-  } catch (err) {
-    return res.status(500).json({
-      message: "Error fetching organisation-wise status data",
-      error: err.message
-    });
-  }
-}
-async function getOrganisationWiseCountAmountStatusorgView_2023_category(req, res) {
-  try {
-    const conn = await pool;
-    const organisationID = req.params.organisationID;
-    console.log(organisationID,"orgidrdr")
-    const request = conn.request();
-
-    request.input("organisationID", organisationID);
-
-    const query = `
-     SELECT 
-    LTRIM(RTRIM(
-        REPLACE(REPLACE(mc.mou_category_name, CHAR(13), ''), CHAR(10), '')
-    )) AS mou_category,
-
-    COUNT(*) AS total_mous,
-
-    ISNULL(SUM(gm.amount) / 100000.0, 0) AS cost_of_mou
-
-    FROM sagarmanthan_revamp.dbo.tbl_gmis_mou gm
-
-    LEFT JOIN mmt_organisation mmt 
-        ON gm.organisation_id = mmt.organisation_id
-
-    LEFT JOIN mmt_mou_category mc 
-        ON gm.mou_category_id = mc.mou_category_id
-
-    WHERE gm.event_name = 'GMIS 2023'
-    AND (@organisationID IS NULL OR gm.organisation_id = @organisationID)
-
-    GROUP BY 
-        LTRIM(RTRIM(REPLACE(REPLACE(mc.mou_category_name, CHAR(13), ''), CHAR(10), '')))
-
-    ORDER BY mou_category;
-    `;
-
-    const result = await request.query(query);
-
-    return res.json(result.recordset);
-
-  } catch (err) {
-    return res.status(500).json({
-      message: "Error fetching organisation-wise status data",
-      error: err.message
-    });
-  }
-}
-async function getOrganisationWiseCountAmountStatusorgView_2021_category(req, res) {
-  try {
-    const conn = await pool;
-    const organisationID = req.params.organisationID;
-    console.log(organisationID,"orgidrdr")
-    const request = conn.request();
-
-    request.input("organisationID", organisationID);
-
-    const query = `
-     SELECT 
-    LTRIM(RTRIM(
-        REPLACE(REPLACE(mc.mou_category_name, CHAR(13), ''), CHAR(10), '')
-    )) AS mou_category,
-
-    COUNT(*) AS total_mous,
-
-    ISNULL(SUM(gm.amount) / 100000.0, 0) AS cost_of_mou
-
-    FROM sagarmanthan_revamp.dbo.tbl_gmis_mou gm
-
-    LEFT JOIN mmt_organisation mmt 
-        ON gm.organisation_id = mmt.organisation_id
-
-    LEFT JOIN mmt_mou_category mc 
-        ON gm.mou_category_id = mc.mou_category_id
-
-    WHERE gm.event_name = 'GMIS 2021'
-    AND (@organisationID IS NULL OR gm.organisation_id = @organisationID)
-
-    GROUP BY 
-        LTRIM(RTRIM(REPLACE(REPLACE(mc.mou_category_name, CHAR(13), ''), CHAR(10), '')))
-
-    ORDER BY mou_category;
-    `;
-
-    const result = await request.query(query);
-
-    return res.json(result.recordset);
-
-  } catch (err) {
-    return res.status(500).json({
-      message: "Error fetching organisation-wise status data",
-      error: err.message
-    });
-  }
-}
-async function getOrganisationWiseCountAmountStatusorgView_category(req, res) {
-  try {
-    const conn = await pool;
-    const organisationID = req.params.organisationID;
-    console.log(organisationID,"orgidrdr")
-    const request = conn.request();
-
-    request.input("organisationID", organisationID);
-
-    const query = `
-     SELECT 
-    LTRIM(RTRIM(
-        REPLACE(REPLACE(mc.mou_category_name, CHAR(13), ''), CHAR(10), '')
-    )) AS mou_category,
-
-    COUNT(*) AS total_mous,
-
-    ISNULL(SUM(gm.amount) / 100000.0, 0) AS cost_of_mou
-
-    FROM sagarmanthan_revamp.dbo.tbl_gmis_mou gm
-
-    LEFT JOIN mmt_organisation mmt 
-        ON gm.organisation_id = mmt.organisation_id
-
-    LEFT JOIN mmt_mou_category mc 
-        ON gm.mou_category_id = mc.mou_category_id
-
-    WHERE gm.event_name = 'GMIS 2016'
-    AND (@organisationID IS NULL OR gm.organisation_id = @organisationID)
-
-    GROUP BY 
-        LTRIM(RTRIM(REPLACE(REPLACE(mc.mou_category_name, CHAR(13), ''), CHAR(10), '')))
-
-    ORDER BY mou_category;
-    `;
-
-    const result = await request.query(query);
-
-    return res.json(result.recordset);
-
-  } catch (err) {
-    return res.status(500).json({
-      message: "Error fetching organisation-wise status data",
-      error: err.message
-    });
-  }
-}
-async function getOrganisationWiseCountAmountStatus_2021(req, res) {
-
-    const conn = await pool;
-    const request = conn.request();
-
-    const category = req.params.category;
-    const organisationId = req.params.organisationId || 0;
-
-    let categorySql = '';
-
-    if (category === 'Major Ports') {
-
-        categorySql = ' AND mmt.organisation_category_id = 1';
-
-    } else if (category === 'Other Organization') {
-
-        categorySql = `
-            AND mmt.organisation_category_id != 1
-            AND mmt.organisation_category_id IS NOT NULL
-        `;
-    }
-
-    const organisationFilter =
-        organisationId != 0
-            ? ` AND gm.organisation_id = ${organisationId}`
-            : '';
-
-    const baseTable = 'sagarmanthan_revamp.dbo.tbl_gmis_mou';
-
-    const statusQuery = `
-        SELECT 
-            mmt.organisation_label,
-            gm.present_status,
-            COUNT(*) AS count
-        FROM ${baseTable} gm
-        LEFT JOIN mmt_organisation mmt
-            ON gm.organisation_id = mmt.organisation_id
-        WHERE gm.event_name = 'GMIS 2021'
-        ${categorySql}
-        ${organisationFilter}
-        GROUP BY mmt.organisation_label, gm.present_status
-    `;
-
-    const costQuery = `
-        SELECT 
-            mmt.organisation_label,
-            ISNULL(SUM(gm.amount) / 100000.0, 0) AS cost_of_mou
-        FROM ${baseTable} gm
-        LEFT JOIN mmt_organisation mmt
-            ON gm.organisation_id = mmt.organisation_id
-        WHERE gm.event_name = 'GMIS 2021'
-        ${categorySql}
-        ${organisationFilter}
-        GROUP BY mmt.organisation_label
-    `;
-
-    try {
-
-        const costResult = await request.query(costQuery);
-        const statusResult = await request.query(statusQuery);
-
-        const costData = Array.isArray(costResult?.recordset)
-            ? costResult.recordset
-            : [];
-
-        const statusData = Array.isArray(statusResult?.recordset)
-            ? statusResult.recordset
-            : [];
-
-        const map = Object.create(null);
-
-        for (const c of costData) {
-
-            const label = c.organisation_label || 'Unknown';
-
-            map[label] = map[label] || {
-                organisation_label: label,
-                cost_of_mou: Number(c.cost_of_mou || 0),
-                total_count: 0
-            };
-        }
-
-        for (const s of statusData) {
-
-            const label = s.organisation_label || 'Unknown';
-
-            map[label] = map[label] || {
-                organisation_label: label,
-                cost_of_mou: 0,
-                total_count: 0
-            };
-
-            const key = s.present_status || 'Unknown';
-
-            map[label][key] =
-                (map[label][key] || 0) + Number(s.count || 0);
-
-            map[label].total_count += Number(s.count || 0);
-        }
-
-        return res.json(Object.values(map));
-
-    } catch (err) {
-
-        return res.status(500).json({
-            message: "Server error executing queries",
-            error: err.message,
-            originalError: err.originalError
-                ? err.originalError.message
-                : undefined,
-            statusQuery,
-            costQuery,
-            category,
-            organisationId
-        });
-    }
-}
-async function getMouTotalCountAmount(req, res) {
-       const conn = await pool;
- 
-    try {
-        const totalCountAndAmount = await conn.query(` select count(*) AS 'total_mou', SUM(amount)/1000000000000 AS 'total_cost_of_mou'
-            from tbl_gmis_mou gm WHERE gm.event_name = 'GMIS 2016' `);
- 
-        res.json(totalCountAndAmount.recordset);
-    }
-    catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
-    }
-}
-async function getMouCategories(req, res) {
-    const conn = await pool;
-
-    try {
-        const mouCategories = await conn.query(`SELECT DISTINCT mou_category_name  FROM mmt_mou_category mmc `);
-
-        res.json(mouCategories.recordset);
-    }
-    catch (err) {
-
-    }
-}
-async function getTotalMouAndAmountCategoryWise(req, res) {
-
-  const conn = await pool;
-  const request = conn.request();
-
-  const category = req.query.category;
-  const organisationId = req.query.organisationId;
-  const financialYearRaw = req.query.financialYear;
-  const financialYear =
-    financialYearRaw && financialYearRaw !== '' && financialYearRaw !== 'ALL'
-        ? financialYearRaw
-        : null;
-  const greaterThan100Cr = req.query.greaterThan100Cr || 'NO';
-
-  let query = `
-    SELECT 
-        COUNT(*) AS count, 
-        ISNULL(SUM(amount) / 100000.0, 0) AS amount 
-    FROM tbl_gmis_mou gm
-    LEFT JOIN mmt_organisation mmt 
-        ON gm.organisation_id = mmt.organisation_id  
-    WHERE 1 = 1
-  `;
-
-  // ✅ SAFE PARAMS
-  if (financialYear && financialYear !== '') {
-    query += ` AND gm.event_name = @financialYear `;
-    request.input('financialYear', financialYear);
-  }
-
-  if (organisationId && organisationId != 0) {
-    query += ` AND gm.organisation_id = @organisationId `;
-    request.input('organisationId', organisationId);
-  }
-
-  // ✅ CORRECT amount filter logic
-  if (greaterThan100Cr === 'YES') {
-    query += ` AND gm.amount >= 100 `;
-    } else if (greaterThan100Cr === 'NO') {
-    query += ` AND gm.amount < 100  OR gm.amount IS NULL `;
-    } 
-
-  // Category filter
-  if (category === 'Other Organization') {
-    query += `
-      AND (
-        mmt.organisation_category_id != 1 
-        OR mmt.organisation_category_id IS NULL
-      )
-    `;
-  } 
-  else if (category === 'Major Ports') {
-    query += `
-      AND mmt.organisation_category_id = 1
-    `;
-  }
-
-  try {
-    const result = await request.query(query);
-
-    return res.json(
-      result.recordset.length
-        ? result.recordset
-        : [{ count: 0, amount: 0 }]
-    );
-
-  } catch (err) {
-    console.error("getTotalMouAndAmountCategoryWise error:", err);
-
-    return res.status(500).json({
-      message: "Server Error",
-      error: err.message
-    });
-  }
-}
-async function getTotalMouAndAmountyearWise(req, res) {
-
-  const conn = await pool;
-  const request = conn.request();
-
-  const category = req.query.category;
-  const organisationId = req.query.organisationId;
-  const financialYearRaw = req.query.financialYear;
-    const financialYear =
-        financialYearRaw && financialYearRaw !== '' && financialYearRaw !== 'ALL'
-            ? financialYearRaw
-            : null;
-  const greaterThan100Cr = req.query.greaterThan100Cr || 'NO';
-
-
-  let query = `
-    SELECT 
-        COUNT(*) AS count, 
-        ISNULL(SUM(amount) / 100000.0, 0) AS amount 
-    FROM tbl_gmis_mou gm
-    LEFT JOIN mmt_organisation mmt 
-        ON gm.organisation_id = mmt.organisation_id  
-    WHERE 1 = 1
-  `;
-
-  // Financial Year filter
-  if (financialYear && financialYear !== '') {
-    query += ` AND gm.event_name = '${financialYear}'`;
-  }
-
-  // Organisation filter
-  if (organisationId && organisationId != 0) {
-    query += ` AND gm.organisation_id = ${organisationId}`;
-  }
-
-
-  if (greaterThan100Cr === 'YES') {
-  query += ` AND gm.amount >= 100 `;
-    } else if (greaterThan100Cr === 'NO') {
-    query += ` AND gm.amount < 100  OR gm.amount IS NULL `;
-    }
-  // NO → no filter (show all)
-
-  // Category filter
-  if (category === 'Other Organization') {
-
-    query += `
-      AND (
-        mmt.organisation_category_id != 1 
-        OR mmt.organisation_category_id IS NULL
-      )
-    `;
-
-  } else if (category === 'Major Ports') {
-
-    query += `
-      AND mmt.organisation_category_id = 1
-    `;
-  }
-
-  try {
-
-    const result = await request.query(query);
-
-    return res.json(
-      result.recordset.length
-        ? result.recordset
-        : [{ count: 0, amount: 0 }]
-    );
-
-  } catch (err) {
-
-    console.error("getTotalMouAndAmountCategoryWise error:", err);
-
-    return res.status(500).json({
-      message: "Server Error",
-      error: err.message
-    });
-  }
-}
-
-async function getOrgWiseMouOrder(req, res) {
-    const conn = await pool;
-
-    try {
-        const result = await conn.query(` SELECT mmt_organisation.organisation_label FROM tbl_gmis_mou
-                    LEFT JOIN 
-                        mmt_organisation 
-                        ON tbl_gmis_mou.organisation_id = mmt_organisation.organisation_id 
-                    GROUP BY 
-                        mmt_organisation.organisation_label
-                    ORDER BY 
-                        COUNT(mmt_organisation.organisation_name) DESC`);
-
-        res.json(result.recordset);
-    }
-    catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
-    }
-
-}
-
-async function getOrganisationWiseStatusCount_2021(req, res) {
-    const conn = await pool;
-
-    try {
-        const organisationId = parseInt(req.params.organisationId) || 0;
-
-        let query = `
-            SELECT
-                mmt.organisation_name,
-                COUNT(*) AS total_number_of_mous,
-                gm.present_status
-            FROM tbl_gmis_mou gm
-            LEFT JOIN mmt_organisation mmt
-                ON gm.organisation_id = mmt.organisation_id
-            WHERE gm.event_name = 'GMIS 2021'
-        `;
-
-        if (organisationId !== 0) {
-            query += ` AND gm.organisation_id = @organisationId `;
-        }
-
-        query += `
-            GROUP BY
-                mmt.organisation_name,
-                gm.present_status
-        `;
-
-        const request = conn.request();
-
-        if (organisationId !== 0) {
-            request.input("organisationId", organisationId);
-        }
-
-        const result = await request.query(query);
-
-        res.json(result.recordset);
-
-    } catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
-    }
-}
-
-async function getOrganisationWiseCountAmount_2021(req, res) {
-
-    const conn = await pool;
-
-    try {
-
-        const organisationId = req.params.organisationId || 0;
-
-        const amountCountWiseMou = await conn.query(`
-            select mmt.organisation_code, 
-                   count(*) AS 'total_number_of_mous', 
-                   SUM(amount)/10000000 AS 'cost_of_mou' 
-            from tbl_gmis_mou gm
-            LEFT JOIN mmt_organisation mmt 
-                ON gm.organisation_id = mmt.organisation_id  
-            WHERE gm.event_name = 'GMIS 2021'
-            ${organisationId != 0 ? `AND gm.organisation_id = ${organisationId}` : ''}
-            GROUP BY mmt.organisation_code 
-            ORDER BY total_number_of_mous DESC
-        `);
-
-        const totalCountAndAmount = await conn.query(`
-            select count(*) AS 'total_mou', 
-                   SUM(amount)/1000 AS 'total_cost_of_mou' 
-            from tbl_gmis_mou gm   
-            WHERE gm.event_name = 'GMIS 2021'
-            ${organisationId != 0 ? `AND gm.organisation_id = ${organisationId}` : ''}
-        `);
-
-        const statusesResult = await conn.query(`
-            SELECT DISTINCT present_status  
-            FROM tbl_gmis_mou    
-            WHERE event_name = 'GMIS 2021'
-            ${organisationId != 0 ? `AND organisation_id = ${organisationId}` : ''}
-        `);
-
-        const statuses = statusesResult.recordset.map(row => row.present_status);
-
-        const organisationWiseStatus = {};
-
-        for (const status of statuses) {
-
-            const statusData = await conn.query(`
-                SELECT mmt.organisation_code, COUNT(*) AS 'count'
-                FROM tbl_gmis_mou gm
-                LEFT JOIN mmt_organisation mmt 
-                    ON gm.organisation_id = mmt.organisation_id
-                WHERE present_status = '${status}' 
-                  AND gm.event_name = 'GMIS 2021'
-                  ${organisationId != 0 ? `AND gm.organisation_id = ${organisationId}` : ''}
-                GROUP BY mmt.organisation_code
-            `);
-
-            organisationWiseStatus[status] = statusData.recordset;
-        }
-
-        return res.json({
-            amountCountWiseMou: amountCountWiseMou.recordset,
-            totalCountAndAmount: totalCountAndAmount.recordset,
-            organisationWiseStatus: organisationWiseStatus
-        });
-
-    }
-    catch (err) {
-
-        console.log(err);
-        return res.sendStatus(500);
-    }
-}
-async function getMouTotalCountAmount_2021(req, res) {
-    const conn = await pool;
- 
-    try {
-        const totalCountAndAmount = await conn.query(` select count(*) AS 'total_mou', SUM(amount)/1000000000000 AS 'total_cost_of_mou'
-            from tbl_gmis_mou gm WHERE gm.event_name = 'GMIS 2021' `);
- 
-        res.json(totalCountAndAmount.recordset);
-    }
-    catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
-    }
-}
-
-async function getTotalMouAndAmountCategoryWise_2021(req, res) {
-  const conn = await pool;
-  const request = conn.request();
-
-  const category = req.params.category;
-  const organisationId = req.params.organisationId;
-  console.log(organisationId, "newew");
-
-  let query = `
-    SELECT 
-        COUNT(*) AS count, 
-        ISNULL(SUM(amount) / 100000.0, 0) AS amount 
-    FROM tbl_gmis_mou gm
-    LEFT JOIN mmt_organisation mmt 
-        ON gm.organisation_id = mmt.organisation_id  
-    WHERE gm.event_name = 'GMIS 2021'
-  `;
-
-  // ✅ organisation filter (same as 2016)
-  if (organisationId && organisationId != 0) {
-    query += ` AND gm.organisation_id = ${organisationId}`;
-  }
-
-  // category filter
-  if (category === 'Other Organization') {
-    query += `
-      AND (mmt.organisation_category_id != 1 
-           OR mmt.organisation_category_id IS NULL)
-    `;
-  } 
-  else if (category === 'Major Ports') {
-    query += ` AND mmt.organisation_category_id = 1`;
-  }
-
-  try {
-    const result = await request.query(query);
-
-    return res.json(
-      result.recordset.length ? result.recordset : [{ count: 0, amount: 0 }]
-    );
-  } 
-  catch (err) {
-    console.error("getTotalMouAndAmountCategoryWise_2021 error:", err);
-    return res.sendStatus(500);
-  }
-}
-async function getGmisMouStageDetails_2021(req, res) {
-
-    const conn = await pool;
-
-    try {
-
-        const organisationId = req.params.organisationId;
-
-        let query = `
-            SELECT 
-                present_status,
-                COUNT(*) AS count,
-                SUM(amount) / 100000 AS amount
-            FROM tbl_gmis_mou
-            WHERE event_name = 'GMIS 2021'
-        `;
-
-        // Apply organisation filter safely
-        if (organisationId && organisationId != 0) {
-            query += ` AND organisation_id = @organisationId `;
-        }
-
-        query += ` GROUP BY present_status `;
-
-        const request = conn.request();
-
-        // bind parameter safely
-        if (organisationId && organisationId != 0) {
-            request.input('organisationId', organisationId);
-        }
-
-        const result = await request.query(query);
-
-        res.json(result.recordset);
-
-    } catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
-    }
-}
-
-async function getOrganisationWiseCountAmountStatus_2023(req, res) {
-  const conn = await pool;
-  const request = conn.request();
-
-  const category = req.params.category;
-  const organisationId = req.params.organisationId || 0;
-
-  let categorySql = '';
-  if (category === 'Major Ports') {
-    categorySql = ' AND mmt.organisation_category_id = 1';
-  } else if (category === 'Other Organization') {
-    categorySql = ' AND mmt.organisation_category_id != 1 AND mmt.organisation_category_id IS NOT NULL';
-  }
-
-  let orgSql = '';
-  if (organisationId && organisationId != 0) {
-    orgSql = ` AND gm.organisation_id = ${organisationId}`;
-  }
-
-  const baseTable = 'sagarmanthan_revamp.dbo.tbl_gmis_mou';
-
-  const statusQuery = `
-    SELECT mmt.organisation_label,
-           gm.present_status,
-           COUNT(*) AS count
-    FROM ${baseTable} gm
-    LEFT JOIN mmt_organisation mmt ON gm.organisation_id = mmt.organisation_id
-    WHERE gm.event_name = 'GMIS 2023'
-    ${categorySql}
-    ${orgSql}
-    GROUP BY mmt.organisation_label, gm.present_status
-  `;
-
-  const costQuery = `
-    SELECT mmt.organisation_label,
-           ISNULL(SUM(gm.amount) / 100000.0, 0) AS cost_of_mou
-    FROM ${baseTable} gm
-    LEFT JOIN mmt_organisation mmt ON gm.organisation_id = mmt.organisation_id
-    WHERE gm.event_name = 'GMIS 2023'
-    ${categorySql}
-    ${orgSql}
-    GROUP BY mmt.organisation_label
-  `;
-
-  try {
-    const costResult = await request.query(costQuery);
-    const statusResult = await request.query(statusQuery);
-
-    const costData = costResult.recordset || [];
-    const statusData = statusResult.recordset || [];
-
-    const map = Object.create(null);
-
-    // COST mapping
-    for (const c of costData) {
-      const label = c.organisation_label || 'Unknown';
-
-      map[label] = map[label] || {
-        organisation_label: label,
-        cost_of_mou: Number(c.cost_of_mou || 0),
-        total_count: 0
-      };
-    }
-
-    // STATUS mapping
-    for (const s of statusData) {
-      const label = s.organisation_label || 'Unknown';
-
-      map[label] = map[label] || {
-        organisation_label: label,
-        cost_of_mou: 0,
-        total_count: 0
-      };
-
-      const key = s.present_status || 'Unknown';
-      map[label][key] = (map[label][key] || 0) + Number(s.count || 0);
-      map[label].total_count += Number(s.count || 0);
-    }
-
-    return res.json(Object.values(map));
-
-  } catch (err) {
-    return res.status(500).json({
-      message: "Server error executing queries.",
-      error: err.message,
-      category,
-      organisationId
-    });
-  }
-}
-
-async function getOrganisationWiseStatusCount_2023(req, res) {
-    const conn = await pool;
-
-    try {
-        const organisationId = parseInt(req.params.organisationId) || 0;
-
-        let query = `
-            SELECT 
-                mmt.organisation_name, 
-                COUNT(*) AS total_number_of_mous, 
-                gm.present_status
-            FROM tbl_gmis_mou gm
-            LEFT JOIN mmt_organisation mmt 
-                ON gm.organisation_id = mmt.organisation_id
-            WHERE gm.event_name = 'GMIS 2023'
-        `;
-
-        if (organisationId !== 0) {
-            query += ` AND gm.organisation_id = @organisationId `;
-        }
-
-        query += `
-            GROUP BY 
-                mmt.organisation_name, 
-                gm.present_status
-        `;
-
-        const request = conn.request();
-
-        if (organisationId !== 0) {
-            request.input("organisationId", organisationId);
-        }
-
-        const result = await request.query(query);
-
-        res.json(result.recordset);
-
-    } catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
-    }
-}
-
-async function getTotalMouAndAmountCategoryWise_2023(req, res) {
-  const conn = await pool;
-  const request = conn.request();
-
-  const category = req.params.category;
-  const organisationId = req.params.organisationId;
-  console.log(organisationId, "newew");
-
-  let query = `
-    SELECT 
-        COUNT(*) AS count, 
-        ISNULL(SUM(amount) / 100000.0, 0) AS amount 
-    FROM tbl_gmis_mou gm
-    LEFT JOIN mmt_organisation mmt 
-        ON gm.organisation_id = mmt.organisation_id  
-    WHERE gm.event_name = 'GMIS 2023'
-  `;
-
-  if (organisationId && organisationId != 0) {
-    query += ` AND gm.organisation_id = ${organisationId}`;
-  }
-
-  if (category === 'Other Organization') {
-    query += `
-      AND (mmt.organisation_category_id != 1 
-           OR mmt.organisation_category_id IS NULL)
-    `;
-  } 
-  else if (category === 'Major Ports') {
-    query += ` AND mmt.organisation_category_id = 1`;
-  }
-
-  try {
-    const result = await request.query(query);
-
-    return res.json(
-      result.recordset.length ? result.recordset : [{ count: 0, amount: 0 }]
-    );
-  } 
-  catch (err) {
-    console.error("getTotalMouAndAmountCategoryWise_2023 error:", err);
-    return res.sendStatus(500);
-  }
-}
-
-
-async function getStatusWiseCountAmount_2021(req, res) {
-
-    const conn = await pool;
-    const request = conn.request();
-
-    const category = req.params.category;
-    const organisationId = req.params.organisationId;
-
-    let query = `
-        SELECT 
-            gm.present_status AS status,
-            COUNT(*) AS count,
-            ISNULL(SUM(gm.amount), 0) AS amount
-        FROM tbl_gmis_mou gm 
-        LEFT JOIN mmt_organisation mmt 
-            ON gm.organisation_id = mmt.organisation_id  
-        WHERE gm.event_name = 'GMIS 2021'
-    `;
-
-    // Organisation filter
-    if (organisationId && organisationId != 0) {
-        query += ` AND gm.organisation_id = ${organisationId}`;
-    }
-
-    // Category filter
-    if (category === 'Other Organization') {
-
-        query += `
-            AND mmt.organisation_category_id != 1 
-            AND mmt.organisation_category_id IS NOT NULL
-        `;
-    } 
-    else if (category === 'Major Ports') {
-
-        query += `
-            AND mmt.organisation_category_id = 1
-        `;
-    }
-
-    query += ` GROUP BY gm.present_status`;
-
-    try {
-
-        const result = await request.query(query);
-
-        return res.json(result.recordset);
-
-    } catch (err) {
-
-        console.error("getStatusWiseCountAmount_2021 error:", err);
-
-        return res.sendStatus(500);
-    }
-}
-async function getStatusWiseCountAmount_2023(req, res) {
-
-    const conn = await pool;
-    const request = conn.request();
-
-    const category = req.params.category;
-    const organisationId = req.params.organisationId;
-
-    let query = `
-        SELECT 
-            gm.present_status AS status,
-            COUNT(*) AS count,
-            ISNULL(SUM(gm.amount), 0) AS amount
-        FROM tbl_gmis_mou gm 
-        LEFT JOIN mmt_organisation mmt 
-            ON gm.organisation_id = mmt.organisation_id  
-        WHERE gm.event_name = 'GMIS 2023'
-    `;
-
-    // Organisation filter
-    if (organisationId && organisationId != 0) {
-        query += ` AND gm.organisation_id = ${organisationId}`;
-    }
-
-    // Category filter
-    if (category === 'Other Organization') {
-
-        query += `
-            AND mmt.organisation_category_id != 1 
-            AND mmt.organisation_category_id IS NOT NULL
-        `;
-    } 
-    else if (category === 'Major Ports') {
-
-        query += `
-            AND mmt.organisation_category_id = 1
-        `;
-    }
-
-    query += ` GROUP BY gm.present_status`;
-
-    try {
-
-        const result = await request.query(query);
-        return res.json(result.recordset);
-
-    } catch (err) {
-
-        console.error("getStatusWiseCountAmount_2023 error:", err);
-        return res.sendStatus(500);
-    }
-}
-async function getOrganisationWiseCountAmount_2023(req, res) {
-
-    const conn = await pool;
-
-    try {
-
-        const organisationId = req.params.organisationId || 0;
-
-        const amountCountWiseMou = await conn.query(`
-            select 
-                mmt.organisation_code,
-                count(*) AS 'total_number_of_mous',
-                SUM(amount)/10000000 AS 'cost_of_mou'
-            from tbl_gmis_mou gm
-            LEFT JOIN mmt_organisation mmt 
-                ON gm.organisation_id = mmt.organisation_id
-            WHERE gm.event_name = 'GMIS 2023'
-            ${organisationId != 0 ? `AND gm.organisation_id = ${organisationId}` : ''}
-            GROUP BY mmt.organisation_code
-            ORDER BY total_number_of_mous DESC
-        `);
-
-        const totalCountAndAmount = await conn.query(`
-            select 
-                count(*) AS 'total_mou',
-                SUM(amount)/1000 AS 'total_cost_of_mou'
-            from tbl_gmis_mou gm
-            WHERE gm.event_name = 'GMIS 2023'
-            ${organisationId != 0 ? `AND gm.organisation_id = ${organisationId}` : ''}
-        `);
-
-        const statusesResult = await conn.query(`
-            SELECT DISTINCT present_status
-            FROM tbl_gmis_mou
-            WHERE event_name = 'GMIS 2023'
-            ${organisationId != 0 ? `AND organisation_id = ${organisationId}` : ''}
-        `);
-
-        const statuses = statusesResult.recordset.map(row => row.present_status);
-
-        const organisationWiseStatus = {};
-
-        for (const status of statuses) {
-
-            const statusData = await conn.query(`
-                SELECT 
-                    mmt.organisation_code,
-                    COUNT(*) AS 'count'
-                FROM tbl_gmis_mou gm
-                LEFT JOIN mmt_organisation mmt 
-                    ON gm.organisation_id = mmt.organisation_id
-                WHERE present_status = '${status}'
-                  AND gm.event_name = 'GMIS 2023'
-                  ${organisationId != 0 ? `AND gm.organisation_id = ${organisationId}` : ''}
-                GROUP BY mmt.organisation_code
-            `);
-
-            organisationWiseStatus[status] = statusData.recordset;
-        }
-
-        res.json({
-            amountCountWiseMou: amountCountWiseMou.recordset,
-            totalCountAndAmount: totalCountAndAmount.recordset,
-            organisationWiseStatus: organisationWiseStatus
-        });
-
-    }
-    catch (err) {
-
-        console.log(err);
-        return res.sendStatus(500);
-    }
-}
-
-async function getMouTotalCountAmount_2023(req, res) {
-     const conn = await pool;
- 
-    try {
-        const totalCountAndAmount = await conn.query(` select count(*) AS 'total_mou', SUM(amount)/1000000000000 AS 'total_cost_of_mou'
-            from tbl_gmis_mou gm WHERE gm.event_name = 'GMIS 2023' `);
- 
-        res.json(totalCountAndAmount.recordset);
-    }
-    catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
-    }
-}
 // async function getMouTotalCountAmount_2023(req, res) {
 //  try {
 
@@ -3227,161 +827,6 @@ async function getMouTotalCountAmount_2023(req, res) {
 //         res.sendStatus(500);
 //     }
 // }
-async function getGmisMouStageDetails_2023(req, res) {
-
-    const conn = await pool;
-
-    try {
-
-        const organisationId = req.params.organisationId;
-
-        let query = `
-            SELECT 
-                present_status,
-                COUNT(*) AS count,
-                SUM(amount) / 100000 AS amount
-            FROM tbl_gmis_mou
-            WHERE event_name = 'GMIS 2023'
-        `;
-
-        // Apply organisation filter safely
-        if (organisationId && organisationId != 0) {
-            query += ` AND organisation_id = @organisationId `;
-        }
-
-        query += ` GROUP BY present_status `;
-
-        const request = conn.request();
-
-        // bind parameter safely
-        if (organisationId && organisationId != 0) {
-            request.input('organisationId', organisationId);
-        }
-
-        const result = await request.query(query);
-
-        res.json(result.recordset);
-
-    } catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
-    }
-}
-
-async function getGmisMouStageDetails_2025(req, res) {
-
-    const conn = await pool;
-
-    try {
-
-        const organisationId = req.params.organisationId;
-
-        let query = `
-            SELECT 
-                present_status,
-                COUNT(*) AS count,
-                SUM(amount) / 100000 AS amount
-            FROM tbl_gmis_mou
-            WHERE event_name = 'GMIS 2025'
-        `;
-
-        // Apply organisation filter safely
-        if (organisationId && organisationId != 0) {
-            query += ` AND organisation_id = @organisationId `;
-        }
-
-        query += ` GROUP BY present_status `;
-
-        const request = conn.request();
-
-        // bind parameter safely
-        if (organisationId && organisationId != 0) {
-            request.input('organisationId', organisationId);
-        }
-
-        const result = await request.query(query);
-
-        res.json(result.recordset);
-
-    } catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
-    }
-}
-
-async function getOrganisationWiseCountAmount_2025(req, res) {
-
-    const conn = await pool;
-
-    try {
-
-        const organisationId = req.params.organisationId || 0;
-
-        const amountCountWiseMou = await conn.query(`
-            select 
-                mmt.organisation_code,
-                count(*) AS 'total_number_of_mous',
-                SUM(amount)/10000000 AS 'cost_of_mou'
-            from tbl_gmis_mou gm
-            LEFT JOIN mmt_organisation mmt 
-                ON gm.organisation_id = mmt.organisation_id
-            WHERE gm.event_name = 'GMIS 2025'
-            ${organisationId != 0 ? `AND gm.organisation_id = ${organisationId}` : ''}
-            GROUP BY mmt.organisation_code
-            ORDER BY total_number_of_mous DESC
-        `);
-
-        const totalCountAndAmount = await conn.query(`
-            select 
-                count(*) AS 'total_mou',
-                SUM(amount)/1000 AS 'total_cost_of_mou'
-            from tbl_gmis_mou gm
-            WHERE gm.event_name = 'GMIS 2025'
-            ${organisationId != 0 ? `AND gm.organisation_id = ${organisationId}` : ''}
-        `);
-
-        const statusesResult = await conn.query(`
-            SELECT DISTINCT present_status
-            FROM tbl_gmis_mou
-            WHERE event_name = 'GMIS 2025'
-            ${organisationId != 0 ? `AND organisation_id = ${organisationId}` : ''}
-        `);
-
-        const statuses = statusesResult.recordset.map(row => row.present_status);
-
-        const organisationWiseStatus = {};
-
-        for (const status of statuses) {
-
-            const statusData = await conn.query(`
-                SELECT 
-                    mmt.organisation_code,
-                    COUNT(*) AS 'count'
-                FROM tbl_gmis_mou gm
-                LEFT JOIN mmt_organisation mmt 
-                    ON gm.organisation_id = mmt.organisation_id
-                WHERE present_status = '${status}'
-                  AND gm.event_name = 'GMIS 2025'
-                  ${organisationId != 0 ? `AND gm.organisation_id = ${organisationId}` : ''}
-                GROUP BY mmt.organisation_code
-            `);
-
-            organisationWiseStatus[status] = statusData.recordset;
-        }
-
-        res.json({
-            amountCountWiseMou: amountCountWiseMou.recordset,
-            totalCountAndAmount: totalCountAndAmount.recordset,
-            organisationWiseStatus: organisationWiseStatus
-        });
-
-    }
-    catch (err) {
-
-        console.log(err);
-        return res.sendStatus(500);
-    }
-}
 // async function getMouTotalCountAmount_2025(req, res) {
 //     try {
 
@@ -3439,432 +884,38 @@ async function getOrganisationWiseCountAmount_2025(req, res) {
 //         res.sendStatus(500);
 //     }
 // }
-async function getMouTotalCountAmount_2025(req, res) {
-    const conn = await pool;
- 
-    try {
-        const totalCountAndAmount = await conn.query(` select count(*) AS 'total_mou', SUM(amount)/1000000000000 AS 'total_cost_of_mou'
-            from tbl_gmis_mou gm WHERE gm.event_name = 'GMIS 2025' `);
- 
-        res.json(totalCountAndAmount.recordset);
-    }
-    catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
-    }
-}
 
-async function getGmisMouStageDetails_2025_org(req, res) {
- try {
-        const roleId = req.params.roleId;
-        const organisationID = req.params.organisationID;
-
-        console.log(roleId, "role");
-        console.log(organisationID, "orgId");
-
-        const conn = await pool;
-        const request = conn.request();
-
-        request.input("organisationID", organisationID);
-
-        const query = `
-            SELECT 
-                g.present_status,
-                g.organisation_id,
-                o.organisation_name,
-                COUNT(*) AS count,
-                SUM(ISNULL(g.amount, 0)) / 100000 AS amount
-            FROM tbl_gmis_mou g
-            LEFT JOIN mmt_organisation o
-                ON g.organisation_id = o.organisation_id
-            WHERE g.event_name = 'GMIS 2025'
-            AND g.organisation_id = @organisationID
-            GROUP BY g.present_status, g.organisation_id, o.organisation_name
-            ORDER BY g.present_status
-        `;
-
-        const result = await request.query(query);
-
-        return res.json({ rowData: result.recordset });
-
-    } catch (err) {
-        console.error(err);
-        res.sendStatus(500);
-    }
-}
-async function getGmisMouStageDetails_2021_org(req, res) {
-  try {
-        const roleId = req.params.roleId;
-        const organisationID = req.params.organisationID;
-
-        console.log(roleId, "role");
-        console.log(organisationID, "orgId");
-
-        const conn = await pool;
-        const request = conn.request();
-
-        request.input("organisationID", organisationID);
-
-        const query = `
-            SELECT 
-                g.present_status,
-                g.organisation_id,
-                o.organisation_name,
-                COUNT(*) AS count,
-                SUM(ISNULL(g.amount, 0)) / 100000 AS amount
-            FROM tbl_gmis_mou g
-            LEFT JOIN mmt_organisation o
-                ON g.organisation_id = o.organisation_id
-            WHERE g.event_name = 'GMIS 2021'
-            AND g.organisation_id = @organisationID
-            GROUP BY g.present_status, g.organisation_id, o.organisation_name
-            ORDER BY g.present_status
-        `;
-
-        const result = await request.query(query);
-
-        return res.json({ rowData: result.recordset });
-
-    } catch (err) {
-        console.error(err);
-        res.sendStatus(500);
-    }
-}
-async function getGmisMouStageDetails_org(req, res) {
-  try {
-        const roleId = req.params.roleId;
-        const organisationID = req.params.organisationID;
-
-        console.log(roleId, "role");
-        console.log(organisationID, "orgId");
-
-        const conn = await pool;
-        const request = conn.request();
-
-        request.input("organisationID", organisationID);
-
-        const query = `
-            SELECT 
-                g.present_status,
-                g.organisation_id,
-                o.organisation_name,
-                COUNT(*) AS count,
-                SUM(ISNULL(g.amount, 0)) / 100000 AS amount
-            FROM tbl_gmis_mou g
-            LEFT JOIN mmt_organisation o
-                ON g.organisation_id = o.organisation_id
-            WHERE g.event_name = 'GMIS 2016'
-            AND g.organisation_id = @organisationID
-            GROUP BY g.present_status, g.organisation_id, o.organisation_name
-            ORDER BY g.present_status
-        `;
-
-        const result = await request.query(query);
-
-        return res.json({ rowData: result.recordset });
-
-    } catch (err) {
-        console.error(err);
-        res.sendStatus(500);
-    }
-}
-async function getGmisMouStageDetails_2023_org(req, res) {
-    try {
-        const roleId = req.params.roleId;
-        const organisationID = req.params.organisationID;
-
-        console.log(roleId, "role");
-        console.log(organisationID, "orgId");
-
-        const conn = await pool;
-        const request = conn.request();
-
-        request.input("organisationID", organisationID);
-
-        const query = `
-            SELECT 
-                g.present_status,
-                g.organisation_id,
-                o.organisation_name,
-                COUNT(*) AS count,
-                SUM(ISNULL(g.amount, 0)) / 100000 AS amount
-            FROM tbl_gmis_mou g
-            LEFT JOIN mmt_organisation o
-                ON g.organisation_id = o.organisation_id
-            WHERE g.event_name = 'GMIS 2023'
-            AND g.organisation_id = @organisationID
-            GROUP BY g.present_status, g.organisation_id, o.organisation_name
-            ORDER BY g.present_status
-        `;
-
-        const result = await request.query(query);
-
-        return res.json({ rowData: result.recordset });
-
-    } catch (err) {
-        console.error(err);
-        res.sendStatus(500);
-    }
-}
-
-async function getTotalMouAndAmountCategoryWise_2025(req, res) {
-  const conn = await pool;
-  const request = conn.request();
-
-  const category = req.params.category;
-  const organisationId = req.params.organisationId;
-  console.log(organisationId, "newew");
-
-  let query = `
-    SELECT 
-        COUNT(*) AS count, 
-        ISNULL(SUM(amount) / 100000.0, 0) AS amount 
-    FROM tbl_gmis_mou gm
-    LEFT JOIN mmt_organisation mmt 
-        ON gm.organisation_id = mmt.organisation_id  
-    WHERE gm.event_name = 'GMIS 2025'
-  `;
-
-
-  if (organisationId && organisationId != 0) {
-    query += ` AND gm.organisation_id = ${organisationId}`;
-  }
-
-  // category filter (same pattern as 2021)
-  if (category === 'Other Organization') {
-    query += `
-      AND (mmt.organisation_category_id != 1 
-           OR mmt.organisation_category_id IS NULL)
-    `;
-  } 
-  else if (category === 'Major Ports') {
-    query += ` AND mmt.organisation_category_id = 1`;
-  }
-
-  try {
-    const result = await request.query(query);
-
-    return res.json(
-      result.recordset.length ? result.recordset : [{ count: 0, amount: 0 }]
-    );
-  } 
-  catch (err) {
-    console.error("getTotalMouAndAmountCategoryWise_2023 error:", err);
-    return res.sendStatus(500);
-  }
-}
-
-
-async function getStatusWiseCountAmount_2025(req, res) {
-
-    const conn = await pool;
-    const request = conn.request();
-
-    const category = req.params.category;
-    const organisationId = req.params.organisationId;
-
-    let query = `
-        SELECT 
-            gm.present_status AS status,
-            COUNT(*) AS count,
-            ISNULL(SUM(gm.amount), 0) AS amount
-        FROM tbl_gmis_mou gm 
-        LEFT JOIN mmt_organisation mmt 
-            ON gm.organisation_id = mmt.organisation_id  
-        WHERE gm.event_name = 'GMIS 2025'
-    `;
-
-    // Organisation filter
-    if (organisationId && organisationId != 0) {
-        query += ` AND gm.organisation_id = ${organisationId}`;
-    }
-
-    // Category filter
-    if (category === 'Other Organization') {
-
-        query += `
-            AND mmt.organisation_category_id != 1 
-            AND mmt.organisation_category_id IS NOT NULL
-        `;
-    } 
-    else if (category === 'Major Ports') {
-
-        query += `
-            AND mmt.organisation_category_id = 1
-        `;
-    }
-
-    query += ` GROUP BY gm.present_status`;
-
-    try {
-
-        const result = await request.query(query);
-        return res.json(result.recordset);
-
-    } catch (err) {
-
-        console.error("getStatusWiseCountAmount_2025 error:", err);
-        return res.sendStatus(500);
-    }
-}
-
-async function getOrganisationWiseCountAmountStatus_2025(req, res) {
-
-  const conn = await pool;
-  const request = conn.request();
-
-  const category = req.params.category;
-  const organisationId = req.params.organisationId || 0;
-
-  let categorySql = '';
-
-  if (category === 'Major Ports') {
-    categorySql = ' AND mmt.organisation_category_id = 1';
-  } else if (category === 'Other Organization') {
-    categorySql = `
-      AND mmt.organisation_category_id != 1
-      AND mmt.organisation_category_id IS NOT NULL
-    `;
-  }
-
-  let orgSql = '';
-  if (organisationId && organisationId != 0) {
-    orgSql = ` AND gm.organisation_id = ${organisationId}`;
-  }
-
-  const baseTable = 'sagarmanthan_revamp.dbo.tbl_gmis_mou';
-
-  const statusQuery = `
-    SELECT mmt.organisation_label,
-           gm.present_status,
-           COUNT(*) AS count
-    FROM ${baseTable} gm
-    LEFT JOIN mmt_organisation mmt ON gm.organisation_id = mmt.organisation_id
-    WHERE gm.event_name = 'GMIS 2025'
-    ${categorySql}
-    ${orgSql}
-    GROUP BY mmt.organisation_label, gm.present_status
-  `;
-
-  const costQuery = `
-    SELECT mmt.organisation_label,
-           ISNULL(SUM(gm.amount) / 100000.0, 0) AS cost_of_mou
-    FROM ${baseTable} gm
-    LEFT JOIN mmt_organisation mmt ON gm.organisation_id = mmt.organisation_id
-    WHERE gm.event_name = 'GMIS 2025'
-    ${categorySql}
-    ${orgSql}
-    GROUP BY mmt.organisation_label
-  `;
-
-  try {
-
-    const costResult = await request.query(costQuery);
-    const statusResult = await request.query(statusQuery);
-
-    const costData = costResult.recordset || [];
-    const statusData = statusResult.recordset || [];
-
-    const map = Object.create(null);
-
-    for (const c of costData) {
-      const label = c.organisation_label || 'Unknown';
-
-      map[label] = map[label] || {
-        organisation_label: label,
-        cost_of_mou: Number(c.cost_of_mou || 0),
-        total_count: 0
-      };
-    }
-
-    for (const s of statusData) {
-      const label = s.organisation_label || 'Unknown';
-
-      map[label] = map[label] || {
-        organisation_label: label,
-        cost_of_mou: 0,
-        total_count: 0
-      };
-
-      const key = s.present_status || 'Unknown';
-
-      map[label][key] = (map[label][key] || 0) + Number(s.count || 0);
-      map[label].total_count += Number(s.count || 0);
-    }
-
-    return res.json(Object.values(map));
-
-  } catch (err) {
-
-    return res.status(500).json({
-      message: "Server error executing queries (debug)",
-      error: err.message,
-      category,
-      organisationId
-    });
-  }
-}
-async function getOrganisationWiseStatusCount_2025(req, res) {
-    const conn = await pool;
-
-    try {
-        const organisationId = parseInt(req.params.organisationId) || 0;
-
-        let query = `
-            SELECT 
-                mmt.organisation_name, 
-                COUNT(*) AS total_number_of_mous, 
-                gm.present_status
-            FROM tbl_gmis_mou gm
-            LEFT JOIN mmt_organisation mmt 
-                ON gm.organisation_id = mmt.organisation_id
-            WHERE gm.event_name = 'GMIS 2025'
-        `;
-
-        if (organisationId !== 0) {
-            query += ` AND gm.organisation_id = @organisationId `;
-        }
-
-        query += `
-            GROUP BY 
-                mmt.organisation_name, 
-                gm.present_status
-        `;
-
-        const request = conn.request();
-
-        if (organisationId !== 0) {
-            request.input("organisationId", organisationId);
-        }
-
-        const result = await request.query(query);
-
-        res.json(result.recordset);
-
-    } catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
-    }
-}
-    async function gmisPdfFileDownload(req, res) 
+    // GET /download-gmismou-pdf-document?fileName=<stored file name>
+    // Only a plain stored file name is accepted (no folders or "..", so nothing outside the
+    // upload folder can be read), and only for a MoU the user is allowed to see.
+    async function gmisPdfFileDownload(req, res)
     {
-        const { fileName } = req.query;
-    
-        // Base folder path
-        const uploadDestinationBase = './fileuploads/gmis_mou_fileupload';
-        // Construct the file path by directly joining the base path and fileName
-        const filePath = path.join(uploadDestinationBase, fileName); // Correct file path construction
-    
-        fs.readFile(filePath, (err, data) => {
-            if (err) {
-                // console.error("Error reading file:", err);
-                res.status(500).send({ error: "Internal Server Error" });
-            } else {
-                res.setHeader('Content-disposition', 'attachment; filename=' + fileName);
-                res.setHeader('Content-type', 'application/pdf');
-                res.send(data);
+        try {
+            const raw = String(req.query.fileName || req.query.filename || '');
+            const fileName = path.basename(raw);
+            if (!fileName || fileName !== raw || fileName.startsWith('.')) {
+                return res.status(400).send({ error: "Invalid file name" });
             }
-        });
+
+            const scope = gmisScope(req.user);
+            const request = (await pool).request();
+            request.input('fileName', fileName);
+            if (scope.orgId) request.input('scopeOrgId', scope.orgId);
+            const found = await request.query(`
+                SELECT TOP 1 1 AS ok FROM tbl_gmis_mou
+                WHERE document_uploader = @fileName AND ${scope.sql}
+            `);
+            if (!found.recordset.length) {
+                return res.status(404).send({ error: "File not found" });
+            }
+
+            res.download(path.resolve(uploadDestination, fileName), fileName, (err) => {
+                if (err && !res.headersSent) res.status(404).send({ error: "File not found" });
+            });
+        } catch (err) {
+            console.error("gmisPdfFileDownload error:", err);
+            res.status(500).send({ error: "Internal Server Error" });
+        }
     }
 
      async function gmisfileDelete(req, res) 
@@ -3876,6 +927,11 @@ async function getOrganisationWiseStatusCount_2025(req, res) {
                 if (!fileName) {
                     return res.status(400).send({ error: "File name is required" });
                 }
+                if (path.basename(String(fileName)) !== fileName) {
+                    return res.status(400).send({ error: "Invalid file name" });
+                }
+                // Only detach the document of a MoU the user is allowed to see.
+                const scope = gmisScope(req.user);
         
                 const uploadDestination = './fileuploads/gmis_mou_fileupload'; // Base directory
                 const filePath = path.join(uploadDestination, fileName); // Construct the correct file path
@@ -3884,11 +940,12 @@ async function getOrganisationWiseStatusCount_2025(req, res) {
                 const conn = await pool;
                 const request = conn.request();
                 request.input('fileName', fileName);
+                if (scope.orgId) request.input('scopeOrgId', scope.orgId);
         
                 const result = await request.query(`
                     UPDATE tbl_gmis_mou
                     SET document_uploader = NULL
-                    WHERE document_uploader = @fileName
+                    WHERE document_uploader = @fileName AND ${scope.sql}
                 `);
         
                 if (result.rowsAffected[0] > 0) {
@@ -3907,6 +964,7 @@ async function getOrganisationWiseStatusCount_2025(req, res) {
         
 async function getRevisedfinancialprogressdate(req, res) {
     const mouID = req.params.mouID;
+    if (!(await canAccessMou(req.user, mouID))) return res.status(404).json({ message: "MoU not found" });
 
     try {
         const conn = await pool;
@@ -3948,6 +1006,7 @@ async function getRevisedfinancialprogressdate(req, res) {
 
 async function getRevisedphysicalprogressdate(req, res) {
     const mouID = req.params.mouID;
+    if (!(await canAccessMou(req.user, mouID))) return res.status(404).json({ message: "MoU not found" });
 
     try {
         const conn = await pool;
@@ -3989,6 +1048,7 @@ async function getRevisedphysicalprogressdate(req, res) {
 
 async function addRevisedphysicalprogressdate(req, res) {
     const mouID = req.body.mouID;
+    if (!(await canAccessMou(req.user, mouID))) return res.status(404).json({ message: "MoU not found" });
     let targetphysicalProgressDate = req.body.targetphysicalProgressDate || req.body.physicalProgressDate;
     let targetphysicalPercentage = req.body.targetphysicalPercentage !== undefined ? req.body.targetphysicalPercentage : req.body.physicalPercentage;
 
@@ -4033,6 +1093,7 @@ async function addRevisedphysicalprogressdate(req, res) {
 
 async function addRevisedfinancialprogressdate(req, res) {
     const mouID = req.body.mouID;
+    if (!(await canAccessMou(req.user, mouID))) return res.status(404).json({ message: "MoU not found" });
     let targetfinancialProgressDate = req.body.targetfinancialProgressDate || req.body.financialProgressDate;
     let targetfinancialPercentage = req.body.targetfinancialPercentage !== undefined ? req.body.targetfinancialPercentage : req.body.financialPercentage;
 
@@ -4076,52 +1137,24 @@ async function addRevisedfinancialprogressdate(req, res) {
 };
 
 //Report
-let ALL_ORGANISATION_ROLES = [1, 2, 3, 4, 5, 8];
 
 async function getEventWiseSummary(req, res) {
     try {
         const conn = await pool;
-        const userID = Number(req.params.userId);
-
-        if (!Number.isInteger(userID) || userID <= 0) {
-            return res.status(400).json({
-                message: "Invalid userID"
-            });
-        }
-        const userRequest = conn.request();
-        userRequest.input("userID", userID);
-
-        const userResult = await userRequest.query(`
-            SELECT
-                role_id,
-                organisation_id
-            FROM tbl_user
-            WHERE user_id = @userID
-        `);
-
-        if (userResult.recordset.length === 0) {
-            return res.status(404).json({
-                message: "User not found"
-            });
-        }
-
-        const { role_id, organisation_id } = userResult.recordset[0];
-
-        const userRoleId = Number(role_id);
-        const userOrganisationId = Number(organisation_id);
-
-        const canViewAllOrganisations =  ALL_ORGANISATION_ROLES.includes(userRoleId);
+        // Whose MoUs to report on comes from the signed token (as on the dashboard and data
+        // list), not from the userId in the URL.
+        const { isWide, isOrganisation, organisationId } = getDataScope(req.user);
+        const canViewAllOrganisations = isWide;
+        const userOrganisationId = organisationId;
 
         if (
             !canViewAllOrganisations &&
-            (!Number.isInteger(userOrganisationId) ||
-                userOrganisationId <= 0)
+            (!isOrganisation || !Number.isInteger(userOrganisationId) || userOrganisationId <= 0)
         ) {
             return res.status(403).json({
                 message: "User is not mapped to an organisation"
             });
         }
-
         const request = conn.request();
 
         let organisationFilter = "";
@@ -4144,8 +1177,8 @@ async function getEventWiseSummary(req, res) {
                 SUM(ISNULL(amount, 0)) AS [Total Amount],
                 SUM(
                     CASE
-                        WHEN LOWER(LTRIM(RTRIM(present_status)))
-                             LIKE '%yet%start%'
+                        WHEN (LOWER(LTRIM(RTRIM(present_status)))
+                             LIKE '%yet%start%' OR LOWER(LTRIM(RTRIM(present_status))) LIKE '%to be started%')
                         THEN 1
                         ELSE 0
                     END
@@ -4223,50 +1256,20 @@ async function getEventWiseSummary(req, res) {
 async function getorgWisePerformanceRankingReport(req, res) {
     try {
         const conn = await pool;
-        const userID = Number(req.params.userId);
-
-        if (!Number.isInteger(userID) || userID <= 0) {
-            return res.status(400).json({
-                message: "Invalid userID"
-            });
-        }
-
-        // Get user role and organisation
-        const userRequest = conn.request();
-        userRequest.input("userID", userID);
-
-        const userResult = await userRequest.query(`
-            SELECT
-                role_id,
-                organisation_id
-            FROM tbl_user
-            WHERE user_id = @userID
-        `);
-
-        if (userResult.recordset.length === 0) {
-            return res.status(404).json({
-                message: "User not found"
-            });
-        }
-
-        const { role_id, organisation_id } = userResult.recordset[0];
-
-        const userRoleId = Number(role_id);
-        const userOrganisationId = Number(organisation_id);
-
-        const canViewAllOrganisations =
-            ALL_ORGANISATION_ROLES.includes(userRoleId);
+        // Whose MoUs to report on comes from the signed token (as on the dashboard and data
+        // list), not from the userId in the URL.
+        const { isWide, isOrganisation, organisationId } = getDataScope(req.user);
+        const canViewAllOrganisations = isWide;
+        const userOrganisationId = organisationId;
 
         if (
             !canViewAllOrganisations &&
-            (!Number.isInteger(userOrganisationId) ||
-                userOrganisationId <= 0)
+            (!isOrganisation || !Number.isInteger(userOrganisationId) || userOrganisationId <= 0)
         ) {
             return res.status(403).json({
                 message: "User is not mapped to an organisation"
             });
         }
-
         const request = conn.request();
 
         let organisationFilter = "";
@@ -4294,8 +1297,8 @@ async function getorgWisePerformanceRankingReport(req, res) {
 
                     -- Stage counts
                     SUM(CASE
-                        WHEN LOWER(LTRIM(RTRIM(gmis.present_status)))
-                             LIKE '%yet%start%'
+                        WHEN (LOWER(LTRIM(RTRIM(gmis.present_status)))
+                             LIKE '%yet%start%' OR LOWER(LTRIM(RTRIM(gmis.present_status))) LIKE '%to be started%')
                         THEN 1 ELSE 0
                     END) AS [Yet To be Started],
 
@@ -4427,49 +1430,20 @@ async function getorgWisePerformanceRankingReport(req, res) {
 async function getVibascellWiseSummary(req, res) {
     try {
         const conn = await pool;
-        const userID = Number(req.params.userId);
-
-        if (!Number.isInteger(userID) || userID <= 0) {
-            return res.status(400).json({
-                message: "Invalid userID"
-            });
-        }
-
-        const userRequest = conn.request();
-        userRequest.input("userID", userID);
-
-        const userResult = await userRequest.query(`
-            SELECT
-                role_id,
-                organisation_id
-            FROM tbl_user
-            WHERE user_id = @userID
-        `);
-
-        if (userResult.recordset.length === 0) {
-            return res.status(404).json({
-                message: "User not found"
-            });
-        }
-
-        const { role_id, organisation_id } = userResult.recordset[0];
-
-        const userRoleId = Number(role_id);
-        const userOrganisationId = Number(organisation_id);
-
-        const canViewAllOrganisations =
-            ALL_ORGANISATION_ROLES.includes(userRoleId);
+        // Whose MoUs to report on comes from the signed token (as on the dashboard and data
+        // list), not from the userId in the URL.
+        const { isWide, isOrganisation, organisationId } = getDataScope(req.user);
+        const canViewAllOrganisations = isWide;
+        const userOrganisationId = organisationId;
 
         if (
             !canViewAllOrganisations &&
-            (!Number.isInteger(userOrganisationId) ||
-                userOrganisationId <= 0)
+            (!isOrganisation || !Number.isInteger(userOrganisationId) || userOrganisationId <= 0)
         ) {
             return res.status(403).json({
                 message: "User is not mapped to an organisation"
             });
         }
-
         const request = conn.request();
 
         let organisationFilter = "";
@@ -4492,8 +1466,8 @@ async function getVibascellWiseSummary(req, res) {
                     SUM(ISNULL(gmis.amount, 0)) AS [Total Cost],
                     SUM(
                         CASE
-                            WHEN LOWER(LTRIM(RTRIM(gmis.present_status)))
-                                LIKE '%yet%start%'
+                            WHEN (LOWER(LTRIM(RTRIM(gmis.present_status)))
+                                LIKE '%yet%start%' OR LOWER(LTRIM(RTRIM(gmis.present_status))) LIKE '%to be started%')
                             THEN 1
                             ELSE 0
                         END
@@ -4643,47 +1617,20 @@ async function getVibascellWiseSummary(req, res) {
 async function getCategoryWiseSummary(req,res) {
     try {
         const conn = await pool;
-        const userID = Number(req.params.userId);
-
-        if (!Number.isInteger(userID) || userID <= 0) {
-            return res.status(400).json({
-                message: "Invalid userID"
-            });
-        }
-
-        const userRequest = conn.request();
-        userRequest.input("userID", userID);
-
-        const userResult = await userRequest.query(`
-            SELECT
-                role_id,
-                organisation_id
-            FROM tbl_user
-            WHERE user_id = @userID
-        `);
-
-        if (userResult.recordset.length === 0) {
-            return res.status(404).json({
-                message: "User not found"
-            });
-        }
-
-        const { role_id, organisation_id } = userResult.recordset[0];
-
-        const userRoleId = Number(role_id);
-        const userOrganisationId = Number(organisation_id);
-        const canViewAllOrganisations = ALL_ORGANISATION_ROLES.includes(userRoleId);
+        // Whose MoUs to report on comes from the signed token (as on the dashboard and data
+        // list), not from the userId in the URL.
+        const { isWide, isOrganisation, organisationId } = getDataScope(req.user);
+        const canViewAllOrganisations = isWide;
+        const userOrganisationId = organisationId;
 
         if (
             !canViewAllOrganisations &&
-            (!Number.isInteger(userOrganisationId) ||
-                userOrganisationId <= 0)
+            (!isOrganisation || !Number.isInteger(userOrganisationId) || userOrganisationId <= 0)
         ) {
             return res.status(403).json({
                 message: "User is not mapped to an organisation"
             });
         }
-
         const request = conn.request();
 
         let organisationFilter = "";
@@ -4703,7 +1650,7 @@ async function getCategoryWiseSummary(req,res) {
             COUNT(*) AS [Total MoUs],
             SUM(ISNULL(amount, 0)) AS [Total Amount],
             SUM(CASE
-                WHEN LOWER(LTRIM(RTRIM(present_status))) LIKE '%yet%start%'
+                WHEN (LOWER(LTRIM(RTRIM(present_status))) LIKE '%yet%start%' OR LOWER(LTRIM(RTRIM(present_status))) LIKE '%to be started%')
                 THEN 1 ELSE 0
             END) AS [Yet To be Started],
             SUM(CASE
@@ -4756,49 +1703,20 @@ async function getCategoryWiseSummary(req,res) {
 async function getPhysicalAndFinancialProgressWise(req, res) {
     try {
         const conn = await pool;
-        const userID = Number(req.params.userId);
-
-        if (!Number.isInteger(userID) || userID <= 0) {
-            return res.status(400).json({
-                message: "Invalid userID"
-            });
-        }
-
-        const userRequest = conn.request();
-        userRequest.input("userID", userID);
-
-        const userResult = await userRequest.query(`
-            SELECT 
-                role_id,
-                organisation_id
-            FROM tbl_user
-            WHERE user_id = @userID
-        `);
-
-        if (userResult.recordset.length === 0) {
-            return res.status(404).json({
-                message: "User not found"
-            });
-        }
-
-        const { role_id, organisation_id } = userResult.recordset[0];
-
-        const userRoleId = Number(role_id);
-        const userOrganisationId = Number(organisation_id);
-
-        const canViewAllOrganisations =
-            ALL_ORGANISATION_ROLES.includes(userRoleId);
+        // Whose MoUs to report on comes from the signed token (as on the dashboard and data
+        // list), not from the userId in the URL.
+        const { isWide, isOrganisation, organisationId } = getDataScope(req.user);
+        const canViewAllOrganisations = isWide;
+        const userOrganisationId = organisationId;
 
         if (
             !canViewAllOrganisations &&
-            (!Number.isInteger(userOrganisationId) ||
-                userOrganisationId <= 0)
+            (!isOrganisation || !Number.isInteger(userOrganisationId) || userOrganisationId <= 0)
         ) {
             return res.status(403).json({
                 message: "User is not mapped to an organisation"
             });
         }
-
         const request = conn.request();
 
         let organisationFilter = "";
@@ -4875,48 +1793,20 @@ async function getPhysicalAndFinancialProgressWise(req, res) {
 async function getDroppedMousReport(req, res) {
     try {
     const conn = await pool;
-    const userID = Number(req.params.userId);
-
-        if (!Number.isInteger(userID) || userID <= 0) {
-            return res.status(400).json({
-                message: "Invalid userID"
-            });
-        }
-
-        const userRequest = conn.request();
-        userRequest.input("userID", userID);
-
-        const userResult = await userRequest.query(`
-            SELECT 
-                role_id,
-                organisation_id
-            FROM tbl_user
-            WHERE user_id = @userID
-        `);
-
-        if (userResult.recordset.length === 0) {
-            return res.status(404).json({
-                message: "User not found"
-            });
-        }
-
-        const { role_id, organisation_id } = userResult.recordset[0];
-
-        const userRoleId = Number(role_id);
-        const userOrganisationId = Number(organisation_id);
-
-        const canViewAllOrganisations = ALL_ORGANISATION_ROLES.includes(userRoleId);
+    // Whose MoUs to report on comes from the signed token (as on the dashboard and data
+        // list), not from the userId in the URL.
+        const { isWide, isOrganisation, organisationId } = getDataScope(req.user);
+        const canViewAllOrganisations = isWide;
+        const userOrganisationId = organisationId;
 
         if (
             !canViewAllOrganisations &&
-            (!Number.isInteger(userOrganisationId) ||
-                userOrganisationId <= 0)
+            (!isOrganisation || !Number.isInteger(userOrganisationId) || userOrganisationId <= 0)
         ) {
             return res.status(403).json({
                 message: "User is not mapped to an organisation"
             });
         }
-
         const request = conn.request();
         let organisationFilter = "";
 
@@ -4959,9 +1849,5 @@ async function getDroppedMousReport(req, res) {
 }
 
 export default {
-    getGmisMouPaginated, getMouCategory, submitGmisMouData, getGmisMouData, getGmisMouChartData, updateGmisMouData, getGmisMouDataByID, getGmisMouStageDetails,getGmisMouSecondParty, getGmisMouVibhasNavicCell, getGmisMouCategoryName, getGmisMouPresentStatus, getOrganisationWiseCountAmount,getOrganisationWiseStatusCount_2023,getOrganisationWiseCountAmount_2023,getGmisMouStageDetails_2023, getTotalMouAndAmountCategoryWise_2025,getOrganisationWiseCountAmountStatusorgView_2021_category,getOrganisationWiseCountAmountStatusorgView_2023_category,upload,fileUpload,gmisfileDelete,addRevisedfinancialprogressdate,getRevisedfinancialprogressdate,getRevisedphysicalprogressdate,
-    getStatusWiseCountAmount, getOrganisationWiseStatusCount, getGmisMouDataByOrganisationAndStatus, getOrganisationWiseCountAmountStatus, getMouTotalCountAmount,getTotalMouAndAmountCategoryWise_2021,getGmisMouStageDetails_2021,getOrganisationWiseCountAmountStatus_2023,getStatusWiseCountAmount_2021,getGmisMouStageDetails_2025,getGmisMouStageDetails_2025_org,getGmisMouStageDetails_2023_org,getGmisMouStageDetails_2021_org,getGmisMouStageDetails_org,getOrganisationWiseCountAmountStatusorgView_2025_category,getOrganisationWiseCountAmountStatusorgView_category,addNewgmisFileupload,gmisPdfFileDownload,addRevisedphysicalprogressdate,
-    getMouCategories, getTotalMouAndAmountCategoryWise, getOrgWiseMouOrder,getOrganisationWiseCountAmountStatus_2021,getOrganisationWiseStatusCount_2021,getOrganisationWiseCountAmount_2021,getMouTotalCountAmount_2021,getTotalMouAndAmountCategoryWise_2023,getStatusWiseCountAmount_2023,getMouTotalCountAmount_2023,getOrganisationWiseCountAmount_2025,getOrganisationWiseStatusCountorgView_2025,getMouTotalCountAmount_2025,getStatusWiseCountAmount_2025,getOrganisationWiseCountAmountStatus_2025,getOrganisationWiseStatusCount_2025,getOrganisationWiseCountAmountStatusorgView,getOrganisationWiseStatusCountorgView,getTotalMouAndAmountyearWise,getGmisDrilldownData,
-    getOrganisationWiseStatusCountorgView_2021,getOrganisationWiseCountAmountStatusorgView_2021,getOrganisationWiseCountAmountStatusorgView_2023,getOrganisationWiseStatusCountorgView_2023,getOrganisationWiseCountAmountStatusorgView_2025,getYearWisegmisData,
-    getEventWiseSummary,getorgWisePerformanceRankingReport,getVibascellWiseSummary,getCategoryWiseSummary,getPhysicalAndFinancialProgressWise,getDroppedMousReport
+    getGmisMouPaginated, getMouCategory, submitGmisMouData, updateGmisMouData, getGmisMouDataByID, getGmisMouVibhasNavicCell, upload, fileUpload, gmisfileDelete, addRevisedfinancialprogressdate, getRevisedfinancialprogressdate, getRevisedphysicalprogressdate, addNewgmisFileupload, gmisPdfFileDownload, addRevisedphysicalprogressdate, getEventWiseSummary, getorgWisePerformanceRankingReport, getVibascellWiseSummary, getCategoryWiseSummary, getPhysicalAndFinancialProgressWise, getDroppedMousReport
 };
