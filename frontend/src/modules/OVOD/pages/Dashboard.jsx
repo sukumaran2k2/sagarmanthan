@@ -239,14 +239,25 @@ function Segmented({ value, onChange, options }) {
 }
 
 /* Horizontal bar: split of interventions across categories (or progress mix per category) */
-function CategoryBarChart({ data, mode, theme, total }) {
+function CategoryBarChart({ data, mode, theme, total, selectedCategory, onBarClick }) {
   const truncate = (s) => (s.length > 26 ? `${s.slice(0, 25)}…` : s);
   const height = Math.max(220, data.length * 34 + 30);
+
+  const handleBarClick = (barData) => {
+    const name = barData?.name ?? barData?.payload?.name;
+    if (name) onBarClick?.(name === selectedCategory ? null : name);
+  };
 
   return (
     <div className="text-slate-500 dark:text-slate-400" style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} layout="vertical" margin={{ top: 4, right: 28, left: 0, bottom: 4 }} barCategoryGap={6}>
+        <BarChart
+          data={data}
+          layout="vertical"
+          margin={{ top: 4, right: 28, left: 0, bottom: 4 }}
+          barCategoryGap={6}
+          style={{ cursor: 'pointer' }}
+        >
           <CartesianGrid horizontal={false} stroke="currentColor" strokeOpacity={0.12} />
           <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: 'currentColor' }} axisLine={false} tickLine={false} />
           <YAxis
@@ -264,11 +275,20 @@ function CategoryBarChart({ data, mode, theme, total }) {
             <Bar
               dataKey="count"
               name="Interventions"
-              fill={theme.bar}
               radius={[0, 4, 4, 0]}
               maxBarSize={20}
               label={{ position: 'right', fontSize: 11, fill: 'currentColor', formatter: (v) => fmtInt(v) }}
-            />
+              onClick={handleBarClick}
+            >
+              {data.map((entry) => (
+                <Cell
+                  key={entry.name}
+                  fill={theme.bar}
+                  fillOpacity={!selectedCategory || selectedCategory === entry.name ? 1 : 0.3}
+                  style={{ cursor: 'pointer' }}
+                />
+              ))}
+            </Bar>
           ) : (
             BUCKETS.map((b, i) => (
               <Bar
@@ -280,6 +300,8 @@ function CategoryBarChart({ data, mode, theme, total }) {
                 stroke={theme.surface}
                 strokeWidth={2}
                 maxBarSize={20}
+                onClick={handleBarClick}
+                style={{ cursor: 'pointer' }}
               />
             ))
           )}
@@ -365,9 +387,19 @@ function StatusDonut({ status, total, theme }) {
 /* One analytics level (A2 or B2): insight strip + category chart + progress donut */
 function LevelAnalytics({ code, title, description, level, loading, error, theme }) {
   const [mode, setMode] = useState('count');
+  const [selectedCategory, setSelectedCategory] = useState(null);
   const { categories, status, total } = level;
   const hasData = total > 0 || categories.length > 0;
   const catTotal = categories.reduce((s, c) => s + c.count, 0);
+
+  // Derive pie data: if a bar is clicked, use that category's bucket breakdown
+  const filteredStatus = useMemo(() => {
+    if (!selectedCategory) return status;
+    const cat = categories.find((c) => c.name === selectedCategory);
+    if (!cat) return status;
+    return BUCKETS.map((b) => ({ key: b.key, label: b.label, value: Number(cat[b.key] || 0) }));
+  }, [selectedCategory, categories, status]);
+  const filteredTotal = filteredStatus.reduce((s, x) => s + x.value, 0);
 
   const top = categories[0];
   const completed = status.find((s) => s.key === '100')?.value || 0;
@@ -425,7 +457,14 @@ function LevelAnalytics({ code, title, description, level, loading, error, theme
         >
           {hasData && !loading ? (
             <>
-              <CategoryBarChart data={categories} mode={mode} theme={theme} total={catTotal} />
+              <CategoryBarChart
+                data={categories}
+                mode={mode}
+                theme={theme}
+                total={catTotal}
+                selectedCategory={selectedCategory}
+                onBarClick={setSelectedCategory}
+              />
               {mode === 'progress' && (
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-[11px] text-slate-500 dark:text-slate-400">
                   {BUCKETS.map((b, i) => (
@@ -442,8 +481,24 @@ function LevelAnalytics({ code, title, description, level, loading, error, theme
           )}
         </ChartCard>
 
-        <ChartCard title={`${code} Level – Intervention Level Overall Status`} subtitle="Interventions grouped by average completion">
-          {hasData && !loading ? <StatusDonut status={status} total={total} theme={theme} /> : <EmptyChart loading={loading} error={error} />}
+        <ChartCard
+          title={`${code} Level – Intervention Level Overall Status`}
+          subtitle={selectedCategory ? `Filtered: ${selectedCategory}` : 'Interventions grouped by average completion'}
+          actions={selectedCategory && (
+            <button
+              type="button"
+              onClick={() => setSelectedCategory(null)}
+              className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-bold rounded-lg bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-100 transition cursor-pointer"
+            >
+              <X size={11} /> Clear
+            </button>
+          )}
+        >
+          {hasData && !loading ? (
+            <StatusDonut status={filteredStatus} total={filteredTotal} theme={theme} />
+          ) : (
+            <EmptyChart loading={loading} error={error} />
+          )}
         </ChartCard>
       </div>
     </section>
