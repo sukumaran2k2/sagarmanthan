@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   ArrowLeft, Download, Save, Trash2, Upload, Briefcase, 
-  Building2, DollarSign, Calendar, MapPin, Landmark, 
+  Building2, DollarSign, MapPin, Landmark, 
   TrendingUp, Layers, CheckCircle2, AlertTriangle, FileText, 
   ChevronRight, ChevronLeft, ChevronDown, Plus, X, Eye, Sparkles, Check,
   Info, Pencil, History
@@ -538,7 +538,6 @@ export default function ProjectBasicInfoForm({
   canSubmit = false,
   readOnly = false,
   loading = false,
-  onBack,
   onSubmit,
   notify,
   onRevisedTargetSaved,
@@ -894,14 +893,8 @@ export default function ProjectBasicInfoForm({
         nextErrors.scheme = 'Scheme is required';
       }
 
-      const cost = Number(formData.estimatedProjectCost);
-      if (
-        formData.estimatedProjectCost === '' ||
-        formData.estimatedProjectCost == null ||
-        Number.isNaN(cost) ||
-        cost < 0
-      ) {
-        nextErrors.estimatedProjectCost = 'Invalid estimated project cost';
+      if (!isPositiveCost(formData.estimatedProjectCost)) {
+        nextErrors.estimatedProjectCost = 'Estimated project cost must be greater than 0 (no negative values)';
       }
 
       if (!isEditMode && formData.onSubProjectAvailable !== 0 && formData.onSubProjectAvailable !== 1) {
@@ -928,17 +921,6 @@ export default function ProjectBasicInfoForm({
     }
 
     if (sectionId === 'cost') {
-      const cost = Number(formData.estimatedProjectCost);
-      if (
-        formData.estimatedProjectCost === '' ||
-        formData.estimatedProjectCost == null ||
-        String(formData.estimatedProjectCost).includes('-') ||
-        Number.isNaN(cost) ||
-        cost <= 0
-      ) {
-        nextErrors.estimatedProjectCost = 'Estimated project cost must be greater than 0 (no negative values)';
-      }
-
       if (!selectedFundingSourceIds.length) {
         nextErrors.sourceOfFunding = 'Source of funding is required';
       }
@@ -1207,6 +1189,9 @@ export default function ProjectBasicInfoForm({
       district: getMultiValue(prev.district).filter((id) => allowedDistrictIds.has(String(id))),
       mpConstituency: getMultiValue(prev.mpConstituency).filter((id) => allowedMpIds.has(String(id))),
     }));
+    if (errors.state && nextStateIds.length) {
+      setErrors((prev) => ({ ...prev, state: undefined }));
+    }
   };
 
   const setSubProjectCount = (nextCount) => {
@@ -1426,12 +1411,16 @@ export default function ProjectBasicInfoForm({
       cost: Object.keys(validateSection('cost')).length === 0,
       location: Object.keys(validateSection('location')).length === 0,
       timeline: Object.keys(validateSection('timeline')).length === 0,
-      docs: isEditMode || documentRows.length > 0,
+      // Documents are optional: mark Done only when something is uploaded, or staged
+      // on a new project (staged files upload automatically on save).
+      docs: documentRows.length > 0
+        || (!isEditMode && Object.values(pendingFilesByType).some((files) => files?.length > 0)),
     };
   }, [
     formData,
     isEditMode,
     documentRows.length,
+    pendingFilesByType,
     showSecondaryIaOthers,
     showSecondaryFaOthers,
     showOutputOthers,
@@ -1879,13 +1868,13 @@ export default function ProjectBasicInfoForm({
                 />
               </div>
 
-              {/* <div>
+              <div>
                 <Label>Project Output</Label>
                 <select
                   value={formData.projectOutput}
-                onChange={(e) =>
-                    handleProjectOutputChange(e.target.value)
-                  }
+                  onChange={(e) => handleProjectOutputChange(e.target.value)}
+                  disabled={!canInteract}
+                  className={getInputClass('projectOutput')}
                 >
                   <option value="">Select Project Output</option>
                   {outputOptions.map((out, idx) => {
@@ -1898,38 +1887,8 @@ export default function ProjectBasicInfoForm({
                     );
                   })}
                   <option value="Others">Others</option>
-                </select> */}
-
-                <div>
-  <Label>Project Output</Label>
-  <select
-    value={formData.projectOutput}
-    onChange={(e) =>
-      handleProjectOutputChange(e.target.value)
-    }
-    className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer"
-  >
-    <option value="">Select Project Output</option>
-
-    {outputOptions.map((out, idx) => {
-      const val =
-        out.project_output_id ?? out.id ?? out.output_id ?? idx;
-      const label =
-        out.project_output_name ||
-        out.output_name ||
-        out.name ||
-        String(val);
-
-      return (
-        <option key={`out-${val}-${idx}`} value={val}>
-          {label}
-        </option>
-      );
-    })}
-
-    <option value="Others">Others</option>
-  </select>
-</div>
+                </select>
+              </div>
 
               {showOutputOthers ? (
                 <>
@@ -2672,266 +2631,6 @@ export default function ProjectBasicInfoForm({
                 className="flex items-center space-x-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition cursor-pointer"
               >
                 <span>Next: Others</span>
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {activeSection === 'timeline' && (
-          <div className="space-y-6 animate-fade-in">
-            <div className="flex items-center space-x-2.5 pb-3 border-b border-slate-100 dark:border-slate-800">
-              <div className="p-2 bg-purple-50 dark:bg-purple-950/50 rounded-lg text-purple-600 dark:text-purple-400">
-                <Calendar className="h-5 w-5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-black text-[#0f417a] dark:text-blue-300 uppercase tracking-wide">
-                  Project Timelines, Outputs & Outcomes
-                </h3>
-                <p className="text-xs text-slate-500">Key milestone dates and measurable physical capacities</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              
-              <div>
-                <Label required>Project Initiated Date</Label>
-                <input
-                  type="date"
-                  value={formData.projectInitiatedDate}
-                  onChange={(e) => handleInputChange('projectInitiatedDate', e.target.value)}
-                  disabled={!canInteract}
-                  className={getInputClass('projectInitiatedDate')}
-                />
-                <FieldError error={errors.projectInitiatedDate} />
-              </div>
-
-              {!isTargetDateLocked ? (
-                <div>
-                  <Label required>Target Completion Date</Label>
-                  <input
-                    type="date"
-                    value={formData.targetCompletionDate}
-                    onChange={(e) => handleInputChange('targetCompletionDate', e.target.value)}
-                    disabled={!canInteract}
-                    className={getInputClass('targetCompletionDate')}
-                  />
-                  <FieldError error={errors.targetCompletionDate} />
-                </div>
-              ) : (
-                <div className="md:col-span-2">
-                  <Label required>Revised Target Completion Date</Label>
-                  <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-                    <input
-                      type="date"
-                      value={
-                        formData.revisedTargetCompletionDate || formData.targetCompletionDate || ''
-                      }
-                      disabled
-                      className={getInputClass('revisedTargetCompletionDate', 'opacity-75 flex-1 max-w-md')}
-                    />
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={openTargetRevisionModal}
-                        disabled={!canReviseTargetDate}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-bold hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                        Revise
-                      </button>
-                      <button
-                        type="button"
-                        onClick={openTargetHistoryModal}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold hover:bg-emerald-100"
-                      >
-                        <History className="h-3.5 w-3.5" />
-                        History
-                      </button>
-                    </div>
-                  </div>
-                  <FieldError error={errors.revisedTargetCompletionDate} />
-                </div>
-              )}
-
-              <div>
-                <Label>Capacity Addition (MTPA / Units)</Label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formData.capacityAddition}
-                  onChange={(e) => handleInputChange('capacityAddition', e.target.value)}
-                  disabled={!canInteract}
-                  placeholder="e.g. 5.5 MTPA"
-                  className={getInputClass('capacityAddition')}
-                />
-                <FieldError error={errors.capacityAddition} />
-              </div>
-
-              <div>
-                <Label>Project Output</Label>
-                <select
-                  value={formData.projectOutput}
-                  onChange={(e) => handleInputChange('projectOutput', e.target.value)}
-                  disabled={!canInteract}
-                  className={getInputClass('projectOutput')}
-                >
-                  <option value="">Select Project Output</option>
-                  {outputOptions.map((out, idx) => {
-                    const val = out.project_output_id ?? out.id ?? out.output_id ?? idx;
-                    const label = out.project_output_name || out.output_name || out.name || String(val);
-                    return (
-                      <option key={`out-${val}-${idx}`} value={val}>
-                        {label}
-                      </option>
-                    );
-                  })}
-                  <option value="Others">Others</option>
-                </select>
-                <FieldError error={errors.projectOutput} />
-              </div>
-
-              {showOutputOthers ? (
-                <>
-                  <div>
-                    <Label required>New Project Output</Label>
-                    <input
-                      type="text"
-                      value={formData.newProjectOutput}
-                      onChange={(e) => handleInputChange('newProjectOutput', e.target.value)}
-                      disabled={!canInteract}
-                      className={getInputClass('newProjectOutput')}
-                    />
-                    <FieldError error={errors.newProjectOutput} />
-                  </div>
-                  <div>
-                    <Label required>New Output Units</Label>
-                    <input
-                      type="text"
-                      value={formData.newProjectOutputUnits}
-                      onChange={(e) => handleInputChange('newProjectOutputUnits', e.target.value)}
-                      disabled={!canInteract}
-                      className={getInputClass('newProjectOutputUnits')}
-                    />
-                    <FieldError error={errors.newProjectOutputUnits} />
-                  </div>
-                </>
-              ) : null}
-
-              <div>
-                <Label>Project Outcome</Label>
-                <select
-                  value={formData.projectOutcome}
-                  onChange={(e) => handleInputChange('projectOutcome', e.target.value)}
-                  // disabled={!canInteract}
-                  disabled={!canInteract || !formData.projectOutput}
-                  className={getInputClass('projectOutcome')}
-                >
-
-
-                  {showOutcomeOthers && (
-  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
-    <div>
-      <Label>Project Outcome Name</Label>
-      <input
-        type="text"
-        value={formData.newProjectOutcome || ''}
-        onChange={(e) =>
-          handleInputChange('newProjectOutcome', e.target.value)
-        }
-        placeholder="Enter Project Outcome Name"
-        className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200"
-      />
-      {errors.newProjectOutcome && (
-        <p className="text-red-500 text-xs mt-1">
-          {errors.newProjectOutcome}
-        </p>
-      )}
-    </div>
-
-    <div>
-      <Label>Project Outcome Units</Label>
-      <input
-        type="text"
-        value={formData.newProjectOutcomeUnits || ''}
-        onChange={(e) =>
-          handleInputChange(
-            'newProjectOutcomeUnits',
-            e.target.value
-          )
-        }
-        placeholder="Enter Project Outcome Units"
-        className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200"
-      />
-      {errors.newProjectOutcomeUnits && (
-        <p className="text-red-500 text-xs mt-1">
-          {errors.newProjectOutcomeUnits}
-        </p>
-      )}
-    </div>
-  </div>
-)}
-
-                  <option value="">Select Project Outcome</option>
-                  {filteredOutcomeOptions.map((outc, idx) => {
-                    const val = outc.project_outcome_id ?? outc.id ?? outc.outcome_id ?? idx;
-                    const label =
-                      outc.project_outcome_name || outc.outcome_name || outc.name || String(val);
-                    return (
-                      <option key={`outc-${val}-${idx}`} value={val}>
-                        {label}
-                      </option>
-                    );
-                  })}
-                  <option value="Others">Others</option>
-                </select>
-                <FieldError error={errors.projectOutcome} />
-              </div>
-
-              {showOutcomeOthers ? (
-                <>
-                  <div>
-                    <Label required>New Project Outcome</Label>
-                    <input
-                      type="text"
-                      value={formData.newProjectOutcome}
-                      onChange={(e) => handleInputChange('newProjectOutcome', e.target.value)}
-                      disabled={!canInteract}
-                      className={getInputClass('newProjectOutcome')}
-                    />
-                    <FieldError error={errors.newProjectOutcome} />
-                  </div>
-                  <div>
-                    <Label required>New Outcome Units</Label>
-                    <input
-                      type="text"
-                      value={formData.newProjectOutcomeUnits}
-                      onChange={(e) => handleInputChange('newProjectOutcomeUnits', e.target.value)}
-                      disabled={!canInteract}
-                      className={getInputClass('newProjectOutcomeUnits')}
-                    />
-                    <FieldError error={errors.newProjectOutcomeUnits} />
-                  </div>
-                </>
-              ) : null}
-
-            </div>
-
-            <div className="flex justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
-              <button
-                type="button"
-                onClick={() => goToSection('location')}
-                className="flex items-center space-x-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition cursor-pointer"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                <span>Previous</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => goToSection('docs')}
-                className="flex items-center space-x-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition cursor-pointer"
-              >
-                <span>Next: Project Documents</span>
                 <ChevronRight className="h-4 w-4" />
               </button>
             </div>

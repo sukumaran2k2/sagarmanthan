@@ -305,6 +305,12 @@ export default function App() {
                 triggerNotification={triggerNotification}
               />
             } />
+            <Route path="projects/project/add-sub-project" element={
+              <Projects
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
             <Route path="projects/project/basic-info" element={
               <Projects
                 onGoHome={() => navigate('/')}

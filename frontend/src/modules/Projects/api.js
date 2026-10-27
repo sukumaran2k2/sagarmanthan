@@ -221,6 +221,14 @@ export function createProjectBasicInformation(payload) {
   return api.post('/add-newproject', payload);
 }
 
+export function fetchSubProjectParentList() {
+  return api.get('/subproject-parent-list');
+}
+
+export function createSubProjects(payload) {
+  return api.post('/add-subproject', payload);
+}
+
 export function updateProjectBasicInformation(payload) {
   return api.put('/viewproject-update', payload);
 }
