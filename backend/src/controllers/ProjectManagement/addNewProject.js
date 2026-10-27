@@ -5,6 +5,7 @@ import sql from 'mssql';
 import fs from 'fs';
 import path from 'path';
 import { pool } from "../../db.js";
+import { getDataScope } from "../../middleware/dataScope.js";
 import { fileURLToPath } from 'url';
 import { CONNREFUSED } from 'dns';
 import nodemailer from "nodemailer";
@@ -292,56 +293,192 @@ async function createNewProject(req, res)
     }
 };
 
-async function updateSubProject(req, res) 
+const MAX_SUB_PROJECTS_PER_REQUEST = 20;
+
+// Org-scoped users only see their own organisation's projects; wide-scope users see all.
+function resolveSubProjectScope(req) {
+    const dataScope = getDataScope(req.user || {});
+    if (!dataScope.isOrganisation) return { organisationId: null, denied: false };
+    const organisationId = Number(dataScope.organisationId);
+    if (!Number.isFinite(organisationId) || organisationId <= 0) return { organisationId: null, denied: true };
+    return { organisationId, denied: false };
+}
+
+// Same eligibility as the old "Add Sub Project" popup: active, not completed projects
+// without sub-projects, plus projects that still have an active, not completed sub-project.
+const SUB_PROJECT_PARENT_QUERY = `
+    SELECT p.project_id, p.project_name, p.organisation_id, p.wing_id,
+        ISNULL(p.on_sub_project_available, 0) AS on_sub_project_available
+    FROM tbl_project p
+    WHERE ISNULL(p.status, 1) = 1
+      AND (@organisationID IS NULL OR p.organisation_id = @organisationID)
+      AND (
+            (ISNULL(p.on_sub_project_available, 0) = 0 AND ISNULL(p.current_project_stage_id, 0) <> 14)
+         OR EXISTS (
+                SELECT 1 FROM tbl_sub_project sp
+                WHERE sp.project_id = p.project_id
+                  AND ISNULL(sp.sub_status, 1) = 1
+                  AND ISNULL(sp.sub_current_project_stage_id, 0) <> 14
+            )
+      )
+`;
+
+async function getSubProjectParentList(req, res)
 {
-    // let projectID = await getProjectID();
-    const projectID = req.body.projectID;
-    // Sub projects
-    let onSubProjectAvailable = req.body.onSubProjectAvailable;
-    const subProjectNum = req.body.subProjectNum;
-    const subProjectsTab = req.body.subProjectsTab;
-    const userID = req.body.userID;
-    const organisationID = req.body.organisationID;
-    const wingID = req.body.wingID;
+    try
+    {
+        const scope = resolveSubProjectScope(req);
+        if (scope.denied) return res.json([]);
+
+        const conn = await pool;
+        const request = conn.request();
+        request.input("organisationID", sql.Int, scope.organisationId);
+
+        const result = await request.query(`
+            ${SUB_PROJECT_PARENT_QUERY}
+            ORDER BY p.project_id DESC;
+
+            SELECT sp.project_id, sp.sub_project_id, sp.sub_project_name
+            FROM tbl_sub_project sp
+            INNER JOIN tbl_project p ON p.project_id = sp.project_id
+            WHERE ISNULL(sp.sub_status, 1) = 1
+              AND (@organisationID IS NULL OR p.organisation_id = @organisationID)
+            ORDER BY sp.sub_project_id;
+        `);
+
+        const subProjectsByProject = new Map();
+        for (const row of result.recordsets[1] || []) {
+            const list = subProjectsByProject.get(row.project_id) || [];
+            list.push({ subProjectID: row.sub_project_id, subProjectName: row.sub_project_name });
+            subProjectsByProject.set(row.project_id, list);
+        }
+
+        const rows = (result.recordsets[0] || []).map((row) => ({
+            projectID: row.project_id,
+            projectName: row.project_name,
+            onSubProjectAvailable: row.on_sub_project_available,
+            subProjects: subProjectsByProject.get(row.project_id) || [],
+        }));
+
+        return res.json(rows);
+    }
+    catch (err)
+    {
+        console.error("Error in getSubProjectParentList:", err);
+        return res.status(500).json({ message: 'Unable to load projects for sub-project creation' });
+    }
+};
+
+async function addSubProjects(req, res)
+{
+    const projectID = String(req.body.projectID || '').trim();
+    const userID = Number(req.body.userID) || null;
+    const subProjectNames = (Array.isArray(req.body.subProjectsTab) ? req.body.subProjectsTab : [])
+        .map((item) => String(item?.subProjectName || '').trim());
+
+    if (!projectID) {
+        return res.status(400).json({ message: 'Please select a project' });
+    }
+    if (subProjectNames.length < 1 || subProjectNames.length > MAX_SUB_PROJECTS_PER_REQUEST) {
+        return res.status(400).json({ message: `Enter between 1 and ${MAX_SUB_PROJECTS_PER_REQUEST} sub-projects` });
+    }
+    if (subProjectNames.some((name) => !name)) {
+        return res.status(400).json({ message: 'All sub-project names are required' });
+    }
+
+    const seenNames = new Set();
+    for (const name of subProjectNames) {
+        const key = name.toLowerCase();
+        if (seenNames.has(key)) {
+            return res.status(400).json({ message: `Sub-project name "${name}" is entered more than once` });
+        }
+        seenNames.add(key);
+    }
+
+    const scope = resolveSubProjectScope(req);
+    if (scope.denied) {
+        return res.status(403).json({ message: 'You do not have access to this project' });
+    }
 
     const conn = await pool;
-    const request = conn.request();
-    request.input("projectID", projectID);
-    request.input("onSubProjectAvailable", onSubProjectAvailable);
-    request.input("subProjectNum", subProjectNum);
-    request.input("userID", userID);
-    request.input("organisationID", organisationID);
-    request.input("wingID", wingID);
+    const transaction = new sql.Transaction(conn);
 
-    console.log(projectID)
-    
-    const query = await request.query(`
-        UPDATE tbl_project SET on_sub_project_available = 1, sub_projec_num = sub_projec_num + @subProjectNum 
-        WHERE project_id = @projectID  `);
-
-    try 
+    try
     {
+        await transaction.begin();
 
-        let subProjectID;
-        for (let p = 0; p < subProjectsTab.length; p++) 
-        {
-            subProjectID = await getLastSubPrjectID();
-            let subProjectName = subProjectsTab[p].subProjectName
+        const parentRequest = new sql.Request(transaction);
+        parentRequest.input("organisationID", sql.Int, scope.organisationId);
+        parentRequest.input("projectID", sql.NVarChar, projectID);
+        const parentResult = await parentRequest.query(`
+            ${SUB_PROJECT_PARENT_QUERY}
+              AND p.project_id = @projectID;
 
-            request.input(`subProjectName_${p}`, subProjectName);
-            request.input(`subProjectID_${p}`, subProjectID);
+            SELECT LOWER(LTRIM(RTRIM(sub_project_name))) AS name_key
+            FROM tbl_sub_project
+            WHERE project_id = @projectID AND ISNULL(sub_status, 1) = 1;
+        `);
 
-            const result = await request.query(`INSERT INTO tbl_sub_project (project_id, sub_project_id,
-                sub_project_name, sub_submitted_by) 
-                VALUES (@projectID, @subProjectID_${p}, @subProjectName_${p}, @userID )`);
-
+        const parent = parentResult.recordsets[0]?.[0];
+        if (!parent) {
+            await transaction.rollback();
+            return res.status(404).json({ message: 'Project not found or not eligible for sub-projects' });
         }
-        res.json({ projectID, subProjectID });
-       
+
+        const existingNames = new Set((parentResult.recordsets[1] || []).map((row) => row.name_key));
+        const duplicate = subProjectNames.find((name) => existingNames.has(name.toLowerCase()));
+        if (duplicate) {
+            await transaction.rollback();
+            return res.status(409).json({ message: `Sub-project "${duplicate}" already exists for this project` });
+        }
+
+        // Lock the ID sequence so parallel submissions cannot pick the same sub-project ID.
+        const lastIdResult = await new sql.Request(transaction).query(`
+            SELECT TOP(1) sub_project_id FROM tbl_sub_project WITH (UPDLOCK, HOLDLOCK)
+            ORDER BY sub_project_id DESC;
+        `);
+        let nextIndex = (parseInt(String(lastIdResult.recordset?.[0]?.sub_project_id || '').slice(3), 10) || 0) + 1;
+
+        const createdSubProjects = [];
+        for (const subProjectName of subProjectNames) {
+            const subProjectID = `SPR${String(nextIndex).padStart(4, '0')}`;
+            nextIndex += 1;
+
+            const insertRequest = new sql.Request(transaction);
+            insertRequest.input("projectID", sql.NVarChar, projectID);
+            insertRequest.input("subProjectID", sql.NVarChar, subProjectID);
+            insertRequest.input("subProjectName", sql.NVarChar, subProjectName);
+            insertRequest.input("organisationID", sql.Int, parent.organisation_id);
+            insertRequest.input("wingID", sql.Int, parent.wing_id);
+            insertRequest.input("userID", sql.Int, userID);
+            await insertRequest.query(`
+                INSERT INTO tbl_sub_project (project_id, sub_project_id, sub_project_name, sub_organisation_id,
+                    sub_wing_id, sub_project_stage_id, sub_current_project_stage_id, sub_submitted_by)
+                VALUES (@projectID, @subProjectID, @subProjectName, @organisationID,
+                    @wingID, 0, 0, @userID)
+            `);
+
+            createdSubProjects.push({ subProjectID, subProjectName });
+        }
+
+        const updateRequest = new sql.Request(transaction);
+        updateRequest.input("projectID", sql.NVarChar, projectID);
+        updateRequest.input("subProjectNum", sql.Int, subProjectNames.length);
+        await updateRequest.query(`
+            UPDATE tbl_project
+            SET on_sub_project_available = 1, sub_projec_num = ISNULL(sub_projec_num, 0) + @subProjectNum
+            WHERE project_id = @projectID
+        `);
+
+        await transaction.commit();
+
+        return res.status(200).json({ projectID, subProjects: createdSubProjects });
     }
-    catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
+    catch (err)
+    {
+        console.error("Error in addSubProjects:", err);
+        try { await transaction.rollback(); } catch { /* already rolled back */ }
+        return res.status(500).json({ message: 'There was an error while creating the sub-project. Please try later' });
     }
 };
 
@@ -527,4 +664,4 @@ const upload = multer({
 });
 
 
-export default { createNewProject, updateSubProject, getProjectPptDocument, getProjectPertDocument, getProjectImageDocument, upload };
+export default { createNewProject, getSubProjectParentList, addSubProjects, getProjectPptDocument, getProjectPertDocument, getProjectImageDocument, upload };

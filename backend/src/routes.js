@@ -1022,6 +1022,8 @@ router.get("/completionpage/:projectID/:subProjectID", auth, requireModulePermis
 
 // ADD PROJECT MODULE
 router.post("/add-newproject", auth, requireModulePermission("PROJECTS", "create"), addNewProjectTab.createNewProject);
+router.get("/subproject-parent-list", auth, requireModulePermission("PROJECTS", "create"), addNewProjectTab.getSubProjectParentList);
+router.post("/add-subproject", auth, requireModulePermission("PROJECTS", "create"), addNewProjectTab.addSubProjects);
 
 //young professionals
 router.get("/young-professional", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), youngProfessionalsTab.getYoungProfessional);

@@ -4,6 +4,7 @@ import { FolderKanban } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
 import ProjectBasicInformationPage from './pages/ProjectBasicInformationPage';
+import AddSubProjectPage from './pages/AddSubProjectPage';
 import DropRequestsPage from './pages/DropRequestsPage';
 import ProjectsLessThan5CrPage from './pages/ProjectsLessThan5CrPage';
 import ProjectReportsPage from './pages/ProjectReportsPage';
@@ -19,6 +20,9 @@ function resolveSubTabId(label, canAdd, isOrgScope = false) {
   const key = String(label || '').toLowerCase().trim();
   if (key.includes('view-project') || key.includes('detail')) return 'view-project';
   if (key.includes('report')) return 'reports';
+  if (key.includes('sub-project') || key.includes('subproject')) {
+    return (canAdd && isOrgScope) ? 'add-sub-project' : 'list';
+  }
   if (key.includes('edit')) return 'edit-info';
   if (key.includes('basic') || key.includes('input')) return (canAdd && isOrgScope) ? 'basic-info' : 'list';
   if (key.includes('drop') || key === 'view-drop-request' || key === 'projects-droprequests') {
@@ -72,6 +76,9 @@ export default function Projects({
     }
     if (path.includes('less-than-5') || path.includes('less5cr')) {
       return 'less5cr-list';
+    }
+    if (path.includes('add-sub-project')) {
+      return showInputForm ? 'add-sub-project' : 'list';
     }
     if (path.includes('input-form') || path.includes('basic-info') || path.includes('add-project')) {
       return showInputForm ? 'basic-info' : 'list';
@@ -165,6 +172,10 @@ export default function Projects({
       setFormReadOnly(false);
       setLess5CrEditingRecord(null);
       setManualSubTab('less5cr-list');
+    } else if (path.includes('add-sub-project')) {
+      setEditingRecord(null);
+      setFormReadOnly(false);
+      setManualSubTab(showInputForm ? 'add-sub-project' : 'list');
     } else if (path.includes('input-form') || path.includes('basic-info') || path.includes('add-project')) {
       const navProject = location.state?.project || location.state?.editData || null;
       const isEditFlow = Boolean(location.state?.fromEdit || navProject);
@@ -235,6 +246,7 @@ export default function Projects({
     const items = [];
     if (showInputForm) {
       items.push({ id: 'basic-info', label: 'Input Form' });
+      items.push({ id: 'add-sub-project', label: 'Add Sub Project' });
     }
     if (canAccessDropRequests) {
       items.push({
@@ -272,7 +284,7 @@ export default function Projects({
     const base = manualSubTab ?? resolveSubTabId(activeSubTabProp, permissions.canAdd, isOrgScope);
     if (base === 'reports' && !canAccessReports) return 'list';
     if (base === 'edit-info' && !editingRecord) return 'list';
-    if (base === 'basic-info' && !showInputForm) {
+    if ((base === 'basic-info' || base === 'add-sub-project') && !showInputForm) {
       return 'list';
     }
     if (base === 'drop-requests' && !canAccessDropRequests) {
@@ -419,6 +431,16 @@ export default function Projects({
                 navigate('/projects/project/input-form');
                 return;
               }
+              if (tab === 'add-sub-project') {
+                if (!showInputForm) {
+                  setManualSubTab('list');
+                  navigate('/projects/project/project-list');
+                  return;
+                }
+                setManualSubTab('add-sub-project');
+                navigate('/projects/project/add-sub-project');
+                return;
+              }
               if (tab === 'list') {
                 setManualSubTab('list');
                 navigate('/projects/project/project-list');
@@ -516,6 +538,21 @@ export default function Projects({
               setFormReadOnly(false);
               setManualSubTab('list');
               setListRefreshKey((prev) => prev + 1);
+            }}
+          />
+        ) : null}
+
+        {activeSubTab === 'add-sub-project' ? (
+          <AddSubProjectPage
+            notify={notify}
+            onBack={() => {
+              setManualSubTab('list');
+              navigate('/projects/project/project-list');
+            }}
+            onSuccess={() => {
+              setManualSubTab('list');
+              setListRefreshKey((prev) => prev + 1);
+              navigate('/projects/project/project-list');
             }}
           />
         ) : null}
