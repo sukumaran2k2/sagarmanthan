@@ -62,6 +62,8 @@ const Table = forwardRef(({
   };
 
 
+  const shouldFitColumns = autoSizeStrategy !== null && autoSizeStrategy !== false;
+
   const handleGridSizeChanged = (params) => {
     if (params?.api) {
       try {
@@ -156,7 +158,7 @@ const Table = forwardRef(({
         return col;
       }
       const headerText = col.headerName || col.field || '';
-      const estimatedWidth = (headerText.length + 5) * 12;
+      const estimatedWidth = Math.max((headerText.length + 5) * 14, 120);
       const updatedCol = {
         ...col,
         minWidth: col.minWidth !== undefined ? col.minWidth : estimatedWidth
@@ -171,7 +173,7 @@ const Table = forwardRef(({
 
   useEffect(() => {
     const api = gridApi || activeRef.current?.api;
-    if (api) {
+    if (api && shouldFitColumns) {
       const timer = setTimeout(() => {
         try {
           api.sizeColumnsToFit();
@@ -181,12 +183,26 @@ const Table = forwardRef(({
       }, 50);
       return () => clearTimeout(timer);
     }
-  }, [processedColumnDefs, rowData, gridApi]);
+  }, [processedColumnDefs, rowData, gridApi, shouldFitColumns]);
 
-  const activeAutoSizeStrategy = autoSizeStrategy !== undefined ? autoSizeStrategy : {
-    type: 'fitGridWidth',
-    defaultMinWidth: 100
-  };
+  const activeAutoSizeStrategy = (autoSizeStrategy === null || autoSizeStrategy === false)
+    ? undefined
+    : (autoSizeStrategy !== undefined ? autoSizeStrategy : {
+        type: 'fitGridWidth',
+        defaultMinWidth: 120
+      });
+
+  const hasGroupHeaders = useMemo(() => {
+    return columnDefs.some(col => col.children && Array.isArray(col.children) && col.children.length > 0);
+  }, [columnDefs]);
+
+  const effectiveHeaderHeight = props.headerHeight !== undefined 
+    ? props.headerHeight 
+    : (hasGroupHeaders ? 28 : 36);
+
+  const effectiveGroupHeaderHeight = props.groupHeaderHeight !== undefined 
+    ? props.groupHeaderHeight 
+    : 28;
 
   const colorClass = `custom-table-container-${color.replace(/[^a-zA-Z0-9]/g, '')}`;
 
@@ -195,19 +211,24 @@ const Table = forwardRef(({
       <style>{`
         .${colorClass} .ag-header,
         .${colorClass} .ag-header-row,
-        .${colorClass} .ag-header-cell,
-        .${colorClass} .ag-header-group-cell {
+        .${colorClass} .ag-header-cell:not(.custom-header-bg),
+        .${colorClass} .ag-header-group-cell:not(.custom-header-bg) {
           background-color: ${color} !important;
           background: ${color} !important;
           color: #ffffff !important;
         }
+        .${colorClass} .ag-header-cell-label,
         .${colorClass} .ag-header-cell-text,
-        .${colorClass} .ag-header-group-cell-label {
+        .${colorClass} .ag-header-group-cell-label,
+        .${colorClass} .ag-header-group-text {
           white-space: normal !important;
           word-break: break-word !important;
+          overflow-wrap: anywhere !important;
+          text-overflow: unset !important;
           text-align: center !important;
           justify-content: center !important;
-          line-height: 1.25 !important;
+          line-height: 1.2 !important;
+          font-size: 11.5px !important;
           color: #ffffff !important;
         }
         .dark .${colorClass} .ag-row {
@@ -350,12 +371,15 @@ const Table = forwardRef(({
             theme="legacy"
             rowData={rowData}
             columnDefs={processedColumnDefs}
+            headerHeight={effectiveHeaderHeight}
+            groupHeaderHeight={effectiveGroupHeaderHeight}
             defaultColDef={{
               sortable: true,
               filter: true,
               resizable: true,
               wrapHeaderText: true,
-              autoHeaderHeight: true,
+              wrapText: true,
+              autoHeight: true,
               cellStyle: { textAlign: 'center' },
               ...defaultColDef
             }}

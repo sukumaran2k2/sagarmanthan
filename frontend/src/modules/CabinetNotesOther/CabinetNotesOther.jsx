@@ -8,7 +8,8 @@ import resolveCabinetNotesListView from './views';
 import Dashboard from './pages/Dashboard';
 import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
-import { fetchCabinetMinistry, fetchWings, deleteCabinetMinistry } from './api';
+import { fetchCabinetMinistry, deleteCabinetMinistry } from './api';
+import { useCabinetNotesOtherStore } from './store/useCabinetNotesOtherStore';
 
 const INIT_TAB_KEY = 'cabinetNotesOtherInitTab';
 
@@ -26,11 +27,14 @@ export default function CabinetNotesOther({
   triggerNotification
 }) {
   const permissions = useCabinetNotesPermissions();
-  const [activeSubTab, setActiveSubTab] = useState('dashboard'); // 'dashboard' | 'list' | 'add' | 'report'
+  // The open tab and the reference data live in the store, so they survive leaving the module
+  const activeSubTab = useCabinetNotesOtherStore((state) => state.activeSubTab); // 'dashboard' | 'list' | 'add' | 'report'
+  const setActiveSubTab = useCabinetNotesOtherStore((state) => state.setActiveSubTab);
+  const wingsList = useCabinetNotesOtherStore((state) => state.wings);
+  const loadMasters = useCabinetNotesOtherStore((state) => state.loadMasters);
   const [loading, setLoading] = useState(false);
   const [rowData, setRowData] = useState([]);
   const [editData, setEditData] = useState(null);
-  const [wingsList, setWingsList] = useState([]);
   const [toast, setToast] = useState(null);
 
   const notify = useCallback(
@@ -58,11 +62,8 @@ export default function CabinetNotesOther({
     return 1;
   };
 
-  useEffect(() => {
-    fetchWings()
-      .then(res => setWingsList(Array.isArray(res.data) ? res.data : []))
-      .catch(err => console.error("Error loading wings:", err));
-  }, []);
+  // Ministries, stages and wings for every tab, loaded once
+  useEffect(() => { loadMasters(); }, [loadMasters]);
 
   const fetchData = useCallback(() => {
     setLoading(true);
@@ -95,19 +96,19 @@ export default function CabinetNotesOther({
     const onMenu = (e) => apply(e.detail);
     window.addEventListener('cabinet-notes-other-subtab', onMenu);
     return () => window.removeEventListener('cabinet-notes-other-subtab', onMenu);
-  }, [permissions.canAdd]);
+  }, [permissions.canAdd, setActiveSubTab]);
 
   useEffect(() => {
     const next = resolveSubTabId(activeSubTabProp, permissions.canAdd);
     if (next) setActiveSubTab(next);
-  }, [activeSubTabProp, permissions.canAdd]);
+  }, [activeSubTabProp, permissions.canAdd, setActiveSubTab]);
 
   // Enforce read-only tab restriction
   useEffect(() => {
     if (activeSubTab === 'add' && !permissions.canAdd) {
       setActiveSubTab('list');
     }
-  }, [activeSubTab, permissions.canAdd]);
+  }, [activeSubTab, permissions.canAdd, setActiveSubTab]);
 
   const tabs = useMemo(() => {
     const items = [{ id: 'dashboard', label: 'Dashboard' }];

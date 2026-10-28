@@ -137,7 +137,7 @@ async function createMinistryCabinet(req, res) {
 
     try {
 
-        const result = await request.query(`INSERT INTO tbl_cabinet_notes_ministry_change (
+        const result = await request.query(`INSERT INTO tbl_cabinet_notes_ministry (
             subject, ministry_id, ministry_name, eoffice_file_number, deadline,
             received_ministry_date, sent_for_comments_date, sent_for_comments_wings, comments_rec_date,
             shipping_date, vigilance_date, ports_date, iwt_date, administration_date, 
@@ -291,7 +291,7 @@ async function editMinistryCabinet(req, res) {
 
     try {
         const result = await request.query(`
-            UPDATE tbl_cabinet_notes_ministry_change SET
+            UPDATE tbl_cabinet_notes_ministry SET
             subject = @cabinetSubject,
             ministry_id = @cabinetMinistryName,
             ministry_name = @cabinetMinistryNameText,
@@ -374,15 +374,15 @@ async function getCabinetMinistry(req, res) {
             const usersResult = await request.query(`SELECT user_id FROM tbl_user WHERE organisation_id = @organisationID`);
             const userIDs = usersResult.recordset.map(user => user.user_id);
             if (userIDs.length > 0) {
-                whereClause = `WHERE tbl_cabinet_notes_ministry_change.created_by IN (${userIDs.join(',')})`;
+                whereClause = `WHERE tbl_cabinet_notes_ministry.created_by IN (${userIDs.join(',')})`;
             }
         }
 
         if (search) {
             request.input('search', `%${search}%`);
             whereClause = whereClause
-                ? `${whereClause} AND (tbl_cabinet_notes_ministry_change.cabinet_subject LIKE @search OR ISNULL(mmt_ministry.ministry_name, tbl_cabinet_notes_ministry_change.ministry_name) LIKE @search OR tbl_cabinet_notes_ministry_change.eoffice_file_no LIKE @search)`
-                : `WHERE (tbl_cabinet_notes_ministry_change.cabinet_subject LIKE @search OR ISNULL(mmt_ministry.ministry_name, tbl_cabinet_notes_ministry_change.ministry_name) LIKE @search OR tbl_cabinet_notes_ministry_change.eoffice_file_no LIKE @search)`;
+                ? `${whereClause} AND (tbl_cabinet_notes_ministry.subject LIKE @search OR ISNULL(mmt_ministry.ministry_name, tbl_cabinet_notes_ministry.ministry_name) LIKE @search OR tbl_cabinet_notes_ministry.eoffice_file_number LIKE @search)`
+                : `WHERE (tbl_cabinet_notes_ministry.cabinet_subject LIKE @search OR ISNULL(mmt_ministry.ministry_name, tbl_cabinet_notes_ministry.ministry_name) LIKE @search OR tbl_cabinet_notes_ministry.eoffice_file_no LIKE @search)`;
         }
 
         if (page && limit) {
@@ -392,8 +392,8 @@ async function getCabinetMinistry(req, res) {
 
             const countQuery = `
                 SELECT COUNT(1) AS total
-                FROM tbl_cabinet_notes_ministry_change
-                LEFT JOIN mmt_ministry ON mmt_ministry.ministry_id = tbl_cabinet_notes_ministry_change.ministry_id
+                FROM tbl_cabinet_notes_ministry
+                LEFT JOIN mmt_ministry ON mmt_ministry.ministry_id = tbl_cabinet_notes_ministry.ministry_id
                 ${whereClause}
             `;
             const countResult = await request.query(countQuery);
@@ -401,15 +401,15 @@ async function getCabinetMinistry(req, res) {
 
             const paginatedQuery = `
                 SELECT
-                    ISNULL(mmt_ministry.ministry_name, tbl_cabinet_notes_ministry_change.ministry_name) as ministry_name,
-                    tbl_cabinet_notes_ministry_change.*,
+                    ISNULL(mmt_ministry.ministry_name, tbl_cabinet_notes_ministry.ministry_name) as ministry_name,
+                    tbl_cabinet_notes_ministry.*,
                     stage.cab_ministry_stage_name AS stage_name
                 FROM
-                    tbl_cabinet_notes_ministry_change
-                    LEFT JOIN mmt_ministry ON mmt_ministry.ministry_id = tbl_cabinet_notes_ministry_change.ministry_id
-                    LEFT JOIN mmt_cabinet_ministry_stage AS stage ON tbl_cabinet_notes_ministry_change.stage_id = stage.cab_ministry_stage_id
+                    tbl_cabinet_notes_ministry
+                    LEFT JOIN mmt_ministry ON mmt_ministry.ministry_id = tbl_cabinet_notes_ministry.ministry_id
+                    LEFT JOIN mmt_cabinet_ministry_stage AS stage ON tbl_cabinet_notes_ministry.stage_id = stage.cab_ministry_stage_id
                 ${whereClause}
-                ORDER BY tbl_cabinet_notes_ministry_change.cabinet_notes_ministry_id DESC
+                ORDER BY tbl_cabinet_notes_ministry.cabinet_notes_ministry_id DESC
                 OFFSET @offset ROWS
                 FETCH NEXT @limit ROWS ONLY;
             `;
@@ -426,15 +426,15 @@ async function getCabinetMinistry(req, res) {
         } else {
             const fullQuery = `
                 SELECT
-                    ISNULL(mmt_ministry.ministry_name, tbl_cabinet_notes_ministry_change.ministry_name) as ministry_name,
-                    tbl_cabinet_notes_ministry_change.*,
+                    ISNULL(mmt_ministry.ministry_name, tbl_cabinet_notes_ministry.ministry_name) as ministry_name,
+                    tbl_cabinet_notes_ministry.*,
                     stage.cab_ministry_stage_name AS stage_name
                 FROM
-                    tbl_cabinet_notes_ministry_change
-                    LEFT JOIN mmt_ministry ON mmt_ministry.ministry_id = tbl_cabinet_notes_ministry_change.ministry_id
-                    LEFT JOIN mmt_cabinet_ministry_stage AS stage ON tbl_cabinet_notes_ministry_change.stage_id = stage.cab_ministry_stage_id
+                    tbl_cabinet_notes_ministry
+                    LEFT JOIN mmt_ministry ON mmt_ministry.ministry_id = tbl_cabinet_notes_ministry.ministry_id
+                    LEFT JOIN mmt_cabinet_ministry_stage AS stage ON tbl_cabinet_notes_ministry.stage_id = stage.cab_ministry_stage_id
                 ${whereClause}
-                ORDER BY tbl_cabinet_notes_ministry_change.cabinet_notes_ministry_id DESC;
+                ORDER BY tbl_cabinet_notes_ministry.cabinet_notes_ministry_id DESC;
             `;
             const result = await request.query(fullQuery);
             return res.json(result.recordset);
@@ -488,7 +488,7 @@ async function getUpdateCabinetMinistryData(req, res) {
     request.input("ministryCabinetID", ministryCabinetID);
 
     try {
-        const result = await request.query(`SELECT * FROM tbl_cabinet_notes_ministry_change WHERE cabinet_notes_ministry_id = @ministryCabinetID;`);
+        const result = await request.query(`SELECT * FROM tbl_cabinet_notes_ministry WHERE cabinet_notes_ministry_id = @ministryCabinetID;`);
         res.json(result.recordset);
     }
     catch (err) {
@@ -503,7 +503,7 @@ async function deleteCabinetNotesMinistry(req, res) {
     const request = conn.request();
     request.input("cabinetNotesMinistryId", cabinetNotesMinistryId);
     try {
-        const result = await request.query(`DELETE FROM tbl_cabinet_notes_ministry_change WHERE cabinet_notes_ministry_id = @cabinetNotesMinistryId;`);
+        const result = await request.query(`DELETE FROM tbl_cabinet_notes_ministry WHERE cabinet_notes_ministry_id = @cabinetNotesMinistryId;`);
         if (result.rowsAffected[0] > 0) {
             return res.sendStatus(201);
         } else {

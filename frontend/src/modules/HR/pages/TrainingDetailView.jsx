@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 // Shared client: sends the login token and refreshes it (HR routes require login)
 import { axiosInstance as axios } from '../../../api';
-import { 
-  ArrowLeft, Search, ChevronDown, X, Building2, BookOpen, 
+import {
+  ArrowLeft, Search, ChevronDown, X, Building2, BookOpen,
   Users, IndianRupee, MapPin, Globe, Award, Filter
 } from 'lucide-react';
 import Table from '../../../components/Table';
@@ -10,6 +10,7 @@ import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import { API_BASE_URL } from '../../../config/api';
 import { getCurrentUserId } from '../../../utils/authSession';
+import { createTableExporter } from '../utils/exportTable';
 
 const getParticipantCount = (row) => {
   const value = row?.NO_OF_PARTICIPANTS;
@@ -26,7 +27,7 @@ const getParticipantCount = (row) => {
 export default function TrainingDetailView({
   detail,
   onBack,
-  triggerNotification
+  notify
 }) {
   const [trainings, setTrainings] = useState(() => detail?.trainingsList || []);
   const [loading, setLoading] = useState(() => !detail?.trainingsList || detail.trainingsList.length === 0);
@@ -35,7 +36,7 @@ export default function TrainingDetailView({
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [pageSize, setPageSize] = useState(10);
-  
+
   // Selected Training for Participant Details & Specifications View (Dynamic Table, NOT an overlay)
   const [selectedTrainingForParticipants, setSelectedTrainingForParticipants] = useState(
     () => detail?.initialSelectedTraining || null
@@ -175,6 +176,9 @@ export default function TrainingDetailView({
 
   // Load participant records and full training details when a training is selected
   useEffect(() => {
+  let isMounted = true;
+  // Deferred a tick so the effect never sets state synchronously
+  const timer = setTimeout(() => {
   if (!selectedTrainingForParticipants) {
     setParticipantStaffList([]);
     setTrainingFullDetails(null);
@@ -186,8 +190,6 @@ export default function TrainingDetailView({
     selectedTrainingForParticipants.training_id ||
     selectedTrainingForParticipants.TRAINING_ID;
 
-  let isMounted = true;
-
   setParticipantLoading(true);
   setParticipantStaffList([]);
   setTrainingFullDetails(null);
@@ -198,7 +200,7 @@ export default function TrainingDetailView({
   }
 
   axios
-    .get(`${API_BASE_URL}/get-hr-training-data-by-id/${trainingId}`)
+    .get(`${API_BASE_URL}/hr/get-hr-training-data-by-id/${trainingId}`)
     .then(res => {
       if (!isMounted) return;
 
@@ -230,9 +232,11 @@ export default function TrainingDetailView({
         setParticipantLoading(false);
       }
     });
+  }, 0);
 
   return () => {
     isMounted = false;
+    clearTimeout(timer);
   };
 }, [selectedTrainingForParticipants]);
   // Unique filters from loaded data
@@ -404,7 +408,7 @@ export default function TrainingDetailView({
   }
       }
     ];
-  }, [handleOpenParticipants, getParticipantCount]);
+  }, [handleOpenParticipants]);
 
   // Column Definitions for Participant Details Table View (Matching user specification)
   // S. No | Staff ID | Name | Designation | Department
@@ -518,109 +522,114 @@ export default function TrainingDetailView({
     });
   }, [participantColumnDefs, participantVisibleCols]);
 
-  // Export Data preparation for Trainings
-  const exportHeaders = ['S.No', 'Training Title', 'Training Type', 'From Date', 'To Date', 'Expenditure (In Lakh)', 'Number of Participants'];
-  const exportRows = useMemo(() => {
-  return filteredRows.map((r, i) => [
-    i + 1,
-    r['Title'] || r['Training Title'] || r['TRAINING TITLE'] || '-',
-    r['Training Type'] || r['TRAINING TYPE'] || '-',
-    formatDateYYYYMMDD(r['From date'] || r.from_date),
-    formatDateYYYYMMDD(r['To date'] || r.to_date),
-    formatExpenditureInLakh(
-      r['Expenditure'] ??
-      r['Expenditure (In Lakh)'] ??
-      r.expenditure
-    ),
-    getParticipantCount(r)
-  ]);
-}, [filteredRows]);
-
-  // Export Data preparation for Participants
-  const participantExportHeaders = ['S. No', 'Staff ID', 'Name', 'Designation', 'Department'];
-  const participantExportRows = useMemo(() => {
-    return filteredParticipants.map((p, idx) => {
-      const staffId = p.employee_id || p.emp_reference_id || p.staff_id;
-      const name = p.emp_name || p.name;
-      const staffIdVal = staffId && name && !staffId.includes(name) ? `${staffId} - ${name}` : (staffId || name || '-');
-      return [
-        idx + 1,
-        staffIdVal,
-        name || '-',
-        p.emp_post_name || p.post_name || p.designation || '-',
-        p.emp_department_name || p.department_name || p.department || '-'
-      ];
-    });
-  }, [filteredParticipants]);
+  // Copy / Export: the rows on the grid's current page (page tracked from the grid)
+  const [trainingPage, setTrainingPage] = useState(1);
+  const [participantPage, setParticipantPage] = useState(1);
+  const trackPage = (setPage) => (params) => {
+    if (params?.api) setPage(params.api.paginationGetCurrentPage() + 1);
+  };
+  const trainingExportColumns = [
+    { field: 'title', label: 'Training Title', value: (r) => r['Title'] || r['Training Title'] || r['TRAINING TITLE'] || '-' },
+    { field: 'type', label: 'Training Type', value: (r) => r['Training Type'] || r['TRAINING TYPE'] || '-' },
+    { field: 'from', label: 'From Date', value: (r) => formatDateYYYYMMDD(r['From date'] || r.from_date) },
+    { field: 'to', label: 'To Date', value: (r) => formatDateYYYYMMDD(r['To date'] || r.to_date) },
+    { field: 'expenditure', label: 'Expenditure (In Lakh)', value: (r) => formatExpenditureInLakh(r['Expenditure'] ?? r['Expenditure (In Lakh)'] ?? r.expenditure) },
+    { field: 'participants', label: 'Number of Participants', value: (r) => getParticipantCount(r) },
+  ];
+  const participantExportColumns = [
+    {
+      field: 'staff', label: 'Staff ID', value: (p) => {
+        const staffId = p.employee_id || p.emp_reference_id || p.staff_id;
+        const name = p.emp_name || p.name;
+        return staffId && name && !String(staffId).includes(name) ? `${staffId} - ${name}` : (staffId || name || '-');
+      },
+    },
+    { field: 'name', label: 'Name', value: (p) => p.emp_name || p.name || '-' },
+    { field: 'designation', label: 'Designation', value: (p) => p.emp_post_name || p.post_name || p.designation || '-' },
+    { field: 'department', label: 'Department', value: (p) => p.emp_department_name || p.department_name || p.department || '-' },
+  ];
+  const exportPage = (kind, { rows, page, size, columns, title, fileName, label, busy }) => {
+    const start = (page - 1) * size;
+    return createTableExporter({
+      loadRows: () => rows.slice(start, start + size),
+      serialStart: start,
+      getColumns: () => columns,
+      notify,
+      isBusy: busy,
+      title: `${title} (Page ${page})`,
+      fileName: `${fileName}_Page_${page}`,
+      label,
+    })[kind]();
+  };
 
   // -------------------------------------------------------------
   // VIEW 1: PARTICIPANT DETAILS & TRAINING DATA (DYNAMIC TABLE VIEW)
   // -------------------------------------------------------------
   if (selectedTrainingForParticipants) {
     // Dynamic fields extracted directly from selected row and API details
-    const trainingTitle = 
-      trainingFullDetails?.TITLE || 
-      trainingFullDetails?.Title || 
-      selectedTrainingForParticipants['Title'] || 
-      selectedTrainingForParticipants['Training Title'] || 
-      selectedTrainingForParticipants['TRAINING TITLE'] || 
-      selectedTrainingForParticipants.title || 
+    const trainingTitle =
+      trainingFullDetails?.TITLE ||
+      trainingFullDetails?.Title ||
+      selectedTrainingForParticipants['Title'] ||
+      selectedTrainingForParticipants['Training Title'] ||
+      selectedTrainingForParticipants['TRAINING TITLE'] ||
+      selectedTrainingForParticipants.title ||
       '-';
 
-    const trainingType = 
-      trainingFullDetails?.TRAINING_TYPE_NAME || 
-      trainingFullDetails?.['Training Type'] || 
-      selectedTrainingForParticipants['Training Type'] || 
-      selectedTrainingForParticipants['TRAINING TYPE'] || 
-      selectedTrainingForParticipants.training_type || 
+    const trainingType =
+      trainingFullDetails?.TRAINING_TYPE_NAME ||
+      trainingFullDetails?.['Training Type'] ||
+      selectedTrainingForParticipants['Training Type'] ||
+      selectedTrainingForParticipants['TRAINING TYPE'] ||
+      selectedTrainingForParticipants.training_type ||
       '-';
 
-    const fromDateRaw = 
-      trainingFullDetails?.from_date || 
-      selectedTrainingForParticipants['From date'] || 
-      selectedTrainingForParticipants['From Date'] || 
-      selectedTrainingForParticipants['FROM DATE'] || 
+    const fromDateRaw =
+      trainingFullDetails?.from_date ||
+      selectedTrainingForParticipants['From date'] ||
+      selectedTrainingForParticipants['From Date'] ||
+      selectedTrainingForParticipants['FROM DATE'] ||
       selectedTrainingForParticipants.from_date;
 
-    const toDateRaw = 
-      trainingFullDetails?.to_date || 
-      selectedTrainingForParticipants['To date'] || 
-      selectedTrainingForParticipants['To Date'] || 
-      selectedTrainingForParticipants['TO DATE'] || 
+    const toDateRaw =
+      trainingFullDetails?.to_date ||
+      selectedTrainingForParticipants['To date'] ||
+      selectedTrainingForParticipants['To Date'] ||
+      selectedTrainingForParticipants['TO DATE'] ||
       selectedTrainingForParticipants.to_date;
 
     const fromDateFormatted = formatDateDDMMYYYY(fromDateRaw);
     const toDateFormatted = formatDateDDMMYYYY(toDateRaw);
 
-    const trainingSource = 
-      trainingFullDetails?.training_source || 
-      selectedTrainingForParticipants['Training Source'] || 
-      selectedTrainingForParticipants.training_source || 
+    const trainingSource =
+      trainingFullDetails?.training_source ||
+      selectedTrainingForParticipants['Training Source'] ||
+      selectedTrainingForParticipants.training_source ||
       '-';
 
-    const outsideAgencyName = 
-      trainingFullDetails?.outside_agency_name || 
-      selectedTrainingForParticipants['Outside Agency name'] || 
-      selectedTrainingForParticipants.outside_agency_name || 
+    const outsideAgencyName =
+      trainingFullDetails?.outside_agency_name ||
+      selectedTrainingForParticipants['Outside Agency name'] ||
+      selectedTrainingForParticipants.outside_agency_name ||
       '-';
 
-    const country = 
-      trainingFullDetails?.country_name || 
-      trainingFullDetails?.country || 
-      selectedTrainingForParticipants['Country'] || 
-      selectedTrainingForParticipants.country || 
+    const country =
+      trainingFullDetails?.country_name ||
+      trainingFullDetails?.country ||
+      selectedTrainingForParticipants['Country'] ||
+      selectedTrainingForParticipants.country ||
       'India';
 
-    const location = 
-      trainingFullDetails?.location || 
-      selectedTrainingForParticipants['Location'] || 
-      selectedTrainingForParticipants.location || 
+    const location =
+      trainingFullDetails?.location ||
+      selectedTrainingForParticipants['Location'] ||
+      selectedTrainingForParticipants.location ||
       '-';
 
     const expenditureInLakh = formatExpenditureInLakh(
-      trainingFullDetails?.expenditure ?? 
-      selectedTrainingForParticipants['Expenditure'] ?? 
-      selectedTrainingForParticipants['Expenditure (In Lakh)'] ?? 
+      trainingFullDetails?.expenditure ??
+      selectedTrainingForParticipants['Expenditure'] ??
+      selectedTrainingForParticipants['Expenditure (In Lakh)'] ??
       selectedTrainingForParticipants.expenditure
     );
 
@@ -629,12 +638,18 @@ export default function TrainingDetailView({
   selectedTrainingForParticipants?.NO_OF_PARTICIPANTS !== undefined
     ? getParticipantCount(selectedTrainingForParticipants)
     : getParticipantCount(trainingFullDetails);
+    const participantExport = {
+      rows: filteredParticipants, page: participantPage, size: participantPageSize, columns: participantExportColumns,
+      title: `${trainingTitle} - Participant Details`, fileName: `${trainingTitle.replace(/\s+/g, '_')}_Participants`,
+      label: 'Participants', busy: participantLoading,
+    };
+
     return (
       <div className="space-y-6 animate-fade-in text-slate-800 dark:text-slate-100 pb-6">
-        
+
         {/* ONE Combined Main Content Card for Training Data & Participant Details */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden flex flex-col">
-          
+
           {/* 1. Header Bar with Back Navigation */}
           <div className="p-5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center space-x-3.5">
@@ -703,7 +718,7 @@ export default function TrainingDetailView({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              
+
               {/* Training Type */}
               <div className="bg-white dark:bg-slate-800/80 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between">
                 <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
@@ -801,7 +816,7 @@ export default function TrainingDetailView({
 
           {/* 3. Participant Details Toolbar */}
           <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            
+
             {/* Left: Participant Details Heading & Show Entries */}
             <div className="flex flex-wrap items-center gap-3">
               <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-900 dark:text-slate-100 flex items-center gap-2">
@@ -831,7 +846,7 @@ export default function TrainingDetailView({
 
             {/* Right: Search, Column Visibility, Copy, Export */}
             <div className="flex flex-wrap items-center gap-2.5 justify-end">
-              
+
               {/* Search Input */}
               <div className="relative min-w-[200px] flex-1 sm:flex-initial">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
@@ -843,8 +858,8 @@ export default function TrainingDetailView({
                   className="w-full pl-9 pr-8 py-1.5 text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-slate-400 text-slate-800 dark:text-slate-200 shadow-sm"
                 />
                 {participantSearchTerm && (
-                  <button 
-                    onClick={() => setParticipantSearchTerm('')} 
+                  <button
+                    onClick={() => setParticipantSearchTerm('')}
                     className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
                   >
                     <X className="h-3.5 w-3.5" />
@@ -880,23 +895,16 @@ export default function TrainingDetailView({
               </div>
 
               {/* Copy Button */}
-              <CopyButton 
-                headers={participantExportHeaders} 
-                rows={participantExportRows} 
-                color="#0f417a" 
-                hoverBg="#f1f5f9" 
-                triggerNotification={triggerNotification}
-              />
+              <CopyButton onCopy={() => exportPage('copy', participantExport)} color="#0f417a" hoverBg="#f1f5f9" />
+
 
               {/* Export Dropdown */}
-              <ExportDropdown 
-                headers={participantExportHeaders} 
-                rows={participantExportRows} 
-                fileName={`${trainingTitle.replace(/\s+/g, '_')}_Participants`} 
-                title={`${trainingTitle} - Participant Details`}
-                color="#0f417a" 
-                hoverColor="#134e96" 
-                triggerNotification={triggerNotification}
+              <ExportDropdown
+                onExportExcel={() => exportPage('excel', participantExport)}
+                onExportPdf={() => exportPage('pdf', participantExport)}
+                color="#0f417a"
+                hoverColor="#134e96"
+                chevron
               />
 
             </div>
@@ -904,9 +912,10 @@ export default function TrainingDetailView({
           </div>
 
           {/* 4. Participant Dynamic Table Area */}
-          <div className="p-0 border-t border-slate-200 dark:border-slate-800">
+          <div className="ag-theme-quartz module-datalist-grid w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
             <Table
               rowData={filteredParticipants}
+              onPaginationChanged={trackPage(setParticipantPage)}
               columnDefs={activeParticipantColumnDefs}
               loading={participantLoading}
               pagination={true}
@@ -930,12 +939,18 @@ export default function TrainingDetailView({
   // -------------------------------------------------------------
   // VIEW 2: MAIN TRAINING DETAILS DYNAMIC TABLE VIEW (MATCHING SCREENSHOT)
   // -------------------------------------------------------------
+  const trainingExport = {
+    rows: filteredRows, page: trainingPage, size: pageSize, columns: trainingExportColumns,
+    title: `${organisationName} - Training Details`, fileName: `${organisationName.replace(/\s+/g, '_')}_Training_Details`,
+    label: 'Training details', busy: loading,
+  };
+
   return (
     <div className="space-y-6 animate-fade-in text-slate-800 dark:text-slate-100 pb-6">
-      
+
       {/* ONE Combined Main Content Card */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden flex flex-col">
-        
+
         {/* 1. Header Section */}
         <div className="p-5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center space-x-3.5">
@@ -998,7 +1013,7 @@ export default function TrainingDetailView({
 
         {/* 2. Action Toolbar */}
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          
+
           {/* Left: Show Entries, Total Count, and Collapsable Filter Button */}
           <div className="flex flex-wrap items-center gap-2.5">
             <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-sm select-none dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200">
@@ -1063,7 +1078,7 @@ export default function TrainingDetailView({
 
           {/* Right: Search, Column Visibility, Copy, Export */}
           <div className="flex flex-wrap items-center gap-2.5 justify-end">
-            
+
             {/* Search Input */}
             <div className="relative min-w-[200px] flex-1 sm:flex-initial">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
@@ -1075,8 +1090,8 @@ export default function TrainingDetailView({
                 className="w-full pl-9 pr-8 py-1.5 text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-slate-400 text-slate-800 dark:text-slate-200 shadow-sm"
               />
               {searchTerm && (
-                <button 
-                  onClick={() => setSearchTerm('')} 
+                <button
+                  onClick={() => setSearchTerm('')}
                   className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
                   <X className="h-3.5 w-3.5" />
@@ -1112,23 +1127,16 @@ export default function TrainingDetailView({
             </div>
 
             {/* Copy Button */}
-            <CopyButton 
-                headers={exportHeaders} 
-                rows={exportRows} 
-                color="#0f417a" 
-                hoverBg="#f1f5f9" 
-                triggerNotification={triggerNotification}
-            />
+            <CopyButton onCopy={() => exportPage('copy', trainingExport)} color="#0f417a" hoverBg="#f1f5f9" />
+
 
             {/* Export Dropdown */}
-            <ExportDropdown 
-              headers={exportHeaders} 
-              rows={exportRows} 
-              fileName={`${organisationName.replace(/\s+/g, '_')}_Training_Details`} 
-              title={`${organisationName} - Training Details`}
-              color="#0f417a" 
-              hoverColor="#134e96" 
-              triggerNotification={triggerNotification}
+            <ExportDropdown
+              onExportExcel={() => exportPage('excel', trainingExport)}
+              onExportPdf={() => exportPage('pdf', trainingExport)}
+              color="#0f417a"
+              hoverColor="#134e96"
+              chevron
             />
 
           </div>
@@ -1204,9 +1212,10 @@ export default function TrainingDetailView({
         )}
 
         {/* 4. ag-Grid Table Area */}
-        <div className="p-0 border-t border-slate-200 dark:border-slate-800">
+        <div className="ag-theme-quartz module-datalist-grid w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
           <Table
             rowData={filteredRows}
+            onPaginationChanged={trackPage(setTrainingPage)}
             columnDefs={activeColumnDefs}
             loading={loading}
             pagination={true}

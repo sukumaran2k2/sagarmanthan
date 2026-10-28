@@ -1,81 +1,65 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Building2, 
   FileText, 
   Calendar, 
-  Info,
   CheckCircle,
+  AlertCircle,
   Save,
   ArrowLeft,
-  ArrowRight,
   Check,
   Layers,
-  Star,
-  Clock,
-  DollarSign
+  Plus,
+  Minus,
+  Trash2,
+  RotateCcw,
+  Sparkles,
+  DollarSign,
+  Edit2,
+  Info,
+  X,
+  Upload,
+  Download
 } from 'lucide-react';
 import { 
-  fetchOrganisations, 
+  fetchOvdDropDownData,
+  fetchOvdAddData,
   saveOvdB2B3Action, 
-  updateOvdAction, 
+  updateOvdAction,
+  fetchOvdItemDetails,
+  updateOvdFullItem,
+  uploadOvdDocument,
+  fetchOvdDocuments,
   getUserIdFromToken 
 } from '../api';
 import { 
-  OVOD_WINGS, 
-  OVOD_VIBHAS, 
-  OVOD_PRIORITIES,
-  OVOD_STATUSES,
-  MIV_CHAPTERS,
-  MAKV_THEMES
+  CATEGORY_MAP,
+  WINGS_MAP,
+  PRIORITY_MAP,
+  VIBHAS_MAP,
+  OVOD_STATUSES
 } from '../utils/constants';
+import { useOvodStore } from '../store/useOvodStore';
+import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { OVOD_TOASTS } from '../toastMessages';
 
-const CATEGORIES = [
-  '--Select Category--',
-  'HR/Capacity Building',
-  'Institutional Reforms',
-  'Infrastructure',
-  'Process Improvement',
-  'Digital Transformation',
-  'Operations',
-  'Policy & Governance',
-  'Environmental & Green Ports',
-  'Other'
-];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const YEARS = ['2020', '2021', '2022', '2023', '2024', '2025', '2026', '2027', '2028', '2029', '2030'];
 
-const B2_STAGES = [
-  { id: 'general', title: 'General Details', subtitle: 'Agency & Alignments', icon: Layers },
-  { id: 'source', title: 'Source Document', subtitle: 'MIV, MAKV & SGoS', icon: FileText },
-  { id: 'timelines', title: 'Timelines', subtitle: 'Vision & Dates', icon: Calendar }
-];
-
-const B3_STAGES = [
-  { id: 'general', title: 'General & B3 Action', subtitle: 'Agency, B2 & B3', icon: Layers },
-  { id: 'source', title: 'Source & Status', subtitle: 'MIV, MAKV & Stage', icon: FileText },
-  { id: 'financials', title: 'Financials & Timelines', subtitle: 'Cost & Dates', icon: DollarSign }
-];
-
-const DEFAULT_ORGANISATIONS = [
-  { organisation_id: 1, organisation_name: "Indian Maritime University" },
-  { organisation_id: 2, organisation_name: "Jawaharlal Nehru Port Authority" },
-  { organisation_id: 3, organisation_name: "Deendayal Port Authority" },
-  { organisation_id: 4, organisation_name: "Paradip Port Authority" },
-  { organisation_id: 5, organisation_name: "Chennai Port Authority" },
-  { organisation_id: 6, organisation_name: "Cochin Port Authority" },
-  { organisation_id: 7, organisation_name: "Syama Prasad Mookerjee Port Kolkata" },
-  { organisation_id: 8, organisation_name: "Mumbai Port Authority" },
-  { organisation_id: 9, organisation_name: "Visakhapatnam Port Authority" },
-  { organisation_id: 10, organisation_name: "Mormugao Port Authority" },
-  { organisation_id: 11, organisation_name: "New Mangalore Port Authority" },
-  { organisation_id: 12, organisation_name: "V.O. Chidambaranar Port Authority" },
-  { organisation_id: 13, organisation_name: "Kamarajar Port Limited" },
-  { organisation_id: 14, organisation_name: "Inland Waterways Authority of India (IWAI)" },
-  { organisation_id: 15, organisation_name: "Directorate General of Shipping (DGS)" },
-  { organisation_id: 16, organisation_name: "Directorate General of Lighthouses and Lightships (DGLL)" },
-  { organisation_id: 17, organisation_name: "Indian Register of Shipping (IRS)" },
-  { organisation_id: 18, organisation_name: "Cochin Shipyard Limited (CSL)" },
-  { organisation_id: 19, organisation_name: "Shipping Corporation of India (SCI)" },
-  { organisation_id: 20, organisation_name: "Sagarmala Development Company Limited (SDCL)" },
-  { organisation_id: 21, organisation_name: "Indian Port Association (IPA)" }
+const DEFAULT_AGENCIES = [
+  { ia_id: 1, ia_name: "Chennai Port Authority" },
+  { ia_id: 2, ia_name: "Cochin Port Authority" },
+  { ia_id: 3, ia_name: "Deendayal Port Authority" },
+  { ia_id: 4, ia_name: "Jawaharlal Nehru Port Authority" },
+  { ia_id: 5, ia_name: "Kamarajar Port Limited" },
+  { ia_id: 6, ia_name: "Mormugao Port Authority" },
+  { ia_id: 7, ia_name: "Mumbai Port Authority" },
+  { ia_id: 8, ia_name: "New Mangalore Port Authority" },
+  { ia_id: 9, ia_name: "Paradip Port Authority" },
+  { ia_id: 10, ia_name: "Syama Prasad Mookerjee Port Kolkata" },
+  { ia_id: 11, ia_name: "V.O. Chidambaranar Port Authority" },
+  { ia_id: 12, ia_name: "Visakhapatnam Port Authority" }
 ];
 
 export default function InputForm({ 
@@ -84,1422 +68,2365 @@ export default function InputForm({
   onCancel, 
   triggerNotification 
 }) {
-  const [organisations, setOrganisations] = useState(DEFAULT_ORGANISATIONS);
+  // If editData is provided, render the dedicated "Update Initiative" form
+  if (editData) {
+    return (
+      <UpdateInitiativeView 
+        editData={editData}
+        onSuccess={onSuccess}
+        onCancel={onCancel}
+        triggerNotification={triggerNotification}
+      />
+    );
+  }
+
+  // Otherwise, render the "Add Initiative" form with cascading dropdowns
+  return (
+    <AddInitiativeView 
+      onSuccess={onSuccess}
+      onCancel={onCancel}
+      triggerNotification={triggerNotification}
+    />
+  );
+}
+
+// =========================================================================
+// ==================== UPDATE INITIATIVE VIEW (EDIT MODE) ==================
+// =========================================================================
+function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotification }) {
+  const notify = useNotifier(triggerNotification);
+  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  // Level Selector: 'B2' (Intervention) or 'B3' (Actionable Item) - moved inside form
-  const [level, setLevel] = useState('B2');
-
-  // Active Stage in the Wizard ('general' | 'source' | 'timelines' / 'financials')
-  const [activeStage, setActiveStage] = useState('general');
-
-  // Form State
+  // Form Fields
   const [formData, setFormData] = useState({
-    // General Details (B2 & B3)
-    organisation_id: '',
-    goal_a1: '',
-    intervention_a2: '',
-    action_a3: '',
-    goal_b1: '',
-    intervention_b2: '',
-    intervention_code_b2: '',
-    action_b3: '',
-    action_code_b3: '',
-    category: '--Select Category--',
-    wings: '0',
-    priority: '0',
-    vibhas: '0',
+    id: editData.id,
+    goal_a1_label: editData['Goal (A1)'] || editData.goal_a1 || '',
+    intervention_a2_label: editData['Intervention (A2)'] || editData.intervention_a2 || '',
+    goal_b1_label: editData['Goal (B1)'] || editData.goal_b1 || '',
+    intervention_b2_label: editData['Intervention (B2)'] || editData.intervention_b2 || '',
+    action_b3_label: editData['Action (B3)'] || editData.action_b3 || '',
+    
+    b2_id: editData.intervention_b2_id || editData.intervention_b2 || null,
+    b3_id: editData.action_b3_id || editData.action_b3 || null,
 
-    // Source Document & Status
-    is_miv_2030: 'No',
-    miv_chapter: '0',
-    is_makv_2047: 'No',
-    makv_theme: '0',
-    is_sgos_2: 'No',
-    is_additional_items: 'No',
-    is_gmis: 'No',
-    current_status: 'Implementation - On time',
-    remarks: '',
+    category_label: editData.Category || editData.category || '',
+    agency_label: editData.ia_name || editData.organisation_name || '',
+    wing_label: editData.Wing || editData.wings || '',
+    priority_label: editData.Priority || editData.priority || '',
+    vibhas_label: editData.Vibhas || editData.vibhas || '',
 
-    // Timelines & Financials
+    total_cost: editData.total_cost != null ? String(editData.total_cost) : '',
+    current_status: editData.current_status || 'Under Implementation - On Time',
+
+    // Output / Outcome
+    direct_emp_gen: '0',
+    indirect_emp_gen: '0',
+    direct_inv_created: '0',
+    indirect_inv_created: '0',
+    outcomes: '',
+    outcomes_remarks: '',
+
+    // Timelines
     timeline_vision: '',
     expected_completion_date: '',
-    total_cost: '',
-    fund_spent: '',
-    source_of_funding: 'Internal Resources',
-    progress: '0',
-    reason_delay: ''
+
+    // Others
+    feedback_ministry: '',
+    response_org: ''
   });
 
-  // Load Organisations
+  // Monthly Progress Logs State
+  const [progressLogs, setProgressLogs] = useState([
+    { id: 1, month: 'Mar', year: '2026', physical_progress: '100', financial_progress: '100' }
+  ]);
+
+  // Modal State for Edit (B2/B3)
+  const [showEditChoiceModal, setShowEditChoiceModal] = useState(false);
+  const [editTargetType, setEditTargetType] = useState('B3'); // 'B2' or 'B3'
+  const [showEditNameModal, setShowEditNameModal] = useState(false);
+  const [actionNameInput, setActionNameInput] = useState('');
+  const [updatingName, setUpdatingName] = useState(false);
+
+  // Document Upload State
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [showDocModal, setShowDocModal] = useState(false);
+  const [uploadedDocs, setUploadedDocs] = useState([]);
+  const [loadingDocs, setLoadingDocs] = useState(false);
+
+  // Load Full Details on Mount
   useEffect(() => {
-    fetchOrganisations()
+    if (!editData?.id) return;
+    setLoading(true);
+
+    fetchOvdItemDetails(editData.id)
       .then(res => {
-        const list = Array.isArray(res) && res.length > 0 ? res : (res?.data || []);
-        if (list.length > 0) {
-          setOrganisations(list);
-        } else {
-          setOrganisations(DEFAULT_ORGANISATIONS);
+        const row = res?.result?.[0] || {};
+        const logs = res?.progressLogResult || [];
+
+        setFormData(prev => ({
+          ...prev,
+          b2_id: row.intervention_b2 || prev.b2_id,
+          b3_id: row.action_b3 || prev.b3_id,
+          total_cost: row.total_cost != null ? String(row.total_cost) : prev.total_cost,
+          current_status: row.current_status || prev.current_status,
+          direct_emp_gen: row.direct_Emp_Gen != null ? String(row.direct_Emp_Gen) : '0',
+          indirect_emp_gen: row.inDirect_Emp_Gen != null ? String(row.inDirect_Emp_Gen) : '0',
+          direct_inv_created: row.direct_Inv_Created != null ? String(row.direct_Inv_Created) : '0',
+          indirect_inv_created: row.inDirect_Inv_Created != null ? String(row.inDirect_Inv_Created) : '0',
+          outcomes: row.outcomes || '',
+          outcomes_remarks: row.Outcomes_Remarks || '',
+          feedback_ministry: row.Feedback || '',
+          response_org: row.Response || '',
+          timeline_vision: row.target_date ? String(row.target_date).slice(0, 10) : '',
+          expected_completion_date: row.expected_date ? String(row.expected_date).slice(0, 10) : ''
+        }));
+
+        if (Array.isArray(logs) && logs.length > 0) {
+          const formattedLogs = logs.map((log, idx) => {
+            let m = 'Jan';
+            let y = '2026';
+            if (log.progress_date) {
+              const parts = String(log.progress_date).split('-');
+              if (parts.length >= 2) {
+                // If numeric month like 03-26 or name like Mar-2026
+                const monthNum = parseInt(parts[0], 10);
+                if (!isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
+                  m = MONTHS[monthNum - 1];
+                } else if (MONTHS.includes(parts[0])) {
+                  m = parts[0];
+                }
+                const yr = parts[1].length === 2 ? `20${parts[1]}` : parts[1];
+                if (YEARS.includes(yr)) y = yr;
+              }
+            }
+            return {
+              id: log.id || idx + 1,
+              month: m,
+              year: y,
+              physical_progress: log.physical_progress != null ? String(log.physical_progress) : '0',
+              financial_progress: log.financial_progress != null ? String(log.financial_progress) : '0'
+            };
+          });
+          setProgressLogs(formattedLogs);
         }
       })
-      .catch(() => setOrganisations(DEFAULT_ORGANISATIONS));
-  }, []);
-
-  // Populate editData if available
-  useEffect(() => {
-    if (editData) {
-      if (editData.action_b3) {
-        setLevel('B3');
-      }
-      setFormData({
-        organisation_id: editData.organisation_id || editData.org_id || '',
-        goal_a1: editData.goal_a1 || '',
-        intervention_a2: editData.intervention_a2 || '',
-        action_a3: editData.action_a3 || '',
-        goal_b1: editData.goal_b1 || '',
-        intervention_b2: editData.intervention_b2 || '',
-        intervention_code_b2: editData.intervention_code_b2 || editData.code_b2 || '',
-        action_b3: editData.action_b3 || '',
-        action_code_b3: editData.action_code_b3 || editData.code_b3 || '',
-        category: editData.category || editData.jobTitle || '--Select Category--',
-        wings: String(editData.wing_id || editData.wings || '0'),
-        priority: String(editData.priority_id || editData.priority || '0'),
-        vibhas: String(editData.vibhas_id || editData.vibhas || '0'),
-
-        is_miv_2030: editData.is_miv_2030 || 'No',
-        miv_chapter: String(editData.miv_chapter || '0'),
-        is_makv_2047: editData.is_makv_2047 || 'No',
-        makv_theme: String(editData.makv_theme || '0'),
-        is_sgos_2: editData.is_sgos_2 || 'No',
-        is_additional_items: editData.is_additional_items || 'No',
-        is_gmis: editData.is_gmis || 'No',
-        current_status: editData.current_status || 'Implementation - On time',
-        remarks: editData.remarks || editData.reason_delay || '',
-
-        timeline_vision: editData.target_date ? String(editData.target_date).slice(0, 10) : '',
-        expected_completion_date: editData.expected_date ? String(editData.expected_date).slice(0, 10) : '',
-        total_cost: editData.total_cost != null ? String(editData.total_cost) : '',
-        fund_spent: editData.fund_spent != null ? String(editData.fund_spent) : '',
-        source_of_funding: editData.source_of_funding || 'Internal Resources',
-        progress: editData.progress != null ? String(editData.progress) : '0',
-        reason_delay: editData.reason_delay || ''
-      });
-    }
+      .catch(err => {
+        console.error("Error loading initiative details:", err);
+      })
+      .finally(() => setLoading(false));
   }, [editData]);
 
-  // Track explicitly completed stages
-  const [completedStages, setCompletedStages] = useState({
-    general: false,
-    source: false,
-    timelines: false,
-    financials: false
-  });
-
-  // Current Stages Definition based on Level
-  const currentStages = useMemo(() => {
-    return level === 'B2' ? B2_STAGES : B3_STAGES;
-  }, [level]);
-
-  // Handle Input Change
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
+  // Handle Progress Log Row Add
+  const handleAddLogRow = () => {
+    setProgressLogs(prev => [
       ...prev,
-      [name]: value
-    }));
+      { id: Date.now(), month: 'Jan', year: '2026', physical_progress: '0', financial_progress: '0' }
+    ]);
   };
 
-  // Stage Navigation
-  const currentStageIndex = currentStages.findIndex(s => s.id === activeStage);
+  // Handle Progress Log Row Remove
+  const handleRemoveLogRow = (index) => {
+    if (progressLogs.length <= 1) return;
+    setProgressLogs(prev => prev.filter((_, idx) => idx !== index));
+  };
 
-  const handleNextStage = () => {
-    if (activeStage === 'general') {
-      if (!formData.organisation_id) {
-        triggerNotification?.("Please select an Implementing Agency before continuing", "error");
-        return;
+  // Handle Progress Log Row Change
+  const handleLogRowChange = (index, field, value) => {
+    setProgressLogs(prev => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], [field]: value };
+      return copy;
+    });
+  };
+
+  // Clear All Log Rows
+  const handleClearAllLogs = () => {
+    setProgressLogs([
+      { id: Date.now(), month: 'Jan', year: '2026', physical_progress: '0', financial_progress: '0' }
+    ]);
+  };
+
+  // Open Edit Name Modal
+  const handleOpenEditChoice = () => {
+    setShowEditChoiceModal(true);
+  };
+
+  const handleConfirmEditChoice = () => {
+    setShowEditChoiceModal(false);
+    if (editTargetType === 'B2') {
+      const currentB2 = formData.intervention_b2_label;
+      const cleanName = currentB2.includes(':') ? currentB2.split(':').slice(1).join(':').trim() : currentB2;
+      setActionNameInput(cleanName);
+    } else {
+      const currentB3 = formData.action_b3_label;
+      const cleanName = currentB3.includes(':') ? currentB3.split(':').slice(1).join(':').trim() : currentB3;
+      setActionNameInput(cleanName);
+    }
+    setShowEditNameModal(true);
+  };
+
+  // Submit Updated B2 or B3 Name
+  const handleSaveActionName = async () => {
+    if (!actionNameInput.trim()) return;
+    setUpdatingName(true);
+    try {
+      const payload = {
+        bType: editTargetType,
+        actionInput: actionNameInput.trim(),
+        b2Intervention: editTargetType === 'B2' ? formData.b2_id : undefined,
+        b3Actions: editTargetType === 'B3' ? formData.b3_id : undefined
+      };
+      await updateOvdAction(payload);
+      notify(OVOD_TOASTS.nameUpdated(editTargetType));
+
+      if (editTargetType === 'B2') {
+        const prefix = formData.intervention_b2_label.includes(':') 
+          ? formData.intervention_b2_label.split(':')[0].trim() 
+          : 'B2';
+        setFormData(prev => ({
+          ...prev,
+          intervention_b2_label: `${prefix} : ${actionNameInput.trim()}`
+        }));
+      } else {
+        const prefix = formData.action_b3_label.includes(':') 
+          ? formData.action_b3_label.split(':')[0].trim() 
+          : 'B3';
+        setFormData(prev => ({
+          ...prev,
+          action_b3_label: `${prefix} : ${actionNameInput.trim()}`
+        }));
       }
-      setCompletedStages(prev => ({ ...prev, general: true }));
-    } else if (activeStage === 'source') {
-      setCompletedStages(prev => ({ ...prev, source: true }));
-    }
-
-    if (currentStageIndex < currentStages.length - 1) {
-      setActiveStage(currentStages[currentStageIndex + 1].id);
-    }
-  };
-
-  const handlePrevStage = () => {
-    if (currentStageIndex > 0) {
-      setActiveStage(currentStages[currentStageIndex - 1].id);
+      setShowEditNameModal(false);
+    } catch (err) {
+      console.error("Error updating action name:", err);
+      notify(OVOD_TOASTS.nameUpdateFailed(editTargetType, getErrorMessage(err)));
+    } finally {
+      setUpdatingName(false);
     }
   };
 
-  // Submit Handler
-  const handleSubmit = async (e) => {
-    e?.preventDefault?.();
-
-    if (!formData.organisation_id) {
-      setActiveStage('general');
-      triggerNotification?.("Please select an Implementing Agency", "error");
-      return;
+  // View Uploaded Docs
+  const handleOpenDocsModal = async () => {
+    setShowDocModal(true);
+    setLoadingDocs(true);
+    try {
+      const docs = await fetchOvdDocuments(editData.id);
+      setUploadedDocs(Array.isArray(docs) ? docs : []);
+    } catch {
+      setUploadedDocs([]);
+    } finally {
+      setLoadingDocs(false);
     }
+  };
 
+  // Submit Update Initiative Form
+  const handleSubmitUpdate = async (e) => {
+    e.preventDefault();
     setSubmitting(true);
     try {
       const userId = getUserIdFromToken();
+      const latestLog = progressLogs[progressLogs.length - 1] || {};
+
       const payload = {
-        ...formData,
-        user_id: userId,
-        action_b3: level === 'B2' ? formData.intervention_b2 : formData.action_b3,
-        target_date: formData.timeline_vision,
-        expected_date: formData.expected_completion_date,
-        total_cost: parseFloat(formData.total_cost) || 0,
-        fund_spent: parseFloat(formData.fund_spent) || 0,
-        progress: parseInt(formData.progress, 10) || 0
+        ID: editData.id,
+        completedPercentage: parseInt(latestLog.physical_progress || 0, 10),
+        financialProgress: parseInt(latestLog.financial_progress || 0, 10),
+        directEmpGen: parseInt(formData.direct_emp_gen || 0, 10),
+        inDirectEmpGen: parseInt(formData.indirect_emp_gen || 0, 10),
+        directInvCreated: parseFloat(formData.direct_inv_created || 0),
+        inDirectInvCreated: parseFloat(formData.indirect_inv_created || 0),
+        totalCost: formData.total_cost ? parseFloat(formData.total_cost) : null,
+        statusCurrent: formData.current_status,
+        outcomes: formData.outcomes,
+        OutcomesRemarks: formData.outcomes_remarks,
+        Response: formData.response_org,
+        Feedback: formData.feedback_ministry,
+        completionDate: formData.timeline_vision || null,
+        actualDate: formData.expected_completion_date || null,
+        Delay: null,
+        reasonsForDrop: null,
+        ovodFinanceData: [],
+        ovodProgressLogData: progressLogs.map(log => ({
+          progressDate: `${log.month}-${log.year}`,
+          physicalProgress: log.physical_progress != null ? String(log.physical_progress) : '0',
+          financialProgress: log.financial_progress != null ? String(log.financial_progress) : '0',
+          progress_date: `${log.month}-${log.year}`,
+          physical_progress: parseInt(log.physical_progress || 0, 10),
+          financial_progress: parseInt(log.financial_progress || 0, 10)
+        })),
+        userID: userId
       };
 
-      if (editData && editData.id) {
-        await updateOvdAction(payload);
-        triggerNotification?.(`${level} item updated successfully`, "success");
-      } else {
-        await saveOvdB2B3Action(payload);
-        triggerNotification?.(`New ${level} item submitted successfully`, "success");
+      await updateOvdFullItem(payload);
+
+      // The initiative is saved at this point; report an upload failure separately so the
+      // user isn't told the whole update failed
+      if (selectedFile) {
+        const docFormData = new FormData();
+        docFormData.append('file', selectedFile);
+        docFormData.append('ID', editData.id);
+        try {
+          await uploadOvdDocument(docFormData);
+        } catch (uploadErr) {
+          console.error("Error uploading initiative document:", uploadErr);
+          notify(OVOD_TOASTS.documentUploadFailed(getErrorMessage(uploadErr)));
+          if (onSuccess) onSuccess();
+          return;
+        }
       }
 
-      onSuccess ? onSuccess() : null;
+      notify(OVOD_TOASTS.updated());
+      if (onSuccess) onSuccess();
     } catch (err) {
-      console.error("OVOD Form submit error:", err);
-      triggerNotification?.(err.message || "Failed to submit item", "error");
+      console.error("Error updating initiative:", err);
+      notify(OVOD_TOASTS.updateFailed(getErrorMessage(err)));
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Dynamic Title based on Level
-  const formTitle = useMemo(() => {
-    if (editData) {
-      return level === 'B2' ? 'Edit Initiative (B2)' : 'Edit Actionable Item (B3)';
-    }
-    return level === 'B2' ? 'Add Initiative' : 'Add Actionable Item (B3)';
-  }, [editData, level]);
-
   return (
-    <div className="w-full space-y-6 select-none animate-fade-in text-slate-800 dark:text-slate-100 pb-12">
+    <div className="w-full space-y-6 text-slate-800 dark:text-slate-100 pb-12 animate-fade-in font-sans">
       
-      {/* Main Full-Width Card Container */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden w-full">
+      {/* Form Container */}
+      <div className="module-form-card">
         
-        {/* Navy Gradient Header Banner */}
-        <div className="relative bg-gradient-to-r from-[#0f417a] via-[#155ca2] to-[#0f417a] p-5 md:p-6 text-white overflow-hidden">
-          <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-6 min-h-[80px]">
-            
-            {/* Left Side: Title & Radio Selector below Title */}
-            <div className="space-y-2.5 z-10">
+        <div className="module-form-banner">
+          <div>
+            <h3 className="module-form-banner-title">Update Initiative</h3>
+            <p className="module-form-banner-subtext">Ministry of Ports, Shipping and Waterways</p>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmitUpdate} className="px-6 md:px-8 pt-6 md:pt-8 space-y-8">
+          
+          {/* ========================================================================= */}
+          {/* ======================= SECTION 1: GENERAL DETAILS ====================== */}
+          {/* ========================================================================= */}
+          <div className="space-y-4">
+            <div className="module-form-section-header">
+              <h2 className="module-form-section-heading">
+                General Details
+              </h2>
+              
+              {/* Edit (B2/B3) Button */}
+              <button
+                type="button"
+                onClick={handleOpenEditChoice}
+                className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#2563eb] hover:bg-blue-700 text-white text-xs font-bold rounded shadow-xs transition cursor-pointer"
+              >
+                <Edit2 size={12} />
+                <span>Edit (B2/B3)</span>
+              </button>
+            </div>
+
+            {/* Row 1: National Level Goal A1 & Intervention A2 */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <h2 className="text-lg md:text-xl font-black tracking-wide uppercase font-display text-white">
-                  {formTitle}
-                </h2>
-                <p className="text-[11px] text-blue-100/80 font-medium mt-0.5">
-                  Drishti Portal (Ministry View)
-                </p>
+                <label className="module-form-label">
+                  National Level Goal (A1)<span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.goal_a1_label}
+                  readOnly
+                  disabled
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
+                />
               </div>
 
-              {/* Radio Selector Directly Below Title */}
-              <div className="flex flex-wrap items-center gap-2 pt-0.5">
-                <span className="text-[11px] font-black uppercase tracking-wider text-blue-100">
-                  Level:
-                </span>
-                <div className="inline-flex items-center space-x-3 bg-white/15 backdrop-blur-md px-3 py-1 rounded-xl border border-white/20 shadow-xs">
-                  <label className="inline-flex items-center space-x-1.5 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="level_selector"
-                      value="B2"
-                      checked={level === 'B2'}
-                      onChange={() => {
-                        setLevel('B2');
-                        setActiveStage('general');
-                        setCompletedStages({ general: false, source: false, timelines: false, financials: false });
-                      }}
-                      className="h-3.5 w-3.5 text-[#0f417a] accent-white cursor-pointer"
-                    />
-                    <span className={`text-xs font-bold ${level === 'B2' ? 'text-white font-black' : 'text-blue-100/70'}`}>
-                      Intervention (B2)
-                    </span>
-                  </label>
-
-                  <label className="inline-flex items-center space-x-1.5 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="level_selector"
-                      value="B3"
-                      checked={level === 'B3'}
-                      onChange={() => {
-                        setLevel('B3');
-                        setActiveStage('general');
-                        setCompletedStages({ general: false, source: false, timelines: false, financials: false });
-                      }}
-                      className="h-3.5 w-3.5 text-[#0f417a] accent-white cursor-pointer"
-                    />
-                    <span className={`text-xs font-bold ${level === 'B3' ? 'text-white font-black' : 'text-blue-100/70'}`}>
-                      Actionable Item (B3)
-                    </span>
-                  </label>
-                </div>
+              <div>
+                <label className="module-form-label">
+                  National Level Intervention (A2)<span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.intervention_a2_label}
+                  readOnly
+                  disabled
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
+                />
               </div>
             </div>
 
-            {/* Center: Mathematically Centered Connected Progress Stepper */}
-            <div className="w-full max-w-md lg:max-w-lg lg:absolute lg:left-1/2 lg:-translate-x-1/2 lg:top-1/2 lg:-translate-y-1/2 z-10 flex justify-center py-2 lg:py-0">
-              <div className="w-full">
-                <div className="relative flex items-center justify-between px-2">
-                  
-                  {/* Background Track Line */}
-                  <div className="absolute top-[14px] md:top-[16px] left-[15%] right-[15%] h-1 bg-white/20 rounded-full -translate-y-1/2 z-0" />
-                  
-                  {/* Active Green Progress Line */}
-                  <div
-                    className="absolute top-[14px] md:top-[16px] left-[15%] h-1 bg-emerald-400 rounded-full -translate-y-1/2 z-0 transition-all duration-500 ease-out"
-                    style={{
-                      width: `${(currentStageIndex / (currentStages.length - 1)) * 70}%`
-                    }}
+            {/* Row 2: Goal B1 & Intervention B2 */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="module-form-label">
+                  Goal (B1)<span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.goal_b1_label}
+                  readOnly
+                  disabled
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
+                />
+              </div>
+
+              <div>
+                <label className="module-form-label">
+                  Intervention (B2)<span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.intervention_b2_label}
+                  readOnly
+                  disabled
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
+                />
+              </div>
+            </div>
+
+            {/* Row 3: Actionable Item (B3) */}
+            <div>
+              <label className="module-form-label">
+                Actionable Item (B3)<span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.action_b3_label}
+                readOnly
+                disabled
+                className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
+              />
+            </div>
+
+            {/* Row 4: Category, Total Cost, Implementing Agency, Wing */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-center">
+              <div>
+                <label className="module-form-label">
+                  Category<span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.category_label}
+                  readOnly
+                  disabled
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
+                />
+              </div>
+
+              <div>
+                <label className="module-form-label">
+                  Total Cost (In. Cr)
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="0.01"
+                    name="total_cost"
+                    value={formData.total_cost}
+                    onChange={(e) => setFormData(prev => ({ ...prev, total_cost: e.target.value }))}
+                    placeholder="Enter cost..."
+                    className="w-full text-xs px-3.5 py-2.5 pr-8 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 font-semibold focus:ring-1 focus:ring-blue-500"
                   />
+                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-amber-500" title="Cost in Crores">
+                    <Info size={14} />
+                  </div>
+                </div>
+              </div>
 
-                  {/* Step Nodes Grid */}
-                  <div className="relative z-10 w-full grid grid-cols-3 items-start">
-                    {currentStages.map((stage, idx) => {
-                      const isActive = activeStage === stage.id;
-                      const isCompleted = (completedStages[stage.id] || idx < currentStageIndex) && !isActive;
+              <div>
+                <label className="module-form-label">
+                  Implementing Agency<span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.agency_label}
+                  readOnly
+                  disabled
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
+                />
+              </div>
 
-                      return (
-                        <div
-                          key={stage.id}
-                          onClick={() => {
-                            // Allow clicking visited/completed stages or current
-                            if (isCompleted || idx <= currentStageIndex) {
-                              setActiveStage(stage.id);
-                            }
-                          }}
-                          className="flex flex-col items-center text-center cursor-pointer group px-1"
-                        >
-                          {/* Circular Number Node */}
-                          <div
-                            className={`w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center font-black text-xs transition-all duration-300 shadow-md ${
-                              isCompleted
-                                ? 'bg-emerald-500 text-white shadow-emerald-900/30 hover:bg-emerald-400 hover:scale-105'
-                                : isActive
-                                ? 'bg-white text-[#0f417a] ring-4 ring-emerald-400/60 scale-110 shadow-lg'
-                                : 'bg-white/15 text-white/50 border border-white/20 backdrop-blur-md hover:bg-white/25 hover:text-white'
-                            }`}
-                          >
-                            {isCompleted ? (
-                              <Check className="h-3.5 w-3.5 stroke-[3]" />
-                            ) : (
-                              idx + 1
-                            )}
+              <div>
+                <label className="module-form-label">
+                  Wing<span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.wing_label}
+                  readOnly
+                  disabled
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
+                />
+              </div>
+            </div>
+
+            {/* Row 5: Priority & Vibhas */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="module-form-label">
+                  Priority<span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.priority_label}
+                  readOnly
+                  disabled
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
+                />
+              </div>
+
+              <div>
+                <label className="module-form-label">
+                  Vibhas/ Navic<span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.vibhas_label}
+                  readOnly
+                  disabled
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
+                />
+              </div>
+            </div>
+
+          </div>
+
+          {/* ========================================================================= */}
+          {/* ============================ SECTION 2: STATUS ========================== */}
+          {/* ========================================================================= */}
+          <div className="space-y-4">
+            <div className="module-form-section-header">
+              <h2 className="module-form-section-heading">
+                Status
+              </h2>
+            </div>
+
+            <div>
+              <label className="module-form-label">
+                Current Status<span className="text-rose-500">*</span>
+              </label>
+              <div className="relative">
+                <select
+                  name="current_status"
+                  value={formData.current_status}
+                  onChange={(e) => setFormData(prev => ({ ...prev, current_status: e.target.value }))}
+                  required
+                  className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-emerald-500 dark:border-emerald-500 pr-10 font-semibold focus:ring-1 focus:ring-emerald-500"
+                >
+                  <option value="">--Select Status--</option>
+                  {OVOD_STATUSES.filter(s => s.id !== '0').map(s => (
+                    <option key={s.id} value={s.id}>{s.label}</option>
+                  ))}
+                </select>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                  <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ========================================================================= */}
+          {/* ==================== SECTION 3: MONTHLY PROGRESS LOGS =================== */}
+          {/* ========================================================================= */}
+          <div className="space-y-3">
+            <div className="module-form-section-header">
+              <h2 className="module-form-section-heading">
+                Monthly Progress Logs
+              </h2>
+              <button
+                type="button"
+                onClick={handleClearAllLogs}
+                className="bg-[#dc2626] hover:bg-rose-700 text-white px-4 py-1 text-xs font-bold rounded shadow-xs transition-colors cursor-pointer"
+              >
+                Clear All Rows
+              </button>
+            </div>
+
+            <div className="border border-slate-200 dark:border-slate-800 rounded overflow-hidden shadow-xs">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-[#154b8a] text-white">
+                  <tr>
+                    <th className="py-2.5 px-4 text-center font-bold border-r border-blue-900/40 w-1/3">Month & Year (MM-YY)</th>
+                    <th className="py-2.5 px-4 text-center font-bold border-r border-blue-900/40 w-1/3">Physical Progress</th>
+                    <th className="py-2.5 px-4 text-center font-bold border-r border-blue-900/40 w-1/4">Financial Progress (%)</th>
+                    <th className="py-2.5 px-3 text-center font-bold w-20">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                  {progressLogs.map((log, index) => (
+                    <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                      
+                      {/* Month & Year */}
+                      <td className="py-2 px-3 border-r border-slate-200 dark:border-slate-800">
+                        <div className="flex items-center gap-2">
+                          <div className="relative flex-1">
+                            <select
+                              value={log.month}
+                              onChange={(e) => handleLogRowChange(index, 'month', e.target.value)}
+                              className="w-full text-xs px-2.5 py-1.5 bg-white dark:bg-slate-950 rounded border border-emerald-500 pr-7 font-semibold"
+                            >
+                              {MONTHS.map(m => (
+                                <option key={m} value={m}>{m}</option>
+                              ))}
+                            </select>
+                            <CheckCircle className="h-3.5 w-3.5 text-emerald-600 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
                           </div>
 
-                          {/* Step Label */}
-                          <div className="mt-1.5 flex flex-col items-center">
-                            <span className={`text-[10px] md:text-[11px] font-bold tracking-tight leading-tight transition-colors truncate max-w-[120px] sm:max-w-none ${
-                              isActive
-                                ? 'text-white font-black drop-shadow-sm'
-                                : isCompleted
-                                ? 'text-emerald-200 font-semibold'
-                                : 'text-blue-100/60 font-medium'
-                            }`}>
-                              {stage.title}
-                            </span>
+                          <div className="relative flex-1">
+                            <select
+                              value={log.year}
+                              onChange={(e) => handleLogRowChange(index, 'year', e.target.value)}
+                              className="w-full text-xs px-2.5 py-1.5 bg-white dark:bg-slate-950 rounded border border-emerald-500 pr-7 font-semibold"
+                            >
+                              {YEARS.map(y => (
+                                <option key={y} value={y}>{y}</option>
+                              ))}
+                            </select>
+                            <CheckCircle className="h-3.5 w-3.5 text-emerald-600 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
+                      </td>
 
+                      {/* Physical Progress */}
+                      <td className="py-2 px-3 border-r border-slate-200 dark:border-slate-800">
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={log.physical_progress}
+                            onChange={(e) => handleLogRowChange(index, 'physical_progress', e.target.value)}
+                            className="w-full text-xs px-3 py-1.5 bg-white dark:bg-slate-950 rounded border border-emerald-500 pr-8 font-semibold text-center"
+                          />
+                          <CheckCircle className="h-3.5 w-3.5 text-emerald-600 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        </div>
+                      </td>
+
+                      {/* Financial Progress */}
+                      <td className="py-2 px-3 border-r border-slate-200 dark:border-slate-800">
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={log.financial_progress}
+                            onChange={(e) => handleLogRowChange(index, 'financial_progress', e.target.value)}
+                            className="w-full text-xs px-3 py-1.5 bg-white dark:bg-slate-950 rounded border border-emerald-500 pr-8 font-semibold text-center"
+                          />
+                          <CheckCircle className="h-3.5 w-3.5 text-emerald-600 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        </div>
+                      </td>
+
+                      {/* Actions */}
+                      <td className="py-2 px-3 text-center">
+                        <div className="flex items-center justify-center space-x-2">
+                          {progressLogs.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveLogRow(index)}
+                              title="Delete row"
+                              className="text-rose-500 hover:text-rose-700 transition cursor-pointer p-0.5"
+                            >
+                              <div className="w-5 h-5 rounded-full border border-rose-500 flex items-center justify-center">
+                                <Minus size={12} className="stroke-[2.5]" />
+                              </div>
+                            </button>
+                          )}
+
+                          {index === progressLogs.length - 1 && (
+                            <button
+                              type="button"
+                              onClick={handleAddLogRow}
+                              title="Add new progress log row"
+                              className="text-slate-600 hover:text-blue-600 transition cursor-pointer p-0.5"
+                            >
+                              <div className="w-5 h-5 rounded-full border border-slate-500 flex items-center justify-center">
+                                <Plus size={12} className="stroke-[2.5]" />
+                              </div>
+                            </button>
+                          )}
+                        </div>
+                      </td>
+
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* ========================================================================= */}
+          {/* ======================= SECTION 4: OUTPUT / OUTCOME ===================== */}
+          {/* ========================================================================= */}
+          <div className="space-y-4">
+            <div className="module-form-section-header">
+              <h2 className="module-form-section-heading">
+                Output / Outcome
+              </h2>
+            </div>
+
+            {/* Row 1: Direct & Indirect Employment Generated */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="module-form-label">
+                  Direct Employment Generated (No. Of People)<span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    value={formData.direct_emp_gen}
+                    onChange={(e) => setFormData(prev => ({ ...prev, direct_emp_gen: e.target.value }))}
+                    className="w-full text-xs px-3.5 py-2 bg-white dark:bg-slate-950 rounded border border-emerald-500 pr-8 font-semibold"
+                  />
+                  <CheckCircle className="h-4 w-4 text-emerald-600 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+              </div>
+
+              <div>
+                <label className="module-form-label">
+                  Indirect Employment Generated (No. Of People)<span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    value={formData.indirect_emp_gen}
+                    onChange={(e) => setFormData(prev => ({ ...prev, indirect_emp_gen: e.target.value }))}
+                    className="w-full text-xs px-3.5 py-2 bg-white dark:bg-slate-950 rounded border border-emerald-500 pr-8 font-semibold"
+                  />
+                  <CheckCircle className="h-4 w-4 text-emerald-600 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 </div>
               </div>
             </div>
 
-            {/* Right Side: Stage Indicator Pill */}
-            <div className="hidden lg:flex justify-end items-center z-10">
-              <span className="text-[11px] font-black px-3.5 py-1.5 rounded-full bg-white/15 border border-white/20 text-white font-mono tracking-wider shadow-sm">
-                Stage {currentStageIndex + 1} of {currentStages.length}
+            {/* Row 2: Direct & Indirect Investment Created */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="module-form-label">
+                  Direct Investment Created (In Cr.)<span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.direct_inv_created}
+                    onChange={(e) => setFormData(prev => ({ ...prev, direct_inv_created: e.target.value }))}
+                    className="w-full text-xs px-3.5 py-2 bg-white dark:bg-slate-950 rounded border border-emerald-500 pr-8 font-semibold"
+                  />
+                  <CheckCircle className="h-4 w-4 text-emerald-600 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+              </div>
+
+              <div>
+                <label className="module-form-label">
+                  Indirect Investment Created (In Cr.)<span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.indirect_inv_created}
+                    onChange={(e) => setFormData(prev => ({ ...prev, indirect_inv_created: e.target.value }))}
+                    className="w-full text-xs px-3.5 py-2 bg-white dark:bg-slate-950 rounded border border-emerald-500 pr-8 font-semibold"
+                  />
+                  <CheckCircle className="h-4 w-4 text-emerald-600 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+              </div>
+            </div>
+
+            {/* Row 3: Output / Outcome Textareas */}
+            <div className="space-y-3">
+              <div>
+                <label className="module-form-label leading-snug">
+                  Output / Outcome Of The Completed Initiative (Example : Reduction in turn-around time (hours), capacity created (MTPA), beneficiaries impacted (Number), Infrastructure Developed (road / rail with length in kilometres), etc.)
+                </label>
+                <textarea
+                  rows={3}
+                  value={formData.outcomes}
+                  onChange={(e) => setFormData(prev => ({ ...prev, outcomes: e.target.value }))}
+                  placeholder="Enter outcome description..."
+                  className="w-full text-xs p-3 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="module-form-label">
+                  Output/Outcomes (Remarks)
+                </label>
+                <textarea
+                  rows={3}
+                  value={formData.outcomes_remarks}
+                  onChange={(e) => setFormData(prev => ({ ...prev, outcomes_remarks: e.target.value }))}
+                  placeholder="Enter remarks..."
+                  className="w-full text-xs p-3 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+          </div>
+
+          {/* ========================================================================= */}
+          {/* ========================== SECTION 5: TIMELINES ========================= */}
+          {/* ========================================================================= */}
+          <div className="space-y-4">
+            <div className="module-form-section-header">
+              <h2 className="module-form-section-heading">
+                Timelines
+              </h2>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="module-form-label">
+                  Timeline As Per Vision Document
+                </label>
+                <input
+                  type="text"
+                  value={formData.timeline_vision}
+                  readOnly
+                  disabled
+                  placeholder="Auto populated"
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
+                />
+              </div>
+
+              <div>
+                <label className="module-form-label">
+                  Expected/Actual Date Of Completion
+                </label>
+                <input
+                  type="date"
+                  value={formData.expected_completion_date}
+                  onChange={(e) => setFormData(prev => ({ ...prev, expected_completion_date: e.target.value }))}
+                  className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 font-semibold focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* ========================================================================= */}
+          {/* ============================ SECTION 6: OTHERS ========================== */}
+          {/* ========================================================================= */}
+          <div className="space-y-4">
+            <div className="module-form-section-header">
+              <h2 className="module-form-section-heading">
+                Others
+              </h2>
+              <button
+                type="button"
+                onClick={handleOpenDocsModal}
+                className="bg-[#2563eb] hover:bg-blue-700 text-white px-3.5 py-1 text-xs font-bold rounded shadow-xs transition cursor-pointer"
+              >
+                View Uploaded Documents
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="module-form-label">
+                  Feedback By Ministry
+                </label>
+                <textarea
+                  rows={3}
+                  value={formData.feedback_ministry}
+                  onChange={(e) => setFormData(prev => ({ ...prev, feedback_ministry: e.target.value }))}
+                  placeholder="Enter ministry feedback..."
+                  className="w-full text-xs p-3 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="module-form-label">
+                  Remarks/Response By Organisation
+                </label>
+                <div className="relative">
+                  <textarea
+                    rows={3}
+                    value={formData.response_org}
+                    onChange={(e) => setFormData(prev => ({ ...prev, response_org: e.target.value }))}
+                    placeholder="Enter organisation response..."
+                    className="w-full text-xs p-3 bg-white dark:bg-slate-950 rounded border border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                  />
+                  <CheckCircle className="h-4 w-4 text-emerald-600 absolute right-3 bottom-3 pointer-events-none" />
+                </div>
+              </div>
+            </div>
+
+            {/* File Upload */}
+            <div>
+              <label className="module-form-label">
+                Recent Executive Summary & PPT Of Initiative(If Any)
+              </label>
+              <input
+                type="file"
+                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200"
+              />
+              <span className="text-[10px] text-slate-400 mt-0.5 block">
+                (Maximum file size is 5MB)
               </span>
             </div>
 
           </div>
+
+          {/* Bottom Actions Bar */}
+          <div className="flex items-center justify-end space-x-3 pt-6 border-t border-slate-200 dark:border-slate-800">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="px-6 py-2 text-xs font-bold text-white bg-[#16a34a] hover:bg-emerald-700 rounded shadow-sm transition cursor-pointer disabled:opacity-50"
+            >
+              {submitting ? "Updating..." : "Update"}
+            </button>
+
+            <button
+              type="button"
+              onClick={onCancel}
+              className="px-6 py-2 text-xs font-bold text-white bg-[#dc2626] hover:bg-rose-700 rounded shadow-sm transition cursor-pointer"
+            >
+              Exit
+            </button>
+          </div>
+
+        </form>
+
+        {/* Footer Note */}
+        <div className="px-6 md:px-8 pb-6 md:pb-8 pt-8 text-center text-[10px] text-slate-400 dark:text-slate-500">
+          Copyright © 2025 Ministry of Ports, Shipping and Waterways, Government of India, All Rights Reserved
         </div>
 
-        {/* Form Body Container */}
-        <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-6 w-full">
-          
-          {/* ========================================================================= */}
-          {/* ============================= B2 FORM STAGES ============================ */}
-          {/* ========================================================================= */}
+      </div>
 
-          {level === 'B2' && (
-            <>
-              {/* B2 - STAGE 1: GENERAL DETAILS */}
-              {activeStage === 'general' && (
-                <div className="space-y-5 animate-fade-in">
-                  
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center space-x-2">
-                      <Layers className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
-                      <h3 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
-                        Stage 1: General Details & Intervention Alignment
-                      </h3>
-                    </div>
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400 italic">
-                      Note: While adding a new B2, you also need to enter at least one B3 along with it.
-                    </span>
-                  </div>
+      {/* ========================================================================= */}
+      {/* ================= MODAL 1: SELECT B2 OR B3 TO EDIT ======================= */}
+      {/* ========================================================================= */}
+      {showEditChoiceModal && createPortal(
+        <div 
+          className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 animate-fade-in"
+          onClick={() => setShowEditChoiceModal(false)}
+        >
+          <div 
+            className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl animate-scale-up overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-black text-slate-800 dark:text-slate-100">
+                  Select Intervention(B2) / Actionable Item(B3) To Edit
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Choose which level you want to modify
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEditChoiceModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
 
-                  {/* Implementing Agency */}
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                      Implementing Agency <span className="text-rose-500">*</span>
-                    </label>
-                    <select
-                      name="organisation_id"
-                      value={formData.organisation_id}
-                      onChange={handleChange}
-                      required
-                      className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                    >
-                      <option value="">--Select Implementing Agency--</option>
-                      {organisations.map(o => (
-                        <option key={o.organisation_id} value={o.organisation_id}>{o.organisation_name}</option>
-                      ))}
-                    </select>
-                  </div>
+            {/* Radio Selection */}
+            <div className="px-5 py-6">
+              <div className="flex items-center justify-center space-x-12">
+                <label className="inline-flex items-center space-x-2.5 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="editTarget"
+                    value="B2"
+                    checked={editTargetType === 'B2'}
+                    onChange={() => setEditTargetType('B2')}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  />
+                  <span className="text-sm font-bold text-slate-800 dark:text-slate-200">Intervention (B2)</span>
+                </label>
 
-                  {/* National Goal A1 & Intervention A2 */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        National Level Goal (A1) <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        name="goal_a1"
-                        placeholder="--Select Goal Name--"
-                        value={formData.goal_a1}
-                        onChange={handleChange}
-                        required
-                        className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
+                <label className="inline-flex items-center space-x-2.5 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="editTarget"
+                    value="B3"
+                    checked={editTargetType === 'B3'}
+                    onChange={() => setEditTargetType('B3')}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  />
+                  <span className="text-sm font-bold text-slate-800 dark:text-slate-200">Actionable Item (B3)</span>
+                </label>
+              </div>
+            </div>
 
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        National Level Intervention (A2) <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        name="intervention_a2"
-                        placeholder="--Select Intervention Name--"
-                        value={formData.intervention_a2}
-                        onChange={handleChange}
-                        required
-                        className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
+            {/* Footer */}
+            <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2 bg-slate-50/60 dark:bg-slate-950/40">
+              <button
+                type="button"
+                onClick={() => setShowEditChoiceModal(false)}
+                className="px-3.5 py-2 text-xs font-bold rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmEditChoice}
+                className="px-4 py-2 text-xs font-bold rounded-lg bg-[#2563eb] hover:bg-blue-700 text-white shadow-xs transition cursor-pointer"
+              >
+                Submit
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
-                  {/* Goal B1, Intervention B2, Intervention Code B2 */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Goal (B1) <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        name="goal_b1"
-                        placeholder="--Select Intervention Name--"
-                        value={formData.goal_b1}
-                        onChange={handleChange}
-                        required
-                        className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
+      {/* ========================================================================= */}
+      {/* ================= MODAL 2: UPDATE ACTION NAME (B2 / B3) ================= */}
+      {/* ========================================================================= */}
+      {showEditNameModal && createPortal(
+        <div 
+          className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 animate-fade-in"
+          onClick={() => !updatingName && setShowEditNameModal(false)}
+        >
+          <div 
+            className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl animate-scale-up overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-black text-slate-800 dark:text-slate-100">
+                  Update Action Name
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Enter new name for {editTargetType === 'B2' ? 'Intervention (B2)' : 'Actionable Item (B3)'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEditNameModal(false)}
+                disabled={updatingName}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
 
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Intervention (B2) <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        name="intervention_b2"
-                        placeholder="Enter Intervention (B2)..."
-                        value={formData.intervention_b2}
-                        onChange={handleChange}
-                        required
-                        className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
+            {/* Input Form Body */}
+            <div className="px-5 py-4 space-y-3">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                {editTargetType === 'B2' ? 'Enter Intervention Name (B2)' : 'Enter Action Name (B3)'}
+              </label>
+              <div className="relative">
+                <textarea
+                  rows={3}
+                  value={actionNameInput}
+                  onChange={(e) => setActionNameInput(e.target.value)}
+                  placeholder={`Enter ${editTargetType} name...`}
+                  disabled={updatingName}
+                  className="w-full text-xs p-3 bg-white dark:bg-slate-950 rounded-xl border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium resize-none"
+                />
+                {actionNameInput.trim() && (
+                  <CheckCircle className="h-4 w-4 text-emerald-600 absolute right-3 bottom-3 pointer-events-none" />
+                )}
+              </div>
+            </div>
 
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Intervention Code (B2) <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        name="intervention_code_b2"
-                        placeholder="e.g. E-CB-1.1"
-                        value={formData.intervention_code_b2}
-                        onChange={handleChange}
-                        required
-                        className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
+            {/* Footer Buttons */}
+            <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2 bg-slate-50/60 dark:bg-slate-950/40">
+              <button
+                type="button"
+                onClick={() => setShowEditNameModal(false)}
+                disabled={updatingName}
+                className="px-3.5 py-2 text-xs font-bold rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-60 transition cursor-pointer"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveActionName}
+                disabled={updatingName || !actionNameInput.trim()}
+                className="px-4 py-2 text-xs font-bold rounded-lg bg-[#16a34a] hover:bg-emerald-700 text-white disabled:opacity-50 transition shadow-xs cursor-pointer"
+              >
+                {updatingName ? 'Updating...' : 'Update'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
-                  {/* Category, Wings, Priority, Vibhas/Navic */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Category <span className="text-rose-500">*</span>
-                      </label>
-                      <select
-                        name="category"
-                        value={formData.category}
-                        onChange={handleChange}
-                        className="w-full text-xs px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
+      {/* ========================================================================= */}
+      {/* ===================== MODAL 3: VIEW UPLOADED DOCUMENTS ================== */}
+      {/* ========================================================================= */}
+      {showDocModal && createPortal(
+        <div 
+          className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 animate-fade-in"
+          onClick={() => setShowDocModal(false)}
+        >
+          <div 
+            className="w-full max-w-lg rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl animate-scale-up overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-black text-slate-800 dark:text-slate-100">
+                  Uploaded Documents
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Supporting files and presentations for this initiative
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDocModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="px-5 py-4 max-h-80 overflow-y-auto">
+              {loadingDocs ? (
+                <div className="py-8 text-center text-xs text-slate-400">Loading documents...</div>
+              ) : uploadedDocs.length === 0 ? (
+                <div className="py-8 text-center text-xs text-slate-400 italic">No documents uploaded for this initiative yet.</div>
+              ) : (
+                <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {uploadedDocs.map(doc => (
+                    <li key={doc.id || doc.doc_name} className="py-2.5 flex items-center justify-between text-xs">
+                      <span className="font-medium text-slate-800 dark:text-slate-200 truncate max-w-[280px]">
+                        {doc.doc_name || 'Document'}
+                      </span>
+                      <a
+                        href={`http://localhost:3000/download-intervention-document/${doc.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-2.5 py-1 text-xs font-bold bg-[#2563eb] hover:bg-blue-700 text-white rounded-lg flex items-center gap-1 transition"
                       >
-                        {CATEGORIES.map(c => (
-                          <option key={c} value={c}>{c}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Wings <span className="text-rose-500">*</span>
-                      </label>
-                      <select
-                        name="wings"
-                        value={formData.wings}
-                        onChange={handleChange}
-                        className="w-full text-xs px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                      >
-                        <option value="0">--Select Wing--</option>
-                        {OVOD_WINGS.filter(w => w.id !== '0').map(w => (
-                          <option key={w.id} value={w.id}>{w.label}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Priority <span className="text-rose-500">*</span>
-                      </label>
-                      <select
-                        name="priority"
-                        value={formData.priority}
-                        onChange={handleChange}
-                        className="w-full text-xs px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                      >
-                        <option value="0">--Select Priority--</option>
-                        {OVOD_PRIORITIES.filter(p => p.id !== '0').map(p => (
-                          <option key={p.id} value={p.id}>{p.label}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Vibhas / Navic <span className="text-rose-500">*</span>
-                      </label>
-                      <select
-                        name="vibhas"
-                        value={formData.vibhas}
-                        onChange={handleChange}
-                        className="w-full text-xs px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                      >
-                        <option value="0">--Select Navic/Vibhas--</option>
-                        {OVOD_VIBHAS.filter(v => v.id !== '0').map(v => (
-                          <option key={v.id} value={v.id}>{v.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                </div>
-              )}
-
-              {/* B2 - STAGE 2: SOURCE DOCUMENT */}
-              {activeStage === 'source' && (
-                <div className="space-y-5 animate-fade-in">
-                  
-                  <div className="pb-3 border-b border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center space-x-2">
-                      <FileText className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
-                      <h3 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
-                        Stage 2: Source Document Alignment
-                      </h3>
-                    </div>
-                  </div>
-
-                  {/* MIV 2030 */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                        Is it part of MIV 2030? (Y/N)
-                      </label>
-                      <div className="flex items-center space-x-4">
-                        <label className="inline-flex items-center space-x-1.5 cursor-pointer text-xs">
-                          <input
-                            type="radio"
-                            name="is_miv_2030"
-                            value="Yes"
-                            checked={formData.is_miv_2030 === 'Yes'}
-                            onChange={handleChange}
-                            className="text-blue-600 focus:ring-blue-500 cursor-pointer"
-                          />
-                          <span className="font-semibold">Yes</span>
-                        </label>
-                        <label className="inline-flex items-center space-x-1.5 cursor-pointer text-xs">
-                          <input
-                            type="radio"
-                            name="is_miv_2030"
-                            value="No"
-                            checked={formData.is_miv_2030 === 'No'}
-                            onChange={handleChange}
-                            className="text-blue-600 focus:ring-blue-500 cursor-pointer"
-                          />
-                          <span className="font-semibold">No</span>
-                        </label>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        MIV Chapter
-                      </label>
-                      <select
-                        name="miv_chapter"
-                        value={formData.miv_chapter}
-                        onChange={handleChange}
-                        className="w-full text-xs px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                      >
-                        {MIV_CHAPTERS.map(c => (
-                          <option key={c.id} value={c.id}>{c.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* MAKV 2047 */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                        Is it part of MAKV 2047? (Y/N)
-                      </label>
-                      <div className="flex items-center space-x-4">
-                        <label className="inline-flex items-center space-x-1.5 cursor-pointer text-xs">
-                          <input
-                            type="radio"
-                            name="is_makv_2047"
-                            value="Yes"
-                            checked={formData.is_makv_2047 === 'Yes'}
-                            onChange={handleChange}
-                            className="text-blue-600 focus:ring-blue-500 cursor-pointer"
-                          />
-                          <span className="font-semibold">Yes</span>
-                        </label>
-                        <label className="inline-flex items-center space-x-1.5 cursor-pointer text-xs">
-                          <input
-                            type="radio"
-                            name="is_makv_2047"
-                            value="No"
-                            checked={formData.is_makv_2047 === 'No'}
-                            onChange={handleChange}
-                            className="text-blue-600 focus:ring-blue-500 cursor-pointer"
-                          />
-                          <span className="font-semibold">No</span>
-                        </label>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        MAKV Theme
-                      </label>
-                      <select
-                        name="makv_theme"
-                        value={formData.makv_theme}
-                        onChange={handleChange}
-                        className="w-full text-xs px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                      >
-                        {MAKV_THEMES.map(t => (
-                          <option key={t.id} value={t.id}>{t.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* SGoS-2 & Additional Items */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                        Is it part of SGoS-2? (Y/N)
-                      </label>
-                      <div className="flex items-center space-x-4">
-                        <label className="inline-flex items-center space-x-1.5 cursor-pointer text-xs">
-                          <input
-                            type="radio"
-                            name="is_sgos_2"
-                            value="Yes"
-                            checked={formData.is_sgos_2 === 'Yes'}
-                            onChange={handleChange}
-                            className="text-blue-600 focus:ring-blue-500 cursor-pointer"
-                          />
-                          <span className="font-semibold">Yes</span>
-                        </label>
-                        <label className="inline-flex items-center space-x-1.5 cursor-pointer text-xs">
-                          <input
-                            type="radio"
-                            name="is_sgos_2"
-                            value="No"
-                            checked={formData.is_sgos_2 === 'No'}
-                            onChange={handleChange}
-                            className="text-blue-600 focus:ring-blue-500 cursor-pointer"
-                          />
-                          <span className="font-semibold">No</span>
-                        </label>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                        Is it part of Additional Items? (Y/N)
-                      </label>
-                      <div className="flex items-center space-x-4">
-                        <label className="inline-flex items-center space-x-1.5 cursor-pointer text-xs">
-                          <input
-                            type="radio"
-                            name="is_additional_items"
-                            value="Yes"
-                            checked={formData.is_additional_items === 'Yes'}
-                            onChange={handleChange}
-                            className="text-blue-600 focus:ring-blue-500 cursor-pointer"
-                          />
-                          <span className="font-semibold">Yes</span>
-                        </label>
-                        <label className="inline-flex items-center space-x-1.5 cursor-pointer text-xs">
-                          <input
-                            type="radio"
-                            name="is_additional_items"
-                            value="No"
-                            checked={formData.is_additional_items === 'No'}
-                            onChange={handleChange}
-                            className="text-blue-600 focus:ring-blue-500 cursor-pointer"
-                          />
-                          <span className="font-semibold">No</span>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* GMIS & Remarks */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                        Is it part of GMIS? (Y/N)
-                      </label>
-                      <div className="flex items-center space-x-4">
-                        <label className="inline-flex items-center space-x-1.5 cursor-pointer text-xs">
-                          <input
-                            type="radio"
-                            name="is_gmis"
-                            value="Yes"
-                            checked={formData.is_gmis === 'Yes'}
-                            onChange={handleChange}
-                            className="text-blue-600 focus:ring-blue-500 cursor-pointer"
-                          />
-                          <span className="font-semibold">Yes</span>
-                        </label>
-                        <label className="inline-flex items-center space-x-1.5 cursor-pointer text-xs">
-                          <input
-                            type="radio"
-                            name="is_gmis"
-                            value="No"
-                            checked={formData.is_gmis === 'No'}
-                            onChange={handleChange}
-                            className="text-blue-600 focus:ring-blue-500 cursor-pointer"
-                          />
-                          <span className="font-semibold">No</span>
-                        </label>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Remarks
-                      </label>
-                      <input
-                        type="text"
-                        name="remarks"
-                        placeholder="Enter remarks..."
-                        value={formData.remarks}
-                        onChange={handleChange}
-                        className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-
-                </div>
-              )}
-
-              {/* B2 - STAGE 3: TIMELINES */}
-              {activeStage === 'timelines' && (
-                <div className="space-y-5 animate-fade-in">
-                  
-                  <div className="pb-3 border-b border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center space-x-2">
-                      <Calendar className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
-                      <h3 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
-                        Stage 3: Timelines & Vision Schedules
-                      </h3>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Timeline As Per Vision Document
-                      </label>
-                      <input
-                        type="date"
-                        name="timeline_vision"
-                        value={formData.timeline_vision}
-                        onChange={handleChange}
-                        className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Expected/Actual Date Of Completion
-                      </label>
-                      <input
-                        type="date"
-                        name="expected_completion_date"
-                        value={formData.expected_completion_date}
-                        onChange={handleChange}
-                        className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-
-                </div>
-              )}
-            </>
-          )}
-
-          {/* ========================================================================= */}
-          {/* ============================= B3 FORM STAGES ============================ */}
-          {/* ========================================================================= */}
-
-          {level === 'B3' && (
-            <>
-              {/* B3 - STAGE 1: GENERAL & B3 ACTION ITEM */}
-              {activeStage === 'general' && (
-                <div className="space-y-5 animate-fade-in">
-                  
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center space-x-2">
-                      <Layers className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
-                      <h3 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
-                        Stage 1: Actionable Item (B3) Details & Parent Intervention
-                      </h3>
-                    </div>
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400 italic">
-                      Define the specific Actionable Item (B3) under Intervention (B2)
-                    </span>
-                  </div>
-
-                  {/* Implementing Agency & National Goal A1 */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Implementing Agency <span className="text-rose-500">*</span>
-                      </label>
-                      <select
-                        name="organisation_id"
-                        value={formData.organisation_id}
-                        onChange={handleChange}
-                        required
-                        className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                      >
-                        <option value="">--Select Implementing Agency--</option>
-                        {organisations.map(o => (
-                          <option key={o.organisation_id} value={o.organisation_id}>{o.organisation_name}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        National Level Goal (A1)
-                      </label>
-                      <input
-                        type="text"
-                        name="goal_a1"
-                        placeholder="--Select Goal Name--"
-                        value={formData.goal_a1}
-                        onChange={handleChange}
-                        className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-
-                  {/* National Intervention A2 & Action A3 */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        National Level Intervention (A2)
-                      </label>
-                      <input
-                        type="text"
-                        name="intervention_a2"
-                        placeholder="--Select Intervention Name--"
-                        value={formData.intervention_a2}
-                        onChange={handleChange}
-                        className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        National Level Action (A3)
-                      </label>
-                      <input
-                        type="text"
-                        name="action_a3"
-                        placeholder="--Select Action Name--"
-                        value={formData.action_a3}
-                        onChange={handleChange}
-                        className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Goal B1 & Parent Intervention B2 */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Goal (B1)
-                      </label>
-                      <input
-                        type="text"
-                        name="goal_b1"
-                        placeholder="Enter Goal (B1)..."
-                        value={formData.goal_b1}
-                        onChange={handleChange}
-                        className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Parent Intervention (B2) <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        name="intervention_b2"
-                        placeholder="Enter Parent Intervention (B2)..."
-                        value={formData.intervention_b2}
-                        onChange={handleChange}
-                        required
-                        className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Actionable Item B3 & Action Code B3 */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="md:col-span-2">
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Actionable Item (B3) <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        name="action_b3"
-                        placeholder="Enter Actionable Item (B3)..."
-                        value={formData.action_b3}
-                        onChange={handleChange}
-                        required
-                        className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Action Item Code (B3)
-                      </label>
-                      <input
-                        type="text"
-                        name="action_code_b3"
-                        placeholder="e.g. E-CB-1.1.1"
-                        value={formData.action_code_b3}
-                        onChange={handleChange}
-                        className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Category, Wings, Priority, Vibhas/Navic */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Category
-                      </label>
-                      <select
-                        name="category"
-                        value={formData.category}
-                        onChange={handleChange}
-                        className="w-full text-xs px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                      >
-                        {CATEGORIES.map(c => (
-                          <option key={c} value={c}>{c}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Wings
-                      </label>
-                      <select
-                        name="wings"
-                        value={formData.wings}
-                        onChange={handleChange}
-                        className="w-full text-xs px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                      >
-                        <option value="0">--Select Wing--</option>
-                        {OVOD_WINGS.filter(w => w.id !== '0').map(w => (
-                          <option key={w.id} value={w.id}>{w.label}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Priority
-                      </label>
-                      <select
-                        name="priority"
-                        value={formData.priority}
-                        onChange={handleChange}
-                        className="w-full text-xs px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                      >
-                        <option value="0">--Select Priority--</option>
-                        {OVOD_PRIORITIES.filter(p => p.id !== '0').map(p => (
-                          <option key={p.id} value={p.id}>{p.label}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Vibhas / Navic
-                      </label>
-                      <select
-                        name="vibhas"
-                        value={formData.vibhas}
-                        onChange={handleChange}
-                        className="w-full text-xs px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                      >
-                        <option value="0">--Select Navic/Vibhas--</option>
-                        {OVOD_VIBHAS.filter(v => v.id !== '0').map(v => (
-                          <option key={v.id} value={v.id}>{v.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                </div>
-              )}
-
-              {/* B3 - STAGE 2: SOURCE DOCUMENT & STATUS */}
-              {activeStage === 'source' && (
-                <div className="space-y-5 animate-fade-in">
-                  
-                  <div className="pb-3 border-b border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center space-x-2">
-                      <FileText className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
-                      <h3 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
-                        Stage 2: Source Alignment & Current Stage
-                      </h3>
-                    </div>
-                  </div>
-
-                  {/* MIV 2030 */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                        Is it part of MIV 2030? (Y/N)
-                      </label>
-                      <div className="flex items-center space-x-4">
-                        <label className="inline-flex items-center space-x-1.5 cursor-pointer text-xs">
-                          <input
-                            type="radio"
-                            name="is_miv_2030"
-                            value="Yes"
-                            checked={formData.is_miv_2030 === 'Yes'}
-                            onChange={handleChange}
-                            className="text-blue-600 focus:ring-blue-500 cursor-pointer"
-                          />
-                          <span className="font-semibold">Yes</span>
-                        </label>
-                        <label className="inline-flex items-center space-x-1.5 cursor-pointer text-xs">
-                          <input
-                            type="radio"
-                            name="is_miv_2030"
-                            value="No"
-                            checked={formData.is_miv_2030 === 'No'}
-                            onChange={handleChange}
-                            className="text-blue-600 focus:ring-blue-500 cursor-pointer"
-                          />
-                          <span className="font-semibold">No</span>
-                        </label>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        MIV Chapter
-                      </label>
-                      <select
-                        name="miv_chapter"
-                        value={formData.miv_chapter}
-                        onChange={handleChange}
-                        className="w-full text-xs px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                      >
-                        {MIV_CHAPTERS.map(c => (
-                          <option key={c.id} value={c.id}>{c.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* MAKV 2047 */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                        Is it part of MAKV 2047? (Y/N)
-                      </label>
-                      <div className="flex items-center space-x-4">
-                        <label className="inline-flex items-center space-x-1.5 cursor-pointer text-xs">
-                          <input
-                            type="radio"
-                            name="is_makv_2047"
-                            value="Yes"
-                            checked={formData.is_makv_2047 === 'Yes'}
-                            onChange={handleChange}
-                            className="text-blue-600 focus:ring-blue-500 cursor-pointer"
-                          />
-                          <span className="font-semibold">Yes</span>
-                        </label>
-                        <label className="inline-flex items-center space-x-1.5 cursor-pointer text-xs">
-                          <input
-                            type="radio"
-                            name="is_makv_2047"
-                            value="No"
-                            checked={formData.is_makv_2047 === 'No'}
-                            onChange={handleChange}
-                            className="text-blue-600 focus:ring-blue-500 cursor-pointer"
-                          />
-                          <span className="font-semibold">No</span>
-                        </label>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        MAKV Theme
-                      </label>
-                      <select
-                        name="makv_theme"
-                        value={formData.makv_theme}
-                        onChange={handleChange}
-                        className="w-full text-xs px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                      >
-                        {MAKV_THEMES.map(t => (
-                          <option key={t.id} value={t.id}>{t.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* SGoS-2 & Additional Items */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                        Is it part of SGoS-2? (Y/N)
-                      </label>
-                      <div className="flex items-center space-x-4">
-                        <label className="inline-flex items-center space-x-1.5 cursor-pointer text-xs">
-                          <input
-                            type="radio"
-                            name="is_sgos_2"
-                            value="Yes"
-                            checked={formData.is_sgos_2 === 'Yes'}
-                            onChange={handleChange}
-                            className="text-blue-600 focus:ring-blue-500 cursor-pointer"
-                          />
-                          <span className="font-semibold">Yes</span>
-                        </label>
-                        <label className="inline-flex items-center space-x-1.5 cursor-pointer text-xs">
-                          <input
-                            type="radio"
-                            name="is_sgos_2"
-                            value="No"
-                            checked={formData.is_sgos_2 === 'No'}
-                            onChange={handleChange}
-                            className="text-blue-600 focus:ring-blue-500 cursor-pointer"
-                          />
-                          <span className="font-semibold">No</span>
-                        </label>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                        Is it part of Additional Items? (Y/N)
-                      </label>
-                      <div className="flex items-center space-x-4">
-                        <label className="inline-flex items-center space-x-1.5 cursor-pointer text-xs">
-                          <input
-                            type="radio"
-                            name="is_additional_items"
-                            value="Yes"
-                            checked={formData.is_additional_items === 'Yes'}
-                            onChange={handleChange}
-                            className="text-blue-600 focus:ring-blue-500 cursor-pointer"
-                          />
-                          <span className="font-semibold">Yes</span>
-                        </label>
-                        <label className="inline-flex items-center space-x-1.5 cursor-pointer text-xs">
-                          <input
-                            type="radio"
-                            name="is_additional_items"
-                            value="No"
-                            checked={formData.is_additional_items === 'No'}
-                            onChange={handleChange}
-                            className="text-blue-600 focus:ring-blue-500 cursor-pointer"
-                          />
-                          <span className="font-semibold">No</span>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Current Status / Stage */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Current Status / Stage
-                      </label>
-                      <select
-                        name="current_status"
-                        value={formData.current_status}
-                        onChange={handleChange}
-                        className="w-full text-xs px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                      >
-                        {OVOD_STATUSES.filter(s => s.id !== '0').map(s => (
-                          <option key={s.id} value={s.label}>{s.label}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Remarks
-                      </label>
-                      <input
-                        type="text"
-                        name="remarks"
-                        placeholder="Enter remarks..."
-                        value={formData.remarks}
-                        onChange={handleChange}
-                        className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-
-                </div>
-              )}
-
-              {/* B3 - STAGE 3: FINANCIALS & TIMELINES */}
-              {activeStage === 'financials' && (
-                <div className="space-y-5 animate-fade-in">
-                  
-                  <div className="pb-3 border-b border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center space-x-2">
-                      <DollarSign className="h-4 w-4 text-emerald-600" />
-                      <h3 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
-                        Stage 3: Financials, Progress & Timelines
-                      </h3>
-                    </div>
-                  </div>
-
-                  {/* Dates */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Timeline As Per Vision Document
-                      </label>
-                      <input
-                        type="date"
-                        name="timeline_vision"
-                        value={formData.timeline_vision}
-                        onChange={handleChange}
-                        className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Expected/Actual Date Of Completion
-                      </label>
-                      <input
-                        type="date"
-                        name="expected_completion_date"
-                        value={formData.expected_completion_date}
-                        onChange={handleChange}
-                        className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Financials */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Total Cost (in Cr.)
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        name="total_cost"
-                        placeholder="0.00"
-                        value={formData.total_cost}
-                        onChange={handleChange}
-                        className="w-full text-xs px-3.5 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Fund Spent (in Cr.)
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        name="fund_spent"
-                        placeholder="0.00"
-                        value={formData.fund_spent}
-                        onChange={handleChange}
-                        className="w-full text-xs px-3.5 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Progress (%)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        name="progress"
-                        value={formData.progress}
-                        onChange={handleChange}
-                        className="w-full text-xs px-3.5 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Source of Funding
-                      </label>
-                      <input
-                        type="text"
-                        name="source_of_funding"
-                        placeholder="e.g. EBR, GBS"
-                        value={formData.source_of_funding}
-                        onChange={handleChange}
-                        className="w-full text-xs px-3.5 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Delay Reason */}
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                      Reason for Delay / Remarks
-                    </label>
-                    <textarea
-                      rows={2}
-                      name="reason_delay"
-                      placeholder="Explain delay if any..."
-                      value={formData.reason_delay}
-                      onChange={handleChange}
-                      className="w-full text-xs p-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500"
-                    />
-                  </div>
-
-                </div>
-              )}
-            </>
-          )}
-
-          {/* Bottom Wizard Navigation Footer */}
-          <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
-            
-            {/* Left Action: Prev (if not first stage) */}
-            <div className="flex items-center space-x-2">
-              {currentStageIndex > 0 && (
-                <button
-                  type="button"
-                  onClick={handlePrevStage}
-                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 transition cursor-pointer"
-                >
-                  <ArrowLeft size={13} />
-                  <span>Previous</span>
-                </button>
+                        <Download size={12} />
+                        <span>Download</span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
 
-            {/* Right Action: Next or Submit */}
-            <div className="flex items-center space-x-2">
-              {currentStageIndex < currentStages.length - 1 ? (
-                <button
-                  type="button"
-                  onClick={handleNextStage}
-                  className="inline-flex items-center gap-1.5 px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-[#0f417a] hover:bg-[#155ca2] transition shadow-md cursor-pointer"
+            {/* Footer */}
+            <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-800 flex justify-end bg-slate-50/60 dark:bg-slate-950/40">
+              <button
+                type="button"
+                onClick={() => setShowDocModal(false)}
+                className="px-3.5 py-2 text-xs font-bold rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+    </div>
+  );
+}
+
+// =========================================================================
+// ===================== ADD INITIATIVE VIEW (CREATE MODE) ==================
+// =========================================================================
+function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
+  const notify = useNotifier(triggerNotification);
+
+  // Implementing agencies are cached once in the OVOD store; use the built-in list when the
+  // request returns nothing
+  const loadOrganisations = useOvodStore((s) => s.loadOrganisations);
+  const storedAgencies = useOvodStore((s) => s.organisations);
+  const agencies = storedAgencies.length > 0 ? storedAgencies : DEFAULT_AGENCIES;
+  const [submitting, setSubmitting] = useState(false);
+  const [validated, setValidated] = useState(false);
+
+  // Level Selector: 'B2' (Intervention) or 'B3' (Actionable Item)
+  const [level, setLevel] = useState('B2');
+
+  // Dynamic dropdown lists loaded by agency
+  const [a1List, setA1List] = useState([]);
+  const [allA2List, setAllA2List] = useState([]);
+  const [allB1List, setAllB1List] = useState([]);
+  const [allB2List, setAllB2List] = useState([]);
+
+  // Form State
+  const [formData, setFormData] = useState({
+    organisation_id: '',
+    goal_a1: '',
+    intervention_a2: '',
+    goal_b1: '',
+    intervention_b2: '',
+    intervention_code_b2: '',
+    
+    // Auto-filled Metadata
+    category: '',
+    rawCategory: 7,
+    wings: '',
+    rawWings: 3,
+    priority: '',
+    rawPriority: 2,
+    vibhas: '',
+    rawVibhas: 14,
+
+    // Source Document & Status
+    is_miv_2030: 'No',
+    miv_chapter: '',
+    is_makv_2047: 'No',
+    makv_theme: '',
+    is_sgos_2: 'No',
+    is_additional_items: 'No',
+    is_gmis: 'No',
+    remarks: '',
+
+    // Timelines
+    timeline_vision: '',
+    expected_completion_date: '',
+    current_status: 'Implementation - On time',
+
+    // B3 specific
+    action_b3: '',
+    action_code_b3: ''
+  });
+
+  // Dynamic Actionable Items (B3) Table rows for B2 Initiative
+  const [b3Rows, setB3Rows] = useState([
+    { id: 1, actionCode: '', actionDes: '' }
+  ]);
+
+  // Load Implementing Agencies on mount
+  useEffect(() => {
+    loadOrganisations();
+  }, [loadOrganisations]);
+
+  // When Implementing Agency is selected, fetch cascading A1, A2, B1, B2 lists
+  useEffect(() => {
+    const orgId = formData.organisation_id;
+    if (!orgId) {
+      setA1List([]);
+      setAllA2List([]);
+      setAllB1List([]);
+      setAllB2List([]);
+      return;
+    }
+
+    fetchOvdDropDownData('org_a1_filter', orgId)
+      .then(res => setA1List(Array.isArray(res) ? res : []))
+      .catch(() => setA1List([]));
+
+    fetchOvdDropDownData('org_a2_filter', orgId)
+      .then(res => setAllA2List(Array.isArray(res) ? res : []))
+      .catch(() => setAllA2List([]));
+
+    fetchOvdDropDownData('org_b1_filter', orgId)
+      .then(res => setAllB1List(Array.isArray(res) ? res : []))
+      .catch(() => setAllB1List([]));
+
+    fetchOvdDropDownData('org_b2_filter', orgId)
+      .then(res => setAllB2List(Array.isArray(res) ? res : []))
+      .catch(() => setAllB2List([]));
+
+  }, [formData.organisation_id]);
+
+  // Filter A2 based on selected A1
+  const filteredA2List = useMemo(() => {
+    if (!formData.goal_a1 || !a1List.length) return [];
+    const selectedA1 = a1List.find(item => String(item.id) === String(formData.goal_a1));
+    if (!selectedA1) return [];
+    return allA2List.filter(item => item.a1_code === selectedA1.a1_code);
+  }, [formData.goal_a1, a1List, allA2List]);
+
+  // Filter B1 based on selected A2
+  const filteredB1List = useMemo(() => {
+    if (!formData.intervention_a2 || !filteredA2List.length) return [];
+    const selectedA2 = filteredA2List.find(item => String(item.id) === String(formData.intervention_a2));
+    if (!selectedA2) return [];
+    return allB1List.filter(item => item.a2_code === selectedA2.a2_code);
+  }, [formData.intervention_a2, filteredA2List, allB1List]);
+
+  // Filter B2 based on selected B1 (for B3 mode)
+  const filteredB2List = useMemo(() => {
+    if (!formData.goal_b1 || !filteredB1List.length) return [];
+    const selectedB1 = filteredB1List.find(item => String(item.id) === String(formData.goal_b1));
+    if (!selectedB1) return [];
+    return allB2List.filter(item => item.b1_code === selectedB1.b1_code);
+  }, [formData.goal_b1, filteredB1List, allB2List]);
+
+  // Handle Agency change
+  const handleAgencyChange = (e) => {
+    const orgId = e.target.value;
+    setFormData(prev => ({
+      ...prev,
+      organisation_id: orgId,
+      goal_a1: '',
+      intervention_a2: '',
+      goal_b1: '',
+      intervention_b2: '',
+      intervention_code_b2: '',
+      category: '',
+      wings: '',
+      priority: '',
+      vibhas: '',
+      is_miv_2030: 'No',
+      miv_chapter: '',
+      is_makv_2047: 'No',
+      makv_theme: '',
+      is_sgos_2: 'No',
+      is_additional_items: 'No',
+      is_gmis: 'No',
+      remarks: '',
+      timeline_vision: '',
+      expected_completion_date: '',
+      action_b3: '',
+      action_code_b3: ''
+    }));
+    setB3Rows([{ id: 1, actionCode: '', actionDes: '' }]);
+  };
+
+  // Handle Goal A1 change
+  const handleA1Change = (e) => {
+    const a1Id = e.target.value;
+    setFormData(prev => ({
+      ...prev,
+      goal_a1: a1Id,
+      intervention_a2: '',
+      goal_b1: '',
+      intervention_b2: '',
+      intervention_code_b2: '',
+      category: '',
+      wings: '',
+      priority: '',
+      vibhas: '',
+      is_miv_2030: 'No',
+      miv_chapter: '',
+      is_makv_2047: 'No',
+      makv_theme: '',
+      is_sgos_2: 'No',
+      is_additional_items: 'No',
+      is_gmis: 'No',
+      remarks: '',
+      timeline_vision: '',
+      expected_completion_date: '',
+      action_b3: '',
+      action_code_b3: ''
+    }));
+    setB3Rows([{ id: 1, actionCode: '', actionDes: '' }]);
+  };
+
+  // Handle Intervention A2 change
+  const handleA2Change = (e) => {
+    const a2Id = e.target.value;
+    setFormData(prev => ({
+      ...prev,
+      intervention_a2: a2Id,
+      goal_b1: '',
+      intervention_b2: '',
+      intervention_code_b2: '',
+      category: '',
+      wings: '',
+      priority: '',
+      vibhas: '',
+      is_miv_2030: 'No',
+      miv_chapter: '',
+      is_makv_2047: 'No',
+      makv_theme: '',
+      is_sgos_2: 'No',
+      is_additional_items: 'No',
+      is_gmis: 'No',
+      remarks: '',
+      timeline_vision: '',
+      expected_completion_date: '',
+      action_b3: '',
+      action_code_b3: ''
+    }));
+    setB3Rows([{ id: 1, actionCode: '', actionDes: '' }]);
+  };
+
+  // Handle Goal B1 change -> Auto fetch B2 Code & Metadata
+  const handleB1Change = async (e) => {
+    const b1Id = e.target.value;
+    if (!b1Id) {
+      setFormData(prev => ({
+        ...prev,
+        goal_b1: '',
+        intervention_code_b2: '',
+        category: '',
+        wings: '',
+        priority: '',
+        vibhas: '',
+        is_miv_2030: 'No',
+        miv_chapter: '',
+        is_makv_2047: 'No',
+        makv_theme: '',
+        is_sgos_2: 'No',
+        is_additional_items: 'No',
+        is_gmis: 'No',
+        remarks: '',
+        timeline_vision: '',
+        expected_completion_date: ''
+      }));
+      setB3Rows([{ id: 1, actionCode: '', actionDes: '' }]);
+      return;
+    }
+
+    setFormData(prev => ({ ...prev, goal_b1: b1Id }));
+
+    try {
+      const res = await fetchOvdAddData(
+        formData.goal_a1, 
+        formData.intervention_a2, 
+        b1Id, 
+        0, 
+        'B2', 
+        formData.organisation_id
+      );
+
+      const generatedB2Code = res?.newCode?.[0]?.B2Code || '';
+      const meta = res?.result?.[0] || {};
+
+      const catLabel = CATEGORY_MAP[meta.category] || meta.category || '';
+      const wingLabel = WINGS_MAP[meta.wings] || meta.wings || '';
+      const prioLabel = PRIORITY_MAP[meta.priority] || meta.priority || '';
+      const vibhasLabel = VIBHAS_MAP[meta.vibhas] || meta.vibhas || '';
+
+      setFormData(prev => ({
+        ...prev,
+        intervention_code_b2: generatedB2Code,
+        category: catLabel,
+        rawCategory: meta.category || 7,
+        wings: wingLabel,
+        rawWings: meta.wings || 3,
+        priority: prioLabel,
+        rawPriority: meta.priority || 2,
+        vibhas: vibhasLabel,
+        rawVibhas: meta.vibhas || 14,
+        is_miv_2030: meta.is_miv ? 'Yes' : 'No',
+        miv_chapter: meta.miv_chapter || '',
+        is_makv_2047: meta.is_makv ? 'Yes' : 'No',
+        makv_theme: meta.makv_theme || '',
+        is_sgos_2: meta.is_sgos ? 'Yes' : 'No',
+        is_additional_items: meta.is_additional_item ? 'Yes' : 'No',
+        is_gmis: meta.is_gmis ? 'Yes' : 'No',
+        remarks: meta.Response || meta.remarks || meta.comments || meta.Outcomes_Remarks || '',
+        timeline_vision: meta.target_date ? String(meta.target_date).slice(0, 10) : '',
+        expected_completion_date: meta.expected_date ? String(meta.expected_date).slice(0, 10) : ''
+      }));
+
+      // Initialize first Actionable Item row with auto-generated code
+      if (generatedB2Code) {
+        setB3Rows([
+          { id: 1, actionCode: `${generatedB2Code}.1`, actionDes: '' }
+        ]);
+      }
+    } catch (err) {
+      console.error('Error fetching OVD add data for B1:', err);
+    }
+  };
+
+  // Add B3 Row in Table
+  const handleAddB3Row = () => {
+    const b2Code = formData.intervention_code_b2;
+    const nextIndex = b3Rows.length + 1;
+    const nextCode = b2Code ? `${b2Code}.${nextIndex}` : '';
+    setB3Rows(prev => [
+      ...prev,
+      { id: Date.now(), actionCode: nextCode, actionDes: '' }
+    ]);
+  };
+
+  // Remove B3 Row from Table
+  const handleRemoveB3Row = (indexToRemove) => {
+    if (b3Rows.length <= 1) return;
+    const b2Code = formData.intervention_code_b2;
+    const updated = b3Rows
+      .filter((_, idx) => idx !== indexToRemove)
+      .map((row, idx) => ({
+        ...row,
+        actionCode: b2Code ? `${b2Code}.${idx + 1}` : ''
+      }));
+    setB3Rows(updated);
+  };
+
+  // Update B3 Row description
+  const handleB3DesChange = (index, value) => {
+    setB3Rows(prev => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], actionDes: value };
+      return copy;
+    });
+  };
+
+  // Clear B3 Rows
+  const handleClearB3 = () => {
+    const b2Code = formData.intervention_code_b2;
+    setB3Rows([
+      { id: 1, actionCode: b2Code ? `${b2Code}.1` : '', actionDes: '' }
+    ]);
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  // Submit Handler for Add Initiative
+  const handleSubmitAdd = async (e) => {
+    e.preventDefault();
+    setValidated(true);
+
+    if (!formData.organisation_id) {
+      notify(COMMON_TOASTS.requiredSelect('Implementing Agency'));
+      return;
+    }
+    if (!formData.goal_a1) {
+      notify(COMMON_TOASTS.requiredSelect('National Level Goal (A1)'));
+      return;
+    }
+    if (!formData.intervention_a2) {
+      notify(COMMON_TOASTS.requiredSelect('National Level Intervention (A2)'));
+      return;
+    }
+    if (!formData.goal_b1) {
+      notify(COMMON_TOASTS.requiredSelect('Goal (B1)'));
+      return;
+    }
+    if (level === 'B2') {
+      if (!formData.intervention_b2.trim()) {
+        notify(COMMON_TOASTS.requiredInput('Intervention (B2)'));
+        return;
+      }
+      const hasB3 = b3Rows.some(r => r.actionDes && r.actionDes.trim().length > 0);
+      if (!hasB3) {
+        notify(OVOD_TOASTS.actionableItemRequired());
+        return;
+      }
+    } else {
+      if (!formData.action_b3.trim()) {
+        notify(COMMON_TOASTS.requiredInput('Actionable Item (B3)'));
+        return;
+      }
+    }
+
+    setSubmitting(true);
+    try {
+      const userId = getUserIdFromToken();
+      const validB3Rows = b3Rows.filter(r => r.actionDes && r.actionDes.trim().length > 0);
+
+      const payload = {
+        goalA1: parseInt(formData.goal_a1, 10),
+        a2Intervention: parseInt(formData.intervention_a2, 10),
+        goalB1: parseInt(formData.goal_b1, 10),
+        interventionB2: formData.intervention_b2,
+        interventionB2Code: formData.intervention_code_b2,
+        actionB3: level === 'B2' ? validB3Rows.map(r => ({
+          actionCode: r.actionCode,
+          actionDes: r.actionDes
+        })) : [{
+          actionCode: formData.action_code_b3,
+          actionDes: formData.action_b3
+        }],
+        category: formData.rawCategory || 7,
+        implementingAgency: parseInt(formData.organisation_id, 10),
+        wings: formData.rawWings || 3,
+        priority: formData.rawPriority || 2,
+        ViBhas: formData.rawVibhas || 14,
+        partOfMIV2030: formData.is_miv_2030 === 'Yes' ? 1 : 0,
+        partOfMAKV2047: formData.is_makv_2047 === 'Yes' ? 1 : 0,
+        partOfSGoS2: formData.is_sgos_2 === 'Yes' ? 1 : 0,
+        partOfGMIS: formData.is_gmis === 'Yes' ? 1 : 0,
+        partOfAddItem: formData.is_additional_items === 'Yes' ? 1 : 0,
+        party1: null,
+        party2: null,
+        mivChapterSelect: formData.miv_chapter || null,
+        makvThemeSelect: formData.makv_theme || null,
+        Remarks: formData.remarks || null,
+        actualDate: formData.expected_completion_date || null,
+        completionDate: formData.timeline_vision || null,
+        userID: userId
+      };
+
+      await saveOvdB2B3Action(payload);
+      notify(OVOD_TOASTS.added(level));
+      if (onSuccess) onSuccess();
+    } catch (err) {
+      console.error("OVOD Form submit error:", err);
+      notify(OVOD_TOASTS.addFailed(level, getErrorMessage(err)));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="w-full space-y-6 text-slate-800 dark:text-slate-100 pb-12 animate-fade-in font-sans">
+      
+      {/* Main Container Card */}
+      <div className="module-form-card">
+        
+        <div className="module-form-banner">
+          <div>
+            <h3 className="module-form-banner-title">Add Initiative</h3>
+            <p className="module-form-banner-subtext">Ministry of Ports, Shipping and Waterways</p>
+          </div>
+        </div>
+
+        {/* Level row: add an Intervention (B2) or an Actionable Item (B3) */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 mx-6 md:mx-8 mt-6 md:mt-8 pb-4 border-b border-slate-200 dark:border-slate-800">
+
+          <div className="flex items-center gap-4">
+            {/* Level Selector */}
+            <div className="inline-flex items-center space-x-3 bg-slate-100 dark:bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
+              <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Level:</span>
+              <label className="inline-flex items-center space-x-1.5 cursor-pointer">
+                <input
+                  type="radio"
+                  name="level"
+                  value="B2"
+                  checked={level === 'B2'}
+                  onChange={() => setLevel('B2')}
+                  className="text-amber-600 focus:ring-amber-500 cursor-pointer"
+                />
+                <span className={`text-xs ${level === 'B2' ? 'font-black text-amber-700 dark:text-amber-400' : 'font-medium text-slate-600 dark:text-slate-400'}`}>
+                  Intervention (B2)
+                </span>
+              </label>
+              <label className="inline-flex items-center space-x-1.5 cursor-pointer">
+                <input
+                  type="radio"
+                  name="level"
+                  value="B3"
+                  checked={level === 'B3'}
+                  onChange={() => setLevel('B3')}
+                  className="text-amber-600 focus:ring-amber-500 cursor-pointer"
+                />
+                <span className={`text-xs ${level === 'B3' ? 'font-black text-amber-700 dark:text-amber-400' : 'font-medium text-slate-600 dark:text-slate-400'}`}>
+                  Actionable Item (B3)
+                </span>
+              </label>
+            </div>
+
+            <span className="text-[11px] text-slate-500 dark:text-slate-400 italic hidden lg:inline-block">
+              *Note: While adding a new B2, you also need to enter at least one B3 along with it.
+            </span>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmitAdd} className="px-6 md:px-8 pt-6 md:pt-8 space-y-8">
+          
+          {/* ========================================================================= */}
+          {/* ======================= SECTION 1: GENERAL DETAILS ====================== */}
+          {/* ========================================================================= */}
+          <div className="space-y-4">
+            <div className="module-form-section-header">
+              <h2 className="module-form-section-heading">
+                General Details
+              </h2>
+            </div>
+
+            {/* Implementing Agency */}
+            <div>
+              <label className="module-form-label">
+                Implementing Agency<span className="text-rose-500">*</span>
+              </label>
+              <div className="relative">
+                <select
+                  name="organisation_id"
+                  value={formData.organisation_id}
+                  onChange={handleAgencyChange}
+                  required
+                  className={`w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border transition-all cursor-pointer ${
+                    formData.organisation_id 
+                      ? 'border-emerald-500 dark:border-emerald-500 pr-10' 
+                      : validated 
+                      ? 'border-rose-400 dark:border-rose-500' 
+                      : 'border-slate-300 dark:border-slate-700'
+                  }`}
                 >
-                  <span>Next Stage</span>
-                  <ArrowRight size={13} />
-                </button>
-              ) : (
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="inline-flex items-center gap-2 px-7 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition shadow-md cursor-pointer disabled:opacity-50"
-                >
-                  <Save size={14} />
-                  <span>{submitting ? "Submitting..." : editData ? `Update ${level}` : `Submit ${level}`}</span>
-                </button>
-              )}
+                  <option value="">--Select Implementing Agency--</option>
+                  {agencies.map(a => (
+                    <option key={a.ia_id} value={a.ia_id}>
+                      {a.ia_name}
+                    </option>
+                  ))}
+                </select>
+                {formData.organisation_id && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                    <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* National Level Goal (A1) & National Level Intervention (A2) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* National Level Goal (A1) */}
+              <div>
+                <label className="module-form-label">
+                  National Level Goal (A1)<span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <select
+                    name="goal_a1"
+                    value={formData.goal_a1}
+                    onChange={handleA1Change}
+                    disabled={!formData.organisation_id}
+                    required
+                    className={`w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border transition-all cursor-pointer disabled:bg-slate-100 disabled:dark:bg-slate-800 disabled:cursor-not-allowed ${
+                      formData.goal_a1 
+                        ? 'border-emerald-500 dark:border-emerald-500 pr-10' 
+                        : validated 
+                        ? 'border-rose-400 dark:border-rose-500' 
+                        : 'border-slate-300 dark:border-slate-700'
+                    }`}
+                  >
+                    <option value="">--Select Goal (A1)--</option>
+                    {a1List.map(a => (
+                      <option key={a.id} value={a.id}>
+                        {a.goal_a1}
+                      </option>
+                    ))}
+                  </select>
+                  {formData.goal_a1 && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                      <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* National Level Intervention (A2) */}
+              <div>
+                <label className="module-form-label">
+                  National Level Intervention (A2)<span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <select
+                    name="intervention_a2"
+                    value={formData.intervention_a2}
+                    onChange={handleA2Change}
+                    disabled={!formData.goal_a1}
+                    required
+                    className={`w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border transition-all cursor-pointer disabled:bg-slate-100 disabled:dark:bg-slate-800 disabled:cursor-not-allowed ${
+                      formData.intervention_a2 
+                        ? 'border-emerald-500 dark:border-emerald-500 pr-10' 
+                        : validated 
+                        ? 'border-rose-400 dark:border-rose-500' 
+                        : 'border-slate-300 dark:border-slate-700'
+                    }`}
+                  >
+                    <option value="">--Select Intervention (A2)--</option>
+                    {filteredA2List.map(a => (
+                      <option key={a.id} value={a.id}>
+                        {a.intervention}
+                      </option>
+                    ))}
+                  </select>
+                  {formData.intervention_a2 && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                      <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Goal (B1), Intervention (B2), Intervention Code (B2) */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Goal (B1) */}
+              <div>
+                <label className="module-form-label">
+                  Goal (B1)<span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <select
+                    name="goal_b1"
+                    value={formData.goal_b1}
+                    onChange={handleB1Change}
+                    disabled={!formData.intervention_a2}
+                    required
+                    className={`w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border transition-all cursor-pointer disabled:bg-slate-100 disabled:dark:bg-slate-800 disabled:cursor-not-allowed ${
+                      formData.goal_b1 
+                        ? 'border-emerald-500 dark:border-emerald-500 pr-10' 
+                        : validated 
+                        ? 'border-rose-400 dark:border-rose-500' 
+                        : 'border-slate-300 dark:border-slate-700'
+                    }`}
+                  >
+                    <option value="">--Select Goal (B1)--</option>
+                    {filteredB1List.map(b => (
+                      <option key={b.id} value={b.id}>
+                        {b.b1_goals}
+                      </option>
+                    ))}
+                  </select>
+                  {formData.goal_b1 && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                      <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Intervention (B2) */}
+              <div>
+                <label className="module-form-label">
+                  Intervention (B2)<span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  {level === 'B2' ? (
+                    <input
+                      type="text"
+                      name="intervention_b2"
+                      value={formData.intervention_b2}
+                      onChange={handleChange}
+                      placeholder="Enter Intervention (B2)..."
+                      required
+                      className={`w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border transition-all ${
+                        formData.intervention_b2.trim()
+                          ? 'border-emerald-500 dark:border-emerald-500 pr-10'
+                          : validated
+                          ? 'border-rose-500 dark:border-rose-500 ring-1 ring-rose-500/30'
+                          : 'border-slate-300 dark:border-slate-700'
+                      }`}
+                    />
+                  ) : (
+                    <select
+                      name="intervention_b2"
+                      value={formData.intervention_b2}
+                      onChange={handleChange}
+                      required
+                      className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700"
+                    >
+                      <option value="">--Select Intervention (B2)--</option>
+                      {filteredB2List.map(b => (
+                        <option key={b.id} value={b.id}>
+                          {b.intervention}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {level === 'B2' && formData.intervention_b2.trim() && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                      <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                  )}
+                  {level === 'B2' && validated && !formData.intervention_b2.trim() && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                      <AlertCircle className="h-4 w-4 text-rose-500" />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Intervention Code (B2) - Read Only */}
+              <div>
+                <label className="module-form-label">
+                  Intervention Code (B2)<span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="intervention_code_b2"
+                  value={formData.intervention_code_b2}
+                  readOnly
+                  disabled
+                  placeholder="Auto-generated (e.g. E-CB-23.2)"
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
+                />
+              </div>
+            </div>
+
+            {/* Category, Wings, Priority, Vibhas/Navic - Read Only Auto populated */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <label className="module-form-label">
+                  Category<span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.category}
+                  readOnly
+                  disabled
+                  placeholder="Auto populated"
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed"
+                />
+              </div>
+
+              <div>
+                <label className="module-form-label">
+                  Wings<span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.wings}
+                  readOnly
+                  disabled
+                  placeholder="Auto populated"
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed"
+                />
+              </div>
+
+              <div>
+                <label className="module-form-label">
+                  Priority<span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.priority}
+                  readOnly
+                  disabled
+                  placeholder="Auto populated"
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed"
+                />
+              </div>
+
+              <div>
+                <label className="module-form-label">
+                  Vibhas/ Navic<span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.vibhas}
+                  readOnly
+                  disabled
+                  placeholder="Auto populated"
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed"
+                />
+              </div>
             </div>
 
           </div>
 
+          {/* ========================================================================= */}
+          {/* ======================= SECTION 2: ACTIONABLE ITEM ====================== */}
+          {/* ========================================================================= */}
+          {level === 'B2' ? (
+            <div className="space-y-3">
+              <div className="module-form-section-header">
+                <h2 className="module-form-section-heading">
+                  Actionable Item
+                </h2>
+                <button
+                  type="button"
+                  onClick={handleClearB3}
+                  className="bg-[#dc2626] hover:bg-rose-700 text-white px-4 py-1 text-xs font-bold rounded shadow-xs transition-colors cursor-pointer"
+                >
+                  Clear
+                </button>
+              </div>
+
+              {/* Actionable Item Table */}
+              <div className="border border-slate-200 dark:border-slate-800 rounded overflow-hidden shadow-xs">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-[#154b8a] text-white">
+                    <tr>
+                      <th className="py-2.5 px-3 text-center w-16 font-bold border-r border-blue-900/40">S.No</th>
+                      <th className="py-2.5 px-4 text-center w-64 font-bold border-r border-blue-900/40">Actionable Item Code (B3)</th>
+                      <th className="py-2.5 px-4 text-center font-bold border-r border-blue-900/40">Actionable Item Description (B3)</th>
+                      <th className="py-2.5 px-3 text-center w-24 font-bold">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                    {b3Rows.map((row, index) => (
+                      <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                        {/* S.No */}
+                        <td className="py-2.5 px-3 text-center border-r border-slate-200 dark:border-slate-800 font-semibold text-slate-700 dark:text-slate-300">
+                          {index + 1}
+                        </td>
+
+                        {/* Actionable Item Code (B3) */}
+                        <td className="py-2 px-3 border-r border-slate-200 dark:border-slate-800">
+                          <input
+                            type="text"
+                            value={row.actionCode}
+                            readOnly
+                            disabled
+                            placeholder="Auto-generated"
+                            className="w-full text-xs px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold rounded border border-slate-200 dark:border-slate-700 cursor-not-allowed select-none"
+                          />
+                        </td>
+
+                        {/* Actionable Item Description (B3) */}
+                        <td className="py-2 px-3 border-r border-slate-200 dark:border-slate-800">
+                          <input
+                            type="text"
+                            value={row.actionDes}
+                            onChange={(e) => handleB3DesChange(index, e.target.value)}
+                            placeholder="Enter Actionable Item Description..."
+                            className="w-full text-xs px-3 py-1.5 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-100 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </td>
+
+                        {/* Action buttons (+ and trash) */}
+                        <td className="py-2 px-3 text-center">
+                          <div className="flex items-center justify-center space-x-2">
+                            <button
+                              type="button"
+                              onClick={handleAddB3Row}
+                              title="Add another B3 actionable item"
+                              className="text-slate-600 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 transition cursor-pointer p-1"
+                            >
+                              <div className="w-5 h-5 rounded-full border border-slate-400 flex items-center justify-center hover:border-blue-600">
+                                <Plus size={13} className="stroke-[2.5]" />
+                              </div>
+                            </button>
+
+                            {b3Rows.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveB3Row(index)}
+                                title="Remove this B3 item"
+                                className="text-slate-400 hover:text-rose-600 transition cursor-pointer p-1"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            /* Single B3 Entry Mode */
+            <div className="space-y-4">
+              <div className="module-form-section-header">
+                <h2 className="module-form-section-heading">
+                  Actionable Item (B3) Details
+                </h2>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-2">
+                  <label className="module-form-label">
+                    Actionable Item (B3) Description<span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="action_b3"
+                    value={formData.action_b3}
+                    onChange={handleChange}
+                    placeholder="Enter Actionable Item Description..."
+                    required
+                    className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="module-form-label">
+                    Actionable Item Code (B3)
+                  </label>
+                  <input
+                    type="text"
+                    name="action_code_b3"
+                    value={formData.action_code_b3}
+                    onChange={handleChange}
+                    placeholder="e.g. E-CB-23.2.1"
+                    className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* ======================= SECTION 3: SOURCE DOCUMENT ====================== */}
+          {/* ========================================================================= */}
+          <div className="space-y-4">
+            <div className="module-form-section-header">
+              <h2 className="module-form-section-heading">
+                Source Document
+              </h2>
+            </div>
+
+            {/* Row 1: MIV 2030 (Y/N) & MIV Chapter */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+              <div>
+                <label className="module-form-label">
+                  Is it part of MIV 2030? (Y/N)
+                </label>
+                <div className="flex items-center space-x-6">
+                  <label className="inline-flex items-center space-x-1.5 text-xs text-slate-700 dark:text-slate-300 cursor-not-allowed">
+                    <input
+                      type="radio"
+                      name="is_miv_2030"
+                      value="Yes"
+                      checked={formData.is_miv_2030 === 'Yes'}
+                      readOnly
+                      disabled
+                      className="text-blue-600"
+                    />
+                    <span>Yes</span>
+                  </label>
+                  <label className="inline-flex items-center space-x-1.5 text-xs text-slate-700 dark:text-slate-300 cursor-not-allowed">
+                    <input
+                      type="radio"
+                      name="is_miv_2030"
+                      value="No"
+                      checked={formData.is_miv_2030 === 'No'}
+                      readOnly
+                      disabled
+                      className="text-blue-600"
+                    />
+                    <span>No</span>
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="module-form-label">
+                  MIV Chapter
+                </label>
+                <input
+                  type="text"
+                  value={formData.miv_chapter}
+                  readOnly
+                  disabled
+                  placeholder="Auto populated"
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed"
+                />
+              </div>
+            </div>
+
+            {/* Row 2: MAKV 2047 (Y/N) & MAKV Theme */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+              <div>
+                <label className="module-form-label">
+                  Is it part of MAKV 2047? (Y/N)
+                </label>
+                <div className="flex items-center space-x-6">
+                  <label className="inline-flex items-center space-x-1.5 text-xs text-slate-700 dark:text-slate-300 cursor-not-allowed">
+                    <input
+                      type="radio"
+                      name="is_makv_2047"
+                      value="Yes"
+                      checked={formData.is_makv_2047 === 'Yes'}
+                      readOnly
+                      disabled
+                      className="text-blue-600"
+                    />
+                    <span>Yes</span>
+                  </label>
+                  <label className="inline-flex items-center space-x-1.5 text-xs text-slate-700 dark:text-slate-300 cursor-not-allowed">
+                    <input
+                      type="radio"
+                      name="is_makv_2047"
+                      value="No"
+                      checked={formData.is_makv_2047 === 'No'}
+                      readOnly
+                      disabled
+                      className="text-blue-600"
+                    />
+                    <span>No</span>
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="module-form-label">
+                  MAKV Theme
+                </label>
+                <input
+                  type="text"
+                  value={formData.makv_theme}
+                  readOnly
+                  disabled
+                  placeholder="Auto populated"
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed"
+                />
+              </div>
+            </div>
+
+            {/* Row 3: SGoS-2 & Additional Items */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+              <div>
+                <label className="module-form-label">
+                  Is it part of SGoS-2? (Y/N)
+                </label>
+                <div className="flex items-center space-x-6">
+                  <label className="inline-flex items-center space-x-1.5 text-xs text-slate-700 dark:text-slate-300 cursor-not-allowed">
+                    <input
+                      type="radio"
+                      name="is_sgos_2"
+                      value="Yes"
+                      checked={formData.is_sgos_2 === 'Yes'}
+                      readOnly
+                      disabled
+                      className="text-blue-600"
+                    />
+                    <span>Yes</span>
+                  </label>
+                  <label className="inline-flex items-center space-x-1.5 text-xs text-slate-700 dark:text-slate-300 cursor-not-allowed">
+                    <input
+                      type="radio"
+                      name="is_sgos_2"
+                      value="No"
+                      checked={formData.is_sgos_2 === 'No'}
+                      readOnly
+                      disabled
+                      className="text-blue-600"
+                    />
+                    <span>No</span>
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="module-form-label">
+                  Is it part of Additional Items? (Y/N)
+                </label>
+                <div className="flex items-center space-x-6">
+                  <label className="inline-flex items-center space-x-1.5 text-xs text-slate-700 dark:text-slate-300 cursor-not-allowed">
+                    <input
+                      type="radio"
+                      name="is_additional_items"
+                      value="Yes"
+                      checked={formData.is_additional_items === 'Yes'}
+                      readOnly
+                      disabled
+                      className="text-blue-600"
+                    />
+                    <span>Yes</span>
+                  </label>
+                  <label className="inline-flex items-center space-x-1.5 text-xs text-slate-700 dark:text-slate-300 cursor-not-allowed">
+                    <input
+                      type="radio"
+                      name="is_additional_items"
+                      value="No"
+                      checked={formData.is_additional_items === 'No'}
+                      readOnly
+                      disabled
+                      className="text-blue-600"
+                    />
+                    <span>No</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Row 4: GMIS & Remarks */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+              <div>
+                <label className="module-form-label">
+                  Is it part of GMIS? (Y/N)
+                </label>
+                <div className="flex items-center space-x-6">
+                  <label className="inline-flex items-center space-x-1.5 text-xs text-slate-700 dark:text-slate-300 cursor-not-allowed">
+                    <input
+                      type="radio"
+                      name="is_gmis"
+                      value="Yes"
+                      checked={formData.is_gmis === 'Yes'}
+                      readOnly
+                      disabled
+                      className="text-blue-600"
+                    />
+                    <span>Yes</span>
+                  </label>
+                  <label className="inline-flex items-center space-x-1.5 text-xs text-slate-700 dark:text-slate-300 cursor-not-allowed">
+                    <input
+                      type="radio"
+                      name="is_gmis"
+                      value="No"
+                      checked={formData.is_gmis === 'No'}
+                      readOnly
+                      disabled
+                      className="text-blue-600"
+                    />
+                    <span>No</span>
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="module-form-label">
+                  Remarks
+                </label>
+                <input
+                  type="text"
+                  name="remarks"
+                  value={formData.remarks}
+                  readOnly
+                  disabled
+                  placeholder="Auto populated"
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
+                />
+              </div>
+            </div>
+
+          </div>
+
+          {/* ========================================================================= */}
+          {/* ========================== SECTION 4: TIMELINES ========================= */}
+          {/* ========================================================================= */}
+          <div className="space-y-4">
+            <div className="module-form-section-header">
+              <h2 className="module-form-section-heading">
+                Timelines
+              </h2>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="module-form-label">
+                  Timeline As Per Vision Document
+                </label>
+                <input
+                  type="text"
+                  name="timeline_vision"
+                  value={formData.timeline_vision}
+                  readOnly
+                  disabled
+                  placeholder="Auto populated"
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
+                />
+              </div>
+
+              <div>
+                <label className="module-form-label">
+                  Expected/Actual Date Of Completion
+                </label>
+                <input
+                  type="date"
+                  name="expected_completion_date"
+                  value={formData.expected_completion_date}
+                  onChange={handleChange}
+                  className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 font-semibold focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Actions Bar */}
+          <div className="flex items-center justify-end space-x-3 pt-6 border-t border-slate-200 dark:border-slate-800">
+            {onCancel && (
+              <button
+                type="button"
+                onClick={onCancel}
+                className="px-5 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded transition cursor-pointer"
+              >
+                Cancel
+              </button>
+            )}
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="inline-flex items-center gap-2 px-6 py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded shadow-sm transition cursor-pointer disabled:opacity-50"
+            >
+              <Save size={14} />
+              <span>{submitting ? "Saving..." : `Save ${level === 'B2' ? 'Initiative' : 'Actionable Item'}`}</span>
+            </button>
+          </div>
+
         </form>
+
+        {/* Footer Note */}
+        <div className="px-6 md:px-8 pb-6 md:pb-8 pt-8 text-center text-[10px] text-slate-400 dark:text-slate-500">
+          Copyright © 2025 Ministry of Ports, Shipping and Waterways, Government of India, All Rights Reserved
+        </div>
 
       </div>
 

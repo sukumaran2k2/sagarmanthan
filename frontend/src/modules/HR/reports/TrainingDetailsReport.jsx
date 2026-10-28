@@ -3,6 +3,7 @@ import { fetchTrainingDetailsReport } from '../api';
 import { useHRPermissions } from '../hooks/useHRPermissions';
 import ReportLayout from './ReportLayout';
 import { totalRow } from './reportUtils';
+import { COMMON_TOASTS } from '../../../utils/notify';
 
 // Report H-4.1, ported from pages/HR/trainingReports.html: one row per training type, one
 // column per organisation (participant counts), with row and column totals.
@@ -32,7 +33,7 @@ export default function TrainingDetailsReport({ report, onBack, notify }) {
       });
     } catch {
       setData({ columnDefs: [], rowData: [] });
-      notifyRef.current?.('An error occurred while fetching data. Please try again.', 'error');
+      notifyRef.current?.(COMMON_TOASTS.loadFailed('The training details report'));
     } finally {
       setLoading(false);
     }

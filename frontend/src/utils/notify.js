@@ -42,12 +42,22 @@ export const toastError = (title, message) => ({ type: TOAST_TYPES.ERROR, title,
 export const toastWarning = (title, message) => ({ type: TOAST_TYPES.WARNING, title, message });
 export const toastInfo = (title, message) => ({ type: TOAST_TYPES.INFO, title, message });
 
-/** Best human-readable reason from an API error (axios), or '' when none. */
+/**
+ * Best human-readable reason from an API error (axios), or '' when none.
+ * Plain-text bodies are used only when short; a proxy/gateway error page (HTML)
+ * is never shown to the user.
+ */
 export function getErrorMessage(err) {
   const data = err?.response?.data;
-  if (typeof data === 'string' && data.trim()) return data.trim();
+  if (typeof data === 'string') {
+    const text = data.trim();
+    return text && text.length <= 200 && !text.startsWith('<') ? text : '';
+  }
   return data?.message || data?.error || '';
 }
+
+/** "a Wing" / "an Implementing Agency" */
+const withArticle = (label) => `${/^[aeiou]/i.test(label) ? 'an' : 'a'} ${label}`;
 
 /** Ensures free text (server reasons, validation details) ends like a sentence. */
 function asSentence(text) {
@@ -81,14 +91,18 @@ export const COMMON_TOASTS = {
   // Data tables & exports
   filtersReset: () =>
     toastInfo('Filters Cleared', 'All filters have been removed. The list now shows every record.'),
-  copySuccess: (rowCount) =>
-    toastSuccess('Copied to Clipboard', `${rowCount} ${rowCount === 1 ? 'row' : 'rows'} from the current page copied. You can paste them into Excel or a document.`),
+  copySuccess: (rowCount, scope = 'from the current page') =>
+    toastSuccess('Copied to Clipboard', `${rowCount} ${rowCount === 1 ? 'row' : 'rows'} ${scope} copied. You can paste them into Excel or a document.`),
+  nothingToCopy: () =>
+    toastInfo('Nothing to Copy', 'There are no rows to copy. Adjust the filters and try again.'),
+  nothingToExport: () =>
+    toastInfo('Nothing to Export', 'There are no rows to export. Adjust the filters and try again.'),
   copyFailed: () =>
     toastError('Copy Failed', 'The browser blocked clipboard access. Allow clipboard permission for this site and try again.'),
   tableNotReady: (action) =>
     toastWarning('Table Still Loading', `Please wait for the table to finish loading, then ${action} again.`),
-  excelExported: (fileName) =>
-    toastSuccess('Export Complete', `The current page was downloaded as ${fileName}.`),
+  excelExported: (fileName, scope = 'The current page') =>
+    toastSuccess('Export Complete', `${scope} was downloaded as ${fileName}.`),
   pdfPreparing: () =>
     toastInfo('Preparing PDF', 'The print dialog will open shortly. Choose "Save as PDF" as the destination to download it.'),
   popupBlocked: () =>
@@ -100,7 +114,7 @@ export const COMMON_TOASTS = {
 
   // Forms & validation
   requiredSelect: (fieldLabel) =>
-    toastWarning('Required Field Missing', `Please select a ${fieldLabel} before submitting.`),
+    toastWarning('Required Field Missing', `Please select ${withArticle(fieldLabel)} before submitting.`),
   requiredInput: (fieldLabel) =>
     toastWarning('Required Field Missing', `Please enter the ${fieldLabel} before submitting.`),
   fixValidationErrors: (details) =>

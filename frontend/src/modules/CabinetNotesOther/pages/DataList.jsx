@@ -1,14 +1,27 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import Table from '../../../components/Table';
 import TablePagination from '../../../components/TablePagination';
 import CopyButton from '../../../components/CopyButton';
 import ExportDropdown from '../../../components/ExportDropdown';
 import { Search, Edit, Trash2, Filter, ChevronDown, X } from 'lucide-react';
-import { fetchDropdownAllValues, fetchMinistryList } from '../api';
+import { useCabinetNotesOtherStore } from '../store/useCabinetNotesOtherStore';
 import {
   getWrapColumnProps,
   renderWrappedText,
 } from '../../../utils/tableCellWrap';
+
+// Column visibility defaults; the store keeps only the user's changes over these.
+const DEFAULT_VISIBLE_COLS = {
+  sNo: true,
+  subject: true,
+  ministry: true,
+  fileNumber: true,
+  stage: true,
+  remarks: false,
+  lastUpdatedDate: false,
+  actions: true
+};
 
 export default function DataList({
   rowData = [],
@@ -20,35 +33,30 @@ export default function DataList({
   onRefresh,
   triggerNotification
 }) {
-  const [selectedMinistry, setSelectedMinistry] = useState('');
-  const [selectedStage, setSelectedStage] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [gridApi, setGridApi] = useState(null);
-  
-  // Filter panel collapse/expand state
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  // Category, filters, search, pagination and column changes live in the Cabinet Notes store,
+  // so they survive switching tabs, opening a record and leaving the module.
+  const {
+    ministry: selectedMinistry,
+    stage: selectedStage,
+    category: activeCategory, // 'active' or 'completed'
+    searchTerm,
+    showFilterPanel,
+    currentPage: storedPage,
+    pageSize,
+    visibleCols: colChanges,
+  } = useCabinetNotesOtherStore(useShallow((state) => state.list));
+  const actions = useCabinetNotesOtherStore((state) => state.listActions);
+  const visibleCols = useMemo(() => ({ ...DEFAULT_VISIBLE_COLS, ...colChanges }), [colChanges]);
 
-  // Pagination states
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  // Ministry and stage masters, loaded once by the module shell
+  const stageMasterList = useCabinetNotesOtherStore((state) => state.stages);
+  const ministryMasterList = useCabinetNotesOtherStore((state) => state.ministries);
+
+  const [gridApi, setGridApi] = useState(null);
 
   // Column visibility checklist dropdown
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const colDropdownRef = useRef(null);
-
-  const [stageMasterList, setStageMasterList] = useState([]);
-  const [ministryMasterList, setMinistryMasterList] = useState([]);
-
-  const [visibleCols, setVisibleCols] = useState({
-    sNo: true,
-    subject: true,
-    ministry: true,
-    fileNumber: true,
-    stage: true,
-    remarks: false,
-    lastUpdatedDate: false,
-    actions: true
-  });
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -58,26 +66,6 @@ export default function DataList({
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // Fetch stage master list using /allvalue-dropdown/mmt_cabinet_ministry_stage
-  useEffect(() => {
-    fetchDropdownAllValues('mmt_cabinet_ministry_stage')
-      .then(res => {
-        const rows = res.data || [];
-        setStageMasterList(rows);
-      })
-      .catch(err => console.error("Error fetching stage master dropdown:", err));
-  }, []);
-
-  // Fetch ministry master list using /allvalue-dropdown/mmt_ministry
-  useEffect(() => {
-    fetchMinistryList()
-      .then(res => {
-        const rows = res.data || [];
-        setMinistryMasterList(rows);
-      })
-      .catch(err => console.error("Error fetching ministry master dropdown:", err));
   }, []);
 
   const cleanMinistryName = (name) => {
@@ -104,14 +92,8 @@ export default function DataList({
     return Array.from(set).map(m => ({ value: m, label: m })).sort((a, b) => a.label.localeCompare(b.label));
   }, [ministryMasterList, rowData]);
 
-  // Active vs Completed sub-tabs state
-  const [activeCategory, setActiveCategory] = useState('active'); // 'active' or 'completed'
-
-  const handleCategoryChange = (category) => {
-    setActiveCategory(category);
-    setSelectedStage('');
-    setCurrentPage(1);
-  };
+  // Active vs Completed sub-tabs (a new category clears the stage filter)
+  const handleCategoryChange = (category) => actions.setCategory(category);
 
   const checkIsCompleted = (item) => {
     if (!item) return false;
@@ -165,10 +147,7 @@ export default function DataList({
   }, [selectedMinistry, selectedStage, activeCategory]);
 
   const handleResetFilters = () => {
-    setSelectedMinistry('');
-    setSelectedStage('');
-    setSearchTerm('');
-    setCurrentPage(1);
+    actions.resetFilters();
     triggerNotification?.('Filters have been reset', 'info');
   };
 
@@ -201,6 +180,10 @@ export default function DataList({
       return matchesMinistry && matchesStage && matchesSearch;
     });
   }, [rowData, selectedMinistry, selectedStage, activeCategory, searchTerm]);
+
+  // The stored page is kept as chosen; it is clamped here so a list that has shrunk since
+  // (a delete, a narrower filter elsewhere) never opens on an empty page.
+  const currentPage = Math.min(storedPage, Math.ceil(filteredData.length / pageSize) || 1);
 
   // Paginated records for table view
   const paginatedData = useMemo(() => {
@@ -406,16 +389,7 @@ export default function DataList({
   ], [canEdit, canDelete, onDelete]);
 
   const handleShowAllCols = () => {
-    setVisibleCols({
-      sNo: true,
-      subject: true,
-      ministry: true,
-      fileNumber: true,
-      stage: true,
-      remarks: true,
-      lastUpdatedDate: true,
-      actions: true
-    });
+    actions.setVisibleCols(Object.fromEntries(Object.keys(DEFAULT_VISIBLE_COLS).map((key) => [key, true])));
   };
 
   const defaultColDef = useMemo(() => ({
@@ -597,7 +571,7 @@ export default function DataList({
           <div className="flex items-center gap-2.5 w-full lg:w-auto">
             <button
               type="button"
-              onClick={() => setShowFilterPanel(prev => !prev)}
+              onClick={() => actions.setShowFilterPanel(prev => !prev)}
               className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
                 showFilterPanel || activeFiltersCount > 0
                   ? 'bg-blue-50 border-blue-300 text-[#0f417a] dark:bg-blue-950/50 dark:border-blue-700 dark:text-blue-300'
@@ -635,12 +609,12 @@ export default function DataList({
                 type="text"
                 placeholder="Search Subject, File No, Ministry..."
                 value={searchTerm}
-                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                onChange={(e) => actions.setSearchTerm(e.target.value)}
                 className="w-full pl-9 pr-8 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 focus:outline-none placeholder-slate-400 text-slate-800 dark:text-slate-200"
               />
               {searchTerm && (
                 <button
-                  onClick={() => { setSearchTerm(''); setCurrentPage(1); }}
+                  onClick={() => actions.setSearchTerm('')}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
                   <X className="h-3.5 w-3.5" />
@@ -653,7 +627,7 @@ export default function DataList({
               <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
               <select
                 value={pageSize}
-                onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
+                onChange={(e) => actions.setPageSize(Number(e.target.value))}
                 className="bg-transparent border-none text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
               >
                 {[10, 25, 50, 100].map(sz => <option key={sz} value={sz}>{sz}</option>)}
@@ -692,7 +666,7 @@ export default function DataList({
                       <input
                         type="checkbox"
                         checked={visibleCols[key] !== false}
-                        onChange={() => setVisibleCols(prev => ({ ...prev, [key]: !prev[key] }))}
+                        onChange={() => actions.setVisibleCols(prev => ({ ...prev, [key]: !visibleCols[key] }))}
                         className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
                       />
                       <span>{label}</span>
@@ -736,8 +710,7 @@ export default function DataList({
                 <select
                   value={selectedMinistry}
                   onChange={(e) => {
-                    setSelectedMinistry(e.target.value);
-                    setCurrentPage(1);
+                    actions.setFilters({ ministry: e.target.value });
                   }}
                   className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 text-slate-800 dark:text-slate-200 cursor-pointer"
                 >
@@ -757,8 +730,7 @@ export default function DataList({
                   value={selectedStage}
                   disabled={activeCategory === 'completed'}
                   onChange={(e) => {
-                    setSelectedStage(e.target.value);
-                    setCurrentPage(1);
+                    actions.setFilters({ stage: e.target.value });
                   }}
                   className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 text-slate-800 dark:text-slate-200 cursor-pointer disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:cursor-not-allowed"
                 >
@@ -790,9 +762,9 @@ export default function DataList({
             totalPages={totalPages}
             totalRows={filteredData.length}
             pageSize={pageSize}
-            onPageChange={(zeroIdx) => setCurrentPage(zeroIdx + 1)}
-            onPrevPage={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-            onNextPage={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+            onPageChange={(zeroIdx) => actions.setCurrentPage(zeroIdx + 1)}
+            onPrevPage={() => actions.setCurrentPage(Math.max(1, currentPage - 1))}
+            onNextPage={() => actions.setCurrentPage(Math.min(totalPages, currentPage + 1))}
             color="#0f417a"
           />
         </div>

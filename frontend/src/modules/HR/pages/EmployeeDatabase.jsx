@@ -1,35 +1,34 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useShallow } from 'zustand/react/shallow';
+import { createPortal } from 'react-dom';
 // Shared client: sends the login token and refreshes it (HR routes require login)
 import { axiosInstance as axios } from '../../../api';
 import * as XLSX from 'xlsx';
-import { 
-  FileSpreadsheet, 
-  Plus, 
-  Search, 
-  ChevronDown, 
-  X, 
-  User, 
-  Filter, 
+import {
+  Plus,
+  Search,
+  ChevronDown,
+  X,
+  Filter,
   RotateCcw,
-  CheckCircle2,
-  Building,
-  Briefcase,
-  Layers,
-  Calendar,
-  ShieldCheck,
-  Phone,
-  Mail,
-  FileText
 } from 'lucide-react';
 import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import { API_BASE_URL } from '../../../config/api';
 import { isOrganisationUser, getSessionOrganisationId, getSessionClaims } from '../../../utils/authSession';
+import { COMMON_TOASTS } from '../../../utils/notify';
+import { HR_TOASTS } from '../toastMessages';
+import { useHrStore } from '../store/useHrStore';
+import { useDebouncedSearch } from '../hooks/usePagedList';
+import { useGridPage } from '../hooks/useGridPage';
+import { createTableExporter } from '../utils/exportTable';
+import { HrFilterPanel, FilterSelect, DeptPostClassFilters } from '../components/HrFilterPanel';
+import { classChangeUpdate, useDeptPosts, useHrDepartments } from '../hooks/useHrFilterOptions';
+import { matchesIdOrName, nameOf } from '../utils/hrFilters';
 
-export default function EmployeeDatabase({ triggerNotification }) {
+export default function EmployeeDatabase({ notify }) {
   const navigate = useNavigate();
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -38,26 +37,32 @@ export default function EmployeeDatabase({ triggerNotification }) {
   // Determine if Organisation or Ministry view
   const isMinistryView = useMemo(() => !isOrganisationUser(), []);
 
-  // Filter States
-  const [selectedOrg, setSelectedOrg] = useState('');
-  const [selectedDept, setSelectedDept] = useState('');
-  const [selectedClass, setSelectedClass] = useState('');
-  const [selectedPostName, setSelectedPostName] = useState('');
-  // In Org view, default working status is 'Active'
-  const [selectedWorkingStatus, setSelectedWorkingStatus] = useState(!isMinistryView ? 'Active' : '');
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  // Filters, search, paging and column visibility live in the HR store
+  const {
+    selectedOrg, selectedDept, selectedClass, selectedPostName, workingStatus,
+    showFilterPanel, searchTerm, debouncedSearch, currentPage, pageSize, visibleCols } = useHrStore(useShallow((state) => ({
+    selectedOrg: state.employeeDatabase.organisationId,
+    selectedDept: state.employeeDatabase.departmentId,
+    selectedClass: state.employeeDatabase.className,
+    selectedPostName: state.employeeDatabase.postId,
+    workingStatus: state.employeeDatabase.workingStatus,
+    showFilterPanel: state.employeeDatabase.showFilterPanel,
+    searchTerm: state.employeeDatabase.searchTerm,
+    debouncedSearch: state.employeeDatabase.debouncedSearch,
+    currentPage: state.employeeDatabase.currentPage,
+    pageSize: state.employeeDatabase.pageSize,
+    visibleCols: state.employeeDatabase.visibleCols })));
+  const actions = useHrStore((state) => state.employeeDatabaseActions);
+  const organisations = useHrStore((state) => state.organisations);
+  useDebouncedSearch(searchTerm, actions.setDebouncedSearch);
+  const gridPage = useGridPage(currentPage, actions.setCurrentPage);
+  // In Org view, the default working status is 'Active' (null in the store = the view's default)
+  const selectedWorkingStatus = workingStatus ?? (!isMinistryView ? 'Active' : '');
 
-  // Search & Pagination
-  const [searchTerm, setSearchTerm] = useState('');
-  const [pageSize, setPageSize] = useState(10);
-
-  // Column Visibility
-  const [visibleCols, setVisibleCols] = useState({});
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const colDropdownRef = useRef(null);
 
   // Modals
-  const [selectedEmpForDetails, setSelectedEmpForDetails] = useState(null);
   const [isAddEmpModalOpen, setIsAddEmpModalOpen] = useState(false);
   const [newEmpForm, setNewEmpForm] = useState({
     emp_name: '',
@@ -68,8 +73,7 @@ export default function EmployeeDatabase({ triggerNotification }) {
     class: 'I/A',
     method_of_appointment: 'Direct Recruitment',
     working_status: 'Active',
-    join_date: new Date().toISOString().slice(0, 10),
-  });
+    join_date: new Date().toISOString().slice(0, 10) });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Outside click for visibility dropdown
@@ -83,8 +87,11 @@ export default function EmployeeDatabase({ triggerNotification }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Fetch Employee Database
-  const fetchEmployees = async () => {
+  // Fetch Employee Database. Only the latest request may update state (stale-response guard).
+  const latestRequestRef = useRef(0);
+  const fetchEmployees = useCallback(async () => {
+    const requestId = ++latestRequestRef.current;
+    const isStale = () => requestId !== latestRequestRef.current;
     setLoading(true);
     setError(null);
     try {
@@ -96,69 +103,62 @@ export default function EmployeeDatabase({ triggerNotification }) {
 
       const url = `${API_BASE_URL}/get-employee-list-by-organisation-dep-post/${roleId}/${orgId}/${depId}/${postId}`;
       const res = await axios.get(url);
+      if (isStale()) return;
       const data = Array.isArray(res.data) ? res.data : [];
       setEmployees(data);
     } catch (err) {
+      if (isStale()) return;
       console.error('Error fetching employee list:', err);
       setError('Failed to fetch employee database records.');
     } finally {
-      setLoading(false);
+      if (!isStale()) setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchEmployees();
   }, [isMinistryView]);
 
-  // Derived filter options
-  const uniqueOrgs = useMemo(() => {
-    return [...new Set(employees.map(e => e.organisation_name).filter(Boolean))].sort();
-  }, [employees]);
+  useEffect(() => {
+    // Deferred a tick so the load's setState does not run synchronously in the effect
+    const timer = setTimeout(fetchEmployees, 0);
+    return () => clearTimeout(timer);
+  }, [fetchEmployees]);
 
-  const uniqueDepts = useMemo(() => {
-    return [...new Set(employees.map(e => e.emp_department_name).filter(Boolean))].sort();
-  }, [employees]);
+  // Filter options as on Vacancy Management: department master, posts of the chosen department
+  // (ministry users pick an organisation first), fixed class list
+  const ownOrgId = getSessionOrganisationId() || getSessionClaims()?.organisationId || '';
+  const filterOrgId = isMinistryView ? selectedOrg : ownOrgId;
+  const filterDepartments = useHrDepartments(filterOrgId);
+  const { deptPosts, posts: filterPosts } = useDeptPosts(selectedDept, filterOrgId, selectedClass);
+  // The list's rows may carry names only, so the chosen ids are also matched by name
+  const selectedOrgName = nameOf(organisations, 'organisation_id', 'organisation_name', selectedOrg);
+  const selectedDeptName = nameOf(filterDepartments, 'department_id', 'department_name', selectedDept);
+  const selectedPostLabel = nameOf(deptPosts, 'post_id', 'post_name', selectedPostName);
 
-  const uniqueClasses = useMemo(() => {
-    const list = [...new Set(employees.map(e => e.class).filter(c => c && c.trim() !== ''))].sort();
-    return list.length ? list : ['I/A', 'II/B', 'III/C', 'IV/D'];
-  }, [employees]);
-
-  const uniquePostNames = useMemo(() => {
-    return [...new Set(employees.map(e => e.emp_post_name).filter(Boolean))].sort();
-  }, [employees]);
-
-  const activeFiltersCount = 
-    (selectedOrg ? 1 : 0) + 
-    (selectedDept ? 1 : 0) + 
-    (selectedClass ? 1 : 0) + 
-    (selectedPostName ? 1 : 0) + 
+  const activeFiltersCount =
+    (selectedOrg ? 1 : 0) +
+    (selectedDept ? 1 : 0) +
+    (selectedClass ? 1 : 0) +
+    (selectedPostName ? 1 : 0) +
     (!isMinistryView && selectedWorkingStatus && selectedWorkingStatus !== 'Active' ? 1 : 0);
 
   const clearFilters = () => {
-    setSelectedOrg('');
-    setSelectedDept('');
-    setSelectedClass('');
-    setSelectedPostName('');
-    setSelectedWorkingStatus(!isMinistryView ? 'Active' : '');
-    setSearchTerm('');
-    setExactMatch(false);
+    actions.resetFilters();
+    actions.setSearchTerm('');
+    notify?.(COMMON_TOASTS.filtersReset());
   };
 
   // Filtered dataset mapped for table display
   const filteredEmployees = useMemo(() => {
     return employees
       .filter(item => {
-        if (isMinistryView && selectedOrg && item.organisation_name !== selectedOrg) return false;
-        if (selectedDept && item.emp_department_name !== selectedDept) return false;
-        if (selectedClass && item.class !== selectedClass) return false;
-        if (!isMinistryView && selectedPostName && item.emp_post_name !== selectedPostName) return false;
+        if (isMinistryView && !matchesIdOrName(item.emp_curr_org_id, item.organisation_name, selectedOrg, selectedOrgName)) return false;
+        if (!matchesIdOrName(item.emp_department_id, item.emp_department_name, selectedDept, selectedDeptName)) return false;
+        if (selectedClass && String(item.class ?? '').trim() !== selectedClass) return false;
+        if (!matchesIdOrName(item.emp_post_id, item.emp_post_name, selectedPostName, selectedPostLabel)) return false;
         if (selectedWorkingStatus && selectedWorkingStatus !== '') {
           if (item.working_status !== selectedWorkingStatus) return false;
         }
 
-        if (searchTerm.trim()) {
-          const query = searchTerm.trim().toLowerCase();
+        if (debouncedSearch) {
+          const query = debouncedSearch.toLowerCase();
           const empId = String(item.employee_id || '').toLowerCase();
           const refId = String(item.emp_reference_id || '').toLowerCase();
           const empName = String(item.emp_name || '').toLowerCase();
@@ -189,25 +189,19 @@ export default function EmployeeDatabase({ triggerNotification }) {
         'Action Date': row.action_date ? String(row.action_date).slice(0, 10) : '--',
         _raw: row
       }));
-  }, [employees, isMinistryView, selectedOrg, selectedDept, selectedClass, selectedPostName, selectedWorkingStatus, searchTerm]);
+  }, [employees, isMinistryView, selectedOrg, selectedOrgName, selectedDept, selectedDeptName, selectedClass, selectedPostName, selectedPostLabel, selectedWorkingStatus, debouncedSearch]);
 
+  // Store keeps only the user's changes (all columns are shown by default)
   const handleToggleColumn = (field) => {
-    setVisibleCols(prev => ({ ...prev, [field]: prev[field] === false ? true : false }));
-  };
-
-  // Notification helper
-  const notify = (msg, type = 'success') => {
-    if (triggerNotification) {
-      triggerNotification(msg, type);
-    } else {
-      alert(msg);
-    }
+    actions.setVisibleCols(prev => ({ ...prev, [field]: prev[field] === false }));
   };
 
   // Export All Data (full database)
+  // Kept for the "Export All" button (not shown on the page yet)
+  // eslint-disable-next-line no-unused-vars
   const handleExportAllData = () => {
     if (!employees.length) {
-      notify('No data available to export.', 'error');
+      notify?.(HR_TOASTS.noDataToExport());
       return;
     }
     const exportRows = employees.map((row, index) => ({
@@ -228,14 +222,14 @@ export default function EmployeeDatabase({ triggerNotification }) {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'All Employees');
     XLSX.writeFile(workbook, `employee_database_all_${new Date().toISOString().slice(0, 10)}.xlsx`);
-    notify('All employee records exported successfully!');
+    notify?.(HR_TOASTS.employeesExported(exportRows.length));
   };
 
   // Add Employee Form Submit
   const handleAddEmployeeSubmit = (e) => {
     e.preventDefault();
     if (!newEmpForm.emp_name || !newEmpForm.employee_id) {
-      notify('Please fill out all required fields.', 'error');
+      notify?.(COMMON_TOASTS.mandatoryFieldsMissing());
       return;
     }
     setIsSubmitting(true);
@@ -251,7 +245,7 @@ export default function EmployeeDatabase({ triggerNotification }) {
       setEmployees(prev => [newRecord, ...prev]);
       setIsSubmitting(false);
       setIsAddEmpModalOpen(false);
-      notify(`Employee ${newEmpForm.emp_name} (${newEmpForm.employee_id}) added successfully!`);
+      notify?.(HR_TOASTS.employeeAdded(newEmpForm.emp_name, newEmpForm.employee_id));
       setNewEmpForm({
         emp_name: '',
         employee_id: '',
@@ -261,10 +255,19 @@ export default function EmployeeDatabase({ triggerNotification }) {
         class: 'I/A',
         method_of_appointment: 'Direct Recruitment',
         working_status: 'Active',
-        join_date: new Date().toISOString().slice(0, 10),
-      });
+        join_date: new Date().toISOString().slice(0, 10) });
     }, 300);
   };
+
+  // The employee's details page (profile and service history); editing starts from there
+  const openDetails = useCallback((row) => {
+    const masterId = row?.emp_master_id ?? row?.employee_master_id ?? row?.employeeMasterId;
+    if (masterId == null || masterId === '') {
+      notify?.(HR_TOASTS.employeeNotEditable());
+      return;
+    }
+    navigate(`/hr/hr-management/employee-details/${encodeURIComponent(masterId)}`);
+  }, [navigate, notify]);
 
   // AG-Grid Table Column Definitions matching revamp design system
   const columnDefs = useMemo(() => {
@@ -313,11 +316,13 @@ export default function EmployeeDatabase({ triggerNotification }) {
         minWidth: 200,
         cellClass: 'text-center flex items-center justify-center',
         headerClass: 'text-center [&_.ag-header-cell-label]:justify-center',
+        // The name opens the employee's details page
         cellRenderer: (params) => (
           <div className="w-full text-center">
             <button
               type="button"
-              onClick={() => setSelectedEmpForDetails(params.data._raw || params.data)}
+              onClick={() => openDetails(params.data._raw || params.data)}
+              title="View employee details"
               className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline font-semibold cursor-pointer transition-colors"
             >
               {params.value}
@@ -336,8 +341,8 @@ export default function EmployeeDatabase({ triggerNotification }) {
           return (
             <div className="w-full text-center flex items-center justify-center">
               <span className={`inline-flex items-center px-3 py-0.5 rounded-full text-xs font-bold shadow-2xs ${
-                isActive 
-                  ? 'bg-emerald-600 text-white' 
+                isActive
+                  ? 'bg-emerald-600 text-white'
                   : 'bg-rose-600 text-white'
               }`}>
                 {params.value}
@@ -353,27 +358,35 @@ export default function EmployeeDatabase({ triggerNotification }) {
       if (col.field) return visibleCols[col.field] !== false;
       return true;
     });
-  }, [visibleCols]);
+  }, [visibleCols, openDetails]);
+
+  // Copy / Export: the rows on the current page, visible data columns only
+  const pageStart = (currentPage - 1) * pageSize;
+  const runExport = (kind) => createTableExporter({
+    loadRows: () => filteredEmployees.slice(pageStart, pageStart + pageSize),
+    serialStart: pageStart,
+    getColumns: () => columnDefs.filter((c) => c.field).map((c) => ({ field: c.field, label: c.headerName })),
+    notify,
+    isBusy: loading,
+    title: `Employee Database (Page ${currentPage})`,
+    fileName: `Employee_Database_Page_${currentPage}`,
+    label: 'Employee database' })[kind]();
 
   return (
-    <div className="space-y-6 animate-fade-in text-slate-800 dark:text-slate-100">
-      
+    <div className="space-y-6 animate-fade-in">
+
       {/* Main Content Card */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden flex flex-col">
-        
+      <div className="module-card space-y-4">
+
         {/* Table Action Bar */}
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col lg:flex-row lg:items-center justify-between gap-4 z-20 relative">
-          
+
           {/* Left: Filter Toggle Button */}
           <div className="flex flex-wrap items-center gap-2.5">
             <button
               type="button"
-              onClick={() => setShowFilterPanel(prev => !prev)}
-              className={`flex items-center space-x-2 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer border shadow-sm ${
-                showFilterPanel || activeFiltersCount > 0
-                  ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800/50' 
-                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
-              }`}
+              onClick={() => actions.setShowFilterPanel(prev => !prev)}
+              className={`module-filter-btn ${showFilterPanel || activeFiltersCount > 0 ? 'active' : ''}`}
             >
               <Filter className="w-3.5 h-3.5" />
               <span>Filters {activeFiltersCount > 0 && `(${activeFiltersCount})`}</span>
@@ -394,13 +407,13 @@ export default function EmployeeDatabase({ triggerNotification }) {
 
           {/* Right: Entries, Total, Search, Column Visibility, Copy, Export */}
           <div className="flex flex-wrap items-center gap-2.5 justify-end">
-            
+
             {/* Show Entries */}
             <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-sm select-none dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200">
               <span className="text-[10px] uppercase font-bold text-slate-400">Show</span>
               <select
                 value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value))}
+                onChange={(e) => actions.setPageSize(Number(e.target.value))}
                 className="bg-transparent border-none text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
               >
                 <option value="10">10</option>
@@ -423,13 +436,14 @@ export default function EmployeeDatabase({ triggerNotification }) {
                 type="text"
                 placeholder="Search..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-8 py-1.5 text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-slate-400 text-slate-800 dark:text-slate-200 shadow-sm"
+                onChange={(e) => actions.setSearchTerm(e.target.value)}
+                className="w-full module-search-input"
               />
               {searchTerm && (
                 <button
                   type="button"
-                  onClick={() => setSearchTerm('')}
+                  aria-label="Clear search"
+                  onClick={() => actions.setSearchTerm('')}
                   className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
                   <X className="h-3.5 w-3.5" />
@@ -450,8 +464,8 @@ export default function EmployeeDatabase({ triggerNotification }) {
               {dropdownOpen && (
                 <div className="absolute right-0 mt-1.5 w-64 bg-white border border-slate-200 rounded-xl shadow-lg p-2 z-[9999] animate-fade-in flex flex-col space-y-0.5 dark:bg-slate-900 dark:border-slate-800">
                   {columnDefs.filter(c => c.field).map(col => (
-                    <label 
-                      key={col.field} 
+                    <label
+                      key={col.field}
                       className="flex items-center space-x-2 px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 capitalize cursor-pointer select-none"
                     >
                       <input
@@ -467,127 +481,43 @@ export default function EmployeeDatabase({ triggerNotification }) {
               )}
             </div>
 
-            {/* Copy Button */}
-            <CopyButton
-              text={() => {
-                const headers = [
-                  'S.No',
-                  'Employee ID',
-                  'Reference ID / Personnel Number',
-                  'Employee Name',
-                  'Working Status'
-                ];
-                const rows = filteredEmployees.map((p, idx) => [
-                  idx + 1,
-                  p['Employee ID'],
-                  p['Reference ID / Personnel Number'],
-                  p['Employee Name'],
-                  p['Working Status']
-                ].join('\t'));
-                return [headers.join('\t'), ...rows].join('\n');
-              }}
-            />
-
-            {/* Export Dropdown */}
-            <ExportDropdown
-              data={filteredEmployees}
-              filename="Employee_Database"
-              columns={[
-                { header: 'Employee ID', key: 'Employee ID' },
-                { header: 'Reference ID / Personnel Number', key: 'Reference ID / Personnel Number' },
-                { header: 'Employee Name', key: 'Employee Name' },
-                { header: 'Working Status', key: 'Working Status' }
-              ]}
-            />
+            <CopyButton onCopy={() => runExport('copy')} color="#0f417a" hoverBg="#f1f5f9" />
+            <ExportDropdown onExportExcel={() => runExport('excel')} onExportPdf={() => runExport('pdf')} color="#0f417a" hoverColor="#1d5594" chevron />
           </div>
         </div>
 
-        {/* Collapsible Filter Panel */}
-        <div className={`border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 overflow-hidden transition-all duration-300 ease-in-out ${showFilterPanel ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}>
-          <div className={`p-5 grid grid-cols-1 md:grid-cols-2 ${isMinistryView ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-4`}>
-            
-            {/* Ministry View: Organisation Filter */}
-            {isMinistryView && (
-              <div>
-                <label className="block text-xs font-bold mb-1.5 text-slate-700 dark:text-slate-300">Organisation</label>
-                <select
-                  value={selectedOrg}
-                  onChange={e => setSelectedOrg(e.target.value)}
-                  className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 shadow-sm"
-                >
-                  <option value="">Show All</option>
-                  {uniqueOrgs.map(org => <option key={org} value={org}>{org}</option>)}
-                </select>
-              </div>
-            )}
-
-            {/* Department Filter (Both views) */}
-            <div>
-              <label className="block text-xs font-bold mb-1.5 text-slate-700 dark:text-slate-300">Department</label>
-              <select
-                value={selectedDept}
-                onChange={e => setSelectedDept(e.target.value)}
-                className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 shadow-sm"
-              >
-                <option value="">-- Show All --</option>
-                {uniqueDepts.map(dept => <option key={dept} value={dept}>{dept}</option>)}
-              </select>
-            </div>
-
-            {/* Class Filter (Both views) */}
-            <div>
-              <label className="block text-xs font-bold mb-1.5 text-slate-700 dark:text-slate-300">Class</label>
-              <select
-                value={selectedClass}
-                onChange={e => setSelectedClass(e.target.value)}
-                className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 shadow-sm"
-              >
-                <option value="">-- Show All --</option>
-                {uniqueClasses.map(cls => <option key={cls} value={cls}>{cls}</option>)}
-              </select>
-            </div>
-
-            {/* Org View: Post Name Filter */}
+        {/* Filter Panel (shared HR design) */}
+        <div className={showFilterPanel ? 'px-4 pt-4' : ''}>
+          <HrFilterPanel show={showFilterPanel} columns={isMinistryView ? 4 : 5}>
+            <DeptPostClassFilters
+              organisations={isMinistryView ? organisations : undefined}
+              organisationId={selectedOrg}
+              onOrganisationChange={(value) => actions.setFilters({ organisationId: value, departmentId: '', postId: '' })}
+              departments={filterDepartments}
+              departmentId={selectedDept}
+              onDepartmentChange={(value) => actions.setFilters({ departmentId: value, postId: '' })}
+              posts={filterPosts}
+              postId={selectedPostName}
+              onPostChange={(value) => actions.setFilters({ postId: value })}
+              needsOrganisation={isMinistryView && !selectedOrg}
+              className={selectedClass}
+              onClassChange={(value) => actions.setFilters(classChangeUpdate(value, selectedPostName, deptPosts))}
+            />
+            {/* Organisation users: Active by default */}
             {!isMinistryView && (
-              <div>
-                <label className="block text-xs font-bold mb-1.5 text-slate-700 dark:text-slate-300">Post Name</label>
-                <select
-                  value={selectedPostName}
-                  onChange={e => setSelectedPostName(e.target.value)}
-                  className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 shadow-sm"
-                >
-                  <option value="">-- Show All --</option>
-                  {uniquePostNames.map(post => <option key={post} value={post}>{post}</option>)}
-                </select>
-              </div>
+              <FilterSelect
+                label="Working Status"
+                value={selectedWorkingStatus}
+                onChange={(value) => actions.setFilters({ workingStatus: value })}
+                allLabel="-- All --"
+                options={['Active', 'Inactive']}
+              />
             )}
-
-            {/* Org View: Working Status Filter */}
-            {!isMinistryView && (
-              <div>
-                <label className="block text-xs font-bold mb-1.5 text-slate-700 dark:text-slate-300">Working Status</label>
-                <div className="relative">
-                  <select
-                    value={selectedWorkingStatus}
-                    onChange={e => setSelectedWorkingStatus(e.target.value)}
-                    className="w-full px-3 py-2 pr-8 text-sm bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 shadow-sm"
-                  >
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                    <option value="">-- Show All --</option>
-                  </select>
-                  {selectedWorkingStatus === 'Active' && (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600 absolute right-3 top-3 pointer-events-none" />
-                  )}
-                </div>
-              </div>
-            )}
-
-          </div>
+          </HrFilterPanel>
         </div>
 
         {/* AG-Grid Data Table Area */}
-        <div className="p-0 border-t border-slate-200 dark:border-slate-800 flex-1 bg-white dark:bg-slate-900 min-h-[400px]">
+        <div className="ag-theme-quartz module-datalist-grid w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800 min-h-[400px]">
           {loading ? (
             <div className="flex flex-col items-center justify-center h-64 gap-2">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0f417a] dark:border-blue-400"></div>
@@ -610,6 +540,7 @@ export default function EmployeeDatabase({ triggerNotification }) {
               rowData={filteredEmployees}
               pagination={true}
               paginationPageSize={pageSize}
+              {...gridPage}
               defaultColDef={{
                 minWidth: 120,
                 flex: 1,
@@ -617,110 +548,13 @@ export default function EmployeeDatabase({ triggerNotification }) {
                 sortable: true,
                 resizable: true,
                 cellClass: 'text-center flex items-center justify-center',
-                headerClass: 'text-center [&_.ag-header-cell-label]:justify-center',
-              }}
+                headerClass: 'text-center [&_.ag-header-cell-label]:justify-center' }}
               domLayout="autoHeight"
-              className="border-none [&_.ag-header]:bg-[#28408f] [&_.ag-header-cell-text]:text-white [&_.ag-header-cell-label]:justify-center [&_.ag-cell]:justify-center [&_.ag-cell]:text-center"
             />
           )}
         </div>
       </div>
 
-      {/* Employee Details Modal */}
-      {selectedEmpForDetails && createPortal(
-        <div
-          className="fixed inset-0 z-[99999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 overflow-hidden"
-          onClick={() => setSelectedEmpForDetails(null)}
-        >
-          <div
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-xl w-full p-6 shadow-2xl relative animate-scale-in flex flex-col max-h-[90vh]"
-            onClick={e => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => setSelectedEmpForDetails(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-full cursor-pointer"
-            >
-              <X className="h-5 w-5" />
-            </button>
-
-            <div className="flex items-center gap-3 border-b border-slate-200 dark:border-slate-800 pb-4 mb-4">
-              <div className="h-11 w-11 rounded-2xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 flex items-center justify-center shadow-xs">
-                <User className="h-6 w-6" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  {selectedEmpForDetails.emp_name}
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Employee ID: <span className="font-semibold text-slate-800 dark:text-slate-200">{selectedEmpForDetails.employee_id}</span>
-                </p>
-              </div>
-            </div>
-
-            <div className="overflow-y-auto pr-1 space-y-4">
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700/60">
-                  <span className="text-slate-500 dark:text-slate-400 block text-2xs uppercase tracking-wider mb-0.5">Personnel / Ref No</span>
-                  <span className="font-bold text-slate-800 dark:text-slate-100">{selectedEmpForDetails.emp_reference_id || '--'}</span>
-                </div>
-
-                <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700/60">
-                  <span className="text-slate-500 dark:text-slate-400 block text-2xs uppercase tracking-wider mb-0.5">Working Status</span>
-                  <span className={`inline-block px-2.5 py-0.5 text-2xs font-bold rounded-full ${
-                    selectedEmpForDetails.working_status === 'Active' ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
-                  }`}>
-                    {selectedEmpForDetails.working_status}
-                  </span>
-                </div>
-
-                <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700/60">
-                  <span className="text-slate-500 dark:text-slate-400 block text-2xs uppercase tracking-wider mb-0.5">Organisation</span>
-                  <span className="font-bold text-slate-800 dark:text-slate-100">{selectedEmpForDetails.organisation_name || '--'}</span>
-                </div>
-
-                <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700/60">
-                  <span className="text-slate-500 dark:text-slate-400 block text-2xs uppercase tracking-wider mb-0.5">Department</span>
-                  <span className="font-bold text-slate-800 dark:text-slate-100">{selectedEmpForDetails.emp_department_name || '--'}</span>
-                </div>
-
-                <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700/60">
-                  <span className="text-slate-500 dark:text-slate-400 block text-2xs uppercase tracking-wider mb-0.5">Post / Designation</span>
-                  <span className="font-bold text-slate-800 dark:text-slate-100">{selectedEmpForDetails.emp_post_name || '--'}</span>
-                </div>
-
-                <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700/60">
-                  <span className="text-slate-500 dark:text-slate-400 block text-2xs uppercase tracking-wider mb-0.5">Class</span>
-                  <span className="font-bold text-slate-800 dark:text-slate-100">{selectedEmpForDetails.class || '--'}</span>
-                </div>
-
-                <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700/60">
-                  <span className="text-slate-500 dark:text-slate-400 block text-2xs uppercase tracking-wider mb-0.5">Employment Category</span>
-                  <span className="font-bold text-slate-800 dark:text-slate-100">{selectedEmpForDetails.type_of_people || '--'}</span>
-                </div>
-
-                <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700/60">
-                  <span className="text-slate-500 dark:text-slate-400 block text-2xs uppercase tracking-wider mb-0.5">Action Date</span>
-                  <span className="font-bold text-slate-800 dark:text-slate-100">
-                    {selectedEmpForDetails.action_date ? String(selectedEmpForDetails.action_date).slice(0, 10) : '--'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 flex justify-end border-t border-slate-200 dark:border-slate-800 pt-4">
-              <button
-                type="button"
-                onClick={() => setSelectedEmpForDetails(null)}
-                className="px-4 py-2 text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl cursor-pointer transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
 
       {/* Add Employee Modal (Organisation View) */}
       {isAddEmpModalOpen && createPortal(

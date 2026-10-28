@@ -27,7 +27,7 @@ export async function convertIntoVacantPost(request,postCode,newDateOfVacancy) {
                           approval_by_ca_date = a.A_approval_by_ca_date,
                           promotion_order_issued_date = a.A_promotion_order_issued_date,
                           application_received_date = a.A_application_received_date,
-                          review_application_by_comm = a.A_review_application_by_comm,
+                          review_application_by_comm = NULLIF(a.A_review_application_by_comm, ''), -- the anticipated column is NOT NULL varchar and holds '' for "no date"; '' into a date column would be 1900-01-01
                           approval_received_date = a.A_approval_received_date,
                           order_issued_date = a.A_order_issued_date,
                           is_recruitment_through_ipa = a.A_is_recruitment_through_ipa,
@@ -270,3 +270,22 @@ export default {
     checkAadharNumberExistence,
     checkReferenceNumberExistence
 };
+
+/**
+ * Route middleware for endpoints that take the organisation in the URL: organisation users are
+ * pinned to their own organisation (whatever the URL says); ministry users keep what they asked for.
+ */
+export function pinOwnOrganisation(paramName = "organisationID") {
+    return (req, res, next) => {
+        const { isWide, isOrganisation, organisationId } = getDataScope(req.user);
+        if (isOrganisation) {
+            if (!(Number.isFinite(organisationId) && organisationId > 0)) {
+                return res.status(403).json({ message: "Your account is not linked to an organisation." });
+            }
+            req.params[paramName] = String(organisationId);
+        } else if (!isWide) {
+            return res.status(403).json({ message: "You may not view this data." });
+        }
+        return next();
+    };
+}

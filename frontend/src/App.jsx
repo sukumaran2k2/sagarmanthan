@@ -165,12 +165,12 @@ export default function App() {
 
   // options: { variant, duration } — used by the standardized notifier (utils/notify.js);
   // legacy 3-argument calls keep the original look and 4s lifetime.
-  // Stable across renders: modules build notify() from it and use it in effect dependencies,
-  // so a new function on every toast would refetch their lists.
+  // Stable identity (only setToasts is used): modules list it in effect/callback dependencies,
+  // so a new function on every toast would make a failing fetch retry itself in a loop.
   const triggerNotification = useCallback((message, type = 'success', title = '', options = {}) => {
     const id = Date.now() + Math.random();
-    const duration = options.duration ?? 4000;
-    setToasts(prev => [...prev, { id, message, type, title, variant: options.variant, duration }]);
+    const duration = options?.duration ?? 4000;
+    setToasts(prev => [...prev, { id, message, type, title, variant: options?.variant, duration }]);
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
     }, duration + 300);
@@ -511,6 +511,8 @@ export default function App() {
                 triggerNotification={triggerNotification}
               />
             } />
+            <Route path="hr" element={<Navigate to="/hr/hr-management" replace />} />
+            <Route path="hr-management/*" element={<Navigate to="/hr/hr-management" replace />} />
             <Route path="hr/young-professionals/*" element={<YoungProfessionalsView triggerNotification={triggerNotification} />} />
             <Route path="hr/consultant-appointment/*" element={<ConsultantAppointmentView triggerNotification={triggerNotification} />} />
 

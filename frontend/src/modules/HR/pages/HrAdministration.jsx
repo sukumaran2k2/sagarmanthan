@@ -9,18 +9,18 @@ import EmployeeActivityModal from '../components/EmployeeActivityModal';
 import DeputationNotificationModal from '../components/DeputationNotificationModal';
 import DeputationBackModal from '../components/DeputationBackModal';
 import ExportActivityModal from '../components/ExportActivityModal';
-import { CLASS_OPTIONS } from '../utils/hrAdministration';
-import { createTableExporter } from '../utils/exportTable';
+import { createTableExporter, fetchAllRows } from '../utils/exportTable';
 import { useDebouncedSearch, useLatestRef, usePagedList } from '../hooks/usePagedList';
-import { useHrListStore } from '../store/useHrListStore';
+import { useShallow } from 'zustand/react/shallow';
+import { COMMON_TOASTS } from '../../../utils/notify';
+import { useHrStore } from '../store/useHrStore';
 import {
   fetchDeputationEndedEmployees,
   fetchEmployeesPage,
-  fetchHrDepartments,
-  fetchHrPostsByDepartment,
-  fetchMmtDropdown,
 } from '../api';
 import { alignHrColumns } from '../utils/tableAlignment';
+import { HrFilterPanel, DeptPostClassFilters } from '../components/HrFilterPanel';
+import { classChangeUpdate, useDeptPosts } from '../hooks/useHrFilterOptions';
 
 const COL_LABELS = {
   post_id: 'Post ID',
@@ -32,6 +32,7 @@ const COL_LABELS = {
   employee_id: 'Employee ID',
   emp_name: 'Employee Name',
   method_of_appointment: 'Method of Appointment',
+  last_updated: 'Last Updated Date',
 };
 
 const DEFAULT_VISIBLE = {
@@ -44,12 +45,23 @@ const DEFAULT_VISIBLE = {
   employee_id: false,
   emp_name: true,
   method_of_appointment: false,
+  last_updated: false,
+};
+
+// dd-mm-yyyy, or '--' when the record has no date
+// last_updated is a server-local DATETIME sent with a 'Z'; read its calendar date as stored,
+// or an evening save would show as the next day in an IST browser.
+const formatLastUpdated = (value) => {
+  const ymd = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value ?? ''));
+  if (ymd) return `${ymd[3]}-${ymd[2]}-${ymd[1]}`;
+  const d = value ? new Date(value) : null;
+  return d && !Number.isNaN(d.getTime())
+    ? `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`
+    : '--';
 };
 
 const asList = (res) => (Array.isArray(res?.data) ? res.data : res?.data?.data || []);
 
-const selectClass =
-  'appearance-none w-full text-xs pl-2.5 pr-8 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer';
 
 // Rows have a fixed height; long text is clamped to two lines (full value on hover).
 const ROW_HEIGHT = 52;
@@ -64,35 +76,37 @@ const textCell = (className) => ({
   ),
 });
 
-export default function HrAdministration({ notify, triggerNotification, permissions }) {
+// departments / organisations: reference data loaded once by the HR shell (store)
+export default function HrAdministration({ notify, permissions, departments = [], organisations = [] }) {
   const { orgId, orgName: sessionOrgName } = permissions;
   const orgName = sessionOrgName || 'Organisation';
   const canEdit = permissions.canEdit;
 
-  const sendNotification = useCallback(
-    (msg, type = 'success') => {
-      if (typeof notify === 'function') notify(msg, type);
-      else if (typeof triggerNotification === 'function') triggerNotification(msg, type);
-    },
-    [notify, triggerNotification]
-  );
 
   // ── data
   const [deputationEnded, setDeputationEnded] = useState([]);
   const [loadingNotifications, setLoadingNotifications] = useState(true);
-  const [departments, setDepartments] = useState([]);
   // Posts of the selected department, tagged with it so a stale list is never shown
-  const [deptPosts, setDeptPosts] = useState({ departmentId: '', list: [] });
-  const [organisations, setOrganisations] = useState([]);
 
   // ── filters / search / paging live in the HR list store
-  const list = useHrListStore((state) => state.employees);
-  const actions = useHrListStore((state) => state.employeesActions);
   const {
     departmentId, postId, className, exactMatch, searchTerm, debouncedSearch,
-    showFilterPanel, currentPage, pageSize,
-  } = list;
-  const [visibleCols, setVisibleCols] = useState(DEFAULT_VISIBLE);
+    showFilterPanel, currentPage, pageSize, colChanges,
+  } = useHrStore(useShallow((state) => ({
+    departmentId: state.employees.departmentId,
+    postId: state.employees.postId,
+    className: state.employees.className,
+    exactMatch: state.employees.exactMatch,
+    searchTerm: state.employees.searchTerm,
+    debouncedSearch: state.employees.debouncedSearch,
+    showFilterPanel: state.employees.showFilterPanel,
+    currentPage: state.employees.currentPage,
+    pageSize: state.employees.pageSize,
+    colChanges: state.employees.visibleCols,
+  })));
+  const actions = useHrStore((state) => state.employeesActions);
+  // Store keeps only the user's column changes; merge them over this page's defaults
+  const visibleCols = useMemo(() => ({ ...DEFAULT_VISIBLE, ...colChanges }), [colChanges]);
   const [colDropdownOpen, setColDropdownOpen] = useState(false);
   const colDropdownRef = useRef(null);
 
@@ -112,7 +126,7 @@ export default function HrAdministration({ notify, triggerNotification, permissi
 
   // App recreates triggerNotification on every render (each toast re-renders it), so loaders
   // read the notifier through a ref; depending on it directly would refetch after every toast.
-  const notifyRef = useLatestRef(sendNotification);
+  const notifyRef = useLatestRef(notify);
 
   useDebouncedSearch(searchTerm, actions.setDebouncedSearch);
 
@@ -130,7 +144,10 @@ export default function HrAdministration({ notify, triggerNotification, permissi
   }, [currentPage, pageSize, departmentId, postId, className, debouncedSearch, exactMatch]);
 
   const handleLoadError = useCallback(
-    (err) => notifyRef.current(err?.response?.data?.message || 'Failed to load the employee list.', 'error'),
+    (err) => {
+      console.error(err);
+      notifyRef.current?.(COMMON_TOASTS.loadFailed('The employee list'));
+    },
     [notifyRef]
   );
   const { rows, total: totalCount, totalPages, loading, refreshing, reload } = usePagedList({
@@ -160,31 +177,8 @@ export default function HrAdministration({ notify, triggerNotification, permissi
     return () => { alive = false; };
   }, [orgId, reloadKey]);
 
-  // Master lists for filters and popups.
-  useEffect(() => {
-    if (!orgId) return undefined;
-    let alive = true;
-    Promise.allSettled([fetchHrDepartments(orgId), fetchMmtDropdown('mmt_organisation')]).then(
-      ([deptRes, orgRes]) => {
-        if (!alive) return;
-        if (deptRes.status === 'fulfilled') setDepartments(asList(deptRes.value));
-        if (orgRes.status === 'fulfilled') setOrganisations(asList(orgRes.value));
-      }
-    );
-    return () => {
-      alive = false;
-    };
-  }, [orgId]);
-
-  useEffect(() => {
-    if (!departmentId || !orgId) return undefined;
-    let alive = true;
-    fetchHrPostsByDepartment(departmentId, orgId)
-      .then((res) => { if (alive) setDeptPosts({ departmentId, list: asList(res) }); })
-      .catch(() => { if (alive) setDeptPosts({ departmentId, list: [] }); });
-    return () => { alive = false; };
-  }, [departmentId, orgId]);
-  const filterPosts = departmentId && deptPosts.departmentId === departmentId ? deptPosts.list : [];
+  // Post filter: posts of the chosen department, narrowed to the chosen class (as Vacancy Management)
+  const { deptPosts, posts: filterPosts } = useDeptPosts(departmentId, orgId, className);
 
   const refreshAll = () => {
     setLoadingNotifications(true);
@@ -231,6 +225,12 @@ export default function HrAdministration({ notify, triggerNotification, permissi
         ),
       },
       { field: 'method_of_appointment', headerName: COL_LABELS.method_of_appointment, flex: 1.2, minWidth: 160, hide: !visibleCols.method_of_appointment, ...textCell('font-semibold text-slate-700 dark:text-slate-300') },
+      {
+        // When the employee's current record was last changed (from the server's last_updated)
+        field: 'last_updated', headerName: COL_LABELS.last_updated, minWidth: 130, hide: !visibleCols.last_updated,
+        headerClass: 'text-center', cellClass: 'text-center flex items-center justify-center',
+        valueFormatter: (p) => formatLastUpdated(p.value),
+      },
     ];
 
     if (canEdit) {
@@ -248,15 +248,18 @@ export default function HrAdministration({ notify, triggerNotification, permissi
     return cols;
   }, [visibleCols, canEdit]);
 
-  // Copy / Export cover the rows on screen (this page), once it has finished loading
+  // Copy / Excel / PDF cover every employee of the filtered list (all pages), as the legacy page did
   const exporter = createTableExporter({
-    loadRows: () => rows,
-    getColumns: () => Object.keys(COL_LABELS).filter((f) => visibleCols[f]).map((f) => ({ field: f, label: COL_LABELS[f] })),
-    notify: sendNotification,
+    loadRows: () => fetchAllRows(fetchEmployeesPage, params),
+    getColumns: () => Object.keys(COL_LABELS).filter((f) => visibleCols[f]).map((f) => ({
+      field: f,
+      label: COL_LABELS[f],
+      ...(f === 'last_updated' ? { value: (r) => formatLastUpdated(r.last_updated) } : {}),
+    })),
+    notify,
     isBusy: busy,
-    serialStart,
-    title: `HR Administration & Actions - ${orgName} (Page ${currentPage})`,
-    fileName: `HR_Administration_${orgName}_Page_${currentPage}`,
+    title: `HR Administration & Actions - ${orgName}`,
+    fileName: `HR_Administration_${orgName}`,
     sheetName: 'HR Administration',
     label: 'Employee list',
   });
@@ -276,21 +279,17 @@ export default function HrAdministration({ notify, triggerNotification, permissi
   const pendingCount = deputationEnded.length;
 
   return (
-    <div className="space-y-4 animate-fade-in relative text-slate-800 dark:text-slate-100">
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4 dark:bg-slate-950 dark:border-slate-800">
+    <div className="space-y-4 animate-fade-in relative">
+      <div className="module-card space-y-4">
         {/* ── Toolbar ── */}
         <div className="flex flex-col lg:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
           <div className="flex items-center gap-2.5 w-full lg:w-auto flex-wrap">
             <button
               type="button"
               onClick={() => actions.setShowFilterPanel((p) => !p)}
-              className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer border shadow-2xs ${
-                showFilterPanel || activeFiltersCount > 0
-                  ? 'bg-blue-50 border-blue-300 text-[#0f417a] dark:bg-blue-950/50 dark:border-blue-700 dark:text-blue-300'
-                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800'
-              }`}
+              className={`module-filter-btn ${showFilterPanel || activeFiltersCount > 0 ? 'active' : ''}`}
             >
-              <Filter className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
+              <Filter className="h-4 w-4" />
               <span>Filter</span>
               {activeFiltersCount > 0 && (
                 <span className="bg-[#0f417a] dark:bg-blue-500 text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">
@@ -302,7 +301,7 @@ export default function HrAdministration({ notify, triggerNotification, permissi
             {activeFiltersCount > 0 && (
               <button
                 type="button"
-                onClick={actions.resetFilters}
+                onClick={() => { actions.resetFilters(); notify?.(COMMON_TOASTS.filtersReset()); }}
                 className="px-2.5 py-1.5 text-xs font-bold text-rose-600 bg-rose-50 dark:bg-rose-950/40 rounded-xl border border-rose-200 dark:border-rose-900 transition cursor-pointer"
               >
                 Reset
@@ -347,10 +346,10 @@ export default function HrAdministration({ notify, triggerNotification, permissi
                   placeholder="Search..."
                   value={searchTerm}
                   onChange={(e) => actions.setSearchTerm(e.target.value)}
-                  className="w-full pl-9 pr-8 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-slate-400 text-slate-800 dark:text-slate-200"
+                  className="w-full module-search-input"
                 />
                 {searchTerm && (
-                  <button type="button" onClick={() => actions.setSearchTerm('')} className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer">
+                  <button type="button" aria-label="Clear search" onClick={() => actions.setSearchTerm('')} className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer">
                     <X className="h-3.5 w-3.5" />
                   </button>
                 )}
@@ -394,7 +393,7 @@ export default function HrAdministration({ notify, triggerNotification, permissi
                       <input
                         type="checkbox"
                         checked={visibleCols[col]}
-                        onChange={() => setVisibleCols((prev) => ({ ...prev, [col]: !prev[col] }))}
+                        onChange={() => actions.setVisibleCols((prev) => ({ ...prev, [col]: !visibleCols[col] }))}
                         className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
                       />
                       <span>{COL_LABELS[col]}</span>
@@ -408,49 +407,22 @@ export default function HrAdministration({ notify, triggerNotification, permissi
           </div>
         </div>
 
-        {/* ── Filter Panel ── */}
-        {showFilterPanel && (
-          <div className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200/80 dark:border-slate-800 grid grid-cols-1 md:grid-cols-3 gap-4 animate-fade-in">
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Department</label>
-              <div className="relative">
-                <select value={departmentId} onChange={(e) => actions.setFilters({ departmentId: e.target.value, postId: '' })} className={selectClass}>
-                  <option value="">-- All Departments --</option>
-                  {departments.map((d) => <option key={d.department_id} value={d.department_id}>{d.department_name}</option>)}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Post Name</label>
-              <div className="relative">
-                <select
-                  value={postId}
-                  onChange={(e) => actions.setFilters({ postId: e.target.value })}
-                  disabled={!departmentId}
-                  className={`${selectClass} ${!departmentId ? 'opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-800/60' : ''}`}
-                >
-                  <option value="">{!departmentId ? 'Select Dept First' : '-- All Posts --'}</option>
-                  {filterPosts.map((p) => <option key={p.post_id} value={p.post_id}>{p.post_name}</option>)}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Class</label>
-              <div className="relative">
-                <select value={className} onChange={(e) => actions.setFilters({ className: e.target.value })} className={selectClass}>
-                  <option value="">-- All Classes --</option>
-                  {CLASS_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-              </div>
-            </div>
-          </div>
-        )}
+        {/* ── Filter Panel (shared HR design) ── */}
+        <HrFilterPanel show={showFilterPanel} columns={3}>
+          <DeptPostClassFilters
+            departments={departments}
+            departmentId={departmentId}
+            onDepartmentChange={(value) => actions.setFilters({ departmentId: value, postId: '' })}
+            posts={filterPosts}
+            postId={postId}
+            onPostChange={(value) => actions.setFilters({ postId: value })}
+            className={className}
+            onClassChange={(value) => actions.setFilters(classChangeUpdate(value, postId, deptPosts))}
+          />
+        </HrFilterPanel>
 
         {/* ── Data Table ── */}
-        <div className="ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
+        <div className="ag-theme-quartz module-datalist-grid w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
           <Table
             rowData={pageRows}
             columnDefs={alignedColumns.columnDefs}
@@ -470,15 +442,6 @@ export default function HrAdministration({ notify, triggerNotification, permissi
             onNextPage={() => actions.setCurrentPage((p) => Math.min(totalPages, p + 1))}
             color="#0f417a"
           />
-          <style dangerouslySetInnerHTML={{ __html: `
-            .ag-theme-quartz .ag-header { background-color: #0f417a !important; border-bottom: 2px solid #0a2d55 !important; }
-            .ag-theme-quartz .ag-header-cell { background-color: #0f417a !important; color: #ffffff !important; font-weight: 700 !important; text-transform: uppercase !important; font-size: 11px !important; letter-spacing: 0.05em !important; }
-            .ag-theme-quartz .ag-header-cell .ag-icon { color: #ffffff !important; }
-            .ag-theme-quartz .ag-header-cell-label { color: #ffffff !important; justify-content: center !important; }
-            .ag-theme-quartz .ag-row { font-size: 13px !important; border-bottom: 1px solid #f1f5f9 !important; }
-            .ag-theme-quartz .ag-row-hover { background-color: #f8fafc !important; }
-            .dark .ag-theme-quartz .ag-row-hover { background-color: #1e293b !important; }
-          `}} />
         </div>
       </div>
 
@@ -491,7 +454,7 @@ export default function HrAdministration({ notify, triggerNotification, permissi
           organisations={organisations}
           departments={departments}
           orgId={orgId}
-          notify={sendNotification}
+          notify={notify}
           onClose={() => setActivityEmployee(null)}
           onSuccess={refreshAll}
         />
@@ -518,7 +481,7 @@ export default function HrAdministration({ notify, triggerNotification, permissi
           employee={deputationEmployee}
           departments={departments}
           orgId={orgId}
-          notify={sendNotification}
+          notify={notify}
           onClose={() => {
             setDeputationEmployee(null);
             setShowNotifications(true);
@@ -531,7 +494,7 @@ export default function HrAdministration({ notify, triggerNotification, permissi
         <ExportActivityModal
           isOpen
           orgId={orgId}
-          notify={sendNotification}
+          notify={notify}
           onClose={() => setShowExport(false)}
         />
       )}

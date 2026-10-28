@@ -26,13 +26,13 @@ function ReportIndex({ identity }) {
 
   // S.No and Description left-aligned, the report code centred; section rows are shaded.
   const columnDefs = useMemo(() => [
-    { field: 'sNo', headerName: 'S.No.', minWidth: 70, maxWidth: 90, headerClass: 'hr-rpt-head-left', cellClass: 'hr-rpt-left font-black', cellStyle: { textAlign: 'left' } },
+    { field: 'sNo', headerName: 'S.NO.', minWidth: 70, maxWidth: 90, headerClass: 'hr-rpt-head-left', cellClass: 'hr-rpt-left font-black', cellStyle: { textAlign: 'left' } },
     {
-      field: 'coding', headerName: 'Coding', minWidth: 120, maxWidth: 160, headerClass: 'hr-rpt-head-center',
+      field: 'coding', headerName: 'CODING', minWidth: 120, maxWidth: 160, headerClass: 'hr-rpt-head-center',
       cellClass: 'hr-rpt-center font-mono font-bold', cellStyle: { textAlign: 'center' },
     },
     {
-      field: 'title', headerName: 'Description', flex: 1, minWidth: 260, headerClass: 'hr-rpt-head-left',
+      field: 'title', headerName: 'DESCRIPTION', flex: 1, minWidth: 260, headerClass: 'hr-rpt-head-left',
       cellClass: 'hr-rpt-left', cellStyle: { textAlign: 'left' }, wrapText: true, autoHeight: true,
       cellRenderer: (p) => p.data.isSection ? (
         <span className="font-black uppercase tracking-wide">{p.value}</span>
@@ -71,22 +71,13 @@ function ReportIndex({ identity }) {
       </div>
 
       <div className="hr-report-grid">
-        <style>{`
-          .hr-report-grid .ag-header-cell.hr-rpt-head-left .ag-header-cell-label { justify-content: flex-start !important; }
-          .hr-report-grid .ag-header-cell.hr-rpt-head-center .ag-header-cell-label { justify-content: center !important; }
-          .hr-report-grid .ag-cell { border-right: 1px solid ${T.line} !important; font-size: 12px; }
-          .hr-report-grid .ag-cell.hr-rpt-left { justify-content: flex-start !important; }
-          .hr-report-grid .ag-cell.hr-rpt-center { justify-content: center !important; }
-          .hr-report-grid .ag-row.hr-rpt-section { background-color: ${T.accent} !important; color: ${T.brand} !important; font-weight: 900; }
-          .dark .hr-report-grid .ag-row.hr-rpt-section { background-color: #1e293b !important; color: #fca5a5 !important; }
-        `}</style>
         <Table
           rowData={rows}
           columnDefs={columnDefs}
           getRowId={(p) => p.data.key}
           rowClassRules={{ 'hr-rpt-section': (p) => Boolean(p.data?.isSection) }}
           pagination={false}
-          color={T.brand}
+          color="var(--module-report-header-bg, #4b2424)"
           suppressMovableColumns
           defaultColDef={{ resizable: true, sortable: false, filter: false }}
         />
@@ -128,8 +119,8 @@ function ReportView({ identity, notify }) {
 }
 
 export default function HrReports({ notify }) {
-  const { isOrgUser, orgId } = useHRPermissions();
-  const identity = useMemo(() => ({ isOrgUser, orgId }), [isOrgUser, orgId]);
+  const { isOrgUser, orgId, hrView } = useHRPermissions();
+  const identity = useMemo(() => ({ isOrgUser, orgId, hrView }), [isOrgUser, orgId, hrView]);
 
   return (
     <Routes>

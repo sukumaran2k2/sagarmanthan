@@ -3,7 +3,8 @@ import multer from 'multer';
 import sql from 'mssql';
 import fs from 'fs';
 import path from 'path';
-import {convertIntoVacantPost, getNewEmployeeIDofOrg, resolveReportOrganisation, readListQuery, likePattern, resolveListOrganisation, runPagedQuery, buildPagination} from "../HR/hrHelperFunctions.js";
+import { getDataScope } from "../../middleware/dataScope.js";
+import {convertIntoVacantPost, getNewEmployeeIDofOrg, safeRollback, resolveReportOrganisation, readListQuery, likePattern, resolveListOrganisation, runPagedQuery, buildPagination} from "../HR/hrHelperFunctions.js";
 
 const uploadDestination = "./fileuploads/HR";
 
@@ -1015,10 +1016,13 @@ async function deleteHrDepartment(req, res) {
 }
 
 async function getHRAllData(req, res) {
-    const organisationID = req.params.organisationID;
+    // Organisation users export their own organisation; ministry users the one requested
+    const organisationID = resolveReportOrganisation(req, req.params.organisationID);
+    if (!organisationID) return res.status(403).json({ message: "Your account is not linked to an organisation." });
     const conn = await pool;
     const request = conn.request();
-    request.input("organisationID", organisationID);
+    // Typed as int: an untyped (nvarchar) id compared with the int column made this query time out
+    request.input("organisationID", sql.Int, organisationID);
 
     try {
         const result = await request.query(`SELECT o.organisation_name AS ORGANISATION,
@@ -1039,9 +1043,14 @@ async function getHRAllData(req, res) {
             LEFT JOIN mmt_hr_department dp ON dp.department_id = ps.department_id
             LEFT JOIN mmt_class c ON c.class_id = p.class_id
             LEFT JOIN mmt_organisation o ON o.organisation_id = p.organisation_id
+            -- The employee currently holding this post code (one row per post; a post whose holder's
+            -- records are all closed is still exported, without an employee)
             LEFT JOIN tbl_employee_transaction_details et ON et.employee_id = ps.employee_id
+                AND et.emp_post_code = ps.post_code AND et.emp_post_end_date IS NULL
             LEFT JOIN tbl_employee_master em ON em.emp_master_id = et.emp_master_id
-            WHERE ps.organisation_id = @organisationID AND et.emp_post_end_date IS NULL`);
+            WHERE ps.organisation_id = @organisationID
+            -- Single-threaded: this server's parallel plan for it stalled on CXSYNC_PORT until the 60 s timeout
+            OPTION (MAXDOP 1)`);
         res.json(result.recordset);
     } catch (err) {
         //console.log(err);
@@ -1211,7 +1220,9 @@ async function addNewEmployee(req, res) {
         const experience = req.body.experience;
         const empDepartmentId = req.body.department;
         const empDepartmentName = req.body.departmentName;
-        const empCurrOrgId = req.body.organisationID;
+        // From the login: an organisation user adds employees to their own organisation only
+        const empCurrOrgId = resolveReportOrganisation(req, req.body.organisationID);
+        if (!empCurrOrgId) return res.status(403).json({ message: "Your account is not linked to an organisation." });
         const empPostId = req.body.empPostId;
         const empPostName = req.body.empPostName;
         const empPostCode = req.body.postCode;
@@ -1245,7 +1256,7 @@ async function addNewEmployee(req, res) {
         const ugDisciplines = req.body.ugDisciplines ?? null;
         const pgDisciplines = req.body.pgDisciplines ?? null;
         const technicalResPerson = req.body.technicalResPerson ?? null;
-        const userID = req.body.userID ?? null;
+        const userID = req.user?.userId ?? null; // the logged-in user, not a value from the request
         let employeeId = req.body.employeeId ?? null;
         let empMasterId = req.body.empMasterId ?? null;
         
@@ -1302,6 +1313,24 @@ async function addNewEmployee(req, res) {
         request.input("userID", userID);
         request.input("empMasterId", empMasterId);
 
+        // Duplicate checks (the legacy page ran them in the browser only). An employee rejoining
+        // after a technical resignation is exempt, as before.
+        if (Number(technicalResPerson) !== 1) {
+            request.input("dupOrgId", sql.Int, Number(empCurrOrgId));
+            const dup = await request.query(`SELECT
+                CASE WHEN EXISTS (SELECT 1 FROM tbl_employee_transaction_details t
+                    JOIN tbl_employee_master m ON m.emp_master_id = t.emp_master_id
+                    WHERE m.emp_curr_org_id = @dupOrgId AND t.emp_reference_id = @empReferenceId) THEN 1 ELSE 0 END AS refExists,
+                CASE WHEN @employeeAadhar IS NOT NULL AND EXISTS (SELECT 1 FROM tbl_employee_master
+                    WHERE emp_aadhar_number = @employeeAadhar) THEN 1 ELSE 0 END AS aadhaarExists`);
+            if (dup.recordset[0].refExists) {
+                return res.status(409).json({ message: "An employee with this reference / personnel number already exists in your organisation." });
+            }
+            if (dup.recordset[0].aadhaarExists) {
+                return res.status(409).json({ message: "An employee with this Aadhaar number already exists." });
+            }
+        }
+
         const createdDate = new Date();
         request.input("createdDate", createdDate);
 
@@ -1314,7 +1343,7 @@ async function addNewEmployee(req, res) {
                 ug_count,pg_count,ug_discipline,pg_discipline,technical_resign,emp_curr_org_join_date,emp_reference_id)
                  OUTPUT INSERTED.emp_master_id
                 VALUES (@employeeName, @dateOfBirth, @gender, @employeeAadhar, @religion, @ethnicOrigin, @emp_disability, @retirementDate, @experience, @parentOrganisation, @otherParentOrg,
-                @domicileState, @parentOrgJoiningDate, @empDivisionName,@parentOrganisation,@otherParentOrg,@empDiscipline,@empHighestEdu,@createdDate, @userID,1,@ugCount,@pgCount,@ugDisciplines,@pgDisciplines,@technicalResPerson,@currentOrgJoiningDate,@empReferenceId)`;
+                @domicileState, @parentOrgJoiningDate, @empDivisionName,@parentOrganisation,@otherParentOrg,@empDiscipline,@empHighestEdu,GETDATE(), @userID,1,@ugCount,@pgCount,@ugDisciplines,@pgDisciplines,@technicalResPerson,@currentOrgJoiningDate,@empReferenceId)`;
             employeeId = await getNewEmployeeIDofOrg(73);
             request.input("employeeId", employeeId);
         }else if(technicalResPerson != 1){
@@ -1323,7 +1352,7 @@ async function addNewEmployee(req, res) {
                 emp_domicile_state, emp_parent_org_joined_date,emp_division_name,emp_curr_org_id,emp_discipline,emp_highest_edu,created_date, created_by,emp_status,ug_count,pg_count,ug_discipline,pg_discipline,technical_resign,emp_curr_org_join_date,emp_reference_id)
                  OUTPUT INSERTED.emp_master_id
                 VALUES (@employeeName, @dateOfBirth, @gender, @employeeAadhar, @religion, @ethnicOrigin, @emp_disability, @retirementDate, @experience, @parentOrganisation, @otherParentOrg,
-                @domicileState, @parentOrgJoiningDate, @empDivisionName,@empCurrOrgId,@empDiscipline,@empHighestEdu,@createdDate, @userID,1,@ugCount,@pgCount,@ugDisciplines,@pgDisciplines,@technicalResPerson,@currentOrgJoiningDate,@empReferenceId)`;
+                @domicileState, @parentOrgJoiningDate, @empDivisionName,@empCurrOrgId,@empDiscipline,@empHighestEdu,GETDATE(), @userID,1,@ugCount,@pgCount,@ugDisciplines,@pgDisciplines,@technicalResPerson,@currentOrgJoiningDate,@empReferenceId)`;
             employeeId = await getNewEmployeeIDofOrg(empCurrOrgId);
             request.input("employeeId", employeeId);
 
@@ -1470,7 +1499,7 @@ async function addNewEmployee(req, res) {
                     @separationReason,
                     @separationDate,
                     @promotionDate,
-                    @createdDate,
+                    GETDATE(),
                     @userID
                 );
             `);
@@ -1518,104 +1547,103 @@ function generateUniqueFileName(originalFileName) {
     return `${baseFileName}_${day}${month}${year}_${hours}${minutes}${seconds}.${fileExtension}`;
 }
 
+/**
+ * Update an employee's personal details and the reference number / joining date of their current record.
+ * PUT /edit-employee-details/:employeeMasterId/:employeeId (React); the legacy page still POSTs the ids
+ * in the body as empMasterID / empID. Organisation users may edit only their own organisation's employees.
+ */
 async function editEmployeeDetails(req, res) {
-    const conn = await pool;
-    // const request = conn.request();
-    // let uniqueFileName = null;
-    // const profileImgUpdateStatus = req.body.profileImgUpdateStatus;
+  const empMasterID = Number.parseInt(req.params.employeeMasterId ?? req.body.empMasterID, 10);
+  const empID = String(req.params.employeeId ?? req.body.empID ?? "").trim();
+  if (!Number.isInteger(empMasterID) || !empID) {
+    return res.status(400).json({ message: "Employee Master ID and Employee ID are required." });
+  }
 
-    // if (req.file) {
-    //     const originalFileName = req.file.originalname;
+  const {
+    employeeName, referenceNumber, empDivisionName, dateOfBirth, gender, religion, employeeAadhar,
+    experience, parentOrganisation, whethVhorOh, ethnicOrigin, parentOrgJoiningDate,
+    domicileState, empDiscipline, empHighestEdu, otherParentOrg, retirementDate,
+    ugCount, pgCount, ugDisciplines, pgDisciplines
+  } = req.body;
+  // The organisation joining date and the posting's join dates are not editable here (any
+  // joiningDate sent, e.g. by the legacy page, is ignored)
+  const aadhaar = employeeAadhar ? String(employeeAadhar).replace(/\s+/g, "") : null;
+  const reference = referenceNumber ? String(referenceNumber).trim() : null;
 
-    //     if (profileImgUpdateStatus == 1) {
-    //         uniqueFileName = generateUniqueFileName(originalFileName);
-    //         const destinationFolder = './fileuploads/hr_employee';
-    //         const destinationPath = path.join(destinationFolder, uniqueFileName);
-
-    //         if (!fs.existsSync(destinationFolder)) {
-    //             fs.mkdirSync(destinationFolder, { recursive: true });
-    //         }
-
-    //         fs.renameSync(req.file.path, destinationPath);
-    //     } else {
-    //         uniqueFileName = originalFileName;
-    //     }
-    // }
-
-    // request.input("fileName", uniqueFileName);
-
-
-    const employeeName = req.body.employeeName;
-    const empID = req.body.empID;
-    const referenceNumber = req.body.referenceNumber;
-    const empDivisionName = req.body.empDivisionName;
-    const dateOfBirth = req.body.dateOfBirth;
-    const gender = req.body.gender;
-    const religion = req.body.religion;
-    const employeeAadhar = req.body.employeeAadhar;
-    // const department = req.body.department;
-    const joiningDate = req.body.joiningDate;
-    const experience = req.body.experience;
-    const parentOrganisation = req.body.parentOrganisation;
-    const currentDesignation = req.body.currentDesignation;
-    const whethVhorOh = req.body.whethVhorOh;
-    const ethnicOrigin = req.body.ethnicOrigin;
-    const parentOrgJoiningDate = req.body.parentOrgJoiningDate;
-    const empMasterID = req.body.empMasterID;
-    const domicileState = req.body.domicileState;
-    const empDiscipline = req.body.empDiscipline;
-    const empHighestEdu = req.body.empHighestEdu;
-    const otherParentOrg = req.body.otherParentOrg && req.body.otherParentOrg.trim() !== '' ? req.body.otherParentOrg : null;
-    const retirementDate = req.body.retirementDate;
-
-    const ugCount = req.body.ugCount ?? null;
-    const pgCount = req.body.pgCount ?? null;
-    const ugDisciplines = req.body.ugDisciplines ?? null;
-    const pgDisciplines = req.body.pgDisciplines ?? null;
-
-    const ugDisciplinesStr = ugDisciplines.join(',');
-    const pgDisciplinesStr = pgDisciplines.join(',');
-
-    // const tempPath = req.file.path ; 
-    // const finalPath = `Downloads/${req.file.filename}`; 
-
-    try {
-    const transaction = new sql.Transaction(conn);
+  const conn = await pool;
+  const transaction = new sql.Transaction(conn);
+  try {
     await transaction.begin();
 
-    const req1 = new sql.Request(transaction);
-    req1.input("employeeName", employeeName);
-    req1.input("referenceNumber", referenceNumber);
-    req1.input("dateOfBirth", dateOfBirth);
-    req1.input("employeeAadhar", employeeAadhar);
-    req1.input("whethVhorOh", whethVhorOh);
-    req1.input("religion", religion);
-    req1.input("ethnicOrigin", ethnicOrigin);
-    req1.input("gender", gender);
-    req1.input("experience", experience);
-    req1.input("currentDesignation", currentDesignation);
-    //  request.input("fileName",fileName);
-    // request.input("department", department);
-    req1.input("parentOrganisation", parentOrganisation);
-    req1.input("parentOrgJoiningDate", parentOrgJoiningDate);
-    //  request.input("employeeID", employeeID);
-    // request.input("uniqueFileName", uniqueFileName);
-    req1.input("empMasterID", empMasterID);
-    req1.input("domicileState", domicileState);
-    req1.input("empDivisionName",empDivisionName);
-    req1.input("otherParentOrg",otherParentOrg);
-    req1.input("empDiscipline",empDiscipline);
-    req1.input("empHighestEdu",empHighestEdu);
-    req1.input("ugCount", ugCount);
-    req1.input("pgCount", pgCount);
-    req1.input("ugDisciplines", ugDisciplinesStr);
-    req1.input("pgDisciplines", pgDisciplinesStr);
-    req1.input("joiningDate", joiningDate);
-    req1.input("retirementDate", retirementDate);
+    const check = new sql.Request(transaction);
+    check.input("empMasterID", sql.Int, empMasterID);
+    check.input("empID", sql.NVarChar(100), empID);
+    const current = (await check.query(`
+      SELECT m.emp_curr_org_id
+      FROM tbl_employee_master m WITH (UPDLOCK)
+      JOIN tbl_employee_transaction_details t ON t.emp_master_id = m.emp_master_id
+      WHERE m.emp_master_id = @empMasterID AND t.employee_id = @empID AND t.emp_post_end_date IS NULL
+    `)).recordset[0];
+    if (!current) {
+      await transaction.rollback();
+      return res.status(404).json({ message: "Employee not found." });
+    }
+    const { isOrganisation, organisationId } = getDataScope(req.user);
+    if (isOrganisation && Number(current.emp_curr_org_id) !== Number(organisationId)) {
+      await transaction.rollback();
+      return res.status(403).json({ message: "You can edit only your organisation's employees." });
+    }
 
-    await req1.query(`
-        UPDATE tbl_employee_master
-        SET 
+    // Same duplicate rules as Add Employee, ignoring this employee's own record
+    check.input("orgId", sql.Int, current.emp_curr_org_id);
+    check.input("referenceNumber", sql.NVarChar(100), reference);
+    check.input("aadhaar", sql.NVarChar(20), aadhaar);
+    const dup = (await check.query(`
+      SELECT
+        CASE WHEN @referenceNumber IS NOT NULL AND EXISTS (
+          SELECT 1 FROM tbl_employee_transaction_details t JOIN tbl_employee_master m ON m.emp_master_id = t.emp_master_id
+          WHERE m.emp_curr_org_id = @orgId AND t.emp_reference_id = @referenceNumber AND m.emp_master_id <> @empMasterID
+        ) THEN 1 ELSE 0 END AS refExists,
+        CASE WHEN @aadhaar IS NOT NULL AND EXISTS (
+          SELECT 1 FROM tbl_employee_master WHERE emp_aadhar_number = @aadhaar AND emp_master_id <> @empMasterID
+        ) THEN 1 ELSE 0 END AS aadhaarExists
+    `)).recordset[0];
+    if (dup.refExists || dup.aadhaarExists) {
+      await transaction.rollback();
+      return res.status(409).json({
+        message: dup.refExists
+          ? "Another employee in your organisation already has this reference / personnel number."
+          : "Another employee already has this Aadhaar number.",
+        field: dup.refExists ? "referenceNumber" : "employeeAadhar",
+      });
+    }
+
+    const master = new sql.Request(transaction);
+    master.input("empMasterID", sql.Int, empMasterID);
+    master.input("employeeName", sql.NVarChar, employeeName ?? null);
+    master.input("referenceNumber", sql.NVarChar, reference);
+    master.input("dateOfBirth", sql.Date, dateOfBirth || null);
+    master.input("employeeAadhar", sql.NVarChar, aadhaar);
+    master.input("whethVhorOh", sql.NVarChar, whethVhorOh ?? null);
+    master.input("religion", sql.NVarChar, religion ?? null);
+    master.input("ethnicOrigin", sql.NVarChar, ethnicOrigin ?? null);
+    master.input("gender", sql.NVarChar, gender ?? null);
+    master.input("experience", sql.NVarChar, experience ?? null);
+    master.input("parentOrganisation", sql.Int, Number.parseInt(parentOrganisation, 10) || null);
+    master.input("parentOrgJoiningDate", sql.Date, parentOrgJoiningDate || null);
+    master.input("domicileState", sql.Int, Number.parseInt(domicileState, 10) || null);
+    master.input("empDivisionName", sql.NVarChar, empDivisionName ?? null);
+    master.input("otherParentOrg", sql.NVarChar, String(otherParentOrg ?? "").trim() || null);
+    master.input("empDiscipline", sql.NVarChar, empDiscipline ?? null);
+    master.input("empHighestEdu", sql.NVarChar, empHighestEdu ?? null);
+    master.input("ugCount", sql.Int, Number.parseInt(ugCount, 10) || null);
+    master.input("pgCount", sql.Int, Number.parseInt(pgCount, 10) || null);
+    master.input("ugDisciplines", sql.NVarChar(sql.MAX), Array.isArray(ugDisciplines) ? ugDisciplines.join(",") : null);
+    master.input("pgDisciplines", sql.NVarChar(sql.MAX), Array.isArray(pgDisciplines) ? pgDisciplines.join(",") : null);
+    master.input("retirementDate", sql.Date, retirementDate || null);
+    await master.query(`
+      UPDATE tbl_employee_master
+      SET
         emp_name = @employeeName,
         emp_dob = @dateOfBirth,
         emp_gender = @gender,
@@ -1636,35 +1664,34 @@ async function editEmployeeDetails(req, res) {
         pg_count = @pgCount,
         ug_discipline = @ugDisciplines,
         pg_discipline = @pgDisciplines,
-        emp_curr_org_join_date = @joiningDate,
         emp_dor = @retirementDate
-        WHERE emp_master_id =@empMasterID
+      WHERE emp_master_id = @empMasterID;
     `);
-    const req2 = new sql.Request(transaction);
-    req2.input("empMasterID", empMasterID);
-    req2.input("empID", empID);
-    req2.input("referenceNumber", referenceNumber);
-    req2.input("joiningDate", joiningDate);
-    await req2.query(`
-        UPDATE tbl_employee_transaction_details
-        SET 
+
+    const tx = new sql.Request(transaction);
+    tx.input("empMasterID", sql.Int, empMasterID);
+    tx.input("empID", sql.NVarChar(100), empID);
+    tx.input("referenceNumber", sql.NVarChar, reference);
+    tx.input("userId", sql.Int, req.user?.userId ?? null);
+    await tx.query(`
+      UPDATE tbl_employee_transaction_details
+      SET
         emp_reference_id = @referenceNumber,
-        emp_post_join_date = @joiningDate,
-        employee_joining_date = @joiningDate
-            WHERE emp_master_id =@empMasterID AND employee_id = @empID AND emp_post_end_date is NULL
+        updated_date = GETDATE(),
+        updated_by = @userId
+      WHERE emp_master_id = @empMasterID
+        AND employee_id = @empID
+        AND emp_post_end_date IS NULL;
     `);
 
     await transaction.commit();
-    return res.status(200).json({ message: "Employee details updated successfully" })
-    } catch (err) {
-       console.error(err);
-        if (transaction) 
-            await transaction.rollback();
-        return res.status(500).json({ message: "Internal Server Error", error: err.message });
-    }
-
-};
-
+    return res.status(200).json({ message: "Employee details updated successfully" });
+  } catch (err) {
+    console.error("Error updating employee details:", err);
+    await safeRollback(transaction);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+}
 
 async function getDetailedSanctionedStrength(req, res) {
 
@@ -2115,6 +2142,16 @@ async function listAbolishedPosts(req, res) {
             request.input("orgId", sql.Int, scope.organisationId);
             parts.push("h.organisation_id = @orgId");
         }
+        // Ids, as the Vacancy Management filters send them
+        if (req.query.departmentId) {
+            request.input("departmentId", sql.NVarChar(50), String(req.query.departmentId).trim());
+            parts.push("LTRIM(RTRIM(p.department_id)) = @departmentId");
+        }
+        if (req.query.postId) {
+            request.input("postId", sql.NVarChar(50), String(req.query.postId).trim());
+            parts.push("p.post_id = @postId");
+        }
+        // Names (older callers)
         [
             ["organisationName", "o.organisation_name"],
             ["departmentName", "d.department_name"],

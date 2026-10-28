@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import ConfirmOverlay from '../../../components/ConfirmOverlay';
-import { useHRPermissions, SESSION_EXPIRED_MESSAGE } from '../hooks/useHRPermissions';
+import { useHRPermissions } from '../hooks/useHRPermissions';
+import { getErrorMessage } from '../../../utils/notify';
+import { HR_TOASTS } from '../toastMessages';
 import {
   HrModal,
   ContextStrip,
@@ -105,7 +107,7 @@ export default function EmployeeActivityModal({
     try {
       setPosts(asList(await fetchHrPostsByDepartment(departmentId, orgId)));
     } catch {
-      notify?.('Failed to load posts for the department.', 'error');
+      notify?.(HR_TOASTS.postsLoadFailed());
     } finally {
       setLoadingPosts(false);
     }
@@ -119,10 +121,10 @@ export default function EmployeeActivityModal({
       const rows = asList(await fetchPromotionVacantPostCode(postId));
       setPostCodes(rows);
       if (!rows.length) {
-        notify?.('Vacant posts appear here only after all activities are entered in Vacancy Management.', 'warning');
+        notify?.(HR_TOASTS.vacantPostsNotReady());
       }
     } catch {
-      notify?.('Failed to load vacant post codes.', 'error');
+      notify?.(HR_TOASTS.postsLoadFailed());
     } finally {
       setLoadingCodes(false);
     }
@@ -154,7 +156,7 @@ export default function EmployeeActivityModal({
 
   const save = async () => {
     if (!userId) {
-      notify?.(SESSION_EXPIRED_MESSAGE, 'error');
+      notify?.(HR_TOASTS.sessionExpired());
       return;
     }
     setSaving(true);
@@ -166,16 +168,15 @@ export default function EmployeeActivityModal({
         userID: userId,
       });
       const res = await updateEmployeeActivity(payload);
-      const message = res?.data?.message;
       if (res.status === 201) {
-        notify?.(message || 'Activity updated successfully.', 'success');
+        notify?.(HR_TOASTS.employeeActivityUpdated(employee.emp_name));
         onSuccess?.();
         onClose?.();
       } else {
-        notify?.(message || 'No activity was recorded for the employee.', 'info');
+        notify?.(HR_TOASTS.employeeActivityNotRecorded());
       }
     } catch (err) {
-      notify?.(err?.response?.data?.message || 'Failed to update the activity for the employee.', 'error');
+      notify?.(HR_TOASTS.employeeActivityFailed(getErrorMessage(err)));
     } finally {
       setSaving(false);
     }
@@ -366,7 +367,8 @@ export default function EmployeeActivityModal({
                 placeholder={loadingCodes ? 'Loading post codes…' : 'Select post code'}
                 error={errors.promotionPostCode}
               />
-              {selectedCode && !postCodeReady && (
+              {/* Early notice on choosing the code; once Save is pressed the field error says the same */}
+              {selectedCode && !postCodeReady && !errors.promotionPostCode && (
                 <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
                   Vacancy activities for this post code are incomplete in Vacancy Management. Complete them before promoting.
                 </p>

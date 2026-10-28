@@ -78,7 +78,12 @@ export default function VacancyActivityModal({
             Add employee
           </Button>
         ) : (
-          <Button variant="primary" onClick={() => actions.save()} disabled={saving || locked || loading}>
+          // "Save & add employee" leaves this page, so it asks first (as "Add employee" does)
+          <Button
+            variant="primary"
+            onClick={() => (savesThenAddsEmployee(mode.key, form) ? requestAddEmployee() : actions.save())}
+            disabled={saving || locked || loading}
+          >
             {saving ? 'Saving…' : savesThenAddsEmployee(mode.key, form) ? 'Save & add employee' : 'Save'}
           </Button>
         )}
@@ -117,7 +122,9 @@ export default function VacancyActivityModal({
           >
             {errorCount > 0 && (
               <p role="alert" className="mb-2 px-3 py-2 rounded border border-red-200 bg-red-50 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-                {errorCount === 1 ? 'Please correct the highlighted field.' : `Please correct the ${errorCount} highlighted fields.`}
+                {/* The vacancy date is not a field here, so its message is shown in full */}
+                {errors.dateOfAriseInVacancy
+                  || (errorCount === 1 ? 'Please correct the highlighted field.' : `Please correct the ${errorCount} highlighted fields.`)}
               </p>
             )}
             <ActivityFields state={state} locked={locked} />

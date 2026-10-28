@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, Save, X, FileText } from 'lucide-react';
-import { fetchMinistryList, createCabinetMinistry, updateCabinetMinistry, fetchDropdownAllValues } from '../api';
+import { createCabinetMinistry, updateCabinetMinistry } from '../api';
+import { useCabinetNotesOtherStore } from '../store/useCabinetNotesOtherStore';
 
-// Shown until the stage master (mmt_cabinet_ministry_stage) has loaded
+// Shown until the stage master has loaded
 const stageLabels = {
   1: '1. Received at Ministry',
   2: '2. Sent for Comments',
@@ -21,8 +22,14 @@ export default function InputForm({
 }) {
   const isEdit = !!editData;
   const [submitting, setSubmitting] = useState(false);
-  const [ministries, setMinistries] = useState([]);
-  const [dbStageMaster, setDbStageMaster] = useState({});
+  // Ministry master, loaded once by the module shell
+  const ministries = useCabinetNotesOtherStore((state) => state.ministries);
+  // Stage names from the stage master (mmt_cabinet_ministry_stage)
+  const stageMaster = useCabinetNotesOtherStore((state) => state.stages);
+  const stageName = (n) => {
+    const row = stageMaster.find((r) => Number(r.cab_ministry_stage_id) === n);
+    return row ? `${n}. ${row.cab_ministry_stage_name}` : stageLabels[n];
+  };
 
   // Basic Left Panel States
   const [subject, setSubject] = useState('');
@@ -44,24 +51,6 @@ export default function InputForm({
     4: { date: '', remark: '' },
     5: { date: '', remark: '' }
   });
-
-  // Fetch stage master using /allvalue-dropdown/mmt_cabinet_ministry_stage API
-  useEffect(() => {
-    fetchDropdownAllValues('mmt_cabinet_ministry_stage')
-      .then(res => {
-        const rows = res.data || [];
-        const map = {};
-        rows.forEach(r => {
-          const id = r.cab_ministry_stage_id || r.stage_id || r.id;
-          const name = r.cab_ministry_stage_name || r.stage_name || r.name;
-          if (id && name) map[id] = name;
-        });
-        if (Object.keys(map).length > 0) {
-          setDbStageMaster(map);
-        }
-      })
-      .catch(err => console.error("Error loading stage dropdown master:", err));
-  }, []);
 
   // Stage 2: Concerned wings tag pool states (YoungProfessionals skills style)
   const [selectedWings, setSelectedWings] = useState([]);
@@ -99,12 +88,6 @@ export default function InputForm({
       5: { date: '', remark: '' }
     }
   });
-
-  useEffect(() => {
-    fetchMinistryList()
-      .then(res => setMinistries(res.data || []))
-      .catch(err => console.error("Error fetching ministries:", err));
-  }, []);
 
   useEffect(() => {
     let initSubject = '';
@@ -604,7 +587,7 @@ export default function InputForm({
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex-1 min-w-0">
                         <span className={`text-xs font-bold block truncate ${isStageDisabled ? 'text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-slate-200'}`}>
-                          {dbStageMaster[stageNum] ? `${stageNum}. ${dbStageMaster[stageNum]}` : stageLabels[stageNum]}
+                          {stageName(stageNum)}
                         </span>
                         {isStageDisabled && (
                           <span className="text-[10px] font-semibold text-amber-600/80 dark:text-amber-400/80 italic">

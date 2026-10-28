@@ -135,7 +135,7 @@
   font-family: var(--font-sans, 'Google Sans', sans-serif);
   padding: 0.625rem 1rem;
   font-size: var(--module-subtab-font-size);
-  font-weight: 900;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   border-bottom-width: 2px;
@@ -164,7 +164,8 @@
   border: 1px solid var(--module-search-border);
   color: var(--module-search-text);
   border-radius: 0.75rem;
-  padding: 0.5rem 0.75rem 0.5rem 2.25rem;
+  /* right padding leaves room for the clear (×) button that overlays the field */
+  padding: 0.5rem 2rem 0.5rem 2.25rem;
   transition: all 0.2s ease;
 }
 .module-search-input::placeholder {

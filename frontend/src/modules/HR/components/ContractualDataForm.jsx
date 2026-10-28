@@ -1,18 +1,31 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     createContractualData
 } from '../api.js';
+import { getErrorMessage } from '../../../utils/notify';
+import { HR_TOASTS } from '../toastMessages';
 import { getCurrentUserId,getSessionOrganisationId } from '../../../utils/authSession.js';
+import { FormActions } from './HrFormControls';
 
-const organisationID = getSessionOrganisationId();
-
-export default function ContractualDataForm({ triggerNotification }) {
+// editData: the record being edited (from location.state.item, via InputForm); null when adding
+export default function ContractualDataForm({ editData = null, notify }) {
   const navigate = useNavigate();
-  const location = useLocation();
-  const editData = location.state?.editData;
-  
-  const [formData, setFormData] = useState({
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // The form remounts for each record (key in InputForm), so it starts from editData directly
+  const [formData, setFormData] = useState(() => (editData ? {
+    financialYear: editData['Financial Year'] || '',
+    officerDirectEngagement: editData['Officer - Direct engagement'] ?? '',
+    officerRetiredGovt: editData['Officer - Retired from Govt.'] ?? '',
+    officerRetiredOwnOrg: editData['Officer - Retired from own organisation'] ?? '',
+    officerThroughAgency: editData['Officer - Through agency'] ?? '',
+    officerForMinistry: editData['Officer - For ministry'] ?? '',
+    nonOfficerDirectEngagement: editData['Non-officer Direct engagement'] ?? '',
+    nonOfficerRetiredGovt: editData['Non-officer retired from Govt.'] ?? '',
+    nonOfficerRetiredOwnOrg: editData['Non-officer retired from own organisation'] ?? '',
+    nonOfficerThroughAgency: editData['Non-officer through agency'] ?? '',
+    nonOfficerForMinistry: editData['Non-officer for ministry'] ?? '' } : {
     financialYear: '',
     officerDirectEngagement: '',
     officerRetiredGovt: '',
@@ -23,26 +36,8 @@ export default function ContractualDataForm({ triggerNotification }) {
     nonOfficerRetiredGovt: '',
     nonOfficerRetiredOwnOrg: '',
     nonOfficerThroughAgency: '',
-    nonOfficerForMinistry: '',
-  });
+    nonOfficerForMinistry: '' }));
 
-  useEffect(() => {
-    if (editData) {
-      setFormData({
-        financialYear: editData['Financial Year'] || '',
-        officerDirectEngagement: editData['Officer - Direct engagement'] ?? '',
-        officerRetiredGovt: editData['Officer - Retired from Govt.'] ?? '',
-        officerRetiredOwnOrg: editData['Officer - Retired from own organisation'] ?? '',
-        officerThroughAgency: editData['Officer - Through agency'] ?? '',
-        officerForMinistry: editData['Officer - For ministry'] ?? '',
-        nonOfficerDirectEngagement: editData['Non-officer Direct engagement'] ?? '',
-        nonOfficerRetiredGovt: editData['Non-officer retired from Govt.'] ?? '',
-        nonOfficerRetiredOwnOrg: editData['Non-officer retired from own organisation'] ?? '',
-        nonOfficerThroughAgency: editData['Non-officer through agency'] ?? '',
-        nonOfficerForMinistry: editData['Non-officer for ministry'] ?? '',
-      });
-    }
-  }, [editData]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -68,6 +63,8 @@ export default function ContractualDataForm({ triggerNotification }) {
 
   const handleSubmit = async (e) => {
   e.preventDefault();
+  if (isSubmitting) return; // a double click must not save twice
+  setIsSubmitting(true);
 
   try {
       const payload = {
@@ -89,30 +86,27 @@ export default function ContractualDataForm({ triggerNotification }) {
 
           TotalOfficial: totalOfficer,
           NonOffTotal: totalNonOfficer,
-          organisationID: organisationID,
-          userID: getCurrentUserId(),
-      };
+          // Read at save time: a module-level value would keep the previous login's organisation
+          organisationID: getSessionOrganisationId(),
+          userID: getCurrentUserId() };
 
        const response = await createContractualData(payload);
 
         if (response.data?.success) {
 
-            const msg = editData
-                ? 'Contractual Data updated successfully'
-                : 'Contractual Data submitted successfully';
+            notify?.(HR_TOASTS.contractualSaved(Boolean(editData)));
 
-            if (typeof triggerNotification === 'function') {
-                triggerNotification(msg, 'success');
-            }
-
-            navigate('/hr/hr-management/contractual-employment');
+            // replace: Back must not reopen the submitted form
+            navigate('/hr/hr-management/contractual-employment', { replace: true });
+        } else {
+            notify?.(HR_TOASTS.contractualSaveFailed(response.data?.message));
         }
 
   } catch (error) {
     console.error('Contractual API error:', error);
-    const msg = error.response?.data?.message || 'Failed to save contractual data';
-    if (typeof triggerNotification === 'function') triggerNotification(msg, 'error');
-    else triggerNotification(msg);
+    notify?.(HR_TOASTS.contractualSaveFailed(getErrorMessage(error)));
+  } finally {
+    setIsSubmitting(false);
   }
 
 };
@@ -124,15 +118,15 @@ export default function ContractualDataForm({ triggerNotification }) {
       <h2 className="text-xl font-bold mb-6 pb-2 border-b border-slate-200 dark:border-slate-800">
         {editData ? 'Update Contractual Data' : 'Add Contractual Data'}
       </h2>
-      
+
       <form onSubmit={handleSubmit} className="space-y-8">
-        
+
         {/* Top Section */}
         <div className="w-full md:w-1/3">
           <label className="block text-xs font-bold mb-1.5 text-slate-700 dark:text-slate-300">
             Financial Year<span className="text-red-500 ml-0.5">*</span>
           </label>
-          <select 
+          <select
             name="financialYear"
             value={formData.financialYear}
             onChange={handleChange}
@@ -147,7 +141,7 @@ export default function ContractualDataForm({ triggerNotification }) {
         {/* Table Section */}
         <div>
           <h3 className="text-sm font-bold mb-4 text-slate-800 dark:text-slate-200">Officers level & Non Officers Level</h3>
-          
+
           <div className="border border-slate-200 dark:border-slate-700 rounded overflow-hidden">
             <div className="grid grid-cols-[30%_1fr_1fr] bg-[#20366b] text-white font-bold text-xs text-center divide-x divide-white/20">
               <div className="py-2.5 px-4">Category</div>
@@ -213,22 +207,12 @@ export default function ContractualDataForm({ triggerNotification }) {
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center justify-end space-x-3 pt-6">
-          <button 
-            type="submit"
-            className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded shadow transition cursor-pointer"
-          >
-            {editData ? 'Update' : 'Submit'}
-          </button>
-          <button 
-            type="button"
-            onClick={() => navigate('/hr/hr-management/contractual-employment')}
-            className="px-6 py-2 bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold rounded shadow transition cursor-pointer"
-          >
-            Exit
-          </button>
-        </div>
+        <FormActions
+          onExit={() => navigate('/hr/hr-management/contractual-employment')}
+          submitLabel={editData ? 'Update' : 'Submit'}
+          busyLabel={editData ? 'Updating...' : 'Saving...'}
+          busy={isSubmitting}
+        />
 
       </form>
     </div>
