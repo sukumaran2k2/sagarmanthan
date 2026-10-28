@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useShallow } from 'zustand/react/shallow';
+import { useCabinetNotesOtherStore } from '../store/useCabinetNotesOtherStore';
 import ReportTable from '../../../components/ReportTable';
 import { Filter, ChevronUp, ChevronDown, RotateCcw } from 'lucide-react';
 import {
   fetchCabinetMinistryReport,
   fetchDetailMinistryReport,
   fetchCabinetMinistryPendencyReport,
-  fetchDetailMinistryPendencyReport,
-  fetchMinistryList
+  fetchDetailMinistryPendencyReport
 } from '../api';
 
 const STAGE_MAP = {
@@ -50,46 +51,27 @@ function formatReportMonth(date = new Date()) {
 }
 
 export default function Reports({ triggerNotification }) {
-  // Sub-tabs order: 1st Abstract & Detailed Report ('stagewise'), 2nd Pendency Report ('pendency')
-  const [reportType, setReportType] = useState('stagewise');
-  const [drillDownPath, setDrillDownPath] = useState([
-    {
-      type: 'summary',
-      title: 'Report No.: 6.2 - Abstract - Cabinet Notes from Other Ministry'
-    }
-  ]);
+  // Sub-tabs order: 1st Abstract & Detailed Report ('stagewise'), 2nd Pendency Report ('pendency').
+  // Report type, ministry filter, filter panel and drill-down path live in the store, so the
+  // report reopens where the user left it.
+  const {
+    type: reportType,
+    ministry: selectedMinistry,
+    filterOpen: isFilterOpen,
+    drillDownPath,
+  } = useCabinetNotesOtherStore(useShallow((state) => state.report));
+  const reportActions = useCabinetNotesOtherStore((state) => state.reportActions);
+  const setDrillDownPath = reportActions.setDrillDownPath;
+  const setSelectedMinistry = reportActions.setMinistry;
+  const ministryList = useCabinetNotesOtherStore((state) => state.ministries);
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState([]);
   const [reportCols, setReportCols] = useState([]);
 
-  // Ministry dropdown filter state matching Capex style
-  const [ministryList, setMinistryList] = useState([]);
-  const [selectedMinistry, setSelectedMinistry] = useState('');
-  const [isFilterOpen, setIsFilterOpen] = useState(true);
-
-  useEffect(() => {
-    fetchMinistryList()
-      .then(res => {
-        const list = res.data || [];
-        setMinistryList(Array.isArray(list) ? list : []);
-      })
-      .catch(err => console.error("Error loading ministry dropdown:", err));
-  }, []);
-
   const currentView = drillDownPath[drillDownPath.length - 1];
 
-  const handleTabChange = (type) => {
-    setReportType(type);
-    setSelectedMinistry('');
-    setDrillDownPath([
-      {
-        type: 'summary',
-        title: type === 'stagewise'
-          ? 'Report No.: 6.2 - Abstract - Cabinet Notes from Other Ministry'
-          : 'Report No.: 6.2 - Pendency (Abstract) - Cabinet Notes/Bills from other Ministry'
-      }
-    ]);
-  };
+  // A new report starts from its summary with no ministry filter
+  const handleTabChange = (type) => reportActions.setType(type);
 
   const handleBack = () => {
     if (drillDownPath.length > 1) {
@@ -387,7 +369,7 @@ export default function Reports({ triggerNotification }) {
           },
         };
       }),
-    [currentView, reportType]
+    [currentView, reportType, setDrillDownPath]
   );
 
   const columns = useMemo(() => {
@@ -561,7 +543,7 @@ export default function Reports({ triggerNotification }) {
           {/* Toggle Header */}
           <button
             type="button"
-            onClick={() => setIsFilterOpen(!isFilterOpen)}
+            onClick={() => reportActions.setFilterOpen(open => !open)}
             className="w-full px-4 py-3 bg-[#f5eeea] dark:bg-slate-800 hover:bg-[#ebdcd0] dark:hover:bg-slate-700 transition flex items-center justify-between text-xs font-extrabold text-[#4b2424] dark:text-[#eadede] cursor-pointer select-none"
           >
             <div className="flex items-center space-x-2">

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { ArrowLeft, Save, X, FileText } from 'lucide-react';
-import { fetchMinistryList, createCabinetMinistry, updateCabinetMinistry, fetchDropdownAllValues } from '../api';
+import { createCabinetMinistry, updateCabinetMinistry } from '../api';
+import { useCabinetNotesOtherStore } from '../store/useCabinetNotesOtherStore';
 
 const stageLabels = {
   1: '1. Received at Ministry',
@@ -34,8 +35,8 @@ export default function InputForm({
 }) {
   const isEdit = !!editData;
   const [submitting, setSubmitting] = useState(false);
-  const [ministries, setMinistries] = useState([]);
-  const [dbStageMaster, setDbStageMaster] = useState({});
+  // Ministry master, loaded once by the module shell
+  const ministries = useCabinetNotesOtherStore((state) => state.ministries);
 
   // Basic Left Panel States
   const [subject, setSubject] = useState('');
@@ -57,24 +58,6 @@ export default function InputForm({
     4: { date: '', remark: '' },
     5: { date: '', remark: '' }
   });
-
-  // Fetch stage master using /allvalue-dropdown/mmt_cabinet_ministry_stage API
-  useEffect(() => {
-    fetchDropdownAllValues('mmt_cabinet_ministry_stage')
-      .then(res => {
-        const rows = res.data || [];
-        const map = {};
-        rows.forEach(r => {
-          const id = r.cab_ministry_stage_id || r.stage_id || r.id;
-          const name = r.cab_ministry_stage_name || r.stage_name || r.name;
-          if (id && name) map[id] = name;
-        });
-        if (Object.keys(map).length > 0) {
-          setDbStageMaster(map);
-        }
-      })
-      .catch(err => console.error("Error loading stage dropdown master:", err));
-  }, []);
 
   // Stage 2: Concerned wings tag pool states (YoungProfessionals skills style)
   const [wingInput, setWingInput] = useState('');
@@ -124,12 +107,6 @@ export default function InputForm({
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    fetchMinistryList()
-      .then(res => setMinistries(res.data || []))
-      .catch(err => console.error("Error fetching ministries:", err));
   }, []);
 
   useEffect(() => {
