@@ -91,7 +91,7 @@ export function formatTimeStr(val) {
       return `${String(hours).padStart(2, '0')}:${minutes}:${seconds}`;
     }
 
-    const dotTimeMatch = cleanVal.match(/^(\d{1,2})[\.:](\d{2})[\.:](\d{2})$/);
+    const dotTimeMatch = cleanVal.match(/^(\d{1,2})[.:](\d{2})[.:](\d{2})$/);
     if (dotTimeMatch) {
       const hours = String(parseInt(dotTimeMatch[1], 10)).padStart(2, '0');
       const minutes = dotTimeMatch[2];
@@ -177,7 +177,7 @@ function findKey(row, candidates) {
 }
 
 // Row-level validation mirroring the backend's exact checks in
-// createEmpAttendance/updateEmpAttendance: numeric Emp Id, no duplicate
+// createEmpAttendance/updateEmpAttendance: Emp Id present, no duplicate
 // Emp Ids across the file, and HH:MM:SS time format for In/Out/Working
 // Hours. Returns every distinct failing condition found in the file
 // (not just the first), each itemized with the specific row(s) affected,
@@ -204,8 +204,9 @@ export function validateAttendanceRows(rows) {
   rows.forEach((row, idx) => {
     const rowNum = idx + 2; // +1 for 0-index, +1 for header row, matching what a person sees in Excel
 
+    // Emp Ids are codes such as "AD03" (as in 2.0); only an empty one is invalid
     const empIdRaw = empIdKey ? row[empIdKey] : undefined;
-    if (empIdRaw === undefined || empIdRaw === null || empIdRaw === '' || isNaN(Number(empIdRaw))) {
+    if (empIdRaw === undefined || empIdRaw === null || String(empIdRaw).trim() === '') {
       invalidEmpIdRows.push(rowNum);
     } else {
       const empIdStr = String(empIdRaw).trim();
@@ -234,7 +235,7 @@ export function validateAttendanceRows(rows) {
   if (invalidEmpIdRows.length > 0) {
     issues.push({
       field: 'Emp Id',
-      message: `Emp Id must be a number. Invalid in row(s): ${summarizeRows(invalidEmpIdRows)}.`,
+      message: `Emp Id is missing in row(s): ${summarizeRows(invalidEmpIdRows)}.`,
     });
   }
   if (duplicateEmpIds.size > 0) {
@@ -264,3 +265,45 @@ export function validateAttendanceRows(rows) {
 
   return issues;
 }
+
+export const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+// Calendar year of a month in a financial year ("2025-2026"): January to March fall in
+// the year the financial year ends, April to December in the year it starts
+export function calendarYear(financialYear, month) {
+  const [start, end] = String(financialYear).split('-').map(Number);
+  return MONTHS.indexOf(month) < 3 ? end : start;
+}
+
+// Field readers for an attendance row. The data list, the report drill-down and
+// uploaded sheets name the same fields differently.
+const pick = (row, keys) => { for (const k of keys) if (row?.[k] !== undefined && row[k] !== null) return row[k]; return undefined; };
+export const rowEmpId = (r) => pick(r, ['Emp_Id', 'EmpId', 'Emp Id', 'EMP ID']);
+export const rowEmpName = (r) => pick(r, ['Emp_Name', 'EmpName', 'Emp Name', 'EMP Name']);
+export const rowWing = (r) => pick(r, ['wing_name', 'Wing', 'Wing Name']);
+export const rowDivision = (r) => pick(r, ['division_name', 'Division', 'Division Name']);
+export const rowDesignation = (r) => pick(r, ['Designation', 'designation']);
+export const rowDaysMarked = (r) => pick(r, ['No_of_days_Attendance_Marked', 'AttendanceMarked', 'No. of days Attendance Marked', 'No of days Attendance Marked']);
+export const rowInTime = (r) => pick(r, ['In_Time_Avg', 'InTimeAvg', 'In Time Avg']);
+export const rowOutTime = (r) => pick(r, ['Out_Time_Avg', 'OutTimeAvg', 'Out Time Avg']);
+export const rowWorkHours = (r) => pick(r, ['Average_Working_Hours', 'WorkingHours', 'Average Working Hours']);
+export const rowWeek = (r) => pick(r, ['week', 'Week']);
+
+// Seconds since midnight for a time value; null when it isn't a time or is 00:00:00
+// (the sheets use 00:00:00 for "no attendance recorded")
+export function toSeconds(value) {
+  const t = formatTimeStr(value);
+  if (!/^\d{2}:\d{2}:\d{2}$/.test(t)) return null;
+  const [h, m, s] = t.split(':').map(Number);
+  const total = h * 3600 + m * 60 + s;
+  return total > 0 ? total : null;
+}
+
+export function secondsToTime(total) {
+  if (total === null || total === undefined || Number.isNaN(total)) return '—';
+  const s = Math.round(total);
+  return [Math.floor(s / 3600), Math.floor((s % 3600) / 60), s % 60].map((v) => String(v).padStart(2, '0')).join(':');
+}
+
+export const NINE_THIRTY = 9 * 3600 + 30 * 60;
+export const FIVE_THIRTY = 17 * 3600 + 30 * 60;

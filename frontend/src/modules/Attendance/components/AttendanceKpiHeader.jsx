@@ -1,12 +1,12 @@
-import React from 'react';
+
 import { Users, UserCheck, LogOut, Clock } from 'lucide-react';
 
 export default function AttendanceKpiHeader({ totalEmployeesStat, avgWorkingHoursFormatted, punctualArrivalRate, earlyCheckoutRate }) {
   return (
-    <div className="px-4 md:px-6 mb-6">
+    <div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         {/* KPI 1: Total Employees Monitored */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 flex items-center justify-between shadow-sm">
+        <div className="module-card flex items-center justify-between">
           <div>
             <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">Total Employees Monitored</span>
             <span className="text-2xl font-black text-amber-700 block mt-1">
@@ -22,7 +22,7 @@ export default function AttendanceKpiHeader({ totalEmployeesStat, avgWorkingHour
         </div>
 
         {/* KPI 2: Average Working Time */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 flex items-center justify-between shadow-sm">
+        <div className="module-card flex items-center justify-between">
           <div>
             <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">Average Working Time</span>
             <span className="text-2xl font-black text-violet-700 block mt-1">{avgWorkingHoursFormatted}</span>
@@ -34,7 +34,7 @@ export default function AttendanceKpiHeader({ totalEmployeesStat, avgWorkingHour
         </div>
 
         {/* KPI 3: Punctual Arrival Rate */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 flex items-center justify-between shadow-sm">
+        <div className="module-card flex items-center justify-between">
           <div>
             <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">Punctual Arrival Rate</span>
             <span className="text-2xl font-black text-emerald-700 block mt-1">{punctualArrivalRate}</span>
@@ -46,7 +46,7 @@ export default function AttendanceKpiHeader({ totalEmployeesStat, avgWorkingHour
         </div>
 
         {/* KPI 4: Early Checkout Rate */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 flex items-center justify-between shadow-sm">
+        <div className="module-card flex items-center justify-between">
           <div>
             <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">Early Checkout Rate</span>
             <span className="text-2xl font-black text-[#0f417a] block mt-1">{earlyCheckoutRate}</span>
