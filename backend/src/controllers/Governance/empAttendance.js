@@ -107,7 +107,7 @@ async function createEmpAttendance(req, res) {
 
         const financialYear = req.body.financialYear;
         const month = req.body.month;
-        const userID = req.body.userID;
+        const userID = req.user.userId; // the uploader is the signed-in user, not a form value
         const week = req.body.week;
         const uniqueFileName = req.uniqueFileName;
 
@@ -289,7 +289,7 @@ async function createEmpAttendance(req, res) {
         const formattedDate = currentDate.toISOString().slice(0, 19).replace('T', ' ');
         const fileInsertRequest = transaction.request();
         fileInsertRequest.input("fileName", sql.NVarChar, uniqueFileName);
-        fileInsertRequest.input("userID", sql.NVarChar, userID);
+        fileInsertRequest.input("userID", sql.Int, userID);
         fileInsertRequest.input("uploadDate", sql.DateTime, formattedDate);
         await fileInsertRequest.query(`
             INSERT INTO tbl_emp_attendance_file 
@@ -370,7 +370,7 @@ async function updateEmpAttendance(req, res) {
         const month = req.body.month;
         const week = req.body.week;
         const FileId = req.body.fileId;
-        const userID = req.body.userID;
+        const userID = req.user.userId; // the uploader is the signed-in user, not a form value
 
         const uniqueFileName = req.uniqueFileName;
 
@@ -512,7 +512,7 @@ async function updateEmpAttendance(req, res) {
 
         const updateFileRequest = transaction.request();
         updateFileRequest.input("fileName", sql.NVarChar, uniqueFileName);
-        updateFileRequest.input("userID", sql.NVarChar, userID);
+        updateFileRequest.input("userID", sql.Int, userID);
         updateFileRequest.input("uploadDate", sql.DateTime, formattedDate);
         updateFileRequest.input("FileId", sql.Int, Number(FileId));
         await updateFileRequest.query(`

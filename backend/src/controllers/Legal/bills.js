@@ -53,7 +53,7 @@ async function createBill(req, res) {
 
     const remarks = req.body.remarks || '';
     const selectedBillStage = req.body.selectedBillStage || null;    
-    const userID = req.body.userID || null;
+    const userID = req.user.userId; // the signed-in user, not a form value
 
     if (draftBillPreparedDate === "") draftBillPreparedDate = null;
     if (draftBillPreparedRemark === "") draftBillPreparedRemark = null;
@@ -172,7 +172,7 @@ async function createBill(req, res) {
 async function getBill(req, res) {
     const conn = await pool;
     try {
-        const userID = req.query.userID;
+        const userID = req.user.userId; // scope by the signed-in user, not a URL value
         let scopeClause = '';
         const request = conn.request();
 
@@ -181,7 +181,8 @@ async function getBill(req, res) {
         // (organisation-level users) is scoped to their own wing, or to
         // records they personally created.
         if (userID) {
-            const userResult = await request.query(`SELECT role_id, wing_id FROM tbl_user WHERE user_id = ${userID}`);
+            request.input("scopeUserId", userID);
+            const userResult = await request.query(`SELECT role_id, wing_id FROM tbl_user WHERE user_id = @scopeUserId`);
             const { role_id, wing_id } = userResult.recordset[0] || {};
             const isMopswRole = [2, 3, 4, 5, 8].includes(role_id);
             if (!isMopswRole) {
@@ -290,7 +291,7 @@ async function updateBill(req, res) {
 
     const remarks = req.body.remarks || '';
     const selectedBillStage = req.body.selectedBillStage || null;  
-    const userID = req.body.userID || null;
+    const userID = req.user.userId; // the signed-in user, not a form value
 
     if (draftBillPreparedDate === "") draftBillPreparedDate = null;
     if (draftBillPreparedRemark === "") draftBillPreparedRemark = null;
@@ -412,7 +413,7 @@ async function updateBill(req, res) {
 
 async function deleteBill(req, res) {
     const billID = req.params.billID;
-    const userID = req.params.userID;
+    const userID = req.user.userId; // logged as the deleting user
 
     const now = new Date();
     const datePart = now.toISOString().slice(0, 10).replace(/-/g, ''); 

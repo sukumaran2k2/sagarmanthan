@@ -35,7 +35,7 @@ async function addFileDisposal(req, res) {
         const rawYear = req.body.Year || req.body.financialYear;
         const Year = parseInt(rawYear, 10) || 2026;
         const month = req.body.month;
-        const userID = parseInt(req.body.userID, 10) || 1;  
+        const userID = req.user.userId; // the uploader is the signed-in user, not a form value
         const week = parseInt(req.body.week, 10) || 1;
         const uniqueFileName = req.uniqueFileName;
 
@@ -262,7 +262,7 @@ async function updateFileDisposal(req, res) {
         const FileId = req.body.fileId
         const week = req.body.week;
 
-        const userID = req.body.userID;
+        const userID = req.user.userId; // the uploader is the signed-in user, not a form value
 
         const uniqueFileName = req.uniqueFileName;
 
