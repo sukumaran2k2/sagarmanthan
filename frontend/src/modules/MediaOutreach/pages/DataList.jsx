@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import Table from '../../../components/Table';
 import TablePagination from '../../../components/TablePagination';
 import CopyButton from '../../../components/CopyButton';
@@ -11,6 +12,24 @@ import { SOCIAL_CHANNELS_KEYS, SOCIAL_METRICS, MONTHS, FINANCIAL_YEARS } from '.
 import { getOrgCategory, calculateCategoryCounts } from '../utils/categoryHelpers';
 import { aggregateYearWiseData } from '../utils/dataTransformers';
 import { copyTableToClipboard, exportTableCSV, printTablePDF } from '../utils/exportHelpers';
+import { useMediaOutreachStore } from '../store/useMediaOutreachStore';
+
+// Column visibility defaults; the store keeps only the user's changes over these.
+const DEFAULT_VISIBLE_COLS = {
+  sNo: true,
+  organisation: true,
+  financialYear: true,
+  month: true,
+  national: true,
+  regional: true,
+  overall: true,
+  facebook: true,
+  instagram: true,
+  linkedIn: true,
+  twitter: true,
+  youTube: true,
+  action: true
+};
 
 export default function DataList({
   rowData = [],
@@ -31,21 +50,23 @@ export default function DataList({
   const hideOrgFilter = isStandardView || permissions?.isStandardView;
   const [gridApi, setGridApi] = useState(null);
 
-  // Filter states
-  const [financialYearFilter, setFinancialYearFilter] = useState('');
-  const [monthFilter, setMonthFilter] = useState('');
-  const [organisationFilter, setOrganisationFilter] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [showYearWise, setShowYearWise] = useState(false);
-  const [activeCategory, setActiveCategory] = useState('all'); // 'all' | 'major_port' | 'ministry' | 'non_port'
-  const [selectedSubOrgId, setSelectedSubOrgId] = useState('');
-  
-  // Filter panel collapse/expand state
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
-
-  // Pagination states
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  // Filters, search, pagination and column changes live in the Media Outreach store, so they
+  // survive switching tabs, opening the Input Form and leaving the module.
+  const {
+    financialYear: financialYearFilter,
+    month: monthFilter,
+    organisationId: organisationFilter,
+    showYearWise,
+    category: activeCategory, // 'all' | 'major_port' | 'ministry' | 'non_port'
+    subOrgId: selectedSubOrgId,
+    searchTerm,
+    showFilterPanel,
+    currentPage: storedPage,
+    pageSize,
+    visibleCols: colChanges,
+  } = useMediaOutreachStore(useShallow((state) => state.list));
+  const actions = useMediaOutreachStore((state) => state.listActions);
+  const visibleCols = useMemo(() => ({ ...DEFAULT_VISIBLE_COLS, ...colChanges }), [colChanges]);
 
   // Column visibility checklist dropdown
   const [colDropdownOpen, setColDropdownOpen] = useState(false);
@@ -86,45 +107,8 @@ export default function DataList({
     return list.sort((a, b) => a.name.localeCompare(b.name));
   }, [organisations, rowData, getOrgName]);
   
-  // Clear selectedSubOrgId whenever activeCategory changes
-  useEffect(() => {
-    setSelectedSubOrgId('');
-  }, [activeCategory]);
-
-  // Default visibility for columns
-  const [visibleCols, setVisibleCols] = useState({
-    sNo: true,
-    organisation: true,
-    financialYear: true,
-    month: true,
-    national: true,
-    regional: true,
-    overall: true,
-    facebook: true,
-    instagram: true,
-    linkedIn: true,
-    twitter: true,
-    youTube: true,
-    action: true
-  });
-
-  const handleShowAllCols = () => {
-    setVisibleCols({
-      sNo: true,
-      organisation: true,
-      financialYear: true,
-      month: true,
-      national: true,
-      regional: true,
-      overall: true,
-      facebook: true,
-      instagram: true,
-      linkedIn: true,
-      twitter: true,
-      youTube: true,
-      action: true
-    });
-  };
+  // Every column is shown by default, so "Show All" just drops the user's changes
+  const handleShowAllCols = () => actions.setVisibleCols({});
 
   // Active filters count for badge
   const activeFiltersCount = useMemo(() => {
@@ -137,13 +121,7 @@ export default function DataList({
   }, [financialYearFilter, monthFilter, organisationFilter, showYearWise, hideOrgFilter]);
 
   const handleResetFilters = () => {
-    setFinancialYearFilter('');
-    setMonthFilter('');
-    setOrganisationFilter('');
-    setShowYearWise(false);
-    setSelectedSubOrgId('');
-    setSearchTerm('');
-    setCurrentPage(1);
+    actions.resetFilters();
     triggerNotification?.('Filters have been reset', 'info');
   };
 
@@ -245,6 +223,10 @@ export default function DataList({
       return matchesFY && matchesOrg && matchesSearch;
     });
   }, [rowData, showYearWise, financialYearFilter, monthFilter, organisationFilter, searchTerm, getOrgName, activeCategory, organisations, selectedSubOrgId]);
+
+  // The stored page is kept as chosen; it is clamped here so a list that has shrunk since
+  // (a delete, a narrower filter elsewhere) never opens on an empty page.
+  const currentPage = Math.min(storedPage, Math.ceil(filteredRowData.length / pageSize) || 1);
 
   // Paginated records for table view
   const paginatedRowData = useMemo(() => {
@@ -528,8 +510,7 @@ export default function DataList({
             {/* Ministry Category Card */}
             <div
               onClick={() => {
-                setActiveCategory(prev => prev === 'ministry' ? 'all' : 'ministry');
-                setCurrentPage(1);
+                actions.setCategory(prev => prev === 'ministry' ? 'all' : 'ministry');
               }}
               className={`flex items-center justify-between p-4 border rounded-2xl cursor-pointer transition-all duration-300 backdrop-blur-md ${
                 activeCategory === 'ministry'
@@ -559,8 +540,7 @@ export default function DataList({
             {/* Major Port Category Card */}
             <div
               onClick={() => {
-                setActiveCategory(prev => prev === 'major_port' ? 'all' : 'major_port');
-                setCurrentPage(1);
+                actions.setCategory(prev => prev === 'major_port' ? 'all' : 'major_port');
               }}
               className={`flex items-center justify-between p-4 border rounded-2xl cursor-pointer transition-all duration-300 backdrop-blur-md ${
                 activeCategory === 'major_port'
@@ -590,8 +570,7 @@ export default function DataList({
             {/* Non-Port Category Card */}
             <div
               onClick={() => {
-                setActiveCategory(prev => prev === 'non_port' ? 'all' : 'non_port');
-                setCurrentPage(1);
+                actions.setCategory(prev => prev === 'non_port' ? 'all' : 'non_port');
               }}
               className={`flex items-center justify-between p-4 border rounded-2xl cursor-pointer transition-all duration-300 backdrop-blur-md ${
                 activeCategory === 'non_port'
@@ -642,8 +621,7 @@ export default function DataList({
                 {selectedSubOrgId && (
                   <button
                     onClick={() => {
-                      setSelectedSubOrgId('');
-                      setCurrentPage(1);
+                      actions.setFilters({ subOrgId: '' });
                     }}
                     className="text-[10px] font-black text-[#0f417a] dark:text-blue-400 hover:underline uppercase tracking-wide cursor-pointer flex items-center gap-1"
                   >
@@ -654,8 +632,7 @@ export default function DataList({
               <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto pr-1 custom-scrollbar">
                 <button
                   onClick={() => {
-                    setSelectedSubOrgId('');
-                    setCurrentPage(1);
+                    actions.setFilters({ subOrgId: '' });
                   }}
                   className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer border ${
                     !selectedSubOrgId
@@ -678,8 +655,7 @@ export default function DataList({
                     <button
                       key={org.organisation_id}
                       onClick={() => {
-                        setSelectedSubOrgId(prev => String(prev) === String(org.organisation_id) ? '' : org.organisation_id);
-                        setCurrentPage(1);
+                        actions.setFilters({ subOrgId: isSelected ? '' : org.organisation_id });
                       }}
                       className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer border ${
                         isSelected
@@ -707,7 +683,7 @@ export default function DataList({
           <div className="flex items-center gap-2.5 w-full lg:w-auto">
             <button
               type="button"
-              onClick={() => setShowFilterPanel(prev => !prev)}
+              onClick={() => actions.setShowFilterPanel(prev => !prev)}
               className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
                 showFilterPanel || activeFiltersCount > 0
                   ? 'bg-blue-50 border-blue-300 text-[#0f417a] dark:bg-blue-950/50 dark:border-blue-700 dark:text-blue-300'
@@ -745,12 +721,12 @@ export default function DataList({
                 type="text"
                 placeholder="Search"
                 value={searchTerm}
-                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                onChange={(e) => actions.setSearchTerm(e.target.value)}
                 className="w-full pl-9 pr-8 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 focus:outline-none placeholder-slate-400 text-slate-800 dark:text-slate-200"
               />
               {searchTerm && (
                 <button
-                  onClick={() => { setSearchTerm(''); setCurrentPage(1); }}
+                  onClick={() => actions.setSearchTerm('')}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
                   <X className="h-3.5 w-3.5" />
@@ -763,7 +739,7 @@ export default function DataList({
               <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
               <select
                 value={pageSize}
-                onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
+                onChange={(e) => actions.setPageSize(Number(e.target.value))}
                 className="bg-transparent border-none text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
               >
                 {[10, 25, 50, 100].map(sz => <option key={sz} value={sz}>{sz}</option>)}
@@ -802,7 +778,7 @@ export default function DataList({
                       <input
                         type="checkbox"
                         checked={visibleCols[key] !== false}
-                        onChange={() => setVisibleCols(prev => ({ ...prev, [key]: !prev[key] }))}
+                        onChange={() => actions.setVisibleCols(prev => ({ ...prev, [key]: visibleCols[key] === false }))}
                         className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
                       />
                       <span>{label}</span>
@@ -846,8 +822,7 @@ export default function DataList({
                 <select
                   value={financialYearFilter}
                   onChange={(e) => {
-                    setFinancialYearFilter(e.target.value);
-                    setCurrentPage(1);
+                    actions.setFilters({ financialYear: e.target.value });
                   }}
                   className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 text-slate-800 dark:text-slate-200 cursor-pointer"
                 >
@@ -865,8 +840,7 @@ export default function DataList({
                   value={monthFilter}
                   disabled={showYearWise}
                   onChange={(e) => {
-                    setMonthFilter(e.target.value);
-                    setCurrentPage(1);
+                    actions.setFilters({ month: e.target.value });
                   }}
                   className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 text-slate-800 dark:text-slate-200 cursor-pointer disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:cursor-not-allowed"
                 >
@@ -884,8 +858,7 @@ export default function DataList({
                   <select
                     value={organisationFilter}
                     onChange={(e) => {
-                      setOrganisationFilter(e.target.value);
-                      setCurrentPage(1);
+                      actions.setFilters({ organisationId: e.target.value });
                     }}
                     className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 text-slate-800 dark:text-slate-200 cursor-pointer"
                   >
@@ -906,8 +879,7 @@ export default function DataList({
                   <button
                     type="button"
                     onClick={() => {
-                      setShowYearWise(false);
-                      setCurrentPage(1);
+                      actions.setFilters({ showYearWise: false });
                     }}
                     className={`flex-1 text-center py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                       !showYearWise
@@ -920,9 +892,7 @@ export default function DataList({
                   <button
                     type="button"
                     onClick={() => {
-                      setShowYearWise(true);
-                      setMonthFilter('');
-                      setCurrentPage(1);
+                      actions.setFilters({ showYearWise: true, month: '' });
                     }}
                     className={`flex-1 text-center py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                       showYearWise
@@ -956,9 +926,9 @@ export default function DataList({
             totalPages={totalPages}
             totalRows={filteredRowData.length}
             pageSize={pageSize}
-            onPageChange={(zeroIdx) => setCurrentPage(zeroIdx + 1)}
-            onPrevPage={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-            onNextPage={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+            onPageChange={(zeroIdx) => actions.setCurrentPage(zeroIdx + 1)}
+            onPrevPage={() => actions.setCurrentPage(Math.max(1, currentPage - 1))}
+            onNextPage={() => actions.setCurrentPage(Math.min(totalPages, currentPage + 1))}
             color="#0f417a"
           />
         </div>

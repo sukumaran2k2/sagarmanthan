@@ -1,12 +1,13 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
 import InternalNavigation from '../../components/InternalNavigation';
 import ConfirmModal from '../../components/ConfirmModal';
 import InputForm from './pages/InputForm';
 import { useMediaOutreachPermissions } from './hooks/useMediaOutreachPermissions';
 import { resolveMediaOutreachListView } from './views';
-import { fetchOrganisations, fetchSocialMediaData, deleteSocialMedia } from './api';
+import { fetchSocialMediaData, deleteSocialMedia } from './api';
 import { getCurrentUserId } from '../../utils/authSession';
 import { MEDIA_TABS_ALL } from './utils/constants';
+import { MEDIA_LIST_TABS, useMediaOutreachStore } from './store/useMediaOutreachStore';
 
 export default function MediaOutreachView({ triggerNotification }) {
   const permissions = useMediaOutreachPermissions();
@@ -20,28 +21,32 @@ export default function MediaOutreachView({ triggerNotification }) {
     return MEDIA_TABS_ALL;
   }, [permissions.canAdd]);
 
-  // Read initial tab from sessionStorage if navigated via nav flyout
-  const initTab = (() => {
+  // The open media tab and the organisation list live in the store, so they survive leaving
+  // the module; the Input Form (and the record it edits) is local to this visit.
+  const mediaTab = useMediaOutreachStore((state) => state.mediaTab);
+  const setMediaTab = useMediaOutreachStore((state) => state.setMediaTab);
+  const organisations = useMediaOutreachStore((state) => state.organisations);
+  const loadOrganisations = useMediaOutreachStore((state) => state.loadOrganisations);
+
+  // The nav flyout leaves the tab to open in sessionStorage; read it once, before the first paint.
+  const [initTab] = useState(() => {
     try {
       const t = sessionStorage.getItem('mediaOutreachInitTab');
       if (t) { sessionStorage.removeItem('mediaOutreachInitTab'); return t; }
-    } catch(e) {}
-    return 'broadcast';
-  })();
+    } catch { /* storage unavailable */ }
+    return null;
+  });
+  useLayoutEffect(() => {
+    if (MEDIA_LIST_TABS.includes(initTab)) setMediaTab(initTab);
+  }, [initTab, setMediaTab]);
 
-  const [activeMediaType, setActiveMediaType] = useState(initTab);
-  const [prevMediaType, setPrevMediaType] = useState(initTab === 'add_details' ? 'broadcast' : initTab);
+  const [showForm, setShowForm] = useState(initTab === 'add_details' && permissions.canAdd);
+  const activeMediaType = showForm ? 'add_details' : mediaTab;
   const [editData, setEditData] = useState(null);
   const [rowData, setRowData] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [organisations, setOrganisations] = useState([]);
 
-  // Load organisations dropdown using API helper
-  useEffect(() => {
-    fetchOrganisations()
-      .then(res => setOrganisations(res.data || []))
-      .catch(() => {});
-  }, []);
+  useEffect(() => { loadOrganisations(); }, [loadOrganisations]);
 
   // Fetch all media outreach data using API helper
   const fetchData = useCallback(() => {
@@ -68,10 +73,10 @@ export default function MediaOutreachView({ triggerNotification }) {
     if (tabId === 'add_details') {
       if (!permissions.canAdd) return;
       setEditData(null);
-      setActiveMediaType('add_details');
+      setShowForm(true);
     } else {
-      setPrevMediaType(tabId);
-      setActiveMediaType(tabId);
+      setMediaTab(tabId);
+      setShowForm(false);
     }
   };
 
@@ -84,7 +89,7 @@ export default function MediaOutreachView({ triggerNotification }) {
   const handleEdit = (row) => {
     if (!permissions.canEdit) return;
     setEditData(row);
-    setActiveMediaType('add_details');
+    setShowForm(true);
   };
 
   const handleDelete = (row) => {
@@ -115,17 +120,17 @@ export default function MediaOutreachView({ triggerNotification }) {
   const handleAddNew = () => {
     if (!permissions.canAdd) return;
     setEditData(null);
-    setActiveMediaType('add_details');
+    setShowForm(true);
   };
 
   const handleBack = () => {
-    setActiveMediaType(prevMediaType);
+    setShowForm(false);
     setEditData(null);
   };
 
   const handleSuccess = () => {
     fetchData();
-    setActiveMediaType(prevMediaType);
+    setShowForm(false);
     setEditData(null);
     if (triggerNotification) triggerNotification(editData ? 'Record updated successfully!' : 'Record created successfully!');
   };
@@ -157,7 +162,7 @@ export default function MediaOutreachView({ triggerNotification }) {
           onSuccess={handleSuccess}
           triggerNotification={triggerNotification}
           editData={editData}
-          activeMediaType={prevMediaType}
+          activeMediaType={mediaTab}
           organisations={organisations}
           getOrgName={getOrgName}
           permissions={permissions}

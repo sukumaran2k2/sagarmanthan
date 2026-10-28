@@ -29,3 +29,6 @@ backend/demoFiles/
 
 # Form Builder uploaded files
 backend/formbuilder_Files/
+
+# Test run reports
+test-reports/
