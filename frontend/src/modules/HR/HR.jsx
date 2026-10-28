@@ -1,33 +1,39 @@
-import React, { useMemo, useCallback, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
-import { 
+import {
   Building2,
-  UserPlus, 
-  BookOpen, 
+  UserPlus,
+  BookOpen,
   Users,
   FileEdit,
   Briefcase,
   ShieldCheck,
   FilePieChart,
-  CalendarCheck
+  Archive,
+  LayoutDashboard,
+  FileSpreadsheet
 } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
-import { isOrganisationUser, isOtherOrganisationUser, isSuperAdmin } from '../../utils/authSession';
 import RestrictedAccess from '../../components/RestrictedAccess';
-import Notification from '../../components/Notification';
+import { useNotifier } from '../../utils/notify';
 import { useHRPermissions } from './hooks/useHRPermissions';
+import { useHrStore } from './store/useHrStore';
 import './hrTables.css';
-import { resolveHRListView } from './views';
+import { HR_LIST_VIEWS, hrListViewKey } from './views';
+import { HR_VIEWS, hrViewAllows, hrPageFromPath } from './utils/hrViews';
 
+import HrDashboard from './pages/HrDashboard';
+import NonPortDashboard from './pages/NonPortDashboard';
+import NonPortMonthlyUpload from './pages/NonPortMonthlyUpload';
 import OrganisationStructure from './pages/OrganisationStructure';
 import ContractualEmployment from './pages/ContractualEmployment';
 import TrainingDetails from './pages/TrainingDetails';
 import InputForm from './pages/InputForm';
 import ListAbolishedPosts from './pages/ListAbolishedPosts';
 import EmployeeDatabase from './pages/EmployeeDatabase';
+import EmployeeDetails from './pages/EmployeeDetails';
 import EmployeeDataForm from './components/EmployeeDataForm';
 import AddPostForm from './components/AddPostForm';
-import NonPortMonthlyUpload from './pages/NonPortMonthlyUpload';
 import VacantDetails from './pages/VacantDetails';
 import HrAdministration from './pages/HrAdministration';
 import HrReports from './pages/Reports';
@@ -37,130 +43,101 @@ export default function HRDashboardView({ onGoHome, triggerNotification }) {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const isOrg = isOrganisationUser();
-  const userIsOtherOrg = isOtherOrganisationUser();
-
-  // If the user is specifically an Other Org (like CSL, DGLL, IWAI, DGS, etc.), default to other org view.
-  // Otherwise, allow admin/ministry to toggle or detect based on active path.
-  const isOtherOrgPath = useMemo(() => {
-    const p = location.pathname.toLowerCase();
-    return p.includes('/non-port-monthly-upload');
-  }, [location.pathname]);
-
-  const [activeOrgCategory, setActiveOrgCategory] = useState(
-    userIsOtherOrg || isOtherOrgPath ? 'other' : 'major'
-  );
-
-  const isOtherOrgActive = userIsOtherOrg || activeOrgCategory === 'other';
-
   const permissions = useHRPermissions();
+  const { isOrgUser: isOrg, hrView } = permissions;
+  // Page the URL points at, and whether this user's view offers it (utils/hrViews.js)
+  const urlPage = hrPageFromPath(location.pathname);
+  const pageAllowed = hrViewAllows(hrView, urlPage);
 
-  const ListView = useMemo(
-    () => resolveHRListView(permissions.uiViewCode),
-    [permissions.uiViewCode]
-  );
+  // Every HR toast goes through notify(HR_TOASTS.x / COMMON_TOASTS.x)
+  const notify = useNotifier(triggerNotification);
 
-  const [toast, setToast] = useState(null);
+  // Reference data, loaded once and passed to the pages (one source of truth)
+  const departments = useHrStore((state) => state.departments);
+  const organisations = useHrStore((state) => state.organisations);
+  const loadMasters = useHrStore((state) => state.loadMasters);
+  useEffect(() => {
+    if (permissions.canView) loadMasters(permissions.orgId);
+  }, [loadMasters, permissions.canView, permissions.orgId]);
+  const masters = { departments, organisations };
 
-  const notify = useCallback(
-    (message, type = 'success') => {
-      if (typeof triggerNotification === 'function') {
-        triggerNotification(message, type);
-        return;
+  // List view for the user's UI view code (Standard / Secretary-JS / Director), as in
+  // Parliamentary Issues. Indexed from the static registry (not a resolver call) so the
+  // react-hooks/static-components rule can see no component is created in render.
+  const ListView = HR_LIST_VIEWS[hrListViewKey(permissions.uiViewCode)] || HR_LIST_VIEWS.STANDARD;
+
+  // Menu entry that holds the page (pages reached from another page light up that page's entry)
+  const currentTab = {
+    'employee-details': 'employee-database',
+    'add-employee': 'employee-database',
+    'vacancy-details': 'vacancy-management',
+    'add-post': 'organisation-structure',
+  }[urlPage] || urlPage;
+
+  const isEditMode = !!location.state?.item;
+
+  // The groups open a sub-menu on hover (or click/tap). Pages are filtered by the user's view
+  // (Major Port / non-port / Secretary / ministry) and permissions, and a group left with a
+  // single page is shown as a plain tab, so nobody gets a one-item menu.
+  const tabs = useMemo(() => {
+    const offered = (page) => page && hrViewAllows(hrView, page.id) && page;
+    const groups = [
+      { id: 'hr-dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { id: 'non-port-monthly-upload', label: 'Non Port Monthly Upload', icon: FileSpreadsheet },
+      {
+        id: 'posts-vacancies',
+        label: 'Posts & Vacancies',
+        icon: Building2,
+        pages: [
+          { id: 'organisation-structure', label: 'Organisation Structure', icon: Building2 },
+          // Vacancy Management: organisation users in the Standard view only
+          permissions.canViewVacancy && { id: 'vacancy-management', label: 'Vacancy Management', icon: Briefcase },
+          { id: 'abolished-posts', label: isOrg ? 'Abolished Posts' : 'List of Abolished Posts', icon: Archive },
+        ],
+      },
+      {
+        id: 'employees',
+        label: 'Employees',
+        icon: Users,
+        pages: [
+          { id: 'employee-database', label: 'Employee Database', icon: Users },
+          permissions.canViewAdministration && { id: 'administration', label: 'HR Administration & Actions', icon: ShieldCheck },
+        ],
+      },
+      {
+        id: 'contractual-training',
+        label: 'Contractual & Training',
+        icon: UserPlus,
+        pages: [
+          { id: 'contractual-employment', label: 'Contractual Employment', icon: UserPlus },
+          { id: 'training-details', label: 'Training Details', icon: BookOpen },
+        ],
+      },
+      permissions.canUseInputForm && {
+        id: 'input-form',
+        label: isEditMode && currentTab === 'input-form' ? 'Update Form' : 'Input Forms',
+        icon: FileEdit,
+      },
+      { id: 'reports', label: 'Reports', icon: FilePieChart },
+    ];
+
+    return groups.filter(Boolean).map(({ pages, ...entry }) => {
+      if (!pages) return offered(entry) && { ...entry, pageIds: [entry.id] };
+      const visible = pages.map(offered).filter(Boolean);
+      if (visible.length === 0) return null;
+      if (visible.length === 1) {
+        const [page] = visible;
+        return { id: page.id, label: page.label, icon: page.icon, pageIds: [page.id] };
       }
-      setToast({ message, type });
-      setTimeout(() => setToast(null), 3000);
-    },
-    [triggerNotification]
-  );
+      return { ...entry, isGroup: true, subMenu: visible, pageIds: visible.map((page) => page.id) };
+    }).filter(Boolean);
+  }, [hrView, isOrg, permissions.canViewVacancy, permissions.canViewAdministration, permissions.canUseInputForm, isEditMode, currentTab]);
 
-  const currentTab = useMemo(() => {
-    const path = location.pathname.toLowerCase();
-    if (isOtherOrgActive) {
-      if (path.includes('/non-port-monthly-upload')) return 'non-port-monthly-upload';
-      if (path.includes('/contractual-employment')) return 'contractual-employment';
-      if (path.includes('/training-details')) return 'training-details';
-      if (path.includes('/input-form')) return 'input-form';
-      return 'non-port-monthly-upload';
-    } else {
-      if (path.includes('/hr-management/reports')) return 'reports';
-      if (path.includes('/organisation-structure')) return 'organisation-structure';
-      if (path.includes('/employee-database')) return 'employee-database';
-      if (path.includes('/vacancy-management') || path.includes('/vacancy-details')) return 'vacancy-management';
-      if (path.includes('/administration')) return 'administration';
-      if (path.includes('/abolished-posts')) return 'abolished-posts';
-      if (path.includes('/contractual-employment')) return 'contractual-employment';
-      if (path.includes('/training-details')) return 'training-details';
-      if (path.includes('/input-form')) return 'input-form';
-      return 'employee-database';
-    }
-  }, [location.pathname, isOtherOrgActive]);
+  // Top-level entry (group or plain tab) that holds the current page.
+  const activeTabId = tabs.find((tab) => tab.pageIds.includes(currentTab))?.id;
 
-  const isEditMode = !!location.state?.editData;
-
-  // Tabs for Other Organisation Users
-  const otherOrgTabs = useMemo(() => {
-    const list = [
-      { id: 'non-port-monthly-upload', label: 'Non Port Monthly Upload', icon: CalendarCheck },
-      { id: 'contractual-employment', label: 'Contractual Employment', icon: UserPlus },
-      { id: 'training-details', label: 'Training Details', icon: BookOpen },
-    ];
-    if (permissions.canUseInputForm || isOtherOrgActive) {
-      list.push({
-        id: 'input-form',
-        label: isEditMode && currentTab === 'input-form' ? 'Update Form' : 'Input Form',
-        icon: FileEdit
-      });
-    }
-    return list;
-  }, [permissions.canUseInputForm, isOtherOrgActive, isEditMode, currentTab]);
-
-  // Standard Tabs for Major Ports
-  const majorPortTabs = useMemo(() => {
-    const list = [
-      { id: 'organisation-structure', label: 'Organisation Structure', icon: Building2 },
-      { id: 'employee-database', label: 'Employee Database', icon: Users },
-      { id: 'abolished-posts', label: isOrg ? 'Abolished Posts' : 'List of Abolished Posts', icon: Users },
-    ];
-
-    if (permissions.canViewVacancy) {
-      list.push({ id: 'vacancy-management', label: 'Vacancy Management', icon: Briefcase });
-    }
-
-    if (permissions.canViewAdministration) {
-      list.push({ id: 'administration', label: 'HR Administration & Actions', icon: ShieldCheck });
-    }
-
-    list.push(
-      { id: 'contractual-employment', label: 'Contractual Employment', icon: UserPlus },
-      { id: 'training-details', label: 'Training Details', icon: BookOpen },
-      { id: 'reports', label: 'Reports', icon: FilePieChart }
-    );
-
-    if (permissions.canUseInputForm) {
-      list.push({
-        id: 'input-form',
-        label: isEditMode && currentTab === 'input-form' ? 'Update Form' : 'Input Form',
-        icon: FileEdit
-      });
-    }
-
-    return list;
-  }, [isOrg, permissions.canViewVacancy, permissions.canViewAdministration, permissions.canUseInputForm, isEditMode, currentTab]);
-
-  const effectiveTabs = isOtherOrgActive ? otherOrgTabs : majorPortTabs;
-
-  const handleTabChange = (tabId) => {
-    navigate(`/hr/hr-management/${tabId}`);
-  };
-
-  const handleCategorySwitch = (category) => {
-    setActiveOrgCategory(category);
-    if (category === 'other') {
-      navigate('/hr/hr-management/non-port-monthly-upload');
-    } else {
-      navigate('/hr/hr-management/employee-database');
-    }
+  const goToPage = (pageId) => {
+    navigate(`/hr/hr-management/${pageId}`);
   };
 
   // RBAC Access Guard matching Cabinet Notes
@@ -174,79 +151,53 @@ export default function HRDashboardView({ onGoHome, triggerNotification }) {
   }
 
   return (
-    <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800 dark:text-slate-100">
-      <Notification message={toast} onDismiss={() => setToast(null)} />
-
-      {/* Header Row with Title & Internal Navigation */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4 mb-6 select-none">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-xl font-black text-[#0f417a] dark:text-blue-400 tracking-wide uppercase font-display flex items-center gap-2">
-              <Users className="h-5 w-5 text-[#0f417a] dark:text-blue-400" />
-              <span>HR Management</span>
-            </h1>
-
-            {/* View Selector for Admin / Ministry Users */}
-            {!userIsOtherOrg && (
-              <div className="hidden sm:inline-flex items-center p-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 text-[11px] font-bold">
-                <button
-                  type="button"
-                  onClick={() => handleCategorySwitch('major')}
-                  className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
-                    activeOrgCategory === 'major'
-                      ? 'bg-[#0f417a] text-white shadow-xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                  }`}
-                >
-                  Major Ports
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleCategorySwitch('other')}
-                  className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
-                    activeOrgCategory === 'other'
-                      ? 'bg-[#0f417a] text-white shadow-xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                  }`}
-                >
-                  Other Organisations (Non-Port)
-                </button>
-              </div>
-            )}
-          </div>
-
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-sans">
-            {isOtherOrgActive 
-              ? 'Manage Non-Port monthly vacancy uploads, contractual employment, training records and reporting compliance.'
+    <div className="module-page-container space-y-6 animate-fade-in">
+      <div className="module-header-container hr-module-header">
+        <div className="min-w-0">
+          <h1 className="module-header-title">HR Management</h1>
+          <p className="module-header-subtitle">
+            {hrView === HR_VIEWS.NON_PORT
+              ? 'Upload monthly vacancy details and manage contractual employment and training details.'
               : 'Manage organisation structure, employee database, vacancies, abolished posts, contractual employment and training details.'}
           </p>
         </div>
 
         <InternalNavigation
-          tabs={effectiveTabs}
-          currentTab={currentTab}
-          onTabChange={handleTabChange}
+          tabs={tabs}
+          currentTab={activeTabId}
+          currentSubItem={currentTab}
+          onTabChange={goToPage}
+          onSubItemChange={goToPage}
         />
       </div>
 
       {/* Child Routes with Permission Injection */}
       <div>
+        {/* A page outside the user's view (an old link, a typed URL) goes back to the dashboard */}
+        {!pageAllowed ? <Navigate to="/hr/hr-management/hr-dashboard" replace /> : (
         <Routes>
-          {/* Other Org Exclusive / Shared Routes */}
-          <Route path="non-port-monthly-upload" element={<NonPortMonthlyUpload triggerNotification={triggerNotification} />} />
-
-          {/* Standard Major Port Routes */}
-          <Route path="organisation-structure" element={<OrganisationStructure triggerNotification={triggerNotification} />} />
-          <Route path="employee-database" element={<EmployeeDatabase triggerNotification={triggerNotification} />} />
-          <Route path="add-employee" element={<EmployeeDataForm triggerNotification={triggerNotification} />} />
-          <Route path="add-post" element={<AddPostForm triggerNotification={triggerNotification} />} />
+          <Route
+            path="hr-dashboard"
+            element={hrView === HR_VIEWS.NON_PORT ? <NonPortDashboard notify={notify} canUpload={permissions.canUseInputForm} /> : <HrDashboard notify={notify} />}
+          />
+          <Route
+            path="non-port-monthly-upload/*"
+            element={<NonPortMonthlyUpload notify={notify} triggerNotification={triggerNotification} />}
+          />
+          <Route path="organisation-structure" element={<OrganisationStructure notify={notify} />} />
+          <Route path="employee-database" element={<EmployeeDatabase notify={notify} />} />
+          <Route
+            path="employee-details/:empMasterId"
+            element={<EmployeeDetails notify={notify} canEdit={permissions.canEdit && permissions.canUseInputForm} />}
+          />
+          <Route path="add-employee" element={<EmployeeDataForm notify={notify} />} />
+          <Route path="add-post" element={<AddPostForm notify={notify} />} />
           <Route
             path="abolished-posts"
             element={
               <ListAbolishedPosts
                 permissions={permissions}
                 notify={notify}
-                triggerNotification={triggerNotification}
               />
             }
           />
@@ -258,8 +209,8 @@ export default function HRDashboardView({ onGoHome, triggerNotification }) {
                 element={
                   <ListView
                     permissions={permissions}
+                    departments={masters.departments}
                     notify={notify}
-                    triggerNotification={triggerNotification}
                   />
                 }
               />
@@ -269,7 +220,6 @@ export default function HRDashboardView({ onGoHome, triggerNotification }) {
                   <VacantDetails
                     permissions={permissions}
                     notify={notify}
-                    triggerNotification={triggerNotification}
                   />
                 }
               />
@@ -282,8 +232,9 @@ export default function HRDashboardView({ onGoHome, triggerNotification }) {
               element={
                 <HrAdministration
                   permissions={permissions}
+                  departments={masters.departments}
+                  organisations={masters.organisations}
                   notify={notify}
-                  triggerNotification={triggerNotification}
                 />
               }
             />
@@ -295,7 +246,6 @@ export default function HRDashboardView({ onGoHome, triggerNotification }) {
               <ContractualEmployment
                 permissions={permissions}
                 notify={notify}
-                triggerNotification={triggerNotification}
               />
             }
           />
@@ -306,14 +256,13 @@ export default function HRDashboardView({ onGoHome, triggerNotification }) {
               <TrainingDetails
                 permissions={permissions}
                 notify={notify}
-                triggerNotification={triggerNotification}
               />
             }
           />
 
           <Route path="reports/*" element={<HrReports notify={notify} />} />
 
-          {(permissions.canUseInputForm || isOtherOrgActive) && (
+          {permissions.canUseInputForm && (
             <Route
               path="input-form/*"
               element={
@@ -326,18 +275,13 @@ export default function HRDashboardView({ onGoHome, triggerNotification }) {
             />
           )}
 
-          {/* Default Redirection */}
-          <Route 
-            index 
-            element={<Navigate to={isOtherOrgActive ? "non-port-monthly-upload" : "employee-database"} replace />} 
-          />
-          <Route 
-            path="*" 
-            element={<Navigate to={isOtherOrgActive ? "/hr/hr-management/non-port-monthly-upload" : "/hr/hr-management/employee-database"} replace />} 
-          />
+          <Route index element={<Navigate to="hr-dashboard" replace />} />
+          {/* Absolute: a relative target inside a splat route is appended to the unknown path (redirect loop). */}
+          <Route path="*" element={<Navigate to="/hr/hr-management/hr-dashboard" replace />} />
         </Routes>
+        )}
       </div>
-      
+
     </div>
   );
 }

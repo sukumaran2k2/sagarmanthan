@@ -1,15 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 // Shared client: sends the login token and refreshes it (HR routes require login)
 import { axiosInstance as axios } from '../../../api';
-import { ArrowLeft, CheckCircle2, AlertCircle, Save, Send, Check, X, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Save, Send, Check, X } from 'lucide-react';
 import { API_BASE_URL } from '../../../config/api';
 import { isOrganisationUser } from '../../../utils/authSession';
+import { COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { HR_TOASTS } from '../toastMessages';
 
-export default function ViewAbolishedPostDetails({ postCode, initialData, onBack, initialViewMode }) {
+export default function ViewAbolishedPostDetails({ postCode, initialData, onBack, initialViewMode, notify }) {
   const isOrg = isOrganisationUser();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [message, setMessage] = useState(null);
+  // Read the notifier through a ref so the load effect does not re-run after a toast
+  const notifyRef = useRef(notify);
+  useEffect(() => { notifyRef.current = notify; }, [notify]);
 
   // Top header fields
   const [code, setCode] = useState(postCode || initialData?.['Post code'] || '');
@@ -33,13 +37,8 @@ export default function ViewAbolishedPostDetails({ postCode, initialData, onBack
   const [revivalStageId, setRevivalStageId] = useState(0);
 
   // View mode when both forms or approval form are available: 'request' | 'approval' | 'both'
+  // The page remounts for each post, so the initial view mode is all that is needed
   const [viewMode, setViewMode] = useState(initialViewMode || null);
-
-  useEffect(() => {
-    if (initialViewMode) {
-      setViewMode(initialViewMode);
-    }
-  }, [initialViewMode]);
 
   const hasMinistryFilled = Boolean(
     proposalSentToDoeDate ||
@@ -81,6 +80,8 @@ export default function ViewAbolishedPostDetails({ postCode, initialData, onBack
 
   useEffect(() => {
     let isMounted = true;
+    // Deferred a tick so the effect never sets state synchronously
+    const timer = setTimeout(() => {
     if (!code) {
       setLoading(false);
       return;
@@ -119,24 +120,27 @@ export default function ViewAbolishedPostDetails({ postCode, initialData, onBack
       })
       .catch(err => {
         console.error("Failed to load post strength details:", err);
-        setMessage({ type: 'error', text: 'Failed to load details from server.' });
+        if (isMounted) notifyRef.current?.(COMMON_TOASTS.loadFailed('The post details'));
       })
       .finally(() => {
         if (isMounted) setLoading(false);
       });
+    }, 0);
 
-    return () => { isMounted = false; };
+    return () => { isMounted = false; clearTimeout(timer); };
+    // initialData is only a fallback for the first load of this post
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 
   // Org Update (Save Draft)
   const handleUserUpdate = async () => {
     if (!processInitiatedDate) {
-      alert("Please enter Date of Process initiated.");
+      notify?.(HR_TOASTS.revivalFieldRequired('date of process initiated'));
       return;
     }
 
     if (dateOfDecisionRejected && !rejectRemarksUser) {
-      alert("Please enter remarks for rejection.");
+      notify?.(HR_TOASTS.revivalFieldRequired('remarks for rejection'));
       return;
     }
 
@@ -159,11 +163,10 @@ export default function ViewAbolishedPostDetails({ postCode, initialData, onBack
 
     try {
       await axios.post(`${API_BASE_URL}/post-revive-detail`, payload);
-      setMessage({ type: 'success', text: 'Request details updated successfully!' });
-      setTimeout(() => setMessage(null), 3000);
+      notify?.(HR_TOASTS.revivalDetailsUpdated());
     } catch (err) {
       console.error(err);
-      setMessage({ type: 'error', text: 'Failed to update request details.' });
+      notify?.(HR_TOASTS.revivalDetailsFailed(getErrorMessage(err)));
     } finally {
       setSubmitting(false);
     }
@@ -172,22 +175,22 @@ export default function ViewAbolishedPostDetails({ postCode, initialData, onBack
   // Org Send for Revival
   const handleSendForRevival = async () => {
     if (!processInitiatedDate) {
-      alert("Please enter Date of Process initiated.");
+      notify?.(HR_TOASTS.revivalFieldRequired('date of process initiated'));
       return;
     }
 
     if (!dateOfDecisionApproved && !dateOfDecisionRejected) {
-      alert("Please enter Date of Approved or Rejected for Revival.");
+      notify?.(HR_TOASTS.revivalFieldRequired('date of approval or rejection for revival'));
       return;
     }
 
     if (dateOfDecisionRejected && !rejectRemarksUser) {
-      alert("Please enter rejection remarks.");
+      notify?.(HR_TOASTS.revivalFieldRequired('rejection remarks'));
       return;
     }
 
     if (!proposalForwardedDate) {
-      alert("Please enter Date of proposal forwarded to MoPSW.");
+      notify?.(HR_TOASTS.revivalFieldRequired('date the proposal was forwarded to MoPSW'));
       return;
     }
 
@@ -205,12 +208,11 @@ export default function ViewAbolishedPostDetails({ postCode, initialData, onBack
 
     try {
       await axios.post(`${API_BASE_URL}/post-revive-detail`, payload);
-      setMessage({ type: 'success', text: 'Revival Request successfully submitted to MoPSW!' });
+      notify?.(HR_TOASTS.revivalSubmitted());
       setRevivalStageId(5);
-      setTimeout(() => setMessage(null), 3000);
     } catch (err) {
       console.error(err);
-      setMessage({ type: 'error', text: 'Failed to submit revival request.' });
+      notify?.(HR_TOASTS.revivalSubmitFailed(getErrorMessage(err)));
     } finally {
       setSubmitting(false);
     }
@@ -239,19 +241,15 @@ export default function ViewAbolishedPostDetails({ postCode, initialData, onBack
 
     try {
       await axios.post(`${API_BASE_URL}/update-revive-post-approval`, payload);
-      setMessage({ 
-        type: 'success', 
-        text: overrideStageId === 9 
-          ? 'Post revival approved successfully!' 
-          : overrideStageId === 8 
-            ? 'Post revival rejected successfully!' 
-            : 'Approval details updated successfully!' 
-      });
+      notify?.(overrideStageId === 9
+        ? HR_TOASTS.revivalApproved()
+        : overrideStageId === 8
+          ? HR_TOASTS.revivalRejected()
+          : HR_TOASTS.approvalDetailsUpdated());
       setRevivalStageId(stageId);
-      setTimeout(() => setMessage(null), 3000);
     } catch (err) {
       console.error(err);
-      setMessage({ type: 'error', text: 'Failed to update approval details.' });
+      notify?.(HR_TOASTS.approvalDetailsFailed(getErrorMessage(err)));
     } finally {
       setSubmitting(false);
     }
@@ -259,7 +257,7 @@ export default function ViewAbolishedPostDetails({ postCode, initialData, onBack
 
   const handleAdminApprove = () => {
     if (!orderForCreationDate) {
-      alert("Please enter the Date of Order for Creation of Post Issued before approving.");
+      notify?.(HR_TOASTS.revivalFieldRequired('date of the order for creation of the post'));
       return;
     }
     handleAdminUpdate(9);
@@ -267,7 +265,7 @@ export default function ViewAbolishedPostDetails({ postCode, initialData, onBack
 
   const handleAdminReject = () => {
     if (!rejectionDateFromDOE && !remarksRejectAdmin) {
-      alert("Please provide the Rejection Date or Remarks from DoE.");
+      notify?.(HR_TOASTS.revivalFieldRequired('rejection date or the remarks from DoE'));
       return;
     }
     handleAdminUpdate(8);
@@ -289,18 +287,6 @@ export default function ViewAbolishedPostDetails({ postCode, initialData, onBack
           <span>Back</span>
         </button>
       </div>
-
-      {/* Notifications */}
-      {message && (
-        <div className={`p-4 rounded-xl flex items-center space-x-3 text-sm font-semibold transition animate-fade-in ${
-          message.type === 'success' 
-            ? 'bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300' 
-            : 'bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300'
-        }`}>
-          {message.type === 'success' ? <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" /> : <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />}
-          <span>{message.text}</span>
-        </div>
-      )}
 
       {loading ? (
         <div className="flex items-center justify-center h-64">
@@ -377,7 +363,7 @@ export default function ViewAbolishedPostDetails({ postCode, initialData, onBack
 
           {/* Columns Grid: REQUEST & APPROVAL */}
           <div className={`grid grid-cols-1 ${activeView === 'both' ? 'lg:grid-cols-2' : 'max-w-3xl'} gap-6`}>
-            
+
             {/* 1. LEFT CARD: REQUEST (To be entered by organisation) */}
             {(activeView === 'request' || activeView === 'both') && (
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs flex flex-col justify-between">
@@ -391,7 +377,7 @@ export default function ViewAbolishedPostDetails({ postCode, initialData, onBack
 
                 {/* Form Table */}
                 <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                  
+
                   {/* Field 1 */}
                   <div className="p-4 grid grid-cols-1 sm:grid-cols-3 gap-2 items-center hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition">
                     <label className="sm:col-span-2 text-xs font-bold text-slate-700 dark:text-slate-300">
@@ -523,7 +509,7 @@ export default function ViewAbolishedPostDetails({ postCode, initialData, onBack
 
                 {/* Form Table */}
                 <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                  
+
                   {/* Field 1 */}
                   <div className="p-4 grid grid-cols-1 sm:grid-cols-3 gap-2 items-center hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition">
                     <label className="sm:col-span-2 text-xs font-bold text-slate-700 dark:text-slate-300">

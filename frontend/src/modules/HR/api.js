@@ -30,6 +30,20 @@ export function fetchHrPostsByDepartment(deptId, orgId) {
   return api.get(`/get-hr-postList-by-department-organisation/${deptParam}/${orgId}`);
 }
 
+// Duplicate checks used by Add Employee (as the legacy page did before saving)
+export function checkAadhaarExists(aadhaar) {
+  return api.get(`/check-aadhar-number-existence/${encodeURIComponent(aadhaar)}`);
+}
+
+export function checkReferenceNumberExists(referenceNumber, orgId) {
+  return api.get(`/check-reference-number-existence/${encodeURIComponent(referenceNumber)}/${orgId}`);
+}
+
+// Department and post of a post code (tbl_hr_post_strength), used to prefill Add Employee
+export function fetchPostByPostCode(postCode) {
+  return api.get(`/get-post-names-by-post-code/${encodeURIComponent(postCode)}`);
+}
+
 export function fetchHrPostDetails(orgId) {
   return api.get(`/get-hr-post-details/${orgId}`);
 }
@@ -221,6 +235,24 @@ export function fetchAllContractualData(userId) {
   return api.get(`/get-all-contractual-data/${userId}`);
 }
 
+// Employee Database > edit an employee
+export function fetchHrEmployeeById(employeeMasterId) {
+  return api.get(`/get-hr-employee-by-id/${encodeURIComponent(employeeMasterId)}`);
+}
+
+// Service history, latest first. The backend takes the organisation and role from the login for
+// organisation users; ministry users pass their role (0 = every organisation).
+export function fetchEmployeeServiceHistory(employeeMasterId, orgId = 0, roleId = 0) {
+  return api.get(`/get-employee-transaction-history-by-org/${encodeURIComponent(employeeMasterId)}/${orgId}/${roleId}`);
+}
+
+export function updateHrEmployee(employeeMasterId, employeeId, payload) {
+  return afterWrite(api.put(
+    `/edit-employee-details/${encodeURIComponent(employeeMasterId)}/${encodeURIComponent(employeeId)}`,
+    payload
+  ));
+}
+
 // ==========================================
 // 5. HR Administration & Actions
 // ==========================================
@@ -304,14 +336,6 @@ export function fetchTrainingDetailsReport(roleId, orgId) {
 }
 
 // Vacancy history (clusterId 1 = Major Ports; orgId 0 = every organisation in the cluster).
-export function fetchHrDashboardContent(clusterId, orgId) {
-  return api.get(`/get-hr-dashboard-content/${clusterId}/${orgId}`);
-}
-
-export function fetchHrDashboardContentFiltered(clusterId, orgId, year, month) {
-  return api.get(`/get-hr-dashboard-content-data-filter/${clusterId}/${orgId}/${year}/${month}`);
-}
-
 export function fetchDepartmentWisePostStatus(clusterId, orgId) {
   return api.get(`/get-department-wise-post-status/${clusterId}/${orgId}`);
 }
@@ -328,6 +352,44 @@ export function fetchVacancyLogYearsAndMonths(orgId) {
 
 export function fetchOrganisationsByCluster(clusterId) {
   return api.get(`/get-mmt-organisation-by-cluster-id/${clusterId}`);
+}
+
+// ==========================================
+// 7. HR Dashboard (clusterId / orgId 0 = all; organisation users always get their own)
+// ==========================================
+const dashboardGet = (path) => (clusterId, orgId) => api.get(`/${path}/${clusterId}/${orgId}`);
+
+export const fetchHrDashboardTotals = dashboardGet('get-admin-hr-dashboard-content');
+export const fetchHrDashboardGender = dashboardGet('get-admin-hr-gender-wise-cont-by-org');
+export const fetchHrDashboardExService = dashboardGet('get-admin-view-experienced-emp-count');
+export const fetchHrDashboardPwbd = dashboardGet('get-admin-view-pwbd-wise-count');
+export const fetchHrDashboardCommunity = dashboardGet('get-admin-view-community-wise-count-by-org');
+export const fetchHrDashboardDepartmentWise = dashboardGet('get-admin-view-department-wise-post-status');
+export const fetchHrDashboardAbolishing = dashboardGet('get-abolishing-post-within-month');
+export const fetchHrDashboardRetiring = dashboardGet('get-emp-going-to-retire-within-six-months');
+export const fetchHrDashboardClasses = dashboardGet('get-class-org-wise');
+
+// ==========================================
+// 8. Non-port organisations: monthly Excel upload instead of posts (the server reads last month's file)
+// ==========================================
+export const fetchNonPortTotals = dashboardGet('get-hr-dashboard-content-other-org');
+export const fetchNonPortGender = dashboardGet('get-other-org-emp-gender-wise-count');
+export const fetchNonPortExService = dashboardGet('get-other-org-ex-service-count-by-org');
+export const fetchNonPortPwbd = dashboardGet('get-other-org-pwbd-wise-count-by-org');
+export const fetchNonPortCommunity = dashboardGet('get-other-org-community-wise-count-by-org');
+export const fetchNonPortAbolishing = dashboardGet('get-other-org-abolishing-post-within-month');
+export const fetchNonPortRetiring = dashboardGet('get-other-org-emp-going-to-retire-within-six-months');
+
+export function fetchNonPortLastUpload(orgId) {
+  return api.get(`/get-last-upload-date-by-org/${orgId}`);
+}
+
+export function fetchNonPortUploads(orgId) {
+  return api.get(`/get-file-upload-details/${orgId}`);
+}
+
+export function deleteNonPortUpload(fileId) {
+  return afterWrite(api.delete(`/delete-vacany-details-file/${fileId}`));
 }
 
 export default api;

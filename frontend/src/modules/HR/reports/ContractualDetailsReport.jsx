@@ -3,6 +3,7 @@ import { fetchContractDetailsReport, fetchMmtDropdown } from '../api';
 import { useHRPermissions } from '../hooks/useHRPermissions';
 import ReportLayout, { FilterSelect } from './ReportLayout';
 import { CONTRACT_FINANCIAL_YEARS, asList, totalRow } from './reportUtils';
+import { COMMON_TOASTS } from '../../../utils/notify';
 
 const serialColumn = () => ({ headerName: 'S.No', minWidth: 56, value: (_row, i) => i + 1 });
 
@@ -47,7 +48,7 @@ export default function ContractualDetailsReport({ report, onBack, notify }) {
       });
     } catch {
       setData({ columnDefs: [], rowData: [] });
-      notifyRef.current?.('An error occurred while fetching data. Please try again.', 'error');
+      notifyRef.current?.(COMMON_TOASTS.loadFailed('The contractual details report'));
     } finally {
       setLoading(false);
     }

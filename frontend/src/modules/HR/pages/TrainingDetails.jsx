@@ -1,38 +1,87 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useShallow } from 'zustand/react/shallow';
 // Shared client: sends the login token and refreshes it (HR routes require login)
 import { axiosInstance as axios } from '../../../api';
-import { Search, ChevronDown, Eye, X, Pencil, Filter, Trash2 } from 'lucide-react';
+import { Search, ChevronDown, Eye, X, Filter } from 'lucide-react';
 import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import { API_BASE_URL } from '../../../config/api';
 import { getCurrentUserId, isOrganisationUser } from '../../../utils/authSession';
+import { COMMON_TOASTS } from '../../../utils/notify';
 import TrainingDetailView from './TrainingDetailView';
+import { useHrStore } from '../store/useHrStore';
+import { useDebouncedSearch } from '../hooks/usePagedList';
+import { useGridPage } from '../hooks/useGridPage';
+import { createTableExporter } from '../utils/exportTable';
+import { HrFilterPanel, FilterSelect } from '../components/HrFilterPanel';
+import { EditActionButton } from '../components/HrFormControls';
+import { useHRPermissions } from '../hooks/useHRPermissions';
 
-export default function TrainingDetails({ triggerNotification }) {
- 
+const MINISTRY_COLUMNS = {
+  'Organisation': true,
+  'Year': true,
+  'Total Trainings': true,
+  'Total Participants': true,
+  'Total Expenditure (In Lakh)': true,
+  'Last Training Date': true,
+  'View Details': true
+};
+const ORG_COLUMNS = {
+  'Training Title': true,
+  'Training Type': true,
+  'Training Source': true,
+  'Expenditure (In Lakh)': true,
+  'Year': true,
+  'Number of Participants': true,
+  'View Details': true,
+  'Action': true
+};
+const formatTrainingDate = (value) => (value ? new Date(value).toLocaleDateString('en-CA') : '-');
+
+export default function TrainingDetails({ notify }) {
+  // Editing opens Input Forms, which only users with create / update rights have
+  const { canUseInputForm } = useHRPermissions();
+
   const [trainings, setTrainings] = useState([]);
+  // Drill-down (training list of an organisation-year): view state of this page
   const [selectedDetail, setSelectedDetail] = useState(null);
-  const [selectedYear, setSelectedYear] = useState('');
-  const [selectedOrg, setSelectedOrg] = useState('');
-  const [selectedType, setSelectedType] = useState('');
-  const [selectedSource, setSelectedSource] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
-  const [pageSize, setPageSize] = useState(10);
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
+
+  // Filters, search, paging and column visibility live in the HR store
+  const {
+    selectedYear, selectedOrg, selectedType, selectedSource, searchTerm, debouncedSearch,
+    showFilterPanel, currentPage, pageSize, colChanges,
+  } = useHrStore(useShallow((state) => ({
+    selectedYear: state.training.year,
+    selectedOrg: state.training.organisation,
+    selectedType: state.training.type,
+    selectedSource: state.training.source,
+    searchTerm: state.training.searchTerm,
+    debouncedSearch: state.training.debouncedSearch,
+    showFilterPanel: state.training.showFilterPanel,
+    currentPage: state.training.currentPage,
+    pageSize: state.training.pageSize,
+    colChanges: state.training.visibleCols,
+  })));
+  const actions = useHrStore((state) => state.trainingActions);
+  useDebouncedSearch(searchTerm, actions.setDebouncedSearch);
+  const gridPage = useGridPage(currentPage, actions.setCurrentPage);
 
   const navigate = useNavigate();
-  const handleEdit = (data) => {
-    navigate('/hr/hr-management/input-form/training-data', { state: { editData: data } });
-  };
+  // The record being edited travels with the route (location.state.item)
+  const handleEdit = useCallback((data) => {
+    navigate('/hr/hr-management/input-form/training-data', { state: { item: data } });
+  }, [navigate]);
 
-  const getRowIds = (row) => ({
-    trainingId: row.training_id ?? row.trainingId ?? row.trainingId ?? row.id
-  });
+  // Read the notifier through a ref so a failed load does not refetch after the toast
+  const notifyRef = useRef(notify);
+  useEffect(() => { notifyRef.current = notify; }, [notify]);
+
 
   useEffect(() => {
+    // Stale-response guard: a response that arrives after unmount is ignored
     let isMounted = true;
     const userId = getCurrentUserId() || '1';
 
@@ -40,7 +89,7 @@ export default function TrainingDetails({ triggerNotification }) {
       .then(res => {
         if (!isMounted) return;
         const rawData = res.data || [];
-        
+
         const isMinistry = !isOrganisationUser();
         let formattedData;
 
@@ -55,7 +104,7 @@ export default function TrainingDetails({ triggerNotification }) {
             const trainingId = row['Training ID'];
             const expenditure = parseFloat(row['Expenditure'] || 0);
             const participants = parseInt(row['No of Participants'] || 1, 10);
-            
+
             const key = `${org}-${year}`;
             if (!aggregated[key]) {
               aggregated[key] = {
@@ -121,6 +170,7 @@ export default function TrainingDetails({ triggerNotification }) {
       })
       .catch(err => {
         console.error("Error loading training details:", err);
+        if (isMounted) notifyRef.current?.(COMMON_TOASTS.loadFailed('Training details'));
       })
       .finally(() => {
         if (isMounted) setLoading(false);
@@ -146,7 +196,7 @@ export default function TrainingDetails({ triggerNotification }) {
 
     if (isMinistryView) {
       cols.push(
-        { field: 'Organisation', headerName: 'Organisation', minWidth: 200, pinned: 'left', cellClass: 'font-extrabold text-slate-900 text-center flex justify-center', headerClass: 'text-center' },
+        { field: 'Organisation', headerName: 'Organisation', flex: 2, minWidth: 220, wrapText: true, autoHeight: true, cellClass: 'font-extrabold text-slate-900 text-left leading-snug py-2', headerClass: 'text-center' },
         { field: 'Year', headerName: 'Year', minWidth: 120, cellClass: 'text-center flex justify-center items-center', headerClass: 'text-center' },
         { field: 'Total Trainings', headerName: 'Total Trainings', minWidth: 150, cellClass: 'text-center flex justify-center items-center font-semibold text-slate-800', headerClass: 'text-center' },
         { field: 'Total Participants', headerName: 'Total Participants', minWidth: 160, cellClass: 'text-center flex justify-center items-center font-semibold text-slate-800', headerClass: 'text-center' },
@@ -178,15 +228,16 @@ export default function TrainingDetails({ triggerNotification }) {
       );
     } else {
       cols.push(
-        { field: 'Training Title', headerName: 'Training Title', minWidth: 200, pinned: 'left', cellClass: 'font-extrabold text-slate-900 text-center flex justify-center items-center', headerClass: 'text-center' },
-        { field: 'Training Type', headerName: 'Training Type', minWidth: 150, cellClass: 'text-center flex justify-center items-center', headerClass: 'text-center' },
-        { field: 'Training Source', headerName: 'Training Source', minWidth: 150, cellClass: 'text-center flex justify-center items-center', headerClass: 'text-center' },
-        { field: 'Expenditure (In Lakh)', headerName: 'Expenditure (In Lakh)', minWidth: 180, cellClass: 'text-center flex justify-center items-center font-semibold text-slate-800', headerClass: 'text-center' },
-        { field: 'Year', headerName: 'Year', minWidth: 120, cellClass: 'text-center flex justify-center items-center', headerClass: 'text-center' },
+        // Long text wraps onto more lines (row grows) instead of widening the column off-screen
+        { field: 'Training Title', headerName: 'Training Title', flex: 3, minWidth: 260, wrapText: true, autoHeight: true, cellClass: 'font-extrabold text-slate-900 text-left leading-snug py-2', headerClass: 'text-center' },
+        { field: 'Training Type', headerName: 'Training Type', flex: 1.2, minWidth: 140, wrapText: true, autoHeight: true, cellClass: 'text-center leading-snug py-2', headerClass: 'text-center' },
+        { field: 'Training Source', headerName: 'Training Source', flex: 1, minWidth: 120, wrapText: true, autoHeight: true, cellClass: 'text-center leading-snug py-2', headerClass: 'text-center' },
+        { field: 'Expenditure (In Lakh)', headerName: 'Expenditure (In Lakh)', flex: 1, minWidth: 120, cellClass: 'text-center flex justify-center items-center font-semibold text-slate-800', headerClass: 'text-center' },
+        { field: 'Year', headerName: 'Year', flex: 0.7, minWidth: 90, cellClass: 'text-center flex justify-center items-center', headerClass: 'text-center' },
         { 
           field: 'Number of Participants', 
           headerName: 'Number of Participants', 
-          minWidth: 180, 
+          flex: 1, minWidth: 120, 
           cellClass: 'text-center flex justify-center items-center', 
           headerClass: 'text-center',
           cellRenderer: (params) => {
@@ -234,27 +285,21 @@ export default function TrainingDetails({ triggerNotification }) {
             </div>
           )
         },
-        {
-          headerName: 'Edit',
+        canUseInputForm && {
+          headerName: 'Action',
           minWidth: 100,
           cellClass: 'text-center flex justify-center items-center',
           headerClass: 'text-center',
           cellRenderer: (params) => (
-            <div className="flex items-center justify-center space-x-2 h-full">
-              <button
-                onClick={() => handleEdit(params.data)}
-                className="bg-amber-500 hover:bg-amber-600 text-white p-1.5 rounded transition cursor-pointer flex items-center justify-center"
-                title="Edit"
-              >
-                <Pencil className="w-3.5 h-3.5" />
-              </button>
+            <div className="flex items-center justify-center h-full">
+              <EditActionButton label="Edit training" onClick={() => handleEdit(params.data)} />
             </div>
           )
         }
       );
     }
-    return cols;
-  }, [isMinistryView]);
+    return cols.filter(Boolean);
+  }, [isMinistryView, canUseInputForm, handleEdit]);
 
   const uniqueYears = useMemo(() => {
     return [...new Set(trainings.map(item => item['Year']).filter(Boolean))].sort();
@@ -278,9 +323,9 @@ export default function TrainingDetails({ triggerNotification }) {
       const matchOrg = selectedOrg === '' || t['Organisation'] === selectedOrg;
       const matchType = selectedType === '' || t['Training Type'] === selectedType;
       const matchSource = selectedSource === '' || t['Training Source'] === selectedSource;
-      
-      const term = searchTerm.toLowerCase();
-      const matchSearch = !searchTerm || 
+
+      const term = debouncedSearch.toLowerCase();
+      const matchSearch = !debouncedSearch || 
                           (t['Organisation'] || '').toLowerCase().includes(term) ||
                           (t['Year'] || '').toLowerCase().includes(term) ||
                           (t['Training Title'] || '').toLowerCase().includes(term);
@@ -290,7 +335,7 @@ export default function TrainingDetails({ triggerNotification }) {
       }
       return matchType && matchSource && matchSearch;
     });
-  }, [trainings, selectedYear, selectedOrg, selectedType, selectedSource, searchTerm, isMinistryView]);
+  }, [trainings, selectedYear, selectedOrg, selectedType, selectedSource, debouncedSearch, isMinistryView]);
 
   const activeFiltersCount = useMemo(() => {
     let count = 0;
@@ -301,31 +346,18 @@ export default function TrainingDetails({ triggerNotification }) {
     return count;
   }, [selectedOrg, selectedYear, selectedType, selectedSource]);
 
-  const [visibleCols, setVisibleCols] = useState(() => {
-    if (isMinistryView) {
-      return {
-        'Organisation': true,
-        'Year': true,
-        'Total Trainings': true,
-        'Total Participants': true,
-        'Total Expenditure (In Lakh)': true,
-        'Last Training Date': true,
-        'View Details': true
-      };
-    }
-    return {
-      'Training Title': true,
-      'Training Type': true,
-      'Training Source': true,
-      'Expenditure (In Lakh)': true,
-      'Year': true,
-      'Number of Participants': true,
-      'View Details': true,
-      'Edit': true
-    };
-  });
+  // Store keeps only the user's changes; merge them over this view's defaults
+  const visibleCols = useMemo(
+    () => ({ ...(isMinistryView ? MINISTRY_COLUMNS : ORG_COLUMNS), ...colChanges }),
+    [isMinistryView, colChanges]
+  );
+  const toggleColumn = (col) => actions.setVisibleCols((prev) => ({ ...prev, [col]: !visibleCols[col] }));
+  const resetFilters = () => {
+    actions.resetFilters();
+    notify?.(COMMON_TOASTS.filtersReset());
+  };
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const colDropdownRef = React.useRef(null);
+  const colDropdownRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -340,78 +372,70 @@ export default function TrainingDetails({ triggerNotification }) {
   const activeColumnDefs = useMemo(() => {
     return columnDefs.filter(col => {
       if (col.headerName === 'S.No') return true;
-      if (col.headerName === 'Edit') return visibleCols['Edit'] !== false;
+      if (col.headerName === 'Action') return visibleCols['Action'] !== false;
       if (col.headerName === 'View Details') return visibleCols['View Details'] !== false;
       if (col.field) return visibleCols[col.field] !== false;
       return true;
     });
   }, [columnDefs, visibleCols]);
 
-  const exportHeaders = useMemo(() => {
-    return isMinistryView 
-      ? ['S.No', 'Organisation', 'Year', 'Total Trainings', 'Total Participants', 'Total Expenditure (In Lakh)', 'Last Training Date']
-      : ['S.No', 'Training Title', 'Training Type', 'Training Source', 'Expenditure (In Lakh)', 'Year', 'Number of Participants'];
-  }, [isMinistryView]);
-
-  const exportRows = useMemo(() => {
-    return filteredTrainings.map((t, idx) => {
-      if (isMinistryView) {
-        return [
-          idx + 1,
-          t['Organisation'] || '-',
-          t['Year'] || '-',
-          t['Total Trainings'] || 0,
-          t['Total Participants'] || 0,
-          t['Total Expenditure (In Lakh)'] || '-',
-          t['Last Training Date'] ? new Date(t['Last Training Date']).toLocaleDateString('en-CA') : '-'
-        ];
-      }
-      return [
-        idx + 1,
-        t['Training Title'] || '-',
-        t['Training Type'] || '-',
-        t['Training Source'] || '-',
-        t['Expenditure (In Lakh)'] || '-',
-        t['Year'] || '-',
-        t['Number of Participants'] || 0
-      ];
-    });
-  }, [filteredTrainings, isMinistryView]);
+  // Copy / Export: the rows on the current page, same columns as the table
+  const pageStart = (currentPage - 1) * pageSize;
+  const runExport = (kind) => createTableExporter({
+    loadRows: () => filteredTrainings.slice(pageStart, pageStart + pageSize),
+    serialStart: pageStart,
+    getColumns: () => (isMinistryView
+      ? [
+        { field: 'Organisation', label: 'Organisation' },
+        { field: 'Year', label: 'Year' },
+        { field: 'Total Trainings', label: 'Total Trainings', value: (t) => t['Total Trainings'] || 0 },
+        { field: 'Total Participants', label: 'Total Participants', value: (t) => t['Total Participants'] || 0 },
+        { field: 'Total Expenditure (In Lakh)', label: 'Total Expenditure (In Lakh)' },
+        { field: 'Last Training Date', label: 'Last Training Date', value: (t) => formatTrainingDate(t['Last Training Date']) },
+      ]
+      : [
+        { field: 'Training Title', label: 'Training Title' },
+        { field: 'Training Type', label: 'Training Type' },
+        { field: 'Training Source', label: 'Training Source' },
+        { field: 'Expenditure (In Lakh)', label: 'Expenditure (In Lakh)' },
+        { field: 'Year', label: 'Year' },
+        { field: 'Number of Participants', label: 'Number of Participants', value: (t) => t['Number of Participants'] || 0 },
+      ]),
+    notify,
+    isBusy: loading,
+    title: `${isMinistryView ? 'HR Training Summary Report' : 'HR Training Details Report'} (Page ${currentPage})`,
+    fileName: `${isMinistryView ? 'HR_Training_Summary_Report' : 'HR_Training_Details_Report'}_Page_${currentPage}`,
+    label: 'Training details',
+  })[kind]();
 
   if (selectedDetail) {
     return (
       <TrainingDetailView
         detail={selectedDetail}
         onBack={() => setSelectedDetail(null)}
-        triggerNotification={triggerNotification}
+        notify={notify}
       />
     );
   }
 
   return (
-    <div className="space-y-6 animate-fade-in text-slate-800 dark:text-slate-100">
-      
-
+    <div className="space-y-6 animate-fade-in">
       {/* Main Content Card */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden flex flex-col">
-        
+      <div className="module-card space-y-4">
+
         {/* Action Bar */}
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          
+
           {/* 1. Left: Collapsible Filter Button */}
           <div className="flex flex-wrap items-center gap-2.5">
 
             {/* Collapsible Filter Toggle Button */}
             <button
               type="button"
-              onClick={() => setShowFilterPanel(prev => !prev)}
-              className={`flex items-center space-x-2 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer border shadow-sm ${
-                showFilterPanel || activeFiltersCount > 0
-                  ? 'bg-blue-50 border-blue-300 text-[#0f417a] dark:bg-blue-950/50 dark:border-blue-700 dark:text-blue-300'
-                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800'
-              }`}
+              onClick={() => actions.setShowFilterPanel(prev => !prev)}
+              className={`module-filter-btn ${showFilterPanel || activeFiltersCount > 0 ? 'active' : ''}`}
             >
-              <Filter className="h-3.5 w-3.5 text-[#0f417a] dark:text-blue-400" />
+              <Filter className="h-3.5 w-3.5" />
               <span>Filters</span>
               {activeFiltersCount > 0 && (
                 <span className="bg-[#0f417a] dark:bg-blue-500 text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">
@@ -429,12 +453,7 @@ export default function TrainingDetails({ triggerNotification }) {
             {activeFiltersCount > 0 && (
               <button
                 type="button"
-                onClick={() => {
-                  setSelectedOrg('');
-                  setSelectedYear('');
-                  setSelectedType('');
-                  setSelectedSource('');
-                }}
+                onClick={resetFilters}
                 className="px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 dark:bg-rose-950/40 rounded-xl border border-rose-200 dark:border-rose-900 transition cursor-pointer flex items-center space-x-1"
                 title="Reset Filters"
               >
@@ -446,13 +465,13 @@ export default function TrainingDetails({ triggerNotification }) {
 
           {/* 2. Right: Rows, Total Count, Search, Column Visibility, Copy, Export */}
           <div className="flex flex-wrap items-center gap-2.5 justify-end">
-            
+
             {/* Rows Limit */}
             <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-sm select-none dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200">
               <span className="text-[10px] uppercase font-bold text-slate-400">Show</span>
               <select
                 value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value))}
+                onChange={(e) => actions.setPageSize(Number(e.target.value))}
                 className="bg-transparent border-none text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
               >
                 <option value="10">10</option>
@@ -475,11 +494,11 @@ export default function TrainingDetails({ triggerNotification }) {
                 type="text"
                 placeholder="Search..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-8 py-1.5 text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-slate-400 text-slate-800 dark:text-slate-200 shadow-sm"
+                onChange={(e) => actions.setSearchTerm(e.target.value)}
+                className="w-full module-search-input"
               />
               {searchTerm && (
-                <button onClick={() => setSearchTerm('')} className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer">
+                <button type="button" aria-label="Clear search" onClick={() => actions.setSearchTerm('')} className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer">
                   <X className="h-3.5 w-3.5" />
                 </button>
               )}
@@ -502,7 +521,7 @@ export default function TrainingDetails({ triggerNotification }) {
                       <input
                         type="checkbox"
                         checked={visibleCols[col]}
-                        onChange={() => setVisibleCols(prev => ({ ...prev, [col]: !prev[col] }))}
+                        onChange={() => toggleColumn(col)}
                         className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
                       />
                       <span>{col}</span>
@@ -512,149 +531,41 @@ export default function TrainingDetails({ triggerNotification }) {
               )}
             </div>
 
-            <CopyButton 
-              headers={exportHeaders} 
-              rows={exportRows} 
-              color="#0f417a" 
-              hoverBg="#f1f5f9" 
-              triggerNotification={triggerNotification} 
-            />
-            <ExportDropdown 
-              headers={exportHeaders} 
-              rows={exportRows} 
-              fileName={isMinistryView ? "HR_Training_Summary_Report" : "HR_Training_Details_Report"}
-              title={isMinistryView ? "HR Training Summary Report" : "HR Training Details Report"}
-              color="#0f417a" 
-              hoverColor="#134e96" 
-              triggerNotification={triggerNotification} 
-            />
+            <CopyButton onCopy={() => runExport('copy')} color="#0f417a" hoverBg="#f1f5f9" />
+            <ExportDropdown onExportExcel={() => runExport('excel')} onExportPdf={() => runExport('pdf')} color="#0f417a" hoverColor="#134e96" chevron />
           </div>
         </div>
 
-        {/* Collapsible Filter Panel */}
-        {showFilterPanel && (
-          <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/60 animate-fade-in">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center space-x-2">
-                <Filter className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
-                <h4 className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
-                  Filter Options
-                </h4>
-              </div>
-              {activeFiltersCount > 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedOrg('');
-                    setSelectedYear('');
-                    setSelectedType('');
-                    setSelectedSource('');
-                  }}
-                  className="text-xs font-bold text-rose-600 hover:text-rose-700 cursor-pointer"
-                >
-                  Clear all filters
-                </button>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-              {isMinistryView ? (
-                <>
-                  {/* Organisation Selector */}
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Organisation
-                    </label>
-                    <div className="relative">
-                      <select
-                        value={selectedOrg}
-                        onChange={(e) => setSelectedOrg(e.target.value)}
-                        className="appearance-none w-full text-xs pl-3 pr-8 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer shadow-sm"
-                      >
-                        <option value="">All Organisations</option>
-                        {uniqueOrgs.map(org => (
-                          <option key={org} value={org}>{org}</option>
-                        ))}
-                      </select>
-                      <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                    </div>
-                  </div>
-
-                  {/* Year Selector */}
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Year
-                    </label>
-                    <div className="relative">
-                      <select
-                        value={selectedYear}
-                        onChange={(e) => setSelectedYear(e.target.value)}
-                        className="appearance-none w-full text-xs pl-3 pr-8 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer shadow-sm"
-                      >
-                        <option value="">All Years</option>
-                        {uniqueYears.map(year => (
-                          <option key={year} value={year}>{year}</option>
-                        ))}
-                      </select>
-                      <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <>
-                  {/* Training Type Selector */}
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Training Type
-                    </label>
-                    <div className="relative">
-                      <select
-                        value={selectedType}
-                        onChange={(e) => setSelectedType(e.target.value)}
-                        className="appearance-none w-full text-xs pl-3 pr-8 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer shadow-sm"
-                      >
-                        <option value="">-- Show All --</option>
-                        {uniqueTypes.map(typ => (
-                          <option key={typ} value={typ}>{typ}</option>
-                        ))}
-                      </select>
-                      <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                    </div>
-                  </div>
-
-                  {/* Training Source Selector */}
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Training Source
-                    </label>
-                    <div className="relative">
-                      <select
-                        value={selectedSource}
-                        onChange={(e) => setSelectedSource(e.target.value)}
-                        className="appearance-none w-full text-xs pl-3 pr-8 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer shadow-sm"
-                      >
-                        <option value="">-- Show All --</option>
-                        {uniqueSources.map(src => (
-                          <option key={src} value={src}>{src}</option>
-                        ))}
-                      </select>
-                      <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        )}
+        {/* Filter Panel (shared HR design) */}
+        <div className={showFilterPanel ? 'px-4 pt-4' : ''}>
+          <HrFilterPanel show={showFilterPanel} columns={4}>
+            {isMinistryView ? (
+              <>
+                <FilterSelect label="Organisation" value={selectedOrg} onChange={(value) => actions.setFilters({ organisation: value })}
+                  allLabel="-- All Organisations --" options={uniqueOrgs} />
+                <FilterSelect label="Year" value={selectedYear} onChange={(value) => actions.setFilters({ year: value })}
+                  allLabel="-- All Years --" options={uniqueYears} />
+              </>
+            ) : (
+              <>
+                <FilterSelect label="Training Type" value={selectedType} onChange={(value) => actions.setFilters({ type: value })}
+                  allLabel="-- All Types --" options={uniqueTypes} />
+                <FilterSelect label="Training Source" value={selectedSource} onChange={(value) => actions.setFilters({ source: value })}
+                  allLabel="-- All Sources --" options={uniqueSources} />
+              </>
+            )}
+          </HrFilterPanel>
+        </div>
 
         {/* Table Area */}
-        <div className="p-0 border-t border-slate-200 dark:border-slate-800">
+        <div className="ag-theme-quartz module-datalist-grid w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
           <Table
             rowData={filteredTrainings}
             columnDefs={activeColumnDefs}
             loading={loading}
             pagination={true}
             paginationPageSize={pageSize}
+            {...gridPage}
             defaultColDef={{
               minWidth: 120,
               flex: 1,

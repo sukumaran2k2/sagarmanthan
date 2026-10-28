@@ -151,9 +151,11 @@ export const ROUTE_MAP = {
   [TAB_USER_MASTER_MANAGEMENT]: 'admin/user-master-management',
 
   // HR nested routes
+  'HR Dashboard': 'hr/hr-management/hr-dashboard',
   'Organisation Structure': 'hr/hr-management/organisation-structure',
   'Organization Structure': 'hr/hr-management/organisation-structure',
   'Employee Database': 'hr/hr-management/employee-database',
+  'Employee Details': 'hr/hr-management/employee-database',
   'List of Abolished Posts': 'hr/hr-management/abolished-posts',
   'Abolished Posts': 'hr/hr-management/abolished-posts',
   'Vacancy Management': 'hr/hr-management/vacancy-management',
@@ -166,6 +168,7 @@ export const ROUTE_MAP = {
   'Non Port Monthly Upload': 'hr/hr-management/non-port-monthly-upload',
   'HR Management': 'hr/hr-management',
   'HR Reports': 'hr/hr-management/reports',
+  'Non Port Monthly Upload': 'hr/hr-management/non-port-monthly-upload',
 
   // Young Professionals routes
   'Young Professionals': 'hr/young-professionals/list-view',
@@ -217,6 +220,9 @@ export const getTabFromSlug = (slug) => {
 
   if (cleanSlug.startsWith('hr/hr-management/non-port-monthly-upload')) return 'Non Port Monthly Upload';
   if (cleanSlug.startsWith('hr/hr-management/reports')) return 'HR Reports';
+  if (cleanSlug.startsWith('hr/hr-management/hr-dashboard')) return 'HR Dashboard';
+  if (cleanSlug.startsWith('hr/hr-management/non-port-monthly-upload')) return 'Non Port Monthly Upload';
+  if (cleanSlug.startsWith('hr/hr-management/employee-details')) return 'Employee Details';
   if (cleanSlug.startsWith('hr/hr-management/vacancy-management') || cleanSlug.startsWith('hr/hr-management/vacancy-details')) return 'Vacancy Management';
   if (cleanSlug.startsWith('hr/hr-management/input-form')) return 'HR Input Form';
   if (cleanSlug.startsWith('hr/hr-management/abolished-posts')) return isOrganisationUser() ? 'Abolished Posts' : 'List of Abolished Posts';
@@ -314,9 +320,11 @@ const getBreadcrumbs = (tab) => {
   if (kpiItems[tab]) return ['Home', ...kpiItems[tab], tab];
 
   const hrItems = {
+    'HR Dashboard': ['HR & Institutional', 'HR Management'],
     'Organisation Structure': ['HR & Institutional', 'HR Management'],
     'Organization Structure': ['HR & Institutional', 'HR Management'],
     'Employee Database': ['HR & Institutional', 'HR Management'],
+    'Employee Details': ['HR & Institutional', 'HR Management', 'Employee Database'],
     'List of Abolished Posts': ['HR & Institutional', 'HR Management'],
     'Abolished Posts': ['HR & Institutional', 'HR Management'],
     'Vacancy Management': ['HR & Institutional', 'HR Management'],
@@ -327,6 +335,7 @@ const getBreadcrumbs = (tab) => {
     'Non Port Monthly Upload': ['HR & Institutional', 'HR Management'],
     'HR Management': ['HR & Institutional'],
     'HR Reports': ['HR & Institutional', 'HR Management'],
+    'Non Port Monthly Upload': ['HR & Institutional', 'HR Management'],
     'Young Professionals': ['HR & Institutional', 'Young Professionals'],
     'YP Data List': ['HR & Institutional', 'Young Professionals'],
     'YP Input Form': ['HR & Institutional', 'Young Professionals'],

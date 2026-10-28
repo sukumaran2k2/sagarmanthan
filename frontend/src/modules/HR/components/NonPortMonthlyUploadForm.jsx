@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { axiosInstance as axios } from '../../../api';
 import { 
   Upload, 
@@ -6,7 +7,6 @@ import {
   FileSpreadsheet, 
   CheckCircle2, 
   X, 
-  Loader2, 
   AlertCircle,
   Building2,
   Clock
@@ -14,15 +14,16 @@ import {
 import * as XLSX from 'xlsx';
 import { API_BASE_URL } from '../../../config/api';
 import { 
-  getCurrentUserId, 
   getSessionOrganisationId, 
   getSessionOrganisationName 
 } from '../../../utils/authSession';
+import { Button, FormActions } from './HrFormControls';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
+
 
 const TEMPLATE_HEADERS = [
   'Department',
@@ -47,23 +48,32 @@ const TEMPLATE_HEADERS = [
   'Payscale Range'
 ];
 
+// upload_date is a server-local DATETIME sent as an ISO string with 'Z': show it as stored
+// (dd-mm-yyyy, plus hh:mm when a time was saved) rather than shifting it to the browser's zone.
+const formatUploadDate = (value) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/.exec(String(value ?? ''));
+  if (!m) return value;
+  const date = `${m[3]}-${m[2]}-${m[1]}`;
+  return m[4] && `${m[4]}:${m[5]}` !== '00:00' ? `${date} ${m[4]}:${m[5]}` : date;
+};
+
 export default function NonPortMonthlyUploadForm({ triggerNotification, onCancel }) {
-  const currentOrgId = getSessionOrganisationId() || 20;
-  const currentOrgName = getSessionOrganisationName() || 'Non-Port Organisation';
-  const currentUserId = getCurrentUserId() || 1;
+  const navigate = useNavigate();
+  // The server files the upload under the signed-in user's organisation; these are for display only
+  const currentOrgId = getSessionOrganisationId();
+  const currentOrgName = getSessionOrganisationName() || 'Your organisation';
 
   const currentYear = new Date().getFullYear();
-  const currentMonth = MONTH_NAMES[new Date().getMonth()];
+  const currentMonthNumber = String(new Date().getMonth() + 1); 
 
   const [uploadYear, setUploadYear] = useState(String(currentYear));
-  const [uploadMonth, setUploadMonth] = useState(currentMonth);
+  const [uploadMonth, setUploadMonth] = useState(currentMonthNumber );
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [lastUploadDate, setLastUploadDate] = useState(null);
   const fileInputRef = useRef(null);
 
-  // Year options: past 4 years to next 2 years
   const yearOptions = useMemo(() => {
     const years = [];
     for (let y = currentYear + 1; y >= currentYear - 4; y--) {
@@ -76,12 +86,13 @@ export default function NonPortMonthlyUploadForm({ triggerNotification, onCancel
   useEffect(() => {
     let isMounted = true;
     const fetchLastUpload = async () => {
+      if (!currentOrgId) return;
       try {
         const res = await axios.get(`${API_BASE_URL}/get-last-upload-date-by-org/${currentOrgId}`);
         if (isMounted && res.data?.lastUploadDate) {
           setLastUploadDate(res.data.lastUploadDate);
         }
-      } catch (err) {
+      } catch {
         // Optional info, ignore error
       }
     };
@@ -172,7 +183,7 @@ export default function NonPortMonthlyUploadForm({ triggerNotification, onCancel
     setSelectedFile(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
     setUploadYear(String(currentYear));
-    setUploadMonth(currentMonth);
+    setUploadMonth(currentMonthNumber);
   };
 
   const handleSubmit = async (e) => {
@@ -186,24 +197,38 @@ export default function NonPortMonthlyUploadForm({ triggerNotification, onCancel
       return;
     }
 
+    const monthNumber = Number(uploadMonth);          // already 1-12
+    const monthName = MONTH_NAMES[monthNumber - 1];   // e.g. "November"
+
+    if (!monthNumber || !monthName) {
+      notify('Please select a valid month', 'warning');
+      return;
+    }
+
     const formData = new FormData();
-    formData.append('file', selectedFile);
     formData.append('financialYear', uploadYear);
-    formData.append('month', uploadMonth);
-    formData.append('userID', currentUserId);
-    formData.append('organisationID', currentOrgId);
+    formData.append('year', uploadYear);                 
+    formData.append('month', String(monthNumber));    
+    formData.append('monthName', monthName);           
+    formData.append('file', selectedFile);      
 
     setUploading(true);
     try {
-      const res = await axios.post(`${API_BASE_URL}/upload-vacany-details-file`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
+      const res = await axios.post(`${API_BASE_URL}/upload-vacany-details-file`, formData);
 
       notify(res.data?.message || 'Vacancy details Excel uploaded successfully!', 'success');
       handleReset();
+      navigate('/hr/hr-management/non-port-monthly-upload/history');
     } catch (err) {
-      console.error('Upload Error:', err);
-      const errMsg = err.response?.data?.error || err.response?.data?.message || 'Failed to upload vacancy details file';
+      console.error('Upload Error:', err.response?.status, err.response?.data ?? err.message);
+      const data = err.response?.data;
+      const errMsg =
+        data?.error ||
+        data?.message ||
+        (typeof data === 'string' && data.length < 300 ? data : null) ||
+        (err.response
+          ? `Upload failed (server error ${err.response.status}). Please check the server log.`
+          : 'Cannot reach the server. Please check your connection.');
       notify(errMsg, 'error');
     } finally {
       setUploading(false);
@@ -237,19 +262,15 @@ export default function NonPortMonthlyUploadForm({ triggerNotification, onCancel
           {lastUploadDate && (
             <div className="hidden md:flex items-center gap-1.5 ml-4 pl-4 border-l border-slate-200 dark:border-slate-700 text-xs text-slate-500 font-medium">
               <Clock className="w-3.5 h-3.5 text-slate-400" />
-              <span>Last Upload: <strong>{lastUploadDate}</strong></span>
+              <span>Last Upload: <strong>{formatUploadDate(lastUploadDate)}</strong></span>
             </div>
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={handleDownloadTemplate}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-lg shadow-2xs transition cursor-pointer"
-        >
+        <Button onClick={handleDownloadTemplate}>
           <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
           <span>Download Excel Template</span>
-        </button>
+        </Button>
       </div>
 
       {/* Upload Form */}
@@ -287,8 +308,8 @@ export default function NonPortMonthlyUploadForm({ triggerNotification, onCancel
                 className="w-full px-3.5 py-2.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-[#0f417a] font-medium"
               >
                 <option value="">-- Select Month --</option>
-                {MONTH_NAMES.map(m => (
-                  <option key={m} value={m}>{m}</option>
+                {MONTH_NAMES.map((name, i) => (
+                  <option key={name} value={i + 1}>{name}</option>
                 ))}
               </select>
             </div>
@@ -377,46 +398,17 @@ export default function NonPortMonthlyUploadForm({ triggerNotification, onCancel
           </ul>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-200 dark:border-slate-800">
-          <button
-            type="submit"
-            disabled={uploading || !selectedFile}
-            className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white text-sm font-bold rounded-lg shadow-sm transition flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed"
-          >
-            {uploading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Uploading...</span>
-              </>
-            ) : (
-              <>
-                <Upload className="w-4 h-4" />
-                <span>Upload Excel</span>
-              </>
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleReset}
-            disabled={uploading}
-            className="px-6 py-2.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-sm font-bold rounded-lg transition cursor-pointer"
-          >
-            Reset
-          </button>
-
-          {onCancel && (
-            <button
-              type="button"
-              onClick={onCancel}
-              disabled={uploading}
-              className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold rounded-lg transition cursor-pointer"
-            >
-              Exit
-            </button>
-          )}
-        </div>
+        {/* Action Buttons: Reset, Exit, Upload (the HR form pattern) */}
+        <FormActions
+          onExit={onCancel || handleReset}
+          exitLabel={onCancel ? 'Exit' : 'Reset'}
+          submitLabel="Upload Excel"
+          busyLabel="Uploading..."
+          busy={uploading}
+          submitDisabled={!selectedFile}
+          submitTitle={!selectedFile ? 'Choose an Excel file first' : undefined}
+          extra={onCancel ? <Button onClick={handleReset} disabled={uploading} className="h-10 px-5">Reset</Button> : null}
+        />
       </form>
     </div>
   );

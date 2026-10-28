@@ -1,14 +1,18 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { useShallow } from 'zustand/react/shallow';
 import { Search, Filter, X, ChevronDown } from 'lucide-react';
 import Table from '../../../components/Table';
 import TablePagination from '../../../components/TablePagination';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
-import { fetchAbolishedPostsPage, fetchAbolishedPostFacets } from '../api';
-import { SESSION_EXPIRED_MESSAGE } from '../hooks/useHRPermissions';
+import { fetchAbolishedPostsPage } from '../api';
+import { HrFilterPanel, DeptPostClassFilters } from '../components/HrFilterPanel';
+import { classChangeUpdate, useDeptPosts, useHrDepartments } from '../hooks/useHrFilterOptions';
+import { COMMON_TOASTS } from '../../../utils/notify';
+import { HR_TOASTS } from '../toastMessages';
 import { useDebouncedSearch, usePagedList } from '../hooks/usePagedList';
-import { useHrListStore } from '../store/useHrListStore';
+import { useHrStore } from '../store/useHrStore';
 import { alignHrColumns } from '../utils/tableAlignment';
 import { createTableExporter } from '../utils/exportTable';
 import { PostCodeTag } from '../components/HrFormControls';
@@ -68,12 +72,13 @@ export default function ListAbolishedPosts({ permissions, notify }) {
   useEffect(() => { notifyRef.current = notify; }, [notify]);
 
   // Filters, search and paging live in the HR list store (they survive switching HR pages)
-  const list = useHrListStore((state) => state.abolished);
-  const actions = useHrListStore((state) => state.abolishedActions);
+  const list = useHrStore(useShallow((state) => state.abolished));
+  const actions = useHrStore((state) => state.abolishedActions);
   const {
-    organisationName: selectedOrg, departmentName: selectedDept, postName: selectedPostName,
+    organisationId: selectedOrg, departmentId: selectedDept, postId: selectedPostName,
     className: selectedClass, searchTerm, debouncedSearch, showFilterPanel, currentPage, pageSize,
   } = list;
+  const organisations = useHrStore((state) => state.organisations);
   // Post opened from its post code or status button (details / revival request view)
   const [selectedPostForDetails, setSelectedPostForDetails] = useState(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -114,30 +119,19 @@ export default function ListAbolishedPosts({ permissions, notify }) {
     };
   }, [isModalOpen]);
 
-  // Dropdown values (organisation scope is applied on the server).
+  // Organisation scope is applied on the server.
   const canLoad = isMinistryView || Boolean(orgId);
-  const [facets, setFacets] = useState({ organisations: [], departments: [], posts: [], classes: [] });
-  useEffect(() => {
-    if (!canLoad) return undefined;
-    let alive = true;
-    fetchAbolishedPostFacets()
-      .then((res) => { if (alive) setFacets({ organisations: [], departments: [], posts: [], classes: [], ...res.data }); })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, [canLoad]);
 
   // An organisation user without an organisation in the token cannot be scoped; nothing is loaded.
   useEffect(() => {
-    if (!canLoad) notifyRef.current?.(SESSION_EXPIRED_MESSAGE, 'error');
+    if (!canLoad) notifyRef.current?.(HR_TOASTS.sessionExpired());
   }, [canLoad]);
 
-  const uniqueOrgs = facets.organisations;
-  const uniqueDepts = facets.departments;
-  const uniqueClasses = facets.classes;
-  const uniquePostNames = useMemo(
-    () => [...new Set(facets.posts.filter((p) => !selectedDept || p.department === selectedDept).map((p) => p.post))].sort(),
-    [facets.posts, selectedDept]
-  );
+  // Filter options as on Vacancy Management: department master, posts of the chosen department
+  // (ministry users pick an organisation first), fixed class list
+  const filterOrgId = isMinistryView ? selectedOrg : orgId;
+  const filterDepartments = useHrDepartments(filterOrgId);
+  const { deptPosts, posts: filterPosts } = useDeptPosts(selectedDept, filterOrgId, selectedClass);
 
   useDebouncedSearch(searchTerm, actions.setDebouncedSearch);
 
@@ -145,16 +139,19 @@ export default function ListAbolishedPosts({ permissions, notify }) {
   // Organisation users are scoped to their own organisation on the server.
   const params = useMemo(() => {
     const query = { page: currentPage, limit: pageSize };
-    if (isMinistryView && selectedOrg) query.organisationName = selectedOrg;
-    if (selectedDept) query.departmentName = selectedDept;
-    if (selectedPostName) query.postName = selectedPostName;
-    if (!isMinistryView && selectedClass) query.className = selectedClass;
+    if (isMinistryView && selectedOrg) query.organisationId = selectedOrg;
+    if (selectedDept) query.departmentId = selectedDept;
+    if (selectedPostName) query.postId = selectedPostName;
+    if (selectedClass) query.className = selectedClass;
     if (debouncedSearch) query.search = debouncedSearch;
     return query;
   }, [currentPage, pageSize, isMinistryView, selectedOrg, selectedDept, selectedPostName, selectedClass, debouncedSearch]);
 
   const onListError = useCallback(
-    (err) => notifyRef.current?.(err?.response?.data?.message || 'Failed to load abolished posts.', 'error'),
+    (err) => {
+      console.error(err);
+      notifyRef.current?.(COMMON_TOASTS.loadFailed('Abolished posts'));
+    },
     []
   );
   const { rows, total: totalCount, totalPages, loading, refreshing } = usePagedList({
@@ -186,9 +183,10 @@ export default function ListAbolishedPosts({ permissions, notify }) {
     actions.setSearchTerm('');
   };
 
-  const [visibleCols, setVisibleCols] = useState({});
+  // Column visibility lives in the store (only the user's changes; all shown by default)
+  const visibleCols = list.visibleCols;
   const handleToggleColumn = (field) => {
-    setVisibleCols(prev => ({ ...prev, [field]: prev[field] === false ? true : false }));
+    actions.setVisibleCols(prev => ({ ...prev, [field]: prev[field] === false }));
   };
 
   const columnDefs = useMemo(() => {
@@ -292,7 +290,7 @@ export default function ListAbolishedPosts({ permissions, notify }) {
     getColumns: () => columnDefs
       .filter((c) => c.field && !NON_DATA_FIELDS.has(c.field))
       .map((c) => ({ field: c.field, label: c.headerName })),
-    notify: (msg, type) => notifyRef.current?.(msg, type),
+    notify: (toast) => notifyRef.current?.(toast),
     title: `Abolished Posts (Page ${currentPage})`,
     fileName: `Abolished_Posts_Page_${currentPage}`,
     label: 'Abolished posts',
@@ -310,30 +308,27 @@ export default function ListAbolishedPosts({ permissions, notify }) {
         initialData={postData}
         initialViewMode={viewMode}
         onBack={() => setSelectedPostForDetails(null)}
+        notify={notify}
       />
     );
   }
 
   return (
 
-    <div className="space-y-6 animate-fade-in text-slate-800 dark:text-slate-100">
-      
+    <div className="space-y-6 animate-fade-in">
+
       {/* Main Content Card */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden flex flex-col">
-        
+      <div className="module-card space-y-4">
+
         {/* Action Bar */}
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col lg:flex-row lg:items-center justify-between gap-4 z-20 relative">
-          
+
           {/* 1. Left: Collapsible Filter Button */}
           <div className="flex flex-wrap items-center gap-2.5">
             <button
               type="button"
               onClick={() => actions.setShowFilterPanel(prev => !prev)}
-              className={`flex items-center space-x-2 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer border shadow-sm ${
-                showFilterPanel || activeFiltersCount > 0
-                  ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800/50' 
-                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
-              }`}
+              className={`module-filter-btn ${showFilterPanel || activeFiltersCount > 0 ? 'active' : ''}`}
             >
               <Filter className="w-3.5 h-3.5" />
               <span>Filters {activeFiltersCount > 0 && `(${activeFiltersCount})`}</span>
@@ -354,7 +349,7 @@ export default function ListAbolishedPosts({ permissions, notify }) {
 
           {/* 2. Right: Rows, Total Count, Search, Column Visibility, Copy, Export */}
           <div className="flex flex-wrap items-center gap-2.5 justify-end">
-            
+
             {/* Rows Limit */}
             <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-sm select-none dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200">
               <span className="text-[10px] uppercase font-bold text-slate-400">Show</span>
@@ -384,10 +379,10 @@ export default function ListAbolishedPosts({ permissions, notify }) {
                 placeholder="Search..."
                 value={searchTerm}
                 onChange={(e) => actions.setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-8 py-1.5 text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-slate-400 text-slate-800 dark:text-slate-200 shadow-sm"
+                className="w-full module-search-input"
               />
               {searchTerm && (
-                <button onClick={() => actions.setSearchTerm('')} className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer">
+                <button type="button" aria-label="Clear search" onClick={() => actions.setSearchTerm('')} className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer">
                   <X className="h-3.5 w-3.5" />
                 </button>
               )}
@@ -425,62 +420,28 @@ export default function ListAbolishedPosts({ permissions, notify }) {
           </div>
         </div>
 
-        {/* Collapsible Filter Panel */}
-        <div className={`border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 overflow-hidden transition-all duration-300 ease-in-out ${showFilterPanel ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}>
-          <div className={`p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4`}>
-            {isMinistryView && (
-              <div>
-                <label className="block text-xs font-bold mb-1.5 text-slate-700 dark:text-slate-300">Organisation</label>
-                <select
-                  value={selectedOrg}
-                  onChange={e => actions.setFilters({ organisationName: e.target.value })}
-                  className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 shadow-sm"
-                >
-                  <option value="">-- Show All --</option>
-                  {uniqueOrgs.map(org => <option key={org} value={org}>{org}</option>)}
-                </select>
-              </div>
-            )}
-            <div>
-              <label className="block text-xs font-bold mb-1.5 text-slate-700 dark:text-slate-300">Department</label>
-              <select
-                value={selectedDept}
-                onChange={e => actions.setFilters({ departmentName: e.target.value, postName: '' })}
-                className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 shadow-sm"
-              >
-                <option value="">-- Show All --</option>
-                {uniqueDepts.map(dept => <option key={dept} value={dept}>{dept}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-bold mb-1.5 text-slate-700 dark:text-slate-300">{isMinistryView ? 'Post Name' : 'Post name'}</label>
-              <select
-                value={selectedPostName}
-                onChange={e => actions.setFilters({ postName: e.target.value })}
-                className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 shadow-sm"
-              >
-                <option value="">-- Show All --</option>
-                {uniquePostNames.map(name => <option key={name} value={name}>{name}</option>)}
-              </select>
-            </div>
-            {!isMinistryView && (
-              <div>
-                <label className="block text-xs font-bold mb-1.5 text-slate-700 dark:text-slate-300">Class</label>
-                <select
-                  value={selectedClass}
-                  onChange={e => actions.setFilters({ className: e.target.value })}
-                  className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 shadow-sm"
-                >
-                  <option value="">-- Show All --</option>
-                  {uniqueClasses.map(cls => <option key={cls} value={cls}>{cls}</option>)}
-                </select>
-              </div>
-            )}
-          </div>
+        {/* Filter Panel (shared HR design) */}
+        <div className={showFilterPanel ? 'px-4 pt-4' : ''}>
+          <HrFilterPanel show={showFilterPanel} columns={isMinistryView ? 4 : 3}>
+            <DeptPostClassFilters
+              organisations={isMinistryView ? organisations : undefined}
+              organisationId={selectedOrg}
+              onOrganisationChange={(value) => actions.setFilters({ organisationId: value, departmentId: '', postId: '' })}
+              departments={filterDepartments}
+              departmentId={selectedDept}
+              onDepartmentChange={(value) => actions.setFilters({ departmentId: value, postId: '' })}
+              posts={filterPosts}
+              postId={selectedPostName}
+              onPostChange={(value) => actions.setFilters({ postId: value })}
+              needsOrganisation={isMinistryView && !selectedOrg}
+              className={selectedClass}
+              onClassChange={(value) => actions.setFilters(classChangeUpdate(value, selectedPostName, deptPosts))}
+            />
+          </HrFilterPanel>
         </div>
 
         {/* Data Table Area */}
-        <div className="p-0 border-t border-slate-200 dark:border-slate-800 flex-1 bg-white dark:bg-slate-900 min-h-[400px]">
+        <div className="ag-theme-quartz module-datalist-grid w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800 min-h-[400px]">
           <Table
             columnDefs={alignedColumns.columnDefs}
             rowData={pageRows}
@@ -495,7 +456,6 @@ export default function ListAbolishedPosts({ permissions, notify }) {
               resizable: true,
             }}
             domLayout="autoHeight"
-            className="border-none [&_.ag-header]:bg-blue-900 [&_.ag-header-cell-text]:text-white"
           />
           <TablePagination
             currentPage={currentPage - 1}
@@ -596,17 +556,17 @@ export default function ListAbolishedPosts({ permissions, notify }) {
                     disabled={isBusy}
                     onClick={() => {
                       if (!revokeRemarks) {
-                        alert('Please select remarks first.');
+                        notify?.(HR_TOASTS.revivalRemarksRequired());
                         return;
                       }
                       if (revokeRemarks === 'Approved by ministry for revival') {
-                        if (!revokeDate) { alert('Please enter the date of arise in vacancy.'); return; }
-                        if (!revokeFile) { alert('Please upload the required document.'); return; }
+                        if (!revokeDate) { notify?.(HR_TOASTS.revivalDateRequired()); return; }
+                        if (!revokeFile) { notify?.(HR_TOASTS.revivalDocumentRequired()); return; }
                       }
                       setIsBusy(true);
-                      // TODO: Call submit API
+                      // TODO: Call submit API. Until then, say so instead of reporting a success.
                       setTimeout(() => {
-                        alert('Post Revival request submitted successfully!');
+                        notify?.(HR_TOASTS.revivalRequestRecorded());
                         setIsBusy(false);
                         closeModal();
                       }, 800);

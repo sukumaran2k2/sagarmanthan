@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Users, CheckCircle2, FileText, Ban } from 'lucide-react';
+import { Users, CheckCircle2, FileText, Ban, Sigma } from 'lucide-react';
 import {
   fetchDepartmentWisePostStatus,
   fetchDepartmentWisePostStatusFiltered,
-  fetchHrDashboardContent,
-  fetchHrDashboardContentFiltered,
   fetchHrDepartments,
   fetchOrganisationsByCluster,
   fetchVacancyLogYearsAndMonths,
@@ -14,10 +12,16 @@ import ReportLayout, { FilterSelect } from './ReportLayout';
 import { REPORT_THEME as T } from './theme';
 import { asList, yearMonthOptions } from './reportUtils';
 import { CLASS_OPTIONS } from '../utils/hrAdministration';
+import { COMMON_TOASTS } from '../../../utils/notify';
 
 const MAJOR_PORTS_CLUSTER = 1;
 
 const num = (v) => Number(v) || 0;
+
+const COUNT_FIELDS = ['total_sanctioned_strength', 'filled_post', 'totalLivePost', 'totalAbolishedPost', 'totalVacant'];
+
+const sumCounts = (rows) =>
+  Object.fromEntries(COUNT_FIELDS.map((f) => [f, rows.reduce((acc, r) => acc + num(r[f]), 0)]));
 
 function KpiCard({ label, value, icon: Icon, accent }) {
   return (
@@ -53,7 +57,6 @@ export default function VacancyHistoryReport({ report, onBack, notify }) {
   // Ministry users see every Major Port (organisation 0); organisation users their own.
   const scopeOrgId = isMinistryView ? 0 : sessionOrgId;
 
-  const [kpis, setKpis] = useState(null);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [periods, setPeriods] = useState({ years: [], months: [] });
@@ -94,32 +97,24 @@ export default function VacancyHistoryReport({ report, onBack, notify }) {
       return;
     }
     setLoading(true);
-    const [kpiRes, tableRes] = await Promise.allSettled([
-      hasPeriod
-        ? fetchHrDashboardContentFiltered(MAJOR_PORTS_CLUSTER, scopeOrgId, year, month)
-        : fetchHrDashboardContent(MAJOR_PORTS_CLUSTER, scopeOrgId),
-      hasPeriod
-        ? fetchDepartmentWisePostStatusFiltered(MAJOR_PORTS_CLUSTER, scopeOrgId, year, month)
-        : fetchDepartmentWisePostStatus(MAJOR_PORTS_CLUSTER, scopeOrgId),
-    ]);
-    if (kpiRes.status === 'fulfilled') {
-      const d = kpiRes.value.data || {};
-      setKpis({
-        sanctioned: d.totalSanctionedAndFilledPost?.total_sanctioned_strength,
-        filled: d.totalSanctionedAndFilledPost?.filled_post,
-        live: d.totalLiveVacantPost?.totalLivePost,
-        abolished: d.totalAbolishedVacantPost?.totalAbolishedPost,
-      });
-    } else {
-      setKpis(null);
-    }
-    if (tableRes.status === 'fulfilled') {
-      setRows(asList(tableRes.value).map((r) => ({ ...r, totalVacant: num(r.totalLivePost) + num(r.totalAbolishedPost) })));
-    } else {
+    try {
+      const res = hasPeriod
+        ? await fetchDepartmentWisePostStatusFiltered(MAJOR_PORTS_CLUSTER, scopeOrgId, year, month)
+        : await fetchDepartmentWisePostStatus(MAJOR_PORTS_CLUSTER, scopeOrgId);
+      setRows(
+        asList(res).map((r) => ({
+          ...r,
+          // Posts whose post master has no class are logged without one.
+          class: r.class ?? '-',
+          totalVacant: num(r.totalLivePost) + num(r.totalAbolishedPost),
+        }))
+      );
+    } catch {
       setRows([]);
-      notifyRef.current?.('Could not load the vacancy history.', 'error');
+      notifyRef.current?.(COMMON_TOASTS.loadFailed('The vacancy history'));
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [scopeOrgId, hasPeriod, year, month]);
 
   // Deferred a tick so the load's setState does not run synchronously in the effect.
@@ -139,18 +134,14 @@ export default function VacancyHistoryReport({ report, onBack, notify }) {
     [rows, orgFilter, classFilter, deptFilter]
   );
 
+  // The cards and the table's total row are summed from the same filtered rows, so they always
+  // agree with each other and follow the Organisation / Class / Department filters.
+  const kpis = useMemo(() => sumCounts(filteredRows), [filteredRows]);
+
   const getTotals = useCallback(
     (shown) => {
       if (!shown.length) return null;
-      const sum = (f) => shown.reduce((acc, r) => acc + num(r[f]), 0);
-      return {
-        [isMinistryView ? 'organisation_name' : 'department_name']: 'Total',
-        total_sanctioned_strength: sum('total_sanctioned_strength'),
-        filled_post: sum('filled_post'),
-        totalLivePost: sum('totalLivePost'),
-        totalAbolishedPost: sum('totalAbolishedPost'),
-        totalVacant: sum('totalVacant'),
-      };
+      return { [isMinistryView ? 'organisation_name' : 'department_name']: 'Total', ...sumCounts(shown) };
     },
     [isMinistryView]
   );
@@ -201,11 +192,13 @@ export default function VacancyHistoryReport({ report, onBack, notify }) {
   const periodLabel = hasPeriod ? `${periods.months.find((m) => m.value === month)?.label} ${year}` : 'Current position';
 
   const summary = (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <KpiCard label="Sanctioned Strength" value={kpis?.sanctioned} icon={Users} accent="#b7791f" />
-      <KpiCard label="Total Filled Posts" value={kpis?.filled} icon={CheckCircle2} accent="#2f855a" />
-      <KpiCard label="Live Vacant Posts" value={kpis?.live} icon={FileText} accent={T.brand} />
-      <KpiCard label="Abolished Vacant Posts" value={kpis?.abolished} icon={Ban} accent="#c53030" />
+    // Same order as the table: Sanctioned, Actual, then Vacancy (Live, Abolished, Total).
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <KpiCard label="Sanctioned Strength" value={loading ? null : kpis.total_sanctioned_strength} icon={Users} accent="#b7791f" />
+      <KpiCard label="Actual Strength" value={loading ? null : kpis.filled_post} icon={CheckCircle2} accent="#2f855a" />
+      <KpiCard label="Live Vacancy" value={loading ? null : kpis.totalLivePost} icon={FileText} accent={T.brand} />
+      <KpiCard label="Abolished Vacancy" value={loading ? null : kpis.totalAbolishedPost} icon={Ban} accent="#c53030" />
+      <KpiCard label="Total Vacancy" value={loading ? null : kpis.totalVacant} icon={Sigma} accent="#6b46c1" />
     </div>
   );
 

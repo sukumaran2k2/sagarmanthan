@@ -13,7 +13,6 @@ import {
   Hash
 } from 'lucide-react';
 import Table from '../../../components/Table';
-import Notification from '../../../components/Notification';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import VacancyActivityModal from '../components/VacancyActivityModal';
@@ -21,7 +20,10 @@ import { EditActionButton, CodeText, PostCodeTag } from '../components/HrFormCon
 import { toInputDate } from '../vacancyActivity/form';
 import { fetchHrVacancyDetails, updateAllVacancies, fetchHrPostDetails } from '../api';
 import { alignHrColumns } from '../utils/tableAlignment';
+import { buildAddEmployeeUrl, vacancyDetailsPath } from '../utils/addEmployeeHandoff';
 import { createTableExporter } from '../utils/exportTable';
+import { COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { HR_TOASTS } from '../toastMessages';
 
 /* ────────────────────────────────────────────────────────────────────────────
    Constants
@@ -50,6 +52,9 @@ const ACTUAL_MODES = [
 ];
 
 const EXEMPTION_REASONS = ['Statutory Post', 'Reservation for SC/ST', 'OBC'];
+
+// A post is exempt from abolition when it has a reason for exemption (exception_abolish is not used)
+const isExemptReason = (reason) => String(reason ?? '').trim() !== '';
 
 
 const COL_LABELS = {
@@ -102,7 +107,6 @@ export default function VacantDetails({
   onBack,
   onAddEmployee,
   notify,
-  triggerNotification,
   permissions
 }) {
   const params = useParams();
@@ -116,31 +120,21 @@ export default function VacantDetails({
   const { orgId } = permissions;
   const userCanEdit = permissions.canEdit;
 
-  const [toast, setToast] = useState(null);
-  const toastTimerRef = useRef(null);
-
-  // The shell's notifiers change identity on every App render; read them through a ref
+  // The shell's notifier changes identity on every App render; read it through a ref
   // so data loaders that report errors are not re-created (and re-run) after each toast.
-  const notifierRef = useRef({ notify, triggerNotification });
+  const notifierRef = useRef(notify);
   useEffect(() => {
-    notifierRef.current = { notify, triggerNotification };
-  }, [notify, triggerNotification]);
+    notifierRef.current = notify;
+  }, [notify]);
 
-  const sendNotification = useCallback((msg, type = 'success') => {
-    const { notify: n, triggerNotification: t } = notifierRef.current;
-    if (typeof n === 'function') return n(msg, type);
-    if (typeof t === 'function') return t(msg, type);
-    // Standalone route without a shell notifier: show the local toast.
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    setToast({ message: msg, type });
-    toastTimerRef.current = setTimeout(() => setToast(null), 3500);
-    return undefined;
-  }, []);
+  // Takes a toast definition (HR_TOASTS / COMMON_TOASTS)
+  const sendNotification = useCallback((toast) => notifierRef.current?.(toast), []);
 
   const handleBack = () => {
     if (typeof onBack === 'function') onBack();
     else navigate('/hr/hr-management/vacancy-management');
   };
+
 
   // Post meta (auto-fetched if the page was opened directly)
   const [remotePostMeta, setRemotePostMeta] = useState(null);
@@ -238,15 +232,17 @@ export default function VacantDetails({
         });
       }
     } catch {
-      sendNotification('Failed to load vacancy details.', 'error');
+      sendNotification(COMMON_TOASTS.loadFailed('The vacancy details'));
       setData([]);
     } finally {
       setLoading(false);
     }
   }, [postId, isLive, sendNotification]);
 
+  // Deferred a tick so the load's setState does not run synchronously in the effect
   useEffect(() => {
-    loadVacancyDetails();
+    const timer = setTimeout(() => loadVacancyDetails(), 0);
+    return () => clearTimeout(timer);
   }, [loadVacancyDetails]);
 
   // Debounce search
@@ -262,83 +258,94 @@ export default function VacantDetails({
   const handleInlineChange = (rowId, field, value) => {
     setRowEdits((prev) => {
       const updated = { ...(prev[rowId] || {}), [field]: value };
-      if (field === 'reason_for_exemption') {
-        updated.exception_abolish = value && value.trim() !== '' ? 1 : 0;
-      }
       return { ...prev, [rowId]: updated };
     });
   };
 
-  const handleSaveInlineEdits = async () => {
-    const editKeys = Object.keys(rowEdits);
-    if (editKeys.length === 0) {
-      sendNotification('No unsaved changes.', 'info');
-      return;
-    }
-
-    // Exemption validation matching legacy flow
-    for (const key of editKeys) {
+  // Payload for /update-all-vacancies of one edited row (key = row id or post code)
+  const buildVacancyRowPayload = useCallback(
+    (key) => {
       const orig = data.find((d) => String(d.id || d.post_code) === String(key)) || {};
       const edit = rowEdits[key] || {};
       const reason =
         edit.reason_for_exemption !== undefined ? edit.reason_for_exemption : orig.reason_for_exemption || '';
-      const isExempt =
-        edit.exception !== undefined
-          ? edit.exception
-          : (orig.exception_abolish === 1 || (!!reason && reason.trim() !== ''));
-      if (isExempt && !reason.trim()) {
-        sendNotification('Please select reason for exemption!', 'error');
-        return;
-      }
+
+      const chosenExpected =
+        edit.to_be_filled_through !== undefined
+          ? edit.to_be_filled_through
+          : edit.vacancy_type !== undefined
+            ? edit.vacancy_type
+            : (orig.to_be_filled_through || orig.vacancy_type);
+
+      return {
+        id: orig.id,
+        post_code: orig.post_code,
+        vacancy_type: chosenExpected || null,
+        to_be_filled_through: chosenExpected || null,
+        method_of_appointment:
+          edit.method_of_appointment !== undefined ? edit.method_of_appointment : orig.method_of_appointment,
+        vacancy_arise_date:
+          edit.date_of_arise_in_vacancy !== undefined
+            ? edit.date_of_arise_in_vacancy
+            : orig.date_of_arise_in_vacancy
+              ? toInputDate(orig.date_of_arise_in_vacancy)
+              : null,
+        // Exempt from abolition = a reason is chosen; clearing the reason removes the exemption.
+        // The flag is still sent so the backend's abolition queries stay in step.
+        exemption: isExemptReason(reason) ? 1 : 0,
+        reasonForExemption: isExemptReason(reason) ? reason : null,
+        abolish_date: orig.date_of_abolish || null
+      };
+    },
+    [data, rowEdits]
+  );
+
+  const handleSaveInlineEdits = async () => {
+    const editKeys = Object.keys(rowEdits);
+    if (editKeys.length === 0) {
+      sendNotification(HR_TOASTS.noUnsavedChanges());
+      return;
     }
 
     setLoading(true);
     try {
-      const payload = editKeys.map((key) => {
-        const orig = data.find((d) => String(d.id || d.post_code) === String(key)) || {};
-        const edit = rowEdits[key] || {};
-        const reason =
-          edit.reason_for_exemption !== undefined ? edit.reason_for_exemption : orig.reason_for_exemption || '';
-        const isExempt =
-          edit.exception !== undefined
-            ? edit.exception
-            : (orig.exception_abolish === 1 || (!!reason && reason.trim() !== ''));
-
-        const chosenExpected =
-          edit.to_be_filled_through !== undefined
-            ? edit.to_be_filled_through
-            : edit.vacancy_type !== undefined
-              ? edit.vacancy_type
-              : (orig.to_be_filled_through || orig.vacancy_type);
-
-        return {
-          id: orig.id,
-          post_code: orig.post_code,
-          vacancy_type: chosenExpected || null,
-          to_be_filled_through: chosenExpected || null,
-          method_of_appointment:
-            edit.method_of_appointment !== undefined ? edit.method_of_appointment : orig.method_of_appointment,
-          vacancy_arise_date:
-            edit.date_of_arise_in_vacancy !== undefined
-              ? edit.date_of_arise_in_vacancy
-              : orig.date_of_arise_in_vacancy
-                ? toInputDate(orig.date_of_arise_in_vacancy)
-                : null,
-          exemption: isExempt ? 1 : 0,
-          reasonForExemption: reason || null,
-          abolish_date: orig.date_of_abolish || null
-        };
-      });
-
-      await updateAllVacancies(payload);
-      sendNotification("Vacant Post's Updated successfully", 'success');
+      await updateAllVacancies(editKeys.map(buildVacancyRowPayload));
+      sendNotification(HR_TOASTS.vacanciesUpdated(postMeta.postName));
       loadVacancyDetails();
-    } catch {
-      sendNotification("Failed to Update Vacant Post's", 'error');
+    } catch (err) {
+      sendNotification(HR_TOASTS.vacanciesUpdateFailed(getErrorMessage(err)));
     } finally {
       setLoading(false);
     }
   };
+
+  // After an activity that needs a new employee (Compassionate, Composite "No", Deputation from
+  // another organisation) is saved, continue to the Employee Data form for this post code; the
+  // form comes back here once the employee is added. A parent may take this over (onAddEmployee).
+  // The form reads the vacancy's method and date from the backend, so this row's unsaved inline
+  // edits (the popup may have been opened with them) are saved first.
+  const handleAddEmployee = useCallback(
+    async ({ postCode }) => {
+      const row = data.find((d) => d.post_code === postCode);
+      const key = row ? String(row.id || row.post_code) : null;
+      if (key && rowEdits[key]) {
+        try {
+          await updateAllVacancies([buildVacancyRowPayload(key)]);
+          setRowEdits((prev) => {
+            const rest = { ...prev };
+            delete rest[key];
+            return rest;
+          });
+        } catch (err) {
+          sendNotification(HR_TOASTS.vacanciesUpdateFailed(getErrorMessage(err)));
+          loadVacancyDetails();
+          return;
+        }
+      }
+      navigate(buildAddEmployeeUrl({ postCode, returnTo: vacancyDetailsPath(postId, isLive) }));
+    },
+    [data, rowEdits, buildVacancyRowPayload, sendNotification, loadVacancyDetails, navigate, postId, isLive]
+  );
 
   /* ── Open the activity popup for the row's Actual Mode of Filling ── */
   const handleOpenActivityModal = useCallback(
@@ -372,11 +379,6 @@ export default function VacantDetails({
           ? edits.reason_for_exemption
           : (row.reason_for_exemption || '');
 
-      const isExempt =
-        edits.exception !== undefined
-          ? edits.exception
-          : (row.exception_abolish === 1 || (!!effectiveReason && effectiveReason.trim() !== ''));
-
       const isModeEmpty =
         !rawMode ||
         rawMode.toLowerCase() === '-- select actual mode of filling --' ||
@@ -395,12 +397,7 @@ export default function VacantDetails({
       if (!effectiveDate) missingFields.push('Date of Arise in Vacancy');
 
       if (missingFields.length > 0) {
-        sendNotification(`Please fill in the following fields: ${missingFields.join(', ')}`, 'warning');
-        return;
-      }
-
-      if (isExempt && !effectiveReason.trim()) {
-        sendNotification('Please select reason for exemption!', 'error');
+        sendNotification(HR_TOASTS.vacancyFieldsMissing(missingFields));
         return;
       }
 
@@ -673,8 +670,7 @@ export default function VacantDetails({
   }
 
   return (
-    <div className="space-y-4 animate-fade-in relative text-slate-800 dark:text-slate-100 font-sans">
-      <Notification message={toast} onDismiss={() => setToast(null)} />
+    <div className="space-y-4 animate-fade-in relative">
 
       {/* ── Post Header & Details Card ── */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl px-4 py-3 shadow-xs">
@@ -725,7 +721,7 @@ export default function VacantDetails({
       </div>
 
       {/* ── Main Table Card ── */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4 dark:bg-slate-950 dark:border-slate-800">
+      <div className="module-card space-y-4">
         {/* Toolbar */}
         <div className="flex flex-col lg:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-4">
           <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
@@ -742,7 +738,7 @@ export default function VacantDetails({
                 placeholder="Search post code, method..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-8 pr-8 py-1.5 text-xs font-semibold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-slate-400 text-slate-800 dark:text-slate-200"
+                className="w-full module-search-input"
               />
               {searchTerm && (
                 <button
@@ -808,14 +804,7 @@ export default function VacantDetails({
         </div>
 
         {/* Table grid */}
-        <div className="relative min-h-[300px]">
-          <style>{`
-            .no-header-wrap .ag-header-cell-text,
-            .no-header-wrap .ag-header-cell-label {
-              white-space: nowrap !important;
-              word-break: keep-all !important;
-            }
-          `}</style>
+        <div className="ag-theme-quartz module-datalist-grid w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800 min-h-[300px]">
           {loading && (
             <div className="absolute inset-0 bg-white/70 dark:bg-slate-950/70 backdrop-blur-xs flex items-center justify-center z-20 rounded-xl">
               <div className="flex flex-col items-center space-y-2">
@@ -881,7 +870,7 @@ export default function VacantDetails({
           reasonForExemption={activityRow.reasonForExemption}
           userCanEdit={userCanEdit}
           notify={sendNotification}
-          onAddEmployee={onAddEmployee}
+          onAddEmployee={onAddEmployee || handleAddEmployee}
           onSuccess={() => loadVacancyDetails({ keepEditsExcept: activityRow.rowKey })}
         />
       )}

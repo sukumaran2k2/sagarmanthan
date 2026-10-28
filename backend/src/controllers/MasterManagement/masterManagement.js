@@ -257,6 +257,9 @@ async function getDropDownData(req, res) {
         case "mmt_department":
             query = "SELECT department_id, department_name FROM mmt_department WHERE status = 1 ORDER BY department_name";
             break;
+        case "mmt_hr_department":
+            query = "SELECT department_id, department_name FROM mmt_hr_department WHERE status = 1 ORDER BY department_name";
+            break;
 
         case "mmt_mmd_name":
             query = "SELECT mmd_id, mmd_name FROM mmt_mmd_name WHERE status = 1";
@@ -549,6 +552,12 @@ async function getDropDownData(req, res) {
             break;
         case "mmt_akv_initiatives":
             query = "SELECT * FROM mmt_akv_initiatives";
+            break;
+        case "mmt_hr_method_of_appoitment":
+            query = "SELECT * FROM mmt_hr_method_of_appoitment";
+            break;
+        case "mmt_hr_activities":
+            query = "SELECT * FROM mmt_hr_activities";
             break;
 
         // case "tbl_project":

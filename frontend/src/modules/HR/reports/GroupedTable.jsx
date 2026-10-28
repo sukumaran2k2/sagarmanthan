@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import Table from '../../../components/Table';
-import { cellValue, leafColumns } from './reportUtils';
-import { REPORT_THEME as T } from './theme';
+import { cellValue, headerLabel, leafColumns } from './reportUtils';
 
 const isNumeric = (v) => v !== '' && v != null && !Number.isNaN(Number(v));
 
@@ -13,6 +12,8 @@ const wrapRows = (rows) => rows.map((row, i) => ({ row, i }));
 // in a row stays vertically centred on the same line.
 const ROW_HEIGHT = 46;
 const SERIAL_WIDTH = 76;
+// Rows per page; the grand-total row stays pinned below every page and covers all rows.
+const PAGE_SIZE = 10;
 // Pinned name columns are sized to their longest value (two-line wrap allowed), within these bounds.
 const PINNED_MIN = 110;
 const PINNED_MAX = 240;
@@ -58,7 +59,7 @@ export default function GroupedTable({ columns, rows, totals, loading, emptyMess
     // ~7px per character at 12px bold, plus cell padding; long names wrap onto a second line.
     const pinnedWidth = (col) => {
       const longest = Math.max(
-        String(col.headerName ?? col.field ?? '').length,
+        headerLabel(col).length,
         ...rows.map((r, i) => String(cellValue(col, r, i)).length),
         0
       );
@@ -69,7 +70,7 @@ export default function GroupedTable({ columns, rows, totals, loading, emptyMess
     const toGrid = (col, path) => {
       if (Array.isArray(col.children) && col.children.length) {
         return {
-          headerName: col.headerName ?? col.field ?? '',
+          headerName: headerLabel(col),
           headerClass: 'hr-rpt-group',
           marryChildren: true,
           children: col.children.map((c, i) => toGrid(c, `${path}-${i}`)),
@@ -80,7 +81,7 @@ export default function GroupedTable({ columns, rows, totals, loading, emptyMess
       const frozen = pinned.has(col);
       return {
         colId: `c${path}`,
-        headerName: col.headerName ?? col.field ?? '',
+        headerName: headerLabel(col),
         headerClass: [align === 'left' ? 'hr-rpt-head-left' : 'hr-rpt-head-center', serial ? 'hr-rpt-head-serial' : ''].filter(Boolean),
         // S.No has a fixed width that column fitting never squeezes (its header stays on one line).
         ...(serial
@@ -113,47 +114,16 @@ export default function GroupedTable({ columns, rows, totals, loading, emptyMess
 
   return (
     <div className={`hr-report-grid ${rows.length ? "hr-report-has-rows" : ""}`}>
-      <style>{`
-        .hr-report-grid .ag-header-cell.hr-rpt-head-left .ag-header-cell-label { justify-content: flex-start !important; }
-        .hr-report-grid .ag-header-cell.hr-rpt-head-left .ag-header-cell-text { text-align: left !important; }
-        .hr-report-grid .ag-header-cell.hr-rpt-head-center .ag-header-cell-label { justify-content: center !important; }
-        .hr-report-grid .ag-header-cell.hr-rpt-head-serial .ag-header-cell-text { white-space: nowrap !important; word-break: keep-all !important; }
-        .hr-report-grid .ag-header-cell, .hr-report-grid .ag-header-group-cell { border-right: 1px solid ${T.headBorder} !important; }
-        .hr-report-grid .ag-header-group-cell { border-bottom: 1px solid ${T.headBorder} !important; }
-        .hr-report-grid .ag-header-group-cell-label { justify-content: center !important; }
-        .hr-report-grid .ag-cell { border-right: 1px solid ${T.line} !important; font-size: 12px; }
-        .hr-report-grid .ag-cell.hr-rpt-left { justify-content: flex-start !important; }
-        .hr-report-grid .ag-cell.hr-rpt-center { justify-content: center !important; }
-        .hr-report-grid .ag-cell.hr-rpt-serial { font-weight: 600; color: #334155; }
-        .hr-report-grid .ag-cell.hr-rpt-emphasis { font-weight: 700; color: ${T.brand}; }
-        .hr-report-grid .ag-row { border-bottom: 1px solid ${T.line} !important; }
-        .hr-report-grid .ag-row-odd:not(.ag-row-pinned) { background-color: ${T.tint} !important; }
-        .hr-report-grid .ag-row-even:not(.ag-row-pinned) { background-color: #ffffff !important; }
-        .dark .hr-report-grid .ag-row-odd:not(.ag-row-pinned) { background-color: #0f172a !important; }
-        .dark .hr-report-grid .ag-row-even:not(.ag-row-pinned) { background-color: #111827 !important; }
-        /* No hover highlight: rows keep their stripe colour under the pointer. */
-        .hr-report-grid .ag-root-wrapper { --ag-row-hover-color: transparent; }
-        .hr-report-grid .ag-row-hover::before { display: none !important; }
-        /* Auto-height grids reserve a 150px body; with rows, fit the body to them (no gap above the total). */
-        .hr-report-has-rows .ag-layout-auto-height .ag-center-cols-viewport,
-        .hr-report-has-rows .ag-layout-auto-height .ag-center-cols-container { min-height: 0 !important; }
-        .hr-report-grid .ag-pinned-left-header, .hr-report-grid .ag-pinned-left-cols-container .ag-row,
-        .hr-report-grid .ag-pinned-left-floating-bottom { border-right: 2px solid ${T.headBorder} !important; }
-        .hr-report-grid .ag-row-pinned { background-color: ${T.brand} !important; border-top: 4px solid ${T.totalTopBorder} !important; }
-        .hr-report-grid .ag-row-pinned .ag-cell { color: #ffffff !important; font-weight: 900; border-right-color: ${T.headBorder} !important; }
-        .hr-report-grid .ag-row-pinned .ag-cell.hr-rpt-left { text-transform: uppercase; letter-spacing: 0.05em; }
-        .dark .hr-report-grid .ag-cell.hr-rpt-serial { color: #cbd5e1; }
-        .dark .hr-report-grid .ag-cell.hr-rpt-emphasis { color: #fca5a5 !important; }
-      `}</style>
       <Table
         rowData={rowData}
         columnDefs={gridColumns}
         pinnedBottomRowData={pinnedBottomRowData}
         loading={loading}
         loadingMessage="Loading report..."
-        pagination={false}
+        pagination
+        paginationPageSize={PAGE_SIZE}
         rowHeight={ROW_HEIGHT}
-        color={T.brand}
+        color="var(--module-report-header-bg, #4b2424)"
         suppressMovableColumns
         overlayNoRowsTemplate={`<span class="text-sm font-semibold text-slate-500">${emptyMessage}</span>`}
         defaultColDef={{ resizable: true, sortable: false, filter: false }}

@@ -201,6 +201,7 @@ export const MODULE_PAGES = {
       'Organisation Structure',
       'Organization Structure',
       'Employee Database',
+      'Employee Details',
       'List of Abolished Ports',
       'List of Abolished Posts',
       'Abolished Posts',
@@ -212,19 +213,20 @@ export const MODULE_PAGES = {
       'HR Input Form',
       'Add Post',
       'Non Port Monthly Upload',
-      'hr/hr-management/non-port-monthly-upload',
       'hr/hr-management/vacancy-management',
       'hr/hr-management/administration',
       'hr/hr-management/abolished-posts',
       'hr/hr-management/contractual-employment',
       'hr/hr-management/training-details',
       'hr/hr-management/input-form',
+      'hr/hr-management/non-port-monthly-upload',
     ],
     uiTabs: [
       'HR Dashboard',
       'Organisation Structure',
       'Organization Structure',
       'Employee Database',
+      'Employee Details',
       'List of Abolished Ports',
       'List of Abolished Posts',
       'Abolished Posts',
@@ -255,6 +257,7 @@ export const MODULE_PAGES = {
       'YP Data List',
       'YP Input Form',
       'YP Report',
+      'YP Reports',
       'Data List',
       'Input Form',
       'Report',
@@ -263,11 +266,13 @@ export const MODULE_PAGES = {
 
   CONSULTANT_APPOINTMENT: {
     tabs: [
+      'Consultant Appointment',
       'Consultant Input Form',
       'Consultant Data List',
       'Consultant Reports',
     ],
     uiTabs: [
+      'Consultant Appointment',
       'Consultant Input Form',
       'Consultant Data List',
       'Consultant Reports',
@@ -404,73 +409,6 @@ export const MODULE_PAGES = {
     ],
   },
 
-  HR_MANAGEMENT: {
-    tabs: [
-      'HR Management',
-      'hr-management',
-      'Organisation Structure',
-      'Organization Structure',
-      'Employee Database',
-      'List of Abolished Posts',
-      'Abolished Posts',
-      'Contractual Employment',
-      'Training Details',
-      'HR Input Form',
-      'Add Post',
-      'Non Port Monthly Upload',
-      'non-port-monthly-upload',
-      'Input Form',
-      'input-form',
-    ],
-    uiTabs: [
-      'HR Management',
-      'Organisation Structure',
-      'Organization Structure',
-      'Employee Database',
-      'List of Abolished Posts',
-      'Abolished Posts',
-      'Contractual Employment',
-      'Training Details',
-      'HR Input Form',
-      'Input Form',
-      'Non Port Monthly Upload',
-    ],
-  },
-
-  YOUNG_PROFESSIONAL: {
-    tabs: [
-      'Young Professionals',
-      'YP Data List',
-      'YP Input Form',
-      'YP Report',
-      'YP Reports',
-      'Data List',
-      'Input Form',
-      'Report',
-    ],
-    uiTabs: [
-      'Young Professionals',
-      'YP Data List',
-      'YP Input Form',
-      'YP Report',
-      'YP Reports',
-    ],
-  },
-
-  CONSULTANT_APPOINTMENT: {
-    tabs: [
-      'Consultant Appointment',
-      'Consultant Input Form',
-      'Consultant Data List',
-      'Consultant Reports',
-    ],
-    uiTabs: [
-      'Consultant Appointment',
-      'Consultant Input Form',
-      'Consultant Data List',
-      'Consultant Reports',
-    ],
-  },
 };
 
 export const PUBLIC_UI_TABS = [

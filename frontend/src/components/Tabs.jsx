@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { API_BASE_URL } from '../config/api';
-import { getCurrentUserId, isSuperAdmin, getDataScopeCode, isOtherOrganisationUser } from '../utils/authSession';
+import { getCurrentUserId, isSuperAdmin, getDataScopeCode } from '../utils/authSession';
 import sagarmanthanLogo from '../assets/sagarmanthan_logo.png';
 import {
   canAccessTab,
@@ -12,7 +12,8 @@ import {
   TAB_USER_MASTER_MANAGEMENT
 } from '../utils/moduleAccess';
 import { canCreateModule } from '../utils/modulePermissions';
-import { canViewVacancyManagement, canViewHrAdministration } from '../modules/HR/hooks/useHRPermissions';
+import { useHRPermissions } from '../modules/HR/hooks/useHRPermissions';
+import { hrViewAllows } from '../modules/HR/utils/hrViews';
 import {
   Home,
   Briefcase,
@@ -59,7 +60,6 @@ import {
   Menu,
   Target,
   PlusCircle,
-  CalendarCheck,
   FileSpreadsheet,
   X
 } from 'lucide-react';
@@ -131,8 +131,8 @@ export default function Tabs({ activeTab, setActiveTab }) {
   const canCreateConsultant = canCreateModule('CONSULTANT_APPOINTMENT');
   const canCreateYp = canCreateModule('YOUNG_PROFESSIONAL');
   const canCreateCapex = canCreateModule('CAPEX');
-  const canViewHrVacancy = canViewVacancyManagement();
-  const canViewHrAdmin = canViewHrAdministration();
+  // HR pages follow the user's HR view (Major Port / non-port / Secretary / ministry), as in the HR tab bar
+  const { hrView, canViewVacancy: canViewHrVacancy, canViewAdministration: canViewHrAdmin } = useHRPermissions();
 
   const accessKey = (() => {
     try {
@@ -348,23 +348,17 @@ export default function Tabs({ activeTab, setActiveTab }) {
         {
           title: 'HR Management',
           icon: Users,
-          items: isOtherOrganisationUser()
-            ? [
-                m('HR_MANAGEMENT', { label: 'Non Port Monthly Upload', tab: 'Non Port Monthly Upload', icon: CalendarCheck }),
-                m('HR_MANAGEMENT', { label: 'Contractual Employment', tab: 'Contractual Employment', icon: UserPlus }),
-                m('HR_MANAGEMENT', { label: 'Training Details', tab: 'Training Details', icon: BookOpen }),
-                m('HR_MANAGEMENT', { label: 'Input Form', tab: 'HR Input Form', icon: FileEdit }),
-              ]
-            : [
-                m('HR_MANAGEMENT', { label: 'Employee Database', tab: 'Employee Database', icon: Users }),
-                m('HR_MANAGEMENT', { label: isOrgUser ? 'Abolished Posts' : 'List of Abolished Posts', tab: isOrgUser ? 'Abolished Posts' : 'List of Abolished Posts', icon: Users }),
-                ...(canViewHrVacancy ? [m('HR_MANAGEMENT', { label: 'Vacancy Management', tab: 'Vacancy Management', icon: Briefcase })] : []),
-                ...(canViewHrAdmin ? [m('HR_MANAGEMENT', { label: 'HR Administration & Actions', tab: 'HR Administration & Actions', icon: ShieldCheck })] : []),
-                m('HR_MANAGEMENT', { label: 'Contractual Employment', tab: 'Contractual Employment', icon: UserPlus }),
-                m('HR_MANAGEMENT', { label: 'Training Details', tab: 'Training Details', icon: BookOpen }),
-                m('HR_MANAGEMENT', { label: 'Reports', tab: 'HR Reports', icon: FilePieChart }),
-                m('HR_MANAGEMENT', { label: 'Input Form', tab: 'HR Input Form', icon: FileEdit }),
-              ]
+          items: [
+            { page: 'hr-dashboard', label: 'Dashboard', tab: 'HR Dashboard', icon: LayoutDashboard },
+            { page: 'non-port-monthly-upload', label: 'Non Port Monthly Upload', tab: 'Non Port Monthly Upload', icon: FileSpreadsheet },
+            { page: 'employee-database', label: 'Employee Database', tab: 'Employee Database', icon: Users },
+            { page: 'abolished-posts', label: isOrgUser ? 'Abolished Posts' : 'List of Abolished Posts', tab: isOrgUser ? 'Abolished Posts' : 'List of Abolished Posts', icon: Users },
+            canViewHrVacancy && { page: 'vacancy-management', label: 'Vacancy Management', tab: 'Vacancy Management', icon: Briefcase },
+            canViewHrAdmin && { page: 'administration', label: 'HR Administration & Actions', tab: 'HR Administration & Actions', icon: ShieldCheck },
+            { page: 'contractual-employment', label: 'Contractual Employment', tab: 'Contractual Employment', icon: UserPlus },
+            { page: 'training-details', label: 'Training Details', tab: 'Training Details', icon: BookOpen },
+            { page: 'reports', label: 'Reports', tab: 'HR Reports', icon: FilePieChart },
+          ].filter((item) => item && hrViewAllows(hrView, item.page)).map((item) => m('HR_MANAGEMENT', item))
         },
         {
           title: 'Young Professionals',
@@ -533,7 +527,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
       directTab: 'Contact Us',
     },
   ]),
-    [accessKey, isOrgUser, canCreateParliamentary, canCreateCabinetMopsw, canCreateConsultant, canCreateYp, canCreateCapex, canViewHrVacancy, canViewHrAdmin]
+    [accessKey, isOrgUser, canCreateParliamentary, canCreateCabinetMopsw, canCreateConsultant, canCreateYp, canCreateCapex, canViewHrVacancy, canViewHrAdmin, hrView]
   );
 
   const handleItemClick = (tabOrLabel) => {
@@ -575,7 +569,8 @@ export default function Tabs({ activeTab, setActiveTab }) {
             const hasDropdown = !menu.directTab && (menu.subcategories || menu.items);
             const isHrActiveTab = [
               'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Abolished Posts',
-              'Vacancy Management', 'HR Administration & Actions', 'Contractual Employment', 'Training Details', 'Non Port Monthly Upload', 'HR Reports', 'HR Input Form'
+              'Vacancy Management', 'HR Administration & Actions', 'Contractual Employment', 'Training Details', 'HR Reports', 'HR Input Form',
+              'Non Port Monthly Upload'
             ].includes(activeTab);
             const isMainMenuActive =
               activeTab === menu.directTab ||

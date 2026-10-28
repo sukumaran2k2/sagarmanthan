@@ -1,31 +1,57 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useMemo } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 // Shared client: sends the login token and refreshes it (HR routes require login)
 import { axiosInstance as axios } from '../../../api';
-import { 
-  User, 
-  GraduationCap, 
-  Briefcase, 
+import {
+  User,
+  GraduationCap,
+  Briefcase,
   ArrowLeft,
   Save,
   Check,
   ChevronRight,
   ChevronLeft,
-  CheckCircle2,
-  AlertCircle
-} from 'lucide-react';
+  Lock } from 'lucide-react';
 import { API_BASE_URL } from '../../../config/api';
 import { getSessionClaims, getSessionOrganisationId } from '../../../utils/authSession';
+import { COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { HR_TOASTS } from '../toastMessages';
+import { checkAadhaarExists, checkReferenceNumberExists, fetchHrEmployeeById, fetchMmtDropdown, fetchPostByPostCode, updateHrEmployee } from '../api';
+import { HIGHEST_EDUCATION, employeeFormFromRecord, readEmployeeEditIds } from '../utils/employeeEdit';
+import { DISCIPLINES, PWBD_OPTIONS } from '../utils/employeeOptions';
+import { Button } from './HrFormControls';
+import { useLatestRef } from '../hooks/usePagedList';
+import {
+  OTHER_ORGANISATION_ID,
+  SELECTABLE_APPOINTMENT_METHODS,
+  readAddEmployeeHandoff,
+  vacancyFromPostRow,
+} from '../utils/addEmployeeHandoff';
 
-const INDIAN_STATES = [
-  'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
-  'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka',
-  'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram',
-  'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu',
-  'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
-  'Andaman and Nicobar Islands', 'Chandigarh', 'Dadra and Nagar Haveli and Daman and Diu',
-  'Delhi', 'Jammu and Kashmir', 'Ladakh', 'Lakshadweep', 'Puducherry'
-];
+const MAX_DEGREES = 10;
+const DEGREE_KEYS = { ugCount: 'ugDisciplines', pgCount: 'pgDisciplines' };
+
+// Column sizes in tbl_employee_master: longer text fails the insert (SQL error 2628)
+const MAX_LENGTH = { employeeName: 50, referenceNumber: 50, empDivisionName: 100, otherParentOrg: 100 };
+
+// yyyy-mm-dd from a local date (toISOString would convert to UTC: a day early in India)
+const toLocalIsoDate = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+// A value fixed by the vacancy hand-off: shown read-only, in the same box as an editable field
+function LockedValue({ value, type = 'text', label }) {
+  return (
+    <input
+      type={type}
+      value={value || ''}
+      readOnly
+      aria-readonly="true"
+      aria-label={label}
+      title="This value can't be changed here"
+      className="w-full px-3.5 py-2.5 text-xs font-semibold bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 cursor-not-allowed focus:outline-none"
+    />
+  );
+}
 
 const EMPLOYEE_STAGES = [
   { id: 'basic', number: '01', title: 'Basic Details', subtitle: 'Personal & Demographics' },
@@ -33,10 +59,49 @@ const EMPLOYEE_STAGES = [
   { id: 'designation', number: '03', title: 'Designation & Post', subtitle: 'Post, Dept & Joining' },
 ];
 
-export default function EmployeeDataForm({ triggerNotification, onCancel }) {
+// editData: the Employee Database row being edited (from location.state.item, via InputForm); null when adding
+export default function EmployeeDataForm({ notify, onCancel, editData = null }) {
   const navigate = useNavigate();
   const claims = useMemo(() => getSessionClaims() || {}, []);
-  const orgId = useMemo(() => getSessionOrganisationId() || claims.organisationId || 1, [claims]);
+  // From the login only (no fallback organisation): the backend also takes them from the login
+  const orgId = useMemo(() => getSessionOrganisationId() || claims.organisationId || null, [claims]);
+
+  // Opened from a vacant post's activity ("Add employee"): the URL names the post code only. The
+  // vacancy (department, post, method of appointment, date of arise, vacant/filled) is read from
+  // the backend and fixed in the form; an employee can be added only while the post is vacant.
+  const [searchParams] = useSearchParams();
+  const editIds = useMemo(() => readEmployeeEditIds(editData), [editData]);
+  const isEditMode = Boolean(editIds);
+  const handoff = useMemo(() => (isEditMode ? null : readAddEmployeeHandoff(searchParams)), [isEditMode, searchParams]);
+  // Edit: 'loading' until the record is read, then 'ready' (or 'error'); the employee's
+  // current employee id and the values the duplicate checks may skip
+  const [edit, setEdit] = useState(() => ({ status: isEditMode ? 'loading' : null, employeeId: editIds?.employeeId, original: {}, discipline: null }));
+  // null while loading (or when opened normally); otherwise vacancyFromPostRow(), or
+  // { status: 'missing' | 'error' } when the post code is unknown or could not be read
+  const [vacancy, setVacancy] = useState(null);
+  const notifyRef = useLatestRef(notify);
+
+  const vacancyFound = Boolean(vacancy?.postId);
+  // Editing changes personal details only: the posting changes through HR Administration activities
+  const lockMethod = isEditMode || (vacancyFound && Boolean(vacancy.method));
+  const lockVacancyDate = isEditMode || (vacancyFound && Boolean(vacancy.vacancyDate));
+  const isDeputationHandoff = vacancyFound && vacancy.method === 'Deputation In';
+  // Why this hand-off can't be submitted (null = it can, or the form was opened normally)
+  const handoffBlockedToast = !handoff
+    ? null
+    : !vacancy
+      ? HR_TOASTS.addEmployeePostLoading()
+      : vacancy.status === 'vacant'
+        ? null
+        : vacancy.status === 'filled'
+          ? HR_TOASTS.addEmployeePostFilled(handoff.postCode)
+          : vacancy.status === 'otherOrganisation'
+            ? HR_TOASTS.addEmployeePostOtherOrganisation(handoff.postCode)
+            : vacancy.status === 'missing'
+              ? HR_TOASTS.addEmployeePostNotFound(handoff.postCode)
+              : vacancy.status === 'unverified'
+                ? HR_TOASTS.addEmployeePostUnverified(handoff.postCode)
+                : COMMON_TOASTS.loadFailed('The vacant post');
 
   const [activeSection, setActiveSection] = useState('basic');
 
@@ -60,6 +125,8 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
     empHighestEdu: '',
     ugCount: '',
     pgCount: '',
+    ugDisciplines: [],
+    pgDisciplines: [],
 
     // Stage 3: Designation & Post Details
     department: '',
@@ -67,20 +134,23 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
     empPostId: '',
     empPostName: '',
     appoinmentMethod: '',
-    postCode: '',
+    postCode: handoff?.postCode || '',
     vacancyAriseDate: '',
     joiningDate: '',
     parentOrganisation: '',
-    parentOrgJoiningDate: '',
-  });
+    otherParentOrg: '',
+    parentOrgJoiningDate: '' });
 
   // Dropdown options
   const [departments, setDepartments] = useState([]);
-  const [posts, setPosts] = useState([]);
-  const [postCodes, setPostCodes] = useState([]);
+  const [deptPosts, setPosts] = useState([]);
+  const [postCodeList, setPostCodes] = useState([]);
   const [organisations, setOrganisations] = useState([]);
+  const [states, setStates] = useState([]); // mmt_state: { state_id, state_name }
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formErrors, setFormErrors] = useState({});
+  // Values found to belong to another employee: { referenceNumber: 'REF-1', employeeAadhar: '1234…' }
+  const [duplicates, setDuplicates] = useState({});
 
   // Stage completion tracker for the stepper progress indicators
   const stageProgress = useMemo(() => {
@@ -106,20 +176,21 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
       formData.appoinmentMethod &&
       formData.postCode &&
       formData.vacancyAriseDate &&
-      formData.joiningDate
+      formData.joiningDate &&
+      (formData.parentOrganisation !== OTHER_ORGANISATION_ID || formData.otherParentOrg?.trim())
     );
 
     return {
       basic: isBasicComplete,
       education: isEducationComplete,
-      designation: isDesignationComplete,
-    };
+      designation: isDesignationComplete };
   }, [formData]);
 
   // Fetch Departments and Organisations on mount
   useEffect(() => {
     let isMounted = true;
 
+    // A failed load is reported, never replaced by a guessed list: guessed ids would be saved
     axios.get(`${API_BASE_URL}/get-hr-department-list/${orgId}`)
       .then(res => {
         if (isMounted && Array.isArray(res.data)) {
@@ -127,53 +198,116 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
         }
       })
       .catch(() => {
-        if (isMounted) {
-          setDepartments([
-            { department_id: '001', department_name: 'Civil Engineering' },
-            { department_id: '002', department_name: 'Finance and Accounts' },
-            { department_id: '003', department_name: 'General Administration Department' },
-            { department_id: '004', department_name: 'Marine Department' },
-            { department_id: '005', department_name: 'Mechanical & Electrical Engineering' },
-            { department_id: '006', department_name: 'Medical Department' },
-            { department_id: '007', department_name: 'Traffic' },
-          ]);
-        }
+        if (isMounted) notifyRef.current?.(COMMON_TOASTS.loadFailed('The list of departments'));
       });
 
-    axios.get(`${API_BASE_URL}/get-all-organisations`)
+    // Parent organisations from the organisation master (emp_parent_org_id is its organisation_id),
+    // as the legacy page loaded them; it includes "Other Organisation" (73)
+    fetchMmtDropdown('mmt_organisation')
       .then(res => {
         if (isMounted && Array.isArray(res.data)) {
           setOrganisations(res.data);
         }
       })
       .catch(() => {
-        if (isMounted) {
-          setOrganisations([
-            { organisation_id: 1, organisation_name: 'Chennai Port Authority' },
-            { organisation_id: 2, organisation_name: 'Cochin Port Authority' },
-            { organisation_id: 3, organisation_name: 'Deendayal Port Authority' },
-            { organisation_id: 4, organisation_name: 'Jawaharlal Nehru Port Authority' },
-            { organisation_id: 5, organisation_name: 'Kolkata Port Authority' },
-            { organisation_id: 6, organisation_name: 'Mormugao Port Authority' },
-            { organisation_id: 7, organisation_name: 'Mumbai Port Authority' },
-            { organisation_id: 8, organisation_name: 'New Mangalore Port Authority' },
-            { organisation_id: 9, organisation_name: 'Paradip Port Authority' },
-            { organisation_id: 10, organisation_name: 'Syama Prasad Mookerjee Port' },
-            { organisation_id: 11, organisation_name: 'V.O. Chidambaranar Port Authority' },
-            { organisation_id: 12, organisation_name: 'Visakhapatnam Port Authority' },
-          ]);
-        }
+        if (isMounted) notifyRef.current?.(COMMON_TOASTS.loadFailed('The list of organisations'));
       });
 
     return () => { isMounted = false; };
-  }, [orgId]);
+  }, [orgId, notifyRef]);
+
+  // The vacancy behind the handed-off post code, from the backend (the URL carries no copies)
+  useEffect(() => {
+    if (!handoff) return undefined;
+    let isMounted = true;
+    fetchPostByPostCode(handoff.postCode)
+      .then(res => {
+        if (!isMounted) return;
+        const found = vacancyFromPostRow(Array.isArray(res.data) ? res.data[0] : null, getSessionOrganisationId());
+        if (!found) {
+          setVacancy({ status: 'missing' });
+          notifyRef.current?.(HR_TOASTS.addEmployeePostNotFound(handoff.postCode));
+          return;
+        }
+        setVacancy(found);
+        if (found.status === 'filled') notifyRef.current?.(HR_TOASTS.addEmployeePostFilled(handoff.postCode));
+        if (found.status === 'otherOrganisation') {
+          notifyRef.current?.(HR_TOASTS.addEmployeePostOtherOrganisation(handoff.postCode));
+        }
+        if (found.status === 'unverified') notifyRef.current?.(HR_TOASTS.addEmployeePostUnverified(handoff.postCode));
+        setFormData(prev => ({
+          ...prev,
+          department: found.department,
+          departmentName: found.departmentName,
+          empPostId: found.postId,
+          empPostName: found.postName,
+          appoinmentMethod: found.method || prev.appoinmentMethod,
+          vacancyAriseDate: found.vacancyDate || prev.vacancyAriseDate,
+          // Deputation from another organisation: the parent organisation is "Other", named below
+          parentOrganisation: found.method === 'Deputation In' ? OTHER_ORGANISATION_ID : prev.parentOrganisation,
+        }));
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setVacancy({ status: 'error' });
+        notifyRef.current?.(COMMON_TOASTS.loadFailed('The vacant post'));
+      });
+    return () => { isMounted = false; };
+  }, [handoff, notifyRef]);
+
+  // Edit: the employee's record with their current posting
+  useEffect(() => {
+    if (!editIds) return undefined;
+    let isMounted = true;
+    fetchHrEmployeeById(editIds.masterId)
+      .then(res => {
+        if (!isMounted) return;
+        const emp = res.data?.employee;
+        if (!emp) throw new Error('Employee not found');
+        const fields = employeeFormFromRecord(emp);
+        setFormData(prev => ({ ...prev, ...fields }));
+        setEdit({
+          status: 'ready',
+          employeeId: emp.current_employee_id || editIds.employeeId,
+          original: { referenceNumber: fields.referenceNumber, employeeAadhar: fields.employeeAadhar.replace(/\s+/g, '') },
+          // Not on this form, so it is sent back unchanged
+          discipline: emp.emp_discipline ?? null,
+        });
+      })
+      .catch(err => {
+        if (!isMounted) return;
+        setEdit(prev => ({ ...prev, status: 'error' }));
+        notifyRef.current?.(COMMON_TOASTS.loadFailed(`The employee record (${getErrorMessage(err)})`));
+      });
+    return () => { isMounted = false; };
+  }, [editIds, notifyRef]);
+
+  const lockPost = vacancyFound || isEditMode;
+  const otherOrganisation = formData.parentOrganisation === OTHER_ORGANISATION_ID;
+  const otherOrganisationLabel =
+    organisations.find(o => String(o.organisation_id ?? o.organisationId) === OTHER_ORGANISATION_ID)?.organisation_name
+    || 'Other Organisation';
+
+  // Domicile states from the state master; the backend stores the state_id
+  useEffect(() => {
+    let isMounted = true;
+    fetchMmtDropdown('mmt_state')
+      .then(res => {
+        if (isMounted && Array.isArray(res.data)) setStates(res.data);
+      })
+      .catch(() => {
+        if (isMounted) notifyRef.current?.(COMMON_TOASTS.loadFailed('The list of states'));
+      });
+    return () => { isMounted = false; };
+  }, [notifyRef]);
+
+  // Lists that depend on a selection are empty while nothing is selected
+  const posts = formData.department ? deptPosts : [];
+  const postCodes = formData.empPostId && formData.appoinmentMethod ? postCodeList : [];
 
   // Fetch posts when department changes
   useEffect(() => {
-    if (!formData.department) {
-      setPosts([]);
-      return;
-    }
+    if (!formData.department) return undefined;
     let isMounted = true;
     axios.get(`${API_BASE_URL}/get-hr-postList-by-department-organisation/${formData.department}/${orgId}`)
       .then(res => {
@@ -187,12 +321,9 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
     return () => { isMounted = false; };
   }, [formData.department, orgId]);
 
-  // Fetch post codes when post or method of appointment changes
+  // Fetch post codes when post or method of appointment changes (a hand-off fixes the post code)
   useEffect(() => {
-    if (!formData.empPostId || !formData.appoinmentMethod) {
-      setPostCodes([]);
-      return;
-    }
+    if (handoff || !formData.empPostId || !formData.appoinmentMethod) return undefined;
     let isMounted = true;
     axios.get(`${API_BASE_URL}/get-post-code-by-postId/${formData.empPostId}/${formData.appoinmentMethod}`)
       .then(res => {
@@ -204,7 +335,7 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
         if (isMounted) setPostCodes([]);
       });
     return () => { isMounted = false; };
-  }, [formData.empPostId, formData.appoinmentMethod]);
+  }, [handoff, formData.empPostId, formData.appoinmentMethod]);
 
   // Auto-calculate Date of Retirement from Date of Birth
   const handleDobChange = (e) => {
@@ -224,13 +355,19 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
         } else {
           retDateObj = new Date(retirementYear, dobMonth + 1, 0);
         }
-        autoRetirementDate = retDateObj.toISOString().slice(0, 10);
+        autoRetirementDate = toLocalIsoDate(retDateObj);
       }
     }
     setFormData(prev => ({
       ...prev,
       dateOfBirth: dobValue,
       retirementDate: autoRetirementDate || prev.retirementDate
+    }));
+    // Clear the errors of both fields this change fills, as handleInputChange does for one field
+    setFormErrors(prev => ({
+      ...prev,
+      dateOfBirth: dobValue ? null : prev.dateOfBirth,
+      retirementDate: autoRetirementDate ? null : prev.retirementDate,
     }));
   };
 
@@ -241,6 +378,53 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
     }));
     if (formErrors[field]) {
       setFormErrors(prev => ({ ...prev, [field]: null }));
+    }
+  };
+
+  // Number of UG / PG degrees: one discipline per degree, kept in step with the count
+  const setDegreeCount = (countKey, raw) => {
+    const n = raw === '' ? '' : Math.max(0, Math.min(MAX_DEGREES, Math.trunc(Number(raw)) || 0));
+    const listKey = DEGREE_KEYS[countKey];
+    setFormData(prev => {
+      const size = n === '' ? 0 : n;
+      const list = prev[listKey].slice(0, size);
+      while (list.length < size) list.push('');
+      return { ...prev, [countKey]: n === '' ? '' : String(n), [listKey]: list };
+    });
+    setFormErrors(prev => ({ ...prev, [countKey]: null, [listKey]: null }));
+  };
+
+  const setDiscipline = (listKey, index, value) => {
+    setFormData(prev => ({ ...prev, [listKey]: prev[listKey].map((v, i) => (i === index ? value : v)) }));
+    setFormErrors(prev => ({ ...prev, [listKey]: null }));
+  };
+
+  // Duplicate checks (as the legacy page did before saving). Each returns true when the value is free.
+  const checkDuplicate = async (field) => {
+    const value = field === 'employeeAadhar'
+      ? formData.employeeAadhar.replace(/\s+/g, '')
+      : formData.referenceNumber.trim();
+    if (!value || (field === 'employeeAadhar' && !/^\d{12}$/.test(value)) || (field === 'referenceNumber' && !orgId)) return true;
+    // Editing: the employee's own unchanged value is not a duplicate
+    if (isEditMode && edit.original[field] === value) return true;
+    try {
+      const res = field === 'employeeAadhar'
+        ? await checkAadhaarExists(value)
+        : await checkReferenceNumberExists(value, orgId);
+      const exists = Number(res.data?.exists) === 1;
+      setDuplicates(prev => ({ ...prev, [field]: exists ? value : null }));
+      if (exists) {
+        setFormErrors(prev => ({
+          ...prev,
+          [field]: field === 'employeeAadhar'
+            ? 'An employee with this Aadhaar number already exists.'
+            : 'An employee with this reference / personnel number already exists in your organisation.',
+        }));
+      }
+      return !exists;
+    } catch {
+      // The server checks again on save, so an unavailable check does not block the user here
+      return true;
     }
   };
 
@@ -283,15 +467,20 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
     if (formData.employeeAadhar && !/^\d{12}$/.test(formData.employeeAadhar.replace(/\s+/g, ''))) {
       errors.employeeAadhar = 'Aadhaar Number must be 12 digits';
     }
+    if (duplicates.referenceNumber && duplicates.referenceNumber === formData.referenceNumber.trim()) {
+      errors.referenceNumber = 'An employee with this reference / personnel number already exists in your organisation.';
+    }
+    if (duplicates.employeeAadhar && duplicates.employeeAadhar === formData.employeeAadhar.replace(/\s+/g, '')) {
+      errors.employeeAadhar = 'An employee with this Aadhaar number already exists.';
+    }
 
     if (Object.keys(errors).length > 0) {
       setFormErrors(prev => ({ ...prev, ...errors }));
       const count = Object.keys(errors).length;
       const firstMsg = Object.values(errors)[0];
-      const warningMsg = count > 1 
-        ? `Please fill all ${count} mandatory fields (*) in Basic Details before proceeding.`
-        : `${firstMsg}`;
-      triggerNotification?.(warningMsg, 'warning');
+      notify?.(count > 1
+        ? COMMON_TOASTS.fixValidationErrors(`fill all ${count} mandatory fields (*) in Basic Details`)
+        : COMMON_TOASTS.fixValidationErrors(firstMsg));
       return false;
     }
     return true;
@@ -301,11 +490,12 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
   const validateEducationStage = () => {
     const errors = {};
     if (!formData.empHighestEdu) errors.empHighestEdu = 'Highest Educational Qualification is required';
+    if (formData.ugDisciplines.some(d => !d)) errors.ugDisciplines = 'Select the discipline of every UG degree';
+    if (formData.pgDisciplines.some(d => !d)) errors.pgDisciplines = 'Select the discipline of every PG degree';
 
     if (Object.keys(errors).length > 0) {
       setFormErrors(prev => ({ ...prev, ...errors }));
-      const firstMsg = Object.values(errors)[0];
-      triggerNotification?.(firstMsg, 'warning');
+      notify?.(COMMON_TOASTS.fixValidationErrors(Object.values(errors)[0]));
       return false;
     }
     return true;
@@ -314,21 +504,26 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
   // Stage 3 Validation: Designation & Post Details
   const validateDesignationStage = () => {
     const errors = {};
-    if (!formData.department) errors.department = 'Department is required';
-    if (!formData.empPostId) errors.empPostId = 'Post Name is required';
-    if (!formData.appoinmentMethod) errors.appoinmentMethod = 'Method of Appointment is required';
-    if (!formData.postCode) errors.postCode = 'Post Code is required';
-    if (!formData.vacancyAriseDate) errors.vacancyAriseDate = 'Date of Arise in Vacancy is required';
-    if (!formData.joiningDate) errors.joiningDate = 'Date of Joining is required';
+    // Editing: the posting is shown for reference only and is not saved from here
+    if (!isEditMode) {
+      if (!formData.department) errors.department = 'Department is required';
+      if (!formData.empPostId) errors.empPostId = 'Post Name is required';
+      if (!formData.appoinmentMethod) errors.appoinmentMethod = 'Method of Appointment is required';
+      if (!formData.postCode) errors.postCode = 'Post Code is required';
+      if (!formData.vacancyAriseDate) errors.vacancyAriseDate = 'Date of Arise in Vacancy is required';
+      if (!formData.joiningDate) errors.joiningDate = 'Date of Joining is required';
+    }
+    if (formData.parentOrganisation === OTHER_ORGANISATION_ID && !formData.otherParentOrg.trim()) {
+      errors.otherParentOrg = 'Name of the organisation is required';
+    }
 
     if (Object.keys(errors).length > 0) {
       setFormErrors(prev => ({ ...prev, ...errors }));
       const count = Object.keys(errors).length;
       const firstMsg = Object.values(errors)[0];
-      const warningMsg = count > 1 
-        ? `Please fill all ${count} mandatory fields (*) in Designation & Post before submitting.`
-        : `${firstMsg}`;
-      triggerNotification?.(warningMsg, 'warning');
+      notify?.(count > 1
+        ? COMMON_TOASTS.fixValidationErrors(`fill all ${count} mandatory fields (*) in Designation & Post`)
+        : COMMON_TOASTS.fixValidationErrors(firstMsg));
       return false;
     }
     return true;
@@ -369,6 +564,16 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
   const handleSubmit = async (e) => {
     if (e) e.preventDefault();
 
+    // A hand-off is submitted only against a vacant post of this organisation
+    if (handoffBlockedToast) {
+      notify?.(handoffBlockedToast);
+      return;
+    }
+    if (isEditMode && edit.status !== 'ready') {
+      notify?.(COMMON_TOASTS.loadFailed('The employee record'));
+      return;
+    }
+
     if (!validateBasicStage()) {
       setActiveSection('basic');
       return;
@@ -383,6 +588,18 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
     }
 
     setIsSubmitting(true);
+    // Checked again right before saving (the values may have been taken meanwhile)
+    const [refFree, aadhaarFree] = await Promise.all([checkDuplicate('referenceNumber'), checkDuplicate('employeeAadhar')]);
+    if (!refFree || !aadhaarFree) {
+      setIsSubmitting(false);
+      setActiveSection('basic');
+      notify?.(!refFree ? HR_TOASTS.referenceNumberExists() : HR_TOASTS.aadhaarExists());
+      return;
+    }
+    if (isEditMode) {
+      await submitUpdate();
+      return;
+    }
     try {
       const payload = {
         employeeName: formData.employeeName.trim(),
@@ -402,6 +619,7 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
         empPostName: formData.empPostName,
         postCode: formData.postCode,
         parentOrganisation: formData.parentOrganisation || null,
+        otherParentOrg: formData.parentOrganisation === OTHER_ORGANISATION_ID ? formData.otherParentOrg.trim() : null,
         domicileState: formData.domicileState,
         parentOrgJoiningDate: formData.parentOrgJoiningDate || null,
         retirementDate: formData.retirementDate,
@@ -412,35 +630,76 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
         empHighestEdu: formData.empHighestEdu,
         ugCount: formData.ugCount ? parseInt(formData.ugCount) || 0 : null,
         pgCount: formData.pgCount ? parseInt(formData.pgCount) || 0 : null,
-        userID: claims.userId || claims.id || 1,
+        ugDisciplines: formData.ugDisciplines,
+        pgDisciplines: formData.pgDisciplines,
+        userID: claims.userId || claims.id || null,
         technicalResPerson: 0
       };
 
       const res = await axios.post(`${API_BASE_URL}/add-new-emplyee`, payload);
 
       if (res.status === 200 || res.status === 201) {
-        if (triggerNotification) {
-          triggerNotification('Employee record added successfully!', 'success');
-        }
-        navigate('/hr/hr-management/employee-database');
+        notify?.(HR_TOASTS.employeeAdded(formData.employeeName.trim()));
+        // replace: Back must not reopen the submitted form. A hand-off returns to its vacancy.
+        navigate(handoff?.returnTo || '/hr/hr-management/employee-database', { replace: true });
       } else {
         throw new Error(res.data?.message || 'Failed to submit employee data');
       }
     } catch (err) {
       console.error('Error submitting employee data:', err);
-      const errMsg = err.response?.data?.message || err.message || 'Error adding employee record.';
-      if (triggerNotification) {
-        triggerNotification(errMsg, 'error');
-      } else {
-        alert(errMsg);
+      notify?.(HR_TOASTS.employeeAddFailed(getErrorMessage(err)));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Edit: personal, education and joining details (the backend updates nothing else)
+  const submitUpdate = async () => {
+    try {
+      await updateHrEmployee(editIds.masterId, edit.employeeId, {
+        employeeName: formData.employeeName.trim(),
+        referenceNumber: formData.referenceNumber.trim(),
+        dateOfBirth: formData.dateOfBirth,
+        employeeAadhar: formData.employeeAadhar ? formData.employeeAadhar.replace(/\s+/g, '') : null,
+        whethVhorOh: formData.whethVhorOh,
+        religion: formData.religion,
+        ethnicOrigin: formData.ethnicOrigin,
+        empDivisionName: formData.empDivisionName.trim() || null,
+        gender: formData.gender,
+        experience: formData.exService,
+        parentOrganisation: formData.parentOrganisation || null,
+        otherParentOrg: formData.parentOrganisation === OTHER_ORGANISATION_ID ? formData.otherParentOrg.trim() : null,
+        domicileState: formData.domicileState,
+        parentOrgJoiningDate: formData.parentOrgJoiningDate || null,
+        retirementDate: formData.retirementDate,
+        // The organisation joining date is not editable here, so it is not sent
+        empDiscipline: edit.discipline,
+        empHighestEdu: formData.empHighestEdu,
+        ugCount: formData.ugCount ? parseInt(formData.ugCount, 10) || 0 : null,
+        pgCount: formData.pgCount ? parseInt(formData.pgCount, 10) || 0 : null,
+        ugDisciplines: formData.ugDisciplines,
+        pgDisciplines: formData.pgDisciplines,
+      });
+      notify?.(HR_TOASTS.employeeUpdated(formData.employeeName.trim()));
+      navigate(`/hr/hr-management/employee-details/${encodeURIComponent(editIds.masterId)}`, { replace: true });
+    } catch (err) {
+      const field = err?.response?.status === 409 ? err.response.data?.field : null;
+      if (field) {
+        setFormErrors(prev => ({ ...prev, [field]: err.response.data.message }));
+        setActiveSection('basic');
       }
+      notify?.(HR_TOASTS.employeeUpdateFailed(getErrorMessage(err)));
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleBack = () => {
-    if (onCancel) {
+    if (isEditMode) {
+      navigate(`/hr/hr-management/employee-details/${encodeURIComponent(editIds.masterId)}`);
+    } else if (handoff?.returnTo) {
+      navigate(handoff.returnTo);
+    } else if (onCancel) {
       onCancel();
     } else {
       navigate('/hr/hr-management/employee-database');
@@ -451,26 +710,26 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in text-slate-800 dark:text-slate-100">
-      
+
       {/* ==================================================== */}
       {/* UNIFIED EXECUTIVE FORM HEADING WITH CENTERED STEPPER */}
       {/* ==================================================== */}
       <div className="bg-gradient-to-r from-[#0f417a] via-[#134e96] to-[#1a5ba3] px-6 py-4 text-white border-b border-[#0a2d55]/30">
         <div className="grid grid-cols-1 lg:grid-cols-12 items-center gap-4 select-none">
-          
+
           {/* Left Column: Back Button + Title */}
           <div className="lg:col-span-3 flex items-center space-x-3.5 shrink-0">
             <button
               type="button"
               onClick={handleBack}
               className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-xl transition cursor-pointer backdrop-blur-sm border border-white/10"
-              title="Back to Employee Database"
+              title={isEditMode ? 'Back to employee details' : handoff?.returnTo ? 'Back to the vacancy' : 'Back to Employee Database'}
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
             <div>
               <h2 className="text-base font-black tracking-wide uppercase font-display text-white whitespace-nowrap">
-                Add Employee Data
+                {isEditMode ? 'Update Employee Data' : 'Add Employee Data'}
               </h2>
               <p className="text-[10px] text-blue-100/80 font-medium mt-0.5 whitespace-nowrap">
                 Ministry of Ports, Shipping and Waterways
@@ -482,10 +741,10 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
           <div className="lg:col-span-7 flex justify-center w-full">
             <div className="w-full max-w-lg xl:max-w-xl">
               <div className="relative flex items-center justify-between px-2">
-                
+
                 {/* Background Track Line */}
                 <div className="absolute top-[14px] md:top-[16px] left-[15%] right-[15%] h-1.5 bg-white/20 rounded-full -translate-y-1/2 z-0" />
-                
+
                 {/* Completed Green Progress Fill Line */}
                 <div
                   className="absolute top-[14px] md:top-[16px] left-[15%] h-1.5 bg-emerald-400 rounded-full -translate-y-1/2 z-0 transition-all duration-500 ease-out"
@@ -553,6 +812,54 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
         </div>
       </div>
 
+      {isEditMode && (
+        <div
+          role="status"
+          className={`mx-6 mt-5 flex items-start gap-3 rounded-xl border px-4 py-3 text-xs ${
+            edit.status === 'error'
+              ? 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200'
+              : 'border-blue-200 bg-blue-50 text-[#0f417a] dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200'
+          }`}
+        >
+          <Lock className="h-4 w-4 mt-0.5 shrink-0" />
+          <p className="leading-relaxed">
+            {edit.status === 'loading' && 'Loading the employee record…'}
+            {edit.status === 'error' && 'The employee record could not be loaded, so it cannot be updated now.'}
+            {edit.status === 'ready' && (
+              <>
+                Updating <strong>{formData.employeeName || 'the employee'}</strong> ({edit.employeeId}). The posting and joining date in
+                {' '}<strong>Designation &amp; Post</strong> are shown for reference and can&apos;t be changed here.
+              </>
+            )}
+          </p>
+        </div>
+      )}
+
+      {handoff && (
+        <div
+          role="status"
+          className={`mx-6 mt-5 flex items-start gap-3 rounded-xl border px-4 py-3 text-xs ${
+            vacancy && handoffBlockedToast
+              ? 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200'
+              : 'border-blue-200 bg-blue-50 text-[#0f417a] dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200'
+          }`}
+        >
+          <Lock className="h-4 w-4 mt-0.5 shrink-0" />
+          {!vacancy ? (
+            <p className="leading-relaxed">Loading vacant post <strong className="font-mono">{handoff.postCode}</strong>…</p>
+          ) : handoffBlockedToast ? (
+            <p className="leading-relaxed">{handoffBlockedToast.message}</p>
+          ) : (
+            <p className="leading-relaxed">
+              Adding the employee for vacant post <strong className="font-mono">{handoff.postCode}</strong>
+              {vacancy.method ? <> through <strong>{vacancy.method}</strong></> : null}.
+              {' '}The post details in <strong>Designation &amp; Post</strong> come from the vacancy and can&apos;t be changed here.
+              {isDeputationHandoff ? " Name the employee's parent organisation there." : ''}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Form Content Body */}
       <div className="p-6">
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -583,6 +890,7 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
                     value={formData.employeeName}
                     onChange={e => handleInputChange('employeeName', e.target.value)}
                     placeholder="Enter Name of Employee"
+                    maxLength={MAX_LENGTH.employeeName}
                     className={`w-full px-3.5 py-2.5 text-xs font-medium bg-white dark:bg-slate-800 border ${
                       formErrors.employeeName ? 'border-rose-500 ring-1 ring-rose-500' : 'border-slate-300 dark:border-slate-700'
                     } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 shadow-2xs`}
@@ -599,7 +907,9 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
                     type="text"
                     value={formData.referenceNumber}
                     onChange={e => handleInputChange('referenceNumber', e.target.value)}
+                    onBlur={() => checkDuplicate('referenceNumber')}
                     placeholder="Enter Reference Number"
+                    maxLength={MAX_LENGTH.referenceNumber}
                     className={`w-full px-3.5 py-2.5 text-xs font-medium bg-white dark:bg-slate-800 border ${
                       formErrors.referenceNumber ? 'border-rose-500 ring-1 ring-rose-500' : 'border-slate-300 dark:border-slate-700'
                     } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 shadow-2xs`}
@@ -633,6 +943,7 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
                     maxLength={14}
                     value={formData.employeeAadhar}
                     onChange={e => handleInputChange('employeeAadhar', e.target.value)}
+                    onBlur={() => checkDuplicate('employeeAadhar')}
                     placeholder="Enter Aadhaar Number"
                     className={`w-full px-3.5 py-2.5 text-xs font-medium bg-white dark:bg-slate-800 border ${
                       formErrors.employeeAadhar ? 'border-rose-500 ring-1 ring-rose-500' : 'border-slate-300 dark:border-slate-700'
@@ -654,10 +965,9 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
                     } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 shadow-2xs`}
                   >
                     <option value="">--Select--</option>
-                    <option value="NA">Not Applicable (NA)</option>
-                    <option value="OH">Orthopedically Handicapped (OH)</option>
-                    <option value="VH">Visually Handicapped (VH)</option>
-                    <option value="MD">Multiple Disability (MD)</option>
+                    {PWBD_OPTIONS.map(o => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
                   </select>
                   {formErrors.whethVhorOh && <p className="text-2xs text-rose-500 mt-1">{formErrors.whethVhorOh}</p>}
                 </div>
@@ -721,8 +1031,8 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
                     } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 shadow-2xs`}
                   >
                     <option value="">--Select Domicile State--</option>
-                    {INDIAN_STATES.map(st => (
-                      <option key={st} value={st}>{st}</option>
+                    {states.map(st => (
+                      <option key={st.state_id} value={st.state_id}>{st.state_name}</option>
                     ))}
                   </select>
                   {formErrors.domicileState && <p className="text-2xs text-rose-500 mt-1">{formErrors.domicileState}</p>}
@@ -807,6 +1117,7 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
                     value={formData.empDivisionName}
                     onChange={e => handleInputChange('empDivisionName', e.target.value)}
                     placeholder="Enter name of division"
+                    maxLength={MAX_LENGTH.empDivisionName}
                     className="w-full px-3.5 py-2.5 text-xs font-medium bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 shadow-2xs"
                   />
                 </div>
@@ -861,14 +1172,13 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
                     } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 shadow-2xs`}
                   >
                     <option value="">--Select Highest Qualification--</option>
-                    <option value="Doctorate">Doctorate</option>
-                    <option value="Post Graduate">Post Graduate</option>
-                    <option value="Graduate">Graduate</option>
-                    <option value="Diploma">Diploma</option>
-                    <option value="Higher Secondary (12th)">Higher Secondary (12th)</option>
-                    <option value="Secondary (10th)">Secondary (10th)</option>
-                    <option value="Below 10th">Below 10th</option>
-                    <option value="Others">Others</option>
+                    {HIGHEST_EDUCATION.map(e => (
+                      <option key={e} value={e}>{e}</option>
+                    ))}
+                    {/* A legacy free-text value (e.g. "B. Tech. (Civil)") stays visible until it is changed */}
+                    {formData.empHighestEdu && !HIGHEST_EDUCATION.includes(formData.empHighestEdu) && (
+                      <option value={formData.empHighestEdu}>{formData.empHighestEdu} (as recorded)</option>
+                    )}
                   </select>
                   {formErrors.empHighestEdu && <p className="text-2xs text-rose-500 mt-1">{formErrors.empHighestEdu}</p>}
                 </div>
@@ -881,8 +1191,9 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
                     <input
                       type="number"
                       min="0"
+                      max={MAX_DEGREES}
                       value={formData.ugCount}
-                      onChange={e => handleInputChange('ugCount', e.target.value)}
+                      onChange={e => setDegreeCount('ugCount', e.target.value)}
                       placeholder="Enter NO. of UG degrees"
                       className="w-full px-3.5 py-2.5 text-xs font-medium bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 shadow-2xs"
                     />
@@ -895,13 +1206,43 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
                     <input
                       type="number"
                       min="0"
+                      max={MAX_DEGREES}
                       value={formData.pgCount}
-                      onChange={e => handleInputChange('pgCount', e.target.value)}
+                      onChange={e => setDegreeCount('pgCount', e.target.value)}
                       placeholder="Enter NO. of PG degrees"
                       className="w-full px-3.5 py-2.5 text-xs font-medium bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 shadow-2xs"
                     />
                   </div>
                 </div>
+
+                {/* Discipline of each UG / PG degree */}
+                {(formData.ugDisciplines.length > 0 || formData.pgDisciplines.length > 0) && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    {[['ugDisciplines', 'UG'], ['pgDisciplines', 'PG']].map(([listKey, level]) => (
+                      <div key={listKey} className="space-y-3">
+                        {formData[listKey].map((value, i) => (
+                          <div key={`${listKey}-${i}`}>
+                            <label htmlFor={`${listKey}-${i}`} className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                              {level} Discipline {i + 1} <span className="text-rose-500">*</span>
+                            </label>
+                            <select
+                              id={`${listKey}-${i}`}
+                              value={value}
+                              onChange={e => setDiscipline(listKey, i, e.target.value)}
+                              className={`w-full px-3.5 py-2.5 text-xs font-medium bg-white dark:bg-slate-800 border ${
+                                formErrors[listKey] && !value ? 'border-rose-500 ring-1 ring-rose-500' : 'border-slate-300 dark:border-slate-700'
+                              } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 shadow-2xs`}
+                            >
+                              <option value="">--Select Discipline--</option>
+                              {DISCIPLINES.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+                            </select>
+                          </div>
+                        ))}
+                        {formErrors[listKey] && <p className="text-2xs text-rose-500">{formErrors[listKey]}</p>}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Stage 2 Footer Navigation */}
@@ -947,6 +1288,9 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                     Department <span className="text-rose-500">*</span>
                   </label>
+                  {lockPost ? (
+                    <LockedValue value={formData.departmentName} label="Department" />
+                  ) : (
                   <select
                     value={formData.department}
                     onChange={handleDepartmentChange}
@@ -961,6 +1305,7 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
                       </option>
                     ))}
                   </select>
+                  )}
                   {formErrors.department && <p className="text-2xs text-rose-500 mt-1">{formErrors.department}</p>}
                 </div>
 
@@ -969,6 +1314,9 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                     Post Name <span className="text-rose-500">*</span>
                   </label>
+                  {lockPost ? (
+                    <LockedValue value={formData.empPostName} label="Post Name" />
+                  ) : (
                   <select
                     value={formData.empPostId}
                     onChange={handlePostChange}
@@ -984,6 +1332,7 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
                       </option>
                     ))}
                   </select>
+                  )}
                   {formErrors.empPostId && <p className="text-2xs text-rose-500 mt-1">{formErrors.empPostId}</p>}
                 </div>
 
@@ -992,6 +1341,9 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                     Method Of Appointment <span className="text-rose-500">*</span>
                   </label>
+                  {lockMethod ? (
+                    <LockedValue value={formData.appoinmentMethod} label="Method Of Appointment" />
+                  ) : (
                   <select
                     value={formData.appoinmentMethod}
                     onChange={e => handleInputChange('appoinmentMethod', e.target.value)}
@@ -1000,14 +1352,11 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
                     } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 shadow-2xs`}
                   >
                     <option value="">--Select Appointment Method--</option>
-                    <option value="Direct Recruitment">Direct Recruitment</option>
-                    <option value="Direct Recruitment (Compassionate Method)">Direct Recruitment (Compassionate Method)</option>
-                    <option value="Promotion">Promotion</option>
-                    <option value="Composite Method">Composite Method</option>
-                    <option value="Deputation In">Deputation In</option>
-                    <option value="Absorption">Absorption</option>
-                    <option value="Transfer In">Transfer In</option>
+                    {SELECTABLE_APPOINTMENT_METHODS.map(m => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
                   </select>
+                  )}
                   {formErrors.appoinmentMethod && <p className="text-2xs text-rose-500 mt-1">{formErrors.appoinmentMethod}</p>}
                 </div>
 
@@ -1016,7 +1365,9 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                     Post Code <span className="text-rose-500">*</span>
                   </label>
-                  {postCodes.length > 0 ? (
+                  {handoff || isEditMode ? (
+                    <LockedValue value={formData.postCode} label="Post Code" />
+                  ) : postCodes.length > 0 ? (
                     <select
                       value={formData.postCode}
                       onChange={e => handleInputChange('postCode', e.target.value)}
@@ -1050,6 +1401,9 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                     Date of Arise in Vacancy <span className="text-rose-500">*</span>
                   </label>
+                  {lockVacancyDate ? (
+                    <LockedValue type="date" value={formData.vacancyAriseDate} label="Date of Arise in Vacancy" />
+                  ) : (
                   <input
                     type="date"
                     value={formData.vacancyAriseDate}
@@ -1058,6 +1412,7 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
                       formErrors.vacancyAriseDate ? 'border-rose-500 ring-1 ring-rose-500' : 'border-slate-300 dark:border-slate-700'
                     } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 shadow-2xs`}
                   />
+                  )}
                   {formErrors.vacancyAriseDate && <p className="text-2xs text-rose-500 mt-1">{formErrors.vacancyAriseDate}</p>}
                 </div>
 
@@ -1066,6 +1421,10 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                     Date of Joining in Current Organisation <span className="text-rose-500">*</span>
                   </label>
+                  {/* Editing: the joining date is shown, not changed */}
+                  {isEditMode ? (
+                    <LockedValue type="date" value={formData.joiningDate} label="Date of Joining in Current Organisation" />
+                  ) : (
                   <input
                     type="date"
                     value={formData.joiningDate}
@@ -1075,6 +1434,7 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
                       formErrors.joiningDate ? 'border-rose-500 ring-1 ring-rose-500' : 'border-slate-300 dark:border-slate-700'
                     } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 shadow-2xs`}
                   />
+                  )}
                   {formErrors.joiningDate && <p className="text-2xs text-rose-500 mt-1">{formErrors.joiningDate}</p>}
                 </div>
 
@@ -1083,9 +1443,16 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                     Parent Organisation
                   </label>
+                  {isDeputationHandoff ? (
+                    <LockedValue value={otherOrganisationLabel} label="Parent Organisation" />
+                  ) : (
                   <select
                     value={formData.parentOrganisation}
-                    onChange={e => handleInputChange('parentOrganisation', e.target.value)}
+                    onChange={e => {
+                      handleInputChange('parentOrganisation', e.target.value);
+                      // The free-text name belongs to "Other organisation" only
+                      if (e.target.value !== OTHER_ORGANISATION_ID) handleInputChange('otherParentOrg', '');
+                    }}
                     className="w-full px-3.5 py-2.5 text-xs font-medium bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 shadow-2xs"
                   >
                     <option value="">--Select Organisation Name--</option>
@@ -1095,7 +1462,29 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
                       </option>
                     ))}
                   </select>
+                  )}
                 </div>
+
+                {/* Name of the parent organisation when it is "Other organisation" (sent as otherParentOrg) */}
+                {otherOrganisation && (
+                  <div>
+                    <label htmlFor="otherParentOrg" className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                      Please specify the organisation name <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      id="otherParentOrg"
+                      type="text"
+                      value={formData.otherParentOrg}
+                      onChange={e => handleInputChange('otherParentOrg', e.target.value)}
+                      placeholder="Enter other organisation name"
+                      maxLength={MAX_LENGTH.otherParentOrg}
+                      className={`w-full px-3.5 py-2.5 text-xs font-medium bg-white dark:bg-slate-800 border ${
+                        formErrors.otherParentOrg ? 'border-rose-500 ring-1 ring-rose-500' : 'border-slate-300 dark:border-slate-700'
+                      } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 shadow-2xs`}
+                    />
+                    {formErrors.otherParentOrg && <p className="text-2xs text-rose-500 mt-1">{formErrors.otherParentOrg}</p>}
+                  </div>
+                )}
 
                 {/* Initial Date of Joining in Port Service */}
                 <div>
@@ -1123,22 +1512,25 @@ export default function EmployeeDataForm({ triggerNotification, onCancel }) {
                 </button>
 
                 <div className="flex items-center space-x-3">
-                  <button
-                    type="button"
-                    onClick={handleBack}
-                    className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-xs"
-                  >
+                  <Button onClick={handleBack} disabled={isSubmitting} className="h-10 px-5">
                     Cancel
-                  </button>
-                  
-                  <button
+                  </Button>
+
+                  <Button
+                    variant="primary"
                     type="submit"
-                    disabled={isSubmitting}
-                    className="flex items-center space-x-2 px-8 py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md transition cursor-pointer disabled:opacity-50"
+                    busy={isSubmitting}
+                    disabled={isSubmitting || Boolean(handoffBlockedToast) || (isEditMode && edit.status !== 'ready')}
+                    title={handoffBlockedToast?.message}
+                    className="h-10 px-6"
                   >
-                    <Save className="h-4 w-4" />
-                    <span>{isSubmitting ? 'Submitting...' : 'Submit Employee Data'}</span>
-                  </button>
+                    {!isSubmitting && <Save className="h-4 w-4" />}
+                    <span>
+                      {isSubmitting
+                        ? (isEditMode ? 'Updating...' : 'Submitting...')
+                        : (isEditMode ? 'Update Employee Data' : 'Submit Employee Data')}
+                    </span>
+                  </Button>
                 </div>
               </div>
             </div>

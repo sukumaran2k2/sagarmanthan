@@ -62,7 +62,8 @@ async function validation(req, res) {
     const result =
       await request.query(`SELECT tbl_user.user_id, tbl_user.password, tbl_user.email, tbl_user.role_id, tbl_role.role_name,
             tbl_user.status, tbl_user.vibhas_id, tbl_user.password_status, tbl_user.wing_id, tbl_user.organisation_id,
-            tbl_user.password_updated_on, mmt_organisation.organisation_name AS organisation_name
+            tbl_user.password_updated_on, mmt_organisation.organisation_name AS organisation_name,
+            mmt_organisation.organisation_category_id
             FROM tbl_user
             INNER JOIN tbl_role ON tbl_role.role_id = tbl_user.role_id
             LEFT JOIN mmt_organisation ON mmt_organisation.organisation_id = tbl_user.organisation_id
@@ -101,7 +102,8 @@ async function validation(req, res) {
         return res.status(400).json({ message: 'Decryption failed' });
       }
 
-      const isPasswordMatch = await bcrypt.compare(decryptedPassword, userData.password);
+     const isPasswordMatch = await bcrypt.compare(decryptedPassword, userData.password);
+
       if (isPasswordMatch) {
         if (Number(userData.status) !== 1) {
           console.error('[LOGIN_ERROR] INACTIVE_USER', { email, userId: userData.user_id, status: userData.status });
@@ -211,6 +213,8 @@ async function validation(req, res) {
           organisationName: isSuperAdminLogin
             ? 'System'
             : (userData.organisation_name || null),
+          // mmt_organisation_category: 1 = Major Ports. HR shows port or non-port pages from it.
+          organisationCategoryId: isSuperAdminLogin ? null : (userData.organisation_category_id ?? null),
           wingId: userData.wing_id,
           vibhasId: userData.vibhas_id,
           chainlitAccessToken,

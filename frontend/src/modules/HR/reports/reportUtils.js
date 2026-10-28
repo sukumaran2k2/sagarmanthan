@@ -137,16 +137,24 @@ export function headerRows(colDefs = []) {
   return rows;
 }
 
+/**
+ * A column's header as shown in the report table and its exports: upper case, with raw field
+ * names (organisation_name) spaced out, so server-built and local headers read alike.
+ */
+export function headerLabel(col) {
+  return String(col?.headerName ?? col?.field ?? '').replace(/_/g, ' ').trim().toUpperCase();
+}
+
 /** A leaf column's value: its `value(row, index)` accessor, else row[field]. */
 export function cellValue(col, row, index) {
   const v = col.value ? col.value(row, index) : row?.[col.field];
   return v == null ? '' : v;
 }
 
-/** Leaf labels including their group path, e.g. "Chennai Port Authority - Sanctioned". */
+/** Leaf labels including their group path, e.g. "CHENNAI PORT AUTHORITY - SANCTIONED". */
 export function leafLabels(colDefs = [], prefix = '') {
   return colDefs.flatMap((c) => {
-    const label = [prefix, c.headerName ?? c.field ?? ''].filter(Boolean).join(' - ');
+    const label = [prefix, headerLabel(c)].filter(Boolean).join(' - ');
     return c.children?.length ? leafLabels(c.children, label) : [label];
   });
 }

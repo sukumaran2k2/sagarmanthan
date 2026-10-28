@@ -2,6 +2,8 @@ import { useState } from 'react';
 import * as XLSX from 'xlsx';
 import { HrModal, FormRow, DateInput, ModalButtons } from './HrFormControls';
 import { fetchActivityDateData } from '../api';
+import { getErrorMessage } from '../../../utils/notify';
+import { HR_TOASTS } from '../toastMessages';
 
 function timestamp(d = new Date()) {
   const p = (n) => String(n).padStart(2, '0');
@@ -33,16 +35,16 @@ export default function ExportActivityModal({ isOpen, orgId, onClose, notify }) 
       const res = await fetchActivityDateData(fromDate, toDate, orgId);
       const rows = Array.isArray(res?.data) ? res.data : res?.data?.data || [];
       if (!rows.length) {
-        notify?.('No activity was recorded in the selected period.', 'warning');
+        notify?.(HR_TOASTS.noActivityInPeriod());
         return;
       }
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'HR Activity Data');
       XLSX.writeFile(wb, `HR_Activity_Date_Data_${timestamp()}.xlsx`);
-      notify?.(`Exported ${rows.length} activity record${rows.length === 1 ? '' : 's'}.`, 'success');
+      notify?.(HR_TOASTS.activityExported(rows.length));
       onClose?.();
     } catch (err) {
-      notify?.(err?.response?.data?.message || 'Failed to export the activity data.', 'error');
+      notify?.(HR_TOASTS.activityExportFailed(getErrorMessage(err)));
     } finally {
       setExporting(false);
     }

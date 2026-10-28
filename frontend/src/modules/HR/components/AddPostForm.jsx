@@ -1,23 +1,19 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 // Shared client: sends the login token and refreshes it (HR routes require login)
 import { axiosInstance as axios } from '../../../api';
-import { 
-  Building2, 
-  Briefcase, 
-  Layers, 
-  Users, 
-  IndianRupee, 
-  CheckCircle2, 
-  RotateCcw, 
+import {
+  Briefcase,
+  RotateCcw,
   ArrowLeft,
-  Sparkles,
-  AlertCircle
-} from 'lucide-react';
+  Sparkles } from 'lucide-react';
 import { API_BASE_URL } from '../../../config/api';
 import { isOrganisationUser, getSessionOrganisationId, getSessionClaims } from '../../../utils/authSession';
+import { getErrorMessage } from '../../../utils/notify';
+import { HR_TOASTS } from '../toastMessages';
+import { Button, FormActions } from './HrFormControls';
 
-export default function AddPostForm({ triggerNotification, onCancel }) {
+export default function AddPostForm({ notify, onCancel }) {
   const navigate = useNavigate();
   const isMinistryView = useMemo(() => !isOrganisationUser(), []);
   const claims = useMemo(() => getSessionClaims() || {}, []);
@@ -26,9 +22,8 @@ export default function AddPostForm({ triggerNotification, onCancel }) {
   const [departments, setDepartments] = useState([]);
   const [classes, setClasses] = useState([]);
   const [organisations, setOrganisations] = useState([]);
-  const [loadingDropdowns, setLoadingDropdowns] = useState(true);
+  const [, setLoadingDropdowns] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submittedPost, setSubmittedPost] = useState(null);
 
   const [formData, setFormData] = useState({
     organisationId: userOrgId,
@@ -36,17 +31,8 @@ export default function AddPostForm({ triggerNotification, onCancel }) {
     classId: '',
     postName: '',
     sanctionedStrength: 1,
-    payscaleRange: '',
-  });
+    payscaleRange: '' });
 
-  // Notification helper
-  const notify = (msg, type = 'success') => {
-    if (triggerNotification) {
-      triggerNotification(msg, type);
-    } else {
-      alert(msg);
-    }
-  };
 
   // Fetch Dropdowns
   useEffect(() => {
@@ -61,25 +47,22 @@ export default function AddPostForm({ triggerNotification, onCancel }) {
         const depts = Array.isArray(deptRes.data) ? deptRes.data : [];
         const clss = Array.isArray(classRes.data) ? classRes.data : [];
 
+        // Department and class are chosen by the user (nothing pre-selected)
         setDepartments(depts);
         setClasses(clss);
-
-        setFormData(prev => ({
-          ...prev,
-          departmentId: prev.departmentId || depts[0]?.department_id || '',
-          classId: prev.classId || clss[0]?.class_id || 1
-        }));
 
         if (isMinistryView) {
           try {
             const orgRes = await axios.get(`${API_BASE_URL}/master-table/mmt_organisation`);
             if (Array.isArray(orgRes.data)) {
               setOrganisations(orgRes.data);
-              if (!formData.organisationId && orgRes.data.length > 0) {
-                setFormData(prev => ({ ...prev, organisationId: orgRes.data[0].organisation_id }));
+              if (orgRes.data.length > 0) {
+                setFormData(prev => (prev.organisationId ? prev : { ...prev, organisationId: orgRes.data[0].organisation_id }));
               }
             }
-          } catch (_) {}
+          } catch {
+            // The organisation list is optional; the user's own organisation stays selected
+          }
         }
       } catch (err) {
         console.error('Error fetching master dropdowns:', err);
@@ -102,25 +85,23 @@ export default function AddPostForm({ triggerNotification, onCancel }) {
   const handleReset = () => {
     setFormData({
       organisationId: userOrgId,
-      departmentId: departments[0]?.department_id || '',
-      classId: classes[0]?.class_id || 1,
+      departmentId: '',
+      classId: '',
       postName: '',
       sanctionedStrength: 1,
-      payscaleRange: '',
-    });
-    setSubmittedPost(null);
+      payscaleRange: '' });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!formData.postName.trim()) {
-      notify('Please enter a valid Post Name', 'error');
+      notify?.(HR_TOASTS.postNameRequired());
       return;
     }
 
     if (!formData.departmentId) {
-      notify('Please select a Department', 'error');
+      notify?.(HR_TOASTS.departmentRequired());
       return;
     }
 
@@ -132,30 +113,15 @@ export default function AddPostForm({ triggerNotification, onCancel }) {
         classId: parseInt(formData.classId, 10),
         postName: formData.postName.trim(),
         sanctionedStrength: parseInt(formData.sanctionedStrength, 10) || 1,
-        payscaleRange: formData.payscaleRange.trim(),
-      };
+        payscaleRange: formData.payscaleRange.trim() };
 
-      const res = await axios.post(`${API_BASE_URL}/add-organisation-structure-post`, payload);
-      const newPostId = res.data?.postId;
-
-      notify('Post added successfully to Organisation Structure', 'success');
-      setSubmittedPost({
-        ...payload,
-        postId: newPostId,
-        deptName: departments.find(d => String(d.department_id) === String(payload.departmentId))?.department_name || '',
-        className: classes.find(c => String(c.class_id) === String(payload.classId))?.class_name || ''
-      });
-
-      // Clear post name and reset strength for next entry
-      setFormData(prev => ({
-        ...prev,
-        postName: '',
-        sanctionedStrength: 1,
-        payscaleRange: ''
-      }));
+      await axios.post(`${API_BASE_URL}/add-organisation-structure-post`, payload);
+      notify?.(HR_TOASTS.postAdded(formData.postName.trim()));
+      // Back to the structure, where the new post is listed
+      navigate('/hr/hr-management/organisation-structure', { replace: true });
     } catch (err) {
       console.error('Error adding post:', err);
-      notify(err.response?.data?.message || 'Failed to add post', 'error');
+      notify?.(HR_TOASTS.postAddFailed(getErrorMessage(err)));
     } finally {
       setIsSubmitting(false);
     }
@@ -171,7 +137,7 @@ export default function AddPostForm({ triggerNotification, onCancel }) {
 
   return (
     <div className="space-y-6 animate-fade-in text-slate-800 dark:text-slate-100">
-      
+
       {/* Top Banner / Header Card */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xs overflow-hidden border-l-4 border-l-[#0f417a]">
         <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-white">
@@ -200,38 +166,14 @@ export default function AddPostForm({ triggerNotification, onCancel }) {
           </button>
         </div>
 
-        {/* Success Alert if just submitted */}
-        {submittedPost && (
-          <div className="p-4 mx-6 mt-6 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40 rounded-xl flex items-start justify-between gap-3 animate-fade-in">
-            <div className="flex items-start gap-3">
-              <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
-              <div>
-                <p className="text-xs font-bold text-emerald-900 dark:text-emerald-200">
-                  Post "{submittedPost.postName}" created successfully!
-                </p>
-                <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-0.5">
-                  Sanctioned strength of {submittedPost.sanctionedStrength} was created in {submittedPost.deptName} (Class {submittedPost.className}).
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setSubmittedPost(null)}
-              className="text-xs font-bold text-emerald-700 dark:text-emerald-300 hover:text-emerald-900 cursor-pointer"
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
-
         <div className="p-6">
           <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
+
             {/* Left 2 Cols: Form Fields */}
             <div className="lg:col-span-2 space-y-5">
-              
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                
+
                 {/* Organisation (Ministry view only) */}
                 {isMinistryView && (
                   <div className="sm:col-span-2">
@@ -288,6 +230,7 @@ export default function AddPostForm({ triggerNotification, onCancel }) {
                     required
                     className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none shadow-xs"
                   >
+                    <option value="">-- Select Class --</option>
                     {classes.map(cls => (
                       <option key={cls.class_id} value={cls.class_id}>
                         Class {cls.class_name}
@@ -346,30 +289,17 @@ export default function AddPostForm({ triggerNotification, onCancel }) {
 
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex items-center gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-md transition cursor-pointer flex items-center gap-2"
-                >
-                  {isSubmitting ? (
-                    <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white"></div>
-                  ) : (
-                    <CheckCircle2 className="h-4 w-4" />
-                  )}
-                  <span>Save Post</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleReset}
-                  className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1.5"
-                >
-                  <RotateCcw className="h-3.5 w-3.5" />
-                  <span>Reset</span>
-                </button>
-              </div>
+              <FormActions
+                onExit={() => (onCancel ? onCancel() : navigate('/hr/hr-management/organisation-structure'))}
+                submitLabel="Save Post"
+                busyLabel="Saving..."
+                busy={isSubmitting}
+                extra={(
+                  <Button onClick={handleReset} disabled={isSubmitting} className="h-10 px-4">
+                    <RotateCcw className="h-3.5 w-3.5" /> Reset
+                  </Button>
+                )}
+              />
 
             </div>
 
