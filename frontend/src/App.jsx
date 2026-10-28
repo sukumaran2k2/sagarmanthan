@@ -162,7 +162,6 @@ export default function App() {
   });
   const [showNetworkCheck, setShowNetworkCheck] = useState(false);
   const [isManualNetworkCheck, setIsManualNetworkCheck] = useState(false);
-  const [eOfficeKpi, setEOfficeKpi] = useState('file-pendency');
 
   // options: { variant, duration } — used by the standardized notifier (utils/notify.js);
   // legacy 3-argument calls keep the original look and 4s lifetime.
@@ -242,10 +241,11 @@ export default function App() {
             <Route index element={
               <LandingView 
                 onNavigate={(tab, subKpi) => {
-                  if (subKpi) setEOfficeKpi(subKpi);
                   const norm = normalizeTab(tab);
                   const slug = ROUTE_MAP[norm] !== undefined ? ROUTE_MAP[norm] : norm;
-                  navigate(slug === 'landing' || slug === '' ? '/' : `/${slug}`);
+                  // E-Office cards open their own sheet: /governance/e-office/<sheet>
+                  const path = slug === 'landing' || slug === '' ? '/' : `/${slug}${subKpi ? `/${subKpi}` : ''}`;
+                  navigate(path);
                 }} 
               />
             } />
@@ -487,7 +487,7 @@ export default function App() {
             <Route path="finance/capex/*" element={<CapexView triggerNotification={triggerNotification} />} />
 
             {/* Governance Routes */}
-            <Route path="governance/e-office/*" element={<EOfficeView initialKpi={eOfficeKpi} />} />
+            <Route path="governance/e-office/*" element={<EOfficeView triggerNotification={triggerNotification} />} />
             <Route path="governance/attendance/*" element={<AttendanceView triggerNotification={triggerNotification} />} />
             <Route path="governance/cpgrams" element={<CPGRAMSView />} />
             <Route path="governance/cabinet-notes/*" element={<CabinetNotes triggerNotification={triggerNotification} />} />
