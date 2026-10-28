@@ -1,4 +1,4 @@
-import React from "react";
+
 import { Upload, FileSpreadsheet, AlertCircle, FileCheck, ChevronDown, Download } from "lucide-react";
 import Table from "./Table";
 import CopyButton from "./CopyButton";
@@ -25,7 +25,6 @@ export default function ModuleUploadView({
   accentColor = "#0f417a",
   themeClass = "eoffice-blue-grid",
   onDownloadSample,
-  sampleFileName = "Sample Template",
 }) {
   // Builds one plain-text summary shared by both Copy and Download, so a
   // person can paste the exact list of unmet conditions into an email or
@@ -134,6 +133,7 @@ export default function ModuleUploadView({
                 <option value="2">Week 2</option>
                 <option value="3">Week 3</option>
                 <option value="4">Week 4</option>
+                <option value="5">Week 5</option>
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
             </div>

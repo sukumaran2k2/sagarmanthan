@@ -205,10 +205,10 @@ async function createEmpAttendance(req, res) {
             rowIndex++;
             const { 'Emp Id': EmpId, 'No. of days Attendance Marked': AttendanceMarked, 'In Time Avg': InTimeAvg, 'Out Time Avg': OutTimeAvg, 'Average Working Hours': WorkingHours } = row;
 
-            const empIdNum = Number(EmpId);
-            if (EmpId === undefined || EmpId === null || isNaN(empIdNum)) {
+            // Emp Ids are codes such as "AD03" (as in 2.0); only an empty one is rejected
+            if (EmpId === undefined || EmpId === null || String(EmpId).trim() === '') {
                 deleteFile(req.file, req.uniqueFileName);
-                return res.status(403).json({ error: 'Invalid Emp Id format (must be numeric)', row: (rowIndex+1) });
+                return res.status(403).json({ error: 'Emp Id is missing', row: (rowIndex+1) });
             }
 
             const markedInt = parseInt(AttendanceMarked, 10);
@@ -428,17 +428,12 @@ async function updateEmpAttendance(req, res) {
             rowIndex++;
             const { 'Emp Id': EmpId, 'No. of days Attendance Marked': AttendanceMarked, 'In Time Avg': InTimeAvg, 'Out Time Avg': OutTimeAvg, 'Average Working Hours': WorkingHours } = row;
 
-            // Validate EmpId. Excel numeric-looking cells parse as JS
-            // numbers (not strings) unless the cell is explicitly
-            // Text-formatted, so this checks numeric validity rather than
-            // JS type -- matching createEmpAttendance's check, which this
-            // function previously contradicted (it required typeof
-            // 'string', silently rejecting perfectly valid numeric Emp Ids
-            // that createEmpAttendance would have accepted).
-            const empIdNum = Number(EmpId);
-            if (EmpId === undefined || EmpId === null || isNaN(empIdNum)) {
+            // Emp Ids are codes such as "AD03" (as in 2.0), and Excel may read a
+            // numeric-looking one as a number, so any non-empty value is accepted
+            // (requiring a number rejected every real Emp Id)
+            if (EmpId === undefined || EmpId === null || String(EmpId).trim() === '') {
                 deleteFile(req.uniqueFileName);
-                return res.status(403).json({ error: 'Invalid Emp Id format (must be numeric)', row: (rowIndex+1) });
+                return res.status(403).json({ error: 'Emp Id is missing', row: (rowIndex+1) });
             }
         
             // Validate No. of days Attendance Marked. parseInt handles both

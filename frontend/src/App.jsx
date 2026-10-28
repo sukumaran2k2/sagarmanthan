@@ -482,7 +482,7 @@ export default function App() {
 
             {/* Governance Routes */}
             <Route path="governance/e-office/*" element={<EOfficeView initialKpi={eOfficeKpi} />} />
-            <Route path="governance/attendance/*" element={<AttendanceView />} />
+            <Route path="governance/attendance/*" element={<AttendanceView triggerNotification={triggerNotification} />} />
             <Route path="governance/cpgrams" element={<CPGRAMSView />} />
             <Route path="governance/cabinet-notes/*" element={<CabinetNotes triggerNotification={triggerNotification} />} />
             <Route path="governance/cabinet-notes-other-ministry/*" element={<CabinetNotesOther triggerNotification={triggerNotification} />} />
