@@ -317,7 +317,7 @@ async function storeCsvData(req, res) {
     if (!Number.isInteger(id)) {
         return res.status(400).json({ error: "Invalid id" });
     }
-    const userID = parseInt(req.body.userID, 10) || 1;
+    const userID = req.user.userId; // the uploader is the signed-in user, not a form value
     const conn = await pool;
     console.log("Processing spreadsheet upload for file ID:", id);
     

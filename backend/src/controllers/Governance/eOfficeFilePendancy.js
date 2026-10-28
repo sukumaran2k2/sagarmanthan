@@ -208,7 +208,7 @@ async function addFilePendancy(req, res) {
         const Year = parseInt(rawYear, 10) || 2026;
         const month = req.body.month;
         const week = parseInt(req.body.week, 10) || 1;
-        const userID = parseInt(req.body.userID, 10) || 1;
+        const userID = req.user.userId; // the uploader is the signed-in user, not a form value
         const uniqueFileName = req.uniqueFileName;
 
         const checkRequest = conn.request();
@@ -437,7 +437,7 @@ async function updateFilePendancy(req, res) {
         const month = req.body.month;
         const week = req.body.week;
         const FileId = req.body.fileId;
-        const userID = req.body.userID;
+        const userID = req.user.userId; // the uploader is the signed-in user, not a form value
 
         const uniqueFileName = req.uniqueFileName;
 

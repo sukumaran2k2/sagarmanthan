@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import axios from 'axios';
+// The shared client sends the login token, which these routes now require
+import { axiosInstance as axios } from '../../api';
 import * as XLSX from 'xlsx';
 import { 
   UserCheck, 

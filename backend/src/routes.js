@@ -338,17 +338,34 @@ router.get("/get-capex-dashboard-yoy", auth, requireModulePermission("CAPEX", "r
 
 
 
+// Attendance and E-Office: login and module access on every route (none were guarded, so
+// anyone could read every employee's attendance and upload, replace or delete files)
+const attRead = requireModulePermission("ATTENDANCE", "read");
+const attCreate = requireModulePermission("ATTENDANCE", "create");
+const attUpdate = requireModulePermission("ATTENDANCE", "update");
+const attDelete = requireModulePermission("ATTENDANCE", "delete");
+const eofficeRead = requireModulePermission("E_OFFICE", "read");
+const eofficeCreate = requireModulePermission("E_OFFICE", "create");
+const eofficeUpdate = requireModulePermission("E_OFFICE", "update");
+const eofficeDelete = requireModulePermission("E_OFFICE", "delete");
+
+// Bills / Pre-Constitutions Act: login and module access on every route (none were guarded)
+const billsRead = requireModulePermission("BILLS_PRE_CONSTITUTION", "read");
+const billsCreate = requireModulePermission("BILLS_PRE_CONSTITUTION", "create");
+const billsUpdate = requireModulePermission("BILLS_PRE_CONSTITUTION", "update");
+const billsDelete = requireModulePermission("BILLS_PRE_CONSTITUTION", "delete");
+
 // GOVERNANCE MENU
 
 //attendance
 //check
-router.get("/employee-attendance-file", empAttendanceTab.getEmployeeAttendance);
-router.get("/employee-attendance-sample", empAttendanceTab.agSample);
+router.get("/employee-attendance-file", auth, attRead, empAttendanceTab.getEmployeeAttendance);
+router.get("/employee-attendance-sample", auth, attRead, empAttendanceTab.agSample);
 
-router.get("/employee-attendance-view", empAttendanceTab.getEmpAttendance);
-router.post("/employee-attendance", empAttendanceTab.uploadSingleFile, empAttendanceTab.createEmpAttendance);
-router.put("/attend-employee", empAttendanceTab.uploadSingleFile, empAttendanceTab.updateEmpAttendance);
-router.post("/employee-attendance-data", empAttendanceTab.addEmpDataAttendance);
+router.get("/employee-attendance-view", auth, attRead, empAttendanceTab.getEmpAttendance);
+router.post("/employee-attendance", auth, attCreate, empAttendanceTab.uploadSingleFile, empAttendanceTab.createEmpAttendance);
+router.put("/attend-employee", auth, attUpdate, empAttendanceTab.uploadSingleFile, empAttendanceTab.updateEmpAttendance);
+router.post("/employee-attendance-data", auth, attCreate, empAttendanceTab.addEmpDataAttendance);
 // router.get("/employee-attendance/download/:id", empAttendanceTab.downloadEmpAttendance);
 // router.delete("/employee-attendance/:id", empAttendanceTab.deleteEmpAttendance);
 // router.post("/employee-attendance/storecsv/:id",empAttendanceTab.storeEMPAttendanceData);
@@ -358,17 +375,17 @@ router.post("/employee-attendance-data", empAttendanceTab.addEmpDataAttendance);
 // router.get("/employee-excelData", empAttendanceTab.getEmpExcelData);
 
 //attendance
-router.get("/attendance", attendanceTab.getAttendance);
-router.post("/attendance", attendanceTab.uploadSingleFile, attendanceTab.createAttendance);
-router.get("/attendance/download/:id", attendanceTab.downloadAttendance);
-router.delete("/attendance/:id", attendanceTab.deleteAttendance);
-router.post("/attendance/storecsv/:id", attendanceTab.storeCsvData);
-router.get("/attendance/downloadSampleDocument", attendanceTab.downloadSampleDocument);
+router.get("/attendance", auth, attRead, attendanceTab.getAttendance);
+router.post("/attendance", auth, attCreate, attendanceTab.uploadSingleFile, attendanceTab.createAttendance);
+router.get("/attendance/download/:id", auth, attRead, attendanceTab.downloadAttendance);
+router.delete("/attendance/:id", auth, attDelete, attendanceTab.deleteAttendance);
+router.post("/attendance/storecsv/:id", auth, attCreate, attendanceTab.storeCsvData);
+router.get("/attendance/downloadSampleDocument", auth, attRead, attendanceTab.downloadSampleDocument);
 
 //view Data - Attendance
-router.get("/excelData", excelDataTab.getExcelData);
+router.get("/excelData", auth, attRead, excelDataTab.getExcelData);
 
-router.get("/attendance/user-manual", userManualMenu.attendanceManual);
+router.get("/attendance/user-manual", auth, attRead, userManualMenu.attendanceManual);
 
 //cpgrams
 router.get("/cpgrams", cpgramsTab.getCpgrams);
@@ -413,13 +430,13 @@ router.get("/age-cpgram-check", cpgramAgeController.getCPGRAMAgeCheck);
 router.get("/age-cpgram-History", cpgramController.getCPGRAMAgeHistory);
 
 // disposal
-router.get("/disposal", disposalTab.getDisposal);
-router.post("/disposal", disposalTab.upload.single('file'), disposalTab.createDisposal);
-router.get("/disposal/download/:id", disposalTab.downloadDisposal);
-router.delete("/disposal/:id", disposalTab.deleteDisposal);
-router.post("/disposal/storecsv/:id", disposalTab.storeFileData);
+router.get("/disposal", auth, eofficeRead, disposalTab.getDisposal);
+router.post("/disposal", auth, eofficeCreate, disposalTab.upload.single('file'), disposalTab.createDisposal);
+router.get("/disposal/download/:id", auth, eofficeRead, disposalTab.downloadDisposal);
+router.delete("/disposal/:id", auth, eofficeDelete, disposalTab.deleteDisposal);
+router.post("/disposal/storecsv/:id", auth, eofficeCreate, disposalTab.storeFileData);
 // viewData-disposal
-router.get("/disposalData", fileDataTab.getFileData);
+router.get("/disposalData", auth, eofficeRead, fileDataTab.getFileData);
 
 //pendency
 router.get("/pendency", pendencyTab.getPendency);
@@ -722,47 +739,47 @@ router.get("/decision-implement/:ID", decisionController.getUpdateDecisionImplem
 
 // E-OFFICE
 //File pendancy
-router.get('/file-pendancy-report/:Year/:Month/:Week', eOfficeTab.getFilePendenceReport);
-router.get("/file-pendancy-all", eOfficeTab.getFilePendenceAll);
-router.get("/file-pendancy-check", eOfficeTab.getFilePendenceCheck);
-router.get("/file-pendancy-History", eOfficeTab.getFilePendencyHistory);
-router.get("/file-pendancy/download/:id", eOfficeTab.downloadFilePendancy);
-router.get("/file-pendancy/download-sample", eOfficeTab.downloadFilePendancySample);
-router.delete("/file-pendancy/delete/:id", eOfficeTab.deleteFilePendency);
-router.post("/file-pendancy-create", EofficeFilePendancyTab.upload.single('file'), EofficeFilePendancyTab.addFilePendancy);
-router.put("/file-pendancy-update", EofficeFilePendancyTab.upload.single('file'), EofficeFilePendancyTab.updateFilePendancy);
+router.get('/file-pendancy-report/:Year/:Month/:Week', auth, eofficeRead, eOfficeTab.getFilePendenceReport);
+router.get("/file-pendancy-all", auth, eofficeRead, eOfficeTab.getFilePendenceAll);
+router.get("/file-pendancy-check", auth, eofficeRead, eOfficeTab.getFilePendenceCheck);
+router.get("/file-pendancy-History", auth, eofficeRead, eOfficeTab.getFilePendencyHistory);
+router.get("/file-pendancy/download/:id", auth, eofficeRead, eOfficeTab.downloadFilePendancy);
+router.get("/file-pendancy/download-sample", auth, eofficeRead, eOfficeTab.downloadFilePendancySample);
+router.delete("/file-pendancy/delete/:id", auth, eofficeDelete, eOfficeTab.deleteFilePendency);
+router.post("/file-pendancy-create", auth, eofficeCreate, EofficeFilePendancyTab.upload.single('file'), EofficeFilePendancyTab.addFilePendancy);
+router.put("/file-pendancy-update", auth, eofficeUpdate, EofficeFilePendancyTab.upload.single('file'), EofficeFilePendancyTab.updateFilePendancy);
 
 //File disposal Chart
-router.get('/file-pendancy-chart/:Year/:Month/:Hierarchy', eOfficeTab.getFilePendancyChart);
+router.get('/file-pendancy-chart/:Year/:Month/:Hierarchy', auth, eofficeRead, eOfficeTab.getFilePendancyChart);
 
 //Receipt pendancy
-router.get('/receipt-pendancy-report/:Year/:Month/:Week', eOfficeTab.getReceiptPendenceReport);
-router.get("/receipt-pendancy-all", eOfficeTab.getReceiptPendenceAll);
-router.get("/receipt-pendancy-check", eOfficeTab.getReceiptPendenceCheck);
-router.get("/receipt-pendancy-History", eOfficeTab.getReceiptPendencyHistory);
-router.get("/receipt-pendancy/download/:id", eOfficeTab.downloadReceiptPendency);
-router.get("/receipt-pendancy/download-sample", eOfficeTab.downloadReceiptPendencySample);
-router.delete("/receipt-pendancy/delete/:id", eOfficeTab.deleteReceiptPendency);
-router.post("/receipt-pendancy-create", EofficeReceiptPendancyTab.upload.single('file'), EofficeReceiptPendancyTab.addReceiptPendancy);
-router.put("/receipt-pendancy-update", EofficeReceiptPendancyTab.upload.single('file'), EofficeReceiptPendancyTab.updateReceiptPendancy);
+router.get('/receipt-pendancy-report/:Year/:Month/:Week', auth, eofficeRead, eOfficeTab.getReceiptPendenceReport);
+router.get("/receipt-pendancy-all", auth, eofficeRead, eOfficeTab.getReceiptPendenceAll);
+router.get("/receipt-pendancy-check", auth, eofficeRead, eOfficeTab.getReceiptPendenceCheck);
+router.get("/receipt-pendancy-History", auth, eofficeRead, eOfficeTab.getReceiptPendencyHistory);
+router.get("/receipt-pendancy/download/:id", auth, eofficeRead, eOfficeTab.downloadReceiptPendency);
+router.get("/receipt-pendancy/download-sample", auth, eofficeRead, eOfficeTab.downloadReceiptPendencySample);
+router.delete("/receipt-pendancy/delete/:id", auth, eofficeDelete, eOfficeTab.deleteReceiptPendency);
+router.post("/receipt-pendancy-create", auth, eofficeCreate, EofficeReceiptPendancyTab.upload.single('file'), EofficeReceiptPendancyTab.addReceiptPendancy);
+router.put("/receipt-pendancy-update", auth, eofficeUpdate, EofficeReceiptPendancyTab.upload.single('file'), EofficeReceiptPendancyTab.updateReceiptPendancy);
 
 //Receipt pendancy Chart
-router.get('/receipt-pendancy-chart/:Year/:Month/:Hierarchy', eOfficeTab.getReceiptPendancyChart);
+router.get('/receipt-pendancy-chart/:Year/:Month/:Hierarchy', auth, eofficeRead, eOfficeTab.getReceiptPendancyChart);
 
 //File disposal
-router.get('/file-disposal-report/:Year/:Month/:Week', eOfficeTab.getFileDisposalReport);
-router.get("/file-disposal-all", eOfficeTab.getFileDisposalAll);
-router.get("/file-disposal-check", eOfficeTab.getFileDisposalCheck);
-router.get("/file-disposal-History", eOfficeTab.getFileDisposalHistory);
-router.get("/file-disposal/download/:id", eOfficeTab.downloadFileDisposal);
-router.get("/file-disposal/download-sample", eOfficeTab.downloadFileDisposalSample);
-router.delete("/file-disposal/delete/:id", eOfficeTab.deleteFileDisposal);
-router.delete("/delete-employee/:empID", EofficeFileDisposalTab.deleteEmployee);
-router.post("/file-disposal-create", EofficeFileDisposalTab.upload.single('file'), EofficeFileDisposalTab.addFileDisposal);
-router.put("/file-disposal-update", EofficeFileDisposalTab.upload.single('file'), EofficeFileDisposalTab.updateFileDisposal);
+router.get('/file-disposal-report/:Year/:Month/:Week', auth, eofficeRead, eOfficeTab.getFileDisposalReport);
+router.get("/file-disposal-all", auth, eofficeRead, eOfficeTab.getFileDisposalAll);
+router.get("/file-disposal-check", auth, eofficeRead, eOfficeTab.getFileDisposalCheck);
+router.get("/file-disposal-History", auth, eofficeRead, eOfficeTab.getFileDisposalHistory);
+router.get("/file-disposal/download/:id", auth, eofficeRead, eOfficeTab.downloadFileDisposal);
+router.get("/file-disposal/download-sample", auth, eofficeRead, eOfficeTab.downloadFileDisposalSample);
+router.delete("/file-disposal/delete/:id", auth, eofficeDelete, eOfficeTab.deleteFileDisposal);
+router.delete("/delete-employee/:empID", auth, eofficeDelete, EofficeFileDisposalTab.deleteEmployee);
+router.post("/file-disposal-create", auth, eofficeCreate, EofficeFileDisposalTab.upload.single('file'), EofficeFileDisposalTab.addFileDisposal);
+router.put("/file-disposal-update", auth, eofficeUpdate, EofficeFileDisposalTab.upload.single('file'), EofficeFileDisposalTab.updateFileDisposal);
 
 //File disposal Chart
-router.get('/file-disposal-chart/:Year/:Month/:Hierarchy', eOfficeTab.getFileDisposalChart);
+router.get('/file-disposal-chart/:Year/:Month/:Hierarchy', auth, eofficeRead, eOfficeTab.getFileDisposalChart);
 
 // Official Foreign Visit
 router.get("/OFV-data/:userID/:organisationID", officialForeignVisitTab.getOFVData);
@@ -803,11 +820,11 @@ router.get("/get-review-item-code-data-by-id/:reviewItemCode",reviewItemsTab.get
 
 // LEGAL MENU
 //  Bills/PreConstitutions Act
-router.get("/bill", billTab.getBill);
-router.post("/bill", billTab.createBill);
-router.get("/bill/:billID", billTab.getUpdateBill);
-router.put("/bill", billTab.updateBill);
-router.delete("/delete-bill/:billID/:userID", billTab.deleteBill);
+router.get("/bill", auth, billsRead, billTab.getBill);
+router.post("/bill", auth, billsCreate, billTab.createBill);
+router.get("/bill/:billID", auth, billsRead, billTab.getUpdateBill);
+router.put("/bill", auth, billsUpdate, billTab.updateBill);
+router.delete("/delete-bill/:billID/:userID", auth, billsDelete, billTab.deleteBill);
 // router.post("/bill-stage", billTab.createBillStage);
 
 //Court cases
@@ -1406,16 +1423,16 @@ router.get(
 );
 
 // Bill Report
-router.get("/billwingwise-report", billReportTab.billWingWiseData);
-router.get("/billdivisionwise-report/:wingID/", billReportTab.billDivisionWiseData);
-router.get("/getbill-wingwise/:wingID/:billStage", billReportTab.getDetailBillWingWise);
-router.get("/getbill-divisionwise/:divisionID/:billStage", billReportTab.getDetailBillDivisionWise);
+router.get("/billwingwise-report", auth, billsRead, billReportTab.billWingWiseData);
+router.get("/billdivisionwise-report/:wingID/", auth, billsRead, billReportTab.billDivisionWiseData);
+router.get("/getbill-wingwise/:wingID/:billStage", auth, billsRead, billReportTab.getDetailBillWingWise);
+router.get("/getbill-divisionwise/:divisionID/:billStage", auth, billsRead, billReportTab.getDetailBillDivisionWise);
 
 //Attendance Report
-router.get("/attendance-weekone-report/:attendanceMonth/:attendanceYear", attendanceReportTab.attendanceWeekOneReport);
-router.get("/employee-attendance-weekone-report/:attendanceMonth/:attendanceYear/:week", empAttendanceReportTab.empAttendanceWeekOneReport);
-router.get("/employee-attendance-weekone-detail/:Year/:Month/:Wing/:Division/:type/:week", empAttendanceReportTab.getDetailAttendanceWeekOneReport);
-router.get("/employee-attendance-check", empAttendanceReportTab.getEmpAttendanceCheck);
+router.get("/attendance-weekone-report/:attendanceMonth/:attendanceYear", auth, attRead, attendanceReportTab.attendanceWeekOneReport);
+router.get("/employee-attendance-weekone-report/:attendanceMonth/:attendanceYear/:week", auth, attRead, empAttendanceReportTab.empAttendanceWeekOneReport);
+router.get("/employee-attendance-weekone-detail/:Year/:Month/:Wing/:Division/:type/:week", auth, attRead, empAttendanceReportTab.getDetailAttendanceWeekOneReport);
+router.get("/employee-attendance-check", auth, attRead, empAttendanceReportTab.getEmpAttendanceCheck);
 
 //Court Case Report
 // router.get("/all-court-case-report", arbitCourtCaseTab.getCourtCaseReport),
