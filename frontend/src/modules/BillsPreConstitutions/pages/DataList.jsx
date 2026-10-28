@@ -47,15 +47,15 @@ const getBillStageText = (item) => {
   if (item.bill_introduced_in_parliament_date) return STAGES[12];
   if (item.approved_by_cabinet_date) return STAGES[11];
   if (item.advance_copy_date) return STAGES[10];
-  if (item.final_dcn_approved_date) return STAGES[9];
+  if (item.final_dcn_draft_approved_date) return STAGES[9];
   if (item.legal_vetting_completed_date) return STAGES[8];
-  if (item.submited_legal_vetting_date) return STAGES[7];
+  if (item.submitted_legal_vetting_date) return STAGES[7];
   if (item.dcn_draft_bill_approved_date) return STAGES[6];
   if (item.dcn_draft_bill_prepared_date) return STAGES[5];
   if (item.imc_comments_rec_date) return STAGES[4];
   if (item.circulated_imc_date) return STAGES[3];
-  if (item.pre_draft_bill_approved_date) return STAGES[2];
-  if (item.pre_draft_bill_prepared_date) return STAGES[1];
+  if (item.dcn_draft_bill_approved_minister_date) return STAGES[2];
+  if (item.draft_bill_prepared_date) return STAGES[1];
   return 'Draft';
 };
 

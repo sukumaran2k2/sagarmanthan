@@ -1,6 +1,34 @@
 import { pool } from "../../db.js";
 import fs from 'fs';
 
+// Bills are kept in 2.0's tbl_bill (3.0 had been writing to a separate copy of it).
+// The API and the form keep 3.0's field names; this maps each stage to tbl_bill's columns.
+// Each stage has a date, the done flag 2.0 keeps beside it (set from the date), and a
+// remark column added for 3.0.
+const STAGES = [
+    { field: 'draft_bill_prepared_date', column: 'pre_draft_bill_prepared', param: 'draftBillPrepared' },
+    { field: 'dcn_draft_bill_approved_minister_date', column: 'pre_draft_bill_approved', param: 'dcnDraftBillApprovedMinister' },
+    { field: 'circulated_imc_date', column: 'circulated_imc', param: 'circulatedImc' },
+    { field: 'imc_comments_rec_date', column: 'imc_comments_rec', param: 'imcCommentsRec' },
+    { field: 'dcn_draft_bill_prepared_date', column: 'dcn_draft_bill_prepared', param: 'dcnDraftBillPrepared' },
+    { field: 'dcn_draft_bill_approved_date', column: 'dcn_draft_bill_approved', param: 'dcnDraftBillApproved' },
+    { field: 'submitted_legal_vetting_date', column: 'submited_legal_vetting', param: 'submittedLegalVetting' },
+    { field: 'legal_vetting_completed_date', column: 'legal_vetting_completed', param: 'legalVettingCompleted' },
+    { field: 'final_dcn_draft_approved_date', column: 'final_dcn_approved', param: 'finalDcnDraftApproved' },
+    { field: 'advance_copy_date', column: 'advance_copy', param: 'advanceCopy' },
+    { field: 'approved_by_cabinet_date', column: 'approved_by_cabinet', param: 'approvedByCabinet' },
+    { field: 'bill_introduced_in_parliament_date', column: 'bill_introduced_in_parliament', param: 'billIntroducedInParliament' },
+    { field: 'bill_passed_date', column: 'bill_passed', param: 'billPassed' },
+    { field: 'bill_notified_date', column: 'bill_notified', param: 'billNotified' },
+    { field: 'completed_date', column: 'completed', param: 'completed' },
+].map((s) => ({ ...s, remark: s.field.replace(/_date$/, '_remarks') }));
+
+// A bill as the API returns it: tbl_bill's columns under 3.0's field names
+const BILL_COLUMNS = `tbl_bill.bill_id, subject, wing, division, stage_id,
+            ${STAGES.map((s) => `${s.column}_date AS ${s.field}, ${s.remark}`).join(',\n            ')},
+            remarks, tbl_bill.created_by, tbl_bill.updated_by, tbl_bill.created_date, tbl_bill.updated_date`;
+const doneFlag = (s) => `CASE WHEN @${s.param}Date IS NULL THEN 0 ELSE 1 END`;
+
 async function createBill(req, res) {
     const subject = req.body.subject;
     const wing = req.body.wing;
@@ -126,40 +154,14 @@ async function createBill(req, res) {
     request.input("userID", userID);
 
     try {
-        await request.query(`INSERT INTO tbl_bill_change (
-            subject, wing, division, 
-            draft_bill_prepared_date, dcn_draft_bill_approved_minister_date, 
-            circulated_imc_date, imc_comments_rec_date, 
-            dcn_draft_bill_prepared_date, dcn_draft_bill_approved_date, 
-            submitted_legal_vetting_date, legal_vetting_completed_date, 
-            final_dcn_draft_approved_date, advance_copy_date, 
-            approved_by_cabinet_date, bill_introduced_in_parliament_date, 
-            bill_passed_date, bill_notified_date, 
-            completed_date, remarks, stage_id, created_by, created_date, updated_date,
-            draft_bill_prepared_remarks, dcn_draft_bill_approved_minister_remarks,
-            circulated_imc_remarks, imc_comments_rec_remarks,
-            dcn_draft_bill_prepared_remarks, dcn_draft_bill_approved_remarks,
-            submitted_legal_vetting_remarks, legal_vetting_completed_remarks,
-            final_dcn_draft_approved_remarks, advance_copy_remarks,
-            approved_by_cabinet_remarks, bill_introduced_in_parliament_remarks,
-            bill_passed_remarks, bill_notified_remarks, completed_remarks
+        await request.query(`INSERT INTO tbl_bill (
+            subject, wing, division,
+            ${STAGES.map((st) => `${st.column}_date, ${st.column}, ${st.remark}`).join(', ')},
+            remarks, stage_id, created_by, created_date, updated_date
         ) VALUES (
-            @subject, @wing, @division, 
-            @draftBillPreparedDate, @dcnDraftBillApprovedMinisterDate, 
-            @circulatedImcDate, @imcCommentsRecDate, 
-            @dcnDraftBillPreparedDate, @dcnDraftBillApprovedDate, 
-            @submittedLegalVettingDate, @legalVettingCompletedDate, 
-            @finalDcnDraftApprovedDate, @advanceCopyDate, 
-            @approvedByCabinetDate, @billIntroducedInParliamentDate, 
-            @billPassedDate, @billNotifiedDate, 
-            @completedDate, @remarks, @selectedBillStage, @userID, GETDATE(), GETDATE(),
-            @draftBillPreparedRemark, @dcnDraftBillApprovedMinisterRemark,
-            @circulatedImcRemark, @imcCommentsRecRemark,
-            @dcnDraftBillPreparedRemark, @dcnDraftBillApprovedRemark,
-            @submittedLegalVettingRemark, @legalVettingCompletedRemark,
-            @finalDcnDraftApprovedRemark, @advanceCopyRemark,
-            @approvedByCabinetRemark, @billIntroducedInParliamentRemark,
-            @billPassedRemark, @billNotifiedRemark, @completedRemark
+            @subject, @wing, @division,
+            ${STAGES.map((st) => `@${st.param}Date, ${doneFlag(st)}, @${st.param}Remark`).join(', ')},
+            @remarks, @selectedBillStage, @userID, GETDATE(), GETDATE()
         )`);
         res.sendStatus(201);  
     }
@@ -188,33 +190,18 @@ async function getBill(req, res) {
             if (!isMopswRole) {
                 request.input("userWingId", wing_id);
                 request.input("requestingUserId", userID);
-                scopeClause = `WHERE (tbl_bill_change.wing = @userWingId OR tbl_bill_change.created_by = @requestingUserId)`;
+                scopeClause = `WHERE (tbl_bill.wing = @userWingId OR tbl_bill.created_by = @requestingUserId)`;
             }
         }
 
-        const result = await request.query(`SELECT bill_id, subject, wing, division, stage_id,
-            draft_bill_prepared_date, dcn_draft_bill_approved_minister_date, 
-            circulated_imc_date, imc_comments_rec_date, 
-            dcn_draft_bill_prepared_date, dcn_draft_bill_approved_date, 
-            submitted_legal_vetting_date, legal_vetting_completed_date, 
-            final_dcn_draft_approved_date, advance_copy_date, 
-            approved_by_cabinet_date, bill_introduced_in_parliament_date, 
-            bill_passed_date, bill_notified_date, 
-            completed_date, remarks, created_by, updated_by, created_date, updated_date,
-            draft_bill_prepared_remarks, dcn_draft_bill_approved_minister_remarks,
-            circulated_imc_remarks, imc_comments_rec_remarks,
-            dcn_draft_bill_prepared_remarks, dcn_draft_bill_approved_remarks,
-            submitted_legal_vetting_remarks, legal_vetting_completed_remarks,
-            final_dcn_draft_approved_remarks, advance_copy_remarks,
-            approved_by_cabinet_remarks, bill_introduced_in_parliament_remarks,
-            bill_passed_remarks, bill_notified_remarks, completed_remarks,
+        const result = await request.query(`SELECT ${BILL_COLUMNS},
             wing_name, division_name, bill_stage_name
-            FROM tbl_bill_change
-            INNER JOIN mmt_division ON tbl_bill_change.division = mmt_division.division_id
-            INNER JOIN mmt_wings ON tbl_bill_change.wing = mmt_wings.wing_id
-            LEFT JOIN mmt_bill_stage ON mmt_bill_stage.bill_stage_id = tbl_bill_change.stage_id
+            FROM tbl_bill
+            INNER JOIN mmt_division ON tbl_bill.division = mmt_division.division_id
+            INNER JOIN mmt_wings ON tbl_bill.wing = mmt_wings.wing_id
+            LEFT JOIN mmt_bill_stage ON mmt_bill_stage.bill_stage_id = tbl_bill.stage_id
             ${scopeClause}
-            ORDER BY tbl_bill_change.bill_id DESC;`);
+            ORDER BY tbl_bill.bill_id DESC;`);
         res.json(result.recordset);
     }
     catch (err) {
@@ -229,7 +216,7 @@ async function getUpdateBill(req, res) {
     const request = conn.request();
     request.input("billID", billID);
     try {
-        const result = await request.query(`SELECT * FROM tbl_bill_change WHERE bill_id = @billID;`);
+        const result = await request.query(`SELECT ${BILL_COLUMNS} FROM tbl_bill WHERE bill_id = @billID;`);
         res.json(result.recordset);
     }
     catch (err) {
@@ -365,44 +352,15 @@ async function updateBill(req, res) {
     request.input("userID", userID);
 
     try {
-        await request.query(`UPDATE tbl_bill_change SET
+        await request.query(`UPDATE tbl_bill SET
             subject = @subject,
             wing = @wing,
             division = @division,
-            draft_bill_prepared_date = @draftBillPreparedDate,
-            dcn_draft_bill_approved_minister_date = @dcnDraftBillApprovedMinisterDate,
-            circulated_imc_date = @circulatedImcDate,
-            imc_comments_rec_date = @imcCommentsRecDate,
-            dcn_draft_bill_prepared_date = @dcnDraftBillPreparedDate,
-            dcn_draft_bill_approved_date = @dcnDraftBillApprovedDate,
-            submitted_legal_vetting_date = @submittedLegalVettingDate,
-            legal_vetting_completed_date = @legalVettingCompletedDate,
-            final_dcn_draft_approved_date = @finalDcnDraftApprovedDate,
-            advance_copy_date = @advanceCopyDate,
-            approved_by_cabinet_date = @approvedByCabinetDate,
-            bill_introduced_in_parliament_date = @billIntroducedInParliamentDate,
-            bill_passed_date = @billPassedDate,
-            bill_notified_date = @billNotifiedDate,
-            completed_date = @completedDate,
+            ${STAGES.map((st) => `${st.column}_date = @${st.param}Date, ${st.column} = ${doneFlag(st)}, ${st.remark} = @${st.param}Remark`).join(',\n            ')},
             remarks = @remarks,
             stage_id = @selectedBillStage,
             updated_by = @userID,
-            updated_date = GETDATE(),
-            draft_bill_prepared_remarks = @draftBillPreparedRemark,
-            dcn_draft_bill_approved_minister_remarks = @dcnDraftBillApprovedMinisterRemark,
-            circulated_imc_remarks = @circulatedImcRemark,
-            imc_comments_rec_remarks = @imcCommentsRecRemark,
-            dcn_draft_bill_prepared_remarks = @dcnDraftBillPreparedRemark,
-            dcn_draft_bill_approved_remarks = @dcnDraftBillApprovedRemark,
-            submitted_legal_vetting_remarks = @submittedLegalVettingRemark,
-            legal_vetting_completed_remarks = @legalVettingCompletedRemark,
-            final_dcn_draft_approved_remarks = @finalDcnDraftApprovedRemark,
-            advance_copy_remarks = @advanceCopyRemark,
-            approved_by_cabinet_remarks = @approvedByCabinetRemark,
-            bill_introduced_in_parliament_remarks = @billIntroducedInParliamentRemark,
-            bill_passed_remarks = @billPassedRemark,
-            bill_notified_remarks = @billNotifiedRemark,
-            completed_remarks = @completedRemark
+            updated_date = GETDATE()
             WHERE bill_id = @billID`);
         res.sendStatus(201);  
     } catch (err) {
@@ -428,12 +386,12 @@ async function deleteBill(req, res) {
     const request = conn.request();
     request.input("billID", billID);
     try {        
-        const dataToDelete = await request.query(`SELECT * FROM tbl_bill_change WHERE bill_id = @billID;`);
+        const dataToDelete = await request.query(`SELECT * FROM tbl_bill WHERE bill_id = @billID;`);
         if (dataToDelete.recordset.length === 0) {
             return res.status(404).send("Data not found");
         }
         const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
-        const result = await request.query(`DELETE FROM tbl_bill_change WHERE bill_id = @billID;`);
+        const result = await request.query(`DELETE FROM tbl_bill WHERE bill_id = @billID;`);
         
         if (result.rowsAffected[0] > 0) {
             const logMessage = `User '${userID}' deleted Bills PreConstitutions data with Data ID '${billID}'. Deleted Data: ${dataJSON}\n`;
