@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, Save, X, FileText } from 'lucide-react';
 import { fetchMinistryList, createCabinetMinistry, updateCabinetMinistry, fetchDropdownAllValues } from '../api';
 
+// Shown until the stage master (mmt_cabinet_ministry_stage) has loaded
 const stageLabels = {
   1: '1. Received at Ministry',
   2: '2. Sent for Comments',
@@ -9,20 +10,6 @@ const stageLabels = {
   4: '4. File Submitted for Approval',
   5: '5. Reply Furnished to Other Ministry'
 };
-
-const COMMON_WINGS = [
-  'Shipping',
-  'Vigilance',
-  'Ports',
-  'IWT',
-  'Administration',
-  'Coord-I',
-  'Coord-II',
-  'DGLL, Parliament & TRW',
-  'Development',
-  'Finance',
-  'Sagarmala'
-];
 
 export default function InputForm({
   editData = null,
@@ -77,10 +64,7 @@ export default function InputForm({
   }, []);
 
   // Stage 2: Concerned wings tag pool states (YoungProfessionals skills style)
-  const [wingInput, setWingInput] = useState('');
   const [selectedWings, setSelectedWings] = useState([]);
-  const [showWingSuggestions, setShowWingSuggestions] = useState(false);
-  const wingSuggestionsRef = useRef(null);
 
   // Wing-wise dates & remarks state
   const [wingDetails, setWingDetails] = useState({
@@ -115,16 +99,6 @@ export default function InputForm({
       5: { date: '', remark: '' }
     }
   });
-
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (wingSuggestionsRef.current && !wingSuggestionsRef.current.contains(event.target)) {
-        setShowWingSuggestions(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   useEffect(() => {
     fetchMinistryList()
@@ -230,37 +204,14 @@ export default function InputForm({
     setErrors({});
   }, [editData, wingsList, ministries]);
 
-  // Wing suggestions dropdown filtering
-  const wingSuggestions = useMemo(() => {
-    const query = wingInput.trim().toLowerCase();
-    const matched = COMMON_WINGS.filter(
-      w => w.toLowerCase().includes(query) && !selectedWings.includes(w)
-    );
-    if (query && !matched.some(s => s.toLowerCase() === query) && !selectedWings.some(s => s.toLowerCase() === query)) {
-      matched.push(wingInput.trim());
-    }
-    return matched;
-  }, [wingInput, selectedWings]);
-
   const handleAddWing = (wingName) => {
     if (wingName && !selectedWings.includes(wingName)) {
       setSelectedWings(prev => [...prev, wingName]);
     }
-    setWingInput('');
-    setShowWingSuggestions(false);
   };
 
   const handleRemoveWing = (wingToRemove) => {
     setSelectedWings(prev => prev.filter(w => w !== wingToRemove));
-  };
-
-  const handleWingKeyDown = (e) => {
-    if (e.key === 'Enter' || e.key === ',') {
-      e.preventDefault();
-      if (wingInput.trim()) {
-        handleAddWing(wingInput.trim());
-      }
-    }
   };
 
   const isDirty = useMemo(() => {
@@ -411,10 +362,10 @@ export default function InputForm({
         sentForComment: stages[2]?.date ? '1' : '0',
         sentForCommentDate: stages[2]?.date || '',
         sentForCommentsRemarks: stages[2]?.remark || '',
-        wings: selectedWings.map(wName => {
-          const found = wingsList.find(w => w.wing_name === wName);
-          return found ? found.wing_id : wName;
-        }).filter(Boolean),
+        // Wing ids from the master
+        wings: selectedWings
+          .map(wName => wingsList.find(w => w.wing_name === wName)?.wing_id)
+          .filter(id => id !== undefined),
 
         commentsReceived: stages[3]?.date ? '1' : '0',
         commentsReceivedDate: stages[3]?.date || '',
@@ -653,7 +604,7 @@ export default function InputForm({
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex-1 min-w-0">
                         <span className={`text-xs font-bold block truncate ${isStageDisabled ? 'text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-slate-200'}`}>
-                          {stageLabels[stageNum]}
+                          {dbStageMaster[stageNum] ? `${stageNum}. ${dbStageMaster[stageNum]}` : stageLabels[stageNum]}
                         </span>
                         {isStageDisabled && (
                           <span className="text-[10px] font-semibold text-amber-600/80 dark:text-amber-400/80 italic">
@@ -712,7 +663,7 @@ export default function InputForm({
                             className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 focus:border-[#0f417a] rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 cursor-pointer"
                           >
                             <option value="">--Select Wing--</option>
-                            {(wingsList.length > 0 ? wingsList.map(w => w.wing_name) : COMMON_WINGS)
+                            {wingsList.map(w => w.wing_name)
                               .filter(w => !selectedWings.includes(w))
                               .map(w => (
                                 <option key={w} value={w}>{w}</option>

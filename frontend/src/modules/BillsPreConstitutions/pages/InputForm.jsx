@@ -71,7 +71,13 @@ export default function InputForm({
   const [initialValues] = useState(() => initialValuesFor(editData));
   const [subject, setSubject] = useState(initialValues.subject);
   const [wing, setWing] = useState(initialValues.wing);
-  const [division, setDivision] = useState(initialValues.division);
+  const [pickedDivision, setDivision] = useState(initialValues.division);
+  // Only the chosen wing's divisions (as in the master: each division belongs to one wing)
+  const wingDivisions = useMemo(
+    () => divisions.filter((d) => wing !== '' && String(d.wing_id) === String(wing)),
+    [divisions, wing],
+  );
+  const division = wingDivisions.some((d) => String(d.division_id) === pickedDivision) ? pickedDivision : '';
   const [remarks, setRemarks] = useState(initialValues.remarks);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
@@ -296,7 +302,7 @@ export default function InputForm({
               <label className="module-form-label">Wing <span className="text-red-500">*</span></label>
               <select
                 value={wing}
-                onChange={e => setWing(e.target.value)}
+                onChange={e => { setWing(e.target.value); setDivision(''); }}
                 onBlur={() => handleBlur('wing')}
                 disabled={readOnly}
                 className={`module-form-input cursor-pointer${isFieldInvalid('wing', wing) ? ' !border-red-500' : ''}`}
@@ -321,8 +327,8 @@ export default function InputForm({
                 disabled={readOnly}
                 className={`module-form-input cursor-pointer${isFieldInvalid('division', division) ? ' !border-red-500' : ''}`}
               >
-                <option value="">--Select Division--</option>
-                {divisions.map(d => (
+                <option value="">{wing ? '--Select Division--' : '--Select Wing first--'}</option>
+                {wingDivisions.map(d => (
                   <option key={d.division_id} value={String(d.division_id)}>{d.division_name}</option>
                 ))}
               </select>
