@@ -1,17 +1,26 @@
-import { useHrListStore, CURRENT_YEAR } from '../../store/useHrListStore';
+/* global describe, it, expect, jest, beforeEach, require */
+import { useHrStore, CURRENT_YEAR } from '../../store/useHrStore';
+
+jest.mock('../../api', () => ({
+  fetchHrDepartments: jest.fn(() => Promise.resolve({ data: [{ department_id: '001', department_name: 'Marine' }] })),
+  fetchMmtDropdown: jest.fn(() => Promise.resolve({ data: [{ organisation_id: 1, organisation_name: 'Chennai Port Authority' }] })),
+}));
+const api = require('../../api');
 import { clearHrCache, dropCache, prefetchCache, readCache, writeCache } from '../../store/hrRequestCache';
 import { resetAllStores } from '../../../../stores/resetRegistry';
 
-const state = () => useHrListStore.getState();
+const state = () => useHrStore.getState();
 
 describe('HR list store', () => {
   beforeEach(() => resetAllStores());
 
   it('starts every list on page 1 with 10 rows', () => {
-    ['employees', 'overview', 'anticipated', 'abolished'].forEach((key) => {
-      expect(state()[key].currentPage).toBe(1);
-      expect(state()[key].pageSize).toBe(10);
-    });
+    ['employees', 'overview', 'anticipated', 'abolished', 'employeeDatabase', 'orgStructure', 'contractual', 'training']
+      .forEach((key) => {
+        expect(state()[key].currentPage).toBe(1);
+        expect(state()[key].pageSize).toBe(10);
+        expect(state()[key].visibleCols).toEqual({});
+      });
     expect(state().anticipated.years).toEqual([CURRENT_YEAR]);
   });
 
@@ -38,6 +47,25 @@ describe('HR list store', () => {
     state().overviewActions.setCurrentPage((p) => p + 1);
     expect(state().overview).toMatchObject({ currentPage: 2, abolishingOnly: true });
     expect(state().anticipated.currentPage).toBe(1);
+  });
+
+  it('keeps column visibility changes per list and resets them with the filters on logout', () => {
+    state().trainingActions.setVisibleCols((prev) => ({ ...prev, Year: false }));
+    expect(state().training.visibleCols).toEqual({ Year: false });
+    expect(state().contractual.visibleCols).toEqual({});
+    resetAllStores();
+    expect(state().training.visibleCols).toEqual({});
+  });
+
+  it('loads reference data once per organisation', async () => {
+    api.fetchHrDepartments.mockClear();
+    api.fetchMmtDropdown.mockClear();
+    await state().loadMasters(1);
+    await state().loadMasters(1);
+    expect(api.fetchHrDepartments).toHaveBeenCalledTimes(1);
+    expect(api.fetchMmtDropdown).toHaveBeenCalledTimes(1);
+    expect(state().departments).toHaveLength(1);
+    expect(state().organisations[0].organisation_name).toBe('Chennai Port Authority');
   });
 
   it('resets everything on logout', () => {

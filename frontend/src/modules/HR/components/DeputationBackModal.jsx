@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
-import { useHRPermissions, SESSION_EXPIRED_MESSAGE } from '../hooks/useHRPermissions';
+import { useHRPermissions } from '../hooks/useHRPermissions';
+import { COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { HR_TOASTS } from '../toastMessages';
 import { HrModal, FormRow, DateInput, SelectInput, ModalButtons, MandatoryHint } from './HrFormControls';
 import {
   DEPUTATION_BACK_ACTIVITY,
@@ -73,7 +75,7 @@ export default function DeputationBackModal({
       setPosts(rows);
       return rows;
     } catch {
-      notify?.('Failed to load posts for the department.', 'error');
+      notify?.(HR_TOASTS.postsLoadFailed());
       return [];
     }
   };
@@ -88,10 +90,10 @@ export default function DeputationBackModal({
       }
       setPostCodes(rows);
       if (!rows.length) {
-        notify?.('Vacant posts appear here only after all activities are entered in Vacancy Management.', 'warning');
+        notify?.(HR_TOASTS.vacantPostsNotReady());
       }
     } catch {
-      notify?.('Failed to load vacant post codes.', 'error');
+      notify?.(HR_TOASTS.postsLoadFailed());
     }
   };
 
@@ -111,7 +113,7 @@ export default function DeputationBackModal({
       );
       const data = res?.data || {};
       if (String(data.status || '').toUpperCase() === 'FILLED') {
-        notify?.('The original post of this employee is already filled.', 'warning');
+        notify?.(HR_TOASTS.originalPostFilled());
         return;
       }
       const departmentId = data.emp_department_id ? String(data.emp_department_id) : '';
@@ -125,7 +127,8 @@ export default function DeputationBackModal({
         postCode: data.emp_post_code || '',
       }));
     } catch (err) {
-      notify?.(err?.response?.data?.message || 'Failed to load the employee details.', 'error');
+      console.error(err);
+      notify?.(COMMON_TOASTS.loadFailed('The employee details'));
     } finally {
       setLoadingDetails(false);
     }
@@ -139,7 +142,7 @@ export default function DeputationBackModal({
     const departmentName = deptOptions.find((d) => d.value === form.departmentId)?.label || '';
     const postName = postOptions.find((p) => p.value === form.postId)?.label || '';
     if (!userId) {
-      notify?.(SESSION_EXPIRED_MESSAGE, 'error');
+      notify?.(HR_TOASTS.sessionExpired());
       return;
     }
     setSaving(true);
@@ -147,11 +150,11 @@ export default function DeputationBackModal({
       await updateDeputationBackActivity(
         buildDeputationBackPayload(form, employee, { departmentName, postName, organisationID: orgId, userID: userId })
       );
-      notify?.('Activity updated successfully.', 'success');
+      notify?.(HR_TOASTS.employeeActivityUpdated(employee.emp_name));
       onSuccess?.();
       onClose?.();
     } catch (err) {
-      notify?.(err?.response?.data?.message || err?.response?.data?.error || 'Failed to update the activity.', 'error');
+      notify?.(HR_TOASTS.employeeActivityFailed(getErrorMessage(err)));
     } finally {
       setSaving(false);
     }

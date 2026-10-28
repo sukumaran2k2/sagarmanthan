@@ -41,3 +41,173 @@
 .ag-theme-quartz .ag-cell.hr-cell-center > :where(span, div, p) {
   text-align: center !important;
 }
+
+/* ── HR report grids (reports/GroupedTable.jsx, pages/Reports.jsx) ─────────────────────────
+   Scoped to .hr-report-grid. Colours come from the shared report tokens in
+   styles/module-report.css (maroon palette), with dark-mode values next to them. */
+.hr-report-grid {
+  --hr-rpt-brand: var(--module-report-brand-color, #4b2424);
+  --hr-rpt-header: var(--module-report-header-bg, #4b2424);
+  --hr-rpt-head-border: var(--module-report-brand-color-hover, #6b3535);
+  --hr-rpt-total-top: #2c1313;
+  --hr-rpt-line: var(--module-report-border, #e8d5d5);
+  --hr-rpt-stripe: var(--module-report-accent-color, #f7f3f3);
+  --hr-rpt-row: #ffffff;
+  --hr-rpt-serial: #334155;
+  --hr-rpt-section-bg: #f5eeea;
+}
+.dark .hr-report-grid {
+  --hr-rpt-total-top: #1a0b0b;
+  --hr-rpt-stripe: #0f172a;
+  --hr-rpt-row: #111827;
+  --hr-rpt-serial: #cbd5e1;
+  --hr-rpt-section-bg: #1e293b;
+}
+
+.hr-report-grid .ag-header-cell.hr-rpt-head-left .ag-header-cell-label { justify-content: flex-start !important; }
+.hr-report-grid .ag-header-cell.hr-rpt-head-left .ag-header-cell-text { text-align: left !important; }
+.hr-report-grid .ag-header-cell.hr-rpt-head-center .ag-header-cell-label { justify-content: center !important; }
+.hr-report-grid .ag-header-cell.hr-rpt-head-serial .ag-header-cell-text { white-space: nowrap !important; word-break: keep-all !important; }
+.hr-report-grid .ag-header-cell,
+.hr-report-grid .ag-header-group-cell { border-right: 1px solid var(--hr-rpt-head-border) !important; }
+.hr-report-grid .ag-header-group-cell { border-bottom: 1px solid var(--hr-rpt-head-border) !important; }
+.hr-report-grid .ag-header-group-cell-label { justify-content: center !important; }
+
+.hr-report-grid .ag-cell { border-right: 1px solid var(--hr-rpt-line) !important; font-size: 12px; }
+.hr-report-grid .ag-cell.hr-rpt-left { justify-content: flex-start !important; }
+.hr-report-grid .ag-cell.hr-rpt-center { justify-content: center !important; }
+.hr-report-grid .ag-cell.hr-rpt-serial { font-weight: 600; color: var(--hr-rpt-serial); }
+.hr-report-grid .ag-cell.hr-rpt-emphasis { font-weight: 700; color: var(--hr-rpt-brand); }
+
+/* Striped rows; no hover highlight (rows keep their stripe colour under the pointer) */
+.hr-report-grid .ag-row { border-bottom: 1px solid var(--hr-rpt-line) !important; }
+.hr-report-grid .ag-row-odd:not(.ag-row-pinned) { background-color: var(--hr-rpt-stripe) !important; }
+.hr-report-grid .ag-row-even:not(.ag-row-pinned) { background-color: var(--hr-rpt-row) !important; }
+.hr-report-grid .ag-root-wrapper { --ag-row-hover-color: transparent; }
+.hr-report-grid .ag-row-hover::before { display: none !important; }
+
+/* Auto-height grids reserve a 150px body; with rows, fit the body to them (no gap above the total) */
+.hr-report-has-rows .ag-layout-auto-height .ag-center-cols-viewport,
+.hr-report-has-rows .ag-layout-auto-height .ag-center-cols-container { min-height: 0 !important; }
+
+/* Frozen S.No / name columns end with a heavier border */
+.hr-report-grid .ag-pinned-left-header,
+.hr-report-grid .ag-pinned-left-cols-container .ag-row,
+.hr-report-grid .ag-pinned-left-floating-bottom { border-right: 2px solid var(--hr-rpt-head-border) !important; }
+
+/* Grand-total row */
+.hr-report-grid .ag-row-pinned { background-color: var(--hr-rpt-header) !important; border-top: 4px solid var(--hr-rpt-total-top) !important; }
+.hr-report-grid .ag-row-pinned .ag-cell { color: #ffffff !important; font-weight: 900; border-right-color: var(--hr-rpt-head-border) !important; }
+.hr-report-grid .ag-row-pinned .ag-cell.hr-rpt-left { text-transform: uppercase; letter-spacing: 0.05em; }
+
+/* Reports index: section rows */
+.hr-report-grid .ag-row.hr-rpt-section { background-color: var(--hr-rpt-section-bg) !important; color: var(--hr-rpt-brand) !important; font-weight: 900; }
+.dark .hr-report-grid .ag-cell.hr-rpt-emphasis,
+.dark .hr-report-grid .ag-row.hr-rpt-section { color: #fca5a5 !important; }
+
+/* Vacant Details: single-line headers */
+.no-header-wrap .ag-header-cell-text,
+.no-header-wrap .ag-header-cell-label {
+  white-space: nowrap !important;
+  word-break: keep-all !important;
+}
+
+/* ── HR report page tokens (reports/theme.js) ── */
+:root {
+  --hr-report-brand-soft: #8c4242;
+  --hr-report-total-top: #2c1313;
+  --hr-report-accent: #f5eeea;
+  --hr-report-surface: #fcf9f7;
+  --hr-report-border: #e8d5c8;
+  --hr-report-input-border: #d7c4b7;
+  --hr-report-line: #eadede;
+  --hr-report-pill: #f4ebe6;
+  --hr-report-text: #334155;
+}
+.dark {
+  --hr-report-brand-soft: #e2a6a6;
+  --hr-report-total-top: #1a0b0b;
+  --hr-report-accent: rgba(75, 36, 36, 0.4);
+  --hr-report-surface: #0f172a;
+  --hr-report-border: #4b2424;
+  --hr-report-input-border: #6b3535;
+  --hr-report-line: #334155;
+  --hr-report-pill: rgba(75, 36, 36, 0.5);
+  --hr-report-text: #cbd5e1;
+}
+
+/* HR has six top-level tabs: when they don't fit beside the title, the bar moves below it
+   (instead of squeezing the title into a narrow column under the bar) */
+@media (min-width: 1024px) {
+  /* Only where title and bar sit side by side (below this the shared header stacks) */
+  .hr-module-header {
+    flex-wrap: wrap;
+  }
+  .hr-module-header > :first-child {
+    flex: 1 1 18rem;
+    min-width: min(18rem, 100%);
+  }
+}
+
+/* ── Non Port Monthly Upload grids (pages/NonPortVacancyList.jsx, components/NonPortUploadHistory.jsx) ──
+   Headers wrap between words only (the shared Table breaks inside words), one cell font, and
+   np-left / np-center align header and cell together. The grid's inline text-align: center and
+   the wrap cells' display: block are why both text-align and justify-content are set. */
+.hr-nonport-grid .ag-header-cell .ag-header-cell-text {
+  word-break: normal !important;
+  overflow-wrap: normal !important;
+  hyphens: none;
+}
+.hr-nonport-grid .ag-header-cell.np-left .ag-header-cell-label { justify-content: flex-start !important; }
+.hr-nonport-grid .ag-header-cell.np-left .ag-header-cell-text { text-align: left !important; }
+.hr-nonport-grid .ag-header-cell.np-center .ag-header-cell-label { justify-content: center !important; }
+
+.hr-nonport-grid .ag-cell {
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: #1e293b;
+}
+.dark .hr-nonport-grid .ag-cell { color: #e2e8f0; }
+.hr-nonport-grid .ag-cell.np-left { justify-content: flex-start !important; text-align: left !important; }
+.hr-nonport-grid .ag-cell.np-center { justify-content: center !important; text-align: center !important; }
+.hr-nonport-grid .ag-cell.np-muted { color: #64748b; font-weight: 600; }
+.hr-nonport-grid .ag-cell.np-strong { font-weight: 600; }
+/* Wrapped cells centre vertically like the single-line ones (the shared Table makes them block,
+   which pins their text to the top of a taller row) */
+.hr-nonport-grid .ag-row .ag-cell.ag-cell-wrap-text {
+  display: flex !important;
+  align-items: center !important;
+  height: 100% !important;
+}
+.hr-nonport-grid .ag-row .ag-cell.ag-cell-wrap-text .ag-cell-wrapper { height: auto !important; }
+.hr-nonport-grid .ag-row .ag-cell.ag-cell-wrap-text.np-left { justify-content: flex-start !important; }
+.hr-nonport-grid .ag-row .ag-cell.ag-cell-wrap-text.np-center { justify-content: center !important; }
+/* Long unbroken values (file names, reference IDs) may break anywhere */
+.hr-nonport-grid .ag-cell.np-break-all,
+.hr-nonport-grid .ag-cell.np-break-all .ag-cell-value { word-break: break-all !important; }
+
+/* Vacant / Filled status pill */
+.np-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 1.375rem;
+  padding: 0 0.625rem;
+  border-radius: 9999px;
+  border: 1px solid;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+.np-status::before {
+  content: '';
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 9999px;
+  background: currentColor;
+}
+.np-status-filled { color: #047857; background: #ecfdf5; border-color: #a7f3d0; }
+.np-status-vacant { color: #b45309; background: #fffbeb; border-color: #fde68a; }
+.dark .np-status-filled { color: #6ee7b7; background: rgba(6, 78, 59, 0.35); border-color: #065f46; }
+.dark .np-status-vacant { color: #fcd34d; background: rgba(120, 53, 15, 0.35); border-color: #92400e; }

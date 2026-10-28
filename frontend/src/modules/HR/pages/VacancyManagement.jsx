@@ -18,12 +18,16 @@ import TablePagination from '../../../components/TablePagination';
 import MultiSelect from '../../../components/MultiSelect';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
-import { SESSION_EXPIRED_MESSAGE } from '../hooks/useHRPermissions';
+import { useShallow } from 'zustand/react/shallow';
+import { COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { HR_TOASTS } from '../toastMessages';
 import VacantDetails from './VacantDetails';
+import { CLASS_ID } from '../utils/hrAdministration';
+import { HrFilterPanel, FilterField, DeptPostClassFilters } from '../components/HrFilterPanel';
+import { classChangeUpdate } from '../hooks/useHrFilterOptions';
 import VacancyActivityModal from '../components/VacancyActivityModal';
 import { EditActionButton, PostCodeTag } from '../components/HrFormControls';
 import {
-  fetchHrDepartments,
   fetchHrPostsByDepartment,
   fetchVacancyOverviewPage,
   fetchAnticipatedVacanciesPage,
@@ -31,24 +35,24 @@ import {
   fetchHrAllData
 } from '../api';
 import { alignHrColumns } from '../utils/tableAlignment';
-import { createTableExporter } from '../utils/exportTable';
-import { useDebouncedSearch, usePagedList } from '../hooks/usePagedList';
-import { CURRENT_YEAR, useHrListStore } from '../store/useHrListStore';
+import { createTableExporter, fetchAllRows } from '../utils/exportTable';
+import { useDebouncedSearch, useLatestRef, usePagedList } from '../hooks/usePagedList';
+import { CURRENT_YEAR, useHrStore } from '../store/useHrStore';
 
 // ─────────────────────────── constants ───────────────────────────
 
 const OVERVIEW_COL_LABELS = {
-  sNo: 'S.No', department: 'Department', class: 'Class', post_name: 'Post Name',
+  sNo: 'S.No', department: 'Department', post_id: 'Post ID', class: 'Class', post_name: 'Post Name',
   sanctioned: 'Sanctioned', actual: 'Actual', live_post: 'Vacancy - Live',
   abolished_post: 'Vacancy - Abolished', total_vacant_post: 'Vacancy - Total',
   have_abolished_or_not: 'Have Abolished or Not?'
 };
 
 const ANTICIPATED_COL_LABELS = {
-  sNo: 'S.No', department_name: 'Department', class: 'Class', post_name: 'Post Name',
+  sNo: 'S.No', department_name: 'Department', post_id: 'Post ID', class: 'Class', post_name: 'Post Name',
   post_code: 'Post Code', expected_method: 'Expected Method of Filling (as per RR)',
   anticipated_date: 'Anticipated Vacancy Date', current_occupant: 'Current Occupant',
-  retirement_date: 'Date of Retirement', action: 'Action'
+  retirement_date: 'Date of Retirement', last_updated: 'Last Updated Date', action: 'Action'
 };
 
 const AVAILABLE_YEARS = Array.from({ length: 11 }, (_, i) => (new Date().getFullYear() + i).toString());
@@ -65,6 +69,10 @@ const ROW_HEIGHT = 52;
 
 const formatDate = (dateStr) => {
   if (!dateStr) return '--';
+  // Server dates arrive as ISO strings; take the stored calendar date (DATETIME values are
+  // server-local tagged 'Z', so new Date() would move evening saves to the next day).
+  const ymd = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(dateStr));
+  if (ymd) return `${ymd[3]}-${ymd[2]}-${ymd[1]}`;
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return '--';
   return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
@@ -90,7 +98,7 @@ const anticipatedKey = (row) => row.post_code || row.post_id;
 
 // Export field per visibility key (S.No is added by the exporter).
 const OVERVIEW_EXPORT_FIELDS = {
-  department: 'department', class: 'class', post_name: 'post_name', sanctioned: 'sanctioned', actual: 'actual',
+  department: 'department', post_id: 'post_id', class: 'class', post_name: 'post_name', sanctioned: 'sanctioned', actual: 'actual',
   live_post: 'live_post', abolished_post: 'abolished_post', total_vacant_post: 'calculated_total_vacant',
   have_abolished_or_not: 'have_abolished_or_not',
 };
@@ -122,29 +130,36 @@ function VacancyCountChip({ count, tone, onOpen }) {
 
 // ─────────────────────────── component ───────────────────────────
 
-export default function VacancyManagement({ notify, triggerNotification, permissions }) {
+const OVERVIEW_VISIBLE = {
+  sNo: true, department: true, post_id: false, class: false, post_name: true, sanctioned: true,
+  actual: true, live_post: true, abolished_post: true, total_vacant_post: true,
+  have_abolished_or_not: false
+};
+const ANTICIPATED_VISIBLE = {
+  sNo: true, department_name: true, post_id: false, class: false, post_name: true, post_code: true,
+  expected_method: true, anticipated_date: true, current_occupant: true,
+  retirement_date: false, last_updated: false, action: true
+};
+
+// departments: reference data loaded once by the HR shell (store)
+export default function VacancyManagement({ notify, permissions, departments = [] }) {
   const { orgId, userId, orgName: sessionOrgName } = permissions;
   const orgName = sessionOrgName || 'Organisation';
   const userCanEdit = permissions.canEdit;
 
-  // Notifiers from the shell change identity on every App render; keep a stable wrapper so
-  // loaders that report errors do not refetch after each toast.
-  const notifyRef = useRef({ notify, triggerNotification });
-  useEffect(() => { notifyRef.current = { notify, triggerNotification }; }, [notify, triggerNotification]);
-  const sendNotification = useCallback((msg, type = 'success') => {
-    const { notify: n, triggerNotification: t } = notifyRef.current;
-    if (typeof n === 'function') n(msg, type);
-    else if (typeof t === 'function') t(msg, type);
-  }, []);
+  // The shell's notifier changes identity on every App render; keep a stable wrapper so
+  // loaders that report errors do not refetch after each toast. Takes a toast definition.
+  const notifyRef = useLatestRef(notify);
+  const sendNotification = useCallback((toast) => notifyRef.current?.(toast), [notifyRef]);
 
   // ── tab, filters, search and paging live in the HR list store (one slice per tab),
   // so they survive switching tabs and HR pages
-  const activeTab = useHrListStore((state) => state.vacancyTab);
-  const setActiveTab = useHrListStore((state) => state.setVacancyTab);
-  const overviewList = useHrListStore((state) => state.overview);
-  const overviewActions = useHrListStore((state) => state.overviewActions);
-  const anticipatedList = useHrListStore((state) => state.anticipated);
-  const anticipatedActions = useHrListStore((state) => state.anticipatedActions);
+  const activeTab = useHrStore((state) => state.vacancyTab);
+  const setActiveTab = useHrStore((state) => state.setVacancyTab);
+  const overviewList = useHrStore(useShallow((state) => state.overview));
+  const overviewActions = useHrStore((state) => state.overviewActions);
+  const anticipatedList = useHrStore(useShallow((state) => state.anticipated));
+  const anticipatedActions = useHrStore((state) => state.anticipatedActions);
   const isOverview = activeTab === 'overview';
   const list = isOverview ? overviewList : anticipatedList;
   const actions = isOverview ? overviewActions : anticipatedActions;
@@ -163,8 +178,7 @@ export default function VacancyManagement({ notify, triggerNotification, permiss
   // post_code -> { value, department_id, post_id, post_code }
   const [anticipatedEdits, setAnticipatedEdits] = useState({});
 
-  // ── filter options
-  const [departments, setDepartments] = useState([]);
+  // ── filter options (departments come from the shell)
   // Posts of the selected department (tagged with it so a stale list is never shown).
   const [deptPosts, setDeptPosts] = useState({ deptId: '', list: [] });
 
@@ -172,16 +186,9 @@ export default function VacancyManagement({ notify, triggerNotification, permiss
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const colDropdownRef = useRef(null);
 
-  const [visibleColsOverview, setVisibleColsOverview] = useState({
-    sNo: true, department: true, class: false, post_name: true, sanctioned: true,
-    actual: true, live_post: true, abolished_post: true, total_vacant_post: true,
-    have_abolished_or_not: false
-  });
-  const [visibleColsAnticipated, setVisibleColsAnticipated] = useState({
-    sNo: true, department_name: true, class: false, post_name: true, post_code: true,
-    expected_method: true, anticipated_date: true, current_occupant: true,
-    retirement_date: false, action: true
-  });
+  // Column visibility lives in the store (only the user's changes, merged over the defaults)
+  const visibleColsOverview = useMemo(() => ({ ...OVERVIEW_VISIBLE, ...overviewList.visibleCols }), [overviewList.visibleCols]);
+  const visibleColsAnticipated = useMemo(() => ({ ...ANTICIPATED_VISIBLE, ...anticipatedList.visibleCols }), [anticipatedList.visibleCols]);
 
   // ── Activity Modal for Anticipated Vacancies
   const [showActivityModal, setShowActivityModal] = useState(false);
@@ -199,16 +206,6 @@ export default function VacancyManagement({ notify, triggerNotification, permiss
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // ── 1. Departments
-  useEffect(() => {
-    if (!orgId) return undefined;
-    let alive = true;
-    fetchHrDepartments(orgId)
-      .then(r => { if (alive) setDepartments(Array.isArray(r.data) ? r.data : (r.data?.data || [])); })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, [orgId]);
-
   // ── 2. Posts per department
   useEffect(() => {
     if (!departmentId || !orgId) return undefined;
@@ -218,7 +215,11 @@ export default function VacancyManagement({ notify, triggerNotification, permiss
       .catch(() => { if (alive) setDeptPosts({ deptId: departmentId, list: [] }); });
     return () => { alive = false; };
   }, [departmentId, orgId]);
-  const postsList = departmentId && deptPosts.deptId === departmentId ? deptPosts.list : [];
+  const deptPostsList = departmentId && deptPosts.deptId === departmentId ? deptPosts.list : [];
+  // The Post filter offers only posts of the chosen class, so it can't pick a post that never matches
+  const postsList = className
+    ? deptPostsList.filter(p => Number(p.class_id) === CLASS_ID[className])
+    : deptPostsList;
 
   // ── 3. Server-paged lists (organisation comes from the login on the server).
   // Each tab keeps its own search, filters and page; both load so the tab labels show totals.
@@ -233,7 +234,10 @@ export default function VacancyManagement({ notify, triggerNotification, permiss
     if (overviewList.postId) query.postId = overviewList.postId;
     if (overviewList.className) query.className = overviewList.className;
     if (overviewList.abolishingOnly) query.abolishingOnly = true;
-    if (debouncedSearch) query.search = debouncedSearch;
+    if (debouncedSearch) {
+      query.search = debouncedSearch;
+      if (overviewList.exactMatch) query.exact = true;
+    }
     return query;
   }, [overviewList]);
   const anticipatedParams = useMemo(() => {
@@ -247,8 +251,11 @@ export default function VacancyManagement({ notify, triggerNotification, permiss
   }, [anticipatedList]);
 
   const onListError = useCallback(
-    (err) => sendNotification(err?.response?.data?.message || 'Failed to load the list.', 'error'),
-    [sendNotification]
+    (err) => {
+      console.error(err);
+      sendNotification(COMMON_TOASTS.loadFailed(isOverview ? 'The vacancy overview' : 'Anticipated vacancies'));
+    },
+    [sendNotification, isOverview]
   );
   const overview = usePagedList({ scope: 'overview', params: overviewParams, request: fetchVacancyOverviewPage, onError: onListError });
   const anticipated = usePagedList({ scope: 'anticipated', params: anticipatedParams, request: fetchAnticipatedVacanciesPage, onError: onListError });
@@ -269,7 +276,7 @@ export default function VacancyManagement({ notify, triggerNotification, permiss
   const handleResetFilters = () => {
     actions.resetFilters();
     actions.setSearchTerm('');
-    sendNotification('Filters reset.', 'info');
+    sendNotification(COMMON_TOASTS.filtersReset());
   };
 
   const activeFiltersCount =
@@ -280,19 +287,19 @@ export default function VacancyManagement({ notify, triggerNotification, permiss
   const abolishingCount = overview.extra?.counts?.abolishingThisMonth ?? 0;
 
   // ─────────── Open Action popup from ANTICIPATED row (vacancy activities) ───────────
-  const handleOpenActivityModal = (row) => {
+  const handleOpenActivityModal = useCallback((row) => {
     const edit = anticipatedEdits[anticipatedKey(row)];
     const expectedMethod = edit ? edit.value : (row.expected_anticipated_vacancy || row.expected_method || '');
 
     if (!expectedMethod || !expectedMethod.trim() || expectedMethod.toLowerCase().startsWith('-- select')) {
-      sendNotification('Please select Expected Method of Filling to update the activity', 'warning');
+      sendNotification(HR_TOASTS.expectedMethodRequired());
       return;
     }
 
     setSelectedAnticipatedRow(row);
     setSelectedExpectedMethod(expectedMethod);
     setShowActivityModal(true);
-  };
+  }, [anticipatedEdits, sendNotification]);
 
   // ─────────── Submit Anticipated Vacancies (expected method per post) ───────────
   const handleSubmitAnticipated = async () => {
@@ -300,15 +307,15 @@ export default function VacancyManagement({ notify, triggerNotification, permiss
     const tableData = Object.values(anticipatedEdits)
       .filter((e) => e.value)
       .map((e) => ({ department_id: e.department_id, post_id: e.post_id, post_code: e.post_code, expected_anticipated_vacancy: e.value }));
-    if (!tableData.length) { sendNotification('Change the expected method for at least one post.', 'warning'); return; }
-    if (!userId || !orgId) { sendNotification(SESSION_EXPIRED_MESSAGE, 'error'); return; }
+    if (!tableData.length) { sendNotification(HR_TOASTS.noAnticipatedChanges()); return; }
+    if (!userId || !orgId) { sendNotification(HR_TOASTS.sessionExpired()); return; }
     setIsSubmitting(true);
     try {
       await submitHrAnticipatedVacancies({ organisationID: orgId, userID: userId, tableData });
-      sendNotification('Anticipated vacancies saved!', 'success');
+      sendNotification(HR_TOASTS.anticipatedSaved(tableData.length));
       setAnticipatedEdits({});
       anticipated.reload();
-    } catch { sendNotification('Failed to save anticipated vacancies.', 'error'); }
+    } catch (err) { sendNotification(HR_TOASTS.anticipatedSaveFailed(getErrorMessage(err))); }
     finally { setIsSubmitting(false); }
   };
 
@@ -318,15 +325,18 @@ export default function VacancyManagement({ notify, triggerNotification, permiss
     try {
       const r = await fetchHrAllData(orgId);
       const raw = Array.isArray(r.data) ? r.data : (r.data?.data || []);
-      if (!raw.length) { sendNotification('No data to export.', 'warning'); return; }
-      const rows = raw.map(row => { const c = { ...row }; Object.keys(c).forEach(k => { if (k.toLowerCase().includes('date') && c[k]) c[k] = formatDate(c[k]); }); return c; });
-      const ws = XLSX.utils.json_to_sheet(rows);
+      if (!raw.length) { sendNotification(HR_TOASTS.noDataToExport()); return; }
+      // Written as received: /get-hr-all-data already formats its dates as dd/mm/yyyy text
+      // (SQL style 103). Re-parsing them with new Date() reads them month-first, so 05/03/2020
+      // became 3 May and 15/03/2020 was lost.
+      const ws = XLSX.utils.json_to_sheet(raw);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'HR Post Data');
       const now = new Date();
-      XLSX.writeFile(wb, `HR_Post_Data_${orgName.replace(/[^a-zA-Z0-9]/g, '_')}_${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}.xlsx`);
-      sendNotification('HR Master Data exported!', 'success');
-    } catch { sendNotification('Export failed.', 'error'); }
+      const fileName = `HR_Post_Data_${orgName.replace(/[^a-zA-Z0-9]/g, '_')}_${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      sendNotification(HR_TOASTS.hrDataExported(fileName));
+    } catch (err) { sendNotification(HR_TOASTS.hrDataExportFailed(getErrorMessage(err))); }
     finally { setIsExportingAll(false); }
   };
 
@@ -344,7 +354,6 @@ export default function VacancyManagement({ notify, triggerNotification, permiss
   const paginatedRows = isOverview ? overviewRows : anticipatedRows;
   const { currentPage, pageSize } = list;
   const { total: totalCount, totalPages } = activeList;
-  const serialStart = isOverview ? overviewStart : anticipatedStart;
 
   // ─────────── Column defs ───────────
 
@@ -388,6 +397,11 @@ export default function VacancyManagement({ notify, triggerNotification, permiss
           {p.value || '--'}
         </span>
       )
+    },
+    {
+      field: 'post_id', headerName: 'Post ID', minWidth: 110, maxWidth: 130, headerClass: 'text-center',
+      cellClass: 'text-center font-mono flex items-center justify-center', hide: !visibleColsOverview.post_id,
+      cellRenderer: (p) => <span className="text-center w-full">{p.value || '--'}</span>
     },
     {
       field: 'class', headerName: 'Class', flex: 0.8, minWidth: 95, headerClass: 'text-center',
@@ -448,6 +462,11 @@ export default function VacancyManagement({ notify, triggerNotification, permiss
       field: 'department_name', headerName: 'Department', flex: 1.2, minWidth: 140, headerClass: 'text-center',
       cellClass: 'text-center font-semibold flex items-center justify-center', hide: !visibleColsAnticipated.department_name,
       cellRenderer: (p) => <span className="font-semibold text-slate-800 dark:text-slate-200 text-center w-full">{p.value || '--'}</span>
+    },
+    {
+      field: 'post_id', headerName: 'Post ID', minWidth: 110, maxWidth: 130, headerClass: 'text-center',
+      cellClass: 'text-center font-mono flex items-center justify-center', hide: !visibleColsAnticipated.post_id,
+      cellRenderer: (p) => <span className="text-center w-full">{p.value || '--'}</span>
     },
     {
       field: 'class', headerName: 'Class', flex: 0.8, minWidth: 95, headerClass: 'text-center',
@@ -516,6 +535,13 @@ export default function VacancyManagement({ notify, triggerNotification, permiss
       cellRenderer: (p) => <span className="flex items-center justify-center gap-1.5 w-full font-bold text-amber-600 dark:text-amber-400"><Calendar size={13} className="shrink-0" /><span>{formatDate(p.value)}</span></span>
     },
     {
+      // When the post's vacancy record was last changed (created date if never updated)
+      field: 'updated_date', headerName: 'Last Updated Date', flex: 1, minWidth: 130, headerClass: 'text-center',
+      cellClass: 'text-center flex items-center justify-center', hide: !visibleColsAnticipated.last_updated,
+      valueGetter: (p) => p.data?.updated_date || p.data?.created_date || null,
+      cellRenderer: (p) => <span className="text-center w-full">{formatDate(p.value)}</span>
+    },
+    {
       field: 'action', headerName: 'Action', flex: 0.9, minWidth: 110, pinned: 'right',
       headerClass: 'text-center', cellClass: 'text-center flex items-center justify-center py-1',
       hide: !visibleColsAnticipated.action,
@@ -528,11 +554,12 @@ export default function VacancyManagement({ notify, triggerNotification, permiss
         );
       }
     }
-  ], [visibleColsAnticipated, anticipatedEdits, userCanEdit]);
+  ], [visibleColsAnticipated, anticipatedEdits, userCanEdit, handleOpenActivityModal]);
 
   const activeColLabels = activeTab === 'overview' ? OVERVIEW_COL_LABELS : ANTICIPATED_COL_LABELS;
   const activeVisibleCols = activeTab === 'overview' ? visibleColsOverview : visibleColsAnticipated;
-  const setActiveVisibleCols = activeTab === 'overview' ? setVisibleColsOverview : setVisibleColsAnticipated;
+  // Toggle one column of the active tab (the store keeps the user's changes)
+  const setActiveVisibleCols = (updater) => actions.setVisibleCols((prev) => ({ ...prev, ...updater(activeVisibleCols) }));
   const activeColumnDefs = activeTab === 'overview' ? columnDefsOverview : columnDefsAnticipated;
 
   // ─────────── Copy / Export: every row matching the filters, visible columns only ───────────
@@ -544,6 +571,7 @@ export default function VacancyManagement({ notify, triggerNotification, permiss
     }
     const fields = {
       department_name: { field: 'department_name' },
+      post_id: { field: 'post_id' },
       class: { field: 'class' },
       post_name: { field: 'post_name' },
       post_code: { field: 'post_code' },
@@ -554,20 +582,27 @@ export default function VacancyManagement({ notify, triggerNotification, permiss
       anticipated_date: { field: 'Anticipated_date', value: (r) => formatDate(r.Anticipated_date) },
       current_occupant: { field: 'emp_name' },
       retirement_date: { field: 'emp_dor', value: (r) => formatDate(r.emp_dor) },
+      last_updated: { field: 'updated_date', value: (r) => formatDate(r.updated_date || r.created_date) },
     };
     return Object.keys(fields)
       .filter((k) => visibleColsAnticipated[k])
       .map((k) => ({ ...fields[k], label: ANTICIPATED_COL_LABELS[k] }));
   };
   const tabTitle = activeTab === 'overview' ? 'Vacancy Overview' : 'Anticipated Vacancies';
+  // Copy / Excel / PDF cover every row of the filtered list (all pages), as the legacy page did
   const runExport = (kind) => createTableExporter({
-    loadRows: () => paginatedRows,
+    loadRows: async () => {
+      const all = await fetchAllRows(
+        isOverview ? fetchVacancyOverviewPage : fetchAnticipatedVacanciesPage,
+        isOverview ? overviewParams : anticipatedParams
+      );
+      return isOverview ? all.map(toOverviewRow) : all;
+    },
     isBusy: busy,
-    serialStart,
     getColumns: exportColumns,
     notify: sendNotification,
-    title: `${tabTitle} - ${orgName} (Page ${currentPage})`,
-    fileName: `${tabTitle}_${orgName}_Page_${currentPage}`,
+    title: `${tabTitle} - ${orgName}`,
+    fileName: `${tabTitle}_${orgName}`,
     label: tabTitle,
   })[kind]();
 
@@ -598,41 +633,36 @@ export default function VacancyManagement({ notify, triggerNotification, permiss
         isLive={selectedVacantDetail.isLive}
         onBack={() => setSelectedVacantDetail(null)}
         notify={notify}
-        triggerNotification={triggerNotification}
         permissions={permissions}
       />
     );
   }
 
   return (
-    <div className="space-y-4 animate-fade-in relative text-slate-800 dark:text-slate-100">
+    <div className="space-y-4 animate-fade-in relative">
 
       {/* ── Sub-tabs ── */}
-      <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-1 mb-4 select-none px-1 flex-wrap gap-y-1">
+      <div className="module-subtabs-strip" role="tablist" aria-label="Vacancy management views">
         {[
           { id: 'overview', label: `VACANCY OVERVIEW (${overview.total})` },
           { id: 'anticipated', label: `ANTICIPATED VACANCIES (${anticipated.total})` }
         ].map(tab => (
-          <button key={tab.id} onClick={() => handleTabChange(tab.id)}
-            className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
-              activeTab === tab.id
-                ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
-                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-            }`}>
+          <button key={tab.id} type="button" role="tab" aria-selected={activeTab === tab.id} onClick={() => handleTabChange(tab.id)}
+            className={`module-subtab-btn ${activeTab === tab.id ? 'active' : ''}`}>
             {tab.label}
           </button>
         ))}
       </div>
 
       {/* ── Main card ── */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4 dark:bg-slate-950 dark:border-slate-800">
+      <div className="module-card space-y-4">
 
         {/* ── Toolbar ── */}
         <div className="flex flex-col lg:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
           <div className="flex items-center gap-2.5 w-full lg:w-auto flex-wrap">
             <button type="button" onClick={() => actions.setShowFilterPanel(p => !p)}
-              className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer border shadow-2xs ${showFilterPanel || activeFiltersCount > 0 ? 'bg-blue-50 border-blue-300 text-[#0f417a] dark:bg-blue-950/50 dark:border-blue-700 dark:text-blue-300' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800'}`}>
-              <Filter className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
+              className={`module-filter-btn ${showFilterPanel || activeFiltersCount > 0 ? 'active' : ''}`}>
+              <Filter className="h-4 w-4" />
               <span>Filter</span>
               {activeFiltersCount > 0 && <span className="bg-[#0f417a] dark:bg-blue-500 text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">{activeFiltersCount}</span>}
               <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${showFilterPanel ? 'rotate-180' : ''}`} />
@@ -655,9 +685,20 @@ export default function VacancyManagement({ notify, triggerNotification, permiss
             <div className="relative min-w-[200px] flex-1 sm:flex-initial">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
               <input type="text" placeholder="Search..." value={searchTerm} onChange={e => actions.setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-8 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-slate-400 text-slate-800 dark:text-slate-200" />
-              {searchTerm && <button onClick={() => actions.setSearchTerm('')} className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"><X className="h-3.5 w-3.5" /></button>}
+                className="w-full module-search-input" />
+              {searchTerm && <button type="button" aria-label="Clear search" onClick={() => actions.setSearchTerm('')} className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"><X className="h-3.5 w-3.5" /></button>}
             </div>
+            {isOverview && (
+              <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={!!overviewList.exactMatch}
+                  onChange={(e) => overviewActions.setFilters({ exactMatch: e.target.checked })}
+                  className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                />
+                Show exact match
+              </label>
+            )}
             <div className="flex items-center space-x-1.5 text-xs font-semibold bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200">
               <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
               <select value={pageSize} onChange={e => actions.setPageSize(Number(e.target.value))}
@@ -690,65 +731,33 @@ export default function VacancyManagement({ notify, triggerNotification, permiss
           </div>
         </div>
 
-        {/* ── Filter Panel ── */}
-        {showFilterPanel && (
-          <div className={`p-4 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200/80 dark:border-slate-800 grid grid-cols-1 ${activeTab === 'overview' ? 'md:grid-cols-3' : 'sm:grid-cols-2 md:grid-cols-4'} gap-4 animate-fade-in`}>
-            {/* Department */}
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Department</label>
-              <div className="relative">
-                <select value={departmentId} onChange={e => actions.setFilters({ departmentId: e.target.value, postId: '' })}
-                  className="appearance-none w-full text-xs pl-2.5 pr-8 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer">
-                  <option value="">-- All Departments --</option>
-                  {departments.map(d => <option key={d.department_id} value={d.department_id}>{d.department_name}</option>)}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-              </div>
-            </div>
-            {/* Post */}
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Post Name</label>
-              <div className="relative">
-                <select value={postId} onChange={e => actions.setFilters({ postId: e.target.value })} disabled={!departmentId}
-                  className={`appearance-none w-full text-xs pl-2.5 pr-8 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer ${!departmentId ? 'opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-800/60' : ''}`}>
-                  <option value="">{!departmentId ? 'Select Dept First' : '-- All Posts --'}</option>
-                  {postsList.map(p => <option key={p.post_id} value={p.post_id}>{p.post_name}</option>)}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-              </div>
-            </div>
-            {/* Class */}
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Class</label>
-              <div className="relative">
-                <select value={className} onChange={e => actions.setFilters({ className: e.target.value })}
-                  className="appearance-none w-full text-xs pl-2.5 pr-8 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer">
-                  <option value="">-- All Classes --</option>
-                  <option value="I/A">I/A</option>
-                  <option value="II/B">II/B</option>
-                  <option value="III/C">III/C</option>
-                  <option value="IV/D">IV/D</option>
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-              </div>
-            </div>
-            {/* Retirement years (Anticipated only) */}
-            {activeTab === 'anticipated' && (
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Year of retirement</label>
-                <MultiSelect
-                  options={YEAR_OPTIONS}
-                  value={selectedYears}
-                  onChange={(years) => anticipatedActions.setFilters({ years })}
-                  minSelected={1}
-                  defaultValue={[CURRENT_YEAR]}
-                  maxChips={3}
-                  ariaLabel="Year of retirement"
-                />
-              </div>
-            )}
-          </div>
-        )}
+        {/* ── Filter Panel (shared HR design) ── */}
+        <HrFilterPanel show={showFilterPanel} columns={activeTab === 'overview' ? 3 : 4}>
+          <DeptPostClassFilters
+            departments={departments}
+            departmentId={departmentId}
+            onDepartmentChange={(value) => actions.setFilters({ departmentId: value, postId: '' })}
+            posts={postsList}
+            postId={postId}
+            onPostChange={(value) => actions.setFilters({ postId: value })}
+            className={className}
+            onClassChange={(value) => actions.setFilters(classChangeUpdate(value, postId, deptPostsList))}
+          />
+          {/* Retirement years (Anticipated only) */}
+          {activeTab === 'anticipated' && (
+            <FilterField label="Year of retirement">
+              <MultiSelect
+                options={YEAR_OPTIONS}
+                value={selectedYears}
+                onChange={(years) => anticipatedActions.setFilters({ years })}
+                minSelected={1}
+                defaultValue={[CURRENT_YEAR]}
+                maxChips={3}
+                ariaLabel="Year of retirement"
+              />
+            </FilterField>
+          )}
+        </HrFilterPanel>
 
         {/* Abolition notice */}
         {activeTab === 'overview' && (
@@ -785,24 +794,16 @@ export default function VacancyManagement({ notify, triggerNotification, permiss
         )}
 
         {/* ── Data Table ── */}
-        <div className="ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
-          <Table key={activeTab} rowData={paginatedRows} columnDefs={alignedColumns.activeColumnDefs} loading={activeList.loading} rowHeight={ROW_HEIGHT}
+        <div className="ag-theme-quartz module-datalist-grid w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
+          {/* One grid for both tabs: it takes the other tab's columns and rows in place. Keying it by
+              tab rebuilt the grid on every switch, and a new grid stays blank until it re-measures. */}
+          <Table rowData={paginatedRows} columnDefs={alignedColumns.activeColumnDefs} loading={activeList.loading} rowHeight={ROW_HEIGHT}
             pagination={false} enableExport={false}
             defaultColDef={{ minWidth: 90, filter: false, sortable: true, resizable: true }} />
           <TablePagination currentPage={currentPage - 1} totalPages={totalPages} totalRows={totalCount} pageSize={pageSize}
             onPageChange={i => actions.setCurrentPage(i + 1)}
             onPrevPage={() => actions.setCurrentPage(p => Math.max(1, p - 1))}
             onNextPage={() => actions.setCurrentPage(p => Math.min(totalPages, p + 1))} color="#0f417a" />
-          <style dangerouslySetInnerHTML={{ __html: `
-            .ag-theme-quartz .ag-header { background-color: #0f417a !important; border-bottom: 2px solid #0a2d55 !important; }
-            .ag-theme-quartz .ag-header-cell { background-color: #0f417a !important; color: #ffffff !important; font-weight: 700 !important; text-transform: uppercase !important; font-size: 11px !important; letter-spacing: 0.05em !important; }
-            .ag-theme-quartz .ag-header-group-cell { background-color: #0f417a !important; color: #ffffff !important; font-weight: 700 !important; text-transform: uppercase !important; font-size: 11px !important; letter-spacing: 0.05em !important; border-bottom: 1px solid rgba(255,255,255,0.2) !important; }
-            .ag-theme-quartz .ag-header-cell .ag-icon, .ag-theme-quartz .ag-header-group-cell .ag-icon { color: #ffffff !important; }
-            .ag-theme-quartz .ag-header-cell-label, .ag-theme-quartz .ag-header-group-cell-label { color: #ffffff !important; justify-content: center !important; }
-            .ag-theme-quartz .ag-row { font-size: 13px !important; border-bottom: 1px solid #e2e8f0 !important; }
-            .ag-theme-quartz .ag-row-hover { background-color: #f8fafc !important; }
-            .dark .ag-theme-quartz .ag-row-hover { background-color: #1e293b !important; }
-          `}} />
         </div>
 
         {/* ── Submit buttons ── */}
@@ -839,7 +840,7 @@ export default function VacancyManagement({ notify, triggerNotification, permiss
           dateOfVacancy={selectedAnticipatedRow.Anticipated_date || selectedAnticipatedRow.date_of_arise_in_vacancy || selectedAnticipatedRow.emp_dor}
           reasonForExemption={selectedAnticipatedRow.reason_for_exemption || ''}
           userCanEdit={userCanEdit}
-          notify={sendNotification}
+          notify={notify}
           onSuccess={() => {
             anticipated.reload();
             overview.reload();

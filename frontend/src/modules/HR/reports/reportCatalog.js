@@ -3,10 +3,12 @@
 // section with a Major Ports and a Non-Major Ports report, a filter switches between them.
 
 // Organisations the legacy index treats as "other organisations": their users do not
-// get the Major Ports vacancy history.
+// get the Major Ports vacancy history. hrView (utils/hrViews.js, from the organisation category)
+// decides when known; the legacy list is the fallback.
 const NON_MAJOR_PORT_ORG_IDS = new Set([15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 27, 62]);
 
-export function canSeeMajorPortVacancyHistory({ isOrgUser, orgId }) {
+export function canSeeMajorPortVacancyHistory({ isOrgUser, orgId, hrView }) {
+  if (hrView) return hrView !== 'NON_PORT';
   return !(isOrgUser && NON_MAJOR_PORT_ORG_IDS.has(Number(orgId)));
 }
 

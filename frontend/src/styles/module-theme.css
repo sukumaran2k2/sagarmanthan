@@ -32,8 +32,8 @@
 
   /* ── 2. Module Header ───────────────────────────────────────── */
   --module-header-title-color: #0f417a;
-  --module-header-title-size: 1.25rem; /* 20px / text-xl */
-  --module-header-title-weight: 900;
+  --module-header-title-size: 1.125rem; /* 18px */
+  --module-header-title-weight: 700;
   --module-header-title-tracking: 0.05em;
   --module-header-subtitle-color: #64748b; /* text-slate-500 */
   --module-header-subtitle-size: 0.75rem; /* 12px / text-xs */

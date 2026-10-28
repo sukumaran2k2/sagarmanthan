@@ -21,6 +21,7 @@ import {
   trimLabels,
   zeroToBlank,
 } from './reportUtils';
+import { COMMON_TOASTS } from '../../../utils/notify';
 
 const GENDER_CLASS_SERIAL = { 'CLASS 1': 1, 'CLASS 2': 2, 'CLASS 3': 3, 'CLASS 4': 4 };
 
@@ -102,7 +103,7 @@ export default function MisReport({ report, categoryFilter, onBack, notify }) {
         setEmptyMessage('Data not found.');
       } else {
         setEmptyMessage('Could not load the report.');
-        notifyRef.current?.('An error occurred while fetching data. Please try again.', 'error');
+        notifyRef.current?.(COMMON_TOASTS.loadFailed('The report'));
       }
     } finally {
       if (!signal?.aborted) setLoading(false);

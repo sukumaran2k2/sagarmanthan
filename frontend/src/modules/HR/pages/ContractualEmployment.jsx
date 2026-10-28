@@ -1,72 +1,116 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
+import { useShallow } from 'zustand/react/shallow';
 // Shared client: sends the login token and refreshes it (HR routes require login)
 import { axiosInstance as axios } from '../../../api';
-import { Search, ChevronDown, X, Pencil, Trash2, Filter, RotateCcw } from 'lucide-react';
+import { Search, ChevronDown, X, Filter, RotateCcw } from 'lucide-react';
+import { HrFilterPanel, FilterSelect } from '../components/HrFilterPanel';
 import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import { API_BASE_URL } from '../../../config/api';
-import { getCurrentUserId, isOrganisationUser } from '../../../utils/authSession';
+import { getCurrentUserId, getSessionOrganisationId, isOrganisationUser } from '../../../utils/authSession';
+import ConfirmModal from '../../../components/ConfirmModal';
+import { DeleteActionButton, EditActionButton } from '../components/HrFormControls';
+import { useHRPermissions } from '../hooks/useHRPermissions';
+import { COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
 import { deleteContractualData } from '../api.js';
+import { HR_TOASTS } from '../toastMessages';
+import { useHrStore } from '../store/useHrStore';
+import { useDebouncedSearch } from '../hooks/usePagedList';
+import { useGridPage } from '../hooks/useGridPage';
+import { createTableExporter } from '../utils/exportTable';
 
-export default function ContractualEmployment() {
+const DEFAULT_VISIBLE = {
+  'Organisation Name': true,
+  'Financial Year': true,
+  'Total for officers level': true,
+  'Total for Non-officers level': true,
+  'Actions': true
+};
+
+export default function ContractualEmployment({ notify }) {
+  // Editing opens Input Forms, which only users with create / update rights have
+  const { canUseInputForm, delete: canDelete } = useHRPermissions();
   const [staff, setStaff] = useState([]);
-  const [selectedOrg, setSelectedOrg] = useState('');
-  const [selectedYear, setSelectedYear] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
-  const [pageSize, setPageSize] = useState(10);
+
+  // Filters, search, paging and column visibility live in the HR store
+  const {
+    organisation: selectedOrg, year: selectedYear, searchTerm, debouncedSearch,
+    showFilterPanel: filterOpen, currentPage, pageSize, visibleCols: colChanges,
+  } = useHrStore(useShallow((state) => ({
+    organisation: state.contractual.organisation,
+    year: state.contractual.year,
+    searchTerm: state.contractual.searchTerm,
+    debouncedSearch: state.contractual.debouncedSearch,
+    showFilterPanel: state.contractual.showFilterPanel,
+    currentPage: state.contractual.currentPage,
+    pageSize: state.contractual.pageSize,
+    visibleCols: state.contractual.visibleCols,
+  })));
+  const actions = useHrStore((state) => state.contractualActions);
+  useDebouncedSearch(searchTerm, actions.setDebouncedSearch);
+  const gridPage = useGridPage(currentPage, actions.setCurrentPage);
 
   const navigate = useNavigate();
 
-  const handleEdit = (data) => {
-    navigate('/hr/hr-management/input-form/contractual-data', { state: { editData: data } });
-  };
+  // The record being edited travels with the route (location.state.item)
+  const handleEdit = useCallback((data) => {
+    navigate('/hr/hr-management/input-form/contractual-data', { state: { item: data } });
+  }, [navigate]);
 
   const getRowIds = (row) => ({
   contractId: row.contract_id ?? row.contractId ?? row.ContractId ?? row.id,
   organisationID: row.organisation_id ?? row.organisationID ?? row.organisationId ?? row.OrganisationID,
 });
 
-const handleDelete = async (data) => {
-  if (!window.confirm('Are you sure you want to delete this record?')) return;
+  // Delete asks in a popup (as other modules), then removes the row
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const handleDelete = useCallback((data) => setPendingDelete(data), []);
 
-  const { contractId, organisationID: rowOrgId } = getRowIds(data);
-  const organisationID = rowOrgId ?? getCurrentUserId();
+  const confirmDelete = async () => {
+    const { contractId, organisationID: rowOrgId } = getRowIds(pendingDelete || {});
+    // The record's organisation, else the signed-in user's organisation (never the user id)
+    const organisationID = rowOrgId ?? getSessionOrganisationId();
+    if (!contractId || !organisationID) {
+      console.error('Missing ids for delete. Row was:', pendingDelete);
+      notify?.(HR_TOASTS.recordIdMissing());
+      setPendingDelete(null);
+      return;
+    }
+    setDeleting(true);
+    try {
+      await deleteContractualData(contractId, organisationID);
+      setStaff(prev => prev.filter(r => getRowIds(r).contractId !== contractId));
+      notify?.(HR_TOASTS.contractualDeleted());
+      setPendingDelete(null);
+    } catch (err) {
+      console.error('Delete error:', err.response?.status, err.response?.data || err.message);
+      notify?.(HR_TOASTS.contractualDeleteFailed(getErrorMessage(err)));
+    } finally {
+      setDeleting(false);
+    }
+  };
 
-  if (!contractId || !organisationID) {
-    console.error('Missing ids for delete. Row was:', data);
-    alert('Cannot delete: record id is missing.');
-    return;
-  }
-
-  try {
-    const res = await deleteContractualData(contractId, organisationID);
-    console.log('Delete response:', res.status, res.data);
-
-    // remove the row immediately
-    setStaff(prev => prev.filter(r => getRowIds(r).contractId !== contractId));
-  } catch (err) {
-    console.error('Delete error:', err.response?.status, err.response?.data || err.message);
-    alert(err.response?.data?.message || 'Failed to delete record');
-  }
-};
+  // Read the notifier through a ref so a failed load does not refetch after the toast
+  const notifyRef = useRef(notify);
+  useEffect(() => { notifyRef.current = notify; }, [notify]);
 
   useEffect(() => {
+    // Stale-response guard: a response that arrives after unmount is ignored
     let isMounted = true;
     const userId = getCurrentUserId() || '1';
 
     axios.get(`${API_BASE_URL}/get-all-contractual-data/${userId}`)
       .then(res => {
-        if (isMounted) {
-          console.log("Contractual data received:", res.data);
-          setStaff(res.data || []);
-        }
+        if (isMounted) setStaff(res.data || []);
       })
       .catch(err => {
         console.error("Error loading staff data:", err);
+        if (isMounted) notifyRef.current?.(COMMON_TOASTS.loadFailed('Contractual employment data'));
       })
       .finally(() => {
         if (isMounted) setLoading(false);
@@ -86,37 +130,25 @@ const handleDelete = async (data) => {
       { field: 'Total for officers level', headerName: 'Total Contractual Employees at Officer level', minWidth: 250, cellClass: 'text-center font-bold text-blue-600', headerClass: 'text-center' },
       { field: 'Total for Non-officers level', headerName: 'Total Contractual Employees at Non Officer level', minWidth: 250, cellClass: 'text-center font-bold text-blue-600', headerClass: 'text-center' }
     ];
-    
-    if (!isMinistryView) {
+
+    if (!isMinistryView && (canUseInputForm || canDelete)) {
       cols.push({
         field: 'Actions',
-        headerName: 'Actions',
+        headerName: 'Action',
         minWidth: 150,
         cellClass: 'text-center',
         headerClass: 'text-center',
         cellRenderer: (params) => (
-          <div className="flex items-center justify-center space-x-2 h-full">
-            <button 
-              onClick={() => handleEdit(params.data)}
-              className="bg-amber-500 hover:bg-amber-600 text-white p-1.5 rounded transition cursor-pointer flex items-center justify-center" 
-              title="Edit"
-            >
-              <Pencil className="w-3.5 h-3.5" />
-            </button>
-            <button 
-              onClick={() => handleDelete(params.data)}
-              className="bg-rose-600 hover:bg-rose-700 text-white p-1.5 rounded transition cursor-pointer flex items-center justify-center" 
-              title="Delete"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
+          <div className="flex items-center justify-center gap-1 h-full">
+            {canUseInputForm && <EditActionButton label="Edit contractual data" onClick={() => handleEdit(params.data)} />}
+            {canDelete && <DeleteActionButton label="Delete contractual data" onClick={() => handleDelete(params.data)} />}
           </div>
         )
       });
     }
-    
+
     return cols;
-  }, [isMinistryView]);
+  }, [isMinistryView, canUseInputForm, canDelete, handleEdit, handleDelete]);
 
   const uniqueOrgs = useMemo(() => {
     return [...new Set(staff.map(item => item['Organisation Name']).filter(Boolean))].sort();
@@ -130,15 +162,15 @@ const handleDelete = async (data) => {
     return staff.filter(s => {
       const matchOrg = selectedOrg === '' || s['Organisation Name'] === selectedOrg;
       const matchYear = selectedYear === '' || s['Financial Year'] === selectedYear;
-      
-      const term = searchTerm.toLowerCase();
-      const matchSearch = !searchTerm || 
+
+      const term = debouncedSearch.toLowerCase();
+      const matchSearch = !debouncedSearch || 
                           (s['Organisation Name'] || '').toLowerCase().includes(term) ||
                           (s['Financial Year'] || '').toLowerCase().includes(term);
-      
+
       return matchOrg && matchYear && matchSearch;
     });
-  }, [staff, selectedOrg, selectedYear, searchTerm]);
+  }, [staff, selectedOrg, selectedYear, debouncedSearch]);
 
   const activeFiltersCount = useMemo(() => {
     let count = 0;
@@ -148,30 +180,22 @@ const handleDelete = async (data) => {
   }, [selectedYear, selectedOrg]);
 
   const resetFilters = () => {
-    setSelectedOrg('');
-    setSelectedYear('');
-    setSearchTerm('');
+    actions.resetFilters();
+    actions.setSearchTerm('');
+    notify?.(COMMON_TOASTS.filtersReset());
   };
 
-  const [visibleCols, setVisibleCols] = useState(() => {
-    const initial = {
-      'Organisation Name': true,
-      'Financial Year': true,
-      'Total for officers level': true,
-      'Total for Non-officers level': true,
-      'Actions': true
-    };
-    return initial;
-  });
+  // Store keeps only the user's changes; merge them over this page's defaults
+  const visibleCols = useMemo(() => ({ ...DEFAULT_VISIBLE, ...colChanges }), [colChanges]);
+  const toggleColumn = (col) => actions.setVisibleCols((prev) => ({ ...prev, [col]: !visibleCols[col] }));
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const colDropdownRef = React.useRef(null);
-  
+  const colDropdownRef = useRef(null);
+
   const [modalOpen, setModalOpen] = useState(false);
   const [modalData, setModalData] = useState(null);
   const [modalType, setModalType] = useState(''); // 'officer' or 'non-officer'
 
-  const [filterOpen, setFilterOpen] = useState(false);
-  const filterDropdownRef = React.useRef(null);
+  const filterDropdownRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -179,12 +203,12 @@ const handleDelete = async (data) => {
         setDropdownOpen(false);
       }
       if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target)) {
-        setFilterOpen(false);
+        actions.setShowFilterPanel(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [actions]);
 
   const activeColumnDefs = useMemo(() => {
     return columnDefs.map(col => {
@@ -230,30 +254,39 @@ const handleDelete = async (data) => {
     });
   }, [columnDefs, visibleCols]);
 
-  return (
-    <div className="space-y-6 animate-fade-in text-slate-800 dark:text-slate-100">
-      
+  // Copy / Export: the rows on the current page, visible data columns only
+  const pageStart = (currentPage - 1) * pageSize;
+  const runExport = (kind) => createTableExporter({
+    loadRows: () => filteredStaff.slice(pageStart, pageStart + pageSize),
+    serialStart: pageStart,
+    getColumns: () => activeColumnDefs
+      .filter((c) => c.field && c.field !== 'Actions')
+      .map((c) => ({ field: c.field, label: c.headerName })),
+    notify,
+    isBusy: loading,
+    title: `Contractual Employment (Page ${currentPage})`,
+    fileName: `Contractual_Employment_Page_${currentPage}`,
+    label: 'Contractual employment',
+  })[kind]();
 
+  return (
+    <div className="space-y-6 animate-fade-in">
       {/* Main Content Card */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden flex flex-col">
-        
+      <div className="module-card space-y-4">
+
         {/* Action Bar */}
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col lg:flex-row lg:items-center justify-between gap-4 z-20 relative">
-          
+
           {/* 1. Left: Collapsible Filter Button */}
           <div className="flex flex-wrap items-center gap-2.5">
 
             {/* Collapsible Filter Toggle Button */}
             <button
-              onClick={() => setFilterOpen(prev => !prev)}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer border shadow-sm select-none
-                ${
-                filterOpen || activeFiltersCount > 0
-                  ? 'bg-blue-50/80 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
-                  : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
-              }`}
+              type="button"
+              onClick={() => actions.setShowFilterPanel(prev => !prev)}
+              className={`module-filter-btn ${filterOpen || activeFiltersCount > 0 ? 'active' : ''}`}
             >
-              <Filter className="h-3.5 w-3.5 text-[#0f417a] dark:text-blue-400" />
+              <Filter className="h-3.5 w-3.5" />
               <span>Filters</span>
               {activeFiltersCount > 0 && (
                 <span className="flex items-center justify-center bg-blue-600 text-white text-[10px] h-4 w-4 rounded-full font-black">
@@ -281,7 +314,7 @@ const handleDelete = async (data) => {
 
           {/* Right: Actions */}
           <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-end">
-            
+
             {/* Search Input */}
             <div className="relative min-w-[200px] flex-1 sm:flex-initial">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
@@ -289,11 +322,11 @@ const handleDelete = async (data) => {
                 type="text"
                 placeholder="Search..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-8 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-slate-400 text-slate-800 dark:text-slate-200"
+                onChange={(e) => actions.setSearchTerm(e.target.value)}
+                className="w-full module-search-input"
               />
               {searchTerm && (
-                <button onClick={() => setSearchTerm('')} className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer">
+                <button type="button" aria-label="Clear search" onClick={() => actions.setSearchTerm('')} className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer">
                   <X className="h-3.5 w-3.5" />
                 </button>
               )}
@@ -304,7 +337,7 @@ const handleDelete = async (data) => {
               <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
               <select
                 value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value))}
+                onChange={(e) => actions.setPageSize(Number(e.target.value))}
                 className="bg-transparent border-none text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
               >
                 <option value="10">10</option>
@@ -335,7 +368,7 @@ const handleDelete = async (data) => {
                       <input
                         type="checkbox"
                         checked={visibleCols[col]}
-                        onChange={() => setVisibleCols(prev => ({ ...prev, [col]: !prev[col] }))}
+                        onChange={() => toggleColumn(col)}
                         className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
                       />
                       <span>{col}</span>
@@ -345,74 +378,32 @@ const handleDelete = async (data) => {
               )}
             </div>
 
-            <CopyButton onClick={() => {}} color="#0f417a" hoverBg="#f1f5f9" />
-            <ExportDropdown onExportExcel={() => {}} onExportPdf={() => {}} color="#0f417a" hoverColor="#134e96" />
+            <CopyButton onCopy={() => runExport('copy')} color="#0f417a" hoverBg="#f1f5f9" />
+            <ExportDropdown onExportExcel={() => runExport('excel')} onExportPdf={() => runExport('pdf')} color="#0f417a" hoverColor="#134e96" chevron />
           </div>
         </div>
 
-        {/* Collapsible Filter Panel */}
-        {filterOpen && (
-          <div className="bg-white dark:bg-slate-900 border-x border-b border-slate-200 dark:border-slate-800 rounded-b-xl p-4 shadow-sm animate-fade-in -mt-1 z-10 relative">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
-                <span className="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wide">
-                  Filter Options
-                </span>
-              </div>
-              {activeFiltersCount > 0 && (
-                <button
-                  onClick={resetFilters}
-                  className="flex items-center gap-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
-                >
-                  <RotateCcw className="h-3 w-3" />
-                  Clear all filters
-                </button>
-              )}
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {isMinistryView && (
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Organisation</label>
-                  <select 
-                    value={selectedOrg} 
-                    onChange={(e) => setSelectedOrg(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 cursor-pointer transition-colors"
-                  >
-                    <option value="">All Organisations</option>
-                    {uniqueOrgs.map(org => (
-                      <option key={org} value={org}>{org}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Financial Year</label>
-                <select 
-                  value={selectedYear} 
-                  onChange={(e) => setSelectedYear(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 cursor-pointer transition-colors"
-                >
-                  <option value="">All Years</option>
-                  {uniqueYears.map(year => (
-                    <option key={year} value={year}>{year}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Filter Panel (shared HR design) */}
+        <div className={filterOpen ? 'pb-4' : ''}>
+          <HrFilterPanel show={filterOpen} columns={isMinistryView ? 2 : 3}>
+            {isMinistryView && (
+              <FilterSelect label="Organisation" value={selectedOrg} onChange={(value) => actions.setFilters({ organisation: value })}
+                allLabel="-- All Organisations --" options={uniqueOrgs} />
+            )}
+            <FilterSelect label="Financial Year" value={selectedYear} onChange={(value) => actions.setFilters({ year: value })}
+              allLabel="-- All Years --" options={uniqueYears} />
+          </HrFilterPanel>
+        </div>
 
         {/* Table Area */}
-        <div className="p-0 border-t border-slate-200 dark:border-slate-800">
+        <div className="ag-theme-quartz module-datalist-grid w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
           <Table
             rowData={filteredStaff}
             columnDefs={activeColumnDefs}
             loading={loading}
             pagination={true}
             paginationPageSize={pageSize}
+            {...gridPage}
             defaultColDef={{
               minWidth: 120,
               flex: 1,
@@ -431,7 +422,7 @@ const handleDelete = async (data) => {
             className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity"
             onClick={() => setModalOpen(false)}
           ></div>
-          
+
           <div className="relative bg-slate-50 dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col overflow-hidden animate-scale-in border border-slate-200 dark:border-slate-700">
             {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-5 bg-[#0f417a] text-white">
@@ -450,7 +441,7 @@ const handleDelete = async (data) => {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            
+
             {/* Modal Content */}
             <div className="p-8 space-y-8">
               {/* Context Badges */}
@@ -468,7 +459,7 @@ const handleDelete = async (data) => {
               </div>
               {/* Grid of Info Cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                
+
                 {/* Direct Engagement */}
                 <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition duration-200 flex flex-col items-center text-center">
                   <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
@@ -520,7 +511,7 @@ const handleDelete = async (data) => {
                 </div>
 
               </div>
-              
+
               {/* Total Summary Footer */}
               <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-700 flex justify-end">
                 <div className="flex items-center space-x-3">
@@ -535,6 +526,17 @@ const handleDelete = async (data) => {
         </div>,
         document.body
       )}
+
+      <ConfirmModal
+        isOpen={Boolean(pendingDelete)}
+        onClose={() => !deleting && setPendingDelete(null)}
+        onConfirm={confirmDelete}
+        loading={deleting}
+        title="Delete Contractual Data"
+        message={`Delete the contractual employment record${pendingDelete?.['Financial Year'] ? ` for ${pendingDelete['Financial Year']}` : ''}? This cannot be undone.`}
+        confirmText="Delete"
+        loadingText="Deleting..."
+      />
     </div>
   );
 }

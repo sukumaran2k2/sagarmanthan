@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
@@ -6,7 +6,7 @@ import DataList from './pages/DataList';
 import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
 import { useYpPermissions } from './hooks/useYpPermissions';
-import { fetchWings, fetchDivisions } from './api';
+import { useYpStore } from './store/useYpStore';
 
 export default function YoungProfessionalsView({
   triggerNotification
@@ -16,9 +16,14 @@ export default function YoungProfessionalsView({
   const permissions = useYpPermissions();
   const { canAdd, canEdit, canRemove, canView } = permissions;
 
-  const [editData, setEditData] = useState(null);
-  const [wings, setWings] = useState([]);
-  const [divisions, setDivisions] = useState([]);
+  // Zustand YP Store (atomic selectors so DataList filter/search updates don't re-render the shell)
+  const wings = useYpStore(state => state.wings);
+  const divisions = useYpStore(state => state.divisions);
+  const loadWingsAndDivisions = useYpStore(state => state.loadWingsAndDivisions);
+
+  // The record being edited travels with the route entry, so it is gone as soon as
+  // the user navigates to the form any other way (tab, sidebar, new session)
+  const editData = location.state?.item ?? null;
 
   // Dynamically render internal sub-tabs based on permissions
   const tabs = useMemo(() => {
@@ -36,30 +41,23 @@ export default function YoungProfessionalsView({
     return 'list-view';
   }, [location.pathname]);
 
+  // Load wings and divisions once via store
   useEffect(() => {
-    fetchWings()
-      .then(res => setWings(res.data || []))
-      .catch(err => console.error("Error loading wings:", err));
+    loadWingsAndDivisions();
+  }, [loadWingsAndDivisions]);
 
-    fetchDivisions()
-      .then(res => setDivisions(res.data || []))
-      .catch(err => console.error("Error loading divisions:", err));
-  }, []);
-
-  const handleEdit = (yp) => {
-    setEditData(yp);
+  const handleEdit = useCallback((yp) => {
     navigate('/hr/young-professionals/input-form', { state: { item: yp } });
-  };
+  }, [navigate]);
 
-  const handleSuccess = () => {
-    setEditData(null);
-    navigate('/hr/young-professionals/list-view');
-  };
+  // Replace the form entry so browser Back can't reopen the pre-save snapshot
+  const handleSuccess = useCallback(() => {
+    navigate('/hr/young-professionals/list-view', { replace: true });
+  }, [navigate]);
 
-  const handleBack = () => {
-    setEditData(null);
+  const handleBack = useCallback(() => {
     navigate('/hr/young-professionals/list-view');
-  };
+  }, [navigate]);
 
   // Render RestrictedAccess component if user has no permissions at all
   if (!canAdd && !canView && !canEdit) {
@@ -67,13 +65,13 @@ export default function YoungProfessionalsView({
   }
 
   return (
-    <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800 dark:text-slate-100">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4 mb-6 select-none">
+    <div className="module-page-container space-y-6 animate-fade-in">
+      <div className="module-header-container">
         <div>
-          <h1 className="text-xl font-black text-[#0f417a] dark:text-blue-400 tracking-wide uppercase font-display">
+          <h1 className="module-header-title">
             Young Professionals
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-sans">
+          <p className="module-header-subtitle">
             Manage, register and monitor Young Professionals recruited across various wings and divisions.
           </p>
         </div>
@@ -82,7 +80,6 @@ export default function YoungProfessionalsView({
           tabs={tabs}
           currentTab={currentTab}
           onTabChange={(tabId) => {
-            if (tabId !== 'input-form') setEditData(null);
             if (tabId === 'input-form') navigate('/hr/young-professionals/input-form');
             else if (tabId === 'report') navigate('/hr/young-professionals/report');
             else navigate('/hr/young-professionals/list-view');
@@ -106,6 +103,7 @@ export default function YoungProfessionalsView({
 
           <Route path="input-form" element={
             <InputForm
+              key={editData?.yp_id ?? 'new'}
               wings={wings}
               divisions={divisions}
               onBack={handleBack}

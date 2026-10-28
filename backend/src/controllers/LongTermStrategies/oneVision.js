@@ -474,14 +474,15 @@ async function getMinistryOVDChart(req, res) {
                 COUNT(DISTINCT a1.a1_code) AS goals,
                 COUNT(DISTINCT a2.a2_code) AS intervention,
                 COUNT(DISTINCT a3.a3_code) AS action,
-                ISNULL(SUM(d.total_cost), 0) AS total_cost
-            FROM 
+                ISNULL(SUM(d.total_cost), 0) AS total_cost,
+                ISNULL(SUM(CASE WHEN d.goal_a1 IS NOT NULL OR d.intervention_a2 IS NOT NULL OR d.action_a3 IS NOT NULL THEN d.total_cost END), 0) AS total_cost_a
+            FROM
                 [sagarmanthan_revamp].[dbo].[tbl_one_vision_doc] d
-            LEFT JOIN 
+            LEFT JOIN
                 [sagarmanthan_revamp].[dbo].[mmt_a3] a3 ON d.action_a3 = a3.id
-            LEFT JOIN  
+            LEFT JOIN
                 [sagarmanthan_revamp].[dbo].[mmt_a2] a2 ON d.intervention_a2 = a2.id
-            LEFT JOIN  
+            LEFT JOIN
                 [sagarmanthan_revamp].[dbo].[mmt_a1] a1 ON d.goal_a1 = a1.id
             ${whereTotalCondition};
         `);
@@ -572,6 +573,95 @@ async function getMinistryOVDChart(req, res) {
         };
 
         res.json(combinedResult);
+    } catch (err) {
+        console.log(err);
+        return res.sendStatus(500);
+    }
+}
+
+// Ministry Dashboard - B level (B1/B2/B3) totals and B2 progress split
+async function getMinistryOVDChartB2(req, res) {
+    const conn = await pool;
+    const request = conn.request();
+
+    const wingID = parseInt(req.params.wingID);
+    const orgID = parseInt(req.params.orgID);
+    const vision = parseInt(req.params.vision);
+    const vibhasID = parseInt(req.params.vibhasID);
+    const priority = parseInt(req.params.priority);
+    let mivChapterSelect = req.params.mivChapterSelect === "0" ? 0 : req.params.mivChapterSelect;
+    let makvThemeSelect = req.params.makvThemeSelect === "0" ? 0 : req.params.makvThemeSelect;
+
+    request.input("wingID", wingID);
+    request.input("orgID", orgID);
+    request.input("priority", priority);
+    request.input("vibhasID", vibhasID);
+    request.input("mivChapterSelect", mivChapterSelect);
+    request.input("makvThemeSelect", makvThemeSelect);
+
+    const whereClause = ["d.delete_status = 0", "(d.goal_b1 IS NOT NULL OR d.intervention_b2 IS NOT NULL)"];
+    if (wingID !== 0) whereClause.push("d.wings = @wingID");
+    if (orgID !== 0) whereClause.push("d.imp_agency = @orgID");
+    if (priority !== 0) whereClause.push("d.priority = @priority");
+    if (vibhasID !== 0) whereClause.push("d.vibhas = @vibhasID");
+    if (mivChapterSelect !== 0) whereClause.push("d.miv_chapter = @mivChapterSelect");
+    if (makvThemeSelect !== 0) whereClause.push("d.makv_theme = @makvThemeSelect");
+    const visionFlag = { 1: "d.is_miv = 1", 2: "d.is_makv = 1", 3: "d.is_sgos = 1", 4: "d.is_additional_item = 1" }[vision];
+    if (visionFlag) whereClause.push(visionFlag);
+    const whereCondition = ' WHERE ' + whereClause.join(' AND ');
+
+    try {
+        const totalResult = await request.query(`
+            SELECT
+                COUNT(DISTINCT b1.b1_code) AS goals,
+                COUNT(DISTINCT b2.b2_code) AS intervention,
+                COUNT(DISTINCT b3.b3_code) AS action,
+                ISNULL(SUM(d.total_cost), 0) AS total_cost
+            FROM [sagarmanthan_revamp].[dbo].[tbl_one_vision_doc] d
+            LEFT JOIN [sagarmanthan_revamp].[dbo].[mmt_b3] b3 ON d.action_b3 = b3.id
+            LEFT JOIN [sagarmanthan_revamp].[dbo].[mmt_b2_b3] b2 ON d.intervention_b2 = b2.id
+            LEFT JOIN [sagarmanthan_revamp].[dbo].[mmt_b1] b1 ON d.goal_b1 = b1.id
+            ${whereCondition};
+        `);
+
+        const categoryResult = await request.query(`
+        WITH Progress_Calculation AS (
+            SELECT
+                d.intervention_b2,
+                d.category,
+                AVG(CAST(ISNULL(d.progress, 0) AS FLOAT)) AS avg_progress_percentage
+            FROM [sagarmanthan_revamp].[dbo].[tbl_one_vision_doc] d
+            ${whereCondition} AND d.intervention_b2 IS NOT NULL
+            GROUP BY d.intervention_b2, d.category
+        ),
+        Progress_Groups AS (
+            SELECT
+                category,
+                COUNT(*) AS intervention_count,
+                COUNT(CASE WHEN avg_progress_percentage >= 0 AND avg_progress_percentage < 20 THEN 1 END) AS [0_19],
+                COUNT(CASE WHEN avg_progress_percentage >= 20 AND avg_progress_percentage < 40 THEN 1 END) AS [20_39],
+                COUNT(CASE WHEN avg_progress_percentage >= 40 AND avg_progress_percentage < 60 THEN 1 END) AS [40_59],
+                COUNT(CASE WHEN avg_progress_percentage >= 60 AND avg_progress_percentage < 80 THEN 1 END) AS [60_79],
+                COUNT(CASE WHEN avg_progress_percentage >= 80 AND avg_progress_percentage < 100 THEN 1 END) AS [80_99],
+                COUNT(CASE WHEN avg_progress_percentage >= 100 THEN 1 END) AS [100]
+            FROM Progress_Calculation
+            GROUP BY category
+        )
+        SELECT
+            mc.category,
+            ISNULL(pg.intervention_count, 0) AS intervention_count,
+            ISNULL(pg.[0_19], 0) AS [0_19],
+            ISNULL(pg.[20_39], 0) AS [20_39],
+            ISNULL(pg.[40_59], 0) AS [40_59],
+            ISNULL(pg.[60_79], 0) AS [60_79],
+            ISNULL(pg.[80_99], 0) AS [80_99],
+            ISNULL(pg.[100], 0) AS [100]
+        FROM mmt_ovd_category mc
+        LEFT JOIN Progress_Groups pg ON pg.category = mc.id
+        ORDER BY mc.category;
+        `);
+
+        res.json({ total: totalResult.recordset, categories: categoryResult.recordset });
     } catch (err) {
         console.log(err);
         return res.sendStatus(500);
@@ -1491,9 +1581,20 @@ async function getOvdCount(req,res){
                 COUNT(DISTINCT a1.a1_code) AS goals,
                 COUNT(DISTINCT a2.a2_code) AS intervention,
                 COUNT(DISTINCT a3.a3_code) AS action,
-                ISNULL(SUM(d.total_cost), 0) AS total_cost
+                COUNT(DISTINCT b1.b1_code) AS goals_b1,
+                COUNT(DISTINCT b2.b2_code) AS interventions_b2,
+                COUNT(DISTINCT b3.b3_code) AS actions_b3,
+                ISNULL(SUM(d.total_cost), 0) AS total_cost,
+                ISNULL(SUM(CASE WHEN d.goal_a1 IS NOT NULL OR d.intervention_a2 IS NOT NULL OR d.action_a3 IS NOT NULL THEN d.total_cost END), 0) AS total_cost_a,
+                ISNULL(SUM(CASE WHEN d.goal_b1 IS NOT NULL OR d.intervention_b2 IS NOT NULL THEN d.total_cost END), 0) AS total_cost_b
             FROM 
                 [sagarmanthan_revamp].[dbo].[tbl_one_vision_doc] d
+            LEFT JOIN 
+                [sagarmanthan_revamp].[dbo].[mmt_b3] b3 ON d.action_b3 = b3.id
+            LEFT JOIN  
+                [sagarmanthan_revamp].[dbo].[mmt_b2_b3] b2 ON d.intervention_b2 = b2.id
+            LEFT JOIN  
+                [sagarmanthan_revamp].[dbo].[mmt_b1] b1 ON d.goal_b1 = b1.id
             LEFT JOIN 
                 [sagarmanthan_revamp].[dbo].[mmt_a3] a3 ON d.action_a3 = a3.id
             LEFT JOIN  
@@ -1506,7 +1607,9 @@ async function getOvdCount(req,res){
                 COUNT(DISTINCT b1.b1_code) AS goals,
                 COUNT(DISTINCT b2.b2_code) AS intervention,
                 COUNT(DISTINCT b3.b3_code) AS action,
-                ISNULL(SUM(d.total_cost), 0) AS total_cost
+                ISNULL(SUM(d.total_cost), 0) AS total_cost,
+                CAST(0 AS FLOAT) AS total_cost_a,
+                ISNULL(SUM(d.total_cost), 0) AS total_cost_b
             FROM 
                 tbl_one_vision_doc d
             LEFT JOIN 
@@ -1925,7 +2028,7 @@ async function deleteOVODAction(req, res) {
 const OVDTab = {
     getUpdateOVD, createOVDData, createOVDL2Data, updateOVDData, 
     upload, getOvdCount, getAllResultOVDData, ovdUploadDocument, 
-    getOrganisationOVDChart, getInterventionDocuments, getMinistryOVDChart,
+    getOrganisationOVDChart, getInterventionDocuments, getMinistryOVDChart, getMinistryOVDChartB2,
     deleteInterventionDocument, downloadInterventionDocument, ovodFinanceDocument,
     downloadFinanceDocument, deleteFinanceDocument, getFinanceDocuments, updateOVODActions,
     deleteOVODAction, updateOVDProgressLog

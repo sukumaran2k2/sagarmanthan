@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, ChevronDown, SquarePen } from 'lucide-react';
+import { X, ChevronDown, SquarePen, Trash2, Loader2 } from 'lucide-react';
 
 // Form building blocks for HR popups (vacancy activity, HR Administration).
 // Deliberately plain: one navy accent, neutral borders, no gradients, glows or icon tiles.
@@ -136,11 +136,12 @@ export function DateInput({ value, onChange, disabled, min, max, error }) {
   );
 }
 
-export function TextInput({ value, onChange, disabled, readOnly, type = 'text', min, placeholder, error }) {
+export function TextInput({ value, onChange, disabled, readOnly, type = 'text', min, maxLength, placeholder, error }) {
   return (
     <input
       type={type}
       min={min}
+      maxLength={maxLength}
       value={value ?? ''}
       readOnly={readOnly}
       disabled={disabled}
@@ -245,33 +246,68 @@ export function StageList({ steps }) {
   );
 }
 
-export function Button({ variant = 'secondary', children, className = '', ...props }) {
-  const styles = {
-    primary:
-      'bg-[#1b3a6b] hover:bg-[#15305a] text-white border-[#1b3a6b] dark:bg-blue-600 dark:hover:bg-blue-700 dark:border-blue-600',
-    secondary:
-      'bg-white hover:bg-slate-50 text-slate-700 border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-600',
-  };
+// Buttons follow the shared module design (as Young Professionals): primary = brand blue,
+// secondary = outlined, danger = rose for destructive actions; busy shows a spinner.
+const BUTTON_STYLES = {
+  primary: 'bg-[#0f417a] hover:bg-[#1a5ba3] text-white border-[#0f417a] shadow-md shadow-blue-900/10 dark:hover:bg-[#0a2d55]',
+  secondary:
+    'bg-white hover:bg-slate-50 text-slate-700 border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-600',
+  danger: 'bg-rose-600 hover:bg-rose-700 text-white border-rose-600 shadow-md shadow-rose-900/10',
+};
+
+export function Button({ variant = 'secondary', busy = false, children, className = '', type = 'button', ...props }) {
   return (
     <button
-      type="button"
-      className={`inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded border text-sm font-medium transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${styles[variant]} ${className}`}
+      type={type}
+      className={`inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-xl border text-xs font-bold transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${BUTTON_STYLES[variant] || BUTTON_STYLES.secondary} ${className}`}
       {...props}
     >
+      {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
       {children}
     </button>
   );
 }
 
-export function ModalButtons({ onCancel, onSubmit, busy, submitLabel = 'Save', busyLabel = 'Saving…', submitDisabled, cancelLabel = 'Cancel' }) {
+/**
+ * Footer of a popup: Cancel (outlined) and the action. submitType="submit" for a popup that is a form;
+ * submitVariant="danger" for a destructive action such as Delete.
+ */
+export function ModalButtons({
+  onCancel, onSubmit, busy, submitLabel = 'Save', busyLabel = 'Saving…', submitDisabled, cancelLabel = 'Cancel',
+  submitVariant = 'primary', submitType = 'button',
+}) {
   return (
     <div className="flex items-center gap-2 ml-auto">
       <Button onClick={onCancel} disabled={busy}>
         {cancelLabel}
       </Button>
-      <Button variant="primary" onClick={onSubmit} disabled={busy || submitDisabled}>
+      <Button variant={submitVariant} type={submitType} onClick={onSubmit} busy={busy} disabled={busy || submitDisabled}>
         {busy ? busyLabel : submitLabel}
       </Button>
+    </div>
+  );
+}
+
+/**
+ * Footer of an input form (as Young Professionals): the mandatory note on the left, Exit (outlined)
+ * and Submit / Update (primary, with a spinner while saving) on the right. The submit button submits the form.
+ */
+export function FormActions({
+  onExit, exitLabel = 'Exit', submitLabel = 'Submit', busyLabel = 'Saving...', busy = false, submitDisabled = false,
+  submitTitle, extra = null, showMandatoryNote = true,
+}) {
+  return (
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-5 mt-2 border-t border-slate-100 dark:border-slate-800">
+      {showMandatoryNote ? (
+        <span className="text-xs text-rose-500 font-bold italic">* Fields marked with a red asterisk are mandatory</span>
+      ) : <span />}
+      <div className="flex items-center gap-3">
+        {extra}
+        <Button onClick={onExit} disabled={busy} className="h-10 px-5">{exitLabel}</Button>
+        <Button variant="primary" type="submit" busy={busy} disabled={busy || submitDisabled} title={submitTitle} className="h-10 px-6">
+          {busy ? busyLabel : submitLabel}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -281,6 +317,28 @@ export function MandatoryHint() {
     <span className="text-xs text-slate-500 dark:text-slate-400">
       <span className="text-red-600">*</span> Mandatory
     </span>
+  );
+}
+
+/**
+ * Delete action used in table rows across HR: rose bin icon, no fill (pairs with EditActionButton).
+ * solid: a filled red button, for a table whose only action is delete.
+ */
+export function DeleteActionButton({ label, onClick, disabled, solid = false }) {
+  const look = solid
+    ? 'p-2 bg-rose-600 text-white hover:bg-rose-700 shadow-sm disabled:hover:bg-rose-600'
+    : 'p-1.5 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-slate-800 disabled:hover:bg-transparent';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={label}
+      aria-label={label}
+      className={`inline-flex items-center justify-center rounded-lg transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-rose-400/40 disabled:opacity-40 disabled:cursor-not-allowed ${look}`}
+    >
+      <Trash2 className="h-4 w-4" />
+    </button>
   );
 }
 
@@ -323,5 +381,46 @@ export function PostCodeTag({ children }) {
     >
       {children}
     </span>
+  );
+}
+
+/**
+ * Icon + label tabs for an HR page's sub-pages. variant 'strip': underlined strip with a filled
+ * navy active tab (Input Forms); 'pill': bordered pill buttons (Non Port Monthly Upload).
+ */
+export function HrIconTabs({ tabs, current, onChange, label, variant = 'strip' }) {
+  const pill = variant === 'pill';
+  return (
+    <div
+      role="tablist"
+      aria-label={label}
+      className={pill
+        ? 'flex flex-wrap items-center gap-2'
+        : 'flex flex-wrap items-center gap-1.5 border-b border-slate-200 dark:border-slate-800 pb-2'}
+    >
+      {tabs.map(({ id, label: tabLabel, icon: Icon }) => {
+        const active = current === id;
+        const look = pill
+          ? (active
+            ? 'border-[#0f417a] bg-[#0f417a] text-white shadow-sm'
+            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:border-slate-300 hover:text-[#0f417a]')
+          : (active
+            ? 'border-[#0f417a] bg-[#0f417a] text-white shadow-sm'
+            : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-[#0f417a] hover:bg-slate-100 dark:hover:bg-slate-800');
+        return (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(id)}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border text-xs transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/40 ${pill ? 'font-semibold' : 'font-bold uppercase tracking-wide'} ${look}`}
+          >
+            {Icon && <Icon className="h-4 w-4 shrink-0" strokeWidth={2.2} />}
+            <span>{tabLabel}</span>
+          </button>
+        );
+      })}
+    </div>
   );
 }

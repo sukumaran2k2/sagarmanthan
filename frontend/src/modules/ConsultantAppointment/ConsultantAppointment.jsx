@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
@@ -7,8 +7,11 @@ import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
 import Dashboard from './pages/Dashboard';
 import { useConsultantPermissions } from './hooks/useConsultantPermissions';
-import { fetchWings, fetchDivisions, deleteConsultantAppointment } from './api';
+import { deleteConsultantAppointment } from './api';
 import { getCurrentUserId } from '../../utils/authSession';
+import { useCaStore } from './store/useCaStore';
+import { useNotifier, getErrorMessage } from '../../utils/notify';
+import { CA_TOASTS } from './toastMessages';
 
 export default function ConsultantAppointmentView({ triggerNotification }) {
   const location = useLocation();
@@ -16,9 +19,16 @@ export default function ConsultantAppointmentView({ triggerNotification }) {
   const permissions = useConsultantPermissions();
   const { canAdd, canEdit, canRemove, canView } = permissions;
 
-  const [editData, setEditData] = useState(null);
-  const [wings, setWings] = useState([]);
-  const [divisions, setDivisions] = useState([]);
+  // Zustand CA Store (atomic selectors so DataList filter/search updates don't re-render the shell)
+  const wings = useCaStore(state => state.wings);
+  const divisions = useCaStore(state => state.divisions);
+  const loadWingsAndDivisions = useCaStore(state => state.loadWingsAndDivisions);
+
+  // The record being edited travels with the route entry, so it is gone as soon as
+  // the user navigates to the form any other way (tab, sidebar, new session)
+  const editData = location.state?.item ?? null;
+
+  const notify = useNotifier(triggerNotification);
 
   const tabs = useMemo(() => {
     const list = [];
@@ -37,61 +47,54 @@ export default function ConsultantAppointmentView({ triggerNotification }) {
     return 'data-list';
   }, [location.pathname]);
 
+  // Load wings and divisions once via store
   useEffect(() => {
-    fetchWings()
-      .then(res => setWings(res.data || []))
-      .catch(err => console.error("Error loading wings:", err));
+    loadWingsAndDivisions();
+  }, [loadWingsAndDivisions]);
 
-    fetchDivisions()
-      .then(res => setDivisions(res.data || []))
-      .catch(err => console.error("Error loading divisions:", err));
-  }, []);
-
-  const handleEdit = (ca) => {
-    setEditData(ca);
+  const handleEdit = useCallback((ca) => {
     navigate('/hr/consultant-appointment/input-form', { state: { item: ca } });
-  };
+  }, [navigate]);
 
-  const handleSuccess = () => {
-    setEditData(null);
+  // Replace the form entry so browser Back can't reopen the pre-save snapshot
+  const handleSuccess = useCallback(() => {
+    navigate('/hr/consultant-appointment/data-list', { replace: true });
+  }, [navigate]);
+
+  const handleBack = useCallback(() => {
     navigate('/hr/consultant-appointment/data-list');
-  };
+  }, [navigate]);
 
-  const handleBack = () => {
-    setEditData(null);
-    navigate('/hr/consultant-appointment/data-list');
-  };
+  const handleAddClick = useCallback(() => {
+    navigate('/hr/consultant-appointment/input-form');
+  }, [navigate]);
 
-  const handleDelete = async (ca) => {
+  const handleDelete = useCallback(async (ca) => {
     if (!window.confirm(`Are you sure you want to delete this Consultant Appointment record (${ca.wing} / ${ca.division})? This will also remove associated candidate records and documents.`)) {
       return;
     }
     const userId = getCurrentUserId() || 1;
     try {
       await deleteConsultantAppointment(ca.id, userId);
-      if (triggerNotification) {
-        triggerNotification("Consultant Appointment and associated candidates deleted successfully.", "success");
-      }
+      notify(CA_TOASTS.deleted(ca.wing, ca.division));
     } catch (err) {
       console.error("Error deleting consultant appointment:", err);
-      if (triggerNotification) {
-        triggerNotification("Failed to delete Consultant Appointment.", "error");
-      }
+      notify(CA_TOASTS.deleteFailed(ca.wing, ca.division, getErrorMessage(err)));
     }
-  };
+  }, [notify]);
 
   if (!canAdd && !canView && !canEdit) {
     return <RestrictedAccess moduleName="Consultant Appointment" />;
   }
 
   return (
-    <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 pb-4 mb-6 select-none">
+    <div className="module-page-container space-y-6 animate-fade-in">
+      <div className="module-header-container">
         <div>
-          <h1 className="text-xl font-black text-[#0f417a] tracking-wide uppercase font-display">
+          <h1 className="module-header-title">
             Consultant Appointment
           </h1>
-          <p className="text-xs text-slate-500 mt-1 font-medium font-sans">
+          <p className="module-header-subtitle">
             Manage and monitor Consultant Appointments across various wings and divisions.
           </p>
         </div>
@@ -100,7 +103,6 @@ export default function ConsultantAppointmentView({ triggerNotification }) {
           tabs={tabs}
           currentTab={currentTab}
           onTabChange={(tabId) => {
-            if (tabId !== 'input-form') setEditData(null);
             if (tabId === 'dashboard') navigate('/hr/consultant-appointment/dashboard');
             else if (tabId === 'input-form') navigate('/hr/consultant-appointment/input-form');
             else if (tabId === 'reports') navigate('/hr/consultant-appointment/reports');
@@ -117,7 +119,7 @@ export default function ConsultantAppointmentView({ triggerNotification }) {
             <DataList
               onEdit={handleEdit}
               onDelete={handleDelete}
-              onAddClick={() => navigate('/hr/consultant-appointment/input-form')}
+              onAddClick={handleAddClick}
               triggerNotification={triggerNotification}
               wings={wings}
               divisions={divisions}
@@ -129,6 +131,7 @@ export default function ConsultantAppointmentView({ triggerNotification }) {
 
           <Route path="input-form" element={
             <InputForm
+              key={editData?.id ?? 'new'}
               wings={wings}
               divisions={divisions}
               onBack={handleBack}

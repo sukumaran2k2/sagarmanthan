@@ -1,3 +1,4 @@
+/* global describe, it, expect */
 import { getChain, getNormalizedMode, isStageDisabled } from '../../vacancyActivity/config';
 import {
   EMPTY_FORM,
@@ -108,42 +109,68 @@ describe('validateActivity', () => {
     const started = { processInitiatedDate: '2026-01-01' };
     expect(Object.keys(validateActivity(form(started), 'composite'))).toEqual(['employeeExistComposite']);
     expect(validateActivity(form({ ...started, employeeExistComposite: '0' }), 'composite')).toEqual({});
+    // "Yes" brings in the backend's fill rule (see vacancyActivityContract.test.js)
     expect(Object.keys(validateActivity(form({ ...started, employeeExistComposite: '1' }), 'composite')).sort())
-      .toEqual(['employeeId', 'joiningDate']);
+      .toEqual(['applicationReceivedDeputation', 'dateOfAriseInVacancy', 'employeeId', 'joiningDate', 'notificationIssuedDate', 'reviewOfApplicationDeputation']);
   });
 
   it('applies the mode rules', () => {
     expect(validateActivity(form({ processInitiatedDate: '2026-01-01' }), 'directRecruitment')).toHaveProperty('recruitmentThrough');
     expect(validateActivity(form({ processInitiatedDate: '2026-01-01', recruitmentThrough: '0', numberOfEligibleApplication: '1.5' }), 'directRecruitment'))
       .toHaveProperty('numberOfEligibleApplication');
-    expect(Object.keys(validateActivity(form({ processInitiatedDate: '2026-01-01', orderIssuedDeputation: '2026-02-01' }), 'deputation')).sort())
-      .toEqual(['employeeId', 'joiningDate', 'organisationOfEmp']);
-    expect(validateActivity(form({ processInitiatedDate: '2026-01-01', orderIssuedDeputation: '2026-02-01', organisationOfEmp: '73', joiningDate: '2026-02-03' }), 'deputation'))
-      .toEqual({});
+    // An issued order needs every earlier stage and the appointment (backend fill rule)
+    expect(Object.keys(validateActivity(form({ processInitiatedDate: '2026-01-01', orderIssuedDeputation: '2026-02-01', dateOfAriseInVacancy: '2025-12-01' }), 'deputation')).sort())
+      .toEqual(['applicationReceivedDeputation', 'approvalReceivedDeputation', 'employeeId', 'joiningDate', 'notificationIssuedDate', 'organisationOfEmp', 'reviewOfApplicationDeputation']);
+    expect(validateActivity(form({
+      processInitiatedDate: '2026-01-01', notificationIssuedDate: '2026-01-05', applicationReceivedDeputation: '2026-01-10',
+      reviewOfApplicationDeputation: '2026-01-15', approvalReceivedDeputation: '2026-01-20', orderIssuedDeputation: '2026-02-01',
+      organisationOfEmp: '73', joiningDate: '2026-02-03', dateOfAriseInVacancy: '2025-12-01',
+    }), 'deputation')).toEqual({});
     expect(Object.keys(validateActivity(form({}), 'transfer')).sort()).toEqual(['employeeId', 'joiningDate', 'organisationOfEmp']);
     expect(Object.keys(validateActivity(form({}), 'redeployedCHD')).sort()).toEqual(['approvalCompetentAuthorityDateCHD', 'orderIssuedDateCHD']);
   });
 });
 
 describe('buildFormFromLog', () => {
-  it('reads plain and A_-prefixed columns, unwrapping arrays', () => {
-    const f = buildFormFromLog({
-      process_initiated_date: '2026-01-01T00:00:00.000Z',
-      A_dpc_conducted_date: '2026-02-01',
-      is_recruitment_through_ipa: [null, 0],
-      employee_id: [null],
-      select_employee_id: 'E7',
-      is_employee_joined_exist: 0,
-      number_of_eligible_application: 4,
-    });
-    expect(f).toMatchObject({
+  // One log row holds both the actual vacancy's stage dates and the anticipated vacancy's (A_)
+  const both = {
+    process_initiated_date: '2026-01-01T00:00:00.000Z',
+    A_process_initiated_date: '2027-03-03',
+    dpc_conducted_date: null,
+    A_dpc_conducted_date: '2026-02-01',
+    is_recruitment_through_ipa: [null, 0],
+    A_is_recruitment_through_ipa: 1,
+    number_of_eligible_application: 4,
+    A_number_of_eligible_application: 9,
+    employee_id: [null],
+    select_employee_id: 'E7',
+    is_employee_joined_exist: 0,
+    organisation_id: 1,
+  };
+
+  it('Vacant Details reads only the actual vacancy columns, unwrapping arrays', () => {
+    expect(buildFormFromLog(both, { target: 'vacant' })).toMatchObject({
       processInitiatedDate: '2026-01-01',
-      dpcConductedDatePromotion: '2026-02-01',
+      dpcConductedDatePromotion: '', // never the anticipated A_dpc_conducted_date
       recruitmentThrough: '0',
+      numberOfEligibleApplication: '4',
       employeeId: 'E7',
       employeeExistComposite: '0',
-      numberOfEligibleApplication: '4',
     });
+    expect(buildFormFromLog(both)).toMatchObject({ processInitiatedDate: '2026-01-01' }); // default target
+  });
+
+  it('Anticipated Vacancies reads only the A_ columns', () => {
+    expect(buildFormFromLog(both, { target: 'anticipated' })).toMatchObject({
+      processInitiatedDate: '2027-03-03',
+      dpcConductedDatePromotion: '2026-02-01',
+      recruitmentThrough: '1',
+      numberOfEligibleApplication: '9',
+    });
+  });
+
+  it("does not take the post's own organisation as the employee's organisation", () => {
+    expect(buildFormFromLog(both).organisationOfEmp).toBe('');
   });
 
   it('lets the opening screen override vacancy type, date and exemption', () => {

@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { Upload, X, ArrowLeft, Plus, FileText } from 'lucide-react';
 import api, { API_BASE, createYoungProfessional, updateYoungProfessional, uploadYPDocument } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
+import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { YP_TOASTS } from '../toastMessages';
 
 const COMMON_SKILLS = [
   'SQL', 'Python', 'Java', 'React', 'Javascript', 'HTML', 'CSS',
@@ -19,6 +21,7 @@ export default function InputForm({
   triggerNotification 
 }) {
   const isEdit = !!editData;
+  const notify = useNotifier(triggerNotification);
   const fileInputRef = useRef(null);
 
   // Form states
@@ -171,7 +174,9 @@ export default function InputForm({
       initExperience = editData.total_experience !== undefined && editData.total_experience !== null ? String(editData.total_experience) : '';
       
       if (editData.skills) {
-        initSkillsList = editData.skills.split(',').map(s => s.trim()).filter(Boolean);
+        initSkillsList = Array.isArray(editData.skills) 
+          ? editData.skills 
+          : editData.skills.split(',').map(s => s.trim()).filter(Boolean);
       }
       initDocumentName = editData.appointment_document || '';
 
@@ -281,23 +286,23 @@ export default function InputForm({
     e.preventDefault();
 
     if (!wing) {
-      if (triggerNotification) triggerNotification("Please select a Wing.", "warning");
+      notify(COMMON_TOASTS.requiredSelect('Wing'));
       return;
     }
     if (!division) {
-      if (triggerNotification) triggerNotification("Please select a Division.", "warning");
+      notify(COMMON_TOASTS.requiredSelect('Division'));
       return;
     }
     if (!name.trim()) {
-      if (triggerNotification) triggerNotification("Name is required.", "warning");
+      notify(COMMON_TOASTS.requiredInput('Name'));
       return;
     }
     if (Object.keys(errors).length > 0) {
-      if (triggerNotification) triggerNotification("Please correct validation errors: " + Object.values(errors).join(" "), "warning");
+      notify(COMMON_TOASTS.fixValidationErrors(Object.values(errors).join(' ')));
       return;
     }
     if (!isEdit && (!fileInputRef.current || !fileInputRef.current.files[0])) {
-      if (triggerNotification) triggerNotification("Appointment order document is required.", "warning");
+      notify(YP_TOASTS.documentRequired());
       return;
     }
 
@@ -329,26 +334,26 @@ export default function InputForm({
         ypId = response.data?.insertedYPId;
       }
 
+      // The record is saved at this point; report an upload failure separately
+      // so the user isn't told the whole save failed
       if (fileInputRef.current && fileInputRef.current.files[0]) {
         const formData = new FormData();
         formData.append("file", fileInputRef.current.files[0]);
-        await uploadYPDocument(ypId, formData);
+        try {
+          await uploadYPDocument(ypId, formData);
+        } catch (uploadErr) {
+          console.error(uploadErr);
+          notify(YP_TOASTS.documentUploadFailed(payload.name, getErrorMessage(uploadErr)));
+          onSuccess();
+          return;
+        }
       }
 
-      if (triggerNotification) {
-        triggerNotification(
-          isEdit ? "Young Professional updated successfully." : "New Young Professional registered successfully.",
-          "success"
-        );
-      }
-
+      notify(isEdit ? YP_TOASTS.updated(payload.name) : YP_TOASTS.created(payload.name));
       onSuccess();
     } catch (err) {
       console.error(err);
-      const serverMsg = err.response?.data?.message || err.response?.data?.error || err.message;
-      if (triggerNotification) {
-        triggerNotification(`Failed to save Young Professional details: ${serverMsg || ''}`, "error");
-      }
+      notify(YP_TOASTS.saveFailed(isEdit, getErrorMessage(err)));
     } finally {
       setSubmitting(false);
     }
@@ -370,20 +375,20 @@ export default function InputForm({
     (isEdit && !isDirty);
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in">
-      <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
+    <div className="module-form-card animate-fade-in">
+      <div className="module-form-banner">
         <div>
-          <h3 className="text-sm font-black uppercase tracking-wider font-display">
+          <h3 className="module-form-banner-title">
             {isEdit ? "Update Young Professional" : "Add Young Professional"}
           </h3>
-          <p className="text-[10px] text-[#eadede] font-semibold tracking-wide mt-0.5">Ministry of Ports, Shipping and Waterways</p>
+          <p className="module-form-banner-subtext">Ministry of Ports, Shipping and Waterways</p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="p-6 space-y-6">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Wing <span className="text-red-500">*</span></label>
+            <label className="module-form-label">Wing <span className="text-red-500">*</span></label>
             <select
               value={wing}
               onChange={(e) => { 
@@ -402,7 +407,7 @@ export default function InputForm({
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Division <span className="text-red-500">*</span></label>
+            <label className="module-form-label">Division <span className="text-red-500">*</span></label>
             <select
               value={division}
               onChange={(e) => { setDivision(e.target.value); if (touched.division) handleBlur('division'); }}
@@ -419,7 +424,7 @@ export default function InputForm({
           </div>
         </div>
 
-        <h3 className="text-[13px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-wide border-b border-slate-200 dark:border-slate-800 pb-2 mt-8 mb-5">Personal & Professional Info</h3>
+        <h3 className="module-form-section-title">Personal & Professional Info</h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           <div className="space-y-1.5">
@@ -579,14 +584,14 @@ export default function InputForm({
                 const file = e.target.files[0];
                 if (file) {
                   if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-                    if (triggerNotification) triggerNotification("Invalid file type. Only PDF files are allowed.", "error");
+                    notify(COMMON_TOASTS.invalidFileType('PDF'));
                     e.target.value = '';
                     setDocumentName('');
                     if (touched.documentName) handleBlur('documentName');
                     return;
                   }
                   if (file.size > 10 * 1024 * 1024) {
-                    if (triggerNotification) triggerNotification("File size exceeds 10 MB. Please choose a smaller file.", "warning");
+                    notify(COMMON_TOASTS.fileTooLarge(10));
                     e.target.value = '';
                     setDocumentName('');
                     if (touched.documentName) handleBlur('documentName');

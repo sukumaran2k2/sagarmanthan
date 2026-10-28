@@ -108,6 +108,8 @@ export const ROUTE_MAP = {
   'One Vision One Document': 'strategies/drishti-portal/dashboard',
   'OVOD': 'strategies/drishti-portal/dashboard',
   'Intervention List': 'strategies/drishti-portal/intervention-list',
+  'Performance Report': 'strategies/drishti-portal/report',
+  'Data Entry Status Report': 'strategies/drishti-portal/data-entry-status',
   'Vision 2047': 'strategies/vision-2047',
   'Maritime India Summit': 'strategies/maritime-india-summit',
   'Blue Economy Policy': 'strategies/blue-economy-policy',
@@ -149,9 +151,11 @@ export const ROUTE_MAP = {
   [TAB_USER_MASTER_MANAGEMENT]: 'admin/user-master-management',
 
   // HR nested routes
+  'HR Dashboard': 'hr/hr-management/hr-dashboard',
   'Organisation Structure': 'hr/hr-management/organisation-structure',
   'Organization Structure': 'hr/hr-management/organisation-structure',
   'Employee Database': 'hr/hr-management/employee-database',
+  'Employee Details': 'hr/hr-management/employee-database',
   'List of Abolished Posts': 'hr/hr-management/abolished-posts',
   'Abolished Posts': 'hr/hr-management/abolished-posts',
   'Vacancy Management': 'hr/hr-management/vacancy-management',
@@ -159,8 +163,12 @@ export const ROUTE_MAP = {
   'Contractual Employment': 'hr/hr-management/contractual-employment',
   'Training Details': 'hr/hr-management/training-details',
   'HR Input Form': 'hr/hr-management/input-form',
+  'Input Form': 'hr/hr-management/input-form',
   'Add Post': 'hr/hr-management/input-form/add-post',
+  'Non Port Monthly Upload': 'hr/hr-management/non-port-monthly-upload',
+  'HR Management': 'hr/hr-management',
   'HR Reports': 'hr/hr-management/reports',
+  'Non Port Monthly Upload': 'hr/hr-management/non-port-monthly-upload',
 
   // Young Professionals routes
   'Young Professionals': 'hr/young-professionals/list-view',
@@ -211,13 +219,20 @@ export const getTabFromSlug = (slug) => {
   if (cleanSlug.startsWith('projects/project/view-project') || cleanSlug.startsWith('projects/view-project') || cleanSlug.startsWith('projects/project/detail')) return 'projects-view-project';
   if (cleanSlug.startsWith('projects/project') || cleanSlug.startsWith('projects')) return 'projects-list';
 
+  if (cleanSlug.startsWith('hr/hr-management/non-port-monthly-upload')) return 'Non Port Monthly Upload';
   if (cleanSlug.startsWith('hr/hr-management/reports')) return 'HR Reports';
+  if (cleanSlug.startsWith('hr/hr-management/hr-dashboard')) return 'HR Dashboard';
+  if (cleanSlug.startsWith('hr/hr-management/non-port-monthly-upload')) return 'Non Port Monthly Upload';
+  if (cleanSlug.startsWith('hr/hr-management/employee-details')) return 'Employee Details';
   if (cleanSlug.startsWith('hr/hr-management/vacancy-management') || cleanSlug.startsWith('hr/hr-management/vacancy-details')) return 'Vacancy Management';
   if (cleanSlug.startsWith('hr/hr-management/input-form')) return 'HR Input Form';
   if (cleanSlug.startsWith('hr/hr-management/abolished-posts')) return isOrganisationUser() ? 'Abolished Posts' : 'List of Abolished Posts';
   if (cleanSlug.startsWith('hr/hr-management/administration')) return 'HR Administration & Actions';
+  if (cleanSlug.startsWith('hr/hr-management/organisation-structure')) return 'Organisation Structure';
+  if (cleanSlug.startsWith('hr/hr-management/employee-database')) return 'Employee Database';
   if (cleanSlug.startsWith('hr/hr-management/contractual-employment')) return 'Contractual Employment';
   if (cleanSlug.startsWith('hr/hr-management/training-details')) return 'Training Details';
+  if (cleanSlug.startsWith('hr/hr-management') || cleanSlug === 'hr') return 'HR Management';
   if (cleanSlug.startsWith('hr/young-professionals')) return 'YP Data List';
   if (cleanSlug.startsWith('hr/consultant-appointment/dashboard')) return 'Consultant Dashboard';
   if (cleanSlug.startsWith('hr/consultant-appointment/input-form')) return 'Consultant Input Form';
@@ -309,9 +324,11 @@ const getBreadcrumbs = (tab) => {
   if (kpiItems[tab]) return ['Home', ...kpiItems[tab], tab];
 
   const hrItems = {
+    'HR Dashboard': ['HR & Institutional', 'HR Management'],
     'Organisation Structure': ['HR & Institutional', 'HR Management'],
     'Organization Structure': ['HR & Institutional', 'HR Management'],
     'Employee Database': ['HR & Institutional', 'HR Management'],
+    'Employee Details': ['HR & Institutional', 'HR Management', 'Employee Database'],
     'List of Abolished Posts': ['HR & Institutional', 'HR Management'],
     'Abolished Posts': ['HR & Institutional', 'HR Management'],
     'Vacancy Management': ['HR & Institutional', 'HR Management'],
@@ -319,7 +336,10 @@ const getBreadcrumbs = (tab) => {
     'Contractual Employment': ['HR & Institutional', 'HR Management'],
     'Training Details': ['HR & Institutional', 'HR Management'],
     'HR Input Form': ['HR & Institutional', 'HR Management'],
+    'Non Port Monthly Upload': ['HR & Institutional', 'HR Management'],
+    'HR Management': ['HR & Institutional'],
     'HR Reports': ['HR & Institutional', 'HR Management'],
+    'Non Port Monthly Upload': ['HR & Institutional', 'HR Management'],
     'Young Professionals': ['HR & Institutional', 'Young Professionals'],
     'YP Data List': ['HR & Institutional', 'Young Professionals'],
     'YP Input Form': ['HR & Institutional', 'Young Professionals'],
@@ -333,7 +353,10 @@ const getBreadcrumbs = (tab) => {
     'Consultant Data List': ['HR & Institutional', 'Consultant Appointment'],
     'Consultant Reports': ['HR & Institutional', 'Consultant Appointment'],
   };
-  if (hrItems[tab]) return ['Home', ...hrItems[tab], tab];
+  if (hrItems[tab]) {
+    if (tab === 'HR Input Form') return ['Home', 'HR & Institutional', 'HR Management', 'Input Form'];
+    return ['Home', ...hrItems[tab], tab];
+  }
 
   const governanceItems = [
     'Attendance', 'Cabinet Notes - Other Ministries', 'E Office',

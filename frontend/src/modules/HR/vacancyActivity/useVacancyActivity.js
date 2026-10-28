@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useHRPermissions, SESSION_EXPIRED_MESSAGE } from '../hooks/useHRPermissions';
+import { useHRPermissions } from '../hooks/useHRPermissions';
+import { COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { HR_TOASTS } from '../toastMessages';
 import {
   fetchChdEmployeesByOrg,
   fetchCompositeEmployeeList,
@@ -109,7 +111,8 @@ export function useVacancyActivity({
   useEffect(() => {
     notifyRef.current = notify;
   }, [notify]);
-  const say = useCallback((msg, type) => notifyRef.current?.(msg, type), []);
+  // notify(toast): every toast goes through HR_TOASTS / COMMON_TOASTS
+  const say = useCallback((toast) => notifyRef.current?.(toast), []);
 
   const latestEmployeesRequest = useRef(0);
   const loadEmployees = useCallback(
@@ -129,7 +132,7 @@ export function useVacancyActivity({
         .catch(() => {
           if (id === latestEmployeesRequest.current) {
             setEmployees([]);
-            say('Failed to load the employee list.', 'error');
+            say(COMMON_TOASTS.loadFailed('The employee list'));
           }
         })
         .finally(() => {
@@ -146,7 +149,7 @@ export function useVacancyActivity({
     if (MODES_WITH_ORGANISATION.includes(mode.key)) {
       loadOrganisations()
         .then((list) => alive && setOrganisations(list))
-        .catch(() => alive && say('Failed to load organisations.', 'error'));
+        .catch(() => alive && say(COMMON_TOASTS.loadFailed('The organisation list')));
     }
 
     if (source === 'composite' || source === 'chd') {
@@ -157,6 +160,7 @@ export function useVacancyActivity({
       .then((res) => {
         if (!alive) return;
         const next = initialForm(firstLogRow(res?.data) || {}, {
+          target,
           vacancyType: expectedMethod,
           dateOfVacancy,
           reasonForExemption,
@@ -170,7 +174,7 @@ export function useVacancyActivity({
       .catch(() => {
         if (!alive) return;
         // Never let the user save over a log we could not read.
-        say('Failed to fetch vacancy log details.', 'error');
+        say(COMMON_TOASTS.loadFailed('The vacancy history of this post'));
         onClose?.();
       });
 
@@ -252,22 +256,22 @@ export function useVacancyActivity({
 
   const showEmployeeDetails = async () => {
     if (!form.employeeId) {
-      say('Please select an employee first.', 'error');
+      say(HR_TOASTS.selectEmployeeFirst());
       return;
     }
     setDetails({ open: true, loading: true, data: null });
     try {
       const rows = asList(await fetchEmpDetailsForVacancyManagement(form.employeeId));
-      if (!rows.length) say('No details found for the selected employee.', 'error');
+      if (!rows.length) say(HR_TOASTS.employeeDetailsNotFound());
       setDetails({ open: true, loading: false, data: rows[0] || null });
     } catch {
-      say('Failed to fetch employee details.', 'error');
+      say(COMMON_TOASTS.loadFailed('The employee details'));
       setDetails({ open: true, loading: false, data: null });
     }
   };
 
   const validate = () => {
-    const found = validateActivity(form, mode.key);
+    const found = validateActivity(form, mode.key, { target });
     setErrors(found);
     return Object.keys(found).length === 0;
   };
@@ -278,7 +282,7 @@ export function useVacancyActivity({
       onAddEmployee({ postId: post.id, postCode: post.code, method: mode.label });
       return true;
     }
-    say('Activity saved. The Add Employee page is not available yet, so add the employee details later.', 'info');
+    say(HR_TOASTS.activitySavedAddEmployeeLater());
     return false;
   };
 
@@ -287,7 +291,7 @@ export function useVacancyActivity({
     if (!validate()) return false;
 
     if (!userId || !orgId) {
-      say(SESSION_EXPIRED_MESSAGE, 'error');
+      say(HR_TOASTS.sessionExpired());
       return false;
     }
 
@@ -296,13 +300,13 @@ export function useVacancyActivity({
     try {
       await saveActivity(buildPayload(form, mode, { organisationID: orgId, userID: userId, postId: post.id, postCode: post.code }));
 
-      say(`Post activity updated for ${post.code}.`, 'success');
+      say(HR_TOASTS.postActivityUpdated(post.code));
       onClose?.();
       const wantsAddEmployee = addEmployee || savesThenAddsEmployee(mode.key, form);
       if (!(wantsAddEmployee && handOffToAddEmployee())) onSuccess?.();
       return true;
     } catch (err) {
-      say(err?.response?.data?.message || err?.response?.data?.error || 'Failed to update post activity.', 'error');
+      say(HR_TOASTS.postActivityFailed(getErrorMessage(err)));
       return false;
     } finally {
       setSaving(false);

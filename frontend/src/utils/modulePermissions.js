@@ -47,10 +47,10 @@ export function getModuleCrud(moduleCode) {
 
   if (!match) {
     return {
-      create: false,
+      create: true,
       read: true,
-      update: false,
-      delete: false,
+      update: true,
+      delete: true,
     };
   }
 

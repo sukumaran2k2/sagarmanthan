@@ -201,6 +201,7 @@ export const MODULE_PAGES = {
       'Organisation Structure',
       'Organization Structure',
       'Employee Database',
+      'Employee Details',
       'List of Abolished Ports',
       'List of Abolished Posts',
       'Abolished Posts',
@@ -211,18 +212,21 @@ export const MODULE_PAGES = {
       'HR Reports',
       'HR Input Form',
       'Add Post',
+      'Non Port Monthly Upload',
       'hr/hr-management/vacancy-management',
       'hr/hr-management/administration',
       'hr/hr-management/abolished-posts',
       'hr/hr-management/contractual-employment',
       'hr/hr-management/training-details',
       'hr/hr-management/input-form',
+      'hr/hr-management/non-port-monthly-upload',
     ],
     uiTabs: [
       'HR Dashboard',
       'Organisation Structure',
       'Organization Structure',
       'Employee Database',
+      'Employee Details',
       'List of Abolished Ports',
       'List of Abolished Posts',
       'Abolished Posts',
@@ -233,6 +237,7 @@ export const MODULE_PAGES = {
       'HR Reports',
       'HR Input Form',
       'Add Post',
+      'Non Port Monthly Upload',
     ],
   },
 
@@ -252,6 +257,7 @@ export const MODULE_PAGES = {
       'YP Data List',
       'YP Input Form',
       'YP Report',
+      'YP Reports',
       'Data List',
       'Input Form',
       'Report',
@@ -261,12 +267,14 @@ export const MODULE_PAGES = {
   CONSULTANT_APPOINTMENT: {
     tabs: [
       'Consultant Dashboard',
+      'Consultant Appointment',
       'Consultant Input Form',
       'Consultant Data List',
       'Consultant Reports',
     ],
     uiTabs: [
       'Consultant Dashboard',
+      'Consultant Appointment',
       'Consultant Input Form',
       'Consultant Data List',
       'Consultant Reports',
@@ -402,6 +410,7 @@ export const MODULE_PAGES = {
       'Action Taken Report',
     ],
   },
+
 };
 
 export const PUBLIC_UI_TABS = [

@@ -100,7 +100,7 @@ export default function ReportSelect({ value, onChange, options = [], placeholde
                 className="flex cursor-pointer items-center justify-between gap-2 px-3 py-2 text-xs font-semibold"
                 style={{
                   background: i === active ? T.accent : undefined,
-                  color: isSelected ? T.brand : '#334155',
+                  color: isSelected ? T.brand : T.text,
                   fontWeight: isSelected ? 800 : undefined,
                 }}
               >

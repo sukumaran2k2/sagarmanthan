@@ -1,6 +1,6 @@
 // Form state, mapping from the saved vacancy log, validation and request payload.
 
-import { ROOT_KEY, isStagedMode } from './config';
+import { ORG_OTHER, ROOT_KEY, isStagedMode } from './config';
 
 export const EMPTY_FORM = {
   vacancyType: 'Regular',
@@ -99,8 +99,8 @@ export function toInputDate(value) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function recruitmentThroughFrom(raw) {
-  const ipa = unwrap(raw.is_recruitment_through_ipa ?? raw.A_is_recruitment_through_ipa);
+function recruitmentThroughFrom(value) {
+  const ipa = unwrap(value);
   if (ipa === 1 || ipa === '1' || ipa === true || ipa === 'Yes') return '1';
   if (ipa === 0 || ipa === '0' || ipa === false || ipa === 'No') return '0';
   return '';
@@ -108,9 +108,18 @@ function recruitmentThroughFrom(raw) {
 
 const firstDate = (raw, ...keys) => toInputDate(keys.map((k) => unwrap(raw[k])).find(Boolean));
 
-/** Builds the form from the saved log row (`get-vacancy-log-details-by-postcode`). */
-export function buildFormFromLog(raw = {}) {
-  const eligible = unwrap(raw.number_of_eligible_application ?? raw.A_number_of_eligible_application);
+/**
+ * Builds the form from the saved log row (`get-vacancy-log-details-by-postcode`).
+ * The row carries two sets of stage columns for the same post code: the actual vacancy's
+ * (tbl_hr_post_strength, e.g. `process_initiated_date`) and the anticipated vacancy's
+ * (`A_process_initiated_date`). Each screen reads only its own set, as the legacy pages did:
+ * Anticipated Vacancies (target 'anticipated') the A_ columns, Vacant Details ('vacant') the
+ * plain ones. Mixing them showed (and then saved) one vacancy's dates as the other's.
+ */
+export function buildFormFromLog(raw = {}, { target = 'vacant' } = {}) {
+  const stage = (column) => (target === 'anticipated' ? raw[`A_${column}`] : raw[column]);
+  const stageDate = (column) => toInputDate(stage(column));
+  const eligible = unwrap(stage('number_of_eligible_application'));
   const joinedExist = unwrap(raw.is_employee_joined_exist);
 
   return {
@@ -119,29 +128,31 @@ export function buildFormFromLog(raw = {}) {
     reasonForExemption: text(raw.reason_for_exemption),
     dateOfAriseInVacancy: toInputDate(raw.date_of_arise_in_vacancy),
 
-    processInitiatedDate: firstDate(raw, 'process_initiated_date', 'A_process_initiated_date'),
-    recruitmentThrough: recruitmentThroughFrom(raw),
-    notificationIssuedDate: firstDate(raw, 'notification_adv_issued_date', 'A_notification_adv_issued_date'),
+    processInitiatedDate: stageDate('process_initiated_date'),
+    recruitmentThrough: recruitmentThroughFrom(stage('is_recruitment_through_ipa')),
+    notificationIssuedDate: stageDate('notification_adv_issued_date'),
     numberOfEligibleApplication: eligible !== null && eligible !== undefined ? String(eligible) : '',
-    examConductedDate: firstDate(raw, 'exam_conducted_date', 'A_exam_conducted_date'),
-    interviewConductedDate: firstDate(raw, 'interview_conducted_date', 'A_interview_conducted_date'),
-    selectionProcessDate: firstDate(raw, 'selection_process_completed_date', 'A_selection_process_completed_date'),
-    resultDeclaredDate: firstDate(raw, 'result_declared_date', 'A_result_declared_date'),
-    appointmentLetterIssuedDate: firstDate(raw, 'appointment_letter_issued_date', 'A_appointment_letter_issued_date'),
+    examConductedDate: stageDate('exam_conducted_date'),
+    interviewConductedDate: stageDate('interview_conducted_date'),
+    selectionProcessDate: stageDate('selection_process_completed_date'),
+    resultDeclaredDate: stageDate('result_declared_date'),
+    appointmentLetterIssuedDate: stageDate('appointment_letter_issued_date'),
 
-    vigilanceClearanceDatePromotion: firstDate(raw, 'vigilance_clr_received_date', 'A_vigilance_clr_received_date'),
-    dpcConductedDatePromotion: firstDate(raw, 'dpc_conducted_date', 'A_dpc_conducted_date'),
-    approvalByAuthorityDatePromotion: firstDate(raw, 'approval_by_ca_date', 'A_approval_by_ca_date'),
-    orderDatePromotion: firstDate(raw, 'promotion_order_issued_date', 'A_promotion_order_issued_date'),
+    vigilanceClearanceDatePromotion: stageDate('vigilance_clr_received_date'),
+    dpcConductedDatePromotion: stageDate('dpc_conducted_date'),
+    approvalByAuthorityDatePromotion: stageDate('approval_by_ca_date'),
+    orderDatePromotion: stageDate('promotion_order_issued_date'),
 
-    applicationReceivedDeputation: firstDate(raw, 'application_received_date', 'A_application_received_date'),
-    reviewOfApplicationDeputation: firstDate(raw, 'review_application_by_comm', 'A_review_application_by_comm'),
-    approvalReceivedDeputation: firstDate(raw, 'approval_received_date', 'A_approval_received_date'),
-    orderIssuedDeputation: firstDate(raw, 'order_issued_date', 'A_order_issued_date'),
+    applicationReceivedDeputation: stageDate('application_received_date'),
+    reviewOfApplicationDeputation: stageDate('review_application_by_comm'),
+    approvalReceivedDeputation: stageDate('approval_received_date'),
+    orderIssuedDeputation: stageDate('order_issued_date'),
 
     employeeId: text(raw.employee_id) || text(raw.select_employee_id) || text(raw.selectEmployeeId),
     empMasterId: text(raw.emp_master_id),
-    organisationOfEmp: text(raw.organisationOfEmp) || text(raw.organisation_id),
+    // The log has no column for the employee's source organisation (its organisation_id is the
+    // post's own), so the user picks it, as on the legacy page.
+    organisationOfEmp: '',
     joiningDate: firstDate(raw, 'employee_joined_date', 'date_of_joining', 'joining_date'),
 
     approvalCompetentAuthorityDateCHD: firstDate(raw, 'approval_by_ca_date', 'approval_competent_authority_date_chd'),
@@ -156,15 +167,113 @@ export function buildFormFromLog(raw = {}) {
  * Seeds the form from the log, then applies what the opening screen knows
  * (expected method, vacancy date, exemption reason), which takes precedence.
  */
-export function initialForm(raw, { vacancyType, dateOfVacancy, reasonForExemption } = {}) {
-  const form = buildFormFromLog(raw || {});
+export function initialForm(raw, { target, vacancyType, dateOfVacancy, reasonForExemption } = {}) {
+  const form = buildFormFromLog(raw || {}, { target });
   if (vacancyType) form.vacancyType = vacancyType;
   if (dateOfVacancy) form.dateOfAriseInVacancy = toInputDate(dateOfVacancy);
   if (reasonForExemption) form.reasonForExemption = reasonForExemption;
   return form;
 }
 
-export function validateActivity(form, modeKey) {
+// What to enter when a fill-rule field is missing
+const FILL_MESSAGES = {
+  vigilanceClearanceDatePromotion: 'Enter the date of vigilance clearance received.',
+  dpcConductedDatePromotion: 'Enter the date of DPC conducted.',
+  approvalByAuthorityDatePromotion: 'Enter the date of approval by the competent authority.',
+  orderDatePromotion: 'Enter the date of the promotion order.',
+  notificationIssuedDate: 'Enter the date of notification / advertisement issued.',
+  applicationReceivedDeputation: 'Enter the date the application was received.',
+  reviewOfApplicationDeputation: 'Enter the date of review of application by the committee.',
+  approvalReceivedDeputation: 'Enter the date the approval was received.',
+  orderIssuedDeputation: 'Enter the date the order was issued.',
+  organisationOfEmp: 'Select the employee organisation.',
+  employeeId: 'Select the employee.',
+  joiningDate: 'Enter the employee joining date.',
+  fromWhichPostCHD: 'Enter the CHD post the employee is redeployed from.',
+  // Not a field of this window: it comes from the vacancy row (shown in the header)
+  dateOfAriseInVacancy:
+    'The date of arise in vacancy is missing. Close this window, enter it in the vacancy table and save, then try again.',
+};
+
+/**
+ * Fill rules of PUT /update-post-strength-log (revisedHrPost.updatePostStrengthLog), per method.
+ * The backend marks the post 'filled' only when every field of the method's rule is present, but
+ * moves the employee onto the post (employee transaction) whenever an employee is sent. So once a
+ * save would move an employee (`applies`), every field of the rule is required here: an employee is
+ * never moved onto a post that stays vacant. Saves without an employee keep recording progress.
+ * `masterId(form)`: the employee's emp_master_id as buildPayload sends it, when the backend needs it.
+ * Only Vacant Details moves employees; Anticipated Vacancies (update-hr-post-activity) ignores them.
+ * Every rule also needs the date of arise in vacancy, which comes from the vacancy row.
+ */
+export const FILL_RULES = {
+  promotion: {
+    applies: (f) => Boolean(f.employeeId),
+    fields: () => [
+      'vigilanceClearanceDatePromotion',
+      'dpcConductedDatePromotion',
+      'approvalByAuthorityDatePromotion',
+      'orderDatePromotion',
+      'joiningDate',
+    ],
+  },
+  // An issued order completes the deputation process, so it brings in the appointment too
+  deputation: {
+    applies: (f) => Boolean(f.orderIssuedDeputation || f.employeeId),
+    fields: (f) => [
+      'notificationIssuedDate',
+      'applicationReceivedDeputation',
+      'reviewOfApplicationDeputation',
+      'approvalReceivedDeputation',
+      'orderIssuedDeputation',
+      'organisationOfEmp',
+      // An employee of "other organisation" is added afterwards through Add Employee
+      ...(f.organisationOfEmp === ORG_OTHER ? [] : ['employeeId']),
+      'joiningDate',
+    ],
+    masterId: (f) => f.empMasterId,
+  },
+  composite: {
+    applies: (f) => f.employeeExistComposite === '1',
+    fields: () => [
+      'notificationIssuedDate',
+      'applicationReceivedDeputation',
+      'reviewOfApplicationDeputation',
+      'employeeId',
+      'joiningDate',
+    ],
+  },
+  redeployedCHD: {
+    applies: (f) => Boolean(f.employeeId || f.joiningDate),
+    fields: () => ['employeeId', 'joiningDate', 'fromWhichPostCHD'],
+    masterId: (f) => f.empMasterId || f.chdCategoryEmpMasterId,
+  },
+  transfer: { applies: (f) => Boolean(f.employeeId), fields: () => ['employeeId', 'joiningDate'], masterId: (f) => f.empMasterId },
+  // Their emp_master_id is stored with the employee (sent as chdCategoryEmpMasterId)
+  redeployedIn: {
+    applies: (f) => Boolean(f.employeeId),
+    fields: () => ['employeeId', 'joiningDate'],
+    masterId: (f) => f.empMasterId || f.chdCategoryEmpMasterId,
+  },
+  promotionDR: {
+    applies: (f) => Boolean(f.employeeId),
+    fields: () => ['employeeId', 'joiningDate'],
+    masterId: (f) => f.empMasterId || f.chdCategoryEmpMasterId,
+  },
+};
+
+function applyFillRule(form, modeKey, target, e) {
+  const rule = FILL_RULES[modeKey];
+  if (!rule || target !== 'vacant' || !rule.applies(form)) return;
+  [...rule.fields(form), 'dateOfAriseInVacancy'].forEach((key) => {
+    if (!e[key] && !String(form[key] ?? '').trim()) e[key] = FILL_MESSAGES[key];
+  });
+  if (rule.masterId && form.employeeId && !rule.masterId(form) && !e.employeeId) {
+    e.employeeId = 'Select the employee again from the list.';
+  }
+}
+
+/** Field errors for the activity form; empty when it can be saved. `target`: 'vacant' | 'anticipated'. */
+export function validateActivity(form, modeKey, { target = 'vacant' } = {}) {
   const e = {};
   const need = (key, msg) => {
     if (!String(form[key] ?? '').trim()) e[key] = msg;
@@ -185,24 +294,11 @@ export function validateActivity(form, modeKey) {
       }
     }
 
-    if (modeKey === 'deputation' && form.orderIssuedDeputation) {
-      need('organisationOfEmp', 'Select the employee organisation.');
-      if (form.organisationOfEmp !== '73') need('employeeId', 'Select an employee.');
-      need('joiningDate', 'Enter the employee joining date.');
-    }
-
     if (modeKey === 'composite') {
       need('employeeExistComposite', 'Select whether the employee is already in the database.');
     }
 
-    if (modeKey === 'composite' && form.employeeExistComposite === '1') {
-      need('employeeId', 'Select an employee.');
-      need('joiningDate', 'Enter the employee joining date.');
-    }
-
-    if (modeKey === 'promotion' && form.orderDatePromotion && form.employeeId) {
-      need('joiningDate', 'Enter the date of employee joined.');
-    }
+    applyFillRule(form, modeKey, target, e);
     return e;
   }
 
@@ -224,6 +320,7 @@ export function validateActivity(form, modeKey) {
     default:
       break;
   }
+  applyFillRule(form, modeKey, target, e);
   return e;
 }
 

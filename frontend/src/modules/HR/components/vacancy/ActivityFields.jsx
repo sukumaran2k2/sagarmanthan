@@ -23,6 +23,9 @@ import {
 // Staged methods (Direct Recruitment, Promotion, Deputation, Composite) share one layout:
 // process date -> numbered stages -> appointment details once the final stage is dated.
 
+// Redeployed from CHD: the post is filled only with all three, so they are entered together
+const CHD_TOGETHER = 'Required together: employee, date of joining and the CHD post';
+
 export default function ActivityFields({ state, locked }) {
   const { mode, form: f, errors, actions, organisations, employees, employeesLoading } = state;
 
@@ -31,10 +34,20 @@ export default function ActivityFields({ state, locked }) {
     [employees]
   );
 
-  const employeePicker = ({ required = true, needsOrganisation = false }) => {
+  // Deputation In / Transfer In list only employees sent to this organisation from the chosen one;
+  // say so when there are none instead of showing an empty dropdown
+  const noneFromOrganisation = () => {
+    const org = organisations.find((o) => o.value === f.organisationOfEmp)?.label || 'the selected organisation';
+    return mode.key === 'deputation'
+      ? `No employee of ${org} has been deputed out to your organisation.`
+      : `No employee of ${org} has been transferred out to your organisation.`;
+  };
+
+  const employeePicker = ({ required = true, needsOrganisation = false, hint } = {}) => {
     const waiting = needsOrganisation && !f.organisationOfEmp;
+    const empty = needsOrganisation && !waiting && !employeesLoading && employees.length === 0;
     return (
-      <FormRow label="Employee" required={required} error={errors.employeeId}>
+      <FormRow label="Employee" required={required} error={errors.employeeId} hint={empty ? noneFromOrganisation() : hint}>
         <div className="flex gap-2">
           <div className="flex-1 min-w-0">
             <SelectInput
@@ -203,14 +216,15 @@ export default function ActivityFields({ state, locked }) {
         <>
           {dateField('approvalCompetentAuthorityDateCHD', 'Approval of competent authority')}
           {dateField('orderIssuedDateCHD', 'Date of issuance of order')}
-          {dateField('joiningDate', 'Date of joining', { required: false })}
+          {dateField('joiningDate', 'Date of joining', { required: false, hint: CHD_TOGETHER })}
           <Note>
             <strong>Note:</strong> If the employee already exists, add them here only. If it is a new employee
             under the CHD category, add them through the &ldquo;Add Employee&rdquo; option in the Employee Database.
           </Note>
-          {employeePicker({ required: false })}
-          <FormRow label="From which post of CHD">
-            <TextInput value={f.fromWhichPostCHD} onChange={(v) => actions.setField('fromWhichPostCHD', v)} disabled={locked} placeholder="CHD post name" />
+          {employeePicker({ required: false, hint: CHD_TOGETHER })}
+          <FormRow label="From which post of CHD" error={errors.fromWhichPostCHD} hint={CHD_TOGETHER}>
+            {/* Stored in tbl_hr_post_strength.post_chd, nvarchar(25) */}
+            <TextInput value={f.fromWhichPostCHD} onChange={(v) => actions.setField('fromWhichPostCHD', v)} disabled={locked} maxLength={25} placeholder="CHD post name" error={errors.fromWhichPostCHD} />
           </FormRow>
         </>
       );

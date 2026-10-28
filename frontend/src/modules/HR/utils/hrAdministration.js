@@ -17,6 +17,9 @@ export const DEPUTATION_BACK_ACTIVITY = {
 
 export const CLASS_OPTIONS = ['I/A', 'II/B', 'III/C', 'IV/D'];
 
+// mmt_class ids of the class names (posts carry class_id)
+export const CLASS_ID = { 'I/A': 1, 'II/B': 2, 'III/C': 3, 'IV/D': 4 };
+
 export const SEPARATION_REASONS = [
   'Retirement',
   'Resignation',

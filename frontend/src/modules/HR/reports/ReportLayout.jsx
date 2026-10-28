@@ -8,6 +8,8 @@ import GroupedTable from './GroupedTable';
 import ReportSelect from './ReportSelect';
 import { exportMatrix, formatAsOnDate, searchRows } from './reportUtils';
 import { REPORT_THEME as T } from './theme';
+import { COMMON_TOASTS } from '../../../utils/notify';
+import { HR_TOASTS } from '../toastMessages';
 
 export function FilterField({ label, children }) {
   return (
@@ -41,7 +43,7 @@ export function ToggleField({ label, checked, onChange, onLabel, offLabel }) {
         className="inline-flex w-full items-center gap-2 rounded-[10px] px-3 py-[7px] text-xs font-bold cursor-pointer"
         style={{ background: T.surface, border: `1px solid ${T.inputBorder}`, color: T.brand }}
       >
-        <span className="relative inline-block h-5 w-9 shrink-0 rounded-full transition" style={{ background: checked ? T.brand : '#d6cfcb' }}>
+        <span className="relative inline-block h-5 w-9 shrink-0 rounded-full transition" style={{ background: checked ? T.brandSolid : T.inputBorder }}>
           <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${checked ? 'left-[18px]' : 'left-0.5'}`} />
         </span>
         {checked ? onLabel : offLabel}
@@ -90,8 +92,12 @@ export default function ReportLayout({
 
   const handleCopy = async () => {
     const { headers, body } = matrix();
-    await navigator.clipboard.writeText([headers, ...body].map((r) => r.join('\t')).join('\n'));
-    notify?.('Report copied to clipboard.', 'success');
+    try {
+      await navigator.clipboard.writeText([headers, ...body].map((r) => r.join('\t')).join('\n'));
+      notify?.(HR_TOASTS.reportCopied());
+    } catch {
+      notify?.(COMMON_TOASTS.copyFailed());
+    }
   };
 
   const handleExcel = () => {
@@ -99,7 +105,7 @@ export default function ReportLayout({
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([[title], [`As on date: ${formatAsOnDate()}`], [], headers, ...body]), 'Report');
     XLSX.writeFile(wb, `${fileName}.xlsx`);
-    notify?.('Report exported to Excel.', 'success');
+    notify?.(COMMON_TOASTS.excelExported(`${fileName}.xlsx`));
   };
 
   const handlePdf = async () => {
@@ -110,7 +116,7 @@ export default function ReportLayout({
       rowData: body.map((r) => Object.fromEntries(r.map((v, i) => [`c${i}`, v]))),
       fileName,
     });
-    notify?.('Report exported to PDF.', 'success');
+    notify?.(HR_TOASTS.reportExported('PDF'));
   };
 
   const iconBtn =
@@ -192,7 +198,7 @@ export default function ReportLayout({
               <Filter size={15} />
               Filter Report Parameters
               {filtersActive && (
-                <span className="rounded-full px-2 py-0.5 text-[10px] font-bold text-white" style={{ background: T.brand }}>
+                <span className="rounded-full px-2 py-0.5 text-[10px] font-bold text-white" style={{ background: T.brandSolid }}>
                   Active
                 </span>
               )}
@@ -208,7 +214,7 @@ export default function ReportLayout({
                     type="button"
                     onClick={onResetFilters}
                     className="flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-[11.5px] font-extrabold cursor-pointer"
-                    style={{ background: '#f4ebe6', border: `1px solid ${T.inputBorder}`, color: T.brand }}
+                    style={{ background: T.pill, border: `1px solid ${T.inputBorder}`, color: T.brand }}
                   >
                     <RotateCcw size={12} />
                     Reset Filters

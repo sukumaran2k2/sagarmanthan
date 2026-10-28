@@ -464,7 +464,7 @@ async function getOVODOrgAllData(req, res) {
                 tbl_one_vision_doc.delete_status = 0
             )
             select 
-            [Goal (A1)],[Intervention (A2)],[Action (A3)],[Goal (B1)],[Intervention (B2)],
+            id, [Goal (A1)],[Intervention (A2)],[Action (A3)],[Goal (B1)],[Intervention (B2)],
             [Action (B3)],Category,Wing,ia_name,Priority,Vibhas,[Part of MIV],[Part of MAKV],[Part of SGOS],[Target Date],[Expected Date],
             Progress,[Reason For Delay],[Last Updated Date],[Total Cost],[Capital Expenditure],[Fund Spend],[Source of Funding],
             [One Year],[Three Years],[Three - Five Years],[ > 5 Years], [Current Status]
@@ -568,7 +568,7 @@ async function getOVODOrgAllData(req, res) {
                     AND tbl_one_vision_doc.delete_status = 0
             )
             select 
-            [Goal (A1)],[Intervention (A2)],[Action (A3)],[Goal (B1)],[Intervention (B2)],
+            id, [Goal (A1)],[Intervention (A2)],[Action (A3)],[Goal (B1)],[Intervention (B2)],
             [Action (B3)],Category,Wing,ia_name,Priority,Vibhas,[Part of MIV],[Part of MAKV],[Part of SGOS],[Target Date],[Expected Date],
             Progress,[Reason For Delay],[Last Updated Date],[Total Cost],[Capital Expenditure],[Fund Spend],[Source of Funding],
             [One Year],[Three Years],[Three - Five Years],[ > 5 Years], [Current Status]
@@ -591,8 +591,9 @@ async function getDEStatusDetail(req, res) {
         const request = conn.request();
         let type = req.params.type; 
         
+        const normType = (type || '').trim().toLowerCase();
         let result;
-        if (type=='Vibhas') {
+        if (normType === 'vibhas') {
             result = await request.query(`
             SELECT DISTINCT
                     V.NAVIC_NAME AS [VIBHAS Cell],
@@ -639,7 +640,7 @@ async function getDEStatusDetail(req, res) {
                         THEN
                             B3.B3_CODE 
                     END
-                    ) AS [Updated B3], ISNULL( SUM(D.TOTAL_COST), 0 ) AS [Total Cost (Cr)] 
+                    ) AS [Updated B3], ISNULL( SUM(D.TOTAL_COST), 0 ) AS [Total Cost (In Cr)] 
                     FROM
                     TBL_ONE_VISION_DOC D 
                     LEFT JOIN
@@ -669,7 +670,7 @@ async function getDEStatusDetail(req, res) {
                     GROUP BY
                     V.NAVIC_NAME;
                 `);
-        } else if(type == 'Ministry') {
+        } else if(normType === 'ministry') {
             result = await request.query(`
             SELECT DISTINCT
                     W.WING_NAME AS [Wings],
@@ -695,7 +696,10 @@ async function getDEStatusDetail(req, res) {
                         THEN
                             A3.A3_CODE 
                     END
-                    ) AS [Updated A3], ISNULL( SUM(D.TOTAL_COST), 0 ) AS [Total Cost (Cr)] 
+                    ) AS [Updated A3],
+                    ISNULL( SUM(CASE WHEN D.ACTION_A3 IS NOT NULL THEN D.TOTAL_COST ELSE 0 END), 0 ) AS [Total Cost A3 (In Cr)],
+                    ISNULL( SUM(CASE WHEN D.ACTION_B3 IS NOT NULL THEN D.TOTAL_COST ELSE 0 END), 0 ) AS [Total Cost B3 (In Cr)],
+                    ISNULL( SUM(D.TOTAL_COST), 0 ) AS [Overall Total Cost (In Cr)]
                     FROM
                     TBL_ONE_VISION_DOC D 
                     LEFT JOIN
@@ -715,7 +719,7 @@ async function getDEStatusDetail(req, res) {
                     GROUP BY
                     W.WING_NAME;
             `);
-        }  else if(type == 'Organisation') {
+        }  else if(normType === 'organisation' || normType === 'organization') {
             result = await request.query(`
             SELECT 
                 ia.ia_name AS [Organisation Name],
@@ -726,7 +730,7 @@ async function getDEStatusDetail(req, res) {
                 COUNT(DISTINCT CASE WHEN d.updated_date IS NOT NULL THEN b2.b2_code END) AS [Updated B2],
                 COUNT(DISTINCT b3.b3_code) AS [Total B3],
                 COUNT(DISTINCT CASE WHEN d.updated_date IS NOT NULL THEN b3.b3_code END) AS [Updated B3],
-                ISNULL(SUM(d.total_cost), 0) AS [Total Cost (Cr)]
+                ISNULL(SUM(d.total_cost), 0) AS [Total Cost (In Cr)]
             FROM 
                 tbl_one_vision_doc d
             LEFT JOIN 

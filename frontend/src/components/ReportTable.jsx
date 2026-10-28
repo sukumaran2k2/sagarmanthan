@@ -13,7 +13,9 @@ export default function ReportTable({
   showBackButton = false,
   rawData = [],
   viewData = [],
+  rowData = [],
   columns = [],
+  columnDefs = [],
   defaultColDef = {},
   loading = false,
   onRefresh,
@@ -30,10 +32,20 @@ export default function ReportTable({
   filterPanel = null,
   autoHeaderHeight = false,
   showColumnVisibility = true,
-  // true: Excel = .xlsx and PDF = file download, each with title, subtitle (period), merged group
-  // headers and total rows, as the earlier portal's dashboard exports. false keeps CSV / print.
-  reportExport = false,
 }) {
+  const effectiveData = useMemo(() => {
+    if (viewData && viewData.length > 0) return viewData;
+    if (rawData && rawData.length > 0) return rawData;
+    if (rowData && rowData.length > 0) return rowData;
+    return [];
+  }, [viewData, rawData, rowData]);
+
+  const effectiveInputCols = useMemo(() => {
+    if (columns && columns.length > 0) return columns;
+    if (columnDefs && columnDefs.length > 0) return columnDefs;
+    return [];
+  }, [columns, columnDefs]);
+
   const { registerReport, clearReport } = useAICopilot();
 
   // Detail titles with "|" keep the full string in the eyebrow (legacy Form 8.2).
@@ -71,8 +83,8 @@ export default function ReportTable({
       });
       return list;
     };
-    return extract(columns);
-  }, [columns]);
+    return extract(effectiveInputCols);
+  }, [effectiveInputCols]);
 
   // Compute effective columns applying hide flag
   const effectiveColumns = useMemo(() => {
@@ -91,8 +103,8 @@ export default function ReportTable({
         };
       });
     };
-    return applyVisibility(columns);
-  }, [columns, hiddenColKeys]);
+    return applyVisibility(effectiveInputCols);
+  }, [effectiveInputCols, hiddenColKeys]);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(0);
@@ -101,13 +113,13 @@ export default function ReportTable({
   const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
-    if (title && (viewData.length > 0 || rawData.length > 0)) {
+    if (title && effectiveData.length > 0) {
       registerReport({
         reportTitle: title,
         eyebrow: eyebrowText,
-        columns: columns,
-        data: viewData.length > 0 ? viewData : rawData,
-        rowCount: viewData.length || rawData.length,
+        columns: effectiveInputCols,
+        data: effectiveData,
+        rowCount: effectiveData.length,
         pinnedBottom: pinnedBottomRowData,
         autoOpen: true
       });
@@ -115,7 +127,7 @@ export default function ReportTable({
     return () => {
       clearReport();
     };
-  }, [title, viewData, rawData, columns, registerReport, clearReport, eyebrowText, pinnedBottomRowData]);
+  }, [title, effectiveData, effectiveInputCols, registerReport, clearReport, eyebrowText, pinnedBottomRowData]);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -143,7 +155,7 @@ export default function ReportTable({
       }, 50);
       return () => clearTimeout(timer);
     }
-  }, [effectiveColumns, viewData, title]);
+  }, [effectiveColumns, effectiveData, title]);
 
   const handlePaginationChanged = (params) => {
     if (params.api) {
@@ -280,8 +292,7 @@ export default function ReportTable({
           }
         }
       } else if (type === 'PDF') {
-        const keepLeaf = (c) => c.field !== 'Ministry Id' && c.field !== 'Ministry ID';
-        const leafCols = getLeafColumns(columns).filter(keepLeaf);
+        const leafCols = getLeafColumns(effectiveInputCols).filter(c => c.field !== 'Ministry Id' && c.field !== 'Ministry ID');
         const docTitle = title || 'Report';
 
         let headersHtml = '';
@@ -294,11 +305,9 @@ export default function ReportTable({
         });
 
         let rowsHtml = '';
-        const bodyRows = viewData || [];
-        [...bodyRows, ...(pinnedBottomRowData || [])].forEach((row, i) => {
-          const isPinned = i >= bodyRows.length;
-          const bg = isPinned ? accentColor : i % 2 === 0 ? '#fff' : oddRowColor;
-          rowsHtml += `<tr style="background:${bg};${isPinned ? 'font-weight:800;' : ''}">`;
+        (effectiveData || []).forEach((row, i) => {
+          const bg = i % 2 === 0 ? '#fff' : oddRowColor;
+          rowsHtml += `<tr style="background:${bg}">`;
           leafCols.forEach(col => {
             const val = isSerialCol(col) ? (isPinned ? '' : i + 1) : cellText(col, row);
             rowsHtml += `<td style="border:1px solid #e2e8f0; padding:8px 14px; font-size:12px; color:#334155; text-align:center;">${val}</td>`;
@@ -335,8 +344,8 @@ export default function ReportTable({
       return;
     }
     let tsv = '';
-    const activeCols = getLeafLabels(columns).filter(({ col }) => col.headerName && col.field !== 'Document');
-    tsv += activeCols.map(({ label }) => label).join('\t') + '\n';
+    const activeCols = effectiveInputCols.filter(c => c.headerName && c.field !== 'Document');
+    tsv += activeCols.map(c => c.headerName).join('\t') + '\n';
 
     let index = 1;
     const addRow = (row, pinned) => {
@@ -575,7 +584,7 @@ export default function ReportTable({
           <AgGridReact
             ref={gridRef}
             theme="legacy"
-            rowData={viewData}
+            rowData={effectiveData}
             pinnedBottomRowData={pinnedBottomRowData}
             columnDefs={effectiveColumns}
             defaultColDef={defaultColDef}

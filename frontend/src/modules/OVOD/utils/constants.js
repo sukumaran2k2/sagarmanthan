@@ -70,3 +70,70 @@ export const REPORT_TABS = [
   { id: 'port', label: 'Major Ports' },
   { id: 'other', label: 'Other Organisations' }
 ];
+
+export const CATEGORY_MAP = {
+  1: 'Policy/Guidelines',
+  2: 'Regulatory (Acts/Legislations/Rules)',
+  3: 'Schemes/Programs',
+  4: 'Institutional reforms',
+  5: 'Process',
+  6: 'Finance',
+  7: 'HR/Capacity Building',
+  8: 'Infrastructure',
+  9: 'Technology',
+  10: 'Policy/Regulatory reforms',
+  11: 'Others',
+  12: 'Collaborations'
+};
+
+export const WINGS_MAP = {
+  1: 'Shipping',
+  2: 'Vigilance',
+  3: 'Ports',
+  4: 'IWT',
+  5: 'Administration',
+  6: 'Coord-I',
+  7: 'Coord-II',
+  8: 'DGLL, Parliament & TRW',
+  9: 'Development',
+  10: 'Finance',
+  11: 'Sagarmala',
+  12: 'Information Technology',
+  13: 'Office of Economic Advisor',
+  14: 'Special Initiatives & Projects'
+};
+
+export const PRIORITY_MAP = {
+  '1': 'I',
+  '2': 'II',
+  '3': 'III',
+  1: 'I',
+  2: 'II',
+  3: 'III'
+};
+
+export const VIBHAS_MAP = {
+  1: 'Projects and schemes, PPP',
+  2: 'International cooperation',
+  3: 'Maritime Finance, Insurance, Leasing, Ownership and Registration',
+  4: 'Green initiatives including pollution control',
+  5: 'Tourism and ferries',
+  6: 'Communication',
+  7: 'IT/E-governance',
+  8: 'Financial matters, insurance',
+  9: 'Ship building, repair and recycling',
+  10: 'New Technology & Innovation/Research/Startups and Entrepreneurship',
+  11: 'MIV and Blue Economy',
+  12: 'Land, asset, port led industrialization',
+  13: 'Traffic, cargo operation',
+  14: 'Capacity building, outreach, Education',
+  15: 'CSR & community outreach',
+  16: 'Economic analysis, appraisal, policy research',
+  17: 'HR (Departmental + Institutional)',
+  18: 'Legal (arbitration - shipping + Institutional)',
+  19: 'Data analytics, statistics, knowledge repository',
+  20: 'Media and public outreach',
+  21: 'States',
+  22: 'Inter-ministerial issues',
+  23: 'Health, Safety, Security & Disaster Management - Safety & Disaster Management'
+};

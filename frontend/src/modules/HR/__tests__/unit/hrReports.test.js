@@ -1,8 +1,10 @@
+/* global describe, it, expect */
 import {
   columnsForOrg,
   dropEmptyRows,
   dropMetaColumns,
   exportMatrix,
+  headerLabel,
   headerRows,
   normaliseOrgName,
   orgNamesIn,
@@ -118,9 +120,15 @@ describe('grouped report table', () => {
   it('exports labelled leaves, serials and the total row', () => {
     const rows = [{ org: 'Chennai', os: 2, oa: null, rt: 2 }];
     expect(exportMatrix(columns, rows, { org: 'Total', os: 2, rt: 2 })).toEqual({
-      headers: ['S.No', 'Organisation', 'Regular - Officers - Sanctioned', 'Regular - Officers - Actual', 'Regular - Total'],
+      headers: ['S.NO', 'ORGANISATION', 'REGULAR - OFFICERS - SANCTIONED', 'REGULAR - OFFICERS - ACTUAL', 'REGULAR - TOTAL'],
       body: [[1, 'Chennai', 2, '', 2], ['', 'Total', 2, '', 2]],
     });
+  });
+
+  it('shows every header in upper case, spacing out raw field names', () => {
+    expect(headerLabel({ headerName: 'Chennai Port Authority' })).toBe('CHENNAI PORT AUTHORITY');
+    expect(headerLabel({ field: 'organisation_name' })).toBe('ORGANISATION NAME');
+    expect(headerLabel({})).toBe('');
   });
 
   it('searches every leaf field', () => {

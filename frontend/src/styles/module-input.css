@@ -79,7 +79,7 @@
 
 .module-form-banner-title {
   font-size: var(--module-form-header-size);
-  font-weight: 900;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-family: var(--module-form-font-family);
@@ -94,18 +94,34 @@
   font-family: var(--module-form-font-family);
 }
 
-/* Form Section Header */
-.module-form-section-title {
+/* Form Section Heading (shared typography) */
+.module-form-section-title,
+.module-form-section-heading {
   font-family: var(--module-form-font-family);
   font-size: var(--module-form-section-title-size);
-  font-weight: 900;
+  font-weight: 700;
   color: var(--module-form-section-title-color);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+/* Heading that draws its own rule and spacing (stand-alone section title) */
+.module-form-section-title {
   border-bottom: 1px solid var(--module-form-section-border);
   padding-bottom: 0.5rem;
   margin-top: 1.75rem;
   margin-bottom: 1.25rem;
+}
+
+/* Header row: `.module-form-section-heading` on the left, optional action buttons on the
+   right, one rule underneath. Use this when a section title shares its row with a button. */
+.module-form-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-bottom: 1px solid var(--module-form-section-border);
+  padding-bottom: 0.5rem;
 }
 
 /* Form Labels */
