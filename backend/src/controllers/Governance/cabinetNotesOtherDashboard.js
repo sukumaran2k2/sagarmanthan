@@ -37,7 +37,7 @@ async function getCabinetNotesOtherDashboard(req, res) {
           END)
         AS INT)                                                         AS avg_age_active_days,
         MAX(notes.updated_date)                                         AS last_data_update
-      FROM tbl_cabinet_notes_ministry_change AS notes
+      FROM tbl_cabinet_notes_ministry AS notes
     `);
 
     const kpi = kpiResult.recordset[0] || {};
@@ -57,7 +57,7 @@ async function getCabinetNotesOtherDashboard(req, res) {
           GETDATE()
         ))                                                               AS max_days
       FROM mmt_cabinet_ministry_stage AS stage
-      LEFT JOIN tbl_cabinet_notes_ministry_change AS notes
+      LEFT JOIN tbl_cabinet_notes_ministry AS notes
         ON notes.stage_id = stage.cab_ministry_stage_id
         AND notes.stage_id != 5
       GROUP BY stage.cab_ministry_stage_id, stage.cab_ministry_stage_name
@@ -80,7 +80,7 @@ async function getCabinetNotesOtherDashboard(req, res) {
       SELECT
         ISNULL(ministries.ministry_name, notes.ministry_name)           AS ministry_name,
         COUNT(notes.cabinet_notes_ministry_id)                          AS pending_count
-      FROM tbl_cabinet_notes_ministry_change AS notes
+      FROM tbl_cabinet_notes_ministry AS notes
       LEFT JOIN mmt_ministry AS ministries
         ON ministries.ministry_id = notes.ministry_id
       WHERE notes.stage_id != 5
@@ -100,7 +100,7 @@ async function getCabinetNotesOtherDashboard(req, res) {
           COALESCE(${STAGE_DATE_CASE}, notes.created_date),
           GETDATE()
         )                                                                AS pending_days
-      FROM tbl_cabinet_notes_ministry_change AS notes
+      FROM tbl_cabinet_notes_ministry AS notes
       LEFT JOIN mmt_ministry AS ministries
         ON ministries.ministry_id = notes.ministry_id
       INNER JOIN mmt_cabinet_ministry_stage AS stage
