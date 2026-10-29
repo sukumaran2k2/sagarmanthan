@@ -17,12 +17,9 @@ api.interceptors.request.use((config) => {
 let refreshPromise = null;
 
 async function refreshAccessToken() {
-  const refreshToken = localStorage.getItem('refreshToken');
-  if (!refreshToken) {
-    throw new Error('No refresh token');
-  }
+  // Refresh token is stored in an httpOnly cookie — the browser sends it automatically.
   const res = await axios.get(`${API_BASE}/refresh-token`, {
-    headers: { Authorization: `Bearer ${refreshToken}` },
+    withCredentials: true,
   });
   const next = res.data?.accessToken;
   if (!next) throw new Error('Refresh failed');
@@ -51,7 +48,7 @@ api.interceptors.response.use(
       return api(original);
     } catch {
       localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
+      // refreshToken lives in an httpOnly cookie — the server clears it on logout
       return Promise.reject(error);
     }
   }
@@ -74,8 +71,14 @@ export function updateYoungProfessional(id, payload) {
   return api.put(`/young-professional/${id}`, payload);
 }
 
+// Hard-delete endpoint — backend wired, but no UI confirmation modal yet.
+// Wire to a dedicated "Delete" action (separate from Relieve) before exposing to users.
 export function deleteYoungProfessional(id) {
   return api.delete(`/delete-young-professional/${id}`);
+}
+
+export function fetchYpWingCandidates(wingId) {
+  return api.get(`/wingwise-ypcandidate/0/${wingId}`);
 }
 
 export function uploadYPDocument(candidateId, formData) {
@@ -97,10 +100,6 @@ export function fetchDivisions() {
 }
 
 export function fetchYpReport() {
-  return api.get('/yp-report');
-}
-
-export function fetchYPReport() {
   return api.get('/yp-report');
 }
 

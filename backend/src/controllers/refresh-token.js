@@ -6,15 +6,12 @@ import { isBlacklisted } from "../utils/tokenStore.js";
 
 export async function getRefreshToken(req, res) {
     try {
-        const authHeader = req.headers.authorization;
+        // 1. Read refresh token from httpOnly cookie (set by /login-validation)
+        const refreshToken = req.cookies?.refreshToken;
 
-        // 1. Validate presence of token
-        if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        if (!refreshToken) {
             return res.status(401).json({ message: "Refresh token missing or invalid" });
         }
-
-        // 2. Extract refresh token
-        const refreshToken = authHeader.split(" ")[1];
 
         if (isBlacklisted(refreshToken)) {
             return res.status(403).json({ message: "Refresh token invalidated" });

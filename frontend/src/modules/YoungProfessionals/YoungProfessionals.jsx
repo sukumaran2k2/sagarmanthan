@@ -117,8 +117,6 @@ export default function YoungProfessionalsView({
 
           <Route path="report" element={
             <Reports
-              wings={wings}
-              divisions={divisions}
               triggerNotification={triggerNotification}
             />
           } />

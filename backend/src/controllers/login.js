@@ -237,7 +237,16 @@ async function validation(req, res) {
         const refreshToken = jwt.sign(tokenPayload, process.env.MIKR_REFRESH_SECRET, {
           expiresIn: "1d",
         });
-        res.json({ accessToken, refreshToken });
+
+        // Refresh token lives in an httpOnly cookie so JS cannot read or exfiltrate it.
+        // Secure flag is set only in production (requires HTTPS).
+        res.cookie('refreshToken', refreshToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'Strict',
+          maxAge: 24 * 60 * 60 * 1000, // 1 day in ms
+        });
+        res.json({ accessToken });
       } else {
         console.error('[LOGIN_ERROR] WRONG_PASSWORD', { email, userId: userData.user_id });
         res.status(250).json({

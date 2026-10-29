@@ -3,14 +3,30 @@ import { createPortal } from 'react-dom';
 import Table from '../../../components/Table';
 import TablePagination from '../../../components/TablePagination';
 import { Search, X, Edit, UserMinus, ChevronDown, Filter, Loader2 } from 'lucide-react';
-import api, { fetchYoungProfessionals, relieveYoungProfessional } from '../api';
+import { fetchYoungProfessionals, relieveYoungProfessional } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import { useShallow } from 'zustand/react/shallow';
 import { useYpStore } from '../store/useYpStore';
-import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { useNotifier, COMMON_TOASTS, getErrorMessage, toastError } from '../../../utils/notify';
 import { YP_TOASTS } from '../toastMessages';
+
+const STATIC_WINGS = [
+  'Shipping', 'Vigilance', 'Ports', 'IWT', 'Administration',
+  'Coord-I', 'Coord-II', 'DGLL, Parliament & TRW', 'Development',
+  'Finance', 'Sagarmala', 'Information Technology',
+  'Office of Economic Advisor', 'Special Initiatives & Projects'
+];
+
+const STATIC_DIVISIONS = [
+  'Shipping-I', 'Shipping-II', 'Shipping-III', 'Vigilance',
+  'PD-I', 'PD-II', 'PPP', 'PHRD', 'IWT-I', 'IWT-II', 'Admn.',
+  'Coord-I', 'Coord-II', 'DGLL, Parl. & TRW', 'Devlopment',
+  'Finance', 'Sagarmala -I', 'Sagarmala -II',
+  'Sagarmala-III , ALHW & Media', 'IT', 'PD-III', 'PD- IV',
+  'Special Initiatives & Projects'
+];
 
 export default function DataList({
   onEdit,
@@ -77,7 +93,7 @@ export default function DataList({
   const [lastWorkingDate, setLastWorkingDate] = useState('');
   const [remarks, setRemarks] = useState('');
   const [submittingRelieve, setSubmittingRelieve] = useState(false);
-  const [gridApi, setGridApi] = useState(null);
+  const gridApiRef = useRef(null);
   const notify = useNotifier(triggerNotification);
 
   // Column visibility checklist dropdown states
@@ -91,13 +107,6 @@ export default function DataList({
     }, 300);
     return () => clearTimeout(handler);
   }, [searchTerm, setDebouncedSearch]);
-
-  // Store setters already reset to page 1 (and clear division on wing change)
-  const handleWingChange = (val) => setSelectedWing(val);
-
-  const handleDivisionChange = (val) => setSelectedDivision(val);
-
-  const handleStatusTabChange = (status) => setActiveStatusTab(status);
 
   const activeFiltersCount = (selectedWing ? 1 : 0) + (selectedDivision ? 1 : 0);
 
@@ -159,23 +168,6 @@ export default function DataList({
     fetchData();
   }, [fetchData]);
 
-  // Static fallback lists
-  const STATIC_WINGS = [
-    'Shipping', 'Vigilance', 'Ports', 'IWT', 'Administration',
-    'Coord-I', 'Coord-II', 'DGLL, Parliament & TRW', 'Development',
-    'Finance', 'Sagarmala', 'Information Technology',
-    'Office of Economic Advisor', 'Special Initiatives & Projects'
-  ];
-
-  const STATIC_DIVISIONS = [
-    'Shipping-I', 'Shipping-II', 'Shipping-III', 'Vigilance',
-    'PD-I', 'PD-II', 'PPP', 'PHRD', 'IWT-I', 'IWT-II', 'Admn.',
-    'Coord-I', 'Coord-II', 'DGLL, Parl. & TRW', 'Devlopment',
-    'Finance', 'Sagarmala -I', 'Sagarmala -II',
-    'Sagarmala-III , ALHW & Media', 'IT', 'PD-III', 'PD- IV',
-    'Special Initiatives & Projects'
-  ];
-
   const wingOptions = useMemo(() => {
     if (wings.length > 0) {
       return wings.map(w => ({
@@ -236,7 +228,12 @@ export default function DataList({
     }
     setSubmittingRelieve(true);
 
-    const activeUserId = getCurrentUserId() || 1;
+    const activeUserId = getCurrentUserId();
+    if (!activeUserId) {
+      notify(toastError('Session Expired', 'Please log in again to continue.'));
+      setSubmittingRelieve(false);
+      return;
+    }
 
     try {
       await relieveYoungProfessional({
@@ -257,8 +254,9 @@ export default function DataList({
   };
 
   const handleExport = async (type) => {
+    const escHtml = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     if (type === 'Copy') {
-      if (gridApi) {
+      if (gridApiRef.current) {
         let tsv = '';
         const headers = [];
         columnDefs.forEach(col => {
@@ -293,9 +291,9 @@ export default function DataList({
         notify(COMMON_TOASTS.tableNotReady('copy'));
       }
     } else if (type === 'Excel') {
-      if (gridApi) {
+      if (gridApiRef.current) {
         const fileName = `Young_Professionals_Page_${currentPage}.csv`;
-        gridApi.exportDataAsCsv({ fileName });
+        gridApiRef.current.exportDataAsCsv({ fileName });
         notify(COMMON_TOASTS.excelExported(fileName));
       } else {
         notify(COMMON_TOASTS.tableNotReady('export'));
@@ -329,7 +327,7 @@ export default function DataList({
             } else {
               val = row[col.field] !== undefined ? row[col.field] : '';
             }
-            rowsHtml += `<td style="border: 1px solid #e2e8f0; padding: 8px; font-size: 11px;">${val}</td>`;
+            rowsHtml += `<td style="border: 1px solid #e2e8f0; padding: 8px; font-size: 11px;">${escHtml(val)}</td>`;
           }
         });
         rowsHtml += '</tr>';
@@ -477,13 +475,13 @@ export default function DataList({
       {/* Category selector tabs (Sub-tabs) */}
       <div className="module-subtabs-strip">
         <button
-          onClick={() => handleStatusTabChange('active')}
+          onClick={() => setActiveStatusTab('active')}
           className={`module-subtab-btn ${activeStatusTab === 'active' ? 'active' : ''}`}
         >
           ACTIVE YPS ({activeYpCount})
         </button>
         <button
-          onClick={() => handleStatusTabChange('relieved')}
+          onClick={() => setActiveStatusTab('relieved')}
           className={`module-subtab-btn ${activeStatusTab === 'relieved' ? 'active' : ''}`}
         >
           RELIEVED YPS ({relievedYpCount})
@@ -630,7 +628,7 @@ export default function DataList({
               <div className="relative">
                 <select
                   value={selectedWing}
-                  onChange={(e) => handleWingChange(e.target.value)}
+                  onChange={(e) => setSelectedWing(e.target.value)}
                   className="appearance-none w-full text-xs pl-2.5 pr-8 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
                 >
                   <option value="">All Wings</option>
@@ -650,7 +648,7 @@ export default function DataList({
               <div className="relative">
                 <select
                   value={selectedDivision}
-                  onChange={(e) => handleDivisionChange(e.target.value)}
+                  onChange={(e) => setSelectedDivision(e.target.value)}
                   disabled={!selectedWing}
                   className={`appearance-none w-full text-xs pl-2.5 pr-8 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer ${
                     !selectedWing ? 'opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-800/60' : ''
@@ -676,7 +674,7 @@ export default function DataList({
             loading={loading}
             pagination={false}
             enableExport={false}
-            onGridReady={(params) => setGridApi(params.api)}
+            onGridReady={(params) => { gridApiRef.current = params.api; }}
             defaultColDef={{
               minWidth: 90,
               filter: false,

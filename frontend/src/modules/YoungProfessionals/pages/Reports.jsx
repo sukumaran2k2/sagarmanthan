@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Building2 } from 'lucide-react';
-import api, { API_BASE } from '../api';
+import { API_BASE, fetchYpReport, fetchYpWingCandidates, fetchYPDivisionWiseCandidates, fetchYoungProfessionals } from '../api';
+import { useNotifier, getErrorMessage, toastError } from '../../../utils/notify';
 import ReportTable from '../../../components/ReportTable';
 import { useAICopilot } from '../../../context/AICopilotContext';
 
 export default function Reports({ triggerNotification }) {
   const { registerReport, clearReport } = useAICopilot();
+  const notify = useNotifier(triggerNotification);
   const [reportView, setReportView] = useState('all');
 
   const [drillDownPath, setDrillDownPath] = useState([
@@ -29,11 +31,11 @@ export default function Reports({ triggerNotification }) {
     setError(null);
     try {
       if (currentView.type === 'summary') {
-        const response = await api.get("/yp-report");
+        const response = await fetchYpReport();
         const list = response.data?.rowData || [];
         setData(list.map((item, idx) => ({ ...item, 'S No': idx + 1 })));
       } else if (currentView.type === 'wing_drilldown') {
-        const response = await api.get(`/wingwise-ypcandidate/0/${currentView.wingId}`);
+        const response = await fetchYpWingCandidates(currentView.wingId);
         const list = response.data?.rowData || response.data || [];
         setData(list.map((item, idx) => ({
           'S No': idx + 1,
@@ -52,7 +54,7 @@ export default function Reports({ triggerNotification }) {
           'Last Updated At': item['Last Updated At'] || item.last_updated_at || item.last_updated_date || '—'
         })));
       } else if (currentView.type === 'drilldown') {
-        const response = await api.get(`/divisionwise-ypcandidate/0/${currentView.divisionId}`);
+        const response = await fetchYPDivisionWiseCandidates(currentView.divisionId);
         const list = response.data?.rowData || response.data || [];
         setData(list.map((item, idx) => ({
           'S No': idx + 1,
@@ -71,7 +73,7 @@ export default function Reports({ triggerNotification }) {
           'Last Updated At': item['Last Updated At'] || item.last_updated_at || item.last_updated_date || '—'
         })));
       } else if (currentView.type === 'all_drilldown') {
-        const response = await api.get('/young-professional?all=true');
+        const response = await fetchYoungProfessionals({ all: true });
         const raw = response.data;
         const list = (Array.isArray(raw) ? raw : (raw?.data || [])).filter(item => Number(item.is_active) === 1 || item.is_active === true || item.is_active == null);
         setData(list.map((item, idx) => ({
@@ -94,6 +96,7 @@ export default function Reports({ triggerNotification }) {
     } catch (err) {
       console.error("Error loading YP report data:", err);
       setError("Failed to load report data.");
+      notify(toastError('Report Error', getErrorMessage(err) || 'Failed to load report data.'));
       setData([]);
     } finally {
       setLoading(false);
@@ -576,13 +579,18 @@ export default function Reports({ triggerNotification }) {
     };
   }, [aggregatedData, currentView, columns, reportView, registerReport, clearReport, pinnedBottomRowData]);
 
-  const subtitle = useMemo(() => (
-    <>
-      <span>As on date: <strong style={{ color: '#4b2424' }}>15-07-2026</strong></span>
-      <span style={{ color: '#eadede' }}>•</span>
-      <span>Report for the month — <strong style={{ color: '#4b2424' }}>July 2026</strong></span>
-    </>
-  ), []);
+  const subtitle = useMemo(() => {
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const monthStr = now.toLocaleString('en-IN', { month: 'long', year: 'numeric' });
+    return (
+      <>
+        <span>As on date: <strong style={{ color: '#4b2424' }}>{dateStr}</strong></span>
+        <span style={{ color: '#eadede' }}>•</span>
+        <span>Report for the month — <strong style={{ color: '#4b2424' }}>{monthStr}</strong></span>
+      </>
+    );
+  }, []);
 
   const toolbarExtra = currentView.type === 'summary' ? (
     <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#f7f3f3] dark:bg-slate-900 border border-[#e8d5d5] dark:border-slate-800 text-xs shadow-xs">

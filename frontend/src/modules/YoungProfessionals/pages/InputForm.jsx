@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Upload, X, ArrowLeft, Plus, FileText } from 'lucide-react';
-import api, { API_BASE, createYoungProfessional, updateYoungProfessional, uploadYPDocument } from '../api';
+import { API_BASE, createYoungProfessional, updateYoungProfessional, uploadYPDocument } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
-import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { useNotifier, COMMON_TOASTS, getErrorMessage, toastError } from '../../../utils/notify';
 import { YP_TOASTS } from '../toastMessages';
 
 const COMMON_SKILLS = [
@@ -12,13 +12,15 @@ const COMMON_SKILLS = [
   'Logistics', 'Administration', 'Operations', 'Communications', 'Strategic Planning'
 ];
 
-export default function InputForm({ 
-  editData = null, 
-  wings = [], 
-  divisions = [], 
-  onBack, 
-  onSuccess, 
-  triggerNotification 
+export default function InputForm({
+  editData = null,
+  wings = [],
+  divisions = [],
+  onBack,
+  onSuccess,
+  triggerNotification,
+  canEdit = false,
+  canAdd = false
 }) {
   const isEdit = !!editData;
   const notify = useNotifier(triggerNotification);
@@ -225,7 +227,9 @@ export default function InputForm({
     return divisions.filter(d => String(d.wing_id) === String(wing));
   }, [wing, divisions]);
 
-  // Sync division selection if current division is not in filtered list
+  // The wing onChange handler resets division for normal user interactions.
+  // This effect handles the editData case: when a different record is opened for edit,
+  // the stored division_id may not belong to the stored wing_id in the new filteredDivisions list.
   useEffect(() => {
     if (!wing) {
       if (division) setDivision('');
@@ -251,11 +255,11 @@ export default function InputForm({
     if (experience !== initialValues.experience) return true;
     if (documentName !== initialValues.documentName) return true;
     
-    // Compare skills lists
-    if (skillsList.length !== initialValues.skillsList.length) return true;
-    for (let i = 0; i < skillsList.length; i++) {
-      if (skillsList[i] !== initialValues.skillsList[i]) return true;
-    }
+    // Order-independent skills comparison: reordering alone does not mark the form dirty
+    const sortedCurrent = [...skillsList].sort();
+    const sortedInitial = [...initialValues.skillsList].sort();
+    if (sortedCurrent.length !== sortedInitial.length) return true;
+    if (sortedCurrent.some((s, i) => s !== sortedInitial[i])) return true;
 
     return false;
   }, [wing, division, name, qualification, role, appointmentDate, salary, experience, documentName, skillsList, initialValues]);
@@ -285,6 +289,15 @@ export default function InputForm({
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (isEdit && !canEdit) {
+      notify(toastError('Permission Denied', 'You do not have permission to edit records.'));
+      return;
+    }
+    if (!isEdit && !canAdd) {
+      notify(toastError('Permission Denied', 'You do not have permission to add records.'));
+      return;
+    }
+
     if (!wing) {
       notify(COMMON_TOASTS.requiredSelect('Wing'));
       return;
@@ -308,7 +321,12 @@ export default function InputForm({
 
     setSubmitting(true);
 
-    const activeUserId = getCurrentUserId() || 1;
+    const activeUserId = getCurrentUserId();
+    if (!activeUserId) {
+      notify(toastError('Session Expired', 'Please log in again to continue.'));
+      setSubmitting(false);
+      return;
+    }
 
     const payload = {
       wing_id: parseInt(wing),
@@ -360,6 +378,8 @@ export default function InputForm({
   };
 
   const isFormDisabled =
+    (!isEdit && !canAdd) ||
+    (isEdit && !canEdit) ||
     !wing ||
     !division ||
     !name.trim() ||
@@ -618,7 +638,7 @@ export default function InputForm({
           {isEdit && editData.appointment_document && (
             <div className="mt-2 text-xs max-w-full">
               <a
-                href={`${API_BASE}/download-yp-document?fileName=${editData.appointment_document}`}
+                href={`${API_BASE}/download-yp-document?fileName=${encodeURIComponent(editData.appointment_document)}`}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex flex-wrap items-center gap-1 font-bold text-[#0f417a] dark:text-blue-400 hover:underline max-w-full"
