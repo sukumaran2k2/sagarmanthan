@@ -1,3 +1,4 @@
+/* global describe, it, expect */
 import { buildDrilldownStageMap, computeStageId } from '../../utils/stageHelpers';
 
 const stages = [

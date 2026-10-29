@@ -53,7 +53,7 @@ function StageDistributionChart({ data, onRootReady }) {
     series.data.setAll(sorted);
     chart.appear(600, 100);
     return () => { root.dispose(); onRootReady?.(null); };
-  }, [data]);
+  }, [data, onRootReady]);
   return <div ref={divRef} style={{ width: '100%', height: '100%', overflow: 'hidden' }} />;
 }
 
@@ -84,7 +84,7 @@ function WingWiseChart({ data, onRootReady }) {
     series.data.setAll(sorted);
     chart.appear(600, 100);
     return () => { root.dispose(); onRootReady?.(null); };
-  }, [data]);
+  }, [data, onRootReady]);
   return <div ref={divRef} style={{ width: '100%', height: '100%', overflow: 'hidden' }} />;
 }
 
@@ -180,22 +180,22 @@ function TableExportMenu({ headers, data, fileName = 'export', title = 'Report' 
 }
 
 export default function ParliamentaryIssueDashboard() {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [distChartRoot, setDistChartRoot] = useState(null);
   const [wingChartRoot, setWingChartRoot] = useState(null);
 
-  const load = () => {
-    setLoading(true);
-    setError(null);
+  // Dashboard figures, tagged with the request they answer; Retry bumps reloadKey
+  const [reloadKey, setReloadKey] = useState(0);
+  const [result, setResult] = useState(null); // { key, data, error }
+  useEffect(() => {
+    let cancelled = false;
     fetchParliamentaryIssueDashboard()
-      .then((res) => setData(res.data))
-      .catch(() => setError('Failed to load dashboard data.'))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => { load(); }, []);
+      .then((res) => { if (!cancelled) setResult({ key: reloadKey, data: res.data, error: null }); })
+      .catch(() => { if (!cancelled) setResult({ key: reloadKey, data: null, error: 'Failed to load dashboard data.' }); });
+    return () => { cancelled = true; };
+  }, [reloadKey]);
+  const loading = result?.key !== reloadKey;
+  const data = loading ? null : result.data;
+  const error = loading ? null : result.error;
 
   const { kpi, lastDataUpdate, heatMap = [], wingWise = [], longPending = [] } = data || {};
   const distData = useMemo(() => heatMap.filter((s) => !COMPLETED_STAGE_NAMES.includes(s.stage_name)), [heatMap]);
@@ -209,7 +209,7 @@ export default function ParliamentaryIssueDashboard() {
   if (error) return (
     <div className="flex flex-col items-center justify-center py-20 gap-3">
       <p className="text-sm text-red-500">{error}</p>
-      <button onClick={() => load()} className="text-xs font-semibold text-[#6366f1] underline cursor-pointer">Retry</button>
+      <button onClick={() => setReloadKey((k) => k + 1)} className="text-xs font-semibold text-[#6366f1] underline cursor-pointer">Retry</button>
     </div>
   );
 

@@ -280,7 +280,7 @@ export default function Reports({ notify, triggerNotification, wings = [] }) {
 
       {isAbstractLevel ? (
         <>
-          <div className="ag-theme-quartz bills-pro-grid" style={{ width: '100%' }}>
+          <div className="ag-theme-quartz module-report-grid" style={{ width: '100%' }}>
             <Table
               ref={gridRef}
               theme="legacy"
@@ -300,28 +300,6 @@ export default function Reports({ notify, triggerNotification, wings = [] }) {
               color="#4b2424"
             />
           </div>
-          <style dangerouslySetInnerHTML={{
-            __html: `
-            .bills-pro-grid.ag-theme-quartz { --ag-font-family: 'Inter', system-ui, sans-serif; --ag-font-size: 13.5px; --ag-border-color: #B9BDC2; --ag-row-border-color: #D3D6D9; --ag-row-height: 52px; --ag-active-color: #4b2424; }
-            .bills-pro-grid .ag-root-wrapper { border: none !important; border-radius: 0 !important; }
-            .bills-pro-grid .ag-header { background: #4b2424ff !important; border-bottom: 2px solid !important; }
-            .bills-pro-grid .ag-header-cell { color: #ffffff !important; font-weight: 600 !important; font-size: 11px !important; text-transform: uppercase !important; letter-spacing: 0.05em !important; border-right: 1px solid #4b2424ff !important; }
-            .bills-pro-grid .ag-header-cell-label { justify-content: center !important; text-align: center !important; }
-            .bills-pro-grid .ag-header-cell:hover { background: #6b3535ff !important; }
-            .bills-pro-grid .ag-header-cell-label .ag-header-cell-text { color: #ffffff !important; }
-            .bills-pro-grid .ag-row { border-bottom: 1px solid #D3D6D9 !important; }
-            .bills-pro-grid .ag-row-even { background: #ffffff !important; }
-            .bills-pro-grid .ag-row-odd { background: #f8faf6 !important; }
-            .bills-pro-grid .ag-cell { display: flex; align-items: center; padding-left: 14px !important; padding-right: 14px !important; border-right: 1px solid #D3D6D9 !important; }
-            .bills-pro-grid .ag-paging-panel { border-top: 1px solid #D3D6D9 !important; background: #f8faf6 !important; font-size: 12.5px !important; font-weight: 600 !important; color: #657386 !important; }
-            .dark .bills-pro-grid.ag-theme-quartz { --ag-background-color: #090d16; --ag-foreground-color: #f1f5f9; --ag-border-color: #1e293b; }
-            .dark .bills-pro-grid .ag-header { background: #0f172a !important; border-bottom: 2px solid #1e293b !important; }
-            .dark .bills-pro-grid .ag-header-cell { color: #f1f5f9 !important; border-right: 1px solid #1e293b !important; }
-            .dark .bills-pro-grid .ag-row-even { background: #090d16 !important; }
-            .dark .bills-pro-grid .ag-row-odd { background: #0f172a !important; }
-            .dark .bills-pro-grid .ag-cell { border-right: 1px solid #1e293b !important; color: #e2e8f0 !important; }
-            .dark .bills-pro-grid .ag-paging-panel { border-top: 1px solid #1e293b !important; background: #0f172a !important; color: #94a3b8 !important; }
-          `}} />
         </>
       ) : (
         <ReportTable
