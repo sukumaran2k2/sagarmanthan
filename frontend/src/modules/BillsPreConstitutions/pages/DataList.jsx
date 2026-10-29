@@ -326,7 +326,7 @@ export default function DataList({
           <head>
             <title>${title}</title>
             <style>
-              body { font-family: 'Inter', system-ui, sans-serif; color: #1e293b; padding: 24px; }
+              body { font-family: system-ui, sans-serif; color: #1e293b; padding: 24px; }
               h1 { font-size: 18px; margin-bottom: 4px; color: #0f417a; }
               table { width: 100%; border-collapse: collapse; margin-top: 16px; }
             </style>

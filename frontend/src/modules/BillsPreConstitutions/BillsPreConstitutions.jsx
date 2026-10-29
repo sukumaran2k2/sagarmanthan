@@ -5,6 +5,7 @@ import RestrictedAccess from '../../components/RestrictedAccess';
 import DataList from './pages/DataList';
 import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
+import Dashboard from './pages/Dashboard';
 import { useBillsPermissions } from './hooks/useBillsPermissions';
 import { useBillsStore } from './store/useBillsStore';
 import { fetchBills } from './api';
@@ -13,7 +14,7 @@ import { useNotifier, COMMON_TOASTS } from '../../utils/notify';
 
 const BASE = '/legal/acts-rules';
 
-// The menu flyout names a sub-tab ('Data List' / 'Input Form' / 'Reports'); it leaves the
+// The menu flyout names a sub-tab ('Dashboard' / 'Data List' / 'Input Form' / 'Reports'); it leaves the
 // label in sessionStorage for a first visit and sends an event when the module is open
 const INIT_TAB_KEY = 'billsPreConstitutionsInitTab';
 const MENU_EVENT = 'bills-preconstitutions-subtab';
@@ -21,6 +22,7 @@ const pathForMenuLabel = (label) => {
   if (label === 'Input Form') return 'input-form';
   if (label === 'Reports' || label === 'Report') return 'reports';
   if (label === 'Data List') return 'data-list';
+  if (label === 'Dashboard') return 'dashboard';
   return null;
 };
 
@@ -98,6 +100,7 @@ export default function BillsPreConstitutionsView({ triggerNotification }) {
 
   const tabs = useMemo(() => {
     const list = [];
+    if (canView) list.push({ id: 'dashboard', label: 'Dashboard' });
     if (canAdd) list.push({ id: 'input-form', label: 'Input Form' });
     if (canView) list.push({ id: 'data-list', label: 'Data List' });
     if (canView) list.push({ id: 'reports', label: 'Reports' });
@@ -108,6 +111,7 @@ export default function BillsPreConstitutionsView({ triggerNotification }) {
     const path = location.pathname.toLowerCase();
     if (path.includes('/input-form')) return 'input-form';
     if (path.includes('/reports')) return 'reports';
+    if (path.includes('/dashboard')) return 'dashboard';
     return 'data-list';
   }, [location.pathname]);
 
@@ -127,7 +131,8 @@ export default function BillsPreConstitutionsView({ triggerNotification }) {
     return <RestrictedAccess moduleName="Bills/Pre-Constitutions Act" />;
   }
 
-  const defaultTab = canAdd ? 'input-form' : 'data-list';
+  // Opening the module shows the dashboard, as in Cabinet Notes MoPSW
+  const defaultTab = canView ? 'dashboard' : 'input-form';
 
   return (
     <div className="module-page-container space-y-6 animate-fade-in">
@@ -148,6 +153,10 @@ export default function BillsPreConstitutionsView({ triggerNotification }) {
 
       <div className="space-y-8">
         <Routes>
+          <Route path="dashboard" element={canView ? (
+            <Dashboard notify={notify} wings={wings} />
+          ) : <Navigate to={`${BASE}/input-form`} replace />} />
+
           <Route path="data-list" element={canView ? (
             <DataList
               rowData={rowData}

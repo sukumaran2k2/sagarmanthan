@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Save } from 'lucide-react';
 import { saveFacilities } from '../../api';
 import { getCurrentUserId } from '../../../../utils/authSession';
@@ -34,14 +34,10 @@ export default function FacilitiesInputForm({
   const [noOfEjournals, setNoOfEjournals] = useState(editData?.no_of_e_journals ?? '');
   const [noOfEdatabases, setNoOfEdatabases] = useState(editData?.no_of_e_database ?? '');
   const [noOfacadamicSoftware, setNoOfacadamicSoftware] = useState(editData?.no_of_acadamic_software ?? '');
-  const [totalEresources, setTotalEresources] = useState(editData?.total_e_resources ?? '');
-
-  useEffect(() => {
-    const total = [noOfEbooks, noOfEjournals, noOfEdatabases, noOfacadamicSoftware]
-      .map((v) => parseInt(v, 10) || 0)
-      .reduce((sum, n) => sum + n, 0);
-    setTotalEresources(String(total));
-  }, [noOfEbooks, noOfEjournals, noOfEdatabases, noOfacadamicSoftware]);
+  // The sum of the four counts above
+  const totalEresources = String([noOfEbooks, noOfEjournals, noOfEdatabases, noOfacadamicSoftware]
+    .map((v) => parseInt(v, 10) || 0)
+    .reduce((sum, n) => sum + n, 0));
 
   const [touched, setTouched] = useState({});
   const handleBlur = (field) => setTouched((prev) => ({ ...prev, [field]: true }));

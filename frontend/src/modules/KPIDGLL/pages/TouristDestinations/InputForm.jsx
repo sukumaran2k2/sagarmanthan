@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Save } from 'lucide-react';
 import {
   checkTouristDestinationYear, createTouristDestination, updateTouristDestination,
-  checkTargetDetailYear, createTargetDetail, updateTargetDetail,
+  createTargetDetail, updateTargetDetail,
 } from '../../api';
 import { getCurrentUserId } from '../../../../utils/authSession';
 import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../../utils/notify';

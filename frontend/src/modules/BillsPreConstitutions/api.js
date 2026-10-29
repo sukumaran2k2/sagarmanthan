@@ -63,6 +63,11 @@ export function fetchDivisions() {
   return api.get('/mmt-dropdown/mmt_division');
 }
 
+// Dashboard figures; wingId narrows the cards, heat map and long-pending list
+export function fetchBillDashboard(wingId) {
+  return api.get('/bill-dashboard', { params: wingId ? { wingId } : {} });
+}
+
 export function fetchBills(userID) {
   return api.get('/bill', { params: { userID } });
 }
