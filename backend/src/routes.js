@@ -821,6 +821,7 @@ router.get("/get-review-item-code-data-by-id/:reviewItemCode",reviewItemsTab.get
 
 // LEGAL MENU
 //  Bills/PreConstitutions Act
+router.get("/bill-dashboard", auth, billsRead, billTab.getBillDashboard);
 router.get("/bill", auth, billsRead, billTab.getBill);
 router.post("/bill", auth, billsCreate, billTab.createBill);
 router.get("/bill/:billID", auth, billsRead, billTab.getUpdateBill);

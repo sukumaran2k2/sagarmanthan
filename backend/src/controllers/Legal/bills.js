@@ -171,28 +171,26 @@ async function createBill(req, res) {
     }
 }
 
+// Same scoping as Audit Para: MOPSW admin/other-user/wing-head/division-head roles see
+// everything; any other role (organisation-level users) sees its own wing's bills and the
+// bills it created. Returns the condition to add (bound on `request`), or '' for everything.
+async function billScope(request, userID) {
+    if (!userID) return '';
+    request.input("scopeUserId", userID);
+    const userResult = await request.query(`SELECT role_id, wing_id FROM tbl_user WHERE user_id = @scopeUserId`);
+    const { role_id, wing_id } = userResult.recordset[0] || {};
+    if ([2, 3, 4, 5, 8].includes(role_id)) return '';
+    request.input("userWingId", wing_id);
+    request.input("requestingUserId", userID);
+    return '(tbl_bill.wing = @userWingId OR tbl_bill.created_by = @requestingUserId)';
+}
+
 async function getBill(req, res) {
     const conn = await pool;
     try {
-        const userID = req.user.userId; // scope by the signed-in user, not a URL value
-        let scopeClause = '';
         const request = conn.request();
-
-        // Same scoping as Audit Para: MOPSW admin/other-user/wing-head/
-        // division-head roles see everything; any other role
-        // (organisation-level users) is scoped to their own wing, or to
-        // records they personally created.
-        if (userID) {
-            request.input("scopeUserId", userID);
-            const userResult = await request.query(`SELECT role_id, wing_id FROM tbl_user WHERE user_id = @scopeUserId`);
-            const { role_id, wing_id } = userResult.recordset[0] || {};
-            const isMopswRole = [2, 3, 4, 5, 8].includes(role_id);
-            if (!isMopswRole) {
-                request.input("userWingId", wing_id);
-                request.input("requestingUserId", userID);
-                scopeClause = `WHERE (tbl_bill.wing = @userWingId OR tbl_bill.created_by = @requestingUserId)`;
-            }
-        }
+        const scope = await billScope(request, req.user.userId);
+        const scopeClause = scope ? `WHERE ${scope}` : '';
 
         const result = await request.query(`SELECT ${BILL_COLUMNS},
             wing_name, division_name, bill_stage_name
@@ -414,4 +412,99 @@ async function deleteBill(req, res) {
     }
 }
 
-export default { createBill, getBill, getUpdateBill, updateBill, deleteBill };
+// Dashboard, as Cabinet Notes MoPSW's: KPI cards, stage-wise heat map, wing-wise active
+// bills and the ten longest-pending bills. stage_id is the bill's current stage (1-15 in
+// mmt_bill_stage, 0 = no status); a stage's date is its column in STAGES.
+const COMPLETED_STAGE = 15;
+const CABINET_STAGE = 11; // Approved by Cabinet
+const PARLIAMENT_STAGES = '12, 13, 14'; // Introduced, Passed, Notified
+const IS_COMPLETED = `(tbl_bill.stage_id = ${COMPLETED_STAGE} OR ISNULL(tbl_bill.completed, 0) = 1 OR tbl_bill.completed_date IS NOT NULL)`;
+// When the bill reached its current stage (its creation date if that stage has no date)
+const STAGE_SINCE = `COALESCE(CASE tbl_bill.stage_id
+    ${STAGES.map((s, i) => `WHEN ${i + 1} THEN tbl_bill.${s.column}_date`).join('\n    ')}
+  END, tbl_bill.created_date)`;
+
+async function getBillDashboard(req, res) {
+    const conn = await pool;
+    try {
+        // Each query gets its own request with the user's scope and the optional wing filter.
+        // The wing-wise chart ignores the wing filter: it compares wings.
+        const wingId = Number(req.query.wingId);
+        const filterWing = Number.isInteger(wingId) && wingId > 0;
+        const query = async (sql, { byWing = true } = {}) => {
+            const request = conn.request();
+            const conditions = [await billScope(request, req.user.userId)];
+            if (byWing && filterWing) {
+                request.input("filterWingId", wingId);
+                conditions.push('tbl_bill.wing = @filterWingId');
+            }
+            const where = conditions.filter(Boolean).map((c) => `AND ${c}`).join(' ');
+            return (await request.query(sql.replace('/*SCOPE*/', where))).recordset;
+        };
+
+        const [kpi = {}] = await query(`
+            SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN ${IS_COMPLETED} THEN 0 ELSE 1 END) AS active,
+                SUM(CASE WHEN ${IS_COMPLETED} THEN 1 ELSE 0 END) AS completed,
+                CAST(AVG(CASE WHEN ${IS_COMPLETED} THEN NULL
+                    ELSE CAST(DATEDIFF(day, tbl_bill.created_date, GETDATE()) AS FLOAT) END) AS INT) AS avg_age_days,
+                MAX(tbl_bill.updated_date) AS last_update
+            FROM tbl_bill
+            WHERE 1 = 1 /*SCOPE*/`);
+
+        // Active bills per stage (every stage listed, empty ones with 0)
+        const heatMap = await query(`
+            SELECT stage.bill_stage_id AS stage_id, stage.bill_stage_name AS stage_name,
+                COUNT(tbl_bill.bill_id) AS bill_count,
+                CAST(AVG(CAST(DATEDIFF(day, ${STAGE_SINCE}, GETDATE()) AS FLOAT)) AS INT) AS avg_days,
+                MAX(DATEDIFF(day, ${STAGE_SINCE}, GETDATE())) AS max_days
+            FROM mmt_bill_stage AS stage
+            LEFT JOIN tbl_bill ON tbl_bill.stage_id = stage.bill_stage_id AND NOT ${IS_COMPLETED} /*SCOPE*/
+            WHERE stage.bill_stage_id <> ${COMPLETED_STAGE}
+            GROUP BY stage.bill_stage_id, stage.bill_stage_name
+            ORDER BY stage.bill_stage_id`);
+
+        // Every active wing is listed, those with no active bills with 0
+        const wingWise = await query(`
+            SELECT wings.wing_id, wings.wing_name,
+                COUNT(tbl_bill.bill_id) AS total_active,
+                SUM(CASE WHEN tbl_bill.stage_id = ${CABINET_STAGE} THEN 1 ELSE 0 END) AS cabinet_approved,
+                SUM(CASE WHEN tbl_bill.stage_id IN (${PARLIAMENT_STAGES}) THEN 1 ELSE 0 END) AS in_parliament,
+                SUM(CASE WHEN tbl_bill.bill_id IS NULL OR tbl_bill.stage_id = ${CABINET_STAGE}
+                    OR tbl_bill.stage_id IN (${PARLIAMENT_STAGES}) THEN 0 ELSE 1 END) AS in_progress
+            FROM mmt_wings AS wings
+            LEFT JOIN tbl_bill ON tbl_bill.wing = wings.wing_id AND NOT ${IS_COMPLETED} /*SCOPE*/
+            WHERE wings.status = 1
+            GROUP BY wings.wing_id, wings.wing_name
+            ORDER BY total_active DESC, wings.wing_name`, { byWing: false });
+
+        const longPending = await query(`
+            SELECT TOP 10 tbl_bill.bill_id, tbl_bill.subject, wings.wing_name,
+                stage.bill_stage_name AS current_stage, tbl_bill.updated_date,
+                DATEDIFF(day, ${STAGE_SINCE}, GETDATE()) AS pending_days
+            FROM tbl_bill
+            INNER JOIN mmt_wings AS wings ON wings.wing_id = tbl_bill.wing
+            LEFT JOIN mmt_bill_stage AS stage ON stage.bill_stage_id = tbl_bill.stage_id
+            WHERE NOT ${IS_COMPLETED} /*SCOPE*/
+            ORDER BY pending_days DESC`);
+
+        return res.json({
+            kpi: {
+                total: Number(kpi.total) || 0,
+                active: Number(kpi.active) || 0,
+                completed: Number(kpi.completed) || 0,
+                avgAgeDays: kpi.avg_age_days ?? null,
+            },
+            lastDataUpdate: kpi.last_update || null,
+            heatMap,
+            wingWise,
+            longPending,
+        });
+    } catch (err) {
+        console.error("Bills dashboard error:", err);
+        return res.sendStatus(500);
+    }
+}
+
+export default { createBill, getBill, getUpdateBill, updateBill, deleteBill, getBillDashboard };
