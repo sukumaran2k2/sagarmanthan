@@ -167,7 +167,7 @@ function CategoryChart({ data, metric, onRootReady, dark }) {
     yAxis.data.setAll(rows);
     chart.appear(600, 100);
     return () => { root.dispose(); onRootReady?.(null); };
-  }, [data, metric, dark]);
+  }, [data, metric, dark, onRootReady]);
   return <div ref={divRef} style={{ width: '100%', height: '100%', overflow: 'hidden' }} />;
 }
 
@@ -206,7 +206,7 @@ function SummitTrendChart({ data, stages, metric, onRootReady, dark }) {
     xAxis.data.setAll(data);
     chart.appear(600, 100);
     return () => { root.dispose(); onRootReady?.(null); };
-  }, [data, metric, dark]);
+  }, [data, stages, metric, dark, onRootReady]);
   return <div ref={divRef} style={{ width: '100%', height: '100%', overflow: 'hidden' }} />;
 }
 
@@ -252,7 +252,7 @@ export default function GMISDashboard() {
     return () => document.removeEventListener('mousedown', close);
   }, []);
 
-  const stages = data?.stages || [];
+  const stages = useMemo(() => data?.stages || [], [data]);
   // Memoized so the charts (whose effects call back into state) don't re-render in a loop.
   const categoryData = useMemo(() => data?.byCategory || [], [data]);
   // Only real summits (GMIS / IMW <year>); entries such as "MoU Signing" stay out of the
