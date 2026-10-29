@@ -1,6 +1,7 @@
 import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
+import sql from "mssql";
 import { pool } from "../../db.js";
 import moment from 'moment';
 import { getDataScope } from '../../middleware/dataScope.js';
@@ -25,6 +26,63 @@ async function canAccessMou(user, mouID) {
     if (scope.orgId) request.input('scopeOrgId', scope.orgId);
     const result = await request.query(`SELECT TOP 1 1 AS ok FROM tbl_gmis_mou WHERE id = @scopeMouId AND ${scope.sql}`);
     return result.recordset.length > 0;
+}
+
+// Progress lives in the revision tables (tbl_gmis_mou has no progress columns); an MoU's
+// progress is its latest revision, as 2.0 showed it. Join with PROGRESS_JOIN, select PROGRESS_COLUMNS.
+const PROGRESS_JOIN = `
+    OUTER APPLY (
+        SELECT TOP 1 revised_physical_progress_date, revised_physical_progress_percentage
+        FROM tbl_gmis_mou_physical_progress
+        WHERE mou_id = tbl_gmis_mou.id
+        ORDER BY revised_on DESC, id DESC
+    ) phy
+    OUTER APPLY (
+        SELECT TOP 1 revised_financial_progress_date, revised_financial_progress_percentage
+        FROM tbl_gmis_mou_financial_progress
+        WHERE mou_id = tbl_gmis_mou.id
+        ORDER BY revised_on DESC, id DESC
+    ) fin`;
+const PROGRESS_COLUMNS = `
+    phy.revised_physical_progress_date AS physical_progress_date,
+    phy.revised_physical_progress_percentage AS physical_progress_percentage,
+    fin.revised_financial_progress_date AS financial_progress_date,
+    fin.revised_financial_progress_percentage AS financial_progress_percentage`;
+
+// Records the form's progress for MoU @progressMouId as a new revision, only when it differs
+// from the latest one (so re-saving an MoU unchanged adds nothing). Needs the inputs bound by
+// bindProgress.
+const RECORD_PROGRESS_SQL = `
+    IF (@physicalProgressDate IS NOT NULL OR @physicalPercentage IS NOT NULL) AND NOT EXISTS (
+        SELECT 1 FROM (
+            SELECT TOP 1 revised_physical_progress_date AS d, revised_physical_progress_percentage AS pct
+            FROM tbl_gmis_mou_physical_progress WHERE mou_id = @progressMouId ORDER BY revised_on DESC, id DESC
+        ) latest
+        WHERE ISNULL(CONVERT(varchar(10), latest.d, 23), '') = ISNULL(@physicalProgressDate, '')
+          AND ISNULL(latest.pct, -1) = ISNULL(@physicalPercentage, -1)
+    )
+        INSERT INTO tbl_gmis_mou_physical_progress (mou_id, revised_physical_progress_date, revised_physical_progress_percentage, revised_on)
+        VALUES (@progressMouId, @physicalProgressDate, @physicalPercentage, GETDATE());
+
+    IF (@financialProgressDate IS NOT NULL OR @financialPercentage IS NOT NULL) AND NOT EXISTS (
+        SELECT 1 FROM (
+            SELECT TOP 1 revised_financial_progress_date AS d, revised_financial_progress_percentage AS pct
+            FROM tbl_gmis_mou_financial_progress WHERE mou_id = @progressMouId ORDER BY revised_on DESC, id DESC
+        ) latest
+        WHERE ISNULL(CONVERT(varchar(10), latest.d, 23), '') = ISNULL(@financialProgressDate, '')
+          AND ISNULL(latest.pct, -1) = ISNULL(@financialPercentage, -1)
+    )
+        INSERT INTO tbl_gmis_mou_financial_progress (mou_id, revised_financial_progress_date, revised_financial_progress_percentage, revised_on)
+        VALUES (@progressMouId, @financialProgressDate, @financialPercentage, GETDATE());`;
+
+// Binds the four progress values from the form ('' = not given; 0% is kept)
+function bindProgress(request, body) {
+    const date = (v) => (v ? String(v).substring(0, 10) : null);
+    const pct = (v) => (v === undefined || v === null || v === '' || Number.isNaN(Number(v)) ? null : Number(v));
+    request.input("physicalProgressDate", date(body.physicalProgressDate));
+    request.input("physicalPercentage", sql.Decimal(5, 2), pct(body.physicalPercentage));
+    request.input("financialProgressDate", date(body.financialProgressDate));
+    request.input("financialPercentage", sql.Decimal(5, 2), pct(body.financialPercentage));
 }
 
 // "To be started" is how the data records it; older entries may say "Yet to start".
@@ -103,10 +161,6 @@ async function submitGmisMouData(req, res) {
     const userID = req.user?.userId || req.body.userID || null;
     let uniqueFileName = req.body.gmisDocumentFileName; 
     const nextSteps = req.body.nextSteps || null;
-    const physicalProgressDate = req.body.physicalProgressDate || null;
-    const physicalPercentage = req.body.physicalPercentage || null;
-    const financialPercentage = req.body.financialPercentage || null;
-    const financialProgressDate = req.body.financialProgressDate || null;
 
      if (!uniqueFileName || uniqueFileName === "") {
         uniqueFileName = null;
@@ -132,10 +186,7 @@ async function submitGmisMouData(req, res) {
     request.input("userID", userID);
     request.input("uniqueFileName", uniqueFileName);
     request.input("nextSteps", nextSteps);
-    request.input("physicalProgressDate", physicalProgressDate);
-    request.input("physicalPercentage", physicalPercentage);
-    request.input("financialPercentage", financialPercentage);
-    request.input("financialProgressDate", financialProgressDate);
+    bindProgress(request, req.body);
 
     
 
@@ -156,7 +207,11 @@ async function submitGmisMouData(req, res) {
 
 
     try {
-        const result = await request.query(`INSERT INTO tbl_gmis_mou (
+        // The MoU and its first progress revision are saved together
+        await request.query(`
+        SET XACT_ABORT ON;
+        BEGIN TRANSACTION;
+        INSERT INTO tbl_gmis_mou (
             organisation_id, event_name, navic_vibhas_id, name_of_mou, name_of_first_party,
             name_of_second_party, nature_of_second_party, amount, mou_category_id, present_status,
             reason_for_dropping, remark_or_detailed_status, mou_brief, revised_amount, document_uploader,
@@ -166,7 +221,10 @@ async function submitGmisMouData(req, res) {
             @nameOfSecondParty, @natureOfSecondParty, @amount, @mouCategoryId, @presentStatus,
             @reasonForDropping, @detailedRemarks, @mouBrief, @revisedAmount, @uniqueFileName,
             @nextSteps, GETDATE(), @userID
-        );`);
+        );
+        DECLARE @progressMouId INT = SCOPE_IDENTITY();
+        ${RECORD_PROGRESS_SQL}
+        COMMIT TRANSACTION;`);
 
         res.sendStatus(201);
     } catch (err) {
@@ -235,13 +293,9 @@ async function updateGmisMouData(req, res) {
     const detailedRemarks = req.body.detailedRemarks || req.body.remark_or_detailed_status || null;
     const reasonForDropping = req.body.reasonForDropping || req.body.reason_for_dropping || null;
     const mouBrief = req.body.mouBrief || req.body.mou_brief || null;
-    const userId = req.body.userId || req.user?.id || null;
+    const userId = req.user?.userId || null; // updated_by: the signed-in user, not a body value
     let uniqueFileName = req.body.gmisDocumentFileName || req.body.uniqueFileName || req.body.document_uploader || null; 
     let nextSteps = req.body.nextSteps || req.body.updatenextSteps || req.body.next_steps || null;
-    const physicalProgressDate = req.body.physicalProgressDate || req.body.physical_progress_date || null;
-    const physicalPercentage = req.body.physicalPercentage !== undefined ? req.body.physicalPercentage : req.body.physical_progress_percentage;
-    const financialProgressDate = req.body.financialProgressDate || req.body.financial_progress_date || null;
-    const financialPercentage = req.body.financialPercentage !== undefined ? req.body.financialPercentage : req.body.financial_progress_percentage;
 
     if (revisedAmount === '' || revisedAmount === undefined) {
         revisedAmount = null;
@@ -274,10 +328,8 @@ async function updateGmisMouData(req, res) {
     request.input("userId", userId);
     request.input("uniqueFileName", uniqueFileName);
     request.input("nextSteps", nextSteps);
-    request.input("physicalProgressDate", physicalProgressDate);
-    request.input("physicalPercentage", physicalPercentage !== null && physicalPercentage !== '' ? Number(physicalPercentage) : null);
-    request.input("financialProgressDate", financialProgressDate);
-    request.input("financialPercentage", financialPercentage !== null && financialPercentage !== '' ? Number(financialPercentage) : null);
+    request.input("progressMouId", mouID);
+    bindProgress(request, req.body);
 
     const firstPartyResult = await request.query(`
         SELECT organisation_name
@@ -316,6 +368,8 @@ async function updateGmisMouData(req, res) {
                 updated_on = GETDATE()
             WHERE id = @mouID;
         `;
+        // A changed progress value is kept as a new revision, with the MoU's other changes
+        updateQuery = `SET XACT_ABORT ON; BEGIN TRANSACTION; ${updateQuery} ${RECORD_PROGRESS_SQL} COMMIT TRANSACTION;`;
 
         await request.query(updateQuery);
         res.status(200).json({ success: true, message: 'MoU updated successfully' });
@@ -438,8 +492,10 @@ async function getGmisMouPaginated(req, res) {
                 tbl_gmis_mou.document_uploader,
                 tbl_gmis_mou.created_on,
                 tbl_gmis_mou.updated_on,
+                ${PROGRESS_COLUMNS},
                 COUNT(*) OVER() AS total_count
             FROM tbl_gmis_mou
+            ${PROGRESS_JOIN}
             LEFT JOIN mmt_organisation ON tbl_gmis_mou.organisation_id = mmt_organisation.organisation_id
             LEFT JOIN mmt_navic_vibhas ON mmt_navic_vibhas.id = tbl_gmis_mou.navic_vibhas_id
             LEFT JOIN mmt_mou_category ON tbl_gmis_mou.mou_category_id = mmt_mou_category.mou_category_id
@@ -541,9 +597,11 @@ async function getGmisMouDataByID(req, res) {
             tbl_gmis_mou.document_uploader,
             tbl_gmis_mou.next_steps,
             tbl_gmis_mou.created_on,
-            tbl_gmis_mou.updated_on
+            tbl_gmis_mou.updated_on,
+            ${PROGRESS_COLUMNS}
         FROM 
             tbl_gmis_mou
+        ${PROGRESS_JOIN}
         LEFT JOIN 
             mmt_organisation ON tbl_gmis_mou.organisation_id = mmt_organisation.organisation_id
         LEFT JOIN 
