@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
-import { 
-  ArrowLeft, Calendar, DollarSign, Building2, Briefcase, 
-  FileText, CheckCircle2, AlertTriangle, Layers, Users, 
-  TrendingUp, Download, Eye, Image, Edit, Clock, Tag, Globe, Sparkles
+import { useState } from 'react';
+import {
+  ArrowLeft, Calendar, DollarSign, Building2,
+  FileText, AlertTriangle, Users,
+  TrendingUp, Download, Edit, Sparkles
 } from 'lucide-react';
 import { downloadGmisDocument } from '../api';
+import { COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { GMIS_TOASTS } from '../toastMessages';
 
-export default function GMISDetailView({ mou, onBack, onEdit }) {
+export default function GMISDetailView({ mou, onBack, onEdit, notify }) {
   const [downloadError, setDownloadError] = useState('');
   if (!mou) return null;
 
@@ -20,8 +22,10 @@ export default function GMISDetailView({ mou, onBack, onEdit }) {
       a.download = mou.document_uploader;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch {
+      notify?.(COMMON_TOASTS.downloadStarted(mou.document_uploader));
+    } catch (err) {
       setDownloadError('Could not download the document.');
+      notify?.(GMIS_TOASTS.downloadFailed(getErrorMessage(err)));
     }
   };
 
