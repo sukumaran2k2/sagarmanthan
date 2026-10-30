@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
 import ModuleUploadView from '../../../components/ModuleUploadView';
 import ConfirmModal from '../../../components/ConfirmModal';
+import MissingEmployeesModal from '../../../components/MissingEmployeesModal';
 import { axiosInstance as api } from '../../../api';
 import { COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
 import { ATTENDANCE_TOASTS } from '../toastMessages';
@@ -17,6 +18,8 @@ export default function UploadPage({ notify, onUploaded }) {
   const [uploading, setUploading] = useState(false);
   // A sheet already exists for the period: { fileId } while asking whether to replace it
   const [replaceAsk, setReplaceAsk] = useState(null);
+  // Emp Ids the server does not know: { fileId, employees } while asking for their details
+  const [missingAsk, setMissingAsk] = useState(null);
 
   const resetForm = () => {
     setSelectedFile(null);
@@ -108,6 +111,24 @@ export default function UploadPage({ notify, onUploaded }) {
         setReplaceAsk({ fileId: err.response.data.replaceFileID });
         return;
       }
+      // Unknown Emp Ids: ask for their details (filled in from the sheet), create them, upload again
+      const missingIds = err.response?.status === 402 ? (err.response.data?.missingEmpIds || [err.response.data?.EmpId].filter(Boolean)) : [];
+      if (missingIds.length) {
+        const pick = (row, keys) => keys.map((k) => row?.[k]).find((v) => v !== undefined && v !== null && String(v).trim() !== '');
+        const employees = missingIds.map((id) => {
+          const row = previewRows.find((r) => String(pick(r, ['Emp Id', 'EmpId', 'Employee ID']) ?? '').trim() === String(id));
+          return {
+            empId: String(id),
+            empName: pick(row, ['Emp Name', 'EmpName', 'EMP Name', 'Employee Name']),
+            designation: pick(row, ['Designation']),
+            wingName: pick(row, ['Wing']),
+            divisionName: pick(row, ['Division']),
+          };
+        });
+        setMissingAsk({ fileId, employees });
+        notify(ATTENDANCE_TOASTS.employeesMissing(missingIds.length));
+        return;
+      }
       console.error('Attendance upload failed:', err);
       const reason = getErrorMessage(err);
       setFileIssues(reason || 'The upload failed.');
@@ -172,6 +193,22 @@ export default function UploadPage({ notify, onUploaded }) {
         loading={uploading}
         loadingText="Replacing..."
       />
+
+      {missingAsk && (
+      <MissingEmployeesModal
+        isOpen
+        employees={missingAsk?.employees || []}
+        unitsUrl="/employee-org-units"
+        createUrl="/employee-attendance-data"
+        onClose={() => setMissingAsk(null)}
+        onCreated={() => {
+          const { fileId, employees } = missingAsk;
+          setMissingAsk(null);
+          notify(ATTENDANCE_TOASTS.employeesCreated(employees.length));
+          send(fileId);
+        }}
+      />
+      )}
     </div>
   );
 }

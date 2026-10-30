@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
 import ModuleUploadView from '../../../components/ModuleUploadView';
 import ConfirmModal from '../../../components/ConfirmModal';
+import MissingEmployeesModal from '../../../components/MissingEmployeesModal';
 import { axiosInstance as api } from '../../../api';
 import { COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
 import { EOFFICE_TOASTS } from '../toastMessages';
@@ -19,6 +20,8 @@ export default function UploadPage({ category, notify, onUploaded }) {
   const [uploading, setUploading] = useState(false);
   // A sheet already exists for the period: { fileId } while asking whether to replace it
   const [replaceAsk, setReplaceAsk] = useState(null);
+  // Emp Ids the server does not know: { fileId, employees } while asking for their details
+  const [missingAsk, setMissingAsk] = useState(null);
 
   const resetForm = () => {
     setSelectedFile(null);
@@ -108,6 +111,14 @@ export default function UploadPage({ category, notify, onUploaded }) {
         setReplaceAsk({ fileId: err.response.data.replaceFileID });
         return;
       }
+      // Unknown Emp Ids: ask for their details, create them, upload again (the sheets carry
+      // only the Emp Id)
+      const missingIds = err.response?.status === 402 ? (err.response.data?.missingEmpIds || [err.response.data?.EmpId].filter(Boolean)) : [];
+      if (missingIds.length) {
+        setMissingAsk({ fileId, employees: missingIds.map((id) => ({ empId: String(id) })) });
+        notify(EOFFICE_TOASTS.employeesMissing(missingIds.length));
+        return;
+      }
       console.error('E-Office upload failed:', err);
       const reason = getErrorMessage(err);
       setFileIssues(reason || 'The upload failed.');
@@ -171,6 +182,22 @@ export default function UploadPage({ category, notify, onUploaded }) {
         loading={uploading}
         loadingText="Replacing..."
       />
+
+      {missingAsk && (
+        <MissingEmployeesModal
+          isOpen
+          employees={missingAsk.employees}
+          unitsUrl="/eoffice-employee-org-units"
+          createUrl="/eoffice-employee-data"
+          onClose={() => setMissingAsk(null)}
+          onCreated={() => {
+            const { fileId, employees } = missingAsk;
+            setMissingAsk(null);
+            notify(EOFFICE_TOASTS.employeesCreated(employees.length));
+            send(fileId);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -367,6 +367,7 @@ router.get("/employee-attendance-view", auth, attRead, empAttendanceTab.getEmpAt
 router.post("/employee-attendance", auth, attCreate, empAttendanceTab.uploadSingleFile, empAttendanceTab.createEmpAttendance);
 router.put("/attend-employee", auth, attUpdate, empAttendanceTab.uploadSingleFile, empAttendanceTab.updateEmpAttendance);
 router.post("/employee-attendance-data", auth, attCreate, empAttendanceTab.addEmpDataAttendance);
+router.get("/employee-org-units", auth, attRead, empAttendanceTab.getEmployeeOrgUnits);
 router.get("/employee-attendance/download/:id", auth, attRead, empAttendanceTab.downloadEmpAttendanceFile);
 router.delete("/employee-attendance/:id", auth, attDelete, empAttendanceTab.deleteEmpAttendanceFile);
 // router.post("/employee-attendance/storecsv/:id",empAttendanceTab.storeEMPAttendanceData);
@@ -747,6 +748,9 @@ router.get("/file-pendancy-History", auth, eofficeRead, eOfficeTab.getFilePenden
 router.get("/file-pendancy/download/:id", auth, eofficeRead, eOfficeTab.downloadFilePendancy);
 router.get("/file-pendancy/download-sample", auth, eofficeRead, eOfficeTab.downloadFilePendancySample);
 router.delete("/file-pendancy/delete/:id", auth, eofficeDelete, eOfficeTab.deleteFilePendency);
+// Unknown Emp Ids in an E-Office sheet: create them (same as Attendance, under E-Office rights)
+router.post("/eoffice-employee-data", auth, eofficeCreate, empAttendanceTab.addEmpDataAttendance);
+router.get("/eoffice-employee-org-units", auth, eofficeRead, empAttendanceTab.getEmployeeOrgUnits);
 router.post("/file-pendancy-create", auth, eofficeCreate, EofficeFilePendancyTab.upload.single('file'), EofficeFilePendancyTab.addFilePendancy);
 router.put("/file-pendancy-update", auth, eofficeUpdate, EofficeFilePendancyTab.upload.single('file'), EofficeFilePendancyTab.updateFilePendancy);
 

@@ -25,6 +25,10 @@ export const EOFFICE_TOASTS = {
     toastError('Upload Failed', withReason('The sheet could not be saved. Please try again.', reason)),
   sampleFailed: () =>
     toastError('Download Failed', 'The sample sheet could not be downloaded. Please try again.'),
+  employeesMissing: (count) =>
+    toastWarning('Employees Not Found', `${count} Emp Id${count === 1 ? ' in the sheet is' : 's in the sheet are'} not in the employee list. Enter the details to create ${count === 1 ? 'it' : 'them'}.`),
+  employeesCreated: (count) =>
+    toastSuccess('Employees Created', `${count} employee${count === 1 ? ' has' : 's have'} been added. Uploading the sheet again.`),
   fileDownloadFailed: () =>
     toastError('Download Failed', 'The uploaded sheet could not be downloaded. Please try again.'),
   fileDeleted: (fileName) =>

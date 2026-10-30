@@ -241,7 +241,7 @@ async function createEmpAttendance(req, res) {
         }
         const allEmpIds = [...uniqueEmpRows.keys()];
 
-        // From here on, every insert (employee auto-register, file record,
+        // From here on, every insert (file record,
         // attendance rows) happens inside one transaction, so a failure
         // partway through rolls everything back instead of leaving an
         // orphaned file record with no attendance rows (as happened when
@@ -263,28 +263,13 @@ async function createEmpAttendance(req, res) {
             const existingEmpIds = new Set(existingResult.recordset.map(r => String(r.Emp_Id)));
             const missingEmpIds = allEmpIds.filter(id => !existingEmpIds.has(id));
 
+            // Unknown Emp Ids are not added silently: the page asks for their details
+            // (name, designation, wing, division), creates them, then uploads again (as 2.0 did)
             if (missingEmpIds.length > 0) {
-                try {
-                    const CHUNK_SIZE = 500;
-                    for (let start = 0; start < missingEmpIds.length; start += CHUNK_SIZE) {
-                        const chunk = missingEmpIds.slice(start, start + CHUNK_SIZE);
-                        const insertRequest = transaction.request();
-                        const valueClauses = chunk.map((id, i) => {
-                            const info = uniqueEmpRows.get(id);
-                            insertRequest.input(`empId${i}`, sql.NVarChar(255), id);
-                            insertRequest.input(`empName${i}`, sql.NVarChar(255), String(info.EmpName));
-                            insertRequest.input(`designation${i}`, sql.NVarChar(255), String(info.Designation));
-                            insertRequest.input(`orgId${i}`, sql.Int, 1);
-                            return `(@empId${i}, @empName${i}, @designation${i}, @orgId${i})`;
-                        });
-                        await insertRequest.query(`
-                            INSERT INTO mmt_employee_info (Emp_Id, Emp_Name, Designation, organization_id)
-                            VALUES ${valueClauses.join(', ')}
-                        `);
-                    }
-                } catch (autoRegErr) {
-                    console.warn("Auto-register employee info notice:", autoRegErr.message);
-                }
+                await transaction.rollback();
+                transaction = null;
+                deleteFile(req.file, req.uniqueFileName);
+                return res.status(402).json({ error: `Employee ID(s) not found in the employee table: ${missingEmpIds.join(', ')}`, EmpId: missingEmpIds[0], missingEmpIds });
             }
         }
         const currentDate = new Date();
@@ -477,7 +462,7 @@ async function updateEmpAttendance(req, res) {
 
             if (missingEmpIds.length > 0) {
                 deleteFile(req.uniqueFileName);
-                return res.status(402).json({ error: `Employee ID(s) not found in the employee table: ${missingEmpIds.join(', ')}`, EmpId: missingEmpIds[0] });
+                return res.status(402).json({ error: `Employee ID(s) not found in the employee table: ${missingEmpIds.join(', ')}`, EmpId: missingEmpIds[0], missingEmpIds });
             }
         }
 
@@ -625,46 +610,68 @@ function deleteFile(fileName) {
 
 
 //Add user function
+// Creates an employee that an uploaded sheet refers to (Attendance and E-Office): Emp Id,
+// name, designation and the wing / division they work in (one mmt_organization_info unit)
 async function addEmpDataAttendance(req, res) {
-    const empId = req.body.empId;
-    const empName = req.body.empName;
-    const designation = req.body.designation;
-    const wing = req.body.wing;
-    const division = req.body.division;
+    const text = (v) => (v === undefined || v === null ? '' : String(v).trim());
+    const empId = text(req.body.empId);
+    const empName = text(req.body.empName);
+    const designation = text(req.body.designation);
+    const wingId = Number(req.body.wing);
+    const divisionId = Number(req.body.division);
+
+    const missing = [!empId && 'Emp Id', !empName && 'Emp Name', !designation && 'Designation',
+        !Number.isInteger(wingId) && 'Wing', !Number.isInteger(divisionId) && 'Division'].filter(Boolean);
+    if (missing.length) {
+        return res.status(400).json({ error: `Fill in: ${missing.join(', ')}` });
+    }
 
     try {
         const conn = await pool;
         const request = conn.request();
+        request.input("empId", sql.NVarChar(255), empId);
+        request.input("empName", sql.NVarChar(255), empName);
+        request.input("designation", sql.NVarChar(255), designation);
+        request.input("wing", sql.Int, wingId);
+        request.input("division", sql.Int, divisionId);
 
-        request.input("empId", empId);
-        request.input("empName", empName);
-        request.input("designation", designation);
-        request.input("wing", wing);
-        request.input("division", division);
+        const existing = await request.query(`SELECT TOP 1 Emp_Id FROM mmt_employee_info WHERE Emp_Id = @empId`);
+        if (existing.recordset.length) {
+            return res.status(409).json({ error: `Emp Id ${empId} already exists` });
+        }
 
         const orgIDResult = await request.query(`
             SELECT organization_id from mmt_organization_info 
             WHERE wing_id = @wing AND division_id = @division
         `);
+        if (!orgIDResult.recordset.length) {
+            return res.status(400).json({ error: 'That division does not belong to the chosen wing' });
+        }
+        request.input("organizationID", sql.Int, orgIDResult.recordset[0].organization_id);
 
-        const organizationID = orgIDResult.recordset[0].organization_id;
+        await request.query(`
+            INSERT INTO mmt_employee_info (Emp_Id, Emp_Name, Designation, organization_id)
+            VALUES (@empId, @empName, @designation, @organizationID)
+        `);
 
-        request.input("organizationID", organizationID);
-
-        const insertQuery = `
-            INSERT INTO mmt_employee_info (
-                Emp_Id, Emp_Name, Designation, organization_id
-            )
-            VALUES (
-                @empId, @empName, @designation, @organizationID
-            )
-        `;
-
-        await request.query(insertQuery);
-
-        res.sendStatus(201);
+        return res.status(201).json({ message: 'Employee created', empId });
     } catch (err) {
-        console.log(err);
+        console.error('Create employee error:', err.message);
+        return res.sendStatus(500);
+    }
+}
+
+// The wing / division units an employee can belong to (mmt_organization_info)
+async function getEmployeeOrgUnits(req, res) {
+    try {
+        const result = await (await pool).request().query(`
+            SELECT wing_id, LTRIM(RTRIM(wing_name)) AS wing_name, division_id, LTRIM(RTRIM(division_name)) AS division_name
+            FROM mmt_organization_info
+            ORDER BY wing_name, division_name
+        `);
+        return res.json(result.recordset);
+    } catch (err) {
+        console.error('Employee org units error:', err.message);
         return res.sendStatus(500);
     }
 }
@@ -839,5 +846,5 @@ async function deleteEmpAttendanceFile(req, res) {
 
 const empAttendanceTab = { createEmpAttendance, upload, uploadSingleFile, addEmpDataAttendance,
     getEmployeeAttendance, updateEmpAttendance, getEmpAttendance, agSample,
-    downloadEmpAttendanceFile, deleteEmpAttendanceFile };
+    downloadEmpAttendanceFile, deleteEmpAttendanceFile, getEmployeeOrgUnits };
 export default empAttendanceTab;
