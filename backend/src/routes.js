@@ -939,6 +939,7 @@ router.get("/csr-update-fundlist/:csrFundId", auth, csrRead, csrProjectTab.getUp
 router.post('/csrFund-edit', auth, csrUpdate, csrProjectTab.editCsrFund);
 router.post('/add-csr-Fund', auth, csrCreate, csrProjectTab.addCsrFundDetails);
 router.get('/get-csr-fund-expenditure-report/:userID', auth, csrRead, csrProjectTab.csrExpenditureReport);
+router.get('/get-csr-dashboard', auth, csrRead, csrProjectTab.getCsrDashboard);
 router.get('/get-csr-project-dashboard/:clusterID/:organisationID/:fy/:focusID', auth, csrRead, csrProjectTab.getCSRProjectDashboard);
 router.get('/get-csr-fund-allocatted/:clusterID/:organisationID/:fy/:focusID', auth, csrRead, csrProjectTab.getCsrFundAllocatted);
 router.get('/get-csr-fund-year-wise-report/:fy', auth, csrRead, csrProjectTab.getCsrFundYearWiseReport);

@@ -7,7 +7,7 @@ import { registerStoreReset } from '../../../stores/resetRegistry';
  * CSR Projects module store.
  * Holds state that should survive switching between the module's tabs:
  *  - reference data (organisations and clusters), loaded once
- *  - Dashboard filters and the selected status card
+ *  - Dashboard filters
  *  - CSR Fund Details filters, search, pagination, filter panel and columns
  *  - CSR Project List category (All / Active / Completed), filters, search,
  *    pagination, filter panel and columns
@@ -52,7 +52,6 @@ const initialState = {
 
   // Dashboard
   dashboardFilters: DEFAULT_DASHBOARD_FILTERS,
-  drilldownStage: 'all',
 
   // CSR Fund Details
   fundFilters: DEFAULT_FUND_FILTERS,
@@ -83,13 +82,9 @@ const resolve = (updater, prev) => (typeof updater === 'function' ? updater(prev
 export const useCsrStore = create((set, get) => ({
   ...initialState,
 
-  // Dashboard: a new filter shows every status again
-  setDashboardFilters: (changes) => set((state) => ({
-    dashboardFilters: { ...state.dashboardFilters, ...changes },
-    drilldownStage: 'all',
-  })),
-  resetDashboardFilters: () => set({ dashboardFilters: DEFAULT_DASHBOARD_FILTERS, drilldownStage: 'all' }),
-  setDrilldownStage: (drilldownStage) => set({ drilldownStage }),
+  // Dashboard
+  setDashboardFilters: (changes) => set((state) => ({ dashboardFilters: { ...state.dashboardFilters, ...changes } })),
+  resetDashboardFilters: () => set({ dashboardFilters: DEFAULT_DASHBOARD_FILTERS }),
 
   // Fund Details (filters in the browser, so search applies as the user types)
   setFundSearch: (fundSearch) => set({ fundSearch, fundPage: 1 }),
