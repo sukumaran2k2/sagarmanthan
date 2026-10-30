@@ -190,7 +190,7 @@ export default function ReportPage({ notify, years }) {
           <button
             type="button"
             onClick={() => setReloadKey((k) => k + 1)}
-            className="px-3.5 py-2 bg-[#0f417a] hover:bg-[#0c3361] text-white font-bold text-xs rounded-xl transition cursor-pointer flex items-center gap-1.5"
+            className="px-3.5 py-2 bg-[#4b2424] hover:bg-[#6b3535] text-white font-bold text-xs rounded-xl transition cursor-pointer flex items-center gap-1.5"
           >
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             <span>Refresh</span>

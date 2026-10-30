@@ -5,6 +5,7 @@ import { pool } from "../../db.js";
 import moment from 'moment';
 import mime from 'mime-types';
 import { getDataScope } from '../../middleware/dataScope.js';
+import { ORG_GROUPS } from './capexDashboard.js';
 
 // Ministry / master users see every organisation's CSR data; organisation users only their own.
 // Decided from the signed token only (never from URL, query or body values), as in GMIS and CAPEX.
@@ -1820,6 +1821,175 @@ async function getCSRProjectCountWise(req, res) {
   }
 }
 
+// Dashboard: everything in one call, for the filters (cluster, organisation, financial year,
+// focus area). Amounts are lakh, as stored; the page shows crore.
+// - Projects (KPIs, status table, organisation chart) follow all four filters; the year is the
+//   project's financial year.
+// - Funds have no focus area, so the fund figures follow cluster, organisation and year only.
+//   For one year: that year's fund rows, the expenditure booked in that year, and
+//   balance = opening + allotted - expenditure (as Fund Details). For all years the opening
+//   balance is each organisation's earliest year, so the summary still adds up.
+// - Expenditure (KPI) is the expenditure booked in the selected year on the filtered projects.
+// - The year-on-year trend ignores the year filter (it compares years).
+// A cluster is a group of organisation categories, as on the CAPEX dashboard.
+async function getCsrDashboard(req, res) {
+  try {
+    const scope = csrScope(req.user);
+    const orgId = scope.orgId || (scope.blocked ? -1 : (parseInt(req.query.organisationId, 10) || 0));
+    const group = ORG_GROUPS.find((g) => g.id === (parseInt(req.query.clusterId, 10) || 0));
+    const clusterSql = scope.orgId || !group ? '1 = 1' : group.sql;
+    const fy = req.query.fy && req.query.fy !== 'all' ? String(req.query.fy) : null;
+    const focusId = parseInt(req.query.focusId, 10) || 0;
+
+    const request = (await pool).request();
+    request.input('orgId', orgId);
+    request.input('fy', fy);
+    request.input('focusId', focusId);
+
+    // Organisations in the filter: o is mmt_organisation, X the row's organisation column
+    const inOrgs = (col) => `(@orgId = 0 OR ${col} = @orgId) AND ${clusterSql}`;
+    const result = await request.query(`
+      ;WITH Projects AS (
+        SELECT p.csr_project_id, p.organisation_id, p.project_value, p.project_status
+        FROM tbl_csr_projects p
+        INNER JOIN mmt_organisation o ON o.organisation_id = p.organisation_id
+        WHERE ${inOrgs('p.organisation_id')}
+          AND (@fy IS NULL OR p.financial_year = @fy)
+          AND (@focusId = 0 OR p.csr_focus = @focusId)
+      )
+      SELECT
+        COUNT(*) AS projects,
+        SUM(project_value) AS project_value,
+        SUM(CASE WHEN project_status = 'Project Under implementation' THEN 1 ELSE 0 END) AS under_implementation,
+        SUM(CASE WHEN project_status = 'Completed' THEN 1 ELSE 0 END) AS completed
+      FROM Projects;
+
+      -- Expenditure booked in the year on the filtered projects (any project year)
+      SELECT SUM(e.csr_expenditure_cost) AS expenditure
+      FROM tbl_csr_expenditure e
+      INNER JOIN tbl_csr_projects p ON p.csr_project_id = e.csr_project_id
+      INNER JOIN mmt_organisation o ON o.organisation_id = p.organisation_id
+      WHERE ${inOrgs('p.organisation_id')}
+        AND (@focusId = 0 OR p.csr_focus = @focusId)
+        AND (@fy IS NULL OR e.year = @fy);
+
+      -- Fund summary (no focus filter: funds have no focus area)
+      ;WITH Funds AS (
+        SELECT f.organisation_id, f.financial_year, f.net_profit, f.opening_balance_csr, f.csr_fund_alloted_year,
+          ROW_NUMBER() OVER (PARTITION BY f.organisation_id ORDER BY f.financial_year) AS year_order
+        FROM tbl_csr_fund f
+        INNER JOIN mmt_organisation o ON o.organisation_id = f.organisation_id
+        WHERE ${inOrgs('f.organisation_id')}
+          AND (@fy IS NULL OR f.financial_year = @fy)
+      )
+      SELECT
+        SUM(net_profit) AS net_profit,
+        SUM(CASE WHEN year_order = 1 THEN opening_balance_csr ELSE 0 END) AS opening_balance,
+        SUM(csr_fund_alloted_year) AS allotted,
+        (SELECT SUM(e.csr_expenditure_cost)
+           FROM tbl_csr_expenditure e
+           INNER JOIN tbl_csr_projects p ON p.csr_project_id = e.csr_project_id
+           INNER JOIN mmt_organisation o ON o.organisation_id = p.organisation_id
+           WHERE ${inOrgs('p.organisation_id')}
+             AND (@fy IS NULL OR e.year = @fy)) AS expenditure,
+        (SELECT SUM(p.project_value)
+           FROM tbl_csr_projects p
+           INNER JOIN mmt_organisation o ON o.organisation_id = p.organisation_id
+           WHERE ${inOrgs('p.organisation_id')}
+             AND (@fy IS NULL OR p.financial_year = @fy)) AS project_value
+      FROM Funds;
+
+      -- Projects by status
+      SELECT ISNULL(p.project_status, 'Not set') AS status, COUNT(*) AS projects, SUM(p.project_value) AS project_value
+      FROM tbl_csr_projects p
+      INNER JOIN mmt_organisation o ON o.organisation_id = p.organisation_id
+      WHERE ${inOrgs('p.organisation_id')}
+        AND (@fy IS NULL OR p.financial_year = @fy)
+        AND (@focusId = 0 OR p.csr_focus = @focusId)
+      GROUP BY p.project_status;
+
+      -- Projects by organisation, with the expenditure booked on them (as 2.0's distribution chart)
+      SELECT o.organisation_id, o.organisation_name, COUNT(*) AS projects, SUM(p.project_value) AS project_value,
+        SUM(ISNULL(x.spent, 0)) AS expenditure
+      FROM tbl_csr_projects p
+      INNER JOIN mmt_organisation o ON o.organisation_id = p.organisation_id
+      OUTER APPLY (SELECT SUM(e.csr_expenditure_cost) AS spent FROM tbl_csr_expenditure e WHERE e.csr_project_id = p.csr_project_id) x
+      WHERE ${inOrgs('p.organisation_id')}
+        AND (@fy IS NULL OR p.financial_year = @fy)
+        AND (@focusId = 0 OR p.csr_focus = @focusId)
+      GROUP BY o.organisation_id, o.organisation_name
+      ORDER BY COUNT(*) DESC, o.organisation_name;
+
+      -- Year-on-year: fund allotted and expenditure booked per financial year (every year)
+      ;WITH Allotted AS (
+        SELECT f.financial_year, SUM(f.csr_fund_alloted_year) AS allotted
+        FROM tbl_csr_fund f
+        INNER JOIN mmt_organisation o ON o.organisation_id = f.organisation_id
+        WHERE ${inOrgs('f.organisation_id')}
+        GROUP BY f.financial_year
+      ),
+      Spent AS (
+        SELECT e.year AS financial_year, SUM(e.csr_expenditure_cost) AS expenditure
+        FROM tbl_csr_expenditure e
+        INNER JOIN tbl_csr_projects p ON p.csr_project_id = e.csr_project_id
+        INNER JOIN mmt_organisation o ON o.organisation_id = p.organisation_id
+        WHERE ${inOrgs('p.organisation_id')}
+          AND (@focusId = 0 OR p.csr_focus = @focusId)
+        GROUP BY e.year
+      )
+      SELECT COALESCE(a.financial_year, s.financial_year) AS financial_year,
+        ISNULL(a.allotted, 0) AS allotted, ISNULL(s.expenditure, 0) AS expenditure
+      FROM Allotted a
+      FULL OUTER JOIN Spent s ON s.financial_year = a.financial_year
+      WHERE COALESCE(a.financial_year, s.financial_year) IS NOT NULL
+      ORDER BY 1;
+
+      -- Organisation name (organisation view) and the last time any of this data changed
+      SELECT
+        (SELECT organisation_name FROM mmt_organisation WHERE organisation_id = @orgId) AS organisation_name,
+        (SELECT MAX(d) FROM (
+           SELECT MAX(ISNULL(updated_date, created_date)) AS d FROM tbl_csr_projects
+           UNION ALL SELECT MAX(ISNULL(updated_date, created_date)) FROM tbl_csr_fund
+           UNION ALL SELECT MAX(ISNULL(updated_date, created_date)) FROM tbl_csr_expenditure) t) AS last_updated;
+    `);
+
+    const [kpi, spent, fund, statuses, byOrganisation, trend, meta] = result.recordsets;
+    const n = (v) => Number(v) || 0;
+    const f = fund[0] || {};
+    const fundSummary = {
+      netProfit: n(f.net_profit),
+      openingBalance: n(f.opening_balance),
+      allotted: n(f.allotted),
+      projectValue: n(f.project_value),
+      expenditure: n(f.expenditure),
+    };
+    fundSummary.balance = fundSummary.openingBalance + fundSummary.allotted - fundSummary.expenditure;
+
+    return res.json({
+      view: scope.orgId ? { level: 'organisation', organisationName: meta[0]?.organisation_name || null } : { level: 'ministry' },
+      kpi: {
+        fundAllotted: fundSummary.allotted,
+        projects: n(kpi[0]?.projects),
+        projectValue: n(kpi[0]?.project_value),
+        expenditure: n(spent[0]?.expenditure),
+        underImplementation: n(kpi[0]?.under_implementation),
+        completed: n(kpi[0]?.completed),
+      },
+      fundSummary,
+      statuses: statuses.map((r) => ({ status: r.status, projects: n(r.projects), projectValue: n(r.project_value) })),
+      byOrganisation: scope.orgId ? [] : byOrganisation.map((r) => ({
+        organisationId: r.organisation_id, organisationName: r.organisation_name,
+        projects: n(r.projects), projectValue: n(r.project_value), expenditure: n(r.expenditure),
+      })),
+      trend: trend.map((r) => ({ financialYear: r.financial_year, allotted: n(r.allotted), expenditure: n(r.expenditure) })),
+      lastUpdated: meta[0]?.last_updated || null,
+    });
+  } catch (err) {
+    console.error('CSR dashboard error:', err);
+    return res.sendStatus(500);
+  }
+}
+
 async function getDetailedCSRProjects(req, res) {
   try {
     const clusterID = parseInt(req.params.clusterID, 10) || 0;
@@ -2232,7 +2402,7 @@ export default {createCsrProjects, addNewCsrFileGallery, upload, fileUpload, han
         uploadMediaGalleryFile, addCsrFundDetails, getCsrFundList, getUpdateFundData,  editCsrFund,csrPdfFileDownload,
         csrProjectsAbstractReport,csrProjectsDetailedReport,csrExpenditureReport,getCSRProjectDashboard,getCsrFundAllocatted,
         getCsrFundYearWiseReport, getCsrFundOrgWiseReport, getCsrFundOrgTrendReport, getCsrProjectsYearWiseSummary, getCsrProjectsOrgWiseSummary, getCsrProjectsFocusWiseSummary,
-        getCsrProjectStageWise,getCSRProjectCountWise,getDetailedCSRProjects};
+        getCsrProjectStageWise,getCSRProjectCountWise,getDetailedCSRProjects,getCsrDashboard};
 
 
 

@@ -367,8 +367,9 @@ router.get("/employee-attendance-view", auth, attRead, empAttendanceTab.getEmpAt
 router.post("/employee-attendance", auth, attCreate, empAttendanceTab.uploadSingleFile, empAttendanceTab.createEmpAttendance);
 router.put("/attend-employee", auth, attUpdate, empAttendanceTab.uploadSingleFile, empAttendanceTab.updateEmpAttendance);
 router.post("/employee-attendance-data", auth, attCreate, empAttendanceTab.addEmpDataAttendance);
-// router.get("/employee-attendance/download/:id", empAttendanceTab.downloadEmpAttendance);
-// router.delete("/employee-attendance/:id", empAttendanceTab.deleteEmpAttendance);
+router.get("/employee-org-units", auth, attRead, empAttendanceTab.getEmployeeOrgUnits);
+router.get("/employee-attendance/download/:id", auth, attRead, empAttendanceTab.downloadEmpAttendanceFile);
+router.delete("/employee-attendance/:id", auth, attDelete, empAttendanceTab.deleteEmpAttendanceFile);
 // router.post("/employee-attendance/storecsv/:id",empAttendanceTab.storeEMPAttendanceData);
 // router.get("/employee-attendance/downloadSampleDocument", empAttendanceTab.downloadEmpSampleDocument);
 
@@ -747,6 +748,9 @@ router.get("/file-pendancy-History", auth, eofficeRead, eOfficeTab.getFilePenden
 router.get("/file-pendancy/download/:id", auth, eofficeRead, eOfficeTab.downloadFilePendancy);
 router.get("/file-pendancy/download-sample", auth, eofficeRead, eOfficeTab.downloadFilePendancySample);
 router.delete("/file-pendancy/delete/:id", auth, eofficeDelete, eOfficeTab.deleteFilePendency);
+// Unknown Emp Ids in an E-Office sheet: create them (same as Attendance, under E-Office rights)
+router.post("/eoffice-employee-data", auth, eofficeCreate, empAttendanceTab.addEmpDataAttendance);
+router.get("/eoffice-employee-org-units", auth, eofficeRead, empAttendanceTab.getEmployeeOrgUnits);
 router.post("/file-pendancy-create", auth, eofficeCreate, EofficeFilePendancyTab.upload.single('file'), EofficeFilePendancyTab.addFilePendancy);
 router.put("/file-pendancy-update", auth, eofficeUpdate, EofficeFilePendancyTab.upload.single('file'), EofficeFilePendancyTab.updateFilePendancy);
 
@@ -939,6 +943,7 @@ router.get("/csr-update-fundlist/:csrFundId", auth, csrRead, csrProjectTab.getUp
 router.post('/csrFund-edit', auth, csrUpdate, csrProjectTab.editCsrFund);
 router.post('/add-csr-Fund', auth, csrCreate, csrProjectTab.addCsrFundDetails);
 router.get('/get-csr-fund-expenditure-report/:userID', auth, csrRead, csrProjectTab.csrExpenditureReport);
+router.get('/get-csr-dashboard', auth, csrRead, csrProjectTab.getCsrDashboard);
 router.get('/get-csr-project-dashboard/:clusterID/:organisationID/:fy/:focusID', auth, csrRead, csrProjectTab.getCSRProjectDashboard);
 router.get('/get-csr-fund-allocatted/:clusterID/:organisationID/:fy/:focusID', auth, csrRead, csrProjectTab.getCsrFundAllocatted);
 router.get('/get-csr-fund-year-wise-report/:fy', auth, csrRead, csrProjectTab.getCsrFundYearWiseReport);

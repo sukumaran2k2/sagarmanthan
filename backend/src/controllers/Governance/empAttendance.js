@@ -178,8 +178,10 @@ async function createEmpAttendance(req, res) {
 
                 trimmedRow[standardKey] = row[header];
             });
+            Object.defineProperty(trimmedRow, 'excelRow', { value: (row.__rowNum__ ?? 0) + 1 });
             return trimmedRow;
-        });
+        // Skip rows that are empty (cells left with only spaces or formatting), as the upload page does
+        }).filter(row => Object.values(row).some(v => v !== null && v !== undefined && String(v).trim() !== ''));
 
         // Duplicate-EmpId check runs once over the whole dataset, not once
         // per row -- previously this was nested inside the row loop below
@@ -208,19 +210,19 @@ async function createEmpAttendance(req, res) {
             // Emp Ids are codes such as "AD03" (as in 2.0); only an empty one is rejected
             if (EmpId === undefined || EmpId === null || String(EmpId).trim() === '') {
                 deleteFile(req.file, req.uniqueFileName);
-                return res.status(403).json({ error: 'Emp Id is missing', row: (rowIndex+1) });
+                return res.status(403).json({ error: `Emp Id is missing (row ${row.excelRow})`, row: row.excelRow });
             }
 
             const markedInt = parseInt(AttendanceMarked, 10);
             if (isNaN(markedInt)) {
                 deleteFile(req.file, req.uniqueFileName);
-                return res.status(403).json({ error: 'Invalid No. of days Attendance Marked', row: (rowIndex+1) });
+                return res.status(403).json({ error: `Invalid No. of days Attendance Marked (row ${row.excelRow})`, row: row.excelRow });
             }
 
             const timeRegex = /^\d{2}:\d{2}:\d{2}$/;
             if (!timeRegex.test(formatTime(InTimeAvg)) || !timeRegex.test(formatTime(OutTimeAvg)) || !timeRegex.test(formatTime(WorkingHours))) {
                 deleteFile(req.file, req.uniqueFileName);
-                return res.status(403).json({ error: 'Invalid time format', row: (rowIndex+1) });
+                return res.status(403).json({ error: `Invalid time format (row ${row.excelRow})`, row: row.excelRow });
             }
         }
 
@@ -239,7 +241,7 @@ async function createEmpAttendance(req, res) {
         }
         const allEmpIds = [...uniqueEmpRows.keys()];
 
-        // From here on, every insert (employee auto-register, file record,
+        // From here on, every insert (file record,
         // attendance rows) happens inside one transaction, so a failure
         // partway through rolls everything back instead of leaving an
         // orphaned file record with no attendance rows (as happened when
@@ -261,28 +263,13 @@ async function createEmpAttendance(req, res) {
             const existingEmpIds = new Set(existingResult.recordset.map(r => String(r.Emp_Id)));
             const missingEmpIds = allEmpIds.filter(id => !existingEmpIds.has(id));
 
+            // Unknown Emp Ids are not added silently: the page asks for their details
+            // (name, designation, wing, division), creates them, then uploads again (as 2.0 did)
             if (missingEmpIds.length > 0) {
-                try {
-                    const CHUNK_SIZE = 500;
-                    for (let start = 0; start < missingEmpIds.length; start += CHUNK_SIZE) {
-                        const chunk = missingEmpIds.slice(start, start + CHUNK_SIZE);
-                        const insertRequest = transaction.request();
-                        const valueClauses = chunk.map((id, i) => {
-                            const info = uniqueEmpRows.get(id);
-                            insertRequest.input(`empId${i}`, sql.NVarChar(255), id);
-                            insertRequest.input(`empName${i}`, sql.NVarChar(255), String(info.EmpName));
-                            insertRequest.input(`designation${i}`, sql.NVarChar(255), String(info.Designation));
-                            insertRequest.input(`orgId${i}`, sql.Int, 1);
-                            return `(@empId${i}, @empName${i}, @designation${i}, @orgId${i})`;
-                        });
-                        await insertRequest.query(`
-                            INSERT INTO mmt_employee_info (Emp_Id, Emp_Name, Designation, organization_id)
-                            VALUES ${valueClauses.join(', ')}
-                        `);
-                    }
-                } catch (autoRegErr) {
-                    console.warn("Auto-register employee info notice:", autoRegErr.message);
-                }
+                await transaction.rollback();
+                transaction = null;
+                deleteFile(req.file, req.uniqueFileName);
+                return res.status(402).json({ error: `Employee ID(s) not found in the employee table: ${missingEmpIds.join(', ')}`, EmpId: missingEmpIds[0], missingEmpIds });
             }
         }
         const currentDate = new Date();
@@ -403,8 +390,10 @@ async function updateEmpAttendance(req, res) {
             Object.keys(row).forEach(header => {
                 trimmedRow[header.trim()] = row[header];
             });
+            Object.defineProperty(trimmedRow, 'excelRow', { value: (row.__rowNum__ ?? 0) + 1 });
             return trimmedRow;
-        });
+        // Skip rows that are empty (cells left with only spaces or formatting), as the upload page does
+        }).filter(row => Object.values(row).some(v => v !== null && v !== undefined && String(v).trim() !== ''));
 
         // Duplicate-EmpId check runs once over the whole dataset (previously
         // nested inside the row loop below, re-scanning all rows on every
@@ -433,7 +422,7 @@ async function updateEmpAttendance(req, res) {
             // (requiring a number rejected every real Emp Id)
             if (EmpId === undefined || EmpId === null || String(EmpId).trim() === '') {
                 deleteFile(req.uniqueFileName);
-                return res.status(403).json({ error: 'Emp Id is missing', row: (rowIndex+1) });
+                return res.status(403).json({ error: `Emp Id is missing (row ${row.excelRow})`, row: row.excelRow });
             }
         
             // Validate No. of days Attendance Marked. parseInt handles both
@@ -442,14 +431,14 @@ async function updateEmpAttendance(req, res) {
             const markedInt = parseInt(AttendanceMarked, 10);
             if (isNaN(markedInt)) {
                 deleteFile(req.uniqueFileName);
-                return res.status(403).json({ error: 'Invalid No. of days Attendance Marked', row: (rowIndex+1)   });
+                return res.status(403).json({ error: `Invalid No. of days Attendance Marked (row ${row.excelRow})`, row: row.excelRow });
             }
         
             // Validate time formats
             const timeRegex = /^\d{2}:\d{2}:\d{2}$/ ;
             if (!timeRegex.test(formatTime(InTimeAvg)) || !timeRegex.test(formatTime(OutTimeAvg)) || !timeRegex.test(formatTime(WorkingHours))) {
                 deleteFile(req.uniqueFileName);
-                return res.status(403).json({ error: 'Invalid time format', row: (rowIndex+1) });
+                return res.status(403).json({ error: `Invalid time format (row ${row.excelRow})`, row: row.excelRow });
             }
         
         }
@@ -473,7 +462,7 @@ async function updateEmpAttendance(req, res) {
 
             if (missingEmpIds.length > 0) {
                 deleteFile(req.uniqueFileName);
-                return res.status(402).json({ error: `Employee ID(s) not found in the employee table: ${missingEmpIds.join(', ')}`, EmpId: missingEmpIds[0] });
+                return res.status(402).json({ error: `Employee ID(s) not found in the employee table: ${missingEmpIds.join(', ')}`, EmpId: missingEmpIds[0], missingEmpIds });
             }
         }
 
@@ -621,46 +610,68 @@ function deleteFile(fileName) {
 
 
 //Add user function
+// Creates an employee that an uploaded sheet refers to (Attendance and E-Office): Emp Id,
+// name, designation and the wing / division they work in (one mmt_organization_info unit)
 async function addEmpDataAttendance(req, res) {
-    const empId = req.body.empId;
-    const empName = req.body.empName;
-    const designation = req.body.designation;
-    const wing = req.body.wing;
-    const division = req.body.division;
+    const text = (v) => (v === undefined || v === null ? '' : String(v).trim());
+    const empId = text(req.body.empId);
+    const empName = text(req.body.empName);
+    const designation = text(req.body.designation);
+    const wingId = Number(req.body.wing);
+    const divisionId = Number(req.body.division);
+
+    const missing = [!empId && 'Emp Id', !empName && 'Emp Name', !designation && 'Designation',
+        !Number.isInteger(wingId) && 'Wing', !Number.isInteger(divisionId) && 'Division'].filter(Boolean);
+    if (missing.length) {
+        return res.status(400).json({ error: `Fill in: ${missing.join(', ')}` });
+    }
 
     try {
         const conn = await pool;
         const request = conn.request();
+        request.input("empId", sql.NVarChar(255), empId);
+        request.input("empName", sql.NVarChar(255), empName);
+        request.input("designation", sql.NVarChar(255), designation);
+        request.input("wing", sql.Int, wingId);
+        request.input("division", sql.Int, divisionId);
 
-        request.input("empId", empId);
-        request.input("empName", empName);
-        request.input("designation", designation);
-        request.input("wing", wing);
-        request.input("division", division);
+        const existing = await request.query(`SELECT TOP 1 Emp_Id FROM mmt_employee_info WHERE Emp_Id = @empId`);
+        if (existing.recordset.length) {
+            return res.status(409).json({ error: `Emp Id ${empId} already exists` });
+        }
 
         const orgIDResult = await request.query(`
             SELECT organization_id from mmt_organization_info 
             WHERE wing_id = @wing AND division_id = @division
         `);
+        if (!orgIDResult.recordset.length) {
+            return res.status(400).json({ error: 'That division does not belong to the chosen wing' });
+        }
+        request.input("organizationID", sql.Int, orgIDResult.recordset[0].organization_id);
 
-        const organizationID = orgIDResult.recordset[0].organization_id;
+        await request.query(`
+            INSERT INTO mmt_employee_info (Emp_Id, Emp_Name, Designation, organization_id)
+            VALUES (@empId, @empName, @designation, @organizationID)
+        `);
 
-        request.input("organizationID", organizationID);
-
-        const insertQuery = `
-            INSERT INTO mmt_employee_info (
-                Emp_Id, Emp_Name, Designation, organization_id
-            )
-            VALUES (
-                @empId, @empName, @designation, @organizationID
-            )
-        `;
-
-        await request.query(insertQuery);
-
-        res.sendStatus(201);
+        return res.status(201).json({ message: 'Employee created', empId });
     } catch (err) {
-        console.log(err);
+        console.error('Create employee error:', err.message);
+        return res.sendStatus(500);
+    }
+}
+
+// The wing / division units an employee can belong to (mmt_organization_info)
+async function getEmployeeOrgUnits(req, res) {
+    try {
+        const result = await (await pool).request().query(`
+            SELECT wing_id, LTRIM(RTRIM(wing_name)) AS wing_name, division_id, LTRIM(RTRIM(division_name)) AS division_name
+            FROM mmt_organization_info
+            ORDER BY wing_name, division_name
+        `);
+        return res.json(result.recordset);
+    } catch (err) {
+        console.error('Employee org units error:', err.message);
         return res.sendStatus(500);
     }
 }
@@ -736,13 +747,15 @@ async function agSample(req, res) {
     const conn = await pool;
 
     try {
+        // The id lets the page download or delete a file; a file whose uploader is no longer a
+        // user is still listed (LEFT JOIN), newest first
         const result = await conn.query(`SELECT 
-                --ROW_NUMBER() OVER (ORDER BY tbl_emp_attendance_file.id) AS [S No],
+                tbl_emp_attendance_file.id,
                 file_name AS [File Name],  [tbl_user].name AS [Uploaded By],
                 tbl_emp_attendance_file.date_of_upload AS [Date of Upload]
-                --FORMAT(CONVERT(datetime, tbl_emp_attendance_file.date_of_upload), 'dd-MM-yyyy') AS [Date of Upload]
                 FROM tbl_emp_attendance_file
-                INNER JOIN tbl_user ON tbl_emp_attendance_file.uploaded_by = tbl_user.user_id;
+                LEFT JOIN tbl_user ON tbl_emp_attendance_file.uploaded_by = tbl_user.user_id
+                ORDER BY tbl_emp_attendance_file.id DESC;
         `);
 
         const rowData = result.recordset;  
@@ -765,6 +778,73 @@ async function agSample(req, res) {
   
 
 
+const ATTENDANCE_FOLDER = path.join(process.cwd(), 'fileuploads/Emp_attendance');
+
+// The stored sheet of an uploaded attendance file (by its id)
+async function storedAttendanceFile(conn, id) {
+    const request = conn.request();
+    request.input('id', sql.Int, id);
+    const record = (await request.query(`SELECT file_name FROM tbl_emp_attendance_file WHERE id = @id`)).recordset[0];
+    if (!record) return null;
+    // path.basename keeps a stored name from pointing outside the folder
+    const fileName = path.basename(record.file_name || '');
+    return { fileName, filePath: path.join(ATTENDANCE_FOLDER, fileName) };
+}
+
+async function downloadEmpAttendanceFile(req, res) {
+    try {
+        const id = req.params.id;
+        if (!/^\d+$/.test(String(id))) return res.status(400).json({ message: 'Invalid id' });
+        const file = await storedAttendanceFile(await pool, id);
+        if (!file) return res.status(404).json({ message: 'Record not found' });
+        if (!file.fileName || !fs.existsSync(file.filePath)) return res.status(404).json({ message: 'The stored sheet is no longer on the server' });
+        res.setHeader('Content-Type', 'application/octet-stream');
+        res.setHeader('Content-Disposition', `attachment; filename="${file.fileName}"`);
+        res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+        res.setHeader('Content-Length', fs.statSync(file.filePath).size);
+        return fs.createReadStream(file.filePath).pipe(res);
+    } catch (err) {
+        console.error('Attendance file download error:', err.message);
+        return res.status(500).send('Internal Server Error');
+    }
+}
+
+// Deletes an uploaded attendance sheet: its rows and its file record together (one
+// transaction), then the stored spreadsheet, so nothing is left behind
+async function deleteEmpAttendanceFile(req, res) {
+    let transaction;
+    try {
+        const id = req.params.id;
+        if (!/^\d+$/.test(String(id))) return res.status(400).json({ message: 'Invalid id' });
+        const conn = await pool;
+        const file = await storedAttendanceFile(conn, id);
+        if (!file) return res.status(404).json({ message: 'Record not found' });
+
+        transaction = new sql.Transaction(conn);
+        await transaction.begin();
+        const request = transaction.request();
+        request.input('id', sql.Int, id);
+        await request.query(`DELETE FROM tbl_employee_attendance WHERE File_Id = @id; DELETE FROM tbl_emp_attendance_file WHERE id = @id;`);
+        await transaction.commit();
+
+        if (file.fileName && fs.existsSync(file.filePath)) {
+            try {
+                fs.unlinkSync(file.filePath);
+            } catch (unlinkErr) {
+                console.error('Attendance stored file could not be removed:', unlinkErr.message);
+            }
+        }
+        return res.json({ message: 'File and related records deleted successfully' });
+    } catch (err) {
+        if (transaction) {
+            try { await transaction.rollback(); } catch { /* already rolled back */ }
+        }
+        console.error('Attendance file delete error:', err.message);
+        return res.status(500).send('Internal Server Error');
+    }
+}
+
 const empAttendanceTab = { createEmpAttendance, upload, uploadSingleFile, addEmpDataAttendance,
-    getEmployeeAttendance, updateEmpAttendance, getEmpAttendance, agSample };
+    getEmployeeAttendance, updateEmpAttendance, getEmpAttendance, agSample,
+    downloadEmpAttendanceFile, deleteEmpAttendanceFile, getEmployeeOrgUnits };
 export default empAttendanceTab;

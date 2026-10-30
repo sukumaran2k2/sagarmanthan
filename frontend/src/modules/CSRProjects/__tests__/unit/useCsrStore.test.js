@@ -31,7 +31,6 @@ describe('CSR Projects store', () => {
       fundPage: 1,
       fundVisibleCols: DEFAULT_FUND_COLS,
       dashboardFilters: { cluster: 0, organisation: 0, financialYear: 'all', focus: 0 },
-      drilldownStage: 'all',
       reportType: null,
     });
   });
@@ -76,13 +75,12 @@ describe('CSR Projects store', () => {
     expect(state()).toMatchObject({ fundSearch: '', fundFilters: { organisation: '', financialYear: '' } });
   });
 
-  it('a dashboard filter change shows every status again', () => {
-    state().setDrilldownStage('Completed');
+  it('dashboard filters merge, and reset restores every filter', () => {
     state().setDashboardFilters({ financialYear: '2025-2026' });
-    expect(state()).toMatchObject({ drilldownStage: 'all', dashboardFilters: { financialYear: '2025-2026', organisation: 0 } });
-    state().setDrilldownStage('Completed');
+    state().setDashboardFilters({ focus: 2 });
+    expect(state().dashboardFilters).toEqual({ cluster: 0, organisation: 0, financialYear: '2025-2026', focus: 2 });
     state().resetDashboardFilters();
-    expect(state()).toMatchObject({ drilldownStage: 'all', dashboardFilters: { financialYear: 'all' } });
+    expect(state().dashboardFilters).toEqual({ cluster: 0, organisation: 0, financialYear: 'all', focus: 0 });
   });
 
   it('each report starts on its own filters; the organisation-wise fund report on the current year', () => {

@@ -109,7 +109,7 @@ async function addFileDisposal(req, res) {
         };
 
         // Collect data rows (excluding Total/Summary rows) up front so the
-        // employee lookup/auto-register/insert steps below can be batched
+        // employee lookup and insert steps below can be batched
         // instead of doing one DB round-trip per row.
         const dataRows = trimmedData
             .map(row => {
@@ -130,7 +130,7 @@ async function addFileDisposal(req, res) {
         });
         const allEmpIds = [...uniqueEmpRows.keys()];
 
-        // From here on, employee auto-register, the file record, and the
+        // From here on, the file record and the
         // data rows all happen inside one transaction, so a failure partway
         // through rolls everything back instead of leaving an orphaned file
         // record with no data rows.
@@ -152,29 +152,13 @@ async function addFileDisposal(req, res) {
             const existingEmpIds = new Set(existingResult.recordset.map(r => String(r.Emp_Id)));
             const missingEmpIds = allEmpIds.filter(id => !existingEmpIds.has(id));
 
+            // Unknown Emp Ids are not added silently: the page asks for their details
+            // (name, designation, wing, division), creates them, then uploads again (as 2.0 did)
             if (missingEmpIds.length > 0) {
-                try {
-                    // Chunked parameterized multi-row INSERT instead of one
-                    // INSERT per missing employee.
-                    const CHUNK_SIZE = 500;
-                    for (let start = 0; start < missingEmpIds.length; start += CHUNK_SIZE) {
-                        const chunk = missingEmpIds.slice(start, start + CHUNK_SIZE);
-                        const insertRequest = transaction.request();
-                        const valueClauses = chunk.map((id, i) => {
-                            const info = uniqueEmpRows.get(id);
-                            insertRequest.input(`empId${i}`, sql.NVarChar(255), id);
-                            insertRequest.input(`empName${i}`, sql.NVarChar(255), info.EmpName);
-                            insertRequest.input(`designation${i}`, sql.NVarChar(255), info.Designation);
-                            return `(@empId${i}, @empName${i}, @designation${i}, 1)`;
-                        });
-                        await insertRequest.query(`
-                            INSERT INTO mmt_employee_info (Emp_Id, Emp_Name, Designation, organization_id)
-                            VALUES ${valueClauses.join(', ')}
-                        `);
-                    }
-                } catch (autoErr) {
-                    console.warn("Auto register employee warning:", autoErr.message);
-                }
+                await transaction.rollback();
+                transaction = null;
+                deleteFile(req.file, req.uniqueFileName);
+                return res.status(402).json({ error: `Employee ID(s) not found in the employee table: ${missingEmpIds.join(', ')}`, EmpId: missingEmpIds[0], missingEmpIds });
             }
         }
 
@@ -355,7 +339,7 @@ async function updateFileDisposal(req, res) {
 
             if (missingEmpIds.length > 0) {
                 deleteFile(req.uniqueFileName);
-                return res.status(402).json({ error: `Employee ID(s) not found in the employee table: ${missingEmpIds.join(', ')}`, EmpId: missingEmpIds[0] });
+                return res.status(402).json({ error: `Employee ID(s) not found in the employee table: ${missingEmpIds.join(', ')}`, EmpId: missingEmpIds[0], missingEmpIds });
             }
         }
             
