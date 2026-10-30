@@ -134,59 +134,64 @@ async function downloadFileDisposalSample(req, res) {
   }
 }
 
-async function deleteFilePendency(req, res) {
+// Deletes an uploaded sheet: its rows and its file record together (one transaction), then
+// the stored spreadsheet itself, so nothing is left behind in the upload folder.
+async function handleEofficeDelete(sheet, req, res) {
+  let transaction;
   try {
     const id = req.params.id;
     if (!/^\d+$/.test(String(id))) {
       return res.status(400).json({ message: "Invalid id" });
     }
     const conn = await pool;
-    const request = conn.request();
+    // Table names come from SHEET_FILES above, never from the request; only `id` is bound
+    const { fileTable, folder, detailTable } = SHEET_FILES[sheet];
+    const recordRequest = conn.request();
+    recordRequest.input('id', sql.Int, id);
+    const record = (await recordRequest.query(`SELECT File_name FROM ${fileTable} WHERE id = @id`)).recordset[0];
+    if (!record) {
+      return res.status(404).json({ message: "Record not found" });
+    }
+
+    transaction = new sql.Transaction(conn);
+    await transaction.begin();
+    const request = transaction.request();
     request.input('id', sql.Int, id);
-    await request.query(`DELETE FROM tbl_file_pendancy WHERE File_ID = @id`);
-    await request.query(`DELETE FROM tbl_eoffice_file_pendancy_file WHERE id = @id`);
+    await request.query(`DELETE FROM ${detailTable} WHERE File_ID = @id; DELETE FROM ${fileTable} WHERE id = @id;`);
+    await transaction.commit();
+
+    // path.basename keeps a stored name from pointing outside the folder
+    const fileName = path.basename(record.File_name || '');
+    const filePath = path.join(process.cwd(), "fileuploads/E-Office", folder, fileName);
+    if (fileName && fs.existsSync(filePath)) {
+      try {
+        fs.unlinkSync(filePath);
+      } catch (unlinkErr) {
+        console.error("E-Office stored file could not be removed:", unlinkErr.message);
+      }
+    }
     res.json({ message: "File and related records deleted successfully" });
   } catch (err) {
-    console.error("deleteFilePendency error:", err.message);
+    if (transaction) {
+      try { await transaction.rollback(); } catch { /* already rolled back */ }
+    }
+    console.error(`E-Office delete (${sheet}) error:`, err.message);
     res.status(500).send("Internal Server Error");
   }
+}
+
+async function deleteFilePendency(req, res) {
+  return handleEofficeDelete('filePendancy', req, res);
 }
 
 async function deleteReceiptPendency(req, res) {
-  try {
-    const id = req.params.id;
-    if (!/^\d+$/.test(String(id))) {
-      return res.status(400).json({ message: "Invalid id" });
-    }
-    const conn = await pool;
-    const request = conn.request();
-    request.input('id', sql.Int, id);
-    await request.query(`DELETE FROM tbl_receipt_pendency WHERE File_ID = @id`);
-    await request.query(`DELETE FROM tbl_eoffice_receipt_pendency_file WHERE id = @id`);
-    res.json({ message: "File and related records deleted successfully" });
-  } catch (err) {
-    console.error("deleteReceiptPendency error:", err.message);
-    res.status(500).send("Internal Server Error");
-  }
+  return handleEofficeDelete('receiptPendency', req, res);
 }
 
 async function deleteFileDisposal(req, res) {
-  try {
-    const id = req.params.id;
-    if (!/^\d+$/.test(String(id))) {
-      return res.status(400).json({ message: "Invalid id" });
-    }
-    const conn = await pool;
-    const request = conn.request();
-    request.input('id', sql.Int, id);
-    await request.query(`DELETE FROM tbl_file_disposal WHERE File_ID = @id`);
-    await request.query(`DELETE FROM tbl_eoffice_file_disposal_file WHERE id = @id`);
-    res.json({ message: "File and related records deleted successfully" });
-  } catch (err) {
-    console.error("deleteFileDisposal error:", err.message);
-    res.status(500).send("Internal Server Error");
-  }
+  return handleEofficeDelete('fileDisposal', req, res);
 }
+
 async function getFilePendenceReport(req, res) {
     try {
         const year = req.params.Year;
@@ -434,7 +439,7 @@ async function getFilePendencyHistory(req, res) {
         SELECT
           id,
           File_name AS [File Name],
-          (SELECT TOP 1 name FROM tbl_user WHERE id = tbl_eoffice_file_pendancy_file.uploaded_by) AS [Uploaded By],
+          (SELECT TOP 1 u.name FROM tbl_user u WHERE u.user_id = TRY_CAST(tbl_eoffice_file_pendancy_file.uploaded_by AS INT)) AS [Uploaded By],
           CONVERT(varchar, date_of_upload, 106) AS [Date of Upload]
         FROM tbl_eoffice_file_pendancy_file
         ORDER BY id DESC;
@@ -462,7 +467,7 @@ async function getReceiptPendencyHistory(req, res) {
         SELECT
           id,
           File_name AS [File Name],
-          (SELECT TOP 1 name FROM tbl_user WHERE id = tbl_eoffice_receipt_pendency_file.uploaded_by) AS [Uploaded By],
+          (SELECT TOP 1 u.name FROM tbl_user u WHERE u.user_id = TRY_CAST(tbl_eoffice_receipt_pendency_file.uploaded_by AS INT)) AS [Uploaded By],
           CONVERT(varchar, date_of_upload, 106) AS [Date of Upload]
         FROM tbl_eoffice_receipt_pendency_file
         ORDER BY id DESC;
@@ -490,7 +495,7 @@ async function getFileDisposalHistory(req, res) {
         SELECT
           id,
           File_name AS [File Name],
-          (SELECT TOP 1 name FROM tbl_user WHERE id = tbl_eoffice_file_disposal_file.uploaded_by) AS [Uploaded By],
+          (SELECT TOP 1 u.name FROM tbl_user u WHERE u.user_id = TRY_CAST(tbl_eoffice_file_disposal_file.uploaded_by AS INT)) AS [Uploaded By],
           CONVERT(varchar, date_of_upload, 106) AS [Date of Upload]
         FROM tbl_eoffice_file_disposal_file
         ORDER BY id DESC;
