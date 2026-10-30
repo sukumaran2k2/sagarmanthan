@@ -25,6 +25,12 @@ export const ATTENDANCE_TOASTS = {
     toastError('Upload Failed', withReason('The attendance sheet could not be saved. Please try again.', reason)),
   sampleFailed: () =>
     toastError('Download Failed', 'The sample sheet could not be downloaded. Please try again.'),
+  fileDownloadFailed: (reason) =>
+    toastError('Download Failed', withReason('The uploaded sheet could not be downloaded. Please try again.', reason)),
+  fileDeleted: (fileName) =>
+    toastSuccess('File Deleted', `${fileName} and the attendance rows uploaded from it have been deleted.`),
+  deleteFailed: (reason) =>
+    toastError('Delete Failed', withReason('The file could not be deleted. Please try again.', reason)),
   detailFailed: (wing) =>
     toastError('Could Not Load Details', `The employee list for ${wing} could not be loaded. Please try again.`),
 };

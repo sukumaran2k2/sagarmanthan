@@ -2,6 +2,18 @@
  * Helper utility functions for Employee Attendance module
  */
 
+// Saves a downloaded file (blob) under the given name
+export const saveBlob = (data, fileName) => {
+  const url = window.URL.createObjectURL(new Blob([data]));
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', fileName);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+};
+
 export function colorFromString(s = '') {
   let h = 0;
   for (let i = 0; i < s.length; i++) h = ((h << 5) - h) + s.charCodeAt(i);
@@ -188,6 +200,7 @@ export function validateAttendanceRows(rows) {
   if (!rows || rows.length === 0) return issues;
 
   const empIdKey = findKey(rows[0], ['Emp Id', 'EmpId', 'Employee ID']);
+  const daysKey = findKey(rows[0], ['No. of days Attendance Marked', 'Days Marked', 'Attendance Marked']);
   const inTimeKey = findKey(rows[0], ['In Time Avg', 'InTimeAvg', 'In Time']);
   const outTimeKey = findKey(rows[0], ['Out Time Avg', 'OutTimeAvg', 'Out Time']);
   const workHoursKey = findKey(rows[0], ['Average Working Hours', 'Working Hours', 'WorkingHours']);
@@ -195,6 +208,7 @@ export function validateAttendanceRows(rows) {
   const timeRegex = /^\d{2}:\d{2}:\d{2}$/;
 
   const invalidEmpIdRows = [];
+  const invalidDaysRows = [];
   const invalidInTimeRows = [];
   const invalidOutTimeRows = [];
   const invalidWorkHoursRows = [];
@@ -202,7 +216,8 @@ export function validateAttendanceRows(rows) {
   const duplicateEmpIds = new Set();
 
   rows.forEach((row, idx) => {
-    const rowNum = idx + 2; // +1 for 0-index, +1 for header row, matching what a person sees in Excel
+    // The row number a person sees in Excel (sheet_to_json keeps it as __rowNum__, 0-based)
+    const rowNum = Number.isInteger(row.__rowNum__) ? row.__rowNum__ + 1 : idx + 2;
 
     // Emp Ids are codes such as "AD03" (as in 2.0); only an empty one is invalid
     const empIdRaw = empIdKey ? row[empIdKey] : undefined;
@@ -216,6 +231,10 @@ export function validateAttendanceRows(rows) {
         seenEmpIds.set(empIdStr, rowNum);
       }
     }
+
+    // The server needs a number of days for every row (it stores it as a whole number)
+    const days = daysKey ? row[daysKey] : undefined;
+    if (days === undefined || days === null || String(days).trim() === '' || Number.isNaN(parseInt(days, 10))) invalidDaysRows.push(rowNum);
 
     const inTimeFormatted = formatTimeStr(inTimeKey ? row[inTimeKey] : undefined);
     if (!timeRegex.test(inTimeFormatted)) invalidInTimeRows.push(rowNum);
@@ -236,6 +255,12 @@ export function validateAttendanceRows(rows) {
     issues.push({
       field: 'Emp Id',
       message: `Emp Id is missing in row(s): ${summarizeRows(invalidEmpIdRows)}.`,
+    });
+  }
+  if (invalidDaysRows.length > 0) {
+    issues.push({
+      field: 'No. of days Attendance Marked',
+      message: `Must be a number of days. Missing or invalid in row(s): ${summarizeRows(invalidDaysRows)}.`,
     });
   }
   if (duplicateEmpIds.size > 0) {

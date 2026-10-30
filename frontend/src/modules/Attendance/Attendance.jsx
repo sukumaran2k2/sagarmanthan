@@ -79,7 +79,7 @@ export default function AttendanceView({ triggerNotification }) {
         <Route path="upload" element={canUpload
           ? <UploadPage notify={notify} onUploaded={handleUploaded} />
           : <Navigate to="../data-list" replace />} />
-        <Route path="files" element={<FilesPage notify={notify} reloadKey={reloadKey} />} />
+        <Route path="files" element={<FilesPage notify={notify} reloadKey={reloadKey} canDelete={crud.delete} onDeleted={() => setReloadKey((k) => k + 1)} />} />
         <Route path="data-list" element={
           <DataListPage notify={notify} rows={rows} loading={loading} loadError={!loading && !!result.failed} onRetry={() => setReloadKey((k) => k + 1)} />
         } />

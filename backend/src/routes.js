@@ -367,8 +367,8 @@ router.get("/employee-attendance-view", auth, attRead, empAttendanceTab.getEmpAt
 router.post("/employee-attendance", auth, attCreate, empAttendanceTab.uploadSingleFile, empAttendanceTab.createEmpAttendance);
 router.put("/attend-employee", auth, attUpdate, empAttendanceTab.uploadSingleFile, empAttendanceTab.updateEmpAttendance);
 router.post("/employee-attendance-data", auth, attCreate, empAttendanceTab.addEmpDataAttendance);
-// router.get("/employee-attendance/download/:id", empAttendanceTab.downloadEmpAttendance);
-// router.delete("/employee-attendance/:id", empAttendanceTab.deleteEmpAttendance);
+router.get("/employee-attendance/download/:id", auth, attRead, empAttendanceTab.downloadEmpAttendanceFile);
+router.delete("/employee-attendance/:id", auth, attDelete, empAttendanceTab.deleteEmpAttendanceFile);
 // router.post("/employee-attendance/storecsv/:id",empAttendanceTab.storeEMPAttendanceData);
 // router.get("/employee-attendance/downloadSampleDocument", empAttendanceTab.downloadEmpSampleDocument);
 

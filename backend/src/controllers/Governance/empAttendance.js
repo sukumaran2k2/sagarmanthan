@@ -178,8 +178,10 @@ async function createEmpAttendance(req, res) {
 
                 trimmedRow[standardKey] = row[header];
             });
+            Object.defineProperty(trimmedRow, 'excelRow', { value: (row.__rowNum__ ?? 0) + 1 });
             return trimmedRow;
-        });
+        // Skip rows that are empty (cells left with only spaces or formatting), as the upload page does
+        }).filter(row => Object.values(row).some(v => v !== null && v !== undefined && String(v).trim() !== ''));
 
         // Duplicate-EmpId check runs once over the whole dataset, not once
         // per row -- previously this was nested inside the row loop below
@@ -208,19 +210,19 @@ async function createEmpAttendance(req, res) {
             // Emp Ids are codes such as "AD03" (as in 2.0); only an empty one is rejected
             if (EmpId === undefined || EmpId === null || String(EmpId).trim() === '') {
                 deleteFile(req.file, req.uniqueFileName);
-                return res.status(403).json({ error: 'Emp Id is missing', row: (rowIndex+1) });
+                return res.status(403).json({ error: `Emp Id is missing (row ${row.excelRow})`, row: row.excelRow });
             }
 
             const markedInt = parseInt(AttendanceMarked, 10);
             if (isNaN(markedInt)) {
                 deleteFile(req.file, req.uniqueFileName);
-                return res.status(403).json({ error: 'Invalid No. of days Attendance Marked', row: (rowIndex+1) });
+                return res.status(403).json({ error: `Invalid No. of days Attendance Marked (row ${row.excelRow})`, row: row.excelRow });
             }
 
             const timeRegex = /^\d{2}:\d{2}:\d{2}$/;
             if (!timeRegex.test(formatTime(InTimeAvg)) || !timeRegex.test(formatTime(OutTimeAvg)) || !timeRegex.test(formatTime(WorkingHours))) {
                 deleteFile(req.file, req.uniqueFileName);
-                return res.status(403).json({ error: 'Invalid time format', row: (rowIndex+1) });
+                return res.status(403).json({ error: `Invalid time format (row ${row.excelRow})`, row: row.excelRow });
             }
         }
 
@@ -403,8 +405,10 @@ async function updateEmpAttendance(req, res) {
             Object.keys(row).forEach(header => {
                 trimmedRow[header.trim()] = row[header];
             });
+            Object.defineProperty(trimmedRow, 'excelRow', { value: (row.__rowNum__ ?? 0) + 1 });
             return trimmedRow;
-        });
+        // Skip rows that are empty (cells left with only spaces or formatting), as the upload page does
+        }).filter(row => Object.values(row).some(v => v !== null && v !== undefined && String(v).trim() !== ''));
 
         // Duplicate-EmpId check runs once over the whole dataset (previously
         // nested inside the row loop below, re-scanning all rows on every
@@ -433,7 +437,7 @@ async function updateEmpAttendance(req, res) {
             // (requiring a number rejected every real Emp Id)
             if (EmpId === undefined || EmpId === null || String(EmpId).trim() === '') {
                 deleteFile(req.uniqueFileName);
-                return res.status(403).json({ error: 'Emp Id is missing', row: (rowIndex+1) });
+                return res.status(403).json({ error: `Emp Id is missing (row ${row.excelRow})`, row: row.excelRow });
             }
         
             // Validate No. of days Attendance Marked. parseInt handles both
@@ -442,14 +446,14 @@ async function updateEmpAttendance(req, res) {
             const markedInt = parseInt(AttendanceMarked, 10);
             if (isNaN(markedInt)) {
                 deleteFile(req.uniqueFileName);
-                return res.status(403).json({ error: 'Invalid No. of days Attendance Marked', row: (rowIndex+1)   });
+                return res.status(403).json({ error: `Invalid No. of days Attendance Marked (row ${row.excelRow})`, row: row.excelRow });
             }
         
             // Validate time formats
             const timeRegex = /^\d{2}:\d{2}:\d{2}$/ ;
             if (!timeRegex.test(formatTime(InTimeAvg)) || !timeRegex.test(formatTime(OutTimeAvg)) || !timeRegex.test(formatTime(WorkingHours))) {
                 deleteFile(req.uniqueFileName);
-                return res.status(403).json({ error: 'Invalid time format', row: (rowIndex+1) });
+                return res.status(403).json({ error: `Invalid time format (row ${row.excelRow})`, row: row.excelRow });
             }
         
         }
@@ -736,13 +740,15 @@ async function agSample(req, res) {
     const conn = await pool;
 
     try {
+        // The id lets the page download or delete a file; a file whose uploader is no longer a
+        // user is still listed (LEFT JOIN), newest first
         const result = await conn.query(`SELECT 
-                --ROW_NUMBER() OVER (ORDER BY tbl_emp_attendance_file.id) AS [S No],
+                tbl_emp_attendance_file.id,
                 file_name AS [File Name],  [tbl_user].name AS [Uploaded By],
                 tbl_emp_attendance_file.date_of_upload AS [Date of Upload]
-                --FORMAT(CONVERT(datetime, tbl_emp_attendance_file.date_of_upload), 'dd-MM-yyyy') AS [Date of Upload]
                 FROM tbl_emp_attendance_file
-                INNER JOIN tbl_user ON tbl_emp_attendance_file.uploaded_by = tbl_user.user_id;
+                LEFT JOIN tbl_user ON tbl_emp_attendance_file.uploaded_by = tbl_user.user_id
+                ORDER BY tbl_emp_attendance_file.id DESC;
         `);
 
         const rowData = result.recordset;  
@@ -765,6 +771,73 @@ async function agSample(req, res) {
   
 
 
+const ATTENDANCE_FOLDER = path.join(process.cwd(), 'fileuploads/Emp_attendance');
+
+// The stored sheet of an uploaded attendance file (by its id)
+async function storedAttendanceFile(conn, id) {
+    const request = conn.request();
+    request.input('id', sql.Int, id);
+    const record = (await request.query(`SELECT file_name FROM tbl_emp_attendance_file WHERE id = @id`)).recordset[0];
+    if (!record) return null;
+    // path.basename keeps a stored name from pointing outside the folder
+    const fileName = path.basename(record.file_name || '');
+    return { fileName, filePath: path.join(ATTENDANCE_FOLDER, fileName) };
+}
+
+async function downloadEmpAttendanceFile(req, res) {
+    try {
+        const id = req.params.id;
+        if (!/^\d+$/.test(String(id))) return res.status(400).json({ message: 'Invalid id' });
+        const file = await storedAttendanceFile(await pool, id);
+        if (!file) return res.status(404).json({ message: 'Record not found' });
+        if (!file.fileName || !fs.existsSync(file.filePath)) return res.status(404).json({ message: 'The stored sheet is no longer on the server' });
+        res.setHeader('Content-Type', 'application/octet-stream');
+        res.setHeader('Content-Disposition', `attachment; filename="${file.fileName}"`);
+        res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+        res.setHeader('Content-Length', fs.statSync(file.filePath).size);
+        return fs.createReadStream(file.filePath).pipe(res);
+    } catch (err) {
+        console.error('Attendance file download error:', err.message);
+        return res.status(500).send('Internal Server Error');
+    }
+}
+
+// Deletes an uploaded attendance sheet: its rows and its file record together (one
+// transaction), then the stored spreadsheet, so nothing is left behind
+async function deleteEmpAttendanceFile(req, res) {
+    let transaction;
+    try {
+        const id = req.params.id;
+        if (!/^\d+$/.test(String(id))) return res.status(400).json({ message: 'Invalid id' });
+        const conn = await pool;
+        const file = await storedAttendanceFile(conn, id);
+        if (!file) return res.status(404).json({ message: 'Record not found' });
+
+        transaction = new sql.Transaction(conn);
+        await transaction.begin();
+        const request = transaction.request();
+        request.input('id', sql.Int, id);
+        await request.query(`DELETE FROM tbl_employee_attendance WHERE File_Id = @id; DELETE FROM tbl_emp_attendance_file WHERE id = @id;`);
+        await transaction.commit();
+
+        if (file.fileName && fs.existsSync(file.filePath)) {
+            try {
+                fs.unlinkSync(file.filePath);
+            } catch (unlinkErr) {
+                console.error('Attendance stored file could not be removed:', unlinkErr.message);
+            }
+        }
+        return res.json({ message: 'File and related records deleted successfully' });
+    } catch (err) {
+        if (transaction) {
+            try { await transaction.rollback(); } catch { /* already rolled back */ }
+        }
+        console.error('Attendance file delete error:', err.message);
+        return res.status(500).send('Internal Server Error');
+    }
+}
+
 const empAttendanceTab = { createEmpAttendance, upload, uploadSingleFile, addEmpDataAttendance,
-    getEmployeeAttendance, updateEmpAttendance, getEmpAttendance, agSample };
+    getEmployeeAttendance, updateEmpAttendance, getEmpAttendance, agSample,
+    downloadEmpAttendanceFile, deleteEmpAttendanceFile };
 export default empAttendanceTab;

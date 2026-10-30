@@ -5,18 +5,7 @@ import ConfirmModal from '../../../components/ConfirmModal';
 import { axiosInstance as api } from '../../../api';
 import { COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
 import { ATTENDANCE_TOASTS } from '../toastMessages';
-import { calendarYear, formatTimeStr, validateAttendanceHeaders, validateAttendanceRows } from '../utils/attendanceUtils';
-
-const saveBlob = (data, fileName) => {
-  const url = window.URL.createObjectURL(new Blob([data]));
-  const link = document.createElement('a');
-  link.href = url;
-  link.setAttribute('download', fileName);
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  window.URL.revokeObjectURL(url);
-};
+import { calendarYear, formatTimeStr, saveBlob, validateAttendanceHeaders, validateAttendanceRows } from '../utils/attendanceUtils';
 
 export default function UploadPage({ notify, onUploaded }) {
   const [financialYear, setFinancialYear] = useState('');
@@ -64,7 +53,9 @@ export default function UploadPage({ notify, onUploaded }) {
           notify(ATTENDANCE_TOASTS.templateMismatch(headerCheck.missing));
           return;
         }
-        const dataRows = rows.filter((r) => r && (r['Emp Id'] || r.EmpId || r['Emp Name'] || r.EmpName));
+        // Skip only rows that are empty; a row with anything in it (even a stray letter) is checked,
+        // as the server checks it
+        const dataRows = rows.filter((r) => r && Object.values(r).some((v) => v !== null && v !== undefined && String(v).trim() !== ''));
         const issues = validateAttendanceRows(dataRows);
         if (issues.length) {
           setFileIssues(issues);

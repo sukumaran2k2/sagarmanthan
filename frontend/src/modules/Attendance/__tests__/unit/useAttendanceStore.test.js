@@ -46,10 +46,14 @@ describe('Attendance helpers', () => {
   });
 
   it('accepts code Emp Ids like AD03 (as 2.0 did); flags only empty and duplicate ones', () => {
-    const row = (id) => ({ 'Emp Id': id, 'In Time Avg': '09:10:00', 'Out Time Avg': '18:00:00', 'Average Working Hours': '08:50:00' });
+    const row = (id, days = 5) => ({ 'Emp Id': id, 'No. of days Attendance Marked': days, 'In Time Avg': '09:10:00', 'Out Time Avg': '18:00:00', 'Average Working Hours': '08:50:00' });
     expect(validateAttendanceRows([row('AD03'), row('ASO02'), row(4001)])).toEqual([]);
     const issues = validateAttendanceRows([row('AD03'), row(''), row('AD03')]);
     expect(issues.map((i) => i.field)).toEqual(['Emp Id', 'Emp Id (duplicates)']);
+    // The server needs a number of days for every row, so the page flags a missing one
+    const noDays = validateAttendanceRows([row('JS02', ''), row('AD03', 'five')]);
+    expect(noDays.map((i) => i.field)).toEqual(['No. of days Attendance Marked']);
+    expect(noDays[0].message).toContain('row(s): 2, 3');
   });
 
   it('00:00:00 counts as no time recorded', () => {

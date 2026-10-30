@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FileSpreadsheet } from 'lucide-react';
+import { Download, FileSpreadsheet, Trash2 } from 'lucide-react';
 import ModuleFilesHistoryView from '../../../components/ModuleFilesHistoryView';
+import ConfirmModal from '../../../components/ConfirmModal';
 import { axiosInstance as api } from '../../../api';
-import { COMMON_TOASTS } from '../../../utils/notify';
+import { COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { ATTENDANCE_TOASTS } from '../toastMessages';
 import { useAttendanceStore } from '../store/useAttendanceStore';
+import { saveBlob } from '../utils/attendanceUtils';
 
 const formatDate = (v) => {
   const d = new Date(v);
@@ -11,8 +14,8 @@ const formatDate = (v) => {
 };
 
 // The attendance sheets uploaded through this page (tbl_emp_attendance_file), newest first.
-// As in 2.0 the list is read-only: the uploaded rows are what the DataList and Report use.
-export default function FilesPage({ notify, reloadKey }) {
+// Each can be downloaded; deleting one (delete permission) also deletes the rows uploaded from it.
+export default function FilesPage({ notify, reloadKey, canDelete, onDeleted }) {
   const pageSize = useAttendanceStore((state) => state.pageSize);
   const setPageSize = useAttendanceStore((state) => state.setPageSize);
 
@@ -22,7 +25,7 @@ export default function FilesPage({ notify, reloadKey }) {
     api.get('/employee-attendance-file')
       .then((res) => {
         const rows = Array.isArray(res.data) ? res.data : res.data?.rowData || [];
-        if (!cancelled) setResult({ key: reloadKey, rows: [...rows].sort((a, b) => new Date(b['Date of Upload']) - new Date(a['Date of Upload'])) });
+        if (!cancelled) setResult({ key: reloadKey, rows });
       })
       .catch((err) => {
         if (cancelled) return;
@@ -34,24 +37,71 @@ export default function FilesPage({ notify, reloadKey }) {
   }, [reloadKey, notify]);
   const loading = result?.key !== reloadKey;
 
-  const columnDefs = useMemo(() => [
-    {
-      headerName: 'S.No', width: 80, pinned: 'left',
-      valueGetter: (p) => p.node.rowIndex + 1,
-      cellClass: 'font-bold text-slate-500 text-center flex items-center justify-center',
-    },
-    {
-      headerName: 'File Name', field: 'File Name', flex: 3, minWidth: 260,
-      cellRenderer: (p) => (
-        <span className="flex items-center gap-2 truncate font-semibold text-slate-800 dark:text-slate-100">
-          <FileSpreadsheet className="h-4 w-4 text-emerald-600 flex-shrink-0" />
-          <span className="truncate">{p.value || '—'}</span>
-        </span>
-      ),
-    },
-    { headerName: 'Uploaded By', field: 'Uploaded By', flex: 2, minWidth: 160, cellClass: 'text-center flex items-center justify-center', valueFormatter: (p) => p.value || '—' },
-    { headerName: 'Date of Upload', field: 'Date of Upload', flex: 2, minWidth: 150, cellClass: 'text-center flex items-center justify-center', valueFormatter: (p) => formatDate(p.value) },
-  ], []);
+  const [deleteAsk, setDeleteAsk] = useState(null); // { id, name }
+  const [deleting, setDeleting] = useState(false);
+
+  const columnDefs = useMemo(() => {
+    const download = (file) => {
+      api.get(`/employee-attendance/download/${file.id}`, { responseType: 'blob' })
+        .then((res) => {
+          saveBlob(res.data, file['File Name']);
+          notify(COMMON_TOASTS.downloadStarted(file['File Name']));
+        })
+        .catch((err) => {
+          console.error('Attendance file download failed:', err);
+          notify(ATTENDANCE_TOASTS.fileDownloadFailed(err.response?.status === 404 ? 'The stored sheet is no longer on the server.' : ''));
+        });
+    };
+    return [
+      {
+        headerName: 'S.No', width: 80, pinned: 'left',
+        valueGetter: (p) => p.node.rowIndex + 1,
+        cellClass: 'font-bold text-slate-500 text-center flex items-center justify-center',
+      },
+      {
+        headerName: 'File Name', field: 'File Name', flex: 3, minWidth: 260,
+        cellRenderer: (p) => (
+          <button type="button" onClick={() => download(p.data)} className="flex items-center gap-2 truncate font-semibold text-[#0f417a] dark:text-blue-400 hover:underline cursor-pointer">
+            <FileSpreadsheet className="h-4 w-4 text-emerald-600 flex-shrink-0" />
+            <span className="truncate">{p.value || '—'}</span>
+          </button>
+        ),
+      },
+      { headerName: 'Uploaded By', field: 'Uploaded By', flex: 2, minWidth: 160, cellClass: 'text-center flex items-center justify-center', valueFormatter: (p) => p.value || '—' },
+      { headerName: 'Date of Upload', field: 'Date of Upload', flex: 2, minWidth: 150, cellClass: 'text-center flex items-center justify-center', valueFormatter: (p) => formatDate(p.value) },
+      {
+        headerName: 'Actions', width: 120, sortable: false,
+        cellClass: 'flex items-center justify-center gap-1.5',
+        cellRenderer: (p) => (
+          <>
+            <button type="button" onClick={() => download(p.data)} title="Download" className="p-1.5 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-[#0f417a] dark:text-blue-400 rounded-lg transition cursor-pointer">
+              <Download size={15} />
+            </button>
+            {canDelete && (
+              <button type="button" onClick={() => setDeleteAsk({ id: p.data.id, name: p.data['File Name'] })} title="Delete" className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 rounded-lg transition cursor-pointer">
+                <Trash2 size={15} />
+              </button>
+            )}
+          </>
+        ),
+      },
+    ];
+  }, [canDelete, notify]);
+
+  const confirmDelete = async () => {
+    setDeleting(true);
+    try {
+      await api.delete(`/employee-attendance/${deleteAsk.id}`);
+      notify(ATTENDANCE_TOASTS.fileDeleted(deleteAsk.name));
+      setDeleteAsk(null);
+      onDeleted();
+    } catch (err) {
+      console.error('Attendance file delete failed:', err);
+      notify(ATTENDANCE_TOASTS.deleteFailed(getErrorMessage(err)));
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   return (
     <div className="module-card">
@@ -63,6 +113,15 @@ export default function FilesPage({ notify, reloadKey }) {
         historyColDefs={columnDefs}
         loading={loading}
         themeClass="ag-theme-quartz"
+      />
+
+      <ConfirmModal
+        isOpen={!!deleteAsk}
+        onClose={() => setDeleteAsk(null)}
+        onConfirm={confirmDelete}
+        title="Delete File?"
+        message={`Deleting ${deleteAsk?.name || 'this file'} also deletes every attendance row uploaded from it. Continue?`}
+        loading={deleting}
       />
     </div>
   );
