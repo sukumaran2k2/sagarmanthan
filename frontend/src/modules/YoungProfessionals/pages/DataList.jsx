@@ -7,7 +7,6 @@ import { fetchYoungProfessionals, relieveYoungProfessional } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
-import { useShallow } from 'zustand/react/shallow';
 import { useYpStore } from '../store/useYpStore';
 import { useNotifier, COMMON_TOASTS, getErrorMessage, toastError } from '../../../utils/notify';
 import { YP_TOASTS } from '../toastMessages';
@@ -31,54 +30,40 @@ const STATIC_DIVISIONS = [
 export default function DataList({
   onEdit,
   triggerNotification,
-  wings = [],
-  divisions = [],
+  wings: propsWings = [],
+  divisions: propsDivisions = [],
   canEdit = true,
   canAdd = true,
   canRemove = true
 }) {
-  // Zustand YP Store (filter/pagination slice only; wings & divisions come from props)
-  const {
-    activeStatusTab,
-    setActiveStatusTab,
-    searchTerm,
-    setSearchTerm,
-    debouncedSearch,
-    setDebouncedSearch,
-    selectedWing,
-    setSelectedWing,
-    selectedDivision,
-    setSelectedDivision,
-    showFilterPanel,
-    setShowFilterPanel,
-    currentPage,
-    setCurrentPage,
-    pageSize,
-    setPageSize,
-    visibleCols,
-    setVisibleCols,
-    resetFilters
-  } = useYpStore(useShallow(state => ({
-    activeStatusTab: state.activeStatusTab,
-    setActiveStatusTab: state.setActiveStatusTab,
-    searchTerm: state.searchTerm,
-    setSearchTerm: state.setSearchTerm,
-    debouncedSearch: state.debouncedSearch,
-    setDebouncedSearch: state.setDebouncedSearch,
-    selectedWing: state.selectedWing,
-    setSelectedWing: state.setSelectedWing,
-    selectedDivision: state.selectedDivision,
-    setSelectedDivision: state.setSelectedDivision,
-    showFilterPanel: state.showFilterPanel,
-    setShowFilterPanel: state.setShowFilterPanel,
-    currentPage: state.currentPage,
-    setCurrentPage: state.setCurrentPage,
-    pageSize: state.pageSize,
-    setPageSize: state.setPageSize,
-    visibleCols: state.visibleCols,
-    setVisibleCols: state.setVisibleCols,
-    resetFilters: state.resetFilters
-  })));
+  // Zustand YP Store subscriptions
+  const storeWings = useYpStore(state => state.wings);
+  const storeDivisions = useYpStore(state => state.divisions);
+  const wings = propsWings && propsWings.length > 0 ? propsWings : storeWings;
+  const divisions = propsDivisions && propsDivisions.length > 0 ? propsDivisions : storeDivisions;
+
+  // State slices
+  const activeStatusTab = useYpStore(state => state.activeStatusTab);
+  const searchTerm = useYpStore(state => state.searchTerm);
+  const debouncedSearch = useYpStore(state => state.debouncedSearch);
+  const selectedWing = useYpStore(state => state.selectedWing);
+  const selectedDivision = useYpStore(state => state.selectedDivision);
+  const showFilterPanel = useYpStore(state => state.showFilterPanel);
+  const currentPage = useYpStore(state => state.currentPage);
+  const pageSize = useYpStore(state => state.pageSize);
+  const visibleCols = useYpStore(state => state.visibleCols);
+
+  // Stable action callbacks
+  const setActiveStatusTab = useYpStore(state => state.setActiveStatusTab);
+  const setSearchTerm = useYpStore(state => state.setSearchTerm);
+  const setDebouncedSearch = useYpStore(state => state.setDebouncedSearch);
+  const setSelectedWing = useYpStore(state => state.setSelectedWing);
+  const setSelectedDivision = useYpStore(state => state.setSelectedDivision);
+  const setShowFilterPanel = useYpStore(state => state.setShowFilterPanel);
+  const setCurrentPage = useYpStore(state => state.setCurrentPage);
+  const setPageSize = useYpStore(state => state.setPageSize);
+  const setVisibleCols = useYpStore(state => state.setVisibleCols);
+  const resetFilters = useYpStore(state => state.resetFilters);
 
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -310,7 +295,7 @@ export default function DataList({
       let headersHtml = '';
       columnDefs.forEach(col => {
         if (col.headerName && col.headerName !== 'Action') {
-          headersHtml += `<th style="border: 1px solid #cbd5e1; padding: 10px; text-align: left; background-color: #f8fafc; font-size: 11px; font-weight: bold; text-transform: uppercase;">${col.headerName}</th>`;
+          headersHtml += `<th style="border: 1px solid #cbd5e1; padding: 10px; text-align: left; background-color: #f8fafc; font-size: 11px; font-weight: bold; text-transform: uppercase;">${escHtml(col.headerName)}</th>`;
         }
       });
 

@@ -17,8 +17,8 @@ export default function YoungProfessionalsView({
   const { canAdd, canEdit, canRemove, canView } = permissions;
 
   // Zustand YP Store (atomic selectors so DataList filter/search updates don't re-render the shell)
-  const wings = useYpStore(state => state.wings);
-  const divisions = useYpStore(state => state.divisions);
+
+
   const loadWingsAndDivisions = useYpStore(state => state.loadWingsAndDivisions);
 
   // The record being edited travels with the route entry, so it is gone as soon as
@@ -93,8 +93,8 @@ export default function YoungProfessionalsView({
             <DataList
               onEdit={handleEdit}
               triggerNotification={triggerNotification}
-              wings={wings}
-              divisions={divisions}
+
+
               canEdit={canEdit}
               canAdd={canAdd}
               canRemove={canRemove}
@@ -104,8 +104,8 @@ export default function YoungProfessionalsView({
           <Route path="input-form" element={
             <InputForm
               key={editData?.yp_id ?? 'new'}
-              wings={wings}
-              divisions={divisions}
+
+
               onBack={handleBack}
               onSuccess={handleSuccess}
               triggerNotification={triggerNotification}

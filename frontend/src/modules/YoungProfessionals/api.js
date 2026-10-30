@@ -60,7 +60,7 @@ export function fetchYoungProfessionals(params = {}) {
 }
 
 export function fetchYoungProfessionalById(id) {
-  return api.get(`/edit-young-professional/${id}`);
+  return api.get('/young-professional', { params: { search: id } });
 }
 
 export function createYoungProfessional(payload) {
@@ -101,10 +101,6 @@ export function fetchDivisions() {
 
 export function fetchYpReport() {
   return api.get('/yp-report');
-}
-
-export function fetchYpDivisionReport(wingId) {
-  return api.get(`/yp-division-report/${wingId}`);
 }
 
 export function fetchYPDivisionWiseCandidates(divisionId) {
