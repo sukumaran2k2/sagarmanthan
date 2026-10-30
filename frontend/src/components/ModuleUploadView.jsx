@@ -209,6 +209,14 @@ export default function ModuleUploadView({
             </div>
           </div>
 
+          {/* The sheet passed its checks but nothing is saved until Upload File is pressed */}
+          {selectedFile && previewRows?.length > 0 && !fileValidationError && !uploading && (
+            <p role="status" className="mt-2 flex items-center justify-end gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-400">
+              <FileCheck className="h-3.5 w-3.5 flex-shrink-0" />
+              Preview successful. Click Upload File now to save the sheet.
+            </p>
+          )}
+
           <span className="mt-3 block text-xs text-rose-500 font-bold italic">
             * Asterisks marked with red are mandatory fields
           </span>
