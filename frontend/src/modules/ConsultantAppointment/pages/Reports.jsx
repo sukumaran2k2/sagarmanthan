@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import api from '../api';
+import { fetchConsultantReport, fetchConsultantDivisionReport, fetchCaWingWiseCandidates, fetchCaDivisionWiseCandidates, fetchWings } from '../api';
 import ReportTable from '../../../components/ReportTable';
 
 export default function Reports({ wings = [], triggerNotification }) {
@@ -9,7 +9,7 @@ export default function Reports({ wings = [], triggerNotification }) {
     if (wings && wings.length > 0) {
       setLocalWings(wings);
     } else {
-      api.get("/mmt-dropdown/mmt_wings")
+      fetchWings()
         .then(res => setLocalWings(res.data || []))
         .catch(err => console.error("Error loading wings in report:", err));
     }
@@ -107,21 +107,20 @@ export default function Reports({ wings = [], triggerNotification }) {
   const fetchDrillDownData = useCallback(() => {
     setDrillDownLoading(true);
     setDrillDownError(null);
-    let endpoint = '';
-
+    let fetchFn;
     if (currentView.type === 'abstract') {
-      endpoint = '/consultantapp-report';
+      fetchFn = fetchConsultantReport;
     } else if (currentView.type === 'division') {
-      endpoint = `/cadivision-report/${currentView.wingId}/`;
+      fetchFn = () => fetchConsultantDivisionReport(currentView.wingId);
     } else if (currentView.type === 'candidates_wing') {
-      endpoint = `/wingwise-cacandidate/${currentView.wingId}/`;
+      fetchFn = () => fetchCaWingWiseCandidates(currentView.wingId);
     } else if (currentView.type === 'candidates_div') {
-      endpoint = `/divisionwise-cacandidate/${currentView.divisionId}/`;
+      fetchFn = () => fetchCaDivisionWiseCandidates(currentView.divisionId);
     }
 
-    if (!endpoint) return;
+    if (!fetchFn) return;
 
-    api.get(endpoint)
+    fetchFn()
       .then(res => {
         const fetchedData = res.data?.rowData || res.data?.value || res.data?.data || (Array.isArray(res.data) ? res.data : []);
         setDrillDownData(fetchedData);
@@ -233,13 +232,18 @@ export default function Reports({ wings = [], triggerNotification }) {
     }
   }), []);
 
-  const subtitle = useMemo(() => (
-    <>
-      <span>As on date: <strong style={{ color: '#4b2424' }}>30-06-2026</strong></span>
-      <span style={{ color: '#eadede' }}>•</span>
-      <span>Report for the month — <strong style={{ color: '#4b2424' }}>June 2026</strong></span>
-    </>
-  ), []);
+  const subtitle = useMemo(() => {
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+    const monthStr = now.toLocaleString('en-IN', { month: 'long', year: 'numeric' });
+    return (
+      <>
+        <span>As on date: <strong style={{ color: '#4b2424' }}>{dateStr}</strong></span>
+        <span style={{ color: '#eadede' }}>•</span>
+        <span>Report for the month — <strong style={{ color: '#4b2424' }}>{monthStr}</strong></span>
+      </>
+    );
+  }, []);
 
   if (drillDownError) {
     return (

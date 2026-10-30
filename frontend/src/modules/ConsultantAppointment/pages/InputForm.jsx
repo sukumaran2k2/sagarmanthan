@@ -12,7 +12,7 @@ import {
   addConsultantID
 } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
-import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { useNotifier, COMMON_TOASTS, getErrorMessage, toastError } from '../../../utils/notify';
 import { CA_TOASTS } from '../toastMessages';
 
 /**
@@ -36,7 +36,9 @@ export default function InputForm({
   divisions = [],
   onBack,
   onSuccess,
-  triggerNotification
+  triggerNotification,
+  canEdit = false,
+  canAdd = false,
 }) {
   const isEdit = !!editData;
   const notify = useNotifier(triggerNotification);
@@ -321,9 +323,23 @@ export default function InputForm({
       return;
     }
 
+    if (isEdit && !canEdit) {
+      notify(toastError('Permission Denied', 'You do not have permission to update consultant appointments.'));
+      return;
+    }
+    if (!isEdit && !canAdd) {
+      notify(toastError('Permission Denied', 'You do not have permission to create consultant appointments.'));
+      return;
+    }
+
     setSubmitting(true);
 
-    const activeUserId = getCurrentUserId() || 1;
+    const activeUserId = getCurrentUserId();
+    if (!activeUserId) {
+      notify(toastError('Session Expired', 'Please log in again before submitting.'));
+      setSubmitting(false);
+      return;
+    }
 
     let selectedStage = 1;
     for (let i = 0; i < STAGES.length; i++) {
@@ -516,6 +532,8 @@ export default function InputForm({
   };
 
   const isFormDisabled =
+    (!isEdit && !canAdd) ||
+    (isEdit && !canEdit) ||
     !wing ||
     !division ||
     numResources === '' ||

@@ -47,7 +47,6 @@ export default function CandidateDrilldownView({
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [gridApi, setGridApi] = useState(null);
   const [uploadingForCandidateId, setUploadingForCandidateId] = useState(null);
 
   // Column Visibility dropdown
@@ -326,7 +325,11 @@ export default function CandidateDrilldownView({
     if (!window.confirm(`Are you sure you want to delete candidate "${candidate.name || 'Candidate'}"? This will also remove their uploaded appointment order.`)) {
       return;
     }
-    const userId = getCurrentUserId() || 1;
+    const userId = getCurrentUserId();
+    if (!userId) {
+      notify(CA_TOASTS.candidateDeleteFailed(candidate.name, 'Session expired. Please log in again.'));
+      return;
+    }
     try {
       await deleteCandidateDetail(candidate.candidate_id, userId);
       notify(CA_TOASTS.candidateDeleted(candidate.name));
@@ -415,19 +418,20 @@ export default function CandidateDrilldownView({
         return;
       }
       notify(COMMON_TOASTS.pdfPreparing());
-      const title = `Candidate Details — ${appointment.wing} / ${appointment.division}`;
-      let headersHtml = exportHeaders.map(h => `<th style="border: 1px solid #cbd5e1; padding: 8px; text-align: left; background-color: #0f417a; color: #ffffff; font-size: 10px; font-weight: bold; text-transform: uppercase;">${h}</th>`).join('');
+      const escHtml = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      const title = `Candidate Details — ${escHtml(appointment.wing)} / ${escHtml(appointment.division)}`;
+      let headersHtml = exportHeaders.map(h => `<th style="border: 1px solid #cbd5e1; padding: 8px; text-align: left; background-color: #0f417a; color: #ffffff; font-size: 10px; font-weight: bold; text-transform: uppercase;">${escHtml(h)}</th>`).join('');
       let rowsHtml = filteredCandidates.map((c, idx) => `
         <tr>
           <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px; text-align: center;">${idx + 1}</td>
-          <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px; font-weight: bold;">${c.name || '-'}</td>
-          <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px;">${c.qualification || '-'}</td>
-          <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px; text-align: center;">${c.work_experience || '-'}</td>
-          <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px; text-align: center;">${c.salary ? '₹ ' + c.salary + ' L' : '-'}</td>
-          <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px;">${c.category || '-'}</td>
+          <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px; font-weight: bold;">${escHtml(c.name) || '-'}</td>
+          <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px;">${escHtml(c.qualification) || '-'}</td>
+          <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px; text-align: center;">${escHtml(c.work_experience) || '-'}</td>
+          <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px; text-align: center;">${c.salary ? '₹ ' + escHtml(c.salary) + ' L' : '-'}</td>
+          <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px;">${escHtml(c.category) || '-'}</td>
           <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px; text-align: center;">${c.date_of_appointment ? new Date(c.date_of_appointment).toLocaleDateString('en-GB') : '-'}</td>
-          <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px;">${c.skill_set || '-'}</td>
-          <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px;">${c.appointment_order_document || 'Pending'}</td>
+          <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px;">${escHtml(c.skill_set) || '-'}</td>
+          <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px;">${escHtml(c.appointment_order_document) || 'Pending'}</td>
         </tr>
       `).join('');
       printWindow.document.write(`
@@ -450,7 +454,7 @@ export default function CandidateDrilldownView({
 
   // Ag Grid Column Definitions
   const columnDefs = useMemo(() => {
-    return [
+    const cols = [
       {
         field: 'sNo',
         headerName: 'S.No',
@@ -1115,7 +1119,7 @@ export default function CandidateDrilldownView({
             paginationPageSizeSelector={[10, 20, 50]}
             enableExport={false}
             color="#0f417a"
-            onGridReady={(params) => setGridApi(params.api)}
+            onGridReady={undefined}
             defaultColDef={{
               minWidth: 90,
               filter: true,

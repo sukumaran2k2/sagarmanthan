@@ -180,7 +180,7 @@ export default function DataList({
   const [loading, setLoading] = useState(false);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
-  const [gridApi, setGridApi] = useState(null);
+  const gridApiRef = useRef(null);
   const notify = useNotifier(triggerNotification);
 
   const [allCount, setAllCount] = useState(0);
@@ -214,11 +214,6 @@ export default function DataList({
     }, 300);
     return () => clearTimeout(handler);
   }, [searchTerm, setDebouncedSearch]);
-
-  // Store setters already reset to page 1 (and clear division on wing change)
-  const handleWingChange = (val) => setSelectedWing(val);
-
-  const handleDivisionChange = (val) => setSelectedDivision(val);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -338,8 +333,9 @@ export default function DataList({
     }
   }, [divisionOptions, selectedDivision, setSelectedDivision]);
   const handleExport = (type) => {
+    const escHtml = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     if (type === 'Copy') {
-      if (gridApi) {
+      if (gridApiRef.current) {
         let tsv = '';
         const headers = [];
         columnDefs.forEach(col => {
@@ -349,7 +345,7 @@ export default function DataList({
         });
         tsv += headers.join('\t') + '\n';
         
-        data.forEach((row, rowIndex) => {
+        data.forEach((row) => {
           const line = [];
           columnDefs.forEach(col => {
             if (col.headerName && col.headerName !== 'Action') {
@@ -359,7 +355,7 @@ export default function DataList({
           });
           tsv += line.join('\t') + '\n';
         });
-        
+
         navigator.clipboard.writeText(tsv)
           .then(() => notify(COMMON_TOASTS.copySuccess(data.length)))
           .catch(() => notify(COMMON_TOASTS.copyFailed()));
@@ -367,9 +363,9 @@ export default function DataList({
         notify(COMMON_TOASTS.tableNotReady('copy'));
       }
     } else if (type === 'Excel') {
-      if (gridApi) {
+      if (gridApiRef.current) {
         const fileName = `Consultant_Appointment_Page_${currentPage}.csv`;
-        gridApi.exportDataAsCsv({ fileName });
+        gridApiRef.current.exportDataAsCsv({ fileName });
         notify(COMMON_TOASTS.excelExported(fileName));
       } else {
         notify(COMMON_TOASTS.tableNotReady('export'));
@@ -391,12 +387,12 @@ export default function DataList({
       });
 
       let rowsHtml = '';
-      data.forEach((row, rowIndex) => {
+      data.forEach((row) => {
         rowsHtml += '<tr>';
         columnDefs.forEach(col => {
           if (col.headerName && col.headerName !== 'Action') {
             const val = row[col.field] !== undefined ? row[col.field] : '';
-            rowsHtml += `<td style="border: 1px solid #e2e8f0; padding: 8px; font-size: 11px;">${val}</td>`;
+            rowsHtml += `<td style="border: 1px solid #e2e8f0; padding: 8px; font-size: 11px;">${escHtml(val)}</td>`;
           }
         });
         rowsHtml += '</tr>';
@@ -758,7 +754,7 @@ export default function DataList({
               <div className="relative">
                 <select
                   value={selectedWing}
-                  onChange={(e) => handleWingChange(e.target.value)}
+                  onChange={(e) => setSelectedWing(e.target.value)}
                   className="appearance-none w-full text-xs pl-2.5 pr-8 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
                 >
                   <option value="">All Wings</option>
@@ -778,7 +774,7 @@ export default function DataList({
               <div className="relative">
                 <select
                   value={selectedDivision}
-                  onChange={(e) => handleDivisionChange(e.target.value)}
+                  onChange={(e) => setSelectedDivision(e.target.value)}
                   disabled={!selectedWing}
                   className={`appearance-none w-full text-xs pl-2.5 pr-8 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer ${
                     !selectedWing ? 'opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-800/60' : ''
@@ -826,7 +822,7 @@ export default function DataList({
           loading={loading}
           pagination={false}
           enableExport={false}
-          onGridReady={(params) => setGridApi(params.api)}
+          onGridReady={(params) => { gridApiRef.current = params.api; }}
           defaultColDef={{
             minWidth: 90,
             filter: false,

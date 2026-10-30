@@ -16,12 +16,9 @@ api.interceptors.request.use((config) => {
 let refreshPromise = null;
 
 async function refreshAccessToken() {
-  const refreshToken = localStorage.getItem('refreshToken');
-  if (!refreshToken) {
-    throw new Error('No refresh token');
-  }
+  // Refresh token is stored in an httpOnly cookie — the browser sends it automatically.
   const res = await axios.get(`${API_BASE}/refresh-token`, {
-    headers: { Authorization: `Bearer ${refreshToken}` },
+    withCredentials: true,
   });
   const next = res.data?.accessToken;
   if (!next) throw new Error('Refresh failed');
@@ -49,7 +46,7 @@ api.interceptors.response.use(
       return api(original);
     } catch {
       localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
+      // refreshToken lives in an httpOnly cookie — the server clears it on logout
       return Promise.reject(error);
     }
   }
@@ -88,7 +85,15 @@ export function fetchConsultantReport() {
 }
 
 export function fetchConsultantDivisionReport(wingId) {
-  return api.get(`/consultantapp-division-report/${wingId}`);
+  return api.get(`/cadivision-report/${wingId}/`);
+}
+
+export function fetchCaWingWiseCandidates(wingId) {
+  return api.get(`/wingwise-cacandidate/${wingId}/`);
+}
+
+export function fetchCaDivisionWiseCandidates(divisionId) {
+  return api.get(`/divisionwise-cacandidate/${divisionId}/`);
 }
 
 export function addCandidateDetail(candidateData) {
