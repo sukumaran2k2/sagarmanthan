@@ -65,7 +65,7 @@ function StageDistributionChart({ data, onRootReady }) {
 const WING_SERIES = [
   { field: 'in_progress', name: 'In Progress', color: 0x1e4d8c },
   { field: 'cabinet_approved', name: 'Approved by Cabinet', color: 0x3b8a4a },
-  { field: 'in_parliament', name: 'In Parliament', color: 0xd97706 },
+  { field: 'in_parliament', name: 'Introduced in Parliament', color: 0xd97706 },
 ];
 
 function WingWiseChart({ data, onRootReady }) {
@@ -266,7 +266,7 @@ export default function BillsDashboard({ notify, wings = [] }) {
         <KpiCard label="Active bills" value={kpi?.active} subtext="Currently in progress" icon={TrendingUp}
           valueColorClass="text-amber-700 dark:text-amber-400" subtextColorClass="text-amber-600 dark:text-amber-400"
           iconWrapClass="bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-900" />
-        <KpiCard label="Completed" value={kpi?.completed} subtext="Finalized bills" icon={BarChart3}
+        <KpiCard label="Disposed" value={kpi?.disposed} subtext="Passed, notified or completed" icon={BarChart3}
           valueColorClass="text-emerald-700 dark:text-emerald-400" subtextColorClass="text-emerald-600 dark:text-emerald-400"
           iconWrapClass="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900" />
         <KpiCard label="Avg age of active bills (days)" value={kpi?.avgAgeDays} subtext="For bills still active" icon={Clock}

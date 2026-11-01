@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { ChevronLeft, Search, RefreshCw, X, TrendingUp, Building2 } from 'lucide-react';
-import { fetchBillDivisionWiseReport, fetchBillWingWiseDetail, fetchBillDivisionWiseDetail } from '../api';
+import { fetchBillAbstractReport, fetchBillWingWiseDetail, fetchBillDivisionWiseDetail } from '../api';
 import { useBillsStore } from '../store/useBillsStore';
 import { COMMON_TOASTS } from '../../../utils/notify';
 import Table from '../../../components/Table';
@@ -9,7 +9,7 @@ import CopyButton from '../../../components/CopyButton';
 import ReportTable from '../../../components/ReportTable';
 
 const COLUMN_STAGE_MAP = {
-  "Draft Bill Prepared": 1, "DCN And Draft Bill Approved by Minister": 2, "Circulated for IMC": 3,
+  "Draft Bill Prepared": 1, "Pre-DCN & Draft Bill Approved by Minister": 2, "Circulated for IMC": 3,
   "IMC comments received": 4, "DCN & Draft Bill prepared": 5, "DCN & draft bill Approved by Minister": 6,
   "Submitted for Legal Vetting": 7, "Legal Vetting to be Completed": 8,
   "Final DCN & draft bill Approved by Minister": 9, "Advance Copy to be Sent to PMO & Cab Sectt": 10,
@@ -19,27 +19,21 @@ const COLUMN_STAGE_MAP = {
 
 const ABSTRACT_TITLE = 'Report No. 1.1 - Abstract ( Wing & Division Wise ) - Bills/Pre-Constitutions Act';
 
-// The abstract merges every wing's division-wise report
-async function fetchAbstract(wings) {
-  const results = await Promise.all(
-    wings.map(async (w) => {
-      try {
-        const res = await fetchBillDivisionWiseReport(w.wing_id);
-        const rows = (res.data?.rowData || []).filter((r) => r.Division !== 'Total');
-        return { cols: res.data?.columnDefs || [], rows: rows.map((r) => ({ ...r, Wing: w.wing_name })) };
-      } catch {
-        return { cols: [], rows: [] };
-      }
-    })
-  );
+const TOTAL_FIELD = 'No of Bills/PreConstitutions Act';
+const NO_DIVISION = '(No division)';
+
+// The abstract: one row per wing and division, wings without divisions included (a failure
+// shows as the report's load error, not as missing wings)
+async function fetchAbstract() {
+  const res = await fetchBillAbstractReport();
   return {
-    cols: results.find((r) => r.cols.length)?.cols || [],
-    rows: results.flatMap((r) => r.rows),
+    cols: res.data?.columnDefs || [],
+    rows: (res.data?.rowData || []).map((r) => ({ ...r, Division: r.Division || NO_DIVISION })),
   };
 }
 
-async function fetchView(view, wings) {
-  if (view.type === 'combined') return fetchAbstract(wings);
+async function fetchView(view) {
+  if (view.type === 'combined') return fetchAbstract();
   const response = view.type === 'detail-wing'
     ? await fetchBillWingWiseDetail(view.wingId, view.stageId)
     : await fetchBillDivisionWiseDetail(view.divisionId, view.stageId);
@@ -70,7 +64,10 @@ export default function Reports({ notify, triggerNotification, wings = [] }) {
           onClick={() => {
             const divisionId = getDivisionId(p.data);
             const divisionName = p.data.Division;
-            setDrillDownPath((prev) => [...prev, { type: 'detail-division', divisionId, stageId, title: `Bills - Division: ${divisionName} | Stage: ${p.colDef.field}` }]);
+            // A wing with no divisions drills down by wing
+            setDrillDownPath((prev) => [...prev, divisionId
+              ? { type: 'detail-division', divisionId, stageId, title: `Bills - Division: ${divisionName} | Stage: ${p.colDef.field}` }
+              : { type: 'detail-wing', wingId: p.data.wing_id, stageId, title: `Bills - Wing: ${p.data.Wing} | Stage: ${p.colDef.field}` }]);
           }}
           style={{ background: 'none', border: 'none', color: '#4b2424', fontWeight: 800, textDecoration: 'underline', cursor: 'pointer', fontSize: '12px' }}
         >
@@ -88,7 +85,7 @@ export default function Reports({ notify, triggerNotification, wings = [] }) {
   useEffect(() => {
     let cancelled = false;
     const tag = { view: currentView, wings, reloadKey };
-    fetchView(currentView, wings)
+    fetchView(currentView)
       .then(({ cols, rows }) => {
         if (!cancelled) setResult({ ...tag, cols, rows });
       })
@@ -109,7 +106,7 @@ export default function Reports({ notify, triggerNotification, wings = [] }) {
   const aggregatedData = useMemo(() => {
     if (!isAbstractLevel) return data.map((r, idx) => ({ ...r, 'S No': idx + 1 }));
 
-    const stageFields = Object.keys(COLUMN_STAGE_MAP);
+    const stageFields = [TOTAL_FIELD, ...Object.keys(COLUMN_STAGE_MAP)];
     const sumStages = (rows) => {
       const out = {};
       stageFields.forEach((f) => { out[f] = rows.reduce((s, r) => s + Number(r[f] || 0), 0); });
@@ -128,8 +125,10 @@ export default function Reports({ notify, triggerNotification, wings = [] }) {
     if (reportView === 'division') {
       const map = {};
       data.forEach((row) => {
-        if (!map[row.Division]) map[row.Division] = [];
-        map[row.Division].push(row);
+        // A wing with no divisions keeps its own row
+        const key = row.Division === NO_DIVISION ? `${row.Wing} ${NO_DIVISION}` : row.Division;
+        if (!map[key]) map[key] = [];
+        map[key].push(row);
       });
       return Object.entries(map).map(([Division, rows]) => ({ Division, division_id: rows[0]?.division_id, ...sumStages(rows) }))
         .sort((a, b) => a.Division.localeCompare(b.Division));
@@ -139,7 +138,7 @@ export default function Reports({ notify, triggerNotification, wings = [] }) {
 
   const pinnedBottomRowData = useMemo(() => {
     if (!isAbstractLevel) return undefined;
-    const stageFields = Object.keys(COLUMN_STAGE_MAP);
+    const stageFields = [TOTAL_FIELD, ...Object.keys(COLUMN_STAGE_MAP)];
     const totals = { Wing: 'Total', Division: 'Total', isTotalRow: true };
     stageFields.forEach((f) => { totals[f] = aggregatedData.reduce((s, r) => s + Number(r[f] || 0), 0); });
     return [totals];
@@ -165,6 +164,10 @@ export default function Reports({ notify, triggerNotification, wings = [] }) {
           : <span style={{ fontWeight: 600 }} className="text-slate-800 dark:text-slate-200">{p.value || '—'}</span>
       });
     }
+    cols.push({
+      field: TOTAL_FIELD, headerName: 'No. of Bills', minWidth: 120,
+      cellRenderer: (p) => <span style={{ fontWeight: p.data?.isTotalRow ? 850 : 800 }}>{p.value || 0}</span>
+    });
     Object.keys(COLUMN_STAGE_MAP).forEach((field) => {
       const stageId = COLUMN_STAGE_MAP[field];
       cols.push({

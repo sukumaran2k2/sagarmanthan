@@ -1,20 +1,19 @@
 import { useCallback, useMemo, useRef, useEffect, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import Table from '../../../components/Table';
-import TablePagination from '../../../components/TablePagination';
 import { Search, X, Edit, Trash2, ChevronDown, Filter } from 'lucide-react';
 import { deleteBill } from '../api';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
-import { getCurrentUserId } from '../../../utils/authSession';
 import { exportDataListToCsv } from '../../../utils/exportDataListCsv';
 import { COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
 import { useBillsStore } from '../store/useBillsStore';
 import { BILLS_TOASTS } from '../toastMessages';
 
 const STAGES = {
+  0: 'No Status',
   1: 'Draft Bill Prepared',
-  2: 'DCN & Draft Bill Approved by Minister',
+  2: 'Pre-DCN & Draft Bill Approved by Minister',
   3: 'Circulated for IMC',
   4: 'IMC Comments Received',
   5: 'DCN & Draft Bill Prepared',
@@ -38,26 +37,15 @@ const EXPORT_COLUMNS = [
   { key: 'stage', field: 'stage', label: 'Stage' },
 ];
 
-const isDisposed = (item) => !!item.bill_passed_date || !!item.bill_notified_date || !!item.completed_date;
+// The bill's current stage is tbl_bill.stage_id (as in 2.0, the Dashboard and Reports), not
+// worked out from the dates: 2.0 bills often have stages done without a date.
+// Passed, Notified and Completed bills are disposed (the Dashboard uses the same rule).
+const DISPOSED_FROM_STAGE = 13;
+const stageOf = (item) => Number(item.stage_id) || 0;
+const isDisposed = (item) => stageOf(item) >= DISPOSED_FROM_STAGE;
+const getBillStageText = (item) => STAGES[stageOf(item)] || STAGES[0];
 
-const getBillStageText = (item) => {
-  if (item.completed_date) return STAGES[15];
-  if (item.bill_notified_date) return STAGES[14];
-  if (item.bill_passed_date) return STAGES[13];
-  if (item.bill_introduced_in_parliament_date) return STAGES[12];
-  if (item.approved_by_cabinet_date) return STAGES[11];
-  if (item.advance_copy_date) return STAGES[10];
-  if (item.final_dcn_draft_approved_date) return STAGES[9];
-  if (item.legal_vetting_completed_date) return STAGES[8];
-  if (item.submitted_legal_vetting_date) return STAGES[7];
-  if (item.dcn_draft_bill_approved_date) return STAGES[6];
-  if (item.dcn_draft_bill_prepared_date) return STAGES[5];
-  if (item.imc_comments_rec_date) return STAGES[4];
-  if (item.circulated_imc_date) return STAGES[3];
-  if (item.dcn_draft_bill_approved_minister_date) return STAGES[2];
-  if (item.draft_bill_prepared_date) return STAGES[1];
-  return 'Draft';
-};
+const PAGE_SIZES = [10, 25, 50, 100];
 
 export default function DataList({
   rowData,
@@ -72,12 +60,11 @@ export default function DataList({
 }) {
   // Category, filters, search, paging, filter panel and columns are kept in the module store
   const {
-    activeCategory, filters, searchQuery, currentPage, pageSize, showFilterPanel, visibleCols,
+    activeCategory, filters, searchQuery, pageSize, showFilterPanel, visibleCols,
   } = useBillsStore(useShallow((state) => ({
     activeCategory: state.category,
     filters: state.filters,
     searchQuery: state.searchTerm,
-    currentPage: state.currentPage,
     pageSize: state.pageSize,
     showFilterPanel: state.showFilterPanel,
     visibleCols: state.visibleCols,
@@ -87,7 +74,6 @@ export default function DataList({
     setFilters: state.setFilters,
     resetFilters: state.resetFilters,
     setCategory: state.setCategory,
-    setCurrentPage: state.setCurrentPage,
     setPageSize: state.setPageSize,
     setShowFilterPanel: state.setShowFilterPanel,
     setVisibleCols: state.setVisibleCols,
@@ -122,24 +108,20 @@ export default function DataList({
     }));
   }, [wings]);
 
+  // Only the chosen wing's divisions
   const divisionOptions = useMemo(() => {
-    return divisions.map(d => ({
-      value: d.division_id,
-      label: d.division_name
-    }));
-  }, [divisions]);
+    return divisions
+      .filter(d => !selectedWing || String(d.wing_id) === String(selectedWing))
+      .map(d => ({
+        value: d.division_id,
+        label: d.division_name
+      }));
+  }, [divisions, selectedWing]);
 
-  // Derive Stage Options
-  const stageOptions = useMemo(() => {
-    const set = new Set();
-    rowData.forEach(item => {
-      if (activeCategory === 'active' && isDisposed(item)) return;
-      if (activeCategory === 'disposed' && !isDisposed(item)) return;
-      const st = getBillStageText(item);
-      set.add(st);
-    });
-    return Array.from(set).map(s => ({ value: s, label: s }));
-  }, [rowData, activeCategory]);
+  // Every stage of the tab (active: up to Introduced in Parliament; disposed: Passed onwards)
+  const stageOptions = useMemo(() => Object.entries(STAGES)
+    .filter(([id]) => (activeCategory === 'disposed') === (Number(id) >= DISPOSED_FROM_STAGE))
+    .map(([id, label]) => ({ value: id, label: `${Number(id) ? `${id}. ` : ''}${label}` })), [activeCategory]);
 
   const filteredData = useMemo(() => {
     return rowData.filter(item => {
@@ -154,12 +136,15 @@ export default function DataList({
         ? String(item.division) === String(selectedDivision)
         : true;
 
-      const matchesStage = selectedStage
-        ? getBillStageText(item) === selectedStage
+      const matchesStage = selectedStage !== ''
+        ? String(stageOf(item)) === String(selectedStage)
         : true;
 
-      const matchesSearch = searchQuery.trim()
-        ? (item.subject || '').toLowerCase().includes(searchQuery.toLowerCase())
+      // Searches every column on show
+      const query = searchQuery.trim().toLowerCase();
+      const matchesSearch = query
+        ? [item.subject, item.wing_name, item.division_name, getBillStageText(item)]
+          .some((v) => String(v || '').toLowerCase().includes(query))
         : true;
 
       return matchesWing && matchesDivision && matchesStage && matchesSearch;
@@ -176,16 +161,12 @@ export default function DataList({
   const activeCount = useMemo(() => rowData.filter((item) => !isDisposed(item)).length, [rowData]);
   const disposedCount = rowData.length - activeCount;
 
-  // Paged in the browser, so the page is kept in the store
-  const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize));
-  // A stored page can be past the end once the data or filters change
-  const page = Math.min(currentPage, totalPages);
-  const pageRows = useMemo(() => filteredData.slice((page - 1) * pageSize, page * pageSize), [filteredData, page, pageSize]);
+  // Every filtered row goes to the grid, which pages it, so a column sort covers the whole list
 
   const handleDelete = useCallback(async (bill) => {
     if (!window.confirm("Are you sure you want to delete this Bill?")) return;
     try {
-      await deleteBill(bill.id || bill.bill_id, getCurrentUserId());
+      await deleteBill(bill.id || bill.bill_id);
       notify?.(BILLS_TOASTS.deleted(bill.subject));
       onDeleted?.();
     } catch (err) {
@@ -201,7 +182,7 @@ export default function DataList({
   const columnDefs = useMemo(() => [
     {
       headerName: 'S.No',
-      valueGetter: (params) => params.node.rowIndex + 1 + (page - 1) * pageSize,
+      valueGetter: (params) => params.node.rowIndex + 1,
       width: 90,
       minWidth: 90,
       maxWidth: 95,
@@ -282,7 +263,7 @@ export default function DataList({
         );
       }
     }
-  ], [onEdit, handleDelete, visibleCols, activeCategory, canEdit, canRemove, page, pageSize]);
+  ], [onEdit, handleDelete, visibleCols, activeCategory, canEdit, canRemove]);
 
   const handleExport = (type) => {
     const cols = exportCols();
@@ -418,7 +399,7 @@ export default function DataList({
             <div className="relative w-32">
               <input
                 type="text"
-                placeholder="Search subject..."
+                placeholder="Search bills..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full module-search-input"
@@ -446,10 +427,7 @@ export default function DataList({
                     onChange={(e) => setPageSize(Number(e.target.value))}
                     className="bg-transparent border-none text-xs font-bold focus:outline-none cursor-pointer p-0"
                   >
-                    <option value="5">5</option>
-                    <option value="10">10</option>
-                    <option value="20">20</option>
-                    <option value="50">50</option>
+                    {PAGE_SIZES.map((n) => <option key={n} value={n}>{n}</option>)}
                   </select>
                 </div>
 
@@ -525,7 +503,7 @@ export default function DataList({
                 </label>
                 <select
                   value={selectedWing}
-                  onChange={(e) => actions.setFilters({ wing: e.target.value })}
+                  onChange={(e) => actions.setFilters({ wing: e.target.value, division: '' })}
                   className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200 cursor-pointer"
                 >
                   <option value="">Show all Wings</option>
@@ -551,23 +529,21 @@ export default function DataList({
                 </select>
               </div>
 
-              {activeCategory === 'active' && (
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
-                    Stage
-                  </label>
-                  <select
-                    value={selectedStage}
-                    onChange={(e) => actions.setFilters({ stage: e.target.value })}
-                    className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200 cursor-pointer"
-                  >
-                    <option value="">Show all Stages</option>
-                    {stageOptions.map(s => (
-                      <option key={s.value} value={s.value}>{s.label}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                  Stage
+                </label>
+                <select
+                  value={selectedStage}
+                  onChange={(e) => actions.setFilters({ stage: e.target.value })}
+                  className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200 cursor-pointer"
+                >
+                  <option value="">Show all Stages</option>
+                  {stageOptions.map(s => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
         )}
@@ -575,10 +551,11 @@ export default function DataList({
 
         <div className="module-datalist-grid">
           <Table
-            rowData={pageRows}
+            rowData={filteredData}
             columnDefs={columnDefs}
             loading={loading}
-            pagination={false}
+            pagination={true}
+            paginationPageSize={pageSize}
             enableExport={false}
             autoSizeStrategy={{
               type: 'fitGridWidth'
@@ -595,16 +572,6 @@ export default function DataList({
           />
         </div>
 
-        {totalPages > 1 && (
-          <TablePagination
-            currentPage={page - 1}
-            totalPages={totalPages}
-            totalRows={filteredData.length}
-            pageSize={pageSize}
-            onPageChange={(pageIndex) => actions.setCurrentPage(pageIndex + 1)}
-            color="#0f417a"
-          />
-        )}
       </div>
     </div>
   );

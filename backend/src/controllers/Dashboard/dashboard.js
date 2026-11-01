@@ -86,6 +86,7 @@ async function getDashboardDataEntryStatus(req,res){
         LEFT JOIN 
             (SELECT wing, COUNT(*) AS [total_bills]
             FROM tbl_bill
+            WHERE ISNULL(is_deleted, 0) = 0
             GROUP BY wing) bp ON mmt_wings.wing_id = bp.wing
         LEFT JOIN 
             (SELECT wing, COUNT(*) AS [total_parliamentary_issue]
@@ -938,6 +939,7 @@ const moduleConfig = {
       END
     `,
     alias: "bpa",
+    joinFilter: "ISNULL(bpa.is_deleted, 0) = 0", // deleted bills are kept, marked is_deleted
     noDataStatus: "No Active Matters",
     completionColumn: "completed_date"
   },
@@ -1215,11 +1217,12 @@ function buildWingCases(wings, module) {
 function buildModuleQuery(moduleName, module, wings) {
   const wingCases = buildWingCases(wings, module);
 
+  const extra = module.joinFilter ? ` AND ${module.joinFilter}` : '';
   const joinClause = module.wingColumn
     ? `LEFT JOIN ${module.table} ${module.alias}
-       ON wing.wing_id = ${module.alias}.${module.wingColumn}`
+       ON wing.wing_id = ${module.alias}.${module.wingColumn}${extra}`
     : `LEFT JOIN ${module.table} ${module.alias}
-       ON 1 = 1`; // fallback when no wing column exists
+       ON 1 = 1${extra}`; // fallback when no wing column exists
 
   return `
     SELECT 
