@@ -325,7 +325,8 @@ export default function DataList({
         try {
           const d = new Date(rawDate);
           if (isNaN(d.getTime())) return String(rawDate).split('T')[0];
-          return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+          // UTC getters: the driver returns the server's IST wall-clock time marked as UTC
+          return `${String(d.getUTCDate()).padStart(2, '0')}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${d.getUTCFullYear()}`;
         } catch {
           return String(rawDate).split('T')[0];
         }
@@ -422,14 +423,8 @@ export default function DataList({
     });
 
     navigator.clipboard.writeText(tsv)
-      .then(() => {
-        if (triggerNotification) triggerNotification('Table data copied to clipboard!', 'success');
-        else alert('Table data copied to clipboard!');
-      })
-      .catch(() => {
-        if (triggerNotification) triggerNotification('Failed to copy table data.', 'error');
-        else alert('Failed to copy table data.');
-      });
+      .then(() => triggerNotification?.('Table data copied to clipboard!', 'success'))
+      .catch(() => triggerNotification?.('Failed to copy table data.', 'error'));
   };
 
   // Export handlers

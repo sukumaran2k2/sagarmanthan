@@ -2,17 +2,8 @@ import { create } from 'zustand';
 import { registerStoreReset } from '../../../stores/resetRegistry';
 import { fetchDropdownAllValues, fetchMinistryList, fetchWings } from '../api';
 
-/**
- * Cabinet Notes - Other Ministry store.
- * Keeps what must survive switching between the module's tabs (and leaving the module):
- *  - reference data (ministries, stages, wings), loaded once and shared by the Data List,
- *    Input Form and Reports, which used to fetch them separately
- *  - the open tab (dashboard / add / list / report)
- *  - the Data List's category, filters, search, filter panel, pagination and column visibility
- *  - the Reports page's report type, ministry filter, filter panel and drill-down path
- * visibleCols holds only the user's changes; the Data List merges them over its own defaults.
- * The record being edited and the fetched notes stay in component state (as in HR).
- */
+// State that survives tab switches: masters, open tab, Data List filters/paging/columns and Reports view.
+// visibleCols holds only the user's changes; the record being edited stays in component state.
 
 export const SUB_TABS = ['dashboard', 'add', 'list', 'report'];
 

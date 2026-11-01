@@ -1,13 +1,36 @@
 
 import { pool } from "../../db.js";
+import { WING_FIELDS } from "../Governance/cabinetNotesMinistryFields.js";
 
-async function cabinetMinistryReport (req, res) 
+// Days a note has been pending since it was received (0 = received today)
+const PENDING_DAYS = `DATEDIFF(day, n.received_ministry_date, CAST(GETDATE() AS date))`;
+
+// Pendency buckets; the drill-down sends a day count that falls inside one of them
+const PENDENCY_BUCKETS = [
+    { min: 0, max: 30 },
+    { min: 31, max: 60 },
+    { min: 61, max: null },
+];
+
+function columnDefsFor(rowData) {
+    return Object.keys(rowData[0]).map(key => ({
+        headerName: key.charAt(0).toUpperCase() + key.slice(1),
+        field: key,
+    }));
+}
+
+function serverError(res, report, err) {
+    console.error(`[CabinetMinistryReports] ${report}:`, err);
+    return res.status(500).json({ error: `Could not load the ${report}. Please try again.` });
+}
+
+async function cabinetMinistryReport (req, res)
 {
     const conn = await pool;
-    try 
+    try
     {
-        const result = await conn.query(` 
-        SELECT 
+        const result = await conn.query(`
+        SELECT
             ROW_NUMBER() OVER (ORDER BY mmt_ministry.ministry_id) AS [S No],
             mmt_ministry.ministry_name AS [Name of the Ministry/Department Received from],
             mmt_ministry.ministry_id AS [Ministry Id],
@@ -18,21 +41,21 @@ async function cabinetMinistryReport (req, res)
             COUNT(CASE WHEN mmt_cabinet_ministry_stage.cab_ministry_stage_id = 3 THEN tbl_cabinet_notes_ministry.cabinet_notes_ministry_id END) AS [Comments Received],
             COUNT(CASE WHEN mmt_cabinet_ministry_stage.cab_ministry_stage_id = 4 THEN tbl_cabinet_notes_ministry.cabinet_notes_ministry_id END) AS [File submitted for Approval],
             COUNT(CASE WHEN mmt_cabinet_ministry_stage.cab_ministry_stage_id = 5 THEN tbl_cabinet_notes_ministry.cabinet_notes_ministry_id END) AS [Reply furnished to other ministry]
-        FROM 
+        FROM
             mmt_ministry
-        LEFT JOIN 
+        LEFT JOIN
             tbl_cabinet_notes_ministry ON mmt_ministry.ministry_id = tbl_cabinet_notes_ministry.ministry_id
-        LEFT JOIN 
+        LEFT JOIN
             mmt_cabinet_ministry_stage ON mmt_cabinet_ministry_stage.cab_ministry_stage_id = tbl_cabinet_notes_ministry.stage_id
-        GROUP BY  
-            mmt_ministry.ministry_id, 
+        GROUP BY
+            mmt_ministry.ministry_id,
             mmt_ministry.ministry_name
-        ORDER BY 
-            mmt_ministry.ministry_id;    
-        ;`);
+        ORDER BY
+            mmt_ministry.ministry_id;
+        `);
 
-        const rowData = result.recordset;  
-    
+        const rowData = result.recordset;
+
         if (rowData.length === 0) {
             return res.status(404).json({ error: 'No data available' });
         }
@@ -45,7 +68,7 @@ async function cabinetMinistryReport (req, res)
             {
                 headerName: "Name of the Ministry/Department Received from",
                 field: "Name of the Ministry/Department Received from",
-                
+
             },
             {
                 headerName: "Ministry Id",
@@ -65,7 +88,7 @@ async function cabinetMinistryReport (req, res)
                     {
                         headerName: "Received but yet to be sent for Comments",
                         field: "Received but yet to be sent for Comments",
-                    },                    
+                    },
                     {
                         headerName: "Sent for Comments",
                         field: "Sent for Comments",
@@ -85,357 +108,180 @@ async function cabinetMinistryReport (req, res)
                 ]
             }
         ];
-        
-        // const columnDefs = Object.keys(rowData[0]).map(key => ({
-        //     headerName: key.charAt(0).toUpperCase() + key.slice(1), // Capitalize the first letter
-        //     field: key,
-        // }));
         res.json({ columnDefs, rowData });
     }
-    catch(err) 
+    catch(err)
     {
-        console.log(err);
-        return res.sendStatus(500);
+        return serverError(res, 'cabinet ministry report', err);
     }
 };
 
-async function getMinistryDetailsReport (req, res) 
+async function getMinistryDetailsReport (req, res)
 {
-    const ministryId = req.params.ministryId;
-    const cabinetMinistryStage = req.params.cabinetMinistryStage;
+    const ministryId = Number(req.params.ministryId);
+    const stage = req.params.cabinetMinistryStage;
+    const stageId = stage === 'all' ? null : Number(stage);
+    if (!Number.isInteger(ministryId) || (stage !== 'all' && !Number.isInteger(stageId))) {
+        return res.status(400).json({ error: 'Invalid ministry or stage.' });
+    }
     const todayServerDate = new Date().toISOString().split('T')[0];
 
-    console.log('ministryId',ministryId);
-    console.log('cabinetMinistryStage',cabinetMinistryStage);
-
-    const conn = await pool;
-    const request = conn.request();
-    request.input("ministryId", ministryId);
-    request.input("cabinetMinistryStage", cabinetMinistryStage);
-
-    let whereCondition = "";
-    if (cabinetMinistryStage === 'all') {
-        whereCondition += `WHERE 
-        tbl_cabinet_notes_ministry.ministry_id = @ministryId `;
-    } 
-    else {
-        whereCondition += ` WHERE 
-        tbl_cabinet_notes_ministry.ministry_id = @ministryId 
-        AND tbl_cabinet_notes_ministry.stage_id = @cabinetMinistryStage`;
-    }
-
-    try 
+    try
     {
-        const result = await request.query(` 
-        SELECT 
-            ROW_NUMBER() OVER (ORDER BY mmt_ministry.ministry_id) AS [S No],
-            mmt_ministry.ministry_name AS [Ministry Name],
-            tbl_cabinet_notes_ministry.ministry_id AS [Ministry Id],
-            tbl_cabinet_notes_ministry.subject AS [Subject],
-            tbl_cabinet_notes_ministry.eoffice_file_number AS [Eoffice File Number],
-            CONVERT(VARCHAR(10), tbl_cabinet_notes_ministry.received_ministry_date, 103) AS [Received but yet to be sent for Comments],
-            CONVERT(VARCHAR(10), tbl_cabinet_notes_ministry.sent_for_comments_date, 103) AS [Sent for Comments],
-            CONVERT(VARCHAR(10), tbl_cabinet_notes_ministry.comments_rec_date, 103) AS [Comments Received],
-            CONVERT(VARCHAR(10), tbl_cabinet_notes_ministry.file_submitted_date, 103) AS [File submitted for Approval],
-            CONVERT(VARCHAR(10), tbl_cabinet_notes_ministry.reply_furnished_date, 103) AS [Reply furnished to other ministry],
-            CONVERT(VARCHAR(10), tbl_cabinet_notes_ministry.updated_date, 103) AS [Last Updated Date],
-            CONCAT(
-                CASE WHEN tbl_cabinet_notes_ministry.shipping_date IS NOT NULL THEN 'Shipping, ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.vigilance_date IS NOT NULL THEN 'Vigilance, ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.ports_date IS NOT NULL THEN 'Ports, ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.iwt_date IS NOT NULL THEN 'IWT, ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.administration_date IS NOT NULL THEN 'Administration, ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.coord_I_date IS NOT NULL THEN 'Coord_I, ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.coord_II_date IS NOT NULL THEN 'Coord_II, ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.dgll_parliament_and_trw_date IS NOT NULL THEN 'DGLL Parliament & TRW, ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.development_date IS NOT NULL THEN 'Development, ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.finance_date IS NOT NULL THEN 'Finance, ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.sagarmala_date IS NOT NULL THEN 'Sagarmala, ' ELSE '' END
-            ) AS [Comments yet to be received From],
-            CONCAT(
-                CASE WHEN tbl_cabinet_notes_ministry.shipping_date IS NULL THEN 'Shipping ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.vigilance_date IS NULL THEN ',Vigilance ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.ports_date IS NULL THEN ',Ports ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.iwt_date IS NULL THEN ',IWT ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.administration_date IS NULL THEN ',Administration ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.coord_I_date IS NULL THEN ',Coord_I ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.coord_II_date IS NULL THEN ',Coord_II ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.dgll_parliament_and_trw_date IS NULL THEN ',DGLL Parliament & TRW ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.development_date IS NULL THEN ',Development ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.finance_date IS NULL THEN ',Finance ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.sagarmala_date IS NULL THEN ',Sagarmala ' ELSE '' END
-            ) AS [Comments not yet to be received From]
-        FROM 
-            tbl_cabinet_notes_ministry 
-        INNER JOIN 
-            mmt_ministry ON mmt_ministry.ministry_id = tbl_cabinet_notes_ministry.ministry_id
-        INNER JOIN 
-            mmt_cabinet_ministry_stage ON mmt_cabinet_ministry_stage.cab_ministry_stage_id = tbl_cabinet_notes_ministry.stage_id
-        ${whereCondition}
-        GROUP BY 
-            mmt_ministry.ministry_id, 
-            mmt_ministry.ministry_name,
-            tbl_cabinet_notes_ministry.ministry_id,
-            tbl_cabinet_notes_ministry.subject,
-            tbl_cabinet_notes_ministry.eoffice_file_number,
-            tbl_cabinet_notes_ministry.received_ministry_date,
-            tbl_cabinet_notes_ministry.sent_for_comments_date,
-            tbl_cabinet_notes_ministry.comments_rec_date,
-            tbl_cabinet_notes_ministry.file_submitted_date,
-            tbl_cabinet_notes_ministry.reply_furnished_date,
-            tbl_cabinet_notes_ministry.updated_date,
-            tbl_cabinet_notes_ministry.shipping_date,
-            tbl_cabinet_notes_ministry.vigilance_date,
-            tbl_cabinet_notes_ministry.ports_date,
-            tbl_cabinet_notes_ministry.iwt_date,
-            tbl_cabinet_notes_ministry.administration_date,
-            tbl_cabinet_notes_ministry.coord_I_date,
-            tbl_cabinet_notes_ministry.coord_II_date,
-            tbl_cabinet_notes_ministry.dgll_parliament_and_trw_date,
-            tbl_cabinet_notes_ministry.development_date,
-            tbl_cabinet_notes_ministry.finance_date,
-            tbl_cabinet_notes_ministry.sagarmala_date
-        ORDER BY 
-            mmt_ministry.ministry_id;
-        ;`);
+        const conn = await pool;
+        const request = conn.request();
+        request.input("ministryId", ministryId);
+        if (stageId !== null) request.input("stageId", stageId);
 
-        const rowData = result.recordset;  
-    
-        if (rowData.length === 0) {
+        const [notesResult, wingsResult] = await Promise.all([
+            request.query(`
+                SELECT
+                    mmt_ministry.ministry_name AS [Ministry Name],
+                    n.ministry_id AS [Ministry Id],
+                    n.subject AS [Subject],
+                    n.eoffice_file_number AS [Eoffice File Number],
+                    CONVERT(VARCHAR(10), n.received_ministry_date, 103) AS [Received but yet to be sent for Comments],
+                    CONVERT(VARCHAR(10), n.sent_for_comments_date, 103) AS [Sent for Comments],
+                    CONVERT(VARCHAR(10), n.comments_rec_date, 103) AS [Comments Received],
+                    CONVERT(VARCHAR(10), n.file_submitted_date, 103) AS [File submitted for Approval],
+                    CONVERT(VARCHAR(10), n.reply_furnished_date, 103) AS [Reply furnished to other ministry],
+                    CONVERT(VARCHAR(10), n.updated_date, 103) AS [Last Updated Date],
+                    n.sent_for_comments_wings,
+                    ${WING_FIELDS.map(f => `n.${f.column}_date`).join(', ')}
+                FROM tbl_cabinet_notes_ministry AS n
+                INNER JOIN mmt_ministry ON mmt_ministry.ministry_id = n.ministry_id
+                WHERE n.ministry_id = @ministryId
+                    ${stageId !== null ? 'AND n.stage_id = @stageId' : ''}
+                ORDER BY n.cabinet_notes_ministry_id
+            `),
+            conn.query(`SELECT wing_id, LTRIM(RTRIM(wing_name)) AS wing_name FROM mmt_wings`),
+        ]);
+
+        if (notesResult.recordset.length === 0) {
             return res.status(404).json({ error: 'No data available' });
         }
-        
-        const columnDefs = Object.keys(rowData[0]).map(key => ({
-            headerName: key.charAt(0).toUpperCase() + key.slice(1), 
-            field: key,
-        }));
 
-        res.json({ todayServerDate, columnDefs, rowData });
+        const wingNames = new Map(wingsResult.recordset.map(w => [String(w.wing_id), w.wing_name]));
+        const fieldsByName = new Map(WING_FIELDS.map(f => [f.label, f]));
 
-        // const resultFinalData = {
-        //     todayServerDate,
-        //     cabinetNotes: result.recordset
-        // };
-        // res.json(resultFinalData);
+        // Only the wings the note was sent to: replied = its wing date is filled in
+        const rowData = notesResult.recordset.map((note, i) => {
+            const { sent_for_comments_wings: sentWings, ...row } = note;
+            const received = [];
+            const pending = [];
+            for (const item of String(sentWings || '').split(',').map(s => s.trim()).filter(Boolean)) {
+                const name = wingNames.get(item) || item; // older rows stored wing names
+                const field = fieldsByName.get(name);
+                (field && note[`${field.column}_date`] ? received : pending).push(name);
+            }
+            for (const f of WING_FIELDS) delete row[`${f.column}_date`];
+            return {
+                'S No': i + 1,
+                ...row,
+                'Comments Received From': received.join(', '),
+                'Comments Pending From': pending.join(', '),
+            };
+        });
+
+        res.json({ todayServerDate, columnDefs: columnDefsFor(rowData), rowData });
     }
-    catch(err) 
+    catch(err)
     {
-        console.log(err);
-        return res.sendStatus(500);
+        return serverError(res, 'ministry details report', err);
     }
 };
 
 // --------------------------------------------- Pendency ------------------------------------------------
-async function cabinetMinistryPendencyReport (req, res) 
+// Notes received but not yet replied to (stage 5), aged by days since received
+async function cabinetMinistryPendencyReport (req, res)
 {
-    const conn = await pool;
-    try 
+    try
     {
-        const result = await conn.query(` 
-        SELECT 
+        const conn = await pool;
+        const result = await conn.query(`
+        SELECT
             ROW_NUMBER() OVER (ORDER BY mmt_ministry.ministry_id) AS [S No],
             mmt_ministry.ministry_name AS [Name of the Ministry/Department Received from],
             mmt_ministry.ministry_id AS [Ministry Id],
-            SUM(
-                CASE 
-                    WHEN DATEDIFF(day, received_ministry_date, GETDATE()) >= 0 
-                        AND DATEDIFF(day, received_ministry_date, GETDATE()) <= 30 
-                    THEN 1 
-                    ELSE 0 
-                END
-            ) AS [0-30 Days],
-            SUM(
-                CASE 
-                    WHEN DATEDIFF(day, received_ministry_date, GETDATE()) >= 31 
-                        AND DATEDIFF(day, received_ministry_date, GETDATE()) <= 60 
-                    THEN 1 
-                    ELSE 0 
-                END
-            ) AS [31-60 Days],
-            SUM(
-                CASE 
-                    WHEN DATEDIFF(day, received_ministry_date, GETDATE()) >= 61 
-                    THEN 1 
-                    ELSE 0 
-                END
-            ) AS [More than 60 Days],
-            SUM(
-                CASE 
-                    WHEN DATEDIFF(day, received_ministry_date, GETDATE()) >= 0 
-                        AND DATEDIFF(day, received_ministry_date, GETDATE()) <= 30 
-                    THEN 1 
-                    ELSE 0 
-                END
-            ) +
-            SUM(
-                CASE 
-                    WHEN DATEDIFF(day, received_ministry_date, GETDATE()) >= 31 
-                        AND DATEDIFF(day, received_ministry_date, GETDATE()) <= 60 
-                    THEN 1 
-                    ELSE 0 
-                END
-            ) +
-            SUM(
-                CASE 
-                    WHEN DATEDIFF(day, received_ministry_date, GETDATE()) >= 61 
-                    THEN 1 
-                    ELSE 0 
-                END
-            ) AS [Total No of Cabinet Ministry]
-        FROM 
-            mmt_ministry 
-        LEFT JOIN 
-            tbl_cabinet_notes_ministry ON mmt_ministry.ministry_id = tbl_cabinet_notes_ministry.ministry_id
-        LEFT JOIN 
-            mmt_cabinet_ministry_stage ON mmt_cabinet_ministry_stage.cab_ministry_stage_id = tbl_cabinet_notes_ministry.stage_id
-        WHERE  
-            DATEDIFF(day, received_ministry_date, GETDATE()) > 0 AND (stage_id != 5 ) OR tbl_cabinet_notes_ministry.received_ministry_date IS NULL
-        GROUP BY  
-            mmt_ministry.ministry_id, 
+            COUNT(CASE WHEN ${PENDING_DAYS} BETWEEN 0 AND 30 THEN 1 END) AS [0-30 Days],
+            COUNT(CASE WHEN ${PENDING_DAYS} BETWEEN 31 AND 60 THEN 1 END) AS [31-60 Days],
+            COUNT(CASE WHEN ${PENDING_DAYS} >= 61 THEN 1 END) AS [More than 60 Days],
+            COUNT(n.cabinet_notes_ministry_id) AS [Total No of Cabinet Ministry]
+        FROM
+            mmt_ministry
+        LEFT JOIN
+            tbl_cabinet_notes_ministry AS n
+                ON n.ministry_id = mmt_ministry.ministry_id
+                AND n.stage_id <> 5
+                AND n.received_ministry_date <= CAST(GETDATE() AS date)
+        GROUP BY
+            mmt_ministry.ministry_id,
             mmt_ministry.ministry_name
-        ORDER BY 
-            mmt_ministry.ministry_id;        
-        ;`);
-        
-        const rowData = result.recordset;  
-    
+        ORDER BY
+            mmt_ministry.ministry_id;
+        `);
+
+        const rowData = result.recordset;
+
         if (rowData.length === 0) {
             return res.status(404).json({ error: 'No data available' });
         }
-        
-        const columnDefs = Object.keys(rowData[0]).map(key => ({
-            headerName: key.charAt(0).toUpperCase() + key.slice(1), // Capitalize the first letter
-            field: key,
-        }));
-        // console.log('columnDefs, rowData',columnDefs, rowData);
-
-        res.json({ columnDefs, rowData });
+        res.json({ columnDefs: columnDefsFor(rowData), rowData });
     }
-    catch(err) 
+    catch(err)
     {
-        console.log(err);
-        return res.sendStatus(500);
+        return serverError(res, 'pendency report', err);
     }
 };
 
+async function getDetailMinistryPendencyReport (req, res)
+{
+    const ministryId = Number(req.params.ministryId);
+    const countDate = Number(req.params.countDate);
+    const bucket = PENDENCY_BUCKETS.find(b => countDate >= b.min && (b.max === null || countDate <= b.max));
+    if (!Number.isInteger(ministryId) || !bucket) {
+        return res.status(400).json({ error: 'Invalid ministry or pendency range.' });
+    }
 
-async function getDetailMinistryPendencyReport (req, res) 
-{   
-    const ministryId = req.params.ministryId;
-    const countDate = req.params.countDate;
+    try
+    {
+        const conn = await pool;
+        const request = conn.request();
+        request.input("ministryId", ministryId);
+        request.input("minDays", bucket.min);
+        if (bucket.max !== null) request.input("maxDays", bucket.max);
 
-    const conn = await pool;
-    const request = conn.request();
-    request.input("ministryId", ministryId);
-    request.input("countDate", countDate);
-    
-        // console.log(countDate)
-
-        let pendencyQuery;
-        // if(countDate >= 0 && countDate <= 30)
-        if(countDate >= 0 && countDate <= 30)
-        {
-            pendencyQuery = (`
-                SELECT 
-                    ROW_NUMBER() OVER (ORDER BY mmt_ministry.ministry_id) AS [S No],
-                    mmt_ministry.ministry_name AS [Ministry Name],
-                    tbl_cabinet_notes_ministry.ministry_id AS [Ministry ID], 
-                    subject AS [Subject], 
-                    eoffice_file_number AS [Eoffice File Number], 
-                    CONVERT(varchar(10), received_ministry_date, 101) AS [Received but yet to be sent for Comments], 
-                    CONVERT(varchar(10), sent_for_comments_date, 101) AS [Sent for Comments], 
-                    CONVERT(varchar(10), comments_rec_date, 101) AS [Comments Received], 
-                    CONVERT(varchar(10), file_submitted_date, 101) AS [File submitted for Approval],  
-                    CONVERT(varchar(10), reply_furnished_date, 101) AS [Reply furnished to other ministry],  
-                    CONVERT(varchar(10), updated_date, 101) AS [Last Updated Date]
-                FROM tbl_cabinet_notes_ministry
-
-                INNER JOIN mmt_ministry on mmt_ministry.ministry_id = tbl_cabinet_notes_ministry.ministry_id
-                INNER JOIN mmt_cabinet_ministry_stage on mmt_cabinet_ministry_stage.cab_ministry_stage_id = tbl_cabinet_notes_ministry.stage_id
-
-                WHERE (tbl_cabinet_notes_ministry.ministry_id = @ministryId) 
-                AND (stage_id != 5 ) AND (DATEDIFF(D, GETDATE(), received_ministry_date) <= 0 AND
-                DATEDIFF(D, GETDATE(), received_ministry_date) >= -30  )
-                ORDER BY subject, eoffice_file_number                
-          ;`);
-        }
-        // else if(countDate >= 31 && countDate <= 60)
-        else if(countDate >= 31 && countDate <= 60)
-        {
-            pendencyQuery = (`
-            SELECT 
-                ROW_NUMBER() OVER (ORDER BY mmt_ministry.ministry_id) AS [S No],
+        const result = await request.query(`
+            SELECT
+                ROW_NUMBER() OVER (ORDER BY n.subject, n.eoffice_file_number) AS [S No],
                 mmt_ministry.ministry_name AS [Ministry Name],
-                tbl_cabinet_notes_ministry.ministry_id AS [Ministry ID], 
-                subject AS [Subject], 
-                eoffice_file_number AS [Eoffice File Number], 
-                CONVERT(varchar(10), received_ministry_date, 101) AS [Received but yet to be sent for Comments], 
-                CONVERT(varchar(10), sent_for_comments_date, 101) AS [Sent for Comments], 
-                CONVERT(varchar(10), comments_rec_date, 101) AS [Comments Received], 
-                CONVERT(varchar(10), file_submitted_date, 101) AS [File submitted for Approval],  
-                CONVERT(varchar(10), reply_furnished_date, 101) AS [Reply furnished to other ministry],  
-                CONVERT(varchar(10), updated_date, 101) AS [Last Updated Date]
-            FROM tbl_cabinet_notes_ministry
+                n.ministry_id AS [Ministry ID],
+                n.subject AS [Subject],
+                n.eoffice_file_number AS [Eoffice File Number],
+                CONVERT(varchar(10), n.received_ministry_date, 101) AS [Received but yet to be sent for Comments],
+                CONVERT(varchar(10), n.sent_for_comments_date, 101) AS [Sent for Comments],
+                CONVERT(varchar(10), n.comments_rec_date, 101) AS [Comments Received],
+                CONVERT(varchar(10), n.file_submitted_date, 101) AS [File submitted for Approval],
+                CONVERT(varchar(10), n.reply_furnished_date, 101) AS [Reply furnished to other ministry],
+                CONVERT(varchar(10), n.updated_date, 101) AS [Last Updated Date]
+            FROM tbl_cabinet_notes_ministry AS n
+            INNER JOIN mmt_ministry ON mmt_ministry.ministry_id = n.ministry_id
+            WHERE n.ministry_id = @ministryId
+                AND n.stage_id <> 5
+                AND ${PENDING_DAYS} >= @minDays
+                ${bucket.max !== null ? `AND ${PENDING_DAYS} <= @maxDays` : ''}
+            ORDER BY n.subject, n.eoffice_file_number
+        `);
+        const rowData = result.recordset;
 
-                INNER JOIN mmt_ministry on mmt_ministry.ministry_id = tbl_cabinet_notes_ministry.ministry_id
-                INNER JOIN mmt_cabinet_ministry_stage on mmt_cabinet_ministry_stage.cab_ministry_stage_id = tbl_cabinet_notes_ministry.stage_id
-
-                WHERE (tbl_cabinet_notes_ministry.ministry_id = @ministryId) 
-                AND (stage_id != 5 ) AND (DATEDIFF(D, GETDATE(), received_ministry_date) <= -31 AND
-                DATEDIFF(D, GETDATE(), received_ministry_date) >= -60  )    
-                ORDER BY subject, eoffice_file_number        
-           ;`);
-        }
-        else if(countDate >= 61)
-        {
-            pendencyQuery = (`
-                SELECT 
-                    ROW_NUMBER() OVER (ORDER BY mmt_ministry.ministry_id) AS [S No],
-                    mmt_ministry.ministry_name AS [Ministry Name],
-                    tbl_cabinet_notes_ministry.ministry_id AS [Ministry ID], 
-                    subject AS [Subject], 
-                    eoffice_file_number AS [Eoffice File Number], 
-                    CONVERT(varchar(10), received_ministry_date, 101) AS [Received but yet to be sent for Comments], 
-                    CONVERT(varchar(10), sent_for_comments_date, 101) AS [Sent for Comments], 
-                    CONVERT(varchar(10), comments_rec_date, 101) AS [Comments Received], 
-                    CONVERT(varchar(10), file_submitted_date, 101) AS [File submitted for Approval],  
-                    CONVERT(varchar(10), reply_furnished_date, 101) AS [Reply furnished to other ministry],  
-                    CONVERT(varchar(10), updated_date, 101) AS [Last Updated Date]
-                FROM tbl_cabinet_notes_ministry
-
-                INNER JOIN  mmt_ministry ON mmt_ministry.ministry_id = tbl_cabinet_notes_ministry.ministry_id
-                INNER JOIN mmt_cabinet_ministry_stage ON mmt_cabinet_ministry_stage.cab_ministry_stage_id = tbl_cabinet_notes_ministry.stage_id
-               
-                WHERE 
-                    tbl_cabinet_notes_ministry.ministry_id = @ministryId
-                    AND stage_id != 5 
-                    AND DATEDIFF(DAY, GETDATE(), received_ministry_date) <= -61     
-                ORDER BY 
-                    subject, 
-                    eoffice_file_number;
-            ;`);
-        }
-
-    try 
-    {   
-        const result = await request.query(pendencyQuery);
-        const rowData = result.recordset;  
-    
         if (rowData.length === 0) {
             return res.status(404).json({ error: 'No data available' });
         }
-        
-        const columnDefs = Object.keys(rowData[0]).map(key => ({
-            headerName: key.charAt(0).toUpperCase() + key.slice(1), 
-            field: key,
-        }));
-
-        res.json({ columnDefs, rowData });
+        res.json({ columnDefs: columnDefsFor(rowData), rowData });
     }
-    catch(err) 
+    catch(err)
     {
-        console.log(err);
-        return res.sendStatus(500);
+        return serverError(res, 'pendency details report', err);
     }
 
 };

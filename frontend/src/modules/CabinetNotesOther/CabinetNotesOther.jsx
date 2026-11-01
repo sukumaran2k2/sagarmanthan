@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { CheckCircle2 } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
@@ -40,7 +40,7 @@ export default function CabinetNotesOther({
   const notify = useCallback(
     (message, type = 'success') => {
       if (typeof triggerNotification === 'function') {
-        triggerNotification(message);
+        triggerNotification(message, type);
         return;
       }
       setToast({ message, type });
@@ -49,32 +49,21 @@ export default function CabinetNotesOther({
     [triggerNotification]
   );
 
-  const getActiveUserId = () => {
-    try {
-      const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
-      if (token) {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        return payload.userId || payload.user_id || payload.id || 1;
-      }
-    } catch (e) {
-      console.error("Error decoding token:", e);
-    }
-    return 1;
-  };
-
   // Ministries, stages and wings for every tab, loaded once
   useEffect(() => { loadMasters(); }, [loadMasters]);
 
   const fetchData = useCallback(() => {
     setLoading(true);
-    const userId = getActiveUserId();
-    fetchCabinetMinistry(userId)
+    fetchCabinetMinistry()
       .then(res => {
         setRowData(Array.isArray(res.data) ? res.data : []);
       })
-      .catch(err => console.error("Error loading Cabinet Notes Other Ministry data:", err))
+      .catch(err => {
+        console.error("Error loading Cabinet Notes Other Ministry data:", err);
+        notify(err.response?.data?.error || "Could not load cabinet notes. Please try again.", "error");
+      })
       .finally(() => setLoading(false));
-  }, []);
+  }, [notify]);
 
   useEffect(() => {
     fetchData();
@@ -164,14 +153,13 @@ export default function CabinetNotesOther({
 
     setDeleteModal(prev => ({ ...prev, loading: true }));
     try {
-      const userId = getActiveUserId();
-      await deleteCabinetMinistry(noteId, userId);
+      await deleteCabinetMinistry(noteId);
       notify("Cabinet Notes Ministry record deleted successfully.");
       setDeleteModal({ open: false, note: null, loading: false });
       fetchData();
     } catch (err) {
       console.error("Delete error:", err);
-      notify("Error deleting record. Please try again.", "error");
+      notify(err.response?.data?.error || "Error deleting record. Please try again.", "error");
       setDeleteModal(prev => ({ ...prev, loading: false }));
     }
   };

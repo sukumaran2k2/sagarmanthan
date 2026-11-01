@@ -536,8 +536,9 @@ router.get(
   requireModulePermission("CABINET_NOTES_OTHER_MINISTRIES", "read"),
   cabinetNotesOtherDashboard.getCabinetNotesOtherDashboard
 );
+// The signed-in user (req.user) decides the data scope
 router.get(
-  "/cabinet-ministry/:userID",
+  "/cabinet-ministry",
   auth,
   requireModulePermission("CABINET_NOTES_OTHER_MINISTRIES", "read"),
   cabinetBillTab.getCabinetMinistry
@@ -560,13 +561,8 @@ router.put(
   requireModulePermission("CABINET_NOTES_OTHER_MINISTRIES", "update"),
   cabinetBillTab.editMinistryCabinet
 );
-router.post(
-  "/cabinet-ministry-stage",
-  auth,
-  cabinetBillTab.createCabinetNotesMinistryStage
-);
 router.delete(
-  "/cabinet-ministry/:cabinet_notes_ministry_id/:userID",
+  "/cabinet-ministry/:cabinet_notes_ministry_id",
   auth,
   requireModulePermission("CABINET_NOTES_OTHER_MINISTRIES", "delete"),
   cabinetBillTab.deleteCabinetNotesMinistry
@@ -1479,12 +1475,32 @@ router.get(
 );
 
 // Cabinet Ministry
-router.get("/cabinetministry-report", cabinetMinistryReportTab.cabinetMinistryReport);
-router.get("/detailministry-report/:ministryId/:cabinetMinistryStage", cabinetMinistryReportTab.getMinistryDetailsReport);
+router.get(
+  "/cabinetministry-report",
+  auth,
+  requireModulePermission("CABINET_NOTES_OTHER_MINISTRIES", "read"),
+  cabinetMinistryReportTab.cabinetMinistryReport
+);
+router.get(
+  "/detailministry-report/:ministryId/:cabinetMinistryStage",
+  auth,
+  requireModulePermission("CABINET_NOTES_OTHER_MINISTRIES", "read"),
+  cabinetMinistryReportTab.getMinistryDetailsReport
+);
 
 // Pendency Cabinet Ministry
-router.get("/minstry-pendencyreport", cabinetMinistryReportTab.cabinetMinistryPendencyReport);
-router.get("/detailministry-pendencyreport/:ministryId/:countDate", cabinetMinistryReportTab.getDetailMinistryPendencyReport);
+router.get(
+  "/minstry-pendencyreport",
+  auth,
+  requireModulePermission("CABINET_NOTES_OTHER_MINISTRIES", "read"),
+  cabinetMinistryReportTab.cabinetMinistryPendencyReport
+);
+router.get(
+  "/detailministry-pendencyreport/:ministryId/:countDate",
+  auth,
+  requireModulePermission("CABINET_NOTES_OTHER_MINISTRIES", "read"),
+  cabinetMinistryReportTab.getDetailMinistryPendencyReport
+);
 
 // Audit Para
 router.get("/auditparawise-report", aditParaReportTab.auditParaWiseReport);

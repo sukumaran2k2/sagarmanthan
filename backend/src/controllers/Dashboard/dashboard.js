@@ -76,9 +76,12 @@ async function getDashboardDataEntryStatus(req,res){
             FROM tbl_cabinet_notes_mopsw 
             GROUP BY wing) cnm ON mmt_wings.wing_id = cnm.wing
         LEFT JOIN 
-            (SELECT wing, COUNT(*) AS [total_cabinet_notes_other_ministries]
-            FROM tbl_cabinet_notes_ministry
-            GROUP BY wing) cno ON mmt_wings.wing_id = cno.wing
+            -- Other ministry notes have no owning wing; count each note under the wings it was sent to for comments
+            (SELECT w.wing_id AS wing, COUNT(DISTINCT n.cabinet_notes_ministry_id) AS [total_cabinet_notes_other_ministries]
+            FROM tbl_cabinet_notes_ministry n
+            CROSS APPLY STRING_SPLIT(n.sent_for_comments_wings, ',') s
+            JOIN mmt_wings w ON LTRIM(RTRIM(s.value)) IN (CAST(w.wing_id AS NVARCHAR(10)), LTRIM(RTRIM(w.wing_name)))
+            GROUP BY w.wing_id) cno ON mmt_wings.wing_id = cno.wing
         LEFT JOIN 
             (SELECT wing, COUNT(*) AS [total_audit_para]
             FROM tbl_audit_para 
@@ -888,7 +891,11 @@ const moduleConfig = {
   },
   "Cabinet Notes-Other Ministry": {
     table: "tbl_cabinet_notes_ministry",
-    wingColumn: "wing",
+    // sent_for_comments_wings holds comma-separated wing ids (older rows may hold names)
+    wingJoin: `EXISTS (
+      SELECT 1 FROM STRING_SPLIT(com.sent_for_comments_wings, ',') s
+      WHERE LTRIM(RTRIM(s.value)) IN (CAST(wing.wing_id AS NVARCHAR(10)), LTRIM(RTRIM(wing.wing_name)))
+    )`,
     dateExpression: `
       CASE 
         WHEN com.created_date > com.updated_date 
@@ -1215,7 +1222,10 @@ function buildWingCases(wings, module) {
 function buildModuleQuery(moduleName, module, wings) {
   const wingCases = buildWingCases(wings, module);
 
-  const joinClause = module.wingColumn
+  const joinClause = module.wingJoin
+    ? `LEFT JOIN ${module.table} ${module.alias}
+       ON ${module.wingJoin}`
+    : module.wingColumn
     ? `LEFT JOIN ${module.table} ${module.alias}
        ON wing.wing_id = ${module.alias}.${module.wingColumn}`
     : `LEFT JOIN ${module.table} ${module.alias}

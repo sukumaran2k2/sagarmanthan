@@ -55,8 +55,9 @@ api.interceptors.response.use(
   }
 );
 
-export function fetchCabinetMinistry(userId = 1) {
-  return api.get(`/cabinet-ministry/${userId}`);
+// The backend scopes the list to the signed-in user (from the token)
+export function fetchCabinetMinistry() {
+  return api.get('/cabinet-ministry');
 }
 
 export function fetchCabinetNotesOtherDashboard() {
@@ -75,8 +76,8 @@ export function updateCabinetMinistry(payload) {
   return api.put('/cabinet-ministry', payload);
 }
 
-export function deleteCabinetMinistry(id, userId = 1) {
-  return api.delete(`/cabinet-ministry/${id}/${userId}`);
+export function deleteCabinetMinistry(id) {
+  return api.delete(`/cabinet-ministry/${id}`);
 }
 
 export function fetchMinistryList() {
