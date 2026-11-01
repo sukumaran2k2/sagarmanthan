@@ -22,7 +22,7 @@ describe('Capex store', () => {
       debouncedSearch: '',
       page: 1,
       pageSize: 10,
-      filterYear: '2026-2027',
+      filterYear: '',
       filterOrg: '',
       showFilterPanel: false,
       visibleCols: {},

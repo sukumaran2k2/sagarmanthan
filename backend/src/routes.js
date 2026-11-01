@@ -1,7 +1,7 @@
 import express from "express";
 
 import auth from "./authenticate.js";
-import { requireModulePermission, requireAnyModulePermission } from "./middleware/modulePermission.js";
+import { requireModulePermission, requireAnyModulePermission, requireStrictModulePermission } from "./middleware/modulePermission.js";
 import mikrAuth from "./mikrAuthenticate.js";
 
 
@@ -324,18 +324,18 @@ router.get("/dashboard-data-entry-status", dashboardController.getDashboardDataE
 router.get("/get-court-cases-dashboard-status", dashboardController.getDashboardCourtCaseStatus);
 
 //Capex
-router.post('/capex', auth, requireModulePermission("CAPEX", "create"), capexController.addCapex);
-router.get('/capex', auth, requireModulePermission("CAPEX", "read"), capexController.getCapexData);
-router.get('/capex/:userID', auth, requireModulePermission("CAPEX", "read"), capexController.getCapexData);
-router.get('/data-entry-capex', auth, requireModulePermission("CAPEX", "read"), capexController.getCapexDataEntry);
-router.get('/capex-monthly-data/:capexID', auth, requireModulePermission("CAPEX", "read"), capexController.getCapexMonthlyData);
-router.get('/get-capex/:capexID', auth, requireModulePermission("CAPEX", "read"), capexController.getCapexExpediture);
-router.post('/capex-edit', auth, requireModulePermission("CAPEX", "update"), capexController.editCapexExpediture);
-router.post('/capex-monthly-data', auth, requireModulePermission("CAPEX", "update"), capexController.addCapexMonthlyData);
-router.get("/get-capex-dashboard-filters", auth, requireModulePermission("CAPEX", "read"), capexDashboard.getCapexDashboardFilters);
-router.get("/get-capex-dashboard-summary", auth, requireModulePermission("CAPEX", "read"), capexDashboard.getCapexDashboardSummary);
-router.get("/get-capex-dashboard-fy-summary", auth, requireModulePermission("CAPEX", "read"), capexDashboard.getCapexDashboardFySummary);
-router.get("/get-capex-dashboard-yoy", auth, requireModulePermission("CAPEX", "read"), capexDashboard.getCapexDashboardYoy);
+router.post('/capex', auth, requireStrictModulePermission("CAPEX", "create"), capexController.addCapex);
+router.get('/capex', auth, requireStrictModulePermission("CAPEX", "read"), capexController.getCapexData);
+router.get('/capex/:userID', auth, requireStrictModulePermission("CAPEX", "read"), capexController.getCapexData);
+router.get('/data-entry-capex', auth, requireStrictModulePermission("CAPEX", "read"), capexController.getCapexDataEntry);
+router.get('/capex-monthly-data/:capexID', auth, requireStrictModulePermission("CAPEX", "read"), capexController.getCapexMonthlyData);
+router.get('/get-capex/:capexID', auth, requireStrictModulePermission("CAPEX", "read"), capexController.getCapexExpediture);
+router.post('/capex-edit', auth, requireStrictModulePermission("CAPEX", "update"), capexController.editCapexExpediture);
+router.post('/capex-monthly-data', auth, requireStrictModulePermission("CAPEX", "update"), capexController.addCapexMonthlyData);
+router.get("/get-capex-dashboard-filters", auth, requireStrictModulePermission("CAPEX", "read"), capexDashboard.getCapexDashboardFilters);
+router.get("/get-capex-dashboard-summary", auth, requireStrictModulePermission("CAPEX", "read"), capexDashboard.getCapexDashboardSummary);
+router.get("/get-capex-dashboard-fy-summary", auth, requireStrictModulePermission("CAPEX", "read"), capexDashboard.getCapexDashboardFySummary);
+router.get("/get-capex-dashboard-yoy", auth, requireStrictModulePermission("CAPEX", "read"), capexDashboard.getCapexDashboardYoy);
 
 
 
@@ -1160,8 +1160,8 @@ router.get("/get-emp-details-by-reference-id-and-emp-name/:referenceID", auth, r
 //Dashboard
 
 router.get("/get-wing-wise-dashboard/:userId", dashboardController.getDashboardWingWise);
-router.get("/get-dashboard-gem-pro-and-capex/:userId", dashboardController.getDashboardGemProAndCapex);
-router.get("/get-dashboard-gem-pro-and-capex-ministry-view/:userId", dashboardController.getDashboardGemProAndCapexministryView);
+router.get("/get-dashboard-gem-pro-and-capex/:userId", auth, requireStrictModulePermission("CAPEX", "read"), dashboardController.getDashboardGemProAndCapex);
+router.get("/get-dashboard-gem-pro-and-capex-ministry-view/:userId", auth, requireStrictModulePermission("CAPEX", "read"), dashboardController.getDashboardGemProAndCapexministryView);
 router.get("/get-dashboard-organisation-view/:userId", dashboardController.getDashboardorganisationview);
 
 //REVISED HR
@@ -1639,9 +1639,9 @@ router.get("/hrfifth-report-other-org/:roleID/:organisationID",hrReportInputTab.
 router.get("/hr-report-input-list/:userID", hrReportInputTab. getHrreportInputformList);
 
 // Capex report 
-router.get("/capex-report/:selectedYear", auth, requireModulePermission("CAPEX", "read"), capexReportTab.capexReportData);
-router.get("/capex-summary-report/:selectedYear", auth, requireModulePermission("CAPEX", "read"), capexReportTab.capexSummaryReportData);
-router.get("/capex-yoy-report", auth, requireModulePermission("CAPEX", "read"), capexReportTab.capexYoYReportData);
+router.get("/capex-report/:selectedYear", auth, requireStrictModulePermission("CAPEX", "read"), capexReportTab.capexReportData);
+router.get("/capex-summary-report/:selectedYear", auth, requireStrictModulePermission("CAPEX", "read"), capexReportTab.capexSummaryReportData);
+router.get("/capex-yoy-report", auth, requireStrictModulePermission("CAPEX", "read"), capexReportTab.capexYoYReportData);
 router.get("/hrfirst-report/:orgCatDrop/:orgDrop/:financialDrop", hrReportTab.hrFirstReport);
 router.get("/hrsecond-report/:orgCatDrop/:orgDrop", hrReportTab.hrSecondReport);
 router.get("/hrfourth-report/:orgCatDrop/:orgDrop/:classDrop", hrReportTab.hrFourthReport);
