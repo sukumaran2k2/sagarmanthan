@@ -8,18 +8,18 @@ import {
 } from '../utils/capexUtils';
 import { fetchCapexMonthlyData, saveCapexMonthlyData } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
+import { COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { CAPEX_TOASTS } from '../toastMessages';
 
-const labelClass =
-  'block text-[11px] font-bold text-slate-700 uppercase tracking-wider';
-const inputClass =
-  'w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 disabled:opacity-60 disabled:cursor-not-allowed';
+const labelClass = 'module-form-label';
+const inputClass = 'module-form-input disabled:opacity-60 disabled:cursor-not-allowed';
 const sectionCardClass =
   'rounded-2xl border border-slate-200 bg-slate-50/50 p-4 shadow-sm';
 
 export default function CapexActualExpenditurePage({
   capexRecord,
   onBack,
-  showToast,
+  notify,
   onRefresh,
   canEdit = true,
 }) {
@@ -44,7 +44,7 @@ export default function CapexActualExpenditurePage({
       setAllMonthsData(rowsToMonthsData(rows));
     } catch (err) {
       console.error('Failed to fetch monthly Capex data:', err);
-      if (showToast) showToast('❌ Failed to load monthly actual expenditure data', '#EF4444');
+      notify?.(COMMON_TOASTS.loadFailed('The monthly actual expenditure'));
     } finally {
       setLoading(false);
     }
@@ -92,11 +92,11 @@ export default function CapexActualExpenditurePage({
         userID: getCurrentUserId(),
         entries: monthsDataToEntries(allMonthsData),
       });
-      if (showToast) showToast('✅ Actual Expenditure data saved successfully!', '#10B981');
+      notify?.(CAPEX_TOASTS.actualsSaved());
       if (onRefresh) onRefresh();
     } catch (err) {
       console.error('Save monthly Capex error:', err);
-      if (showToast) showToast('❌ Failed to save Actual Expenditure data', '#EF4444');
+      notify?.(CAPEX_TOASTS.actualsSaveFailed(getErrorMessage(err)));
     } finally {
       setSaving(false);
     }
@@ -110,13 +110,13 @@ export default function CapexActualExpenditurePage({
     }`;
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in w-full">
-      <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-white border-b border-[#0a2d55]/20">
+    <div className="module-form-card overflow-hidden animate-fade-in w-full">
+      <div className="module-form-banner flex-col sm:flex-row sm:items-center gap-3">
         <div>
-          <h3 className="text-sm font-black uppercase tracking-wider font-display">
+          <h3 className="module-form-banner-title">
             Actual Expenditure
           </h3>
-          <p className="text-[10px] text-[#eadede] font-semibold tracking-wide mt-0.5">
+          <p className="module-form-banner-subtext">
             {capexRecord?.organisation_name || 'Organisation'} • Financial Year:{' '}
             {capexRecord?.capex_financial_year || selectedYear}
           </p>

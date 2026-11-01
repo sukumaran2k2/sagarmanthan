@@ -15,8 +15,10 @@ import ExportDropdown from "../../../components/ExportDropdown";
 import * as XLSX from "xlsx";
 import { fetchGemReport } from "../api";
 import { getGemReportAsOnMeta } from "../utils/gemUtils";
+import { COMMON_TOASTS } from "../../../utils/notify";
+import { GEM_TOASTS } from "../toastMessages";
 
-export default function GEMReportView({ showToast, viewMode = 'ministry' }) {
+export default function GEMReportView({ notify, viewMode = 'ministry' }) {
   const [selectedYear, setSelectedYear] = useState("2026-2027");
   const [groupFilter, setGroupFilter] = useState("ALL");
   const [orgFilter, setOrgFilter] = useState("ALL");
@@ -39,13 +41,13 @@ export default function GEMReportView({ showToast, viewMode = 'ministry' }) {
         }
       } catch (err) {
         console.warn("GeM Report API error:", err.message);
-        showToast?.("❌ Failed to load GEM report", "#EF4444");
+        notify?.(COMMON_TOASTS.loadFailed('The GEM report'));
         setReportData([]);
       } finally {
         setLoading(false);
       }
     },
-    [showToast]
+    [notify]
   );
 
   useEffect(() => {
@@ -132,8 +134,10 @@ export default function GEMReportView({ showToast, viewMode = 'ministry' }) {
           `${r.organisation_name || ""}\tPlanned:${r.planned_procurement || 0}\tGeM Total:${r.grand_total || 0}\tOutside:${r.outside_gem || 0}`
       )
       .join("\n");
-    navigator.clipboard.writeText(text);
-    if (showToast) showToast("📋 GeM Procurement Report copied to clipboard!", "#4b2424");
+    navigator.clipboard.writeText(text).then(
+      () => notify?.(GEM_TOASTS.reportCopied('GeM procurement report')),
+      () => notify?.(COMMON_TOASTS.copyFailed()),
+    );
   };
 
   const handleExportExcel = () => {
@@ -141,11 +145,11 @@ export default function GEMReportView({ showToast, viewMode = 'ministry' }) {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "GeM_Report");
     XLSX.writeFile(wb, `GeM_Procurement_Report_${selectedYear}.xlsx`);
-    if (showToast) showToast("📊 Exported GeM Report to Excel!", "#4b2424");
+    notify?.(COMMON_TOASTS.excelExported(`GeM_Procurement_Report_${selectedYear}.xlsx`, 'The report'));
   };
 
   const handleExportPdf = () => {
-    if (showToast) showToast("📄 PDF export ready. Print via browser dialog.", "#4b2424");
+    notify?.(COMMON_TOASTS.pdfPreparing());
     window.print();
   };
 

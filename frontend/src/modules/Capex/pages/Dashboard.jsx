@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react';
 import { RefreshCw, Target, Wallet, Percent, X, MousePointerClick } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import * as am5 from '@amcharts/amcharts5';
 import * as am5xy from '@amcharts/amcharts5/xy';
 import am5themes_Animated from '@amcharts/amcharts5/themes/Animated';
@@ -7,6 +8,7 @@ import { fetchCapexDashboardFilters, fetchCapexDashboardSummary, fetchCapexDashb
 import ChartExportMenu from '../../../components/ChartExportMenu';
 import TableExportMenu from '../../../components/TableExportMenu';
 import { newChartRoot, chartColors, useIsDark } from '../../../utils/amCharts';
+import { useCapexStore } from '../store/useCapexStore';
 
 const ALL = 'all';
 const FUNDING = [
@@ -415,9 +417,22 @@ function YoyTrendSection({ filters, orgScoped, dark, className = 'pt-4' }) {
 // organisation, so only the year filter is shown.
 export default function CapexDashboard({ orgScoped = false }) {
   const [filters, setFilters] = useState(null);
-  const [financialYear, setFinancialYear] = useState(null);
-  const [groupId, setGroupId] = useState(ALL);
-  const [organisationId, setOrganisationId] = useState(ALL);
+  // The year / type / organisation filters live in the module store so they survive leaving the module
+  const {
+    financialYear,
+    setFinancialYear,
+    groupId,
+    setGroupId,
+    organisationId,
+    setOrganisationId,
+  } = useCapexStore(useShallow((state) => ({
+    financialYear: state.dashboardYear,
+    setFinancialYear: state.setDashboardYear,
+    groupId: state.dashboardGroupId,
+    setGroupId: state.setDashboardGroupId,
+    organisationId: state.dashboardOrganisationId,
+    setOrganisationId: state.setDashboardOrganisationId,
+  })));
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -428,7 +443,8 @@ export default function CapexDashboard({ orgScoped = false }) {
   const [fySummary, setFySummary] = useState(null);
   const dark = useIsDark();
 
-  // Filter options; the year defaults to the current financial year (or the latest one with data).
+  // Filter options; the year defaults to the current financial year (or the latest one with data),
+  // unless one was already picked on an earlier visit.
   useEffect(() => {
     fetchCapexDashboardFilters()
       .then((res) => {
@@ -436,10 +452,10 @@ export default function CapexDashboard({ orgScoped = false }) {
         setFilters(f);
         const years = f.financialYears || [];
         const current = currentFinancialYear();
-        setFinancialYear(years.includes(current) ? current : (years[0] || ALL));
+        setFinancialYear((picked) => picked ?? (years.includes(current) ? current : (years[0] || ALL)));
       })
       .catch(() => { setError('Failed to load dashboard filters.'); setLoading(false); });
-  }, []);
+  }, [setFinancialYear]);
 
   // Loading starts in the handlers that change a filter or retry; the effect only fetches.
   // A response that arrives after a newer request started is ignored.
