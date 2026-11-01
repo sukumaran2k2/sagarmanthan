@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
+import { axiosInstance as api } from '../api';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import { 
   Bell, 
   X, 
@@ -11,7 +11,6 @@ import {
   Info,
   Trash2
 } from 'lucide-react';
-import { API_BASE_URL } from '../config/api';
 import { getCurrentUserId } from '../utils/authSession';
 
 export default function NotificationPanel({ isOpen, onClose }) {
@@ -44,7 +43,7 @@ export default function NotificationPanel({ isOpen, onClose }) {
     try {
       setLoading(true);
       const userId = getCurrentUserId() || 1;
-      const res = await axios.get(`${API_BASE_URL}/viewdrop-projectlist/${userId}`);
+      const res = await api.get(`/viewdrop-projectlist/${userId}`);
       const data = res.data || [];
       const pending = data.filter(
         (item) => item.reject_request_status !== 0 && !item.drop_date

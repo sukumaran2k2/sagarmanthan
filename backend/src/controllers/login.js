@@ -1,7 +1,7 @@
 import { pool } from "../db.js";
+import { supportMailer } from "../utils/mailer.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
-import nodemailer from "nodemailer";
 import axios from "axios";
 import forge from 'node-forge';
 
@@ -363,14 +363,7 @@ async function resetpassword(req, res) {
           return res.sendStatus(250);
         }
 
-        const transporter = nodemailer.createTransport({
-          host: process.env.SMTP_HOST || "smtp.office365.com",
-          port: parseInt(process.env.SMTP_PORT || "587"),
-          auth: {
-            user: process.env.SMTP_USER || "sagarmanthansupport@ntcpwc.iitm.ac.in",
-            pass: process.env.SMTP_PASS || "Sagarmanthan@123",
-          },
-        });
+        const transporter = supportMailer();
 
         const mailOptions = {
           from: process.env.SMTP_USER || "sagarmanthansupport@ntcpwc.iitm.ac.in",

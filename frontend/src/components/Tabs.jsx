@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import axios from 'axios';
-import { API_BASE_URL } from '../config/api';
+import { axiosInstance as api } from '../api';
 import { getCurrentUserId, isSuperAdmin, getDataScopeCode } from '../utils/authSession';
 import sagarmanthanLogo from '../assets/sagarmanthan_logo.png';
 import {
@@ -94,7 +93,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
     const fetchDropRequestsCount = async () => {
       try {
         const userId = getCurrentUserId() || 1;
-        const res = await axios.get(`${API_BASE_URL}/viewdrop-projectlist/${userId}`);
+        const res = await api.get(`/viewdrop-projectlist/${userId}`);
         const data = res.data || [];
         const pending = data.filter(
           (item) => item.reject_request_status !== 0 && !item.drop_date

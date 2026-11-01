@@ -826,15 +826,25 @@ function checkFileExists(fileName) {
 }
 
 
+// A project document's path: <folder>/<file>.pdf under Project_Documents, or null when either
+// name is missing or is not a plain name (no "..", no slashes), so nothing outside the folder
+// can be read or deleted
+const PROJECT_DOCUMENTS = path.resolve('./fileuploads/Project_Documents');
+function projectDocumentPath(folderName, fileName) {
+    const plain = (v) => typeof v === 'string' && v.trim() !== '' && path.basename(v) === v && v !== '..' && v !== '.';
+    if (!plain(folderName) || !plain(fileName)) return null;
+    const filePath = path.resolve(PROJECT_DOCUMENTS, folderName, fileName + '.pdf');
+    return filePath.startsWith(PROJECT_DOCUMENTS + path.sep) ? filePath : null;
+}
+
 async function fileDownload(req, res) {
     const { folderName, fileName } = req.query;
-
-    // Construct the file path
-    const uploadDestinationBase = './fileuploads/Project_Documents';
-    const filePath = path.join(uploadDestinationBase, folderName, fileName + '.pdf');
+    const filePath = projectDocumentPath(folderName, fileName);
+    if (!filePath) return res.status(400).send("Invalid folder or file name");
 
     fs.readFile(filePath, (err, data) => {
         if (err) {
+            if (err.code === 'ENOENT') return res.status(404).send("File not found");
             console.error("Error reading file:", err);
             res.status(500).send("Internal Server Error");
         } else {
@@ -849,8 +859,8 @@ async function fileDownload(req, res) {
 async function fileDelete(req, res) {
     try {
         const { folderName, fileName } = req.query;
-        const uploadDestinationBase = './fileuploads/Project_Documents';
-        const filePath = path.join(uploadDestinationBase, folderName, fileName + '.pdf');
+        const filePath = projectDocumentPath(folderName, fileName);
+        if (!filePath) return res.status(400).send("Invalid folder or file name");
 
         if (fs.existsSync(filePath)) {
             fs.unlinkSync(filePath);

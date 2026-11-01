@@ -1,6 +1,6 @@
 
 import { pool } from "../../db.js";
-import nodemailer from "nodemailer";
+import { supportMailer, temporaryPassword } from "../../utils/mailer.js";
 import bcrypt from "bcrypt";
 import forge from 'node-forge';
 
@@ -16,7 +16,7 @@ async function createuser(req, res) {
     let email = req.body.email;
     const phone = req.body.phone;
 
-    const defaultPassword = 'Sagarmanthan@123';
+    const defaultPassword = temporaryPassword(); // emailed to the user, changed at first login
     const hashedPassword = bcrypt.hashSync(defaultPassword, 10);
 
     const conn = await pool;
@@ -53,14 +53,7 @@ async function createuser(req, res) {
                 const newUserId = insertResult.recordset?.[0]?.user_id || null;
 
                 try {
-                    const transporter = nodemailer.createTransport({
-                        host: "smtp.office365.com",
-                        port: 587,
-                        auth: {
-                            user: "sagarmanthansupport@ntcpwc.iitm.ac.in",
-                            pass: "Sagarmanthan@123",
-                        },
-                    });
+                    const transporter = supportMailer();
 
                     const mailOptions = {
                         from: "sagarmanthansupport@ntcpwc.iitm.ac.in",
@@ -123,7 +116,7 @@ async function createNodalUser(req, res) {
     const permissions = req.body.permissions;
 
     console.log(role);
-    const defaultPassword = 'Sagarmanthan@123';
+    const defaultPassword = temporaryPassword(); // emailed to the user, changed at first login
     const hashedPassword = bcrypt.hashSync(defaultPassword, 10);
 
     const conn = await pool;
@@ -172,14 +165,7 @@ async function createNodalUser(req, res) {
             `);
                 }
 
-                const transporter = nodemailer.createTransport({
-                    host: "smtp.office365.com",
-                    port: 587,
-                    auth: {
-                        user: "sagarmanthansupport@ntcpwc.iitm.ac.in",
-                        pass: "Sagarmanthan@123",
-                    },
-                });
+                const transporter = supportMailer();
 
                 const mailOptions = {
                     from: "sagarmanthansupport@ntcpwc.iitm.ac.in",
@@ -224,11 +210,8 @@ async function createNodalUser(req, res) {
 
 
 
-async function getUserData(req, res) {
-    const conn = await pool;
-
-    try {
-        const result = await conn.query(`SELECT tbl_user.user_id, tbl_user.title, tbl_user.name, tbl_user.designation,
+// One row per user, as the user list shows it
+const USER_LIST_SELECT = `SELECT tbl_user.user_id, tbl_user.title, tbl_user.name, tbl_user.designation,
         tbl_user.role_id, tbl_role.role_name, tbl_role.role_code, tbl_user.organisation_id, tbl_user.wing_id, wing_name, tbl_user.division_id,
         division_name,
         CASE
@@ -244,8 +227,13 @@ async function getUserData(req, res) {
         LEFT JOIN mmt_state on mmt_state.state_id = tbl_user.state_id
         LEFT JOIN mmt_district on mmt_district.district_id = tbl_user.district_id
         LEFT JOIN mmt_wings on mmt_wings.wing_id = tbl_user.wing_id
-        LEFT JOIN mmt_division on mmt_division.division_id = tbl_user.division_id
+        LEFT JOIN mmt_division on mmt_division.division_id = tbl_user.division_id`;
 
+async function getUserData(req, res) {
+    const conn = await pool;
+
+    try {
+        const result = await conn.query(`${USER_LIST_SELECT}
         order by user_id;`);
         res.json(result.recordset);
     }
@@ -254,6 +242,23 @@ async function getUserData(req, res) {
         return res.sendStatus(500);
     }
 };
+
+// The signed-in user's own row (the Profile page)
+async function getMyProfile(req, res) {
+    const conn = await pool;
+    const request = conn.request();
+    request.input("userID", req.user.userId);
+    try {
+        const result = await request.query(`${USER_LIST_SELECT}
+        WHERE tbl_user.user_id = @userID;`);
+        if (!result.recordset.length) return res.status(404).json({ message: 'User not found.' });
+        res.json(result.recordset[0]);
+    }
+    catch (err) {
+        console.log(err);
+        return res.sendStatus(500);
+    }
+}
 
 async function getOrgUserData(req, res) {
     const organisation = req.params.organisation;
@@ -391,6 +396,7 @@ async function updateNodalUser(req, res) {
 };
 
 
+// A user's own details; their organisation, wing and division are set by the admin only
 async function editUserProfileData(req, res) {
     const userID = req.body.userID;
     const title = req.body.title;
@@ -398,9 +404,6 @@ async function editUserProfileData(req, res) {
     const designation = req.body.designation;
     const email = req.body.email;
     const phone = req.body.phone;
-    const organisationId = req.body.organisationId;
-    const wingID = req.body.wing;
-    const divisionID = req.body.division;
     const stateID = req.body.state;
     const districtID = req.body.district;
     const loginUser = req.body.loginUser;
@@ -414,9 +417,6 @@ async function editUserProfileData(req, res) {
     request.input("designation", designation);
     request.input("email", email);
     request.input("phone", phone);
-    request.input("organisationId", organisationId);
-    request.input("wingID", wingID);
-    request.input("divisionID", divisionID);
     request.input("stateID", stateID);
     request.input("districtID", districtID);
     request.input("loginUser", loginUser);
@@ -425,8 +425,7 @@ async function editUserProfileData(req, res) {
         const result = await request.query(`
             UPDATE tbl_user
             SET title = @title, name = @name, designation = @designation,
-                email = @email, phone = @phone, organisation_id = @organisationId, 
-                wing_id = @wingID, division_id = @divisionID,
+                email = @email, phone = @phone,
                 state_id = @stateID, district_id = @districtID, updated_on = GETDATE(), updated_by = @loginUser
             WHERE user_id = @userID
         `);
@@ -493,15 +492,7 @@ async function changePasswordAction(req, res) {
             .query(`SELECT email FROM tbl_user WHERE user_id = @userID`);
 
         const email = emailResult.recordset[0].email;
-        const transporter = nodemailer.createTransport({
-            host: "smtp.office365.com",
-            port: 587,
-            secure: false,
-            auth: {
-                user: "sagarmanthansupport@ntcpwc.iitm.ac.in",
-                pass: "Sagarmanthan@123",
-            },
-        });
+        const transporter = supportMailer();
         const mailOptions = {
             from: "sagarmanthansupport@ntcpwc.iitm.ac.in",
             to: email,
@@ -539,12 +530,18 @@ async function changePasswordAction(req, res) {
     }
 }
 
+// Changing a password needs the current one (or the code emailed by Forgot Password, which is
+// set as the password), so it also works from the login page without a session. The user is
+// found by userID or, from Forgot Password, by email.
 async function updatePassword(req, res) {
     const userID = req.body.userID;
-    const email  = req.body.email;
+    let email  = req.body.email;
     const loginUser = req.body.loginUser;
     const encryptedOldPassword = req.body.oldPassword;
     const encryptedNewPassword = req.body.newPassword;
+    if (!encryptedOldPassword || !encryptedNewPassword || (!userID && !email)) {
+        return res.status(400).json({ message: "Current and new password are required" });
+    }
 
     const privateKeyPem = (process.env.RSA_PRIVATE_KEY || "").replace(/\\n/g, "\n");
     try{
@@ -568,12 +565,17 @@ async function updatePassword(req, res) {
             request.input("userID", userID);
             request.input("email", email);
             request.input("loginUser", loginUser);
-            const result = await request.query(`SELECT password FROM tbl_user WHERE user_id = @userID`);
+            const result = await request.query(userID
+                ? `SELECT user_id, email, password FROM tbl_user WHERE user_id = @userID`
+                : `SELECT user_id, email, password FROM tbl_user WHERE LOWER(email) = LOWER(@email)`);
             const userData = result.recordset[0];
 
-            if (!userData) {
+            if (!userData || !email && !userID) {
                 return res.status(404).json({ message: "User not found" });
             }
+            // The confirmation goes to the address on file, and the update to the user found
+            email = userData.email;
+            request.input("targetUserID", userData.user_id);
 
             // Compare old password
             const isPasswordMatch = bcrypt.compareSync(decryptedOldPassword, userData.password);
@@ -589,7 +591,7 @@ async function updatePassword(req, res) {
             request.input("newPassword", hashedNewPassword);
 
             const sqlQuery = ` UPDATE tbl_user SET password = @newPassword, password_status = 1, password_updated_on = GETDATE(),
-                password_updated_by = @userID WHERE user_id = @userID  `;
+                password_updated_by = @targetUserID WHERE user_id = @targetUserID  `;
 
             // res.status(200).json({ message: "Password changed successfully" });
             await request.query(sqlQuery);
@@ -598,14 +600,7 @@ async function updatePassword(req, res) {
 
 
 
-                    const transporter = nodemailer.createTransport({
-                    host: "smtp.office365.com",
-                    port: 587,
-                    auth: {
-                        user: "sagarmanthansupport@ntcpwc.iitm.ac.in",
-                        pass: "Sagarmanthan@123",
-                    },
-                });
+                    const transporter = supportMailer();
 
 
             
@@ -796,6 +791,6 @@ async function getUserDetails(req, res) {
     }
 };
 
-export default { createuser, getUserData, updateUser, toggleUserStatusData, changePasswordAction, updatePassword, editUserProfileData, getOrgUserData, createNodalUser, updateNodalUser,
+export default { createuser, getUserData, getMyProfile, updateUser, toggleUserStatusData, changePasswordAction, updatePassword, editUserProfileData, getOrgUserData, createNodalUser, updateNodalUser,
     getPermissionModulesData, updatePermissions, getUserDetails
  };

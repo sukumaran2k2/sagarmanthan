@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { openBackendFile } from '../../../utils/openBackendFile';
 import { createPortal } from 'react-dom';
 import { 
   Building2, 
@@ -1198,9 +1199,8 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                         {doc.doc_name || 'Document'}
                       </span>
                       <a
-                        href={`http://localhost:3000/download-intervention-document/${doc.id}`}
-                        target="_blank"
-                        rel="noreferrer"
+                        href="#"
+                        onClick={(e) => { e.preventDefault(); openBackendFile(`/download-intervention-document/${doc.id}`).catch((err) => console.error('Intervention document could not be opened:', err)); }}
                         className="px-2.5 py-1 text-xs font-bold bg-[#2563eb] hover:bg-blue-700 text-white rounded-lg flex items-center gap-1 transition"
                       >
                         <Download size={12} />

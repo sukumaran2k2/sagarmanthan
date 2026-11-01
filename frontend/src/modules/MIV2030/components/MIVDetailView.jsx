@@ -1,10 +1,10 @@
 import React from 'react';
+import { openBackendFile } from '../../../utils/openBackendFile';
 import { 
   ArrowLeft, Calendar, DollarSign, Building2, Briefcase, 
   FileText, CheckCircle2, AlertTriangle, Layers, Users, 
   TrendingUp, Download, Eye, Image, Edit, Clock, Tag
 } from 'lucide-react';
-import { API_BASE } from '../api';
 
 export default function MIVDetailView({ initiative, onBack, onEdit }) {
   if (!initiative) return null;
@@ -304,9 +304,8 @@ export default function MIVDetailView({ initiative, onBack, onEdit }) {
             <div className="flex flex-wrap items-center gap-3">
               {initiative.supportDocument && (
                 <a
-                  href={`${API_BASE}/miv-document/download/${initiative.supportDocument}`}
-                  target="_blank"
-                  rel="noreferrer"
+                  href="#"
+                  onClick={(e) => { e.preventDefault(); openBackendFile(`/miv-document/download/${initiative.supportDocument}`).catch((err) => console.error('Supporting document could not be opened:', err)); }}
                   className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-xl border border-blue-200 transition shadow-xs dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800"
                 >
                   <FileText className="h-4 w-4" />

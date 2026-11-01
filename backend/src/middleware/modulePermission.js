@@ -28,6 +28,8 @@ function hasAction(perm, action) {
   return false;
 }
 
+const isSuperAdmin = (user) => user.roleCode === 'SUPERADMIN' || Number(user.roleId || user.role_id || 0) === 1;
+
 const MODULE_ALIASES = {
   GMIS_MOU: ['GMIS_MOU', 'GMIS_IMW_MOU_TRACKING'],
   GMIS_IMW_MOU_TRACKING: ['GMIS_MOU', 'GMIS_IMW_MOU_TRACKING'],
@@ -57,13 +59,11 @@ export function checkModulePermission(user, moduleCode, action) {
     return { ok: false, status: 401, message: 'Unauthorized!' };
   }
 
-  const roleId = Number(user.roleId || user.role_id || 0);
-  const isSuperAdmin = user.roleCode === 'SUPERADMIN' || roleId === 1;
-  const isMinistryAdmin = [1, 2, 3, 4, 5].includes(roleId);
-
-  // Superadmins and Ministry Admins have full access
-  if (isSuperAdmin || isMinistryAdmin) {
-    return { ok: true };
+  // Every role, ministry ones included, goes by the organisation's modules and the user
+  // matrix, as the frontend does. Superadmin manages users and permissions (the /rbac
+  // screens) and has no access to module data, also as in the frontend.
+  if (isSuperAdmin(user)) {
+    return { ok: false, status: 403, message: 'Superadmin has no access to module data' };
   }
 
   const allowedCodes = Array.isArray(user.allowedModuleCodes)
@@ -123,13 +123,8 @@ export function requireAnyModulePermission(moduleCode, actions = []) {
       return res.status(401).json({ status: 'fail', message: 'Unauthorized!' });
     }
 
-    const roleId = Number(user.roleId || user.role_id || 0);
-    const isSuperAdmin = user.roleCode === 'SUPERADMIN' || roleId === 1;
-    const isMinistryAdmin = [1, 2, 3, 4, 5].includes(roleId);
-
-    // Superadmins and Ministry Admins have full access
-    if (isSuperAdmin || isMinistryAdmin) {
-      return next();
+    if (isSuperAdmin(user)) {
+      return res.status(403).json({ status: 'fail', message: 'Superadmin has no access to module data' });
     }
 
     const candidates = getCodeCandidates(code);
