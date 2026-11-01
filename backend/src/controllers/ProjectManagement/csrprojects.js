@@ -1823,7 +1823,7 @@ async function getCSRProjectCountWise(req, res) {
 
 // Dashboard: everything in one call, for the filters (cluster, organisation, financial year,
 // focus area). Amounts are lakh, as stored; the page shows crore.
-// - Projects (KPIs, status table, organisation chart) follow all four filters; the year is the
+// - Projects (KPIs, status table, organisation-wise table, focus area chart) follow all four filters; the year is the
 //   project's financial year.
 // - Funds have no focus area, so the fund figures follow cluster, organisation and year only.
 //   For one year: that year's fund rows, the expenditure booked in that year, and
@@ -1832,6 +1832,38 @@ async function getCSRProjectCountWise(req, res) {
 // - Expenditure (KPI) is the expenditure booked in the selected year on the filtered projects.
 // - The year-on-year trend ignores the year filter (it compares years).
 // A cluster is a group of organisation categories, as on the CAPEX dashboard.
+// One entry per organisation: its projects and value, in total and per status (most projects first)
+function organisationsByStatus(rows, n) {
+  const byOrg = new Map();
+  rows.forEach((r) => {
+    if (!byOrg.has(r.organisation_id)) {
+      byOrg.set(r.organisation_id, { organisationId: r.organisation_id, organisationName: r.organisation_name,
+        isMajorPort: r.organisation_category_id === 1, projects: 0, projectValue: 0, statuses: {} });
+    }
+    const org = byOrg.get(r.organisation_id);
+    org.statuses[r.status] = { projects: n(r.projects), projectValue: n(r.project_value) };
+    org.projects += n(r.projects);
+    org.projectValue += n(r.project_value);
+  });
+  return [...byOrg.values()].sort((a, b) => b.projects - a.projects || a.organisationName.localeCompare(b.organisationName));
+}
+
+// One entry per focus area (0 when the project has none): its projects and value, in total and
+// per status (most projects first)
+function focusAreasByStatus(rows, n) {
+  const byFocus = new Map();
+  rows.forEach((r) => {
+    if (!byFocus.has(r.focus_id)) {
+      byFocus.set(r.focus_id, { focusId: r.focus_id, focusName: r.focus_name, projects: 0, projectValue: 0, statuses: {} });
+    }
+    const focus = byFocus.get(r.focus_id);
+    focus.statuses[r.status] = { projects: n(r.projects), projectValue: n(r.project_value) };
+    focus.projects += n(r.projects);
+    focus.projectValue += n(r.project_value);
+  });
+  return [...byFocus.values()].sort((a, b) => b.projects - a.projects || a.focusName.localeCompare(b.focusName));
+}
+
 async function getCsrDashboard(req, res) {
   try {
     const scope = csrScope(req.user);
@@ -1908,17 +1940,26 @@ async function getCsrDashboard(req, res) {
         AND (@focusId = 0 OR p.csr_focus = @focusId)
       GROUP BY p.project_status;
 
-      -- Projects by organisation, with the expenditure booked on them (as 2.0's distribution chart)
-      SELECT o.organisation_id, o.organisation_name, COUNT(*) AS projects, SUM(p.project_value) AS project_value,
-        SUM(ISNULL(x.spent, 0)) AS expenditure
+      -- Projects by organisation and status (count and value), for the stage-wise table
+      SELECT o.organisation_id, o.organisation_name, o.organisation_category_id,
+        ISNULL(p.project_status, 'Not set') AS status, COUNT(*) AS projects, SUM(p.project_value) AS project_value
       FROM tbl_csr_projects p
       INNER JOIN mmt_organisation o ON o.organisation_id = p.organisation_id
-      OUTER APPLY (SELECT SUM(e.csr_expenditure_cost) AS spent FROM tbl_csr_expenditure e WHERE e.csr_project_id = p.csr_project_id) x
       WHERE ${inOrgs('p.organisation_id')}
         AND (@fy IS NULL OR p.financial_year = @fy)
         AND (@focusId = 0 OR p.csr_focus = @focusId)
-      GROUP BY o.organisation_id, o.organisation_name
-      ORDER BY COUNT(*) DESC, o.organisation_name;
+      GROUP BY o.organisation_id, o.organisation_name, o.organisation_category_id, p.project_status;
+
+      -- Projects by focus area and status (count and value), for the focus area chart
+      SELECT ISNULL(p.csr_focus, 0) AS focus_id, ISNULL(fa.focus_name, 'Focus area not set') AS focus_name,
+        ISNULL(p.project_status, 'Not set') AS status, COUNT(*) AS projects, SUM(p.project_value) AS project_value
+      FROM tbl_csr_projects p
+      INNER JOIN mmt_organisation o ON o.organisation_id = p.organisation_id
+      LEFT JOIN mmt_csr_focusarea fa ON fa.focus_id = p.csr_focus
+      WHERE ${inOrgs('p.organisation_id')}
+        AND (@fy IS NULL OR p.financial_year = @fy)
+        AND (@focusId = 0 OR p.csr_focus = @focusId)
+      GROUP BY ISNULL(p.csr_focus, 0), ISNULL(fa.focus_name, 'Focus area not set'), p.project_status;
 
       -- Year-on-year: fund allotted and expenditure booked per financial year (every year)
       ;WITH Allotted AS (
@@ -1953,7 +1994,7 @@ async function getCsrDashboard(req, res) {
            UNION ALL SELECT MAX(ISNULL(updated_date, created_date)) FROM tbl_csr_expenditure) t) AS last_updated;
     `);
 
-    const [kpi, spent, fund, statuses, byOrganisation, trend, meta] = result.recordsets;
+    const [kpi, spent, fund, statuses, byOrganisation, byFocus, trend, meta] = result.recordsets;
     const n = (v) => Number(v) || 0;
     const f = fund[0] || {};
     const fundSummary = {
@@ -1977,10 +2018,8 @@ async function getCsrDashboard(req, res) {
       },
       fundSummary,
       statuses: statuses.map((r) => ({ status: r.status, projects: n(r.projects), projectValue: n(r.project_value) })),
-      byOrganisation: scope.orgId ? [] : byOrganisation.map((r) => ({
-        organisationId: r.organisation_id, organisationName: r.organisation_name,
-        projects: n(r.projects), projectValue: n(r.project_value), expenditure: n(r.expenditure),
-      })),
+      byOrganisation: scope.orgId ? [] : organisationsByStatus(byOrganisation, n),
+      byFocusArea: focusAreasByStatus(byFocus, n),
       trend: trend.map((r) => ({ financialYear: r.financial_year, allotted: n(r.allotted), expenditure: n(r.expenditure) })),
       lastUpdated: meta[0]?.last_updated || null,
     });

@@ -17,13 +17,21 @@ import { COMMON_TOASTS } from '../../../utils/notify';
 const cr = (lakh) => `₹ ${formatCrore(lakh)} Cr`;
 const count = (v) => (Number(v) || 0).toLocaleString('en-IN');
 
-// Status rows of the project status table, in the order the reference shows them
+// Status rows of the project status table, in the order the reference shows them. The four
+// colours are checked for colour-blind separation and contrast in light and dark mode; projects
+// with no status are a neutral grey.
 const STATUSES = [
-  { key: 'Completed', label: 'Completed', color: '#10b981' },
-  { key: 'Project Under implementation', label: 'Under Implementation', color: '#3b82f6' },
-  { key: 'Project yet to start', label: 'Yet to Start', color: '#f59e0b' },
-  { key: 'Approved by Board', label: 'Approved by Board', color: '#94a3b8' },
-  { key: 'Not set', label: 'Status not set', color: '#cbd5e1' },
+  { key: 'Completed', label: 'Completed', color: '#059669' },
+  { key: 'Project Under implementation', label: 'Under Implementation', color: '#2563eb' },
+  { key: 'Project yet to start', label: 'Yet to Start', color: '#d97706' },
+  { key: 'Approved by Board', label: 'Approved by Board', color: '#8b5cf6' },
+  { key: 'Not set', label: 'Status not set', color: '#64748b' },
+];
+
+// What the organisation-wise table measures
+const METRICS = [
+  { key: 'projects', label: 'No. of Projects' },
+  { key: 'projectValue', label: 'Value of Projects (₹ Cr)' },
 ];
 
 // Trend series: checked for colour-blind separation and contrast in light and dark mode
@@ -31,7 +39,6 @@ const TREND_SERIES = [
   { field: 'allottedCr', label: 'Fund Allotted', color: '#6366f1' },
   { field: 'expenditureCr', label: 'Expenditure', color: '#d97706' },
 ];
-const DISTRIBUTION_COLOR = '#6366f1';
 
 const selectClass = 'text-xs px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:border-[#0f417a] cursor-pointer';
 
@@ -88,39 +95,23 @@ function Legend({ items }) {
   );
 }
 
-// 3. Projects by organisation (2.0's distribution chart): one bar per organisation, most first.
-function OrganisationChart({ data, onRootReady, dark }) {
-  const divRef = useRef(null);
-  useLayoutEffect(() => {
-    if (!divRef.current || !data?.length) return undefined;
-    const c = chartColors();
-    const root = newChartRoot(divRef.current);
-    onRootReady?.(root);
-    root.setThemes([am5themes_Animated.new(root)]);
-    const chart = root.container.children.push(am5xy.XYChart.new(root, { panX: false, panY: false, wheelX: 'none', wheelY: 'none', layout: root.verticalLayout, paddingLeft: 10, paddingRight: 25, paddingBottom: 18 }));
-    const yRenderer = am5xy.AxisRendererY.new(root, { minGridDistance: 10, inversed: true, cellStartLocation: 0.15, cellEndLocation: 0.85 });
-    yRenderer.labels.template.setAll({ fontSize: 10, fill: am5.color(c.text), fontWeight: '600', maxWidth: 220, oversizedBehavior: 'wrap', textAlign: 'end' });
-    yRenderer.grid.template.set('visible', false);
-    const yAxis = chart.yAxes.push(am5xy.CategoryAxis.new(root, { categoryField: 'organisationName', renderer: yRenderer }));
-    const xRenderer = am5xy.AxisRendererX.new(root, { minGridDistance: 60 });
-    xRenderer.labels.template.setAll({ fontSize: 9, fill: am5.color(c.muted), fontWeight: '600' });
-    xRenderer.grid.template.setAll({ stroke: am5.color(c.grid), strokeDasharray: [3, 3] });
-    const xAxis = chart.xAxes.push(am5xy.ValueAxis.new(root, { renderer: xRenderer, min: 0, extraMax: 0.12, maxPrecision: 0, numberFormat: '#,###' }));
-    const color = am5.color(DISTRIBUTION_COLOR);
-    const series = chart.series.push(am5xy.ColumnSeries.new(root, {
-      name: 'Projects', xAxis, yAxis, valueXField: 'projects', categoryYField: 'organisationName',
-      tooltip: am5.Tooltip.new(root, { labelText: '{categoryY}\nProjects: [bold]{projects}[/]\nProject value: [bold]{valueText}[/]\nExpenditure: [bold]{spentText}[/]' }),
-    }));
-    series.columns.template.setAll({ fill: color, stroke: color, height: am5.percent(100), cornerRadiusTR: 4, cornerRadiusBR: 4 });
-    series.bullets.push(() => am5.Bullet.new(root, { locationX: 1, sprite: am5.Label.new(root, {
-      text: '{projects}', populateText: true, fill: am5.color(c.value), centerY: am5.p50, centerX: am5.p0, dx: 5, fontSize: 9, fontWeight: '700',
-    }) }));
-    series.data.setAll(data);
-    yAxis.data.setAll(data);
-    chart.appear(600, 100);
-    return () => { root.dispose(); onRootReady?.(null); };
-  }, [data, dark, onRootReady]);
-  return <div ref={divRef} style={{ width: '100%', height: '100%', overflow: 'hidden' }} />;
+function MetricTabs({ metric, onChange }) {
+  return (
+    <div className="flex items-center bg-white/10 rounded-lg p-0.5">
+      {METRICS.map((m) => (
+        <button
+          key={m.key}
+          type="button"
+          onClick={() => onChange(m.key)}
+          className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide transition cursor-pointer ${
+            metric === m.key ? 'bg-white text-[#4f46e5] shadow' : 'text-indigo-100 hover:text-white'
+          }`}
+        >
+          {m.label}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 // 4. Year on year: fund allotted and expenditure side by side per financial year (one ₹ Cr axis).
@@ -201,7 +192,8 @@ export default function Dashboard({ notify, isOrgUser }) {
   const data = (loading ? result?.data : result.data) || null;
   const failed = !loading && result.failed;
 
-  const [orgRoot, setOrgRoot] = useState(null);
+  const [orgMetric, setOrgMetric] = useState('projects'); // projects | projectValue
+  const [focusMetric, setFocusMetric] = useState('projects'); // projects | projectValue
   const [trendRoot, setTrendRoot] = useState(null);
 
   const kpi = data?.kpi || {};
@@ -229,13 +221,36 @@ export default function Dashboard({ notify, isOrgUser }) {
   ];
   const balance = Number(fund.balance) || 0;
 
-  const organisationData = useMemo(() => (data?.byOrganisation || []).map((o) => ({
-    ...o, valueText: cr(o.projectValue), spentText: cr(o.expenditure),
-  })), [data]);
+  // 3. Organisation-wise stage-wise table, largest first (the cluster and organisation filters narrow it)
+  const organisations3 = data?.byOrganisation || [];
+  const orgList = [...organisations3]
+    .sort((x, y) => y[orgMetric] - x[orgMetric] || x.organisationName.localeCompare(y.organisationName));
+  const orgMax = Math.max(1, ...orgList.map((o) => o[orgMetric]));
+  const orgStatuses = STATUSES.filter((s) => s.key !== 'Not set' || organisations3.some((o) => o.statuses[s.key]));
+  const statusValue = (o, key) => o.statuses[key]?.[orgMetric] || 0;
+  const showValue = (v) => (orgMetric === 'projects' ? count(v) : formatCrore(v));
+  const orgHeaders = ['S.No', 'Organisation', ...orgStatuses.map((s) => s.label), 'Total Projects', 'Project Value (₹ Cr)'];
+  const orgRows = orgList.map((o, i) => [
+    i + 1, o.organisationName, ...orgStatuses.map((s) => (orgMetric === 'projects' ? statusValue(o, s.key) : formatCrore(statusValue(o, s.key)))),
+    o.projects, formatCrore(o.projectValue),
+  ]);
+
+  // 4. Focus area-wise chart: one stacked bar per focus area, largest first
+  const focusList = [...(data?.byFocusArea || [])]
+    .sort((x, y) => y[focusMetric] - x[focusMetric] || x.focusName.localeCompare(y.focusName));
+  const focusMax = Math.max(1, ...focusList.map((f) => f[focusMetric]));
+  const focusStatuses = STATUSES.filter((s) => s.key !== 'Not set' || focusList.some((f) => f.statuses[s.key]));
+  const focusTotal = focusList.reduce((sum, f) => sum + f[focusMetric], 0);
+  const showFocus = (v) => (focusMetric === 'projects' ? count(v) : formatCrore(v));
+  const focusHeaders = ['S.No', 'Focus Area', ...focusStatuses.map((s) => s.label), 'Total Projects', 'Project Value (₹ Cr)'];
+  const focusRows = focusList.map((f, i) => [
+    i + 1, f.focusName, ...focusStatuses.map((s) => (focusMetric === 'projects' ? (f.statuses[s.key]?.projects || 0) : formatCrore(f.statuses[s.key]?.projectValue || 0))),
+    f.projects, formatCrore(f.projectValue),
+  ]);
+
   const trendData = useMemo(() => (data?.trend || []).map((t) => ({
     ...t, allottedCr: lakhToCrore(t.allotted), expenditureCr: lakhToCrore(t.expenditure),
   })), [data]);
-  const orgChartHeight = Math.max(260, organisationData.length * 34 + 60);
 
   const hasActiveFilters = (!isOrgUser && (filters.cluster !== 0 || filters.organisation !== 0))
     || filters.financialYear !== 'all' || filters.focus !== 0;
@@ -428,29 +443,142 @@ export default function Dashboard({ notify, isOrgUser }) {
         </Section>
       </div>
 
-      {/* 3. Projects by organisation (not in the organisation view: it is one organisation) */}
+      {/* 3. Projects by organisation and status (not in the organisation view: it is one organisation) */}
       {!isOrgView && (
         <Section
           number={3}
-          title={`CSR Projects Distribution by Organisation (${yearLabel})`}
-          actions={<ChartExportMenu chartRoot={orgRoot} fileName="csr_projects_by_organisation" color="#6366f1" variant="plain" />}
+          title={`Organisation-wise Stage-wise CSR Projects (${yearLabel})`}
+          actions={<>
+            <MetricTabs metric={orgMetric} onChange={setOrgMetric} />
+            <TableExportMenu
+              headers={orgHeaders}
+              rows={orgRows}
+              fileName={`csr_organisation_stage_${orgMetric === 'projects' ? 'count' : 'value'}`}
+              title={`Organisation-wise Stage-wise CSR Projects (${yearLabel}, ${orgMetric === 'projects' ? 'No. of Projects' : 'Project Value, ₹ Cr'})`}
+            />
+          </>}
         >
-          <div className="p-4">
-            {organisationData.length ? (
-              <div style={{ height: orgChartHeight }}>
-                <OrganisationChart data={organisationData} onRootReady={setOrgRoot} dark={dark} />
-              </div>
-            ) : (
-              <p className="py-12 text-center text-xs font-semibold text-slate-500">{data ? 'No CSR projects match the filters.' : 'Loading…'}</p>
-            )}
-            <p className="text-[10px] text-center font-semibold text-slate-500 dark:text-slate-400 mt-1">Number of projects → (hover a bar for project value and expenditure)</p>
+          <div className="p-3">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800 max-h-[620px] overflow-auto">
+              <table className="w-full text-[11px] border-separate border-spacing-0">
+                <thead className="sticky top-0 z-20">
+                  <tr className="bg-[#4f46e5] text-white">
+                    <th className="px-3 py-2 text-center font-semibold w-12">S.No</th>
+                    <th className="px-3 py-2 text-left font-semibold">Organisation</th>
+                    <th className="px-3 py-2 text-left font-semibold w-[34%]">{orgMetric === 'projects' ? 'Projects by status' : 'Project value by status (₹ Cr)'}</th>
+                    {orgStatuses.map((s) => (
+                      <th key={s.key} className="px-2 py-2 text-center font-semibold whitespace-nowrap">{s.label}</th>
+                    ))}
+                    <th className="px-3 py-2 text-center font-semibold whitespace-nowrap">Total Projects</th>
+                    <th className="px-3 py-2 text-center font-semibold whitespace-nowrap">Project Value (₹ Cr)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orgList.map((o, i) => {
+                    const rowTotal = o[orgMetric];
+                    return (
+                      <tr key={o.organisationId} className={i % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'}>
+                        <td className="px-3 py-2 text-center text-slate-600 dark:text-slate-300 font-mono">{i + 1}</td>
+                        <td className="px-3 py-2 text-slate-800 dark:text-slate-100 font-semibold">{o.organisationName}</td>
+                        <td className="px-3 py-2">
+                          {/* Stacked bar, scaled to the largest organisation in the table */}
+                          <div className="flex gap-[2px] h-5 rounded overflow-hidden" style={{ width: `${Math.max(2, (rowTotal / orgMax) * 100)}%` }}>
+                            {rowTotal > 0 && orgStatuses.map((s) => {
+                              const v = statusValue(o, s.key);
+                              if (!v) return null;
+                              return (
+                                <div
+                                  key={s.key}
+                                  title={`${o.organisationName} – ${s.label}: ${orgMetric === 'projects' ? `${count(v)} projects` : cr(v)}`}
+                                  className="h-full flex items-center justify-center text-[9px] font-bold text-white overflow-hidden"
+                                  style={{ width: `${(v / rowTotal) * 100}%`, backgroundColor: s.color }}
+                                >
+                                  {orgMetric === 'projects' && (v / orgMax) > 0.06 ? v : ''}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </td>
+                        {orgStatuses.map((s) => (
+                          <td key={s.key} className="px-2 py-2 text-center text-slate-700 dark:text-slate-200 font-semibold">
+                            {statusValue(o, s.key) ? showValue(statusValue(o, s.key)) : '—'}
+                          </td>
+                        ))}
+                        <td className="px-3 py-2 text-center font-black text-[#4f46e5] dark:text-indigo-400">{count(o.projects)}</td>
+                        <td className="px-3 py-2 text-center font-bold text-emerald-700 dark:text-emerald-400 whitespace-nowrap">{formatCrore(o.projectValue)}</td>
+                      </tr>
+                    );
+                  })}
+                  {!orgList.length && (
+                    <tr><td colSpan={5 + orgStatuses.length} className="px-3 py-6 text-center text-slate-600 dark:text-slate-300">{data ? 'No CSR projects match the filters.' : 'Loading…'}</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="pt-3"><Legend items={orgStatuses} /></div>
           </div>
         </Section>
       )}
 
-      {/* 4. Fund allotted and expenditure, year on year */}
+      {/* 4. Projects by focus area and status */}
       <Section
         number={isOrgView ? 3 : 4}
+        title={`Focus Area-wise CSR Projects (${yearLabel})`}
+        actions={<>
+          <MetricTabs metric={focusMetric} onChange={setFocusMetric} />
+          <TableExportMenu
+            headers={focusHeaders}
+            rows={focusRows}
+            fileName={`csr_focus_area_${focusMetric === 'projects' ? 'count' : 'value'}`}
+            title={`Focus Area-wise CSR Projects (${yearLabel}, ${focusMetric === 'projects' ? 'No. of Projects' : 'Project Value, ₹ Cr'})`}
+          />
+        </>}
+      >
+        <div className="p-4 space-y-3">
+          {focusList.length ? (
+            <div className="space-y-1.5">
+              {focusList.map((f) => {
+                const rowTotal = f[focusMetric];
+                return (
+                  <div key={f.focusId} className="grid grid-cols-[minmax(120px,220px)_1fr_auto] items-center gap-3">
+                    <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-200 truncate" title={f.focusName}>{f.focusName}</span>
+                    {/* Stacked bar, scaled to the largest focus area */}
+                    <div className="flex gap-[2px] h-5 rounded overflow-hidden" style={{ width: `${Math.max(1, (rowTotal / focusMax) * 100)}%` }}>
+                      {rowTotal > 0 && focusStatuses.map((s) => {
+                        const v = f.statuses[s.key]?.[focusMetric] || 0;
+                        if (!v) return null;
+                        return (
+                          <div
+                            key={s.key}
+                            title={`${f.focusName} – ${s.label}: ${focusMetric === 'projects' ? `${count(v)} projects` : cr(v)}`}
+                            className="h-full flex items-center justify-center text-[9px] font-bold text-white overflow-hidden"
+                            style={{ width: `${(v / rowTotal) * 100}%`, backgroundColor: s.color }}
+                          >
+                            {focusMetric === 'projects' && (v / focusMax) > 0.06 ? v : ''}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <span className="text-[11px] font-black text-slate-800 dark:text-slate-100 text-right min-w-[88px] whitespace-nowrap">
+                      {showFocus(rowTotal)}
+                      <span className="ml-1 font-semibold text-slate-500 dark:text-slate-400">
+                        ({focusTotal ? `${((rowTotal / focusTotal) * 100).toFixed(1)}%` : '0%'})
+                      </span>
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="py-12 text-center text-xs font-semibold text-slate-500">{data ? 'No CSR projects match the filters.' : 'Loading…'}</p>
+          )}
+          <Legend items={focusStatuses} />
+        </div>
+      </Section>
+
+      {/* 5. Fund allotted and expenditure, year on year */}
+      <Section
+        number={isOrgView ? 4 : 5}
         title="CSR Expenditure & Fund Allocation – Year on Year"
         note="₹ in Cr"
         actions={<ChartExportMenu chartRoot={trendRoot} fileName="csr_fund_expenditure_trend" color="#6366f1" variant="plain" />}
