@@ -5,9 +5,12 @@ export const MONTHS = [
   'October', 'November', 'December', 'January', 'February', 'March'
 ];
 
+// 2020-2021 up to the current financial year (which starts in April)
 export const FINANCIAL_YEARS = (() => {
+  const today = new Date();
+  const currentStart = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1;
   const years = [];
-  for (let y = 2020; y <= 2028; y++) years.push(`${y}-${y + 1}`);
+  for (let y = 2020; y <= currentStart; y++) years.push(`${y}-${y + 1}`);
   return years;
 })();
 
@@ -20,8 +23,6 @@ export const SOCIAL_CHANNELS = [
 ];
 
 export const SOCIAL_CHANNELS_KEYS = ['facebook', 'instagram', 'linkedIn', 'twitter', 'youTube'];
-
-export const SOCIAL_METRICS = ['posts', 'engagement', 'impression'];
 
 export const STEPS = [
   { id: 0, key: 'broadcast', label: 'Broadcast TV Media' },

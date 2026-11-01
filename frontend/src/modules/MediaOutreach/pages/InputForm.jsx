@@ -4,33 +4,84 @@ import { createSocialMedia, updateSocialMedia } from '../api';
 import { getSessionOrganisationId } from '../../../utils/authSession';
 import { MONTHS, FINANCIAL_YEARS, SOCIAL_CHANNELS, STEPS } from '../utils/constants';
 
-// Stable input field component placed outside InputForm to prevent focus loss & re-mount glitches
+// Digits only; sizes above the database limit are caught on save
+function NumberInput({ value, onChange, disabled = false, placeholder = '', className }) {
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      maxLength={10}
+      value={value}
+      onChange={(e) => onChange(e.target.value.replace(/[^0-9]/g, ''))}
+      disabled={disabled}
+      placeholder={placeholder}
+      className={className}
+    />
+  );
+}
+
+const FIELD_CLASS = 'w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:focus:bg-slate-950';
+const SOCIAL_INPUT_CLASS = 'w-full text-xs text-center px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#0f417a] font-semibold text-slate-700';
+
 function FormField({ label, value, onChange, disabled = false, placeholder = '' }) {
   return (
     <div className="space-y-1.5">
       <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">{label}</label>
-      <input
-        type="text"
-        inputMode="numeric"
-        pattern="[0-9]*"
+      <NumberInput
         value={value}
-        onChange={(e) => onChange(e.target.value.replace(/[^0-9]/g, ''))}
-        onKeyDown={(e) => {
-          if (['e', 'E', '-', '+', '.'].includes(e.key)) {
-            e.preventDefault();
-          }
-        }}
+        onChange={onChange}
         disabled={disabled}
         placeholder={placeholder}
-        className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:focus:bg-slate-950 ${disabled ? 'opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-900/60 dark:text-slate-400' : ''}`}
+        className={`${FIELD_CLASS} ${disabled ? 'opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-900/60 dark:text-slate-400' : ''}`}
       />
     </div>
   );
 }
 
-export default function InputForm({ onBack, onSuccess, triggerNotification, editData, activeMediaType, organisations, getOrgName, isStandardView = false, permissions }) {
+const toCount = (value) => Number(value) || 0;
+
+// True when the month has not started yet; MONTHS runs April to March
+function isFutureMonth(financialYear, month) {
+  const index = MONTHS.indexOf(month);
+  const year = Number(financialYear.slice(0, 4)) + (index >= 9 ? 1 : 0);
+  return new Date(year, (index + 3) % 12, 1) > new Date();
+}
+
+const MAX_COUNT = 2147483647;
+const OVERALL_PAIRS = {
+  Broadcast: ['broadcast_national', 'broadcast_regional'],
+  'Print Media': ['print_media_national', 'print_media_regional'],
+  Online: ['online_english', 'online_vernacular'],
+};
+
+// Section whose value or Overall total is above the database int limit, else null
+function tooLargeSection(payload) {
+  for (const [label, [a, b]] of Object.entries(OVERALL_PAIRS)) {
+    if ((payload[a] ?? 0) + (payload[b] ?? 0) > MAX_COUNT) return label;
+  }
+  const socialTooLarge = SOCIAL_CHANNELS.some(({ key }) =>
+    ['posts', 'impression', 'engagement'].some(metric => (payload[`${key}_${metric}`] ?? 0) > MAX_COUNT));
+  return socialTooLarge ? 'Social Media' : null;
+}
+
+// Friendly message for a failed save; server error text is never shown
+function saveErrorMessage(err, isEdit) {
+  const status = err?.response?.status;
+  if (status === 409) return 'A record already exists for this Financial Year, Month and Organisation.';
+  if (status === 400) return 'Some values are not valid. Please check and try again.';
+  if (status === 403) return 'You do not have permission to save this record.';
+  if (status === 404) return 'This record no longer exists. Please refresh the list.';
+  return isEdit ? 'Could not update the record. Please try again.' : 'Could not save the record. Please try again.';
+}
+
+export default function InputForm({ onBack, onSuccess, triggerNotification, editData, activeMediaType, organisations, isStandardView = false, permissions }) {
   const isEdit = !!editData;
-  const hideOrgSelect = isStandardView || permissions?.isStandardView;
+  // Users limited to their own organisation never pick one; the server uses theirs
+  const hideOrgSelect = isStandardView || permissions?.isStandardView || permissions?.isOrgScoped;
+  // Keep an older record's year selectable even if it is outside the standard list
+  const yearOptions = editData?.financial_year && !FINANCIAL_YEARS.includes(editData.financial_year)
+    ? [...FINANCIAL_YEARS, editData.financial_year]
+    : FINANCIAL_YEARS;
 
   // Common fields
   const [financialYear, setFinancialYear] = useState('');
@@ -112,149 +163,70 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
     }));
   };
 
+  const socialPayload = () => {
+    const values = {};
+    SOCIAL_CHANNELS.forEach(({ key }) => {
+      values[`${key}_posts`] = toCount(socialData[key].posts);
+      values[`${key}_impression`] = toCount(socialData[key].impression);
+      values[`${key}_engagement`] = toCount(socialData[key].engagement);
+    });
+    return values;
+  };
+
+  // Payload keys are the table column names; the server works out the overall values
+  const sectionPayload = {
+    broadcast: () => ({ broadcast_national: toCount(broadcastNational), broadcast_regional: toCount(broadcastRegional) }),
+    print_media: () => ({ print_media_national: toCount(printNational), print_media_regional: toCount(printRegional) }),
+    online: () => ({ online_english: toCount(onlineEnglish), online_vernacular: toCount(onlineVernacular) }),
+    social_media: socialPayload,
+  };
+
   const handleSubmit = async () => {
-    const sessionOrg = getSessionOrganisationId();
-    const finalOrgId = organisationId || (hideOrgSelect ? sessionOrg : null) || (isEdit ? editData?.organisation_id : null);
+    const finalOrgId = organisationId || (hideOrgSelect ? getSessionOrganisationId() : null) || editData?.organisation_id;
 
     if (!financialYear || !month || !finalOrgId) {
-      if (triggerNotification) triggerNotification(hideOrgSelect ? 'Please select Financial Year and Month.' : 'Please select Financial Year, Month, and Organisation.');
+      triggerNotification?.(hideOrgSelect ? 'Please select Financial Year and Month.' : 'Please select Financial Year, Month and Organisation.', 'warning');
+      return;
+    }
+
+    if (!isEdit && isFutureMonth(financialYear, month)) {
+      triggerNotification?.(`${month} ${financialYear} has not started yet. Figures can be entered only for past or current months.`, 'warning');
+      return;
+    }
+
+    const payload = isEdit
+      ? { media_outreach_id: editData.media_outreach_id, type: activeMediaType, ...sectionPayload[activeMediaType]() }
+      : {
+          financial_year: financialYear,
+          month,
+          organisation_id: Number(finalOrgId),
+          ...sectionPayload.broadcast(),
+          ...sectionPayload.print_media(),
+          ...sectionPayload.online(),
+          ...sectionPayload.social_media(),
+        };
+
+    const tooLarge = tooLargeSection(payload);
+    if (tooLarge) {
+      triggerNotification?.(`${tooLarge} values are too large. Each value and Overall total can be at most 2,147,483,647.`, 'warning');
       return;
     }
 
     setSubmitting(true);
-
-    // Get user info from token
-    let userId = 1;
     try {
-      const token = localStorage.getItem('accessToken');
-      if (token) {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        userId = payload.userId || payload.user_id || payload.id || 1;
-      }
-    } catch (e) { console.error(e); }
-
-    if (isEdit) {
-      // Determine which media type we're editing based on activeMediaType
-      const mediaOutreachId = editData.media_outreach_id;
-      let updatePayload = { type: '', userID: userId, mediaOutreachIdOrg: mediaOutreachId, organisation: finalOrgId };
-
-      if (activeMediaType === 'broadcast') {
-        updatePayload.type = 'broadcast';
-        updatePayload.updateBroadcastNational = Number(broadcastNational) || 0;
-        updatePayload.updateBroadcastRegional = Number(broadcastRegional) || 0;
-        updatePayload.updateBroadcastOverall = broadcastOverall;
-      } else if (activeMediaType === 'print_media') {
-        updatePayload.type = 'print';
-        updatePayload.updateprintMediaNational = Number(printNational) || 0;
-        updatePayload.updateprintMediaRegional = Number(printRegional) || 0;
-        updatePayload.updateprintMediaOverall = printOverall;
-      } else if (activeMediaType === 'online') {
-        updatePayload.type = 'online';
-        updatePayload.updateEnglishdata = Number(onlineEnglish) || 0;
-        updatePayload.updateVernacular = Number(onlineVernacular) || 0;
-        updatePayload.updateonlineOverall = onlineOverall;
-      } else if (activeMediaType === 'social_media') {
-        updatePayload.type = 'social';
-        updatePayload.updateTwitterPosts = Number(socialData.twitter.posts) || 0;
-        updatePayload.updateTwitterImpression = Number(socialData.twitter.impression) || 0;
-        updatePayload.updateTwitterEngagement = Number(socialData.twitter.engagement) || 0;
-        updatePayload.updateInstagramPosts = Number(socialData.instagram.posts) || 0;
-        updatePayload.updateInstagramImpression = Number(socialData.instagram.impression) || 0;
-        updatePayload.updateInstagramEngagement = Number(socialData.instagram.engagement) || 0;
-        updatePayload.updateFacebookPosts = Number(socialData.facebook.posts) || 0;
-        updatePayload.updateFacebookImpression = Number(socialData.facebook.impression) || 0;
-        updatePayload.updateFacebookEngagement = Number(socialData.facebook.engagement) || 0;
-        updatePayload.updateLinkedInPosts = Number(socialData.linkedIn.posts) || 0;
-        updatePayload.updateLinkedInImpression = Number(socialData.linkedIn.impression) || 0;
-        updatePayload.updateLinkedInEngagement = Number(socialData.linkedIn.engagement) || 0;
-        updatePayload.updateyoutubePosts = Number(socialData.youTube.posts) || 0;
-        updatePayload.updateyoutubeImpression = Number(socialData.youTube.impression) || 0;
-        updatePayload.updateyoutubeEngagement = Number(socialData.youTube.engagement) || 0;
-      }
-
-      try {
-        await updateSocialMedia(updatePayload);
-        onSuccess();
-      } catch (err) {
-        console.error(err);
-        if (triggerNotification) triggerNotification('Error updating record. Please try again.');
-      } finally {
-        setSubmitting(false);
-      }
-    } else {
-      // Create new record
-      const payload = {
-        financialYear,
-        month,
-        organisation: finalOrgId,
-        BroadcastChecked: 1,
-        BroadcastNational: Number(broadcastNational) || 0,
-        BroadcastRegional: Number(broadcastRegional) || 0,
-        BroadcastOverall: broadcastOverall,
-        PrintMediaChecked: 1,
-        PrintMediaNational: Number(printNational) || 0,
-        PrintMediaRegional: Number(printRegional) || 0,
-        PrintMediaOverall: printOverall,
-        OnlineChecked: 1,
-        OnlineEnglish: Number(onlineEnglish) || 0,
-        OnlineVernacular: Number(onlineVernacular) || 0,
-        OnlineOverall: onlineOverall,
-        SocialMediaChecked: 1,
-        TwitterPosts: Number(socialData.twitter.posts) || 0,
-        TwitterImpression: Number(socialData.twitter.impression) || 0,
-        TwitterEngagement: Number(socialData.twitter.engagement) || 0,
-        InstagramPosts: Number(socialData.instagram.posts) || 0,
-        InstagramImpression: Number(socialData.instagram.impression) || 0,
-        InstagramEngagement: Number(socialData.instagram.engagement) || 0,
-        FacebookPosts: Number(socialData.facebook.posts) || 0,
-        FacebookImpression: Number(socialData.facebook.impression) || 0,
-        FacebookEngagement: Number(socialData.facebook.engagement) || 0,
-        LinkedInPosts: Number(socialData.linkedIn.posts) || 0,
-        LinkedInImpression: Number(socialData.linkedIn.impression) || 0,
-        LinkedInEngagement: Number(socialData.linkedIn.engagement) || 0,
-        youTubePosts: Number(socialData.youTube.posts) || 0,
-        youTubeImpression: Number(socialData.youTube.impression) || 0,
-        youTubeEngagement: Number(socialData.youTube.engagement) || 0,
-      };
-
-      try {
-        const res = await createSocialMedia(payload);
-        if (res.status === 302 || res.status === 200) {
-          if (triggerNotification) triggerNotification('Record already exists for this Financial Year, Month & Organisation.');
-        } else {
-          onSuccess();
-        }
-      } catch (err) {
-        if (err.response?.status === 302) {
-          if (triggerNotification) triggerNotification('Record already exists for this Financial Year, Month & Organisation.');
-        } else {
-          console.error(err);
-          if (triggerNotification) triggerNotification('Error saving record. Please try again.');
-        }
-      } finally {
-        setSubmitting(false);
-      }
+      await (isEdit ? updateSocialMedia(payload) : createSocialMedia(payload));
+      onSuccess();
+    } catch (err) {
+      console.error('Media outreach save failed:', err);
+      const status = err?.response?.status;
+      triggerNotification?.(saveErrorMessage(err, isEdit), status === 409 ? 'warning' : 'error');
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  // Input field component
-  const Field = ({ label, value, onChange, disabled = false, placeholder = '' }) => (
-    <div className="space-y-1.5">
-      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">{label}</label>
-      <input
-        type="number"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
-        placeholder={placeholder}
-        className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:focus:bg-slate-950 ${disabled ? 'opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-900/60 dark:text-slate-400' : ''}`}
-      />
-    </div>
-  );
-
   return (
     <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] dark:bg-slate-950 dark:border-slate-800 animate-fade-in">
-      {/* Header */}
       <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
         <div>
           <h3 className="text-sm font-black uppercase tracking-wider font-display">
@@ -268,7 +240,6 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
       </div>
 
       <div className="p-6 space-y-6">
-        {/* Financial Year, Month & Organisation selectors */}
         <div className={`grid grid-cols-1 ${hideOrgSelect ? 'sm:grid-cols-2' : 'sm:grid-cols-3'} gap-5`}>
           <div className="space-y-1.5">
             <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">
@@ -281,7 +252,7 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
               className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:focus:bg-slate-950 cursor-pointer ${isEdit ? 'opacity-60 cursor-not-allowed' : ''}`}
             >
               <option value="">--Select Financial Year--</option>
-              {FINANCIAL_YEARS.map(fy => <option key={fy} value={fy}>{fy}</option>)}
+              {yearOptions.map(fy => <option key={fy} value={fy}>{fy}</option>)}
             </select>
           </div>
           <div className="space-y-1.5">
@@ -325,7 +296,6 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
           </p>
         )}
 
-        {/* Step Navigation */}
         {!isEdit && (
           <div className="flex items-center border-b border-slate-200 dark:border-slate-800 overflow-x-auto">
             {STEPS.map((step) => (
@@ -347,7 +317,6 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
           </div>
         )}
 
-        {/* Step Content */}
         {(isEdit ? activeMediaType === 'broadcast' : currentStep === 0) && (
           <div className="space-y-4 animate-fade-in">
             <h4 className="text-[13px] font-black text-slate-800 uppercase tracking-wide border-b border-slate-200 pb-2">
@@ -392,7 +361,6 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
             <h4 className="text-[13px] font-black text-slate-800 uppercase tracking-wide border-b border-slate-200 pb-2">
               Social Media Channels
             </h4>
-            {/* Social Media Table */}
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-xs">
                 <thead>
@@ -408,50 +376,26 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
                     <tr key={ch.key} className={`border-b border-slate-100 ${idx % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}`}>
                       <td className="px-4 py-3 font-bold text-slate-700">{ch.label}</td>
                       <td className="px-2 py-2">
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
+                        <NumberInput
                           value={socialData[ch.key].posts}
-                          onChange={(e) => handleSocialChange(ch.key, 'posts', e.target.value.replace(/[^0-9]/g, ''))}
-                          onKeyDown={(e) => {
-                            if (['e', 'E', '-', '+', '.'].includes(e.key)) {
-                              e.preventDefault();
-                            }
-                          }}
-                          className="w-full text-xs text-center px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#0f417a] font-semibold text-slate-700"
+                          onChange={(v) => handleSocialChange(ch.key, 'posts', v)}
+                          className={SOCIAL_INPUT_CLASS}
                           placeholder="0"
                         />
                       </td>
                       <td className="px-2 py-2">
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
+                        <NumberInput
                           value={socialData[ch.key].impression}
-                          onChange={(e) => handleSocialChange(ch.key, 'impression', e.target.value.replace(/[^0-9]/g, ''))}
-                          onKeyDown={(e) => {
-                            if (['e', 'E', '-', '+', '.'].includes(e.key)) {
-                              e.preventDefault();
-                            }
-                          }}
-                          className="w-full text-xs text-center px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#0f417a] font-semibold text-slate-700"
+                          onChange={(v) => handleSocialChange(ch.key, 'impression', v)}
+                          className={SOCIAL_INPUT_CLASS}
                           placeholder="0"
                         />
                       </td>
                       <td className="px-2 py-2">
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
+                        <NumberInput
                           value={socialData[ch.key].engagement}
-                          onChange={(e) => handleSocialChange(ch.key, 'engagement', e.target.value.replace(/[^0-9]/g, ''))}
-                          onKeyDown={(e) => {
-                            if (['e', 'E', '-', '+', '.'].includes(e.key)) {
-                              e.preventDefault();
-                            }
-                          }}
-                          className="w-full text-xs text-center px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#0f417a] font-semibold text-slate-700"
+                          onChange={(v) => handleSocialChange(ch.key, 'engagement', v)}
+                          className={SOCIAL_INPUT_CLASS}
                           placeholder="0"
                         />
                       </td>
@@ -463,14 +407,12 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
           </div>
         )}
 
-        {/* Mandatory Note */}
         <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
           <span className="text-xs text-rose-500 font-bold italic">
             * Asterisks marked with red are mandatory fields
           </span>
         </div>
 
-        {/* Navigation & Action Buttons */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
           <div className="flex items-center gap-3">
             {!isEdit && currentStep > 0 && (
