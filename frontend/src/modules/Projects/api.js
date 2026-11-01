@@ -474,4 +474,30 @@ export function fetchProjectsMisReport(reportId) {
   return api.get(`/projects-mis/${encodeURIComponent(reportId)}`);
 }
 
+// Dashboard params without the filters left at "all" / blank.
+function dashboardParams(params = {}) {
+  return Object.fromEntries(
+    Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '' && v !== 'all')
+  );
+}
+
+export function fetchProjectsDashboardFilters() {
+  return api.get('/projects-dashboard/filters');
+}
+
+export function fetchProjectsDashboardSummary(filters) {
+  return api.get('/projects-dashboard/summary', { params: dashboardParams(filters) });
+}
+
+// Projects behind a clicked figure: drill = { dim, value, dim2?, value2? }.
+export function fetchProjectsDashboardProjects(filters, drill = {}) {
+  return api.get('/projects-dashboard/projects', { params: dashboardParams({ ...filters, ...drill }) });
+}
+
+export function fetchProjectsDashboardProject(projectId, subProjectId) {
+  return api.get('/projects-dashboard/project', {
+    params: { projectId, subProjectId: subProjectId ?? '-1' },
+  });
+}
+
 export default api;
