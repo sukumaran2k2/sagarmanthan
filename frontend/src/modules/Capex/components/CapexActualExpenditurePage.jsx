@@ -23,12 +23,15 @@ export default function CapexActualExpenditurePage({
   onRefresh,
   canEdit = true,
 }) {
-  const [loading, setLoading] = useState(false);
+  // Starts as loading so Save stays off until the saved figures arrive
+  const [loading, setLoading] = useState(Boolean(capexRecord));
   const [saving, setSaving] = useState(false);
   const [selectedYear] = useState(
     capexRecord?.capex_financial_year || '2026-2027'
   );
   const [allMonthsData, setAllMonthsData] = useState(createEmptyMonthsData());
+  // Saving replaces the record's actuals, so never save a grid that did not load
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
     if (capexRecord) fetchMonthlyData();
@@ -42,8 +45,11 @@ export default function CapexActualExpenditurePage({
       const res = await fetchCapexMonthlyData(capexRecord.capex_id);
       const rows = Array.isArray(res.data) ? res.data : [];
       setAllMonthsData(rowsToMonthsData(rows));
+      setLoadFailed(false);
     } catch (err) {
-      console.error('Failed to fetch monthly Capex data:', err);
+      console.error('Failed to fetch monthly Capex data:', err?.message);
+      setAllMonthsData(createEmptyMonthsData());
+      setLoadFailed(true);
       notify?.(COMMON_TOASTS.loadFailed('The monthly actual expenditure'));
     } finally {
       setLoading(false);
@@ -53,6 +59,10 @@ export default function CapexActualExpenditurePage({
   const handleInputChange = (month, weekNum, field, value) => {
     if (!canEdit) return;
     const val = value === '' ? 0 : parseFloat(value) || 0;
+    if (val < 0) {
+      notify?.(CAPEX_TOASTS.invalidAmount(field === 'iebr' ? 'IR / IEBR' : field.toUpperCase()));
+      return;
+    }
     setAllMonthsData((prev) => ({
       ...prev,
       [month]: {
@@ -84,7 +94,7 @@ export default function CapexActualExpenditurePage({
   };
 
   const handleSave = async () => {
-    if (!capexRecord || !canEdit) return;
+    if (!capexRecord || !canEdit || loading || loadFailed) return;
     setSaving(true);
     try {
       await saveCapexMonthlyData({
@@ -274,9 +284,10 @@ export default function CapexActualExpenditurePage({
             <button
               type="button"
               onClick={handleSave}
-              disabled={saving || loading}
+              disabled={saving || loading || loadFailed}
+              title={loadFailed ? 'The saved figures could not be loaded. Refresh before saving.' : undefined}
               className={`px-5.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                saving || loading
+                saving || loading || loadFailed
                   ? 'bg-slate-300 text-slate-500 cursor-not-allowed border border-slate-200'
                   : 'bg-[#0f417a] hover:bg-[#1a5ba3] text-white shadow-md shadow-blue-900/10 hover:shadow-lg'
               }`}

@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
-import * as XLSX from 'xlsx';
 import { Edit } from 'lucide-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import { useShallow } from 'zustand/react/shallow';
@@ -18,6 +17,8 @@ import RestrictedAccess from '../../components/RestrictedAccess';
 import { useCapexPermissions } from './hooks/useCapexPermissions';
 import { getCurrentUserId } from '../../utils/authSession';
 import { COMMON_TOASTS, useNotifier } from '../../utils/notify';
+import { exportDataListToCsv } from '../../utils/exportDataListCsv';
+import { exportDataListToPdf } from '../../utils/exportReportPdf';
 import {
   fetchCapexList,
   createCapexTarget,
@@ -33,6 +34,33 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 
 const CAPEX_BASE = '/finance/capex';
 const INIT_TAB_KEY = 'capexInitTab';
+
+// Data List columns for Copy / Excel / PDF. key = the grid column's visibility key
+// (its field, or its header when it has no field).
+const LIST_EXPORT_COLUMNS = [
+  { key: 'organisation_name', label: 'Organisation', value: (r) => r.organisation_name || '—' },
+  { key: 'capex_financial_year', label: 'Financial Year', value: (r) => r.capex_financial_year || '—' },
+  {
+    key: 'capex_total_value',
+    label: 'Total Planned Expenditure (In Crore)',
+    value: (r) => Number(r.capex_total_value || 0).toFixed(2),
+  },
+  {
+    key: 'total_capex_expenditure',
+    label: 'Actual Expenditure (In Crore)',
+    value: (r) => Number(r.total_capex_expenditure || 0).toFixed(2),
+  },
+  {
+    key: '% Expenditure Of BE',
+    label: '% Expenditure Of BE',
+    value: (r) => calculateCapexExpenditurePercentage(r.total_capex_expenditure, r.capex_total_value),
+  },
+  {
+    key: 'updated_date',
+    label: 'Last Updated Date',
+    value: (r) => (r.updated_date ? String(r.updated_date).slice(0, 10) : '—'),
+  },
+];
 
 function resolvePathSegment(label, showInputForm) {
   const key = String(label || '').toLowerCase().trim();
@@ -97,6 +125,7 @@ export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, tr
     setFilterYear,
     filterOrg,
     setFilterOrg,
+    visibleCols,
   } = useCapexStore(useShallow((state) => ({
     organisations: state.organisations,
     loadOrganisations: state.loadOrganisations,
@@ -112,6 +141,7 @@ export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, tr
     setFilterYear: state.setFilterYear,
     filterOrg: state.filterOrg,
     setFilterOrg: state.setFilterOrg,
+    visibleCols: state.visibleCols,
   })));
   const [pagination, setPagination] = useState({
     total: 0,
@@ -159,23 +189,26 @@ export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, tr
     setPage(1);
   }, [debouncedSearch, filterYear, filterOrg, pageSize, viewMode, selectedOrgId, setPage]);
 
+  // Search and filters as sent to /capex (without paging)
+  const listFilterParams = useMemo(() => {
+    const params = {
+      financialYear: filterYear || undefined,
+      search: debouncedSearch.trim() || undefined,
+    };
+    if (viewMode === 'org' && selectedOrgId) {
+      params.organisationId = selectedOrgId;
+    } else if (filterOrg) {
+      params.organisationId = filterOrg;
+    }
+    return params;
+  }, [filterYear, debouncedSearch, viewMode, selectedOrgId, filterOrg]);
+
   const fetchCapexData = useCallback(
     async (signal) => {
       if (!permissions.canView) return;
       setLoading(true);
       try {
-        const params = {
-          page,
-          limit: pageSize,
-          financialYear: filterYear || undefined,
-          search: debouncedSearch.trim() || undefined,
-        };
-
-        if (viewMode === 'org' && selectedOrgId) {
-          params.organisationId = selectedOrgId;
-        } else if (filterOrg) {
-          params.organisationId = filterOrg;
-        }
+        const params = { ...listFilterParams, page, limit: pageSize };
 
         const res = await fetchCapexList(params, { signal });
         const payload = res.data || {};
@@ -209,11 +242,7 @@ export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, tr
       notify,
       page,
       pageSize,
-      filterYear,
-      filterOrg,
-      debouncedSearch,
-      viewMode,
-      selectedOrgId,
+      listFilterParams,
     ]
   );
 
@@ -420,38 +449,75 @@ export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, tr
     return allDefs;
   }, [viewMode, organisations, permissions.canEdit, page, pageSize, openUpdatePage, openActualsPage]);
 
+  // The columns shown in the grid (org users have no Organisation column)
+  const exportColumns = useMemo(
+    () =>
+      LIST_EXPORT_COLUMNS.filter(
+        (c) =>
+          visibleCols[c.key] !== false && !(viewMode === 'org' && c.key === 'organisation_name')
+      ),
+    [visibleCols, viewMode]
+  );
+
+  // Every row that matches the current search and filters, not just the page on show
+  const fetchAllFilteredRows = async () => {
+    const res = await fetchCapexList({ ...listFilterParams, page: 1, limit: 2000, all: true });
+    const payload = res.data || {};
+    const rows = Array.isArray(payload.data) ? payload.data : [];
+    return rows.map((r) => Object.fromEntries(exportColumns.map((c) => [c.key, c.value(r)])));
+  };
+
+  const exportArgs = (rows) => ({
+    columnLabels: Object.fromEntries(exportColumns.map((c) => [c.key, c.label])),
+    visibleCols: Object.fromEntries(exportColumns.map((c) => [c.key, true])),
+    rowData: rows,
+  });
+
   const handleCopyData = () => {
     if (!capexData?.length) {
       notify(COMMON_TOASTS.nothingToCopy());
       return;
     }
-    const text = capexData
-      .map(
-        (r) =>
-          `${r.organisation_name || ''}\t${r.capex_financial_year || ''}\t${r.capex_total_value || 0}\t${r.total_capex_expenditure || 0}`
-      )
-      .join('\n');
+    const text = [
+      ['S.No', ...exportColumns.map((c) => c.label)].join('\t'),
+      ...capexData.map((r, i) =>
+        [(page - 1) * pageSize + i + 1, ...exportColumns.map((c) => c.value(r))].join('\t')
+      ),
+    ].join('\n');
     navigator.clipboard.writeText(text).then(
       () => notify(COMMON_TOASTS.copySuccess(capexData.length)),
       () => notify(COMMON_TOASTS.copyFailed()),
     );
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     if (!capexData?.length) {
       notify(COMMON_TOASTS.nothingToExport());
       return;
     }
-    const ws = XLSX.utils.json_to_sheet(capexData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Capex_Data');
-    XLSX.writeFile(wb, 'Capex_Data_List.xlsx');
-    notify(COMMON_TOASTS.excelExported('Capex_Data_List.xlsx'));
+    try {
+      const rows = await fetchAllFilteredRows();
+      exportDataListToCsv({ ...exportArgs(rows), fileName: 'Capex_Data_List' });
+      notify(COMMON_TOASTS.excelExported('Capex_Data_List.csv', 'Every filtered row'));
+    } catch (err) {
+      console.error('Capex export failed:', err?.message);
+      notify(COMMON_TOASTS.loadFailed('The Capex rows to export'));
+    }
   };
 
-  const handleExportPdf = () => {
-    notify(COMMON_TOASTS.pdfPreparing());
-    window.print();
+  const handleExportPdf = async () => {
+    if (!capexData?.length) {
+      notify(COMMON_TOASTS.nothingToExport());
+      return;
+    }
+    try {
+      const rows = await fetchAllFilteredRows();
+      exportDataListToPdf({ ...exportArgs(rows), title: 'Capex Data List', fileName: 'Capex_Data_List' });
+      notify(COMMON_TOASTS.downloadStarted('Capex_Data_List.pdf'));
+    } catch (err) {
+      console.error('Capex export failed:', err?.message);
+      notify(COMMON_TOASTS.loadFailed('The Capex rows to export'));
+    }
   };
 
   const tabs = useMemo(() => {
@@ -568,11 +634,12 @@ export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, tr
         <Routes>
           <Route path="dashboard" element={<CapexDashboard orgScoped={viewMode === 'org'} />} />
           <Route path="data-list" element={dataListPanel} />
-          <Route path="estimate-values" element={<Navigate to="../data-list" replace />} />
+          <Route path="estimate-values" element={<Navigate to={`${CAPEX_BASE}/data-list`} replace />} />
           <Route path="input-form" element={inputFormPanel} />
           <Route path="reports" element={<CapexReports viewMode={viewMode} notify={notify} />} />
-          <Route index element={<Navigate to="data-list" replace />} />
-          <Route path="*" element={<Navigate to="data-list" replace />} />
+          {/* Absolute paths: a relative one under "*" keeps appending to an unknown path */}
+          <Route index element={<Navigate to={`${CAPEX_BASE}/data-list`} replace />} />
+          <Route path="*" element={<Navigate to={`${CAPEX_BASE}/data-list`} replace />} />
         </Routes>
       </div>
     </div>

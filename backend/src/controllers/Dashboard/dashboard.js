@@ -239,9 +239,10 @@ async function getDashboardGemProAndCapex(req, res) {
         const conn = await pool;
         const request = conn.request();
 
-        const userID = req.params.userId;
+        // The signed-in user, not the one named in the URL
+        const userID = req.user?.userId;
         request.input("userID", userID);
-        const financialYear = getCurrentFinancialYear(); 
+        const financialYear = getCurrentFinancialYear();
         request.input("financialYear", financialYear);
 
         // Get user role and organisation
@@ -656,7 +657,7 @@ async function getDashboardGemProAndCapex(req, res) {
 
     } catch (error) {
         console.error("Error:", error);
-        return res.status(500).json({ error: error.message });
+        return res.status(500).json({ error: "Failed to load the dashboard." });
     }
 }
 
@@ -677,7 +678,8 @@ async function getDashboardGemProAndCapexministryView(req, res) {
         const conn = await pool;
         const request = conn.request();
 
-        const userID = req.params.userId;
+        // The signed-in user, not the one named in the URL
+        const userID = req.user?.userId;
         request.input("userID", userID);
 
         const financialYear = getCurrentFinancialYear();
@@ -750,7 +752,7 @@ async function getDashboardGemProAndCapexministryView(req, res) {
 
     } catch (error) {
         console.error("Error:", error);
-        return res.status(500).json({ error: error.message });
+        return res.status(500).json({ error: "Failed to load the dashboard." });
     }
 }
 

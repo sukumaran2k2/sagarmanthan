@@ -28,7 +28,7 @@ const initialState = {
   debouncedSearch: '',
   page: 1,
   pageSize: 10,
-  filterYear: '2026-2027',
+  filterYear: '', // all financial years, as the old portal's list shows
   filterOrg: '',
   showFilterPanel: false,
   visibleCols: {}, // filled in by the list view as columns appear; false = hidden

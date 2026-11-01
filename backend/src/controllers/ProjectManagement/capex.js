@@ -1,12 +1,52 @@
 import { pool } from "../../db.js";
 import sql from "mssql";
-import { applyDataScope } from "../../middleware/dataScope.js";
+import { applyDataScope, getDataScope } from "../../middleware/dataScope.js";
 
 function parsePositiveInt(value, fallback, min = 1, max = Number.MAX_SAFE_INTEGER) {
   const n = Number.parseInt(value, 10);
   if (!Number.isFinite(n)) return fallback;
   return Math.min(max, Math.max(min, n));
 }
+
+// Path / body capex IDs: whole numbers only, otherwise null
+function parseCapexId(value) {
+  const s = String(value ?? "").trim();
+  if (!/^\d+$/.test(s)) return null;
+  const n = Number(s);
+  return n > 0 && n <= 2147483647 ? n : null;
+}
+
+// Target amounts (₹ crore): a non-negative number, otherwise null
+function parseAmount(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+const round2 = (n) => Math.round(n * 100) / 100;
+
+// Targets are set by the Ministry, as in the old portal; organisation users only enter actuals
+function isMinistryScope(user) {
+  return getDataScope(user).isWide;
+}
+
+// True when the capex record exists and falls in the caller's data scope
+async function isCapexInScope(conn, user, capexID) {
+  const request = conn.request();
+  request.input("capexID", sql.Int, capexID);
+  const { whereSql } = applyDataScope(request, user, {
+    strategy: "directOrgColumn",
+    alias: "tbl_capex",
+    orgColumn: "capex_organisation_id",
+  });
+  const result = await request.query(`
+    SELECT 1 AS found FROM tbl_capex WHERE capex_id = @capexID ${whereSql}
+  `);
+  return result.recordset.length > 0;
+}
+
+// % and _ (and [ in SQL Server) are LIKE wildcards; search for them literally
+const escapeLike = (s) => s.replace(/([\\%_[])/g, "\\$1");
 
 function bindCapexListFilters(request, query = {}) {
   const parts = [];
@@ -28,12 +68,12 @@ function bindCapexListFilters(request, query = {}) {
     parts.push(" AND org.organisation_name = @organisationName");
   }
   if (search) {
-    request.input("search", sql.NVarChar(255), `%${search}%`);
+    request.input("search", sql.NVarChar(255), `%${escapeLike(search)}%`);
     parts.push(` AND (
-      org.organisation_name LIKE @search
-      OR tbl_capex.capex_financial_year LIKE @search
-      OR CAST(tbl_capex.capex_total_value AS NVARCHAR(50)) LIKE @search
-      OR CAST(COALESCE(monthly.total_Capex, 0) AS NVARCHAR(50)) LIKE @search
+      org.organisation_name LIKE @search ESCAPE '\\'
+      OR tbl_capex.capex_financial_year LIKE @search ESCAPE '\\'
+      OR CAST(tbl_capex.capex_total_value AS NVARCHAR(50)) LIKE @search ESCAPE '\\'
+      OR CAST(COALESCE(monthly.total_Capex, 0) AS NVARCHAR(50)) LIKE @search ESCAPE '\\'
     )`);
   }
   return parts.join("");
@@ -104,7 +144,7 @@ function normalizeMonthlyEntry(row) {
   if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].includes(monthNumber)) return null;
   if (![1, 2, 3, 4].includes(weekNumber)) return null;
   if (!["GBS", "IEBR", "PPP"].includes(fundingType)) return null;
-  if (amount == null || Number.isNaN(amount)) return null;
+  if (amount == null || !Number.isFinite(amount) || amount < 0) return null;
 
   return {
     month_number: monthNumber,
@@ -116,28 +156,42 @@ function normalizeMonthlyEntry(row) {
 
 async function addCapex(req, res) {
   const userId = resolveUserId(req, req.body.userID);
-    const financialYear = req.body.financialYear;
-    const organisationId = req.body.organisationId;
-    const gbsValue = req.body.gbsValue; 
-    const iebrValue = req.body.iebrValue; 
-    const PPPValue = req.body.PPPValue;
-    const totalValue = req.body.totalValue; 
+    const financialYear = String(req.body.financialYear || "").trim();
+    const organisationId = parseCapexId(req.body.organisationId);
+    const gbsValue = parseAmount(req.body.gbsValue);
+    const iebrValue = parseAmount(req.body.iebrValue);
+    const PPPValue = parseAmount(req.body.PPPValue ?? req.body.pppValue);
 
-  if (!userId || !financialYear || !organisationId) {
+  if (!isMinistryScope(req.user)) {
+    return res.status(403).json({ error: "Capex targets are set by the Ministry." });
+  }
+  if (!userId || !/^\d{4}-\d{4}$/.test(financialYear) || !organisationId) {
     return res.status(400).json({ error: "Missing required fields." });
   }
-
-    const conn = await pool;
-    const request = conn.request();
-    request.input("userId", userId);
-    request.input("financialYear", financialYear);
-    request.input("organisationId", organisationId);
-    request.input("gbsValue", gbsValue);
-    request.input("iebrValue", iebrValue);   
-    request.input("PPPValue", PPPValue);
-    request.input("totalValue", totalValue);
+  if (gbsValue == null || iebrValue == null || PPPValue == null) {
+    return res.status(400).json({ error: "GBS, IEBR and PPP must be non-negative numbers." });
+  }
+  // Total is worked out here, not taken from the client
+  const totalValue = round2(gbsValue + iebrValue + PPPValue);
 
     try {
+    const conn = await pool;
+    const request = conn.request();
+    request.input("userId", sql.Int, userId);
+    request.input("financialYear", sql.NVarChar(50), financialYear);
+    request.input("organisationId", sql.Int, organisationId);
+    request.input("gbsValue", sql.Decimal(18, 2), gbsValue);
+    request.input("iebrValue", sql.Decimal(18, 2), iebrValue);
+    request.input("PPPValue", sql.Decimal(18, 2), PPPValue);
+    request.input("totalValue", sql.Decimal(18, 2), totalValue);
+
+    const orgResult = await request.query(`
+      SELECT 1 AS found FROM mmt_organisation WHERE organisation_id = @organisationId
+    `);
+    if (!orgResult.recordset.length) {
+      return res.status(400).json({ error: "Unknown organisation." });
+    }
+
         const checkResult = await request.query(`
             SELECT COUNT(*) AS count
             FROM tbl_capex
@@ -186,9 +240,8 @@ async function addCapex(req, res) {
 }
 
 async function getCapexData(req, res) {
-    const conn = await pool;
-
   try {
+    const conn = await pool;
     const fetchAll =
       String(req.query.all || "").toLowerCase() === "1" ||
       String(req.query.all || "").toLowerCase() === "true";
@@ -267,12 +320,19 @@ async function getCapexData(req, res) {
 }
 
 async function getCapexMonthlyData(req, res) {
-  const capexID = req.params.capexID;
-    const conn = await pool;
-    const request = conn.request();
-    request.input("capexID", capexID);
+  const capexID = parseCapexId(req.params.capexID);
+  if (!capexID) {
+    return res.status(400).json({ error: "Invalid capexID." });
+  }
 
   try {
+    const conn = await pool;
+    if (!(await isCapexInScope(conn, req.user, capexID))) {
+      return res.status(404).json({ error: "Capex record not found." });
+    }
+    const request = conn.request();
+    request.input("capexID", sql.Int, capexID);
+
     const result = await request.query(`
       SELECT
         id,
@@ -306,7 +366,7 @@ async function getCapexMonthlyData(req, res) {
 }
 
 async function addCapexMonthlyData(req, res) {
-  const capexID = Number(req.body.capexID);
+  const capexID = parseCapexId(req.body.capexID);
   const userId = resolveUserId(req, req.body.userID ?? req.body.userId);
   let entries = Array.isArray(req.body.entries) ? req.body.entries : [];
 
@@ -314,19 +374,33 @@ async function addCapexMonthlyData(req, res) {
     entries = legacyBodyToEntries(req.body);
   }
 
-  if (!Number.isFinite(capexID) || capexID <= 0) {
+  if (!capexID) {
     return res.status(400).json({ error: "Invalid capexID." });
   }
   if (!userId) {
     return res.status(400).json({ error: "Missing authenticated user." });
   }
 
-  const newEntries = entries.map(normalizeMonthlyEntry).filter(Boolean);
+  // Reject the whole save if any entry is bad, so a bad payload never clears saved actuals
+  const newEntries = entries.map(normalizeMonthlyEntry);
+  if (!newEntries.length || newEntries.some((e) => !e)) {
+    return res.status(400).json({
+      error: "Every entry needs a valid month, week, funding type and a non-negative amount.",
+    });
+  }
+  const keys = new Set(newEntries.map((e) => `${e.month_number}-${e.week_number}-${e.funding_type}`));
+  if (keys.size !== newEntries.length) {
+    return res.status(400).json({ error: "Duplicate month / week / funding type entries." });
+  }
 
-  const conn = await pool;
-  const transaction = conn.transaction();
-
+  let transaction;
   try {
+    const conn = await pool;
+    if (!(await isCapexInScope(conn, req.user, capexID))) {
+      return res.status(404).json({ error: "Capex record not found." });
+    }
+
+    transaction = conn.transaction();
     await transaction.begin();
 
     const prevReq = transaction.request();
@@ -363,28 +437,36 @@ async function addCapexMonthlyData(req, res) {
         (@capexID, @action, @createdBy, @targetSummary, @payloadJson, GETDATE())
     `);
 
-    const delReq = transaction.request();
-    delReq.input("capexID", sql.Int, capexID);
-    await delReq.query(`DELETE FROM tbl_capex_monthly WHERE capex_id = @capexID`);
-
+    // Update rows in place (only when the amount changed) and add missing ones, so
+    // created_by / created_date keep who first entered each week
     for (const row of newEntries) {
-      const ins = transaction.request();
-      ins.input("capexID", sql.Int, capexID);
-      ins.input("monthNumber", sql.Int, row.month_number);
-      ins.input("weekNumber", sql.Int, row.week_number);
-      ins.input("fundingType", sql.NVarChar(10), row.funding_type);
-      ins.input("amount", sql.Decimal(18, 2), row.amount);
-      ins.input("createdBy", sql.Int, userId);
-      ins.input("updatedBy", sql.Int, userId);
-      await ins.query(`
-        INSERT INTO tbl_capex_monthly (
-          capex_id, month_number, week_number, funding_type, amount,
-          created_by, updated_by, created_date, updated_date
+      const upsert = transaction.request();
+      upsert.input("capexID", sql.Int, capexID);
+      upsert.input("monthNumber", sql.Int, row.month_number);
+      upsert.input("weekNumber", sql.Int, row.week_number);
+      upsert.input("fundingType", sql.NVarChar(10), row.funding_type);
+      upsert.input("amount", sql.Decimal(18, 2), row.amount);
+      upsert.input("userId", sql.Int, userId);
+      await upsert.query(`
+        UPDATE tbl_capex_monthly
+        SET amount = @amount, updated_by = @userId, updated_date = GETDATE()
+        WHERE capex_id = @capexID AND month_number = @monthNumber
+          AND week_number = @weekNumber AND funding_type = @fundingType
+          AND (amount IS NULL OR amount <> @amount);
+
+        IF NOT EXISTS (
+          SELECT 1 FROM tbl_capex_monthly
+          WHERE capex_id = @capexID AND month_number = @monthNumber
+            AND week_number = @weekNumber AND funding_type = @fundingType
         )
-        VALUES (
-          @capexID, @monthNumber, @weekNumber, @fundingType, @amount,
-          @createdBy, @updatedBy, GETDATE(), GETDATE()
-        )
+          INSERT INTO tbl_capex_monthly (
+            capex_id, month_number, week_number, funding_type, amount,
+            created_by, updated_by, created_date, updated_date
+          )
+          VALUES (
+            @capexID, @monthNumber, @weekNumber, @fundingType, @amount,
+            @userId, @userId, GETDATE(), GETDATE()
+          );
       `);
     }
 
@@ -401,7 +483,7 @@ async function addCapexMonthlyData(req, res) {
     return res.sendStatus(201);
   } catch (err) {
     try {
-      await transaction.rollback();
+      await transaction?.rollback();
     } catch (_) {}
     console.error(err);
     return res.sendStatus(500);
@@ -435,14 +517,22 @@ function legacyBodyToEntries(body) {
 }
 
 async function getCapexExpediture(req, res) {
-    const capexID = req.params.capexID;
-    const conn = await pool;
-    const request = conn.request();
-    request.input("capexID", capexID);
+    const capexID = parseCapexId(req.params.capexID);
+    if (!capexID) {
+      return res.status(400).json({ error: "Invalid capexID." });
+    }
 
     try {
+    const conn = await pool;
+    const request = conn.request();
+    request.input("capexID", sql.Int, capexID);
+    const { whereSql } = applyDataScope(request, req.user, {
+      strategy: "directOrgColumn",
+      alias: "tbl_capex",
+      orgColumn: "capex_organisation_id",
+    });
     const result = await request.query(`
-      SELECT capex_total_value FROM tbl_capex WHERE capex_id = @capexID;
+      SELECT capex_total_value FROM tbl_capex WHERE capex_id = @capexID ${whereSql};
     `);
         res.json(result.recordset);
   } catch (err) {
@@ -452,23 +542,34 @@ async function getCapexExpediture(req, res) {
 }
 
 async function editCapexExpediture(req, res) {
-    const capexID = req.body.ID;
-    const gbsValue = req.body.gbsValue;
-    const iebrValue = req.body.iebrValue;
-    const pppValue = req.body.pppValue;
-    const totalValue = req.body.totalValue;
+    const capexID = parseCapexId(req.body.ID);
+    const gbsValue = parseAmount(req.body.gbsValue);
+    const iebrValue = parseAmount(req.body.iebrValue);
+    const pppValue = parseAmount(req.body.pppValue);
   const userID = resolveUserId(req, req.body.userID);
-    const conn = await pool;
-    const request = conn.request();
-    request.input("capexID", capexID);
-    request.input("gbsValue", gbsValue);
-    request.input("iebrValue", iebrValue);
-    request.input("pppValue", pppValue);
-    request.input("totalValue", totalValue);
-    request.input("userID", userID);
+
+  if (!isMinistryScope(req.user)) {
+    return res.status(403).json({ error: "Capex targets are set by the Ministry." });
+  }
+  if (!capexID || !userID) {
+    return res.status(400).json({ error: "Missing required fields." });
+  }
+  if (gbsValue == null || iebrValue == null || pppValue == null) {
+    return res.status(400).json({ error: "GBS, IEBR and PPP must be non-negative numbers." });
+  }
+  const totalValue = round2(gbsValue + iebrValue + pppValue);
 
     try {
-    await request.query(`
+    const conn = await pool;
+    const request = conn.request();
+    request.input("capexID", sql.Int, capexID);
+    request.input("gbsValue", sql.Decimal(18, 2), gbsValue);
+    request.input("iebrValue", sql.Decimal(18, 2), iebrValue);
+    request.input("pppValue", sql.Decimal(18, 2), pppValue);
+    request.input("totalValue", sql.Decimal(18, 2), totalValue);
+    request.input("userID", sql.Int, userID);
+
+    const result = await request.query(`
       UPDATE tbl_capex
       SET capex_gbs_value = @gbsValue,
           capex_iebr_value = @iebrValue,
@@ -478,6 +579,9 @@ async function editCapexExpediture(req, res) {
           updated_date = GETDATE()
       WHERE capex_id = @capexID
     `);
+    if (!result.rowsAffected?.[0]) {
+      return res.status(404).json({ error: "Capex record not found." });
+    }
         return res.sendStatus(200);
   } catch (err) {
         console.log(err);
@@ -488,15 +592,15 @@ async function editCapexExpediture(req, res) {
 async function getCapexDataEntry(req, res) {
     const currentYear = new Date().getFullYear();
   const financialYear =
-    new Date().getMonth() > 3
+    // getMonth() is 0-based: April (3) starts the new financial year
+    new Date().getMonth() >= 3
       ? `${currentYear}-${currentYear + 1}`
       : `${currentYear - 1}-${currentYear}`;
 
+  try {
     const conn = await pool;
     const request = conn.request();
-  request.input("financialYear", financialYear);
-
-  try {
+    request.input("financialYear", financialYear);
     const { joinSql, whereSql } = applyDataScope(request, req.user, {
       strategy: "directOrgColumn",
       alias: "mmt",

@@ -34,10 +34,11 @@ export default function CapexUpdateForm({
         ? String(record.capex_iebr_value)
         : ''
     );
+    // Older records have no PPP target (NULL); treat it as 0 so they can be updated
     setPppValue(
       record.capex_ppp_value !== undefined && record.capex_ppp_value !== null
         ? String(record.capex_ppp_value)
-        : ''
+        : '0'
     );
   }, [record]);
 

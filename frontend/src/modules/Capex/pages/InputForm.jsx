@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { calculateCapexTotal } from '../utils/capexUtils';
 import { COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
 import { CAPEX_TOASTS } from '../toastMessages';
@@ -25,20 +25,13 @@ export default function CapexInputForm({
 
   const totalValue = calculateCapexTotal(gbsValue, iebrValue, pppValue);
 
-  useEffect(() => {
-    if (organisations.length > 0 && !organisationId) {
-      setOrganisationId(String(organisations[0].organisation_id || organisations[0].id || ''));
-    }
-  }, [organisations, organisationId]);
-
+  // No organisation is picked for the user, so a forgotten choice can't save against the first one
   const resetForm = () => {
     setFinancialYear('2026-2027');
+    setOrganisationId('');
     setGbsValue('');
     setIebrValue('');
     setPppValue('');
-    if (organisations.length > 0) {
-      setOrganisationId(String(organisations[0].organisation_id || organisations[0].id || ''));
-    }
   };
 
   const handleSubmit = async (e) => {
