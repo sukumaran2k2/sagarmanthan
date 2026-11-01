@@ -2,17 +2,6 @@ import { create } from 'zustand';
 import { registerStoreReset } from '../../../stores/resetRegistry';
 import { fetchOrganisations } from '../api';
 
-/**
- * Media Outreach store.
- * Keeps what must survive switching between the module's tabs and the Input Form:
- *  - reference data (the organisation list), loaded once
- *  - the open media tab (Broadcast / Print / Online / Social Media)
- *  - the Data List's filters, search, filter panel, pagination and column visibility
- *    (shared by the four media tabs, as before)
- * visibleCols holds only the user's changes; the Data List merges them over its own defaults.
- * The record being edited and the fetched records stay in component state (as in HR).
- */
-
 export const MEDIA_LIST_TABS = ['broadcast', 'print_media', 'online', 'social_media'];
 
 // category: 'all' | 'major_port' | 'ministry' | 'non_port'; subOrgId narrows a category to one organisation
@@ -58,8 +47,7 @@ export const useMediaOutreachStore = create((set, get) => {
       if (MEDIA_LIST_TABS.includes(mediaTab)) set({ mediaTab });
     },
 
-    // The list filters in the browser, so search applies as the user types (no debounce).
-    // Every filter or search change returns to page 1.
+    // Every filter or search change returns to page 1
     listActions: {
       setSearchTerm: (searchTerm) => patchList({ searchTerm, currentPage: 1 }),
       setFilters: (changes) => patchList({ ...changes, currentPage: 1 }),
@@ -82,7 +70,7 @@ export const useMediaOutreachStore = create((set, get) => {
     // Restore defaults (called on logout so nothing carries over to the next session)
     reset: () => set(createInitialState()),
 
-    /** The organisation list, loaded once. */
+    // Organisation list, loaded once
     loadOrganisations: async () => {
       const { organisations, loadingOrganisations } = get();
       if (loadingOrganisations || organisations.length > 0) return;

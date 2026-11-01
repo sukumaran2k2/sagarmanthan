@@ -1540,40 +1540,28 @@ router.post(
   socialmediaTab.createSocialMedia
 );
 router.get(
-  "/socialmedia-parameter",
+  "/monthly-socialmedia-parameter",
   auth,
   requireModulePermission("MEDIA_OUTREACH", "read"),
-  socialmediaTab.getSocialMediaData
+  socialmediaTab.getSocialMediaList
 );
 router.get(
-  "/monthly-socialmedia-parameter/:userID/",
+  "/quarterly-socialmedia-parameter/:platform",
   auth,
   requireModulePermission("MEDIA_OUTREACH", "read"),
-  socialmediaTab.getMonthlySocialParameter
+  socialmediaTab.getQuarterlySummary
 );
 router.get(
-  "/quarterly-socialmedia-parameter/:platform/:userID/",
+  "/annually-socialmedia-parameter/:platform",
   auth,
   requireModulePermission("MEDIA_OUTREACH", "read"),
-  socialmediaTab.getQuarterlySocialParameter
-);
-router.get(
-  "/annually-socialmedia-parameter/:platform/:userID/",
-  auth,
-  requireModulePermission("MEDIA_OUTREACH", "read"),
-  socialmediaTab.getAnnuallySocialMediaData
-);
-router.get(
-  "/update-Broadcast-media-data/:mediaOutreachId",
-  auth,
-  requireModulePermission("MEDIA_OUTREACH", "read"),
-  socialmediaTab.getUpdateBroadcastmediadata
+  socialmediaTab.getAnnualSummary
 );
 router.put(
-  '/media-outreach-data-edit',
+  "/media-outreach-data-edit",
   auth,
   requireModulePermission("MEDIA_OUTREACH", "update"),
-  socialmediaTab.updateBroadcastmediadata
+  socialmediaTab.updateSocialMedia
 );
 router.delete(
   "/delete-social-media/:mediaOutreachId",
@@ -1582,21 +1570,21 @@ router.delete(
   socialmediaTab.deleteSocialMedia
 );
 
-// social Media week1 Report
+// Social media monthly reports
 router.get(
-  "/monthly-onlinemedia-report-parameter/:userID/:currentMonth/:currentFinYear/",
+  "/monthly-onlinemedia-report-parameter/:currentMonth/:currentFinYear",
   auth,
   requireModulePermission("MEDIA_OUTREACH", "read"),
   socialmediaTab.getMonthlyOnlineReport
 );
 router.get(
-  "/monthly-socialmedia-report-parameter/:userID/:currentMonth/:currentFinYear/",
+  "/monthly-socialmedia-report-parameter/:currentMonth/:currentFinYear",
   auth,
   requireModulePermission("MEDIA_OUTREACH", "read"),
   socialmediaTab.getMonthlySocialReport
 );
 router.get(
-  "/monthly-BroadPrint-report-parameter/:userID/:platform/:currentMonth/:currentFinYear/",
+  "/monthly-BroadPrint-report-parameter/:platform/:currentMonth/:currentFinYear",
   auth,
   requireModulePermission("MEDIA_OUTREACH", "read"),
   socialmediaTab.getMonthlyBroadPrintReport

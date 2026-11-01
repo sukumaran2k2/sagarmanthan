@@ -1,7 +1,4 @@
-/**
-  Resolves dynamic organisation ID to category by checking organisation_category_name or looking up in organisations array
-  Returns 'major_port' | 'ministry' | 'non_port'
- */
+// Returns 'major_port' | 'ministry' | 'non_port' from the row's category, else the organisation list
 export function getOrgCategory(orgId, rowCatName, organisations = []) {
   let catName = rowCatName;
   if (!catName && Array.isArray(organisations)) {
@@ -21,17 +18,14 @@ export function getOrgCategory(orgId, rowCatName, organisations = []) {
   return 'non_port';
 }
 
-/**
-  Calculates Major Ports, Ministry, and Non-Port record counts for filtered rows
- */
+// Counts rows per category for the category cards
 export function calculateCategoryCounts(baseFiltered, organisations, getCategoryFn) {
   let majorPort = 0;
   let ministry = 0;
   let nonPort = 0;
 
   baseFiltered.forEach(row => {
-    const orgId = row.organisation_id ?? row.organisation;
-    const cat = getCategoryFn(orgId, row.organisation_category_name, organisations);
+    const cat = getCategoryFn(row.organisation_id, row.organisation_category_name, organisations);
     if (cat === 'major_port') majorPort++;
     else if (cat === 'ministry') ministry++;
     else nonPort++;
