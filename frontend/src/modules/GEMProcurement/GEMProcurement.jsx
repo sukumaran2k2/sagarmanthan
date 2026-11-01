@@ -3,6 +3,7 @@ import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-
 import * as XLSX from 'xlsx';
 import { Calendar, Edit } from 'lucide-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
+import { useShallow } from 'zustand/react/shallow';
 
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
@@ -16,9 +17,12 @@ import {
   fetchGemList,
   createGemTarget,
   updateGemTarget,
-  fetchOrganisationsDropdown,
 } from './api';
+import { useGemStore } from './store/useGemStore';
+import { GEM_TOASTS } from './toastMessages';
+import { COMMON_TOASTS, useNotifier } from '../../utils/notify';
 import {
+  getGemRecordId,
   getGemFinancialYear,
   getGemOrganisationId,
   getGemPotential,
@@ -35,6 +39,8 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 
 const GEM_BASE = '/governance/gem-procurements';
 const INIT_TAB_KEY = 'gemInitTab';
+// Category tabs that have targets to add / update (Total is a read-only roll-up)
+const TARGET_CATEGORIES = ['goods', 'services', 'works'];
 
 function resolvePathSegment(label) {
   const key = String(label || '').toLowerCase().trim();
@@ -75,6 +81,7 @@ export default function GEMProcurementView({
 }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const notify = useNotifier(triggerNotification);
   const permissions = useGemPermissions();
   const viewMode = permissions.viewMode;
   const canManageTargets = Boolean(
@@ -87,27 +94,57 @@ export default function GEMProcurementView({
   const elapsedMonths = getElapsedFinancialMonths();
   const activeTab = getTabKeyFromPath(location.pathname);
 
+  // The record being updated travels with the <category>/input-form route entry, so it is
+  // gone as soon as the form is opened any other way (tab, sidebar, new session):
+  //  - state.target: a ministry user updating the planned procurement
+  //  - state.item:   the monthly procurement data of a record
+  //  - neither:      a new planned procurement
+  const editTarget = location.state?.target ?? null;
+  const monthlyRecord = location.state?.item ?? null;
+
   const [selectedOrgId, setSelectedOrgId] = useState(
     permissions.organisationId ? String(permissions.organisationId) : ''
   );
   const [rows, setRows] = useState([]);
-  const [organisations, setOrganisations] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  // Search, filters and paging live in the module store so they survive leaving the module
+  const {
+    organisations,
+    loadOrganisations,
+    searchTerm,
+    setSearchTerm,
+    debouncedSearch,
+    setDebouncedSearch,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    filterYear,
+    setFilterYear,
+    filterOrg,
+    setFilterOrg,
+  } = useGemStore(useShallow((state) => ({
+    organisations: state.organisations,
+    loadOrganisations: state.loadOrganisations,
+    searchTerm: state.searchTerm,
+    setSearchTerm: state.setSearchTerm,
+    debouncedSearch: state.debouncedSearch,
+    setDebouncedSearch: state.setDebouncedSearch,
+    page: state.page,
+    setPage: state.setPage,
+    pageSize: state.pageSize,
+    setPageSize: state.setPageSize,
+    filterYear: state.filterYear,
+    setFilterYear: state.setFilterYear,
+    filterOrg: state.filterOrg,
+    setFilterOrg: state.setFilterOrg,
+  })));
   const [pagination, setPagination] = useState({
     total: 0,
     page: 1,
     limit: 10,
     totalPages: 0,
   });
-  const [filterYear, setFilterYear] = useState('2026-2027');
-  const [filterOrg, setFilterOrg] = useState('');
-
-  const [activePage, setActivePage] = useState(null);
-  const [selectedRecord, setSelectedRecord] = useState(null);
 
   const goToGemTab = useCallback(
     (segment) => {
@@ -123,39 +160,6 @@ export default function GEMProcurementView({
     canManageTargets && permissions.canEdit && activeTab !== 'total'
   );
 
-  const [toastMsg, setToastMsg] = useState('');
-  const [toastColor, setToastColor] = useState('#10B981');
-  const [toastVisible, setToastVisible] = useState(false);
-
-  const showToast = useCallback(
-    (msg, colorOrType = 'success') => {
-      const raw = String(msg || '');
-      const isError =
-        colorOrType === 'error' ||
-        String(colorOrType).toLowerCase().includes('ef4444') ||
-        String(colorOrType).toLowerCase().includes('red') ||
-        raw.includes('❌') ||
-        raw.toLowerCase().includes('failed');
-      const type =
-        colorOrType === 'info' || String(colorOrType).toLowerCase().includes('3b82f6')
-          ? 'info'
-          : isError
-            ? 'error'
-            : 'success';
-      const cleanMsg = raw.replace(/^[✅❌📋📊📄]\s*/u, '').trim() || raw;
-
-      if (typeof triggerNotification === 'function') {
-        triggerNotification(cleanMsg, type);
-        return;
-      }
-      setToastMsg(cleanMsg);
-      setToastColor(isError ? '#EF4444' : '#10B981');
-      setToastVisible(true);
-      setTimeout(() => setToastVisible(false), 3000);
-    },
-    [triggerNotification]
-  );
-
   useEffect(() => {
     if (permissions.organisationId) {
       setSelectedOrgId(String(permissions.organisationId));
@@ -163,11 +167,7 @@ export default function GEMProcurementView({
   }, [permissions.organisationId]);
 
   useEffect(() => {
-    const apply = (label) => {
-      setActivePage(null);
-      setSelectedRecord(null);
-      goToGemTab(resolvePathSegment(label));
-    };
+    const apply = (label) => goToGemTab(resolvePathSegment(label));
     const init = sessionStorage.getItem(INIT_TAB_KEY);
     if (init) {
       sessionStorage.removeItem(INIT_TAB_KEY);
@@ -180,52 +180,27 @@ export default function GEMProcurementView({
 
   useEffect(() => {
     if (!activeSubTabProp) return;
-    setActivePage(null);
-    setSelectedRecord(null);
     goToGemTab(resolvePathSegment(activeSubTabProp));
   }, [activeSubTabProp, goToGemTab]);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchTerm), 300);
     return () => clearTimeout(timer);
-  }, [searchTerm]);
-
-  useEffect(() => {
-    if (activePage === 'add' && !canAddForTab) setActivePage(null);
-    if (activePage === 'target' && !canUpdateTarget) setActivePage(null);
-    if (activePage === 'monthly' && activeTab === 'total') setActivePage(null);
-  }, [activePage, canAddForTab, canUpdateTarget, activeTab]);
-
-  useEffect(() => {
-    setActivePage(null);
-    setSelectedRecord(null);
-  }, [activeTab]);
+  }, [searchTerm, setDebouncedSearch]);
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, filterYear, filterOrg, pageSize, viewMode, selectedOrgId, activeTab]);
+  }, [debouncedSearch, filterYear, filterOrg, pageSize, viewMode, selectedOrgId, activeTab, setPage]);
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetchOrganisationsDropdown();
-        if (cancelled) return;
-        const list = Array.isArray(res.data)
-          ? res.data
-          : res.data?.organisations || [];
-        setOrganisations(list);
-      } catch (err) {
-        if (cancelled) return;
-        console.error('Failed to load organisations for GEM:', err);
-        setOrganisations([]);
-        showToast('❌ Failed to load organisation list', '#EF4444');
-      }
-    })();
+    loadOrganisations().then((ok) => {
+      if (!ok && !cancelled) notify(COMMON_TOASTS.loadFailed('The organisation list'));
+    });
     return () => {
       cancelled = true;
     };
-  }, [showToast]);
+  }, [loadOrganisations, notify]);
 
   const fetchList = useCallback(
     async (signal) => {
@@ -264,7 +239,7 @@ export default function GEMProcurementView({
       } catch (err) {
         if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return;
         console.error('Failed to fetch GEM list:', err);
-        showToast('❌ Failed to load GEM procurement data', '#EF4444');
+        notify(COMMON_TOASTS.loadFailed('GEM procurement data'));
         setRows([]);
       } finally {
         setLoading(false);
@@ -280,7 +255,7 @@ export default function GEMProcurementView({
       viewMode,
       selectedOrgId,
       filterOrg,
-      showToast,
+      notify,
     ]
   );
 
@@ -291,31 +266,30 @@ export default function GEMProcurementView({
   }, [fetchList]);
 
   const openAddPage = useCallback(() => {
-    setSelectedRecord(null);
-    setActivePage('add');
-  }, []);
+    navigate(`${GEM_BASE}/${activeTab}/input-form`);
+  }, [navigate, activeTab]);
 
   const openTargetPage = useCallback((record) => {
-    setSelectedRecord(record);
-    setActivePage('target');
-  }, []);
+    navigate(`${GEM_BASE}/${activeTab}/input-form`, { state: { target: record } });
+  }, [navigate, activeTab]);
 
   const openMonthlyPage = useCallback((record) => {
-    setSelectedRecord(record);
-    setActivePage('monthly');
-  }, []);
+    navigate(`${GEM_BASE}/${activeTab}/input-form`, { state: { item: record } });
+  }, [navigate, activeTab]);
 
   const closeUpdatePage = useCallback(() => {
-    setActivePage(null);
-    setSelectedRecord(null);
-  }, []);
+    goToGemTab(activeTab);
+  }, [goToGemTab, activeTab]);
+
+  // Replace the form entry so browser Back can't reopen the pre-save snapshot
+  const handleSaved = useCallback(() => {
+    navigate(`${GEM_BASE}/${activeTab}`, { replace: true });
+    fetchList();
+  }, [navigate, activeTab, fetchList]);
 
   const handleTabChange = useCallback(
-    (tabId) => {
-      closeUpdatePage();
-      goToGemTab(pathSegmentForTab(tabId));
-    },
-    [closeUpdatePage, goToGemTab]
+    (tabId) => goToGemTab(pathSegmentForTab(tabId)),
+    [goToGemTab]
   );
 
   const categoryTitle =
@@ -506,37 +480,24 @@ export default function GEMProcurementView({
     pageSize,
   ]);
 
-  const gemApiErrorMessage = (err, fallback) =>
-    err?.response?.data?.error ||
-    err?.response?.data?.message ||
-    err?.message ||
-    fallback;
-
+  // The forms show the success / failure toast; an API error is passed on to them
   const handleAddSubmit = async (payload) => {
     const category = listCategoryForTab(activeTab);
     if (category === 'total') return;
-    try {
-      await createGemTarget(category, payload);
-    } catch (err) {
-      throw new Error(gemApiErrorMessage(err, `Failed to add ${categoryTitle} target.`), {
-        cause: err,
-      });
-    }
+    await createGemTarget(category, payload);
   };
 
   const handleTargetUpdate = async (payload) => {
     const category = listCategoryForTab(activeTab);
     if (category === 'total') return;
-    try {
-      await updateGemTarget(category, payload);
-    } catch (err) {
-      throw new Error(gemApiErrorMessage(err, 'Failed to update planned procurement.'), {
-        cause: err,
-      });
-    }
+    await updateGemTarget(category, payload);
   };
 
-  const handleCopyData = async () => {
+  const handleCopyData = () => {
+    if (!rows.length) {
+      notify(COMMON_TOASTS.nothingToCopy());
+      return;
+    }
     const text = rows
       .map((r) => {
         const category = listCategoryForTab(activeTab);
@@ -550,11 +511,17 @@ export default function GEMProcurementView({
         ].join('\t');
       })
       .join('\n');
-    await navigator.clipboard.writeText(text);
-    showToast('✅ Copied to clipboard', '#10B981');
+    navigator.clipboard.writeText(text).then(
+      () => notify(COMMON_TOASTS.copySuccess(rows.length)),
+      () => notify(COMMON_TOASTS.copyFailed()),
+    );
   };
 
   const handleExportExcel = () => {
+    if (!rows.length) {
+      notify(COMMON_TOASTS.nothingToExport());
+      return;
+    }
     const category = listCategoryForTab(activeTab);
     const sheet = rows.map((r, idx) => ({
       'Sl.No': (pagination.page - 1) * pagination.limit + idx + 1,
@@ -568,103 +535,102 @@ export default function GEMProcurementView({
       'Through GEM': r.total_procurement_through_gem || 0,
       'Outside GEM': r.total_procurement_outside_gem || 0,
     }));
+    const fileName = `GEM_${categoryTitle}_${filterYear || 'all'}.xlsx`;
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(sheet);
     XLSX.utils.book_append_sheet(wb, ws, categoryTitle);
-    XLSX.writeFile(wb, `GEM_${categoryTitle}_${filterYear || 'all'}.xlsx`);
+    XLSX.writeFile(wb, fileName);
+    notify(COMMON_TOASTS.excelExported(fileName));
   };
 
   if (!permissions.canView) {
     return <RestrictedAccess moduleName="GEM Procurement" />;
   }
 
-  const listOrOverlayPanel =
-    activePage === 'add' && canAddForTab ? (
+  const listPanel = (
+    <div className="module-card space-y-4">
+      <GEMDataListView
+        categoryTitle={categoryTitle}
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        page={page}
+        pageSize={pageSize}
+        setPageSize={setPageSize}
+        onPageChange={setPage}
+        onPageSizeChange={(n) => {
+          setPageSize(n);
+          setPage(1);
+        }}
+        pagination={pagination}
+        rowData={rows}
+        colDefs={colDefs}
+        loading={loading}
+        showAddButton={canAddForTab}
+        onOpenAddPage={openAddPage}
+        handleCopyData={handleCopyData}
+        handleExportExcel={handleExportExcel}
+        handleExportPdf={() => notify(GEM_TOASTS.pdfComingSoon())}
+        organisations={organisations}
+        filterYear={filterYear}
+        setFilterYear={setFilterYear}
+        filterOrg={filterOrg}
+        setFilterOrg={setFilterOrg}
+        viewMode={viewMode}
+        notify={notify}
+      />
+    </div>
+  );
+
+  // <category>/input-form shows the target update (state.target), the monthly data
+  // (state.item) or a new target; anything the user may not open goes back to the list
+  let formPanel = <Navigate to={`${GEM_BASE}/${activeTab}`} replace />;
+  if (editTarget) {
+    if (canUpdateTarget) {
+      formPanel = (
+        <GEMUpdateForm
+          key={getGemRecordId(editTarget, listCategoryForTab(activeTab)) ?? 'target'}
+          record={editTarget}
+          category={listCategoryForTab(activeTab)}
+          categoryTitle={categoryTitle}
+          onSubmit={handleTargetUpdate}
+          onBack={closeUpdatePage}
+          onSuccess={handleSaved}
+          notify={notify}
+        />
+      );
+    }
+  } else if (monthlyRecord) {
+    formPanel = (
+      <GEMMonthlyDataPage
+        record={monthlyRecord}
+        category={listCategoryForTab(activeTab)}
+        categoryTitle={categoryTitle}
+        canEdit={canUpdateMonthly}
+        onBack={closeUpdatePage}
+        onSaved={handleSaved}
+        notify={notify}
+      />
+    );
+  } else if (canAddForTab) {
+    formPanel = (
       <GEMInputForm
         organisations={organisations}
         categoryTitle={categoryTitle}
         existingData={rows}
         onSubmit={handleAddSubmit}
         onBack={closeUpdatePage}
-        onSuccess={() => {
-          closeUpdatePage();
-          fetchList();
-        }}
-        notify={(msg, type) =>
-          showToast(msg, type === 'error' ? '#EF4444' : '#10B981')
-        }
+        onSuccess={handleSaved}
+        notify={notify}
       />
-    ) : activePage === 'target' && selectedRecord && canUpdateTarget ? (
-      <GEMUpdateForm
-        record={selectedRecord}
-        category={listCategoryForTab(activeTab)}
-        categoryTitle={categoryTitle}
-        onSubmit={handleTargetUpdate}
-        onBack={closeUpdatePage}
-        onSuccess={() => {
-          closeUpdatePage();
-          fetchList();
-        }}
-        notify={(msg, type) =>
-          showToast(msg, type === 'error' ? '#EF4444' : '#10B981')
-        }
-      />
-    ) : activePage === 'monthly' && selectedRecord ? (
-      <GEMMonthlyDataPage
-        record={selectedRecord}
-        category={listCategoryForTab(activeTab)}
-        categoryTitle={categoryTitle}
-        canEdit={canUpdateMonthly}
-        onBack={closeUpdatePage}
-        onSaved={() => {
-          closeUpdatePage();
-          fetchList();
-        }}
-        notify={(msg, type) =>
-          showToast(msg, type === 'error' ? '#EF4444' : '#10B981')
-        }
-      />
-    ) : (
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
-        <GEMDataListView
-          categoryTitle={categoryTitle}
-          searchTerm={searchTerm}
-          setSearchTerm={setSearchTerm}
-          page={page}
-          pageSize={pageSize}
-          setPageSize={setPageSize}
-          onPageChange={setPage}
-          onPageSizeChange={(n) => {
-            setPageSize(n);
-            setPage(1);
-          }}
-          pagination={pagination}
-          rowData={rows}
-          colDefs={colDefs}
-          loading={loading}
-          showAddButton={canAddForTab}
-          onOpenAddPage={openAddPage}
-          handleCopyData={handleCopyData}
-          handleExportExcel={handleExportExcel}
-          handleExportPdf={() => showToast('PDF export coming soon', '#0f417a')}
-          organisations={organisations}
-          filterYear={filterYear}
-          setFilterYear={setFilterYear}
-          filterOrg={filterOrg}
-          setFilterOrg={setFilterOrg}
-          viewMode={viewMode}
-        />
-      </div>
     );
+  }
 
   return (
-    <div className="space-y-5 animate-fade-in">
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+    <div className="module-page-container space-y-6 animate-fade-in">
+      <div className="module-header-container">
         <div>
-          <h2 className="text-xl font-black text-[#0f417a] tracking-tight">
-            GEM Procurement
-          </h2>
-          <p className="text-xs text-slate-500 mt-1 font-medium">
+          <h1 className="module-header-title">GEM Procurement</h1>
+          <p className="module-header-subtitle">
             Track Goods, Services and Works procurement targets and monthly actuals across organisations.
           </p>
         </div>
@@ -676,24 +642,18 @@ export default function GEMProcurementView({
       </div>
 
       <Routes>
-        <Route path="total" element={listOrOverlayPanel} />
-        <Route path="goods" element={listOrOverlayPanel} />
-        <Route path="services" element={listOrOverlayPanel} />
-        <Route path="works" element={listOrOverlayPanel} />
-        <Route path="reports" element={<GEMReports showToast={showToast} viewMode={viewMode} />} />
+        <Route path="total" element={listPanel} />
+        {TARGET_CATEGORIES.map((segment) => (
+          <Route key={segment} path={segment} element={listPanel} />
+        ))}
+        {TARGET_CATEGORIES.map((segment) => (
+          <Route key={`${segment}-form`} path={`${segment}/input-form`} element={formPanel} />
+        ))}
+        <Route path="reports" element={<GEMReports notify={notify} viewMode={viewMode} />} />
         <Route path="report" element={<Navigate to="../reports" replace />} />
         <Route index element={<Navigate to="total" replace />} />
         <Route path="*" element={<Navigate to="total" replace />} />
       </Routes>
-
-      {toastVisible && (
-        <div
-          className="fixed bottom-6 right-6 z-[10000] text-white text-sm font-bold px-4 py-3 rounded-xl shadow-lg"
-          style={{ backgroundColor: toastColor }}
-        >
-          {toastMsg}
-        </div>
-      )}
     </div>
   );
 }

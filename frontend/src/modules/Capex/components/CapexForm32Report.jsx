@@ -14,6 +14,8 @@ import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import { fetchCapexReport } from '../api';
 import { getSessionOrganisationId } from '../../../utils/authSession';
+import { COMMON_TOASTS } from '../../../utils/notify';
+import { CAPEX_TOASTS } from '../toastMessages';
 
 const BRAND = '#4b2424';
 const BRAND_HOVER = '#6b3535';
@@ -231,7 +233,7 @@ function SectionHeader({ title }) {
   );
 }
 
-export default function CapexForm32Report({ showToast, orgScoped = false }) {
+export default function CapexForm32Report({ notify, orgScoped = false }) {
   const [selectedYear, setSelectedYear] = useState('2026-2027');
   const [selectedOrgFilter, setSelectedOrgFilter] = useState('ALL');
   const [quickFilter, setQuickFilter] = useState('');
@@ -271,7 +273,7 @@ export default function CapexForm32Report({ showToast, orgScoped = false }) {
       }
     } catch (err) {
       console.error('Error fetching Capex Report Form 3.2 data:', err);
-      if (showToast) showToast('❌ Failed to fetch Capex detailed report data', '#EF4444');
+      notify?.(COMMON_TOASTS.loadFailed('The Capex detailed report'));
     } finally {
       setLoading(false);
     }
@@ -393,7 +395,7 @@ export default function CapexForm32Report({ showToast, orgScoped = false }) {
       tsv += `${rowData.join('\t')}\n`;
     }
     navigator.clipboard.writeText(tsv).then(() => {
-      if (showToast) showToast('📋 Detailed Capex Report copied to clipboard!', BRAND);
+      notify?.(CAPEX_TOASTS.reportCopied('Capex detailed report'));
     });
   };
 
@@ -402,11 +404,11 @@ export default function CapexForm32Report({ showToast, orgScoped = false }) {
     if (!tableEl) return;
     const wb = XLSX.utils.table_to_book(tableEl, { sheet: 'Capex Detailed' });
     XLSX.writeFile(wb, `Capex_Detailed_Report_${selectedYear}.xlsx`);
-    if (showToast) showToast('📊 Exported Capex Detailed Report to Excel!', BRAND);
+    notify?.(COMMON_TOASTS.excelExported(`Capex_Detailed_Report_${selectedYear}.xlsx`, 'The report'));
   };
 
   const handleExportPdf = () => {
-    if (showToast) showToast('📄 Opening browser print for Capex Detailed Report...', BRAND);
+    notify?.(COMMON_TOASTS.pdfPreparing());
     window.print();
   };
 
