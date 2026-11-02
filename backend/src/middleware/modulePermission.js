@@ -63,12 +63,9 @@ export function checkModulePermission(user, moduleCode, action, { strict = false
     return { ok: false, status: 401, message: 'Unauthorized!' };
   }
 
-  // Every role, ministry ones included, goes by the organisation's modules and the user
-  // matrix, as the frontend does. Superadmin manages users and permissions (the /rbac
-  // screens) and has no access to module data, also as in the frontend.
-  if (isSuperAdmin(user)) {
-    return { ok: false, status: 403, message: 'Superadmin has no access to module data' };
-  }
+  // Superadmin has full access, as in main. Every other role, ministry ones included,
+  // goes by the organisation's modules and the user matrix, as the frontend does.
+  if (isSuperAdmin(user)) return { ok: true };
 
   if (strict) {
     const scope = String(user.dataScopeCode || '').toUpperCase();
@@ -145,9 +142,8 @@ export function requireAnyModulePermission(moduleCode, actions = []) {
       return res.status(401).json({ status: 'fail', message: 'Unauthorized!' });
     }
 
-    if (isSuperAdmin(user)) {
-      return res.status(403).json({ status: 'fail', message: 'Superadmin has no access to module data' });
-    }
+    // Superadmin has full access
+    if (isSuperAdmin(user)) return next();
 
     const candidates = getCodeCandidates(code);
     const allowedCodes = Array.isArray(user.allowedModuleCodes)
