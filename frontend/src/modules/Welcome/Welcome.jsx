@@ -19,9 +19,9 @@ const CHECK_ITEMS = [
 
 /* ── palette tokens ── */
 const C = {
-  bg0:    '#f0e4d0',   // deepest bg
-  bg1:    '#f5ece0',   // main bg
-  bg2:    '#f9f2e8',   // slightly lighter
+  bg0:    '#ffffff',   // deepest bg
+  bg1:    '#ffffff',   // main bg
+  bg2:    '#ffffff',   // slightly lighter
   cream:  '#080400',   // primary text — near black warm
   cream2: '#1c0e04',   // secondary text — very dark brown
   muted:  '#3a2010',   // muted text
@@ -120,6 +120,9 @@ export default function Welcome({ onContinue }) {
         .wm-know { animation: wm-up   .8s .75s cubic-bezier(.22,1,.36,1) both }
         .wm-note { animation: wm-up   .8s .95s cubic-bezier(.22,1,.36,1) both }
         .wm-cta  { animation: wm-up   .8s 1.1s cubic-bezier(.22,1,.36,1) both }
+        .wm-tag-0 { animation: wm-up  .7s 1.3s cubic-bezier(.22,1,.36,1) both }
+        .wm-tag-1 { animation: wm-up  .7s 1.5s cubic-bezier(.22,1,.36,1) both }
+        .wm-tag-2 { animation: wm-up  .7s 1.7s cubic-bezier(.22,1,.36,1) both }
 
         /* ── row / icon anims ── */
         .wm-chk-row { animation: wm-slide .5s cubic-bezier(.22,1,.36,1) both }
@@ -129,12 +132,12 @@ export default function Welcome({ onContinue }) {
         .wm-wa { animation: wm-wave-a 18s linear infinite }
         .wm-wb { animation: wm-wave-b 28s linear infinite reverse }
 
-        /* ── gold shimmer headline ── */
+        /* ── navy headline ── */
         .wm-gold-txt {
           background: linear-gradient(110deg,
-            #c87820 0%,
-            #e8a030 50%,
-            #b86010 100%);
+            #0b2265 0%,
+            #1535a0 50%,
+            #081a55 100%);
           -webkit-background-clip:text;
           -webkit-text-fill-color:transparent;
           background-clip:text;
@@ -175,7 +178,7 @@ export default function Welcome({ onContinue }) {
         className={`wm-pg wm-noise${phase==='exit' ? ' wm-exit' : ''}`}
         style={{
           position:'fixed', inset:0, zIndex:9999,
-          background:`radial-gradient(ellipse 80% 70% at 20% 10%, #fdf8f0 0%, ${C.bg1} 45%, ${C.bg0} 100%)`,
+          background:'#ffffff',
           display:'flex', flexDirection:'column',
           overflow:'hidden',
         }}
@@ -285,19 +288,24 @@ export default function Welcome({ onContinue }) {
               {/* divider */}
               <div style={{width:1, height:40, background:C.lineB, marginLeft:8}}/>
 
+              {/* IIT Madras logo */}
+              <img src="/iitm-logo.png" alt="IIT Madras"
+                style={{height:64, width:'auto', objectFit:'contain', flexShrink:0}}/>
+
+              {/* divider */}
+              <div style={{width:1, height:40, background:C.lineB}}/>
+
               {/* NTCPWC logo */}
-              <div style={{flexShrink:0, overflow:'hidden', width:64, height:64}}>
-                <img src="/ntcpwc-logo.png" alt="NTCPWC"
-                  style={{height:64, width:'auto', maxWidth:'none', display:'block'}}/>
-              </div>
+              <img src="/ntcpwc-logo.png" alt="NTCPWC"
+                style={{height:56, width:'auto', objectFit:'contain', flexShrink:0}}/>
             </div>
 
             {/* live pill */}
             <div style={{
               display:'inline-flex', alignItems:'center', gap:8,
               borderRadius:50, padding:'6px 16px',
-              background:'rgba(30,15,5,0.07)',
-              border:'1px solid rgba(30,15,5,0.15)',
+              background:'rgba(22,101,52,0.06)',
+              border:'1px solid #16a34a',
             }}>
               <span className="wm-dot" style={{
                 width:7, height:7, borderRadius:'50%',
@@ -359,7 +367,7 @@ export default function Welcome({ onContinue }) {
             flex:1, display:'flex', flexDirection:'row',
             alignItems:'stretch',
             gap:'6vw',
-            paddingTop:24, paddingBottom:0,
+            paddingTop:24, paddingBottom:'6vh',
             minHeight:0,
           }}>
 
@@ -417,8 +425,18 @@ export default function Welcome({ onContinue }) {
                 </div>
               </div>
 
+              {/* tagline strip */}
+              <div style={{display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginTop:'auto', marginBottom:14, paddingLeft:'2.5%'}}>
+                {['Same Data.', 'Active Modules.', 'Better Experience.'].map((txt, i, arr) => (
+                  <React.Fragment key={txt}>
+                    <span className={`wm-tag-${i}`} style={{fontSize:'clamp(12px,1.1vw,14px)', fontWeight:700, color:C.cream2}}>{txt}</span>
+                    {i < arr.length - 1 && <span className={`wm-tag-${i}`} style={{color:'rgba(90,50,0,0.35)', fontWeight:900, fontSize:13}}>·</span>}
+                  </React.Fragment>
+                ))}
+              </div>
+
               {/* feedback note */}
-              <div className="wm-note" style={{borderLeft:`2px solid rgba(90,40,0,0.3)`, paddingLeft:20, marginTop:'auto'}}>
+              <div className="wm-note" style={{borderLeft:`2px solid rgba(90,40,0,0.3)`, paddingLeft:20}}>
                 <p style={{
                   margin:0,
                   fontSize:'clamp(12px,1.05vw,13.5px)',
@@ -436,30 +454,14 @@ export default function Welcome({ onContinue }) {
             {/* ── RIGHT COLUMN ── tagline + CTA */}
             <div className="wm-cta" style={{flexShrink:0, display:'flex', flexDirection:'column', justifyContent:'flex-end', gap:22, alignItems:'flex-end'}}>
 
-              {/* tagline */}
-              <div style={{display:'flex', alignItems:'center', gap:0}}>
-                {['Same Data.','Active Modules.','Better Experience.'].map((t,i)=>(
-                  <React.Fragment key={i}>
-                    <span style={{
-                      fontSize:'clamp(12px,1.1vw,14.5px)',
-                      fontWeight:700,
-                      color:C.cream2,
-                      letterSpacing:'0.04em',
-                      paddingRight: i<2 ? 14 : 0,
-                    }}>{t}</span>
-                    {i<2 && <span style={{fontSize:12, color:C.muted, paddingRight:14, fontWeight:300}}>·</span>}
-                  </React.Fragment>
-                ))}
-              </div>
-
               {/* button — BakerStreet style: light fill dark text */}
               <button
                 onClick={go}
                 className="wm-btn"
                 style={{
                   display:'inline-flex', alignItems:'center', gap:11,
-                  background:'#2d1800',
-                  color:'#f5e8d0',
+                  background:'#166534',
+                  color:'#f0fdf4',
                   border:'none',
                   borderRadius:50,
                   padding:'clamp(11px,1.1vw,15px) clamp(22px,2.2vw,36px)',
@@ -479,7 +481,7 @@ export default function Welcome({ onContinue }) {
                 }}/>
                 <span style={{position:'relative'}}>Continue to Sagarmanthan 3.0</span>
                 <svg style={{position:'relative',flexShrink:0}} width="16" height="16" viewBox="0 0 24 24" fill="none">
-                  <path d="M5 12H19M13 6L19 12L13 18" stroke="#f5e8d0" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M5 12H19M13 6L19 12L13 18" stroke="#f0fdf4" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </button>
             </div>{/* /right col */}
