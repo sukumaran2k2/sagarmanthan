@@ -42,7 +42,7 @@
   text-align: center !important;
 }
 
-/* ── HR report grids (reports/GroupedTable.jsx, pages/Reports.jsx) ─────────────────────────
+/* ── HR report grids (pages/Reports/components/GroupedTable.jsx, pages/Reports/Reports.jsx) ─────────────────────────
    Scoped to .hr-report-grid. Colours come from the shared report tokens in
    styles/module-report.css (maroon palette), with dark-mode values next to them. */
 .hr-report-grid {
@@ -112,7 +112,7 @@
   word-break: keep-all !important;
 }
 
-/* ── HR report page tokens (reports/theme.js) ── */
+/* ── HR report page tokens (pages/Reports/theme.js) ── */
 :root {
   --hr-report-brand-soft: #8c4242;
   --hr-report-total-top: #2c1313;
@@ -149,7 +149,7 @@
   }
 }
 
-/* ── Non Port Monthly Upload grids (pages/NonPortVacancyList.jsx, components/NonPortUploadHistory.jsx) ──
+/* ── Non Port Monthly Upload grids (pages/NonPortUpload/DataList.jsx, pages/NonPortUpload/UploadHistory.jsx) ──
    Headers wrap between words only (the shared Table breaks inside words), one cell font, and
    np-left / np-center align header and cell together. The grid's inline text-align: center and
    the wrap cells' display: block are why both text-align and justify-content are set. */

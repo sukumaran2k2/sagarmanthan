@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { fetchHrDepartments, fetchHrPostsByDepartment } from '../api';
-import { CLASS_ID } from '../utils/hrAdministration';
+import { CLASS_ID } from '../constants';
 
 // Department master per organisation (0 = every organisation), fetched once per session
 const departmentCache = new Map();

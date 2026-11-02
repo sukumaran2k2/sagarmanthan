@@ -32,6 +32,10 @@ const HISTORY = [
 
 jest.mock('../../api', () => ({
   fetchHrEmployeeById: jest.fn(),
+  // Lists the form loads on its own (empty here, as the old axios mock returned)
+  fetchHrDepartments: jest.fn(() => Promise.resolve({ data: [] })),
+  fetchHrPostsByDepartment: jest.fn(() => Promise.resolve({ data: [] })),
+  fetchPostCodesByPost: jest.fn(() => Promise.resolve({ data: [] })),
   fetchEmployeeServiceHistory: jest.fn(),
   fetchMmtDropdown: jest.fn((table) => Promise.resolve({
     data: {
@@ -45,7 +49,7 @@ const hrApi = require('../../api');
 const React = require('react');
 const { render, screen, fireEvent } = require('@testing-library/react');
 const { MemoryRouter, Routes, Route, useLocation } = require('react-router-dom');
-const EmployeeDetails = require('../../pages/EmployeeDetails').default;
+const EmployeeDetails = require('../../pages/EmployeeDatabase/EmployeeDetails').default;
 
 const h = (...args) => React.createElement(...args);
 function EditTarget() {
@@ -76,7 +80,7 @@ describe('Employee Details page', () => {
     expect(hrApi.fetchEmployeeServiceHistory).toHaveBeenCalledWith('5925', 1, 7);
 
     expect(screen.getByText('Active')).toBeInTheDocument();
-    expect(screen.getAllByText('09-04-2026').length).toBeGreaterThan(0); // joined the organisation
+    expect(screen.getAllByText('2026-04-09').length).toBeGreaterThan(0); // joined the organisation
     expect(await screen.findByText('Madhya Pradesh')).toBeInTheDocument(); // state id named
     expect(screen.getByText('Below SSLC')).toBeInTheDocument();
     expect(screen.getByText('Engineering')).toBeInTheDocument();
@@ -88,13 +92,13 @@ describe('Employee Details page', () => {
 
     // History: legacy header and columns, as on today; the current posting runs to today
     const d = new Date();
-    const today = `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     expect(screen.getByRole('heading', { name: `Employee Service History (as on ${today})` })).toBeInTheDocument();
     ['S.No', 'From Date', 'To Date', 'Department', 'Post Name', 'Post Code', 'Method of Appointment / Activity'].forEach((col) =>
       expect(screen.getByRole('columnheader', { name: col })).toBeInTheDocument()
     );
     const rows = screen.getAllByRole('row');
-    expect(rows[1]).toHaveTextContent(`01-10-2026${today}`);
+    expect(rows[1]).toHaveTextContent(`2026-10-01${today}`);
     expect(rows[1].className).not.toMatch(/emerald|green/);
     expect(screen.getByText('Direct Recruitment / Deputation Out')).toBeInTheDocument();
     expect(await screen.findByText('to Chennai Port Authority')).toBeInTheDocument();

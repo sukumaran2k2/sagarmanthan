@@ -1,13 +1,13 @@
 /* global describe, it, expect */
 import {
   toDate, formatDate, formatDuration, retirementStatus, maskAadhaar, pwbdLabel, disciplineNames, serviceHistoryRows,
-} from '../../utils/employeeDetails';
+} from '../../pages/EmployeeDatabase/employeeDetailsConfig';
 
 const TODAY = new Date(2026, 9, 26);
 
 describe('Employee details formatting', () => {
   it('reads calendar dates and hides 1900 placeholders', () => {
-    expect(formatDate('2026-04-09T00:00:00.000Z')).toBe('09-04-2026');
+    expect(formatDate('2026-04-09T00:00:00.000Z')).toBe('2026-04-09');
     expect(formatDate('1900-01-01T00:00:00.000Z')).toBe('--');
     expect(toDate(null)).toBeNull();
   });
@@ -45,7 +45,7 @@ describe('Service history rows', () => {
   });
 
   it('explains each activity', () => {
-    expect(rows[2].activityDetail).toBe('to Chennai Port Authority · 01-10-2026 – 30-09-2029');
+    expect(rows[2].activityDetail).toBe('to Chennai Port Authority · 2026-10-01 – 2029-09-30');
     expect(rows[3].activityDetail).toBe('Redeployment-out');
     expect(rows[3].duration).toBe('11 yrs 8 mos');
   });

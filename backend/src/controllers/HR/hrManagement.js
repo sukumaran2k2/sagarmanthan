@@ -1382,7 +1382,7 @@ async function addNewEmployee(req, res) {
                 ug_discipline = @ugDisciplines,
                 pg_discipline = @pgDisciplines,
                 emp_curr_org_join_date= @currentOrgJoiningDate
-        WHERE emp_master_id = ${empMasterId}`
+        WHERE emp_master_id = @empMasterId`
         }
         
         const result = await request.query(insertEmployeeQuery);
@@ -1504,6 +1504,8 @@ async function addNewEmployee(req, res) {
                 );
             `);
 
+        // empMasterId may have just been created above, so it gets its own parameter
+        request.input("filledEmpMasterId", empMasterId);
         await request.query(`
             UPDATE tbl_hr_post_strength
             SET vacant_or_filled = 'filled',
@@ -1512,7 +1514,7 @@ async function addNewEmployee(req, res) {
                 employee_joined_date = @createdDate,
                 date_of_arise_in_vacancy = @vacancyAriseDate,
                 is_new = 0,
-                emp_master_id = ${empMasterId},
+                emp_master_id = @filledEmpMasterId,
                 updated_date = GETDATE(),
                 updated_by = @userID
             WHERE post_code = @empPostCode
@@ -1697,10 +1699,14 @@ async function getDetailedSanctionedStrength(req, res) {
 
     const conn = await pool;
     const request = conn.request();
-    const userID = req.params.userID;
+    // Scope comes from the logged-in user, not the :userID in the URL
+    const userID = req.user?.userId;
     request.input("userID",userID );
     try {
-        const userResult = await conn.query(` SELECT role_id,organisation_id FROM tbl_user WHERE user_id = ${userID} `);
+        const userResult = await request.query(` SELECT role_id,organisation_id FROM tbl_user WHERE user_id = @userID `);
+        if (!userResult.recordset.length) {
+            return res.status(403).json({ message: "Your account was not found." });
+        }
         const { role_id,organisation_id  } = userResult.recordset[0];
         let result;
         if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8) {

@@ -29,3 +29,6 @@ backend/demoFiles/
 
 # Form Builder uploaded files
 backend/formbuilder_Files/
+
+# Local QC / test reports
+test-reports/

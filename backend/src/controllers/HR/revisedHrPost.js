@@ -232,7 +232,8 @@ async function updateRevisedHrPostStrength(req, res) {
                 });
             }
             const postsToDelete = postCheckResult.recordset.slice(0, postsToRemove);
-            const postCodesToDelete = postsToDelete.map(post => `'${post.post_code}'`).join(",");
+            postsToDelete.forEach((post, i) => newRequest.input(`deleteCode${i}`, post.post_code));
+            const postCodesToDelete = postsToDelete.map((_, i) => `@deleteCode${i}`).join(",");
             try {
                 await newRequest.query(`
                     DELETE FROM tbl_hr_post_strength 
@@ -2005,7 +2006,8 @@ async function getVaccancyLogDetailsByPostCode(req, res) {
 };
 
 async function revokeHRVacantPost(req, res) {
-    let { revokeReason, postCode, revisedDateOfVacancy, userID } = req.body;
+    let { revokeReason, postCode, revisedDateOfVacancy } = req.body;
+    const userID = req.user?.userId ?? null; // the logged-in user, not a value from the request
 
     if (!revokeReason || !revisedDateOfVacancy || !postCode || postCode == '') {
         return res.status(400).json({ error: "Post Code, Revoke reason and date of vacancy are required." });

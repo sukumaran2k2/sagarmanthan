@@ -1,16 +1,17 @@
 /* global describe, it, expect, require */
+import { toYmd } from '../../utils/dates';
 import {
-  dashboardAsOnDate, toDdMmYyyy, readDashboardTotals, genderSlices, exServiceSlices, pwbdSlices,
+  dashboardAsOnDate, readDashboardTotals, genderSlices, exServiceSlices, pwbdSlices,
   communitySlices, optionsFrom, classOptionsFrom, vacancyTotals,
 } from '../../utils/hrDashboard';
-import { employeeFormFromRecord, readEmployeeEditIds } from '../../utils/employeeEdit';
+import { employeeFormFromRecord, readEmployeeEditIds } from '../../pages/EmployeeDatabase/employeeEdit';
 
 describe('HR dashboard data', () => {
   it('uses the as-on date of each organisation category', () => {
     const today = new Date(2026, 9, 26);
-    expect(toDdMmYyyy(dashboardAsOnDate('1', today))).toBe('26-10-2026');
-    expect(toDdMmYyyy(dashboardAsOnDate('2', today))).toBe('30-09-2026');
-    expect(toDdMmYyyy(dashboardAsOnDate('3', today))).toBe('15-10-2026');
+    expect(toYmd(dashboardAsOnDate('1', today))).toBe('2026-10-26');
+    expect(toYmd(dashboardAsOnDate('2', today))).toBe('2026-09-30');
+    expect(toYmd(dashboardAsOnDate('3', today))).toBe('2026-10-15');
   });
 
   it('reads flat and nested totals', () => {
@@ -87,7 +88,7 @@ describe('Edit employee mapping', () => {
 
 describe('Stored highest education', () => {
   it('matches an option ignoring case and keeps other legacy values', () => {
-    const { canonicalEducation } = require('../../utils/employeeEdit');
+    const { canonicalEducation } = require('../../pages/EmployeeDatabase/employeeEdit');
     expect(canonicalEducation('below SSLC')).toBe('Below SSLC');
     expect(canonicalEducation(' ug ')).toBe('UG');
     expect(canonicalEducation('B. Tech. (Civil)')).toBe('B. Tech. (Civil)');

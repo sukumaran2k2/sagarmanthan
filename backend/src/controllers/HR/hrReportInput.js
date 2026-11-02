@@ -2853,11 +2853,15 @@ async function getHrreportInputformList(req, res) {
         const conn = await pool;
         const request = conn.request();
 
-        const userID = req.params.userID;
+        // Scope comes from the logged-in user, not the :userID in the URL
+        const userID = req.user?.userId;
         request.input("userID",userID );
         
       try {
-        const userResult = await conn.query(` SELECT role_id,organisation_id FROM tbl_user WHERE user_id = ${userID} `);
+        const userResult = await request.query(` SELECT role_id,organisation_id FROM tbl_user WHERE user_id = @userID `);
+        if (!userResult.recordset.length) {
+            return res.status(403).json({ message: "Your account was not found." });
+        }
         const { role_id,organisation_id  } = userResult.recordset[0];
         
         let result;

@@ -35,8 +35,13 @@ const RECORD = {
 
 jest.mock('../../api', () => ({
   fetchPostByPostCode: jest.fn(),
+  // Lists the form loads on its own (empty here, as the old axios mock returned)
+  fetchHrDepartments: jest.fn(() => Promise.resolve({ data: [] })),
+  fetchHrPostsByDepartment: jest.fn(() => Promise.resolve({ data: [] })),
+  fetchPostCodesByPost: jest.fn(() => Promise.resolve({ data: [] })),
   fetchHrEmployeeById: jest.fn(),
   updateHrEmployee: jest.fn(() => Promise.resolve({ status: 200, data: {} })),
+  addNewEmployee: jest.fn(() => Promise.resolve({ status: 201, data: {} })),
   checkAadhaarExists: jest.fn(() => Promise.resolve({ data: { exists: 1 } })), // would be a duplicate if asked
   checkReferenceNumberExists: jest.fn(() => Promise.resolve({ data: { exists: 1 } })),
   fetchMmtDropdown: jest.fn((table) =>
@@ -54,7 +59,7 @@ const hrApi = require('../../api');
 const React = require('react');
 const { render, screen, fireEvent, waitFor } = require('@testing-library/react');
 const { MemoryRouter, Routes, Route } = require('react-router-dom');
-const EmployeeDataForm = require('../../components/EmployeeDataForm').default;
+const EmployeeDataForm = require('../../pages/EmployeeDatabase/InputForm').default;
 
 const h = (...args) => React.createElement(...args);
 const ROW = { emp_master_id: 5925, employee_id: '01EMP2522', emp_name: 'P.Sankar' };
@@ -122,6 +127,7 @@ describe('Edit employee from Employee Database', () => {
     expect(hrApi.checkAadhaarExists).not.toHaveBeenCalled();
     expect(hrApi.checkReferenceNumberExists).not.toHaveBeenCalled();
     expect(http.post).not.toHaveBeenCalled();
+    expect(hrApi.addNewEmployee).not.toHaveBeenCalled();
     expect(await screen.findByText('Employee details page')).toBeInTheDocument(); // back to the employee
   });
 
