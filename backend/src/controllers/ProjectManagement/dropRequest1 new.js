@@ -1,6 +1,6 @@
 
 import { pool } from "../../db.js";
-import nodemailer from "nodemailer";
+import { supportMailer } from "../../utils/mailer.js";
 import moment from 'moment';
 
 // --------------------------------------------- Drop Project ---------------------------------------------
@@ -41,14 +41,7 @@ async function deleteProjectRequest(req, res) {
             }
             console.log(CommonProjectLabel, CommonProjectID, "CommonProjectLabel, CommonProjectID;")
 
-            const transporter = nodemailer.createTransport({
-                host: "smtp.office365.com",
-                port: 587,
-                auth: {
-                    user: "sagarmanthansupport@ntcpwc.iitm.ac.in",
-                    pass: "Sagarmanthan@123",
-                },
-            });
+            const transporter = supportMailer();
 
             const mailOptions = {
                 from: "sagarmanthansupport@ntcpwc.iitm.ac.in",

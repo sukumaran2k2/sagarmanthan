@@ -242,6 +242,7 @@ import ModuleControllerTab from "./controllers/UserManagement/moduleManagement.j
 import { getAuthCode, getToken } from "./controllers/mikr-authcode-token-generation.js";
 import { getVerifyToken } from "./controllers/verify-api-token.js";
 import { getRefreshToken } from "./controllers/refresh-token.js";
+import { requireSuperAdmin, requireUserAdmin, guardManagedUser, guardManagedUserList, guardOrganisation, requireSelf, ownOrganisationQuery, guardUserIdsQuery } from "./middleware/userAdmin.js";
 import { getKrDocumentData } from "./controllers/fetch-kr-document-data.js";
 import { getUpdateDocStatus } from "./controllers/update-document-status.js";
 import { getDownloadDocument } from "./controllers/download-document.js";
@@ -272,6 +273,40 @@ import { acceptFormFiles } from "./controllers/formBuilder/formBuilderFiles.js";
 
 const router = express.Router();
 
+// Every request needs a signed-in user, except logging in, the password reset steps (they check
+// the emailed code / current password), refreshing the session (it carries the refresh token),
+// MIKR's token routes (they check their own token), the external KPI / project data feed (it
+// checks an email and password sent with each request) and the chatbot reading its
+// permissions. Uploaded files under /fileuploads are served by express.static after the router
+// and stay as they are.
+const EXTERNAL_DATA_FEED = [
+    '/project-proposal', '/project-clearance', '/traffic-kpi-targets', '/traffic-kpi-actual',
+    '/cruise-and-passenger-traffic-actual', '/cruise-and-passenger-traffic-target', '/kpi-port-performance-actual',
+    '/traffic-liquid-bulk-single-leg', '/traffic-liquid-bulk-two-leg', '/traffic-dry-bulk-single-leg',
+    '/traffic-dry-bulk-two-leg', '/traffic-break-bulk-single-leg', '/traffic-break-bulk-two-leg',
+    '/traffic-container-single-leg', '/traffic-container-two-leg',
+];
+const PUBLIC_ROUTES = new Set([
+    ...EXTERNAL_DATA_FEED.map((p) => `GET ${p}`),
+    'GET /api/sagarbot-permissions',
+    'POST /login-validation',
+    'POST /password-reset-validation',
+    'PUT /edit-password',
+    'GET /refresh-token',
+    'GET /token',
+    'GET /verify-api-token',
+    'GET /fetch-kr-document-data',
+    'PUT /update-document-status',
+    'GET /download-document',
+]);
+router.use((req, res, next) => {
+    const path = req.path.length > 1 ? req.path.replace(/\/+$/, '') : req.path;
+    if (req.method === 'OPTIONS' || PUBLIC_ROUTES.has(`${req.method} ${path}`) || path.startsWith('/fileuploads/')) {
+        return next();
+    }
+    return auth(req, res, next);
+});
+
 // login
 router.post("/login-validation", logInTab.validation);
 router.post("/password-reset-validation", logInTab.resetpassword);
@@ -285,7 +320,6 @@ router.put("/update-document-status", mikrAuth, getUpdateDocStatus);
 router.get("/download-document", mikrAuth, getDownloadDocument);
 router.post("/mikr-logout", auth, mikrLogout);
 
-// router.use(auth);
 
 // MMT
 router.get("/mmt/:tid", masterTable.getMmt);
@@ -302,20 +336,21 @@ router.get("/allvalue-dropdown/:tid", masterTable.getDropDownAllValues);
 //Terminal/Jetty image uploader
 router.post("/terminal-image-uploader", terminalImageUploaderTab.upload.single('imageFile'), terminalImageUploaderTab.terminalImageUploader);
 
-router.post("/createuser", userTable.createuser);
-router.post("/createnodaluser", userTable.createNodalUser);
-router.get("/userlist", userTable.getUserData);
-router.get("/org-userlist/:organisation", userTable.getOrgUserData);
-router.put("/edituser", userTable.updateUser);
-router.put("/editnodaluser", userTable.updateNodalUser);
-router.put("/edit-user-profile", userTable.editUserProfileData);
-router.put("/user-status", userTable.toggleUserStatusData);
-router.post("/changepassword", userTable.changePasswordAction);
-router.put("/edit-password", userTable.updatePassword);
+router.post("/createuser", auth, guardManagedUser({ checkNewRole: true }), userTable.createuser);
+router.post("/createnodaluser", auth, requireSuperAdmin, userTable.createNodalUser);
+router.get("/userlist", auth, requireSuperAdmin, userTable.getUserData);
+router.get("/my-profile", auth, userTable.getMyProfile);
+router.get("/org-userlist/:organisation", auth, guardOrganisation((req) => req.params.organisation), userTable.getOrgUserData);
+router.put("/edituser", auth, guardManagedUser({ userIdOf: (req) => req.body.userID, checkNewRole: true }), userTable.updateUser);
+router.put("/editnodaluser", auth, requireSuperAdmin, userTable.updateNodalUser);
+router.put("/edit-user-profile", auth, requireSelf((req) => req.body.userID), userTable.editUserProfileData);
+router.put("/user-status", auth, guardManagedUser({ userIdOf: (req) => req.body.userID }), userTable.toggleUserStatusData);
+router.post("/changepassword", auth, guardManagedUser({ userIdOf: (req) => req.body.userID }), userTable.changePasswordAction);
+router.put("/edit-password", userTable.updatePassword); // checks the current password; used by Forgot Password before login
 // router.get("/user/:userId", userTable.getUpdateUser);
-router.get("/get-user-permission-modules/:userId/:organisationId", userTable.getPermissionModulesData);
-router.put("/update-user-permission", userTable.updatePermissions);
-router.get("/get-user-data/:userId", userTable.getUserDetails);
+router.get("/get-user-permission-modules/:userId/:organisationId", auth, requireSuperAdmin, userTable.getPermissionModulesData);
+router.put("/update-user-permission", auth, requireSuperAdmin, userTable.updatePermissions);
+router.get("/get-user-data/:userId", auth, requireSelf((req) => req.params.userId), userTable.getUserDetails);
 
 //Dashboard Data Entry Status
 router.get("/dashboard-data-entry-status", dashboardController.getDashboardDataEntryStatus);
@@ -826,7 +861,7 @@ router.get("/bill", auth, billsRead, billTab.getBill);
 router.post("/bill", auth, billsCreate, billTab.createBill);
 router.get("/bill/:billID", auth, billsRead, billTab.getUpdateBill);
 router.put("/bill", auth, billsUpdate, billTab.updateBill);
-router.delete("/delete-bill/:billID/:userID", auth, billsDelete, billTab.deleteBill);
+router.delete("/delete-bill/:billID", auth, billsDelete, billTab.deleteBill);
 // router.post("/bill-stage", billTab.createBillStage);
 
 //Court cases
@@ -1429,6 +1464,7 @@ router.get(
 // Bill Report
 router.get("/billwingwise-report", auth, billsRead, billReportTab.billWingWiseData);
 router.get("/billdivisionwise-report/:wingID/", auth, billsRead, billReportTab.billDivisionWiseData);
+router.get("/bill-abstract-report", auth, billsRead, billReportTab.billAbstractData);
 router.get("/getbill-wingwise/:wingID/:billStage", auth, billsRead, billReportTab.getDetailBillWingWise);
 router.get("/getbill-divisionwise/:divisionID/:billStage", auth, billsRead, billReportTab.getDetailBillDivisionWise);
 
@@ -3338,24 +3374,24 @@ router.post('/update-module-permission', ModuleControllerTab.updateModulePermiss
 router.get("/organisation-modules/:organisationId", ModuleControllerTab.getModulesByOrganisationCategory);
 
 // rbac
-router.get('/rbac/usermatrix-categories', orgModulePermission.getUsermatrixCategories);
-router.get('/rbac/organisations', orgModulePermission.getOrganisationsByCategory);
-router.get('/rbac/modules', orgModulePermission.getActiveModules);
-router.get('/rbac/org-module-permissions', orgModulePermission.getOrgModulePermissions);
-router.put('/rbac/org-module-permissions', auth, orgModulePermission.saveOrgModulePermissions);
-router.get('/rbac/org-allowed-modules/:organisationId', orgModulePermission.getAllowedModulesForOrganisation);
-router.get('/rbac/matrix-users', userModuleCrud.getMatrixUsers);
-router.get('/rbac/user-module-crud', userModuleCrud.getUserModuleCrud);
-router.put('/rbac/user-module-crud', auth, userModuleCrud.saveUserModuleCrud);
-router.get('/rbac/org-module-permission-log', getOrgModulePermissionLog);
-router.get('/rbac/user-module-crud-log', getUserModuleCrudLog);
+router.get('/rbac/usermatrix-categories', auth, requireUserAdmin, orgModulePermission.getUsermatrixCategories);
+router.get('/rbac/organisations', auth, requireUserAdmin, orgModulePermission.getOrganisationsByCategory);
+router.get('/rbac/modules', auth, requireUserAdmin, orgModulePermission.getActiveModules);
+router.get('/rbac/org-module-permissions', auth, requireUserAdmin, orgModulePermission.getOrgModulePermissions);
+router.put('/rbac/org-module-permissions', auth, requireSuperAdmin, orgModulePermission.saveOrgModulePermissions);
+router.get('/rbac/org-allowed-modules/:organisationId', auth, guardOrganisation((req) => req.params.organisationId), orgModulePermission.getAllowedModulesForOrganisation);
+router.get('/rbac/matrix-users', auth, requireUserAdmin, ownOrganisationQuery, userModuleCrud.getMatrixUsers);
+router.get('/rbac/user-module-crud', auth, guardUserIdsQuery, userModuleCrud.getUserModuleCrud);
+router.put('/rbac/user-module-crud', auth, guardManagedUserList, userModuleCrud.saveUserModuleCrud);
+router.get('/rbac/org-module-permission-log', auth, requireSuperAdmin, getOrgModulePermissionLog);
+router.get('/rbac/user-module-crud-log', auth, requireSuperAdmin, getUserModuleCrudLog);
 
 // SagarBot AI Copilot Permissions (Super Admin CRUD)
-router.get('/rbac/sagarbot-permissions', sagarbotPermissionTab.getSagarbotPermissions);
-router.put('/rbac/sagarbot-permissions', auth, sagarbotPermissionTab.updateSagarbotPermissions);
-router.post('/rbac/sagarbot-permissions/reset', auth, sagarbotPermissionTab.resetSagarbotPermissions);
+router.get('/rbac/sagarbot-permissions', auth, sagarbotPermissionTab.getSagarbotPermissions);
+router.put('/rbac/sagarbot-permissions', auth, requireSuperAdmin, sagarbotPermissionTab.updateSagarbotPermissions);
+router.post('/rbac/sagarbot-permissions/reset', auth, requireSuperAdmin, sagarbotPermissionTab.resetSagarbotPermissions);
 router.get('/api/sagarbot-permissions', sagarbotPermissionTab.getSagarbotPermissions);
-router.put('/api/sagarbot-permissions', sagarbotPermissionTab.updateSagarbotPermissions);
+router.put('/api/sagarbot-permissions', auth, requireSuperAdmin, sagarbotPermissionTab.updateSagarbotPermissions);
 
 router.get("/project-proposal", getProjectProposal);
 router.get("/project-clearance", getProjectClearance);

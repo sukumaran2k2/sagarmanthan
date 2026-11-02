@@ -1,18 +1,7 @@
-import nodemailer from 'nodemailer';
+import { alertMailer } from "../../utils/mailer.js";
 
 async function sendEmail({ to, subject, text, cc = [] }) {
-    let transporter = nodemailer.createTransport({
-        host: "smtp.outlook.com",
-        port: 587,
-        secure: false,
-        auth: {
-            user: 'support@ntcpwc.iitm.ac.in',
-            pass: 'R@nj!009'
-        },
-        tls: {
-            rejectUnauthorized: false
-        }
-    });
+    let transporter = alertMailer();
 
     let mailOptions = {
         from: '"Sagarmanthan" <support@ntcpwc.iitm.ac.in>',

@@ -52,7 +52,7 @@ export const useBillsStore = create((set, get) => ({
   setFilters: (changes) => set((state) => ({ filters: { ...state.filters, ...changes }, currentPage: 1 })),
   resetFilters: () => set({ filters: DEFAULT_FILTERS, currentPage: 1 }),
 
-  // Disposed bills have no stage to filter by
+  // Each tab has its own stages, so the stage filter starts again
   setCategory: (category) => set((state) => ({
     category,
     filters: { ...state.filters, stage: '' },

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { openBackendFile } from '../../../utils/openBackendFile';
 import { X, Download, Upload, FileText, User, Calendar, Briefcase, Award, DollarSign, CheckCircle2, AlertCircle, Plus, Edit2, Loader2 } from 'lucide-react';
-import { fetchCandidatesByConsultantAppointmentId, fetchCandidateDetail, fetchCandidateDocument, uploadCandidateDocument, API_BASE } from '../api';
+import { fetchCandidatesByConsultantAppointmentId, fetchCandidateDetail, fetchCandidateDocument, uploadCandidateDocument } from '../api';
 import CandidateModal from './CandidateModal';
 
 export default function CandidateDrilldownModal({
@@ -136,14 +137,8 @@ export default function CandidateDrilldownModal({
       if (triggerNotification) triggerNotification('No document attached.', 'warning');
       return;
     }
-    const downloadUrl = `${API_BASE}/ca-candidate-document-download/${encodeURIComponent(documentName)}`;
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = documentName;
-    link.target = '_blank';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    openBackendFile(`/ca-candidate-document-download/${encodeURIComponent(documentName)}`, { fileName: documentName, download: true })
+      .catch((err) => console.error('Candidate document could not be opened:', err));
 
     if (triggerNotification) {
       triggerNotification(`Downloading ${documentName}...`, 'info');

@@ -1,18 +1,11 @@
-import nodemailer from "nodemailer";
+import { supportMailer } from "../utils/mailer.js";
 import { pool } from "../db.js";
 
 async function sendEmail(toAddress, cc, subject, body, req, res)
 {
     try
     {
-        const transporter = nodemailer.createTransport({
-            host: "smtp.office365.com",
-            port: 587,
-            auth: {
-            user: "sagarmanthansupport@ntcpwc.iitm.ac.in",
-            pass: "Sagarmanthan@123",
-            },
-        });
+        const transporter = supportMailer();
        
         let footer = `  <br><br>
                     In case you face any difficulty, please reach out to the helpline via email.
@@ -81,14 +74,7 @@ async function generalMailAlertForHR(req, res = null) {
     return;
   }
 
-  const transporter = nodemailer.createTransport({
-    host: "smtp.office365.com",
-    port: 587,
-    auth: {
-      user: "sagarmanthansupport@ntcpwc.iitm.ac.in",
-      pass: "Sagarmanthan@123",
-    },
-  });
+  const transporter = supportMailer();
 
   const subject = 'Automated Reminder: Request to Complete HR Data Entry for This Month - Sagarmanthan Portal';
   const body = `Dear Sir/Madam,
@@ -197,14 +183,7 @@ const incompleteQuery = await request.query(incompleteQueries);
     return;
   }
 
-  const transporter = nodemailer.createTransport({
-    host: "smtp.office365.com",
-    port: 587,
-    auth: {
-      user: "sagarmanthansupport@ntcpwc.iitm.ac.in",
-      pass: "Sagarmanthan@123",
-    },
-  });
+  const transporter = supportMailer();
 
   const subject = 'Automated Reminder: HR Data Entry for This Month is Pending – Sagarmanthan Portal';
   const body = `Dear Sir/Madam,
@@ -404,15 +383,7 @@ async function PendingMailOrgOrganisations(res = null) {
       return [];
     }
 
-    const transporter = nodemailer.createTransport({
-      host: "smtp.office365.com",
-      port: 587,
-      secure: false,
-      auth: {
-        user: "sagarmanthansupport@ntcpwc.iitm.ac.in",
-        pass: "Sagarmanthan@123",
-      },
-    });
+    const transporter = supportMailer();
 
     const subject = "Automated Reminder: HR (Other Org) Data Entry Pending - Sagarmanthan Portal";
     const body = `

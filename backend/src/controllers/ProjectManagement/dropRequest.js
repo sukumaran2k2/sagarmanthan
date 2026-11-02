@@ -1,6 +1,6 @@
 
 import { pool } from "../../db.js";
-import nodemailer from "nodemailer";
+import { supportMailer } from "../../utils/mailer.js";
 import moment from 'moment';
 import { sendEmail } from "../sendNotification.js";
 
@@ -72,14 +72,7 @@ async function deleteProjectRequest(req, res)
                                 <br>
                                 <strong>Date of Submission: ${currentDate}</strong>`;
 
-                    const transporter = nodemailer.createTransport({
-                        host: "smtp.office365.com",
-                        port: 587,
-                        auth: {
-                            user: "sagarmanthansupport@ntcpwc.iitm.ac.in",
-                            pass: "Sagarmanthan@123",
-                        },
-                    });
+                    const transporter = supportMailer();
                     const mailOptions = {
                         from: "sagarmanthansupport@ntcpwc.iitm.ac.in",
                         to: email,

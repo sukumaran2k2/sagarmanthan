@@ -12,6 +12,8 @@ export const BILLS_TOASTS = {
       withReason(`The bill could not be ${isEdit ? 'updated' : 'saved'}. Please review the details and try again.`, reason)),
   remarksTooLong: () =>
     toastWarning('Remarks Too Long', 'Remarks cannot exceed 250 words. Shorten them, then save again.'),
+  stagesInvalid: (detail) =>
+    toastWarning('Check the Stages', detail),
   deleted: (subject) =>
     toastSuccess('Bill Deleted', subject ? `"${subject}" has been removed.` : 'The bill has been removed.'),
   deleteFailed: (reason) =>

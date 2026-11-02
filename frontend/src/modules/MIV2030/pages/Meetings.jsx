@@ -1,20 +1,14 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { openBackendFile } from '../../../utils/openBackendFile';
 import { 
   Users, Calendar, FileText, Download, Trash2, 
-  Building2, Search, X, Upload, CheckCircle2, Eye, RefreshCw, Layers, ArrowLeft, Filter, ChevronDown 
+  Building2, Search, X, Upload, CheckCircle2, Eye, RefreshCw, Layers, ArrowLeft, Filter, ChevronDown, Plus 
 } from 'lucide-react';
 import Table from '../../../components/Table';
 import Loader from '../../../components/Loader';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
-import { 
-  API_BASE,
-  fetchMIVMeetingsData, 
-  fetchOrganisations, 
-  fetchMeetingLogsByOrg, 
-  createMeeting as apiCreateMeeting, 
-  deleteMeeting as apiDeleteMeeting 
-} from '../api';
+import { fetchMIVMeetingsData, fetchOrganisations, fetchMeetingLogsByOrg, createMeeting as apiCreateMeeting, deleteMeeting as apiDeleteMeeting } from '../api';
 
 export default function MIVMeetings({ triggerNotification }) {
   const [meetingSummary, setMeetingSummary] = useState([]);
@@ -314,9 +308,8 @@ export default function MIVMeetings({ triggerNotification }) {
         return (
           <div className="flex items-center h-full py-1">
             <a
-              href={`${API_BASE}/meeting/download/${id}`}
-              target="_blank"
-              rel="noreferrer"
+              href="#"
+              onClick={(e) => { e.preventDefault(); openBackendFile(`/meeting/download/${id}`).catch((err) => console.error('Meeting document could not be opened:', err)); }}
               className="inline-flex items-center space-x-2 px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 rounded-xl text-xs font-bold transition border border-blue-200 dark:border-blue-800 shadow-sm"
             >
               <Download className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />

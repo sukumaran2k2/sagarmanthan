@@ -9,7 +9,13 @@
 //     rowData: filteredData,
 //     fileName: 'sci_time_voyage_bulk',
 //   });
-const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+// A text cell starting with = + - @ (or a tab / return) would run as a formula in Excel, so it
+// gets a leading apostrophe; numbers are left as they are
+const cell = (v) => {
+  let text = String(v ?? '');
+  if (typeof v === 'string' && /^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+  return `"${text.replace(/"/g, '""')}"`;
+};
 
 export function exportDataListToCsv({ columnLabels = {}, visibleCols = {}, rowData = [], fileName = 'data_list' }) {
   const fields = Object.keys(columnLabels).filter((f) => visibleCols[f]);
