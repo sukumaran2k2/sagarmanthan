@@ -92,6 +92,7 @@ import dropRequestTab from "./controllers/ProjectManagement/dropRequest.js";
 import addNewProjectTab from "./controllers/ProjectManagement/addNewProject.js";
 import capexController from "./controllers/ProjectManagement/capex.js";
 import capexDashboard from "./controllers/ProjectManagement/capexDashboard.js";
+import projectsDashboard from "./controllers/ProjectManagement/projectsDashboard.js";
 
 // CSR Projects
 import csrProjectTab from "./controllers/ProjectManagement/csrprojects.js"; 
@@ -999,6 +1000,11 @@ router.get("/projects-data-qc/summary", auth, requireModulePermission("PROJECTS"
 router.get("/projects-data-qc/:checkId", auth, requireModulePermission("PROJECTS", "read"), projectsDataQcReportTab.getDataQcCheckDetail);
 router.get("/projects-mis/summary", auth, requireModulePermission("PROJECTS", "read"), projectsMisReportTab.getMisSummary);
 router.get("/projects-mis/:reportId", auth, requireModulePermission("PROJECTS", "read"), projectsMisReportTab.getMisReport);
+// Projects dashboard
+router.get("/projects-dashboard/filters", auth, requireModulePermission("PROJECTS", "read"), projectsDashboard.getProjectsDashboardFilters);
+router.get("/projects-dashboard/summary", auth, requireModulePermission("PROJECTS", "read"), projectsDashboard.getProjectsDashboardSummary);
+router.get("/projects-dashboard/projects", auth, requireModulePermission("PROJECTS", "read"), projectsDashboard.getProjectsDashboardProjects);
+router.get("/projects-dashboard/project", auth, requireModulePermission("PROJECTS", "read"), projectsDashboard.getProjectsDashboardProject);
 router.get("/project-list-data/:userID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.getProjectAllData);
 router.get("/project-folder-download/:userID/:emailId", auth, requireModulePermission("PROJECTS", "read"), projectListTab.projectFolderDownloadLog);
 // Email link download — keep public (tokenised filename)

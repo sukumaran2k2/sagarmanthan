@@ -8,6 +8,7 @@ import AddSubProjectPage from './pages/AddSubProjectPage';
 import DropRequestsPage from './pages/DropRequestsPage';
 import ProjectsLessThan5CrPage from './pages/ProjectsLessThan5CrPage';
 import ProjectReportsPage from './pages/ProjectReportsPage';
+import ProjectDashboardPage from './pages/ProjectDashboardPage';
 import ProjectDetailView from './components/ProjectDetailView';
 import { useProjectsPermissions } from './hooks/useProjectsPermissions';
 import { resolveProjectsListView } from './views';
@@ -18,6 +19,7 @@ const INIT_TAB_KEY = 'projectsInitTab';
 
 function resolveSubTabId(label, canAdd, isOrgScope = false) {
   const key = String(label || '').toLowerCase().trim();
+  if (key.includes('dashboard')) return 'dashboard';
   if (key.includes('view-project') || key.includes('detail')) return 'view-project';
   if (key.includes('report')) return 'reports';
   if (key.includes('sub-project') || key.includes('subproject')) {
@@ -67,6 +69,9 @@ export default function Projects({
     const path = String(location.pathname || '').toLowerCase();
     if (path.includes('view-project') || path.includes('/detail')) {
       return 'view-project';
+    }
+    if (path.includes('dashboard')) {
+      return 'dashboard';
     }
     if (path.includes('report')) {
       return canAccessReports ? 'reports' : 'list';
@@ -159,6 +164,10 @@ export default function Projects({
 
     if (path.includes('view-project') || path.includes('/detail')) {
       setManualSubTab('view-project');
+    } else if (path.includes('dashboard')) {
+      setEditingRecord(null);
+      setFormReadOnly(false);
+      setManualSubTab('dashboard');
     } else if (path.includes('report')) {
       setEditingRecord(null);
       setFormReadOnly(false);
@@ -243,7 +252,7 @@ export default function Projects({
       items.push({ id: 'less5cr-list', label: 'Data List' });
       return items;
     }
-    const items = [];
+    const items = [{ id: 'dashboard', label: 'Dashboard' }];
     if (showInputForm) {
       items.push({ id: 'basic-info', label: 'Input Form' });
       items.push({ id: 'add-sub-project', label: 'Add Sub Project' });
@@ -401,6 +410,11 @@ export default function Projects({
                 setManualSubTab('less5cr-form');
                 return;
               }
+              if (tab === 'dashboard') {
+                setManualSubTab('dashboard');
+                navigate('/projects/project/project-dashboard');
+                return;
+              }
               if (tab === 'reports') {
                 if (!canAccessReports) {
                   setManualSubTab('list');
@@ -453,6 +467,10 @@ export default function Projects({
       </div>
 
       <div className="space-y-8">
+        {activeSubTab === 'dashboard' ? (
+          <ProjectDashboardPage triggerNotification={triggerNotification} />
+        ) : null}
+
         {activeSubTab === 'reports' ? (
           <ProjectReportsPage />
         ) : null}
