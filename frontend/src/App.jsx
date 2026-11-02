@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import MainLayout, { ROUTE_MAP, getTabFromSlug } from './layouts/MainLayout';
 import LoginView from './modules/Login/Login';
+import WelcomeView from './modules/Welcome/Welcome';
 import Loader from './components/Loader';
 import { Activity, Sparkles } from 'lucide-react';
 import { TAB_USER_MODULE_PERMISSION, TAB_USER_MASTER_MANAGEMENT, TAB_USER_LIST, normalizeTab } from './utils/moduleAccess';
@@ -160,6 +161,10 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     return !!localStorage.getItem('accessToken');
   });
+  const [showWelcome, setShowWelcome] = useState(() => {
+    // Show welcome page each session (cleared on tab close)
+    return !sessionStorage.getItem('welcomeSeen');
+  });
   const [showNetworkCheck, setShowNetworkCheck] = useState(false);
   const [isManualNetworkCheck, setIsManualNetworkCheck] = useState(false);
   const [eOfficeKpi, setEOfficeKpi] = useState('file-pendency');
@@ -211,6 +216,16 @@ export default function App() {
   };
 
   if (!isLoggedIn) {
+    if (showWelcome) {
+      return (
+        <WelcomeView
+          onContinue={() => {
+            sessionStorage.setItem('welcomeSeen', '1');
+            setShowWelcome(false);
+          }}
+        />
+      );
+    }
     return <LoginView onLogin={handleLoginSuccess} />;
   }
 
