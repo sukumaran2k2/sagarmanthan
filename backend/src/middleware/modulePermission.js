@@ -28,6 +28,8 @@ function hasAction(perm, action) {
   return false;
 }
 
+const isSuperAdmin = (user) => user.roleCode === 'SUPERADMIN' || Number(user.roleId || user.role_id || 0) === 1;
+
 const MODULE_ALIASES = {
   GMIS_MOU: ['GMIS_MOU', 'GMIS_IMW_MOU_TRACKING'],
   GMIS_IMW_MOU_TRACKING: ['GMIS_MOU', 'GMIS_IMW_MOU_TRACKING'],
@@ -44,7 +46,11 @@ function getCodeCandidates(moduleCode) {
 // Same rules as requireModulePermission, for controllers that pick the action at runtime
 // (e.g. create vs update decided by whether the record already exists).
 // Returns { ok: true } or { ok: false, status, message }.
-export function checkModulePermission(user, moduleCode, action) {
+//
+// strict (used only where a module opts in through requireStrictModulePermission):
+//  - a user without a data scope (MASTER / MINISTRY / ORGANISATION) is refused,
+//    instead of being treated as seeing every organisation
+export function checkModulePermission(user, moduleCode, action, { strict = false } = {}) {
   const normalizedAction = normalizeAction(action);
   const code = String(moduleCode || '').toUpperCase();
   const candidates = getCodeCandidates(code);
@@ -57,13 +63,15 @@ export function checkModulePermission(user, moduleCode, action) {
     return { ok: false, status: 401, message: 'Unauthorized!' };
   }
 
-  const roleId = Number(user.roleId || user.role_id || 0);
-  const isSuperAdmin = user.roleCode === 'SUPERADMIN' || roleId === 1;
-  const isMinistryAdmin = [1, 2, 3, 4, 5].includes(roleId);
+  // Superadmin has full access, as in main. Every other role, ministry ones included,
+  // goes by the organisation's modules and the user matrix, as the frontend does.
+  if (isSuperAdmin(user)) return { ok: true };
 
-  // Superadmins and Ministry Admins have full access
-  if (isSuperAdmin || isMinistryAdmin) {
-    return { ok: true };
+  if (strict) {
+    const scope = String(user.dataScopeCode || '').toUpperCase();
+    if (!['MASTER', 'MINISTRY', 'ORGANISATION'].includes(scope)) {
+      return { ok: false, status: 403, message: 'No data scope is set for this account' };
+    }
   }
 
   const allowedCodes = Array.isArray(user.allowedModuleCodes)
@@ -88,6 +96,8 @@ export function checkModulePermission(user, moduleCode, action) {
     if (perm) break;
   }
 
+  // No user matrix row for the module is still allowed (also in strict mode) until the
+  // matrix is filled in for every user
   if (perm && !hasAction(perm, normalizedAction)) {
     return { ok: false, status: 403, message: `Missing ${normalizedAction} permission for ${code}` };
   }
@@ -95,15 +105,24 @@ export function checkModulePermission(user, moduleCode, action) {
   return { ok: true };
 }
 
-export function requireModulePermission(moduleCode, action) {
+function permissionMiddleware(moduleCode, action, options) {
   return (req, res, next) => {
-    const result = checkModulePermission(req.user, moduleCode, action);
+    const result = checkModulePermission(req.user, moduleCode, action, options);
     if (result.ok) return next();
     if (result.status === 500) {
       return res.status(500).json({ message: result.message });
     }
     return res.status(result.status).json({ status: 'fail', message: result.message });
   };
+}
+
+export function requireModulePermission(moduleCode, action) {
+  return permissionMiddleware(moduleCode, action);
+}
+
+/** requireModulePermission with the strict rules above (see checkModulePermission). */
+export function requireStrictModulePermission(moduleCode, action) {
+  return permissionMiddleware(moduleCode, action, { strict: true });
 }
 
 /** Allow if the user has any one of the listed actions. */
@@ -123,14 +142,8 @@ export function requireAnyModulePermission(moduleCode, actions = []) {
       return res.status(401).json({ status: 'fail', message: 'Unauthorized!' });
     }
 
-    const roleId = Number(user.roleId || user.role_id || 0);
-    const isSuperAdmin = user.roleCode === 'SUPERADMIN' || roleId === 1;
-    const isMinistryAdmin = [1, 2, 3, 4, 5].includes(roleId);
-
-    // Superadmins and Ministry Admins have full access
-    if (isSuperAdmin || isMinistryAdmin) {
-      return next();
-    }
+    // Superadmin has full access
+    if (isSuperAdmin(user)) return next();
 
     const candidates = getCodeCandidates(code);
     const allowedCodes = Array.isArray(user.allowedModuleCodes)

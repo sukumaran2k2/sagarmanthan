@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Save } from 'lucide-react';
 import { createAuditPara, updateAuditPara } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
@@ -35,10 +35,14 @@ export default function InputForm({
   const [formSubject, setFormSubject] = useState(editData?.subject || '');
   const [formWing, setFormWing] = useState(editData?.wing || '');
   const [formDivision, setFormDivision] = useState(editData?.division || '');
-  // Until the user picks one, the first option is selected; wings / divisions can still be
-  // loading when the form opens, so this is resolved on each render rather than once
-  const wingValue = formWing || wings[0]?.wing_name || '';
-  const divisionValue = formDivision || divisions[0]?.division_name || '';
+  const wingValue = formWing;
+  // Only the chosen wing's divisions (as in the master: each division belongs to one wing)
+  const wingId = wings.find((w) => w.wing_name === wingValue)?.wing_id;
+  const wingDivisions = useMemo(
+    () => divisions.filter((d) => wingId !== undefined && String(d.wing_id) === String(wingId)),
+    [divisions, wingId],
+  );
+  const divisionValue = wingDivisions.some((d) => d.division_name === formDivision) ? formDivision : '';
   const [formCategory, setFormCategory] = useState(editData?.category || 'Audit Para');
   const [formRemarks, setFormRemarks] = useState(editData?.remarks || '');
 
@@ -111,7 +115,7 @@ export default function InputForm({
     }
 
     const wingObj = wings.find((w) => w.wing_name === wingValue) || {};
-    const divisionObj = divisions.find((d) => d.division_name === divisionValue) || {};
+    const divisionObj = wingDivisions.find((d) => d.division_name === divisionValue) || {};
 
     let selectedStage = 1;
     for (let i = 1; i <= 7; i++) {
@@ -204,10 +208,12 @@ export default function InputForm({
             <div className="space-y-1.5">
               <label className="module-form-label">Wing <span className="text-red-500">*</span></label>
               <select
-                value={wingValue} onChange={(e) => setFormWing(e.target.value)}
+                value={wingValue}
+                onChange={(e) => { setFormWing(e.target.value); setFormDivision(''); }}
                 onBlur={() => handleBlur('formWing')} required
                 className={`module-form-select cursor-pointer${isFieldInvalid('formWing', wingValue) ? ' !border-red-500' : ''}`}
               >
+                <option value="">--Select Wing--</option>
                 {wings.map((w) => <option key={w.wing_id} value={w.wing_name}>{w.wing_name}</option>)}
               </select>
               {isFieldInvalid('formWing', wingValue) && (
@@ -222,7 +228,8 @@ export default function InputForm({
                 onBlur={() => handleBlur('formDivision')} required
                 className={`module-form-select cursor-pointer${isFieldInvalid('formDivision', divisionValue) ? ' !border-red-500' : ''}`}
               >
-                {divisions.map((d) => <option key={d.division_id} value={d.division_name}>{d.division_name}</option>)}
+                <option value="">{wingValue ? '--Select Division--' : '--Select Wing first--'}</option>
+                {wingDivisions.map((d) => <option key={d.division_id} value={d.division_name}>{d.division_name}</option>)}
               </select>
               {isFieldInvalid('formDivision', divisionValue) && (
                 <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>

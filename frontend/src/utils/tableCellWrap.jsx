@@ -17,18 +17,18 @@ export const WRAP_CELL_STYLE = {
   paddingBottom: 8,
 };
 
-/**
- * @param {unknown} value
- * @param {string} [className]
- * @param {string} [emptyFallback='-']
- */
 export function renderWrappedText(value, className = '', emptyFallback = '-') {
   const display =
     value === null || value === undefined || value === '' ? emptyFallback : value;
+  const multiline =
+    typeof display === 'string' &&
+    (display.includes('\n') || display.includes('\r'));
 
   return (
     <div
-      className={`w-full max-w-full whitespace-normal break-words leading-snug py-0.5 ${className}`.trim()}
+      className={`w-full max-w-full break-words leading-snug py-0.5 ${
+        multiline ? 'whitespace-pre-line' : 'whitespace-normal'
+      } ${className}`.trim()}
     >
       {display}
     </div>

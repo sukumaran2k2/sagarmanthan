@@ -60,3 +60,6 @@ export const FINANCIAL_YEARS = [
   '2021-2022',
   '2020-2021'
 ];
+
+// Focus area name for a stored csr_focus id ('-' when unknown)
+export const focusName = (id) => CSR_FOCUS_AREAS.find((f) => f.id === Number(id))?.name || '-';

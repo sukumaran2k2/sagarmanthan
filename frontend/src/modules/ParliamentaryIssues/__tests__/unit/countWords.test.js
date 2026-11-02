@@ -1,3 +1,4 @@
+/* global describe, it, expect */
 import { countWords } from '../../utils/stageHelpers';
 
 describe('countWords', () => {

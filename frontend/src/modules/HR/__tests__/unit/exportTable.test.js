@@ -1,4 +1,5 @@
-import { createTableExporter, rowsToSheetObjects, rowsToTsv, safeFileName } from '../../utils/exportTable';
+/* global describe, it, expect, jest, beforeEach, require */
+import { createTableExporter, fetchAllRows, rowsToSheetObjects, rowsToTsv, safeFileName } from '../../utils/exportTable';
 
 jest.mock('xlsx', () => ({
   utils: { book_new: jest.fn(() => ({})), book_append_sheet: jest.fn(), json_to_sheet: jest.fn((rows) => rows) },
@@ -49,8 +50,8 @@ describe('createTableExporter', () => {
     const ex = createTableExporter({ loadRows: async () => [], getColumns: () => columns, notify });
     await ex.copy();
     await ex.excel();
-    expect(notify).toHaveBeenCalledWith('No data to export.', 'warning');
-    expect(notify).not.toHaveBeenCalledWith(expect.anything(), 'success');
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'warning', title: 'Nothing to Export' }));
+    expect(notify).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'success' }));
     expect(XLSX.writeFile).not.toHaveBeenCalled();
   });
 
@@ -58,7 +59,7 @@ describe('createTableExporter', () => {
     const notify = jest.fn();
     const err = { response: { data: { message: 'Forbidden' } } };
     await createTableExporter({ loadRows: () => Promise.reject(err), getColumns: () => columns, notify }).pdf();
-    expect(notify).toHaveBeenCalledWith('Forbidden', 'error');
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'error', title: 'Could Not Load Data' }));
     expect(exportDataListToPdf).not.toHaveBeenCalled();
   });
 
@@ -78,6 +79,24 @@ describe('createTableExporter', () => {
     const notify = jest.fn();
     await createTableExporter({ loadRows: () => rows, getColumns: () => columns, notify, label: 'List' }).copy();
     expect(writeText).toHaveBeenCalledWith(rowsToTsv(rows, columns));
-    expect(notify).toHaveBeenCalledWith('List copied to clipboard (2 rows).', 'success');
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'success', title: 'Copied to Clipboard' }));
+  });
+});
+
+describe('fetchAllRows', () => {
+  it('requests every page with the filters and joins the rows', async () => {
+    const request = jest.fn(({ page }) => Promise.resolve({
+      data: { data: page === 3 ? [{ id: 5 }] : [{ id: page * 2 - 1 }, { id: page * 2 }], pagination: { totalPages: 3 } },
+    }));
+    const all = await fetchAllRows(request, { search: 'Pilot' });
+    expect(all.map(r => r.id)).toEqual([1, 2, 3, 4, 5]);
+    expect(request).toHaveBeenCalledTimes(3);
+    expect(request).toHaveBeenLastCalledWith({ search: 'Pilot', page: 3, limit: 100 });
+  });
+
+  it('stops on an empty page even without pagination info', async () => {
+    const request = jest.fn(() => Promise.resolve({ data: { data: [] } }));
+    expect(await fetchAllRows(request, {})).toEqual([]);
+    expect(request).toHaveBeenCalledTimes(1);
   });
 });

@@ -231,7 +231,7 @@ export default function Reports({ rowData = [], wings = [], divisions = [], load
         </div>
       </div>
 
-      <div className="ag-theme-quartz audit-pro-grid" style={{ width: '100%' }}>
+      <div className="ag-theme-quartz module-report-grid" style={{ width: '100%' }}>
         <Table
           ref={gridRef}
           theme="legacy"
@@ -252,51 +252,6 @@ export default function Reports({ rowData = [], wings = [], divisions = [], load
         />
       </div>
 
-      <style dangerouslySetInnerHTML={{
-        __html: `
-        .audit-pro-grid.ag-theme-quartz {
-          --ag-font-family: 'Inter', system-ui, -apple-system, sans-serif;
-          --ag-font-size: 13.5px;
-          --ag-border-color: #B9BDC2;
-          --ag-row-border-color: #D3D6D9;
-          --ag-row-height: 52px;
-          --ag-active-color: #4b2424;
-          --ag-checkbox-checked-color: #4b2424;
-          --ag-input-focus-border-color: #4b2424;
-          --ag-selected-row-background-color: #f7f3f3;
-        }
-        .audit-pro-grid .ag-root-wrapper { border: none !important; border-radius: 0 !important; }
-        .audit-pro-grid .ag-header { background: #4b2424ff !important; border-bottom: 2px solid !important; }
-        .audit-pro-grid .ag-header-row { background: transparent !important; }
-        .audit-pro-grid .ag-header-cell {
-          color: #ffffff !important; font-weight: 600 !important; font-size: 11px !important;
-          text-transform: uppercase !important; letter-spacing: 0.05em !important;
-          border-right: 1px solid #4b2424ff !important; padding-left: 14px !important; padding-right: 14px !important;
-        }
-        .audit-pro-grid .ag-header-cell-label { justify-content: center !important; text-align: center !important; }
-        .audit-pro-grid .ag-header-cell:hover { background: #6b3535ff !important; }
-        .audit-pro-grid .ag-header-cell-label .ag-header-cell-text { color: #ffffff !important; }
-        .audit-pro-grid .ag-row { border-bottom: 1px solid #D3D6D9 !important; }
-        .audit-pro-grid .ag-row-even { background: #ffffff !important; }
-        .audit-pro-grid .ag-row-odd { background: #f8faf6 !important; }
-        .audit-pro-grid .ag-row:hover { background: #f6f8f5 !important; }
-        .audit-pro-grid .ag-cell { display: flex; align-items: center; padding-left: 14px !important; padding-right: 14px !important; border-right: 1px solid #D3D6D9 !important; }
-        .audit-pro-grid .ag-paging-panel { border-top: 1px solid #D3D6D9 !important; background: #f8faf6 !important; padding: 10px 20px !important; font-size: 12.5px !important; font-weight: 600 !important; color: #657386 !important; }
-
-        .dark .audit-pro-grid.ag-theme-quartz { --ag-background-color: #090d16; --ag-foreground-color: #f1f5f9; --ag-border-color: #1e293b; --ag-row-border-color: #1e293b; }
-        .dark .audit-pro-grid .ag-root-wrapper { background-color: #090d16 !important; }
-        .dark .audit-pro-grid .ag-header { background: #0f172a !important; border-bottom: 2px solid #1e293b !important; }
-        .dark .audit-pro-grid .ag-header-cell { color: #f1f5f9 !important; border-right: 1px solid #1e293b !important; }
-        .dark .audit-pro-grid .ag-header-cell:hover { background: #1e293b !important; }
-        .dark .audit-pro-grid .ag-row { border-bottom: 1px solid #1e293b !important; color: #e2e8f0 !important; }
-        .dark .audit-pro-grid .ag-row-even { background: #090d16 !important; }
-        .dark .audit-pro-grid .ag-row-odd { background: #0f172a !important; }
-        .dark .audit-pro-grid .ag-row:hover { background: #1e293b !important; }
-        .dark .audit-pro-grid .ag-cell { border-right: 1px solid #1e293b !important; color: #e2e8f0 !important; }
-        .dark .audit-pro-grid .ag-paging-panel { border-top: 1px solid #1e293b !important; background: #0f172a !important; color: #94a3b8 !important; }
-        .dark .audit-pro-grid .ag-floating-bottom { background: #0f172a !important; color: #f8fafc !important; border-top: 2px solid #334155 !important; }
-        .dark .audit-pro-grid .ag-floating-bottom .ag-row { background: #0f172a !important; }
-      `}} />
     </div>
   );
 }

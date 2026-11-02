@@ -1,11 +1,5 @@
-import React, {
-  useState,
-  useEffect,
-  useMemo,
-  useCallback,
-  useRef,   
-} from 'react';
-
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import {
   FileText,
   Building2,
@@ -13,17 +7,12 @@ import {
   BarChart3,
   Layers,
   Archive,
-  RefreshCw,
-  Search,
   Filter,
   ChevronDown,
   ChevronUp,
   RotateCcw,
   TrendingUp,
-  Copy,
-  Download,
 } from 'lucide-react';
-
 import ReportTable from '../../../components/ReportTable';
 
 import {
@@ -36,9 +25,10 @@ import {
 } from '../api';
 
 import { getCurrentUserId } from '../../../utils/authSession';
+import { COMMON_TOASTS } from '../../../utils/notify';
+import { useGmisStore } from '../store/useGmisStore';
 
 const BRAND = '#4b2424';
-const BRAND_HOVER = '#6b3535';
 const BRAND_SOFT = '#8c4242';
 const ACCENT = '#f5eeea';
 const BORDER = '#e8d5c8';
@@ -274,18 +264,37 @@ const groupedStageColumns = {
   children: stageColumns,
 };
 
+// One loader per report; each returns { rows }
+const REPORT_LOADERS = {
+  'report-1': getEventWiseSummary,
+  'report-2': getorgWisePerformanceRankingReport,
+  'report-3': getVibascellWiseSummary,
+  'report-4': getCategoryWiseSummary,
+  'report-5': getPhysicalAndFinancialProgressWise,
+  'report-6': getDroppedMousReport,
+};
+
+const reportTitle = (id) => {
+  const report = REPORT_TABS.find((r) => r.id === id) || REPORT_TABS[0];
+  return `Report No.: ${report.label} - ${report.title}`;
+};
+
 export default function GMISReports({
+  notify,
   triggerNotification,
 }) {
 
-  const [selectedReport, setSelectedReport] = useState('report-1');
-  const [loading, setLoading] = useState(false);
-  const [reportData, setReportData] = useState([]);
+  // The chosen report and its organisation filter survive switching tabs
+  const { selectedReport, selectedOrganisation, setSelectedReport, setSelectedOrganisation } = useGmisStore(useShallow((state) => ({
+    selectedReport: state.selectedReport,
+    selectedOrganisation: state.reportOrganisation,
+    setSelectedReport: state.setSelectedReport,
+    setSelectedOrganisation: state.setReportOrganisation,
+  })));
   const [detailData, setDetailData] = useState([]);
   const [quickFilter, setQuickFilter] = useState('');
-  const [selectedOrganisation, setSelectedOrganisation] = useState('');
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [isExportOpen, setIsExportOpen] = useState(false);
+  // The filter panel belongs to Report 1.5 and starts open there
+  const [isFilterOpen, setIsFilterOpen] = useState(true);
 
   const gridApiRef = useRef(null);
 
@@ -294,14 +303,7 @@ export default function GMISReports({
     params.api.autoSizeAllColumns();
   }, []);
 
-  const [drillDownPath, setDrillDownPath] =
-    useState([
-      {
-        type: 'abstract',
-        title:
-          'Report No.: 1.1 - GMIS MoU Event-wise Summary',
-      },
-    ]);
+  const [drillDownPath, setDrillDownPath] = useState(() => [{ type: 'abstract', title: reportTitle(selectedReport) }]);
 
   const currentView = drillDownPath[drillDownPath.length - 1];
 
@@ -314,81 +316,27 @@ export default function GMISReports({
     }
   };
 
-  const loadReportData = useCallback(async () => {
-
-    setLoading(true);
-    try {
-
-      const userId = getCurrentUserId() || 1;
-
-      let res;
-      switch (selectedReport) {
-
-        case 'report-1':
-          res = await getEventWiseSummary(userId);
-          break;
-
-        case 'report-2':
-          res = await getorgWisePerformanceRankingReport( userId );
-          break;
-
-        case 'report-3':
-          res = await getVibascellWiseSummary(userId);
-          break;
-
-        case 'report-4':
-          res = await getCategoryWiseSummary(userId);
-          break;
-
-        case 'report-5':
-          res = await getPhysicalAndFinancialProgressWise( userId );
-          break;
-
-        case 'report-6':
-          res = await getDroppedMousReport(userId);
-          break;
-
-        default:
-          res = {
-            data: {
-              rows: [],
-            },
-          };
-      }
-
-      const rows = res?.data?.rows || [];
-      setReportData(rows);
-
-    } catch (err) {
-      console.error( `Failed to load ${selectedReport}:`, err );
-      setReportData([]);
-      if (triggerNotification) {
-        triggerNotification(
-          'Failed to generate report'
-        );
-      }
-
-    } finally {
-      setLoading(false);
-    }
-
-  }, [
-    selectedReport,
-    triggerNotification,
-  ]);
-
+  // The report's rows, tagged with the request they answer; Refresh bumps reloadKey
+  const [reloadKey, setReloadKey] = useState(0);
+  const requestKey = `${selectedReport}:${reloadKey}`;
+  const [result, setResult] = useState(null); // { key, rows }
   useEffect(() => {
-  if (selectedReport === 'report-5') {
-    setIsFilterOpen(true);
-  } else {
-    setIsFilterOpen(false);
-    setSelectedOrganisation('');
-  }
-}, [selectedReport]);
-
-  useEffect(() => {
-    loadReportData();
-  }, [loadReportData]);
+    let cancelled = false;
+    const load = REPORT_LOADERS[selectedReport];
+    if (!load) return undefined;
+    load(getCurrentUserId())
+      .then((res) => { if (!cancelled) setResult({ key: requestKey, rows: res?.data?.rows || [] }); })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error(`Failed to load ${selectedReport}:`, err);
+        setResult({ key: requestKey, rows: [] });
+        notify(COMMON_TOASTS.loadFailed('The report'));
+      });
+    return () => { cancelled = true; };
+  }, [requestKey, selectedReport, notify]);
+  const loading = result?.key !== requestKey;
+  const reportData = useMemo(() => (loading ? [] : result.rows), [loading, result]);
+  const loadReportData = useCallback(() => setReloadKey((k) => k + 1), []);
 
   useEffect(() => {
     if (gridApiRef.current && reportData.length) {
@@ -458,125 +406,6 @@ export default function GMISReports({
     quickFilter,
     selectedReport,
     selectedOrganisation,
-  ]);
-
-  const buildTabularExport = useCallback(() => {
-
-    if (!filteredReportData.length) {
-      return { headers: [], rows: [] };
-    }
-
-    const headers =
-      Object.keys(filteredReportData[0]);
-
-    const rows =
-      filteredReportData.map((row) =>
-        headers.map((h) => row[h] ?? '')
-      );
-
-    return { headers, rows };
-
-  }, [filteredReportData]);
-
-
-  const handleCopy = useCallback(async () => {
-
-    const { headers, rows } =
-      buildTabularExport();
-
-    if (!headers.length) {
-      if (triggerNotification) {
-        triggerNotification(
-          'No data to copy'
-        );
-      }
-      return;
-    }
-
-    const tsv = [
-      headers.join('\t'),
-      ...rows.map((r) => r.join('\t')),
-    ].join('\n');
-
-    try {
-      await navigator.clipboard.writeText(tsv);
-
-      if (triggerNotification) {
-        triggerNotification(
-          'Report copied to clipboard'
-        );
-      }
-    } catch (err) {
-      console.error(
-        'Copy failed:',
-        err
-      );
-
-      if (triggerNotification) {
-        triggerNotification(
-          'Failed to copy report'
-        );
-      }
-    }
-
-  }, [
-    buildTabularExport,
-    triggerNotification,
-  ]);
-
-  const handleExportCSV = useCallback(() => {
-
-    const { headers, rows } =
-      buildTabularExport();
-
-    if (!headers.length) {
-      if (triggerNotification) {
-        triggerNotification(
-          'No data to export'
-        );
-      }
-      return;
-    }
-
-    const escapeCell = (value) => {
-      const str = String(value ?? '');
-      if (/[",\n]/.test(str)) {
-        return `"${str.replace(/"/g, '""')}"`;
-      }
-      return str;
-    };
-
-    const csv = [
-      headers.map(escapeCell).join(','),
-      ...rows.map((r) =>
-        r.map(escapeCell).join(',')
-      ),
-    ].join('\n');
-
-    const blob = new Blob(
-      [csv],
-      { type: 'text/csv;charset=utf-8;' }
-    );
-
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-
-    link.href = url;
-    link.download =
-      `${selectedReport}-${Date.now()}.csv`;
-
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    URL.revokeObjectURL(url);
-
-    setIsExportOpen(false);
-
-  }, [
-    buildTabularExport,
-    selectedReport,
-    triggerNotification,
   ]);
 
   const report1Columns = useMemo(
@@ -737,7 +566,7 @@ export default function GMISReports({
                 );
               }
 
-              let badgeClass = 'bg-slate-50 text-slate-700';
+              let badgeClass;
 
               if (value <= 3) {
                 badgeClass = 'bg-emerald-50 text-emerald-800';
@@ -921,7 +750,7 @@ export default function GMISReports({
             );
           }
 
-          let badgeClass = 'bg-slate-50 text-slate-700';
+          let badgeClass;
 
           if (value <= 3) {
             badgeClass = 'bg-emerald-50 text-emerald-800';
@@ -1663,21 +1492,7 @@ export default function GMISReports({
 
   }, []);
 
-  const subtitle = useMemo(() => {
-
-    return (
-      <>
-
-     
-      </>
-    );
-
-  }, [
-    selectedReportMeta,
-    filteredReportData.length,
-    isStageReport,
-    totalStats,
-  ]);
+  const subtitle = null;
 
   return (
 
@@ -1730,22 +1545,17 @@ export default function GMISReports({
                 type="button"
                 onClick={() => {
 
-                  setReportData([]);
                   setDetailData([]);
                   setQuickFilter('');
-                  setSelectedOrganisation('');
-                  setIsExportOpen(false);
+                  setIsFilterOpen(true);
 
+                  // Also clears the organisation filter
                   setSelectedReport(
                     report.id
                   );
 
                   setDrillDownPath([
-                    {
-                      type: 'abstract',
-                      title:
-                        `Report No.: ${report.label} - ${report.title}`,
-                    },
+                    { type: 'abstract', title: reportTitle(report.id) },
                   ]);
 
                 }}
@@ -2549,21 +2359,10 @@ export default function GMISReports({
               'yp-pro-grid'
             }
 
-            brandColor={
-              BRAND
-            }
-
-            brandColorHover={
-              BRAND_HOVER
-            }
-
-            accentColor={
-              '#f7f3f3'
-            }
-
-            oddRowColor={
-              '#f8faf6'
-            }
+            brandColor="var(--module-report-brand-color, #4b2424)"
+            brandColorHover="var(--module-report-brand-color-hover, #6b3535)"
+            accentColor="var(--module-report-accent-color, #f7f3f3)"
+            oddRowColor="var(--module-report-odd-row-bg, #f8faf6)"
 
             totalLabel={
               'Total Rows'

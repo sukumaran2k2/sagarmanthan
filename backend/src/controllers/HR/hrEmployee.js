@@ -1,6 +1,6 @@
 import { pool } from "../../db.js";
 import sql from "mssql";
-import { withTransaction, httpError, readListQuery, likePattern, resolveListOrganisation, runPagedQuery, buildPagination } from "./hrHelperFunctions.js";
+import { withTransaction, httpError, readListQuery, likePattern, resolveListOrganisation, resolveReportOrganisation, runPagedQuery, buildPagination } from "./hrHelperFunctions.js";
 import { getDataScope } from "../../middleware/dataScope.js";
 import fs from 'fs';
 import path from 'path';
@@ -66,7 +66,8 @@ async function getHrEmployeeByID(req, res) {
     const conn = await pool;
     const request = conn.request();
 
-    request.input("employeeMasterID", employeeMasterID);
+    if (!Number.isInteger(Number(employeeMasterID))) return res.status(400).json({ message: "Invalid employee." });
+    request.input("employeeMasterID", sql.Int, Number(employeeMasterID));
     try {
         // const result = await request.query(`
         //     SELECT e.*, 
@@ -85,17 +86,27 @@ async function getHrEmployeeByID(req, res) {
         //         WHERE e.employee_id = @employeeID;
         // `);
 
-        const result = await request.query(`SELECT em.*, o1.organisation_name AS parent_organisation_name,et.emp_post_join_date,
-                   p.payscale_range AS payscale_range
+        // The employee with their current posting (open transaction first, else the latest one)
+        const result = await request.query(`SELECT TOP 1 em.*, o1.organisation_name AS parent_organisation_name, et.emp_post_join_date,
+                   p.payscale_range AS payscale_range,
+                   et.employee_id AS current_employee_id, et.emp_department_id, et.emp_department_name,
+                   et.emp_post_id, et.emp_post_name, et.emp_post_code, et.method_of_appointment,
+                   ps.date_of_arise_in_vacancy
                 FROM tbl_employee_master em
-				JOIN tbl_employee_transaction_details et ON et.emp_master_id = em.emp_master_id
-				LEFT JOIN mmt_organisation o1 ON em.emp_parent_org_id = o1.organisation_id
-				LEFT JOIN mmt_hr_post p ON p.post_id = et.emp_post_id
-				WHERE em.emp_master_id =@employeeMasterID;
+                JOIN tbl_employee_transaction_details et ON et.emp_master_id = em.emp_master_id
+                LEFT JOIN mmt_organisation o1 ON em.emp_parent_org_id = o1.organisation_id
+                LEFT JOIN mmt_hr_post p ON p.post_id = et.emp_post_id
+                LEFT JOIN tbl_hr_post_strength ps ON ps.post_code = et.emp_post_code
+                WHERE em.emp_master_id = @employeeMasterID
+                ORDER BY CASE WHEN et.emp_post_end_date IS NULL THEN 0 ELSE 1 END, et.transaction_id DESC;
                 `);
 
         if (result.recordset.length === 0) {
             return res.status(404).json({ message: "Employee not found" });
+        }
+        const { isOrganisation, organisationId } = getDataScope(req.user);
+        if (isOrganisation && Number(result.recordset[0].emp_curr_org_id) !== Number(organisationId)) {
+            return res.status(403).json({ message: "You can view only your organisation's employees." });
         }
 
         const employee = result.recordset[0];
@@ -103,7 +114,7 @@ async function getHrEmployeeByID(req, res) {
         const imagePath = imageFileName ? path.join(__dirname, '../../../fileuploads/hr_employee', imageFileName) : null;
 
         let imageBase64 = null;
-        if (fs.existsSync(imagePath)) {
+        if (imagePath && fs.existsSync(imagePath)) {
             const imageBuffer = fs.readFileSync(imagePath);
             imageBase64 = imageBuffer.toString("base64");
         } else {
@@ -646,451 +657,35 @@ async function getEmployeeListByOrgId(req, res) {
     }
 }
 
+/**
+ * Employee Database list, from stored procedure dbo.GetEmployeeListByOrgDepPost (@roleID, @orgID).
+ * Organisation users always get their own organisation (role and organisation from the login,
+ * not the URL); ministry users may pass any organisation, or 'null' for all.
+ */
 async function getEmployeeListByOrgDepPost(req, res) {
+  const parseId = (value) => {
+    if (value == null || ['null', 'none', 'undefined', ''].includes(String(value).trim().toLowerCase())) return null;
+    const parsed = Number(value);
+    return Number.isInteger(parsed) ? parsed : null;
+  };
+
+  const { isOrganisation, organisationId } = getDataScope(req.user);
+  const roleID = isOrganisation ? parseId(req.user?.roleId) ?? parseId(req.params.roleID) : parseId(req.params.roleID);
+  const orgID = isOrganisation ? parseId(organisationId) : parseId(req.params.orgID);
+  if (roleID === null) return res.status(400).json({ message: 'A valid roleID is required.' });
+  if (isOrganisation && orgID === null) return res.status(403).json({ message: 'Your account is not linked to an organisation.' });
+
+  try {
     const conn = await pool;
     const request = conn.request();
-    const rawRoleID = req.params.roleID;
-    const roleID = rawRoleID && !['null', 'None', 'undefined'].includes(rawRoleID) && !isNaN(parseInt(rawRoleID, 10)) ? parseInt(rawRoleID, 10) : null;
-    const rawOrgID = req.params.orgID;
-    const orgID = rawOrgID && !['null', 'None', 'undefined'].includes(rawOrgID) && !isNaN(parseInt(rawOrgID, 10)) ? parseInt(rawOrgID, 10) : null;
-
-    request.input("roleID", roleID);
-    request.input("orgID", orgID);
-
-    let orgFilterCondition = "";
-    let orgWorkingFilterCondition = "";
-
-    if ((roleID === 6 || roleID === 7) && orgID) {
-        orgFilterCondition = " AND e.emp_curr_org_id = @orgID ";
-        orgWorkingFilterCondition = " AND t.emp_working_org_id = @orgID ";
-    }
-
-    try {
-        let query = `
-            -- Common Table Expressions (CTEs)
-WITH TransferOutTransactions AS (
-    SELECT
-        t.emp_master_id,
-        m.emp_name,
-        t.transaction_id,
-        t.employee_id,
-        m.emp_status,
-        t.emp_reference_id,
-        m.emp_curr_org_id,
-        mmt.organisation_name
-    FROM tbl_employee_transaction_details t WITH (NOLOCK)
-    INNER JOIN tbl_employee_master m WITH (NOLOCK)
-        ON t.emp_master_id = m.emp_master_id
-    JOIN mmt_organisation mmt ON m.emp_curr_org_id = mmt.organisation_id
-    WHERE
-        t.activity_name = 'Transfer Out'
-        ${roleID === 6 || roleID === 7 ? "AND m.emp_curr_org_id = @orgID" : ""}
-),
-ValidTransferOut AS (
-    SELECT tot.*
-    FROM TransferOutTransactions tot
-    WHERE EXISTS (
-        SELECT 1
-        FROM tbl_employee_transaction_details tin WITH (NOLOCK)
-        WHERE tin.emp_master_id = tot.emp_master_id
-          AND (
-                tin.method_of_appointment = 'Transfer In'
-                OR (
-                    tin.emp_post_code IS NOT NULL
-                    AND tin.emp_working_org_id != tot.emp_curr_org_id
-                )
-          )
-    )
-),
-AbsorptionTransactions AS (
-    SELECT
-        t.emp_master_id,
-        m.emp_name,
-        t.transaction_id,
-        t.employee_id,
-        m.emp_status,
-        t.emp_post_id,
-        t.emp_department_id,
-        mmc.class,
-        t.emp_post_name,
-        t.emp_department_name,
-        t.emp_reference_id,
-        mmt.organisation_name
-    FROM tbl_employee_transaction_details t WITH (NOLOCK)
-    JOIN tbl_employee_master m WITH (NOLOCK) ON t.emp_master_id = m.emp_master_id
-    JOIN mmt_hr_post p WITH (NOLOCK) ON t.emp_post_id = p.post_id
-    JOIN mmt_class mmc WITH (NOLOCK) ON p.class_id = mmc.class_id
-    JOIN mmt_organisation mmt ON m.emp_curr_org_id = mmt.organisation_id
-    WHERE
-        t.activity_name = 'Deputation Out'
-        ${orgWorkingFilterCondition}
-),
-SubsequentAbsorptionTransactions AS (
-    SELECT 1 AS exists_flag, emp_master_id
-    FROM tbl_employee_transaction_details t2 WITH (NOLOCK)
-    WHERE t2.method_of_appointment = 'Absorption'
-),
-DeputationOutTransactions AS (
-        SELECT
-        t.emp_master_id,
-        m.emp_name,
-        t.transaction_id,
-        t.employee_id,
-        m.emp_status,
-        t.emp_post_id,
-        t.emp_department_id,
-        t.emp_post_name,
-        t.emp_department_name,
-        t.emp_reference_id,
-        mmc.class,
-        m.emp_curr_org_id,
-        mmt.organisation_name
-    FROM tbl_employee_transaction_details t WITH (NOLOCK)
-    JOIN tbl_employee_master m WITH (NOLOCK) ON t.emp_master_id = m.emp_master_id
-    JOIN mmt_hr_post p WITH (NOLOCK) ON t.emp_post_id = p.post_id
-    JOIN mmt_class mmc WITH (NOLOCK) ON p.class_id = mmc.class_id
-    JOIN mmt_organisation mmt ON m.emp_curr_org_id = mmt.organisation_id
-    WHERE LTRIM(RTRIM(t.activity_name)) = 'Deputation Out'
-      AND (@orgID IS NULL OR m.emp_curr_org_id = @orgID)
-),
-SubsequentDeputationInTransactions AS (
-	SELECT
-        t2.emp_master_id
-    FROM tbl_employee_transaction_details t2 WITH (NOLOCK)
-    JOIN tbl_employee_master m2 WITH (NOLOCK) ON t2.emp_master_id = m2.emp_master_id
-    WHERE
-        t2.method_of_appointment = 'Deputation In'
-		${roleID === 6 || roleID === 7 ? "AND m2.emp_curr_org_id = @orgID" : ""}
-        AND (
-            t2.emp_post_code IS NULL
-            OR (
-                t2.emp_post_code IS NOT NULL
-                AND t2.emp_working_org_id != m2.emp_curr_org_id
-            )
-        )
-),
-DeputationBackTransactions AS (
-    SELECT
-        t.emp_master_id,
-        m.emp_name,
-        t.transaction_id,
-        t.employee_id,
-        m.emp_status,
-        t.emp_post_id,
-        t.emp_department_id,
-        t.emp_post_name,
-        t.emp_department_name,
-        t.emp_reference_id,
-        mmc.class,
-        m.emp_curr_org_id,
-        mmt.organisation_name,
-        t.created_date
-    FROM tbl_employee_transaction_details t WITH (NOLOCK)
-    JOIN tbl_employee_master m WITH (NOLOCK) ON t.emp_master_id = m.emp_master_id
-    JOIN mmt_hr_post p WITH (NOLOCK) ON t.emp_post_id = p.post_id
-    JOIN mmt_class mmc WITH (NOLOCK) ON p.class_id = mmc.class_id
-    JOIN mmt_organisation mmt ON m.emp_curr_org_id = mmt.organisation_id
-    WHERE LTRIM(RTRIM(t.method_of_appointment)) = 'Deputation Back'
-    AND (@orgID IS NULL OR m.emp_curr_org_id = @orgID)
-)
-
--- Main Query Combining All Result Sets
-SELECT DISTINCT
-    t.transaction_id,
-    e.emp_name,
-    t.employee_id,
-    e.emp_master_id,
-    t.emp_reference_id,
-    e.emp_status,
-    t.emp_post_id,
-    t.emp_department_id,
-    t.emp_post_name,
-    t.emp_department_name,
-    mmc.class,
-    mmt.organisation_name,
-       CASE
-        WHEN t.emp_post_end_date IS NOT NULL THEN t.updated_date
-        ELSE t.created_date
-    END AS action_date,
-    CASE
-        WHEN e.emp_curr_org_id = t.emp_working_org_id AND t.method_of_appointment = 'Deputation In'
-        THEN 'Internal Deputation'
-        ELSE 'Deputation In'
-    END AS type_of_people,
-    'Active' AS working_status
-FROM tbl_employee_transaction_details t WITH (NOLOCK)
-JOIN tbl_employee_master e WITH (NOLOCK) ON t.emp_master_id = e.emp_master_id
-JOIN mmt_hr_post p WITH (NOLOCK) ON t.emp_post_id = p.post_id
-JOIN mmt_class mmc WITH (NOLOCK) ON p.class_id = mmc.class_id
-JOIN mmt_organisation mmt ON e.emp_curr_org_id = mmt.organisation_id
-WHERE
-    t.emp_post_join_date IS NOT NULL
-    AND t.emp_post_end_date IS NULL
-    AND t.method_of_appointment = 'Deputation In'
-    ${orgWorkingFilterCondition}
-
-UNION 
-
--- General Employees
-SELECT DISTINCT
-    t.transaction_id,
-    e.emp_name,
-    t.employee_id,
-    e.emp_master_id,
-    t.emp_reference_id,
-    e.emp_status,
-    t.emp_post_id,
-    t.emp_department_id,
-    t.emp_post_name,
-    t.emp_department_name,
-    mmc.class,
-    mmt.organisation_name,
-    CASE
-        WHEN t.emp_post_end_date IS NOT NULL THEN t.updated_date
-        ELSE t.created_date
-    END AS action_date,
-    'General Employee' AS type_of_people,
-    'Active' AS working_status
-FROM tbl_employee_transaction_details t WITH (NOLOCK)
-JOIN tbl_employee_master e WITH (NOLOCK) ON t.emp_master_id = e.emp_master_id
-JOIN mmt_hr_post p WITH (NOLOCK) ON t.emp_post_id = p.post_id
-JOIN mmt_class mmc WITH (NOLOCK) ON p.class_id = mmc.class_id
-JOIN mmt_organisation mmt ON e.emp_curr_org_id = mmt.organisation_id
-WHERE
-    t.emp_post_end_date IS NULL
-    AND t.method_of_appointment IN (
-        'Promotion', 'Direct Recruitment', 'Composite Method', 'Absorption', 'Transfer In', 'Transfer','Reversion'
-    )
-    ${orgWorkingFilterCondition}
-    ${orgFilterCondition}
-
-UNION 
---separation
-SELECT
-    t.transaction_id,
-    e.emp_name,
-    t.employee_id,
-    e.emp_master_id,
-    t.emp_reference_id,
-    e.emp_status,
-    '' AS emp_post_id,
-    '' AS emp_department_id,
-    '' AS emp_post_name,
-    '' AS emp_department_name,
-    '' AS class,
-    mmt.organisation_name,
-    t.created_date,
-    CONCAT('Separation - ', COALESCE(t.separation_reason, 'Unknown Reason')) AS type_of_people,
-    'Inactive' AS working_status
-FROM (
-    SELECT
-        transaction_id,
-        emp_master_id,
-        employee_id,
-        emp_reference_id,
-        created_date,
-        separation_reason,
-        ROW_NUMBER() OVER (
-            PARTITION BY emp_master_id
-            ORDER BY created_date DESC
-        ) AS rn
-    FROM tbl_employee_transaction_details WITH (NOLOCK)
-    WHERE emp_post_end_date IS NOT NULL
-      AND activity_name = 'Separation'
-) t
-JOIN tbl_employee_master e WITH (NOLOCK)
-    ON t.emp_master_id = e.emp_master_id
-JOIN mmt_organisation mmt
-    ON e.emp_curr_org_id = mmt.organisation_id
-WHERE t.rn = 1
-  AND e.emp_status = 0
-    ${orgFilterCondition}
-
-UNION 
-
--- Deputation Out
-SELECT distinct
-    etd.transaction_id,
-    tot.emp_name,
-    tot.employee_id,
-    tot.emp_master_id,
-    tot.emp_reference_id,
-    tot.emp_status,
-    etd.emp_post_id,
-    etd.emp_department_id,
-    etd.emp_post_name,
-    etd.emp_department_name,
-    tot.class,
-    tot.organisation_name,
-    CASE
-        WHEN etd.emp_post_end_date IS NOT NULL THEN etd.updated_date
-        ELSE etd.updated_date
-    END AS created_date,
-    'Deputation Out' AS type_of_people,
-    'Inactive' AS working_status
-
-
-FROM DeputationOutTransactions tot
-JOIN tbl_employee_transaction_details etd ON etd.transaction_id = tot.transaction_id
-WHERE NOT EXISTS (
-      SELECT 1 
-    FROM DeputationBackTransactions dbt 
-    WHERE dbt.emp_master_id = tot.emp_master_id
-)
-AND NOT EXISTS (
-    SELECT 1 FROM tbl_employee_transaction_details t3 WITH (NOLOCK)
-    WHERE t3.emp_master_id = tot.emp_master_id
-    AND t3.method_of_appointment = 'Absorption'
-)
---AND etd.activity_name IS NULL
-
-UNION 
-
--- Deputation Back
-SELECT DISTINCT
-    dbt.transaction_id,
-    dbt.emp_name,
-    dbt.employee_id,
-    dbt.emp_master_id,
-    dbt.emp_reference_id,
-    dbt.emp_status,
-    dbt.emp_post_id,
-    dbt.emp_department_id,
-    dbt.emp_post_name,
-    dbt.emp_department_name,
-    dbt.class,
-    dbt.organisation_name,
-    dbt.created_date AS action_date,
-    'Deputation Back' AS type_of_people,
-    'Active' AS working_status
-FROM DeputationBackTransactions dbt
-
-UNION 
-
--- Transfer Out (via NULL post_code)
-SELECT DISTINCT
-    t.transaction_id,
-    e.emp_name,
-    t.employee_id,
-    e.emp_master_id,
-    t.emp_reference_id,
-    e.emp_status,
-    t.emp_post_id,
-    t.emp_department_id,
-    '' AS emp_post_name,
-    '' AS emp_department_name,
-    mmc.class,
-    mmt.organisation_name,
-      CASE
-        WHEN t.emp_post_end_date IS NOT NULL THEN t.updated_date
-        ELSE t.created_date
-    END AS action_date,
-    'Transfer Out' AS type_of_people,
-    'Inactive' AS working_status
-FROM tbl_employee_transaction_details t WITH (NOLOCK)
-JOIN tbl_employee_master e WITH (NOLOCK) ON t.emp_master_id = e.emp_master_id
-JOIN mmt_hr_post p WITH (NOLOCK) ON t.emp_post_id = p.post_id
-JOIN mmt_class mmc WITH (NOLOCK) ON p.class_id = mmc.class_id
-JOIN mmt_organisation mmt ON e.emp_curr_org_id = mmt.organisation_id
-WHERE
-    t.emp_post_code IS NULL
-    AND t.method_of_appointment = 'Transfer In'
-    ${orgFilterCondition}
-
-UNION 
-
--- Transfer Out with Subsequent Transfer In
-SELECT DISTINCT
-    vtot.transaction_id,
-    vtot.emp_name,
-    vtot.employee_id,
-    vtot.emp_master_id,
-    vtot.emp_reference_id,
-    vtot.emp_status,
-    '' AS emp_post_id,
-    '' AS emp_department_id,
-    '' AS emp_post_name,
-    '' AS emp_department_name,
-    '' AS class,
-    vtot.organisation_name,
-     GETDATE() AS action_date,
-    'Transfer Out' AS type_of_people,
-    'Inactive' AS working_status
-FROM ValidTransferOut vtot
-
-UNION 
-
--- Absorption
-SELECT DISTINCT
-    tot.transaction_id,
-    tot.emp_name,
-    tot.employee_id,
-    tot.emp_master_id,
-    tot.emp_reference_id,
-    tot.emp_status,
-    tot.emp_post_id,
-    tot.emp_department_id,
-    tot.emp_post_name,
-    tot.emp_department_name,
-    tot.class,
-    tot.organisation_name,
-     GETDATE() AS action_date,
-    'Absorption' AS type_of_people,
-    'Inactive' AS working_status
-FROM AbsorptionTransactions tot
-WHERE EXISTS (
-    SELECT 1 FROM SubsequentAbsorptionTransactions st WHERE st.emp_master_id = tot.emp_master_id
-)
-
-UNION 
-
--- Appointment method not specified
-SELECT DISTINCT
-    t.transaction_id,
-    e.emp_name,
-    t.employee_id,
-    e.emp_master_id,
-    t.emp_reference_id,
-    e.emp_status,
-    t.emp_post_id,
-    t.emp_department_id,
-    t.emp_post_name,
-    t.emp_department_name,
-    mmc.class,
-    mmt.organisation_name,
-     CASE
-        WHEN t.emp_post_end_date IS NOT NULL THEN t.updated_date
-        ELSE t.created_date
-    END AS action_date,
-    'Method of Appointment Not Provided' AS type_of_people,
-    'Active' AS working_status
-FROM tbl_employee_transaction_details t WITH (NOLOCK)
-JOIN tbl_employee_master e WITH (NOLOCK) ON t.emp_master_id = e.emp_master_id
-JOIN mmt_hr_post p WITH (NOLOCK) ON t.emp_post_id = p.post_id
-JOIN mmt_class mmc WITH (NOLOCK) ON p.class_id = mmc.class_id
-JOIN mmt_organisation mmt ON e.emp_curr_org_id = mmt.organisation_id
-WHERE
-    t.emp_post_end_date IS NULL
-    AND t.method_of_appointment IS NULL
-    ${orgFilterCondition}
-
-        `;
-
-        // if (depID != "None") {
-        //     query += ` AND et.emp_department_id = @depID`;
-        // }
-        // if (postID != "None") {
-        //     query += ` AND p.post_id = @postID`;
-        // }
-        // query += ` ORDER BY m.emp_master_id ASC`;
-
-        const result = await request.query(query);
-       
-        res.json(result.recordset);
-    } catch (err) {
-        console.log(err);
-        return res.status(500).json({ message: "Internal Server Error", error: err });
-    }
+    request.input('roleID', sql.Int, roleID);
+    request.input('orgID', sql.Int, orgID);
+    const result = await request.execute('dbo.GetEmployeeListByOrgDepPost');
+    return res.json(result.recordset);
+  } catch (err) {
+    console.error('Error fetching employee list:', err);
+    return res.status(500).json({ message: 'Employee list could not be loaded.' });
+  }
 }
 
 async function getEmployeeListHoldingDesig(req, res) {
@@ -1203,39 +798,40 @@ async function getPostCodeByPostId(req, res) {
     }
 }
 
+/**
+ * Service history of an employee (every transaction, latest first). Organisation users see their
+ * own organisation's records only (organisation and role from the login, not the URL); ministry
+ * users (roles 1-5, 8) see all of them. The URL keeps :orgID/:roleID for the legacy page.
+ */
 async function getTransactionHstryOfEmp(req, res) {
+    const empMasterID = Number.parseInt(req.params.empMasterID, 10);
+    if (!Number.isInteger(empMasterID)) return res.status(400).json({ message: "Invalid employee." });
+
+    const { isOrganisation, organisationId } = getDataScope(req.user);
+    const roleID = Number.parseInt(isOrganisation ? (req.user?.roleId ?? req.params.roleID) : req.params.roleID, 10);
+    const orgID = isOrganisation ? Number(organisationId) : Number.parseInt(req.params.orgID, 10);
+    const seesAll = !isOrganisation && ((roleID >= 1 && roleID <= 5) || roleID === 8);
+    if (!seesAll && !(Number.isInteger(orgID) && orgID > 0)) {
+        return res.status(403).json({ message: "Unauthorized access: Invalid role" });
+    }
+
     try {
         const conn = await pool;
         const request = conn.request();
-
-        const empMasterID = req.params.empMasterID;
-        const orgID = req.params.orgID;
-        const roleID = parseInt(req.params.roleID); 
-
-        request.input("empMasterID", empMasterID);
-        request.input("orgID", orgID);
-
-        let query;
-
-        if (roleID >= 1 && roleID <= 5 || roleID == 8) {
-            // Role 1–5 can see all transactions for the employee (any org)
-            query = `SELECT * FROM tbl_employee_transaction_details 
-                     WHERE emp_master_id = @empMasterID 
-                     ORDER BY transaction_id DESC`;
-        } else if (roleID === 6 || roleID === 7) {
-            // Role 6–7 can only see transactions for the given org
-            query = `SELECT * FROM tbl_employee_transaction_details 
-                     WHERE emp_master_id = @empMasterID 
-                     AND emp_working_org_id = @orgID 
-                     ORDER BY transaction_id DESC`;
-        } else {
-            return res.status(403).json({ message: "Unauthorized access: Invalid role" });
-        }
-
-        const result = await request.query(query);
-        res.json(result.recordset);
+        request.input("empMasterID", sql.Int, empMasterID);
+        request.input("orgID", sql.Int, seesAll ? null : orgID);
+        const result = await request.query(`
+            SELECT t.*, o.organisation_name AS working_organisation_name
+            FROM tbl_employee_transaction_details t
+            LEFT JOIN mmt_organisation o ON o.organisation_id = t.emp_working_org_id
+            WHERE t.emp_master_id = @empMasterID
+              AND (@orgID IS NULL OR t.emp_working_org_id = @orgID)
+            ORDER BY t.transaction_id DESC
+        `);
+        return res.json(result.recordset);
     } catch (err) {
-        return res.status(500).json({ message: "Internal Server Error", error: err });
+        console.error("Error fetching employee transaction history:", err);
+        return res.status(500).json({ message: "Service history could not be loaded." });
     }
 }
 
@@ -1311,13 +907,17 @@ async function getDeputedEmployeeListByOrgId(req, res) {
 }
 
 async function getDeputedEmployeesByOrgId(req, res) {
+    // The receiving organisation comes from the login for organisation users (the URL's
+    // :organisationID is honoured only for ministry users), so nobody reads another organisation's list
+    const organisationID = resolveReportOrganisation(req, req.params.organisationID);
+    if (!organisationID) return res.status(403).json({ message: "Your account is not linked to an organisation." });
+    const selectedOrganisationID = Number.parseInt(req.params.organisationId, 10);
+    if (!Number.isInteger(selectedOrganisationID)) return res.status(400).json({ message: "Invalid organisation." });
+
     const conn = await pool;
     const request = conn.request();
-    const organisationID = req.params.organisationID;
-    const selectedOrganisationID = req.params.organisationId;
-
-    request.input("organisationID", organisationID);
-    request.input("selectedOrganisationID", selectedOrganisationID);
+    request.input("organisationID", sql.Int, organisationID);
+    request.input("selectedOrganisationID", sql.Int, selectedOrganisationID);
     try {
         const result = await request.query(`
             SELECT em.emp_name,td.* FROM tbl_employee_transaction_details td
@@ -1605,6 +1205,7 @@ async function listEmployeesHoldingDesignation(req, res) {
                    m.emp_name, m.emp_dor, et.emp_reference_id AS reference_id, m.emp_status,
                    p.post_name, p.post_id, mmc.class, d.department_id, d.department_name,
                    ps.date_of_arise_in_vacancy, ps.method_of_appointment,
+                   COALESCE(et.updated_date, et.created_date) AS last_updated,
                    COUNT(*) OVER() AS total_count
             ${fromSql(dataWhere)}
             ORDER BY d.department_name, p.post_name, et.emp_post_code
@@ -1644,6 +1245,8 @@ async function listVacancyOverview(req, res) {
 
     const { page, limit, offset, search } = readListQuery(req.query);
     const abolishingOnly = req.query.abolishingOnly === "true";
+    // exact: whole-value match (as "Show exact match" on the legacy page) instead of "contains"
+    const exact = req.query.exact === "true" || req.query.exact === "1";
 
     const bindFilters = (request) => {
         request.input("orgId", sql.Int, scope.organisationId);
@@ -1661,8 +1264,10 @@ async function listVacancyOverview(req, res) {
             parts.push("mmtc.class = @className");
         }
         if (search) {
-            request.input("search", sql.NVarChar(200), likePattern(search));
-            parts.push("(d.department_name LIKE @search OR p.post_name LIKE @search OR mmtc.class LIKE @search)");
+            request.input("search", sql.NVarChar(200), exact ? search : likePattern(search));
+            parts.push(exact
+                ? "(LTRIM(RTRIM(d.department_name)) = @search OR LTRIM(RTRIM(p.post_name)) = @search OR mmtc.class = @search OR p.post_id = @search)"
+                : "(d.department_name LIKE @search OR p.post_name LIKE @search OR mmtc.class LIKE @search OR p.post_id LIKE @search)");
         }
         return parts.length ? ` AND ${parts.join(" AND ")}` : "";
     };

@@ -17,6 +17,8 @@ import {
     validateOrganisation,
     buildPagination,
     parseListQuery,
+    logSource,
+    runLoggedWrite,
 } from "./kpiEntryCommon.js";
 
 /**
@@ -83,6 +85,15 @@ if (![...ACTUAL_COLUMNS, ...TARGET_FIELDS.flatMap((f) => [f.key, f.column])].eve
 
 const FY_SQL = (alias) => `REPLACE(${alias}.annually_financial_year, ' ', '')`;
 const MONTH_SQL = (alias) => `TRY_CAST(${alias}.month AS INT)`;
+
+const ACTUAL_LOG = logSource({
+    section: "FINANCIAL_PARAMETERS", recordType: "ACTUAL", table: "tbl_financial_parameter",
+    idColumn: "financial_parameter_id", fiscalYearSql: FY_SQL("x"), monthSql: MONTH_SQL("x"), columns: ACTUAL_COLUMNS,
+});
+const TARGET_LOG = logSource({
+    section: "FINANCIAL_PARAMETERS", recordType: "TARGET", table: "tbl_financial_paramaters_mopsw_target",
+    idColumn: "target_id", fiscalYearSql: FY_SQL("x"), columns: TARGET_FIELDS.map((f) => f.column),
+});
 
 function requireOrganisation(req, res) {
     return requireOrganisationWriter(req, res, "Financial parameters are entered by the port organisation. Ministry users can view them.");
@@ -320,32 +331,33 @@ async function createFinancialParameterActual(req, res) {
 
     try {
         const conn = await pool;
-        const request = conn.request();
-        request.input("organisationId", sql.Int, organisationId);
-        request.input("fiscalYear", sql.NVarChar(30), fiscalYear);
-        request.input("month", sql.NVarChar(50), String(month));
-        request.input("monthNumber", sql.Int, month);
-        request.input("year", sql.Int, calendarYear(fiscalYear, month));
-        request.input("userId", sql.Int, userId);
-        bindValues(request, ACTUAL_COLUMNS, values);
+        const result = await runLoggedWrite(conn, ACTUAL_LOG, { action: "CREATE", userId }, (request) => {
+            request.input("organisationId", sql.Int, organisationId);
+            request.input("fiscalYear", sql.NVarChar(30), fiscalYear);
+            request.input("month", sql.NVarChar(50), String(month));
+            request.input("monthNumber", sql.Int, month);
+            request.input("year", sql.Int, calendarYear(fiscalYear, month));
+            request.input("userId", sql.Int, userId);
+            bindValues(request, ACTUAL_COLUMNS, values);
 
-        // The check and insert run under one lock, so two saves can never create two records
-        const result = await request.query(`
-            IF EXISTS (
-                SELECT 1 FROM tbl_financial_parameter f WITH (UPDLOCK, HOLDLOCK)
-                WHERE f.organisation_id = @organisationId
-                  AND ${FY_SQL("f")} = @fiscalYear
-                  AND ${MONTH_SQL("f")} = @monthNumber
-            )
-                SELECT CAST(NULL AS INT) AS id;
-            ELSE
-                INSERT INTO tbl_financial_parameter
-                    (organisation_id, year, month, annually_financial_year,
-                     ${ACTUAL_COLUMNS.join(", ")}, created_by, created_date)
-                OUTPUT INSERTED.financial_parameter_id AS id
-                VALUES (@organisationId, @year, @month, @fiscalYear,
-                        ${ACTUAL_COLUMNS.map((c) => `@${c}`).join(", ")}, @userId, GETDATE());
-        `);
+            // The check and insert run under one lock, so two saves can never create two records
+            return request.query(`
+                IF EXISTS (
+                    SELECT 1 FROM tbl_financial_parameter f WITH (UPDLOCK, HOLDLOCK)
+                    WHERE f.organisation_id = @organisationId
+                      AND ${FY_SQL("f")} = @fiscalYear
+                      AND ${MONTH_SQL("f")} = @monthNumber
+                )
+                    SELECT CAST(NULL AS INT) AS id;
+                ELSE
+                    INSERT INTO tbl_financial_parameter
+                        (organisation_id, year, month, annually_financial_year,
+                         ${ACTUAL_COLUMNS.join(", ")}, created_by, created_date)
+                    OUTPUT INSERTED.financial_parameter_id AS id
+                    VALUES (@organisationId, @year, @month, @fiscalYear,
+                            ${ACTUAL_COLUMNS.map((c) => `@${c}`).join(", ")}, @userId, GETDATE());
+            `);
+        });
 
         const id = result.recordset[0]?.id;
         if (!id) {
@@ -371,17 +383,18 @@ async function updateFinancialParameterActual(req, res) {
 
     try {
         const conn = await pool;
-        const request = conn.request();
-        request.input("id", sql.Int, id);
-        request.input("organisationId", sql.Int, organisationId);
-        request.input("userId", sql.Int, userId);
-        bindValues(request, ACTUAL_COLUMNS, values);
-        const result = await request.query(`
-            UPDATE tbl_financial_parameter
-            SET ${ACTUAL_COLUMNS.map((c) => `${c} = @${c}`).join(", ")},
-                updated_by = @userId, updated_date = GETDATE()
-            WHERE financial_parameter_id = @id AND organisation_id = @organisationId
-        `);
+        const result = await runLoggedWrite(conn, ACTUAL_LOG, { action: "UPDATE", id, userId }, (request) => {
+            request.input("id", sql.Int, id);
+            request.input("organisationId", sql.Int, organisationId);
+            request.input("userId", sql.Int, userId);
+            bindValues(request, ACTUAL_COLUMNS, values);
+            return request.query(`
+                UPDATE tbl_financial_parameter
+                SET ${ACTUAL_COLUMNS.map((c) => `${c} = @${c}`).join(", ")},
+                    updated_by = @userId, updated_date = GETDATE()
+                WHERE financial_parameter_id = @id AND organisation_id = @organisationId
+            `);
+        });
         if (!result.rowsAffected[0]) return sendError(res, 404, "These financial parameters no longer exist.");
         return res.status(200).json({ success: true, message: "Financial parameters updated." });
     } catch (err) {
@@ -393,18 +406,21 @@ async function updateFinancialParameterActual(req, res) {
 async function deleteFinancialParameterActual(req, res) {
     const organisationId = requireOrganisation(req, res);
     if (!organisationId) return undefined;
+    const userId = resolveUserId(req);
+    if (!userId) return sendError(res, 401, "Your session has expired. Please sign in again.");
     const id = toPositiveIntOrNull(req.params.id);
     if (!id) return sendError(res, 400, "Invalid record.");
 
     try {
         const conn = await pool;
-        const request = conn.request();
-        request.input("id", sql.Int, id);
-        request.input("organisationId", sql.Int, organisationId);
-        const result = await request.query(`
-            DELETE FROM tbl_financial_parameter
-            WHERE financial_parameter_id = @id AND organisation_id = @organisationId
-        `);
+        const result = await runLoggedWrite(conn, ACTUAL_LOG, { action: "DELETE", id, userId }, (request) => {
+            request.input("id", sql.Int, id);
+            request.input("organisationId", sql.Int, organisationId);
+            return request.query(`
+                DELETE FROM tbl_financial_parameter
+                WHERE financial_parameter_id = @id AND organisation_id = @organisationId
+            `);
+        });
         if (!result.rowsAffected[0]) return sendError(res, 404, "These financial parameters no longer exist.");
         return res.status(200).json({ success: true, message: "Financial parameters deleted." });
     } catch (error) {
@@ -495,25 +511,26 @@ async function createFinancialParameterTarget(req, res) {
         const organisation = await validateOrganisation(conn, organisationId);
         if (!organisation) return sendError(res, 400, "The selected organisation does not exist.");
 
-        const request = conn.request();
-        request.input("fiscalYear", sql.NVarChar(50), fiscalYear);
-        request.input("organisationId", sql.Int, organisationId);
-        request.input("userId", sql.Int, userId);
-        bindTargetValues(request, values);
-        const result = await request.query(`
-            IF EXISTS (
-                SELECT 1 FROM tbl_financial_paramaters_mopsw_target t WITH (UPDLOCK, HOLDLOCK)
-                WHERE t.organisation_id = @organisationId AND ${FY_SQL("t")} = @fiscalYear
-            )
-                SELECT CAST(NULL AS INT) AS id;
-            ELSE
-                INSERT INTO tbl_financial_paramaters_mopsw_target
-                    (organisation_id, annually_financial_year,
-                     ${TARGET_FIELDS.map((f) => f.column).join(", ")}, created_by, created_date)
-                OUTPUT INSERTED.target_id AS id
-                VALUES (@organisationId, @fiscalYear,
-                        ${TARGET_FIELDS.map((f) => `@${f.key}`).join(", ")}, @userId, GETDATE());
-        `);
+        const result = await runLoggedWrite(conn, TARGET_LOG, { action: "CREATE", userId }, (request) => {
+            request.input("fiscalYear", sql.NVarChar(50), fiscalYear);
+            request.input("organisationId", sql.Int, organisationId);
+            request.input("userId", sql.Int, userId);
+            bindTargetValues(request, values);
+            return request.query(`
+                IF EXISTS (
+                    SELECT 1 FROM tbl_financial_paramaters_mopsw_target t WITH (UPDLOCK, HOLDLOCK)
+                    WHERE t.organisation_id = @organisationId AND ${FY_SQL("t")} = @fiscalYear
+                )
+                    SELECT CAST(NULL AS INT) AS id;
+                ELSE
+                    INSERT INTO tbl_financial_paramaters_mopsw_target
+                        (organisation_id, annually_financial_year,
+                         ${TARGET_FIELDS.map((f) => f.column).join(", ")}, created_by, created_date)
+                    OUTPUT INSERTED.target_id AS id
+                    VALUES (@organisationId, @fiscalYear,
+                            ${TARGET_FIELDS.map((f) => `@${f.key}`).join(", ")}, @userId, GETDATE());
+            `);
+        });
 
         const id = result.recordset[0]?.id;
         if (!id) {
@@ -538,16 +555,17 @@ async function updateFinancialParameterTarget(req, res) {
 
     try {
         const conn = await pool;
-        const request = conn.request();
-        request.input("id", sql.Int, id);
-        request.input("userId", sql.Int, userId);
-        bindTargetValues(request, values);
-        const result = await request.query(`
-            UPDATE tbl_financial_paramaters_mopsw_target
-            SET ${TARGET_FIELDS.map((f) => `${f.column} = @${f.key}`).join(", ")},
-                updated_by = @userId, update_date = GETDATE()
-            WHERE target_id = @id
-        `);
+        const result = await runLoggedWrite(conn, TARGET_LOG, { action: "UPDATE", id, userId }, (request) => {
+            request.input("id", sql.Int, id);
+            request.input("userId", sql.Int, userId);
+            bindTargetValues(request, values);
+            return request.query(`
+                UPDATE tbl_financial_paramaters_mopsw_target
+                SET ${TARGET_FIELDS.map((f) => `${f.column} = @${f.key}`).join(", ")},
+                    updated_by = @userId, update_date = GETDATE()
+                WHERE target_id = @id
+            `);
+        });
         if (!result.rowsAffected[0]) return sendError(res, 404, "These targets no longer exist.");
         return res.status(200).json({ success: true, message: "Targets updated." });
     } catch (error) {
@@ -558,14 +576,17 @@ async function updateFinancialParameterTarget(req, res) {
 
 async function deleteFinancialParameterTarget(req, res) {
     if (!requireMinistryWriter(req, res, "Financial parameter targets")) return undefined;
+    const userId = resolveUserId(req);
+    if (!userId) return sendError(res, 401, "Your session has expired. Please sign in again.");
     const id = toPositiveIntOrNull(req.params.id);
     if (!id) return sendError(res, 400, "Invalid target.");
 
     try {
         const conn = await pool;
-        const request = conn.request();
-        request.input("id", sql.Int, id);
-        const result = await request.query("DELETE FROM tbl_financial_paramaters_mopsw_target WHERE target_id = @id");
+        const result = await runLoggedWrite(conn, TARGET_LOG, { action: "DELETE", id, userId }, (request) => {
+            request.input("id", sql.Int, id);
+            return request.query("DELETE FROM tbl_financial_paramaters_mopsw_target WHERE target_id = @id");
+        });
         if (!result.rowsAffected[0]) return sendError(res, 404, "These targets no longer exist.");
         return res.status(200).json({ success: true, message: "Targets deleted." });
     } catch (error) {

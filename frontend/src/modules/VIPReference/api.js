@@ -35,10 +35,6 @@ export function fetchDivisions() {
   return axiosInstance.get('/mmt-dropdown/mmt_division');
 }
 
-export function fetchVIPStages() {
-  return axiosInstance.get('/mmt-dropdown/mmt_vip_stage');
-}
-
 // ── Abstract Reports ──
 
 export function fetchVIPWingWiseReport() {

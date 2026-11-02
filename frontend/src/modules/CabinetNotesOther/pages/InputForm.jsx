@@ -1,7 +1,37 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { ArrowLeft, Save, X, FileText } from 'lucide-react';
-import { fetchMinistryList, createCabinetMinistry, updateCabinetMinistry, fetchDropdownAllValues } from '../api';
+import { useState, useEffect, useMemo } from 'react';
+import { ArrowLeft, Save, X } from 'lucide-react';
+import { createCabinetMinistry, updateCabinetMinistry } from '../api';
+import { useCabinetNotesOtherStore } from '../store/useCabinetNotesOtherStore';
 
+// Wings that have their own date/remarks columns (backend: cabinetNotesMinistryFields.js).
+// name: mmt_wings.wing_name; column: <column>_date/_remarks on the note; key: <key>Date/<key>Remarks in the request
+const WING_FIELDS = [
+  { name: 'Shipping', column: 'shipping', key: 'shipping' },
+  { name: 'Vigilance', column: 'vigilance', key: 'vigilance' },
+  { name: 'Ports', column: 'ports', key: 'ports' },
+  { name: 'IWT', column: 'iwt', key: 'iwt' },
+  { name: 'Administration', column: 'administration', key: 'administration' },
+  { name: 'Coord-I', column: 'coord_I', key: 'coordI' },
+  { name: 'Coord-II', column: 'coord_II', key: 'coordII' },
+  { name: 'DGLL, Parliament & TRW', column: 'dgll_parliament_and_trw', key: 'dgll' },
+  { name: 'Development', column: 'development', key: 'development' },
+  { name: 'Finance', column: 'finance', key: 'finance' },
+  { name: 'Sagarmala', column: 'sagarmala', key: 'sagarmala' },
+  { name: 'Information Technology', column: 'information_technology', key: 'informationTechnology' },
+  { name: 'Office of Economic Advisor', column: 'office_of_economic_advisor', key: 'economicAdvisor' },
+  { name: 'Special Initiatives & Projects', column: 'special_initiatives_and_projects', key: 'specialInitiatives' },
+  { name: 'ALHW & Media', column: 'alhw_and_media', key: 'alhwMedia' }
+];
+
+// Column sizes in tbl_cabinet_notes_ministry
+const MAX_TEXT = 256;
+const MAX_REMARK = 250;
+
+const toDateInput = (value) => (value ? String(value).split('T')[0] : '');
+const toLocalDateInput = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+// Shown until the stage master has loaded
 const stageLabels = {
   1: '1. Received at Ministry',
   2: '2. Sent for Comments',
@@ -9,20 +39,6 @@ const stageLabels = {
   4: '4. File Submitted for Approval',
   5: '5. Reply Furnished to Other Ministry'
 };
-
-const COMMON_WINGS = [
-  'Shipping',
-  'Vigilance',
-  'Ports',
-  'IWT',
-  'Administration',
-  'Coord-I',
-  'Coord-II',
-  'DGLL, Parliament & TRW',
-  'Development',
-  'Finance',
-  'Sagarmala'
-];
 
 export default function InputForm({
   editData = null,
@@ -34,13 +50,24 @@ export default function InputForm({
 }) {
   const isEdit = !!editData;
   const [submitting, setSubmitting] = useState(false);
-  const [ministries, setMinistries] = useState([]);
-  const [dbStageMaster, setDbStageMaster] = useState({});
+
+  // Trimmed so names match the wingDetails keys (the master has 'Sagarmala ' with a trailing space)
+  const wings = useMemo(
+    () => wingsList.map(w => ({ ...w, wing_name: String(w.wing_name || '').trim() })),
+    [wingsList]
+  );
+  // Ministry master, loaded once by the module shell
+  const ministries = useCabinetNotesOtherStore((state) => state.ministries);
+  // Stage names from the stage master (mmt_cabinet_ministry_stage)
+  const stageMaster = useCabinetNotesOtherStore((state) => state.stages);
+  const stageName = (n) => {
+    const row = stageMaster.find((r) => Number(r.cab_ministry_stage_id) === n);
+    return row ? `${n}. ${row.cab_ministry_stage_name}` : stageLabels[n];
+  };
 
   // Basic Left Panel States
   const [subject, setSubject] = useState('');
   const [ministryId, setMinistryId] = useState('');
-  const [ministryName, setMinistryName] = useState('');
   const [eofficeFileNumber, setEofficeFileNumber] = useState('');
   const [deadline, setDeadline] = useState('');
   const [remarks, setRemarks] = useState('');
@@ -58,47 +85,14 @@ export default function InputForm({
     5: { date: '', remark: '' }
   });
 
-  // Fetch stage master using /allvalue-dropdown/mmt_cabinet_ministry_stage API
-  useEffect(() => {
-    fetchDropdownAllValues('mmt_cabinet_ministry_stage')
-      .then(res => {
-        const rows = res.data || [];
-        const map = {};
-        rows.forEach(r => {
-          const id = r.cab_ministry_stage_id || r.stage_id || r.id;
-          const name = r.cab_ministry_stage_name || r.stage_name || r.name;
-          if (id && name) map[id] = name;
-        });
-        if (Object.keys(map).length > 0) {
-          setDbStageMaster(map);
-        }
-      })
-      .catch(err => console.error("Error loading stage dropdown master:", err));
-  }, []);
-
   // Stage 2: Concerned wings tag pool states (YoungProfessionals skills style)
-  const [wingInput, setWingInput] = useState('');
   const [selectedWings, setSelectedWings] = useState([]);
-  const [showWingSuggestions, setShowWingSuggestions] = useState(false);
-  const wingSuggestionsRef = useRef(null);
 
   // Wing-wise dates & remarks state
-  const [wingDetails, setWingDetails] = useState({
-    Shipping: { date: '', remark: '' },
-    Vigilance: { date: '', remark: '' },
-    Ports: { date: '', remark: '' },
-    IWT: { date: '', remark: '' },
-    Administration: { date: '', remark: '' },
-    'Coord-I': { date: '', remark: '' },
-    'Coord-II': { date: '', remark: '' },
-    'DGLL, Parliament & TRW': { date: '', remark: '' },
-    Development: { date: '', remark: '' },
-    Finance: { date: '', remark: '' },
-    Sagarmala: { date: '', remark: '' }
-  });
+  const [wingDetails, setWingDetails] = useState(
+    () => Object.fromEntries(WING_FIELDS.map(w => [w.name, { date: '', remark: '' }]))
+  );
 
-  // Focus tracking for animation
-  const [focusedStage, setFocusedStage] = useState(null);
 
   // Initial values for dirty check
   const [initialValues, setInitialValues] = useState({
@@ -117,25 +111,8 @@ export default function InputForm({
   });
 
   useEffect(() => {
-    function handleClickOutside(event) {
-      if (wingSuggestionsRef.current && !wingSuggestionsRef.current.contains(event.target)) {
-        setShowWingSuggestions(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    fetchMinistryList()
-      .then(res => setMinistries(res.data || []))
-      .catch(err => console.error("Error fetching ministries:", err));
-  }, []);
-
-  useEffect(() => {
     let initSubject = '';
     let initMinId = '';
-    let initMinName = '';
     let initFileNo = '';
     let initDeadline = '';
     let initRemarks = '';
@@ -151,7 +128,6 @@ export default function InputForm({
     if (editData) {
       initSubject = editData.subject || '';
       initMinId = editData.ministry_id !== undefined && editData.ministry_id !== null ? String(editData.ministry_id) : '';
-      initMinName = editData.ministry_name || '';
       initFileNo = editData.eoffice_file_number || '';
       initDeadline = editData.deadline ? editData.deadline.split('T')[0] : '';
       initRemarks = editData.remarks || '';
@@ -160,7 +136,7 @@ export default function InputForm({
         const rawWings = editData.sent_for_comments_wings.split(',').map(s => s.trim()).filter(Boolean);
         initWings = rawWings.map(item => {
           if (!isNaN(item)) {
-            const found = wingsList.find(w => String(w.wing_id) === String(item));
+            const found = wings.find(w => String(w.wing_id) === String(item));
             return found ? found.wing_name : item;
           }
           return item;
@@ -191,25 +167,15 @@ export default function InputForm({
       };
     }
 
-    const initWingDetails = {
-      Shipping: { date: editData?.shipping_date ? editData.shipping_date.split('T')[0] : '', remark: editData?.shipping_remarks || '' },
-      Vigilance: { date: editData?.vigilance_date ? editData.vigilance_date.split('T')[0] : '', remark: editData?.vigilance_remarks || '' },
-      Ports: { date: editData?.ports_date ? editData.ports_date.split('T')[0] : '', remark: editData?.ports_remarks || '' },
-      IWT: { date: editData?.iwt_date ? editData.iwt_date.split('T')[0] : '', remark: editData?.iwt_remarks || '' },
-      Administration: { date: editData?.administration_date ? editData.administration_date.split('T')[0] : '', remark: editData?.administration_remarks || '' },
-      'Coord-I': { date: editData?.coord_I_date ? editData.coord_I_date.split('T')[0] : '', remark: editData?.coord_I_remarks || '' },
-      'Coord-II': { date: editData?.coord_II_date ? editData.coord_II_date.split('T')[0] : '', remark: editData?.coord_II_remarks || '' },
-      'DGLL, Parliament & TRW': { date: editData?.dgll_parliament_and_trw_date ? editData.dgll_parliament_and_trw_date.split('T')[0] : '', remark: editData?.dgll_parliament_and_trw_remarks || '' },
-      Development: { date: editData?.development_date ? editData.development_date.split('T')[0] : '', remark: editData?.development_remarks || '' },
-      Finance: { date: editData?.finance_date ? editData.finance_date.split('T')[0] : '', remark: editData?.finance_remarks || '' },
-      Sagarmala: { date: editData?.sagarmala_date ? editData.sagarmala_date.split('T')[0] : '', remark: editData?.sagarmala_remarks || '' }
-    };
+    const initWingDetails = Object.fromEntries(WING_FIELDS.map(w => [w.name, {
+      date: toDateInput(editData?.[`${w.column}_date`]),
+      remark: editData?.[`${w.column}_remarks`] || ''
+    }]));
 
     setWingDetails(initWingDetails);
 
     setSubject(initSubject);
     setMinistryId(initMinId);
-    setMinistryName(initMinName);
     setEofficeFileNumber(initFileNo);
     setDeadline(initDeadline);
     setRemarks(initRemarks);
@@ -228,39 +194,16 @@ export default function InputForm({
 
     setTouched({});
     setErrors({});
-  }, [editData, wingsList, ministries]);
-
-  // Wing suggestions dropdown filtering
-  const wingSuggestions = useMemo(() => {
-    const query = wingInput.trim().toLowerCase();
-    const matched = COMMON_WINGS.filter(
-      w => w.toLowerCase().includes(query) && !selectedWings.includes(w)
-    );
-    if (query && !matched.some(s => s.toLowerCase() === query) && !selectedWings.some(s => s.toLowerCase() === query)) {
-      matched.push(wingInput.trim());
-    }
-    return matched;
-  }, [wingInput, selectedWings]);
+  }, [editData, wings, ministries]);
 
   const handleAddWing = (wingName) => {
     if (wingName && !selectedWings.includes(wingName)) {
       setSelectedWings(prev => [...prev, wingName]);
     }
-    setWingInput('');
-    setShowWingSuggestions(false);
   };
 
   const handleRemoveWing = (wingToRemove) => {
     setSelectedWings(prev => prev.filter(w => w !== wingToRemove));
-  };
-
-  const handleWingKeyDown = (e) => {
-    if (e.key === 'Enter' || e.key === ',') {
-      e.preventDefault();
-      if (wingInput.trim()) {
-        handleAddWing(wingInput.trim());
-      }
-    }
   };
 
   const isDirty = useMemo(() => {
@@ -283,8 +226,8 @@ export default function InputForm({
     return false;
   }, [subject, ministryId, eofficeFileNumber, remarks, selectedWings, stages, wingDetails, initialValues]);
 
-  // Helper to get today's date YYYY-MM-DD
-  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  // Today's local date as YYYY-MM-DD (toISOString is UTC, which is still yesterday before 05:30 IST)
+  const todayStr = useMemo(() => toLocalDateInput(new Date()), []);
 
   // Compute min/max limits for stage dates & wing dates
   const getDateLimits = (stageNum) => {
@@ -314,9 +257,9 @@ export default function InputForm({
       updated[num] = { ...updated[num], [field]: val };
 
       if (num === 1 && field === 'date' && val) {
-        const d = new Date(val);
-        d.setDate(d.getDate() + 15);
-        setDeadline(d.toISOString().split('T')[0]);
+        // Deadline is 15 days after the note was received
+        const [y, m, d] = val.split('-').map(Number);
+        setDeadline(toLocalDateInput(new Date(y, m - 1, d + 15)));
       }
 
       if (field === 'date' && !val) {
@@ -359,122 +302,47 @@ export default function InputForm({
     return false;
   };
 
-  const getUserId = () => {
-    try {
-      const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
-      if (token) {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        return payload.userId || payload.user_id || payload.id || 1;
-      }
-    } catch (e) {
-      console.error("Error decoding token:", e);
-    }
-    return 1;
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setTouched({ subject: true, ministryId: true, eofficeFileNumber: true });
 
     if (!isFormValid || errors.remarks) {
-      if (triggerNotification) triggerNotification("Please fill in all required mandatory fields correctly.");
+      triggerNotification?.("Please fill in all required mandatory fields correctly.", 'error');
       return;
     }
 
     setSubmitting(true);
 
-    const resolvedMinName = ministryName || (ministries.find(m => String(m.ministry_id) === String(ministryId))?.ministry_name || editData?.ministry_name || '');
+    // The backend takes created_by/updated_by from the token, the ministry name from the
+    // master and the current stage from the latest stage date
+    const payload = {
+      ministryCabinetID: isEdit ? editData.cabinet_notes_ministry_id : undefined,
+      cabinetSubject: subject,
+      cabinetMinistryName: ministryId,
+      eofficeFileNumber: eofficeFileNumber,
+      deadline: deadline,
+      remarks: remarks,
 
-      let selectedMinistryNotesStage = 1;
-      for (let i = 1; i <= 5; i++) {
-        if (stages[i]?.date) {
-          selectedMinistryNotesStage = i;
-        }
-      }
+      receivedMinistryDate: stages[1]?.date || '',
+      receivedMinistryRemarks: stages[1]?.remark || '',
+      sentForCommentDate: stages[2]?.date || '',
+      sentForCommentsRemarks: stages[2]?.remark || '',
+      commentsReceivedDate: stages[3]?.date || '',
+      commentsRecRemarks: stages[3]?.remark || '',
+      fileSubmittedDate: stages[4]?.date || '',
+      fileSubmittedRemarks: stages[4]?.remark || '',
+      replyFurnishedDate: stages[5]?.date || '',
+      replyFurnishedRemarks: stages[5]?.remark || '',
 
-      const payload = {
-        cabinet_notes_ministry_id: isEdit ? editData.cabinet_notes_ministry_id : undefined,
-        ministryCabinetID: isEdit ? editData.cabinet_notes_ministry_id : undefined,
-        cabinetSubject: subject,
-        subject: subject,
-        cabinetMinistryName: ministryId,
-        ministry_id: ministryId,
-        cabinetMinistryNameText: resolvedMinName,
-        eofficeFileNumber: eofficeFileNumber,
-        deadline: deadline,
-        remarks: remarks,
-
-        receivedMinistry: stages[1]?.date ? '1' : '0',
-        receivedMinistryDate: stages[1]?.date || '',
-        receivedMinistryRemarks: stages[1]?.remark || '',
-
-        sentForComment: stages[2]?.date ? '1' : '0',
-        sentForCommentDate: stages[2]?.date || '',
-        sentForCommentsRemarks: stages[2]?.remark || '',
-        wings: selectedWings.map(wName => {
-          const found = wingsList.find(w => w.wing_name === wName);
-          return found ? found.wing_id : wName;
-        }).filter(Boolean),
-
-        commentsReceived: stages[3]?.date ? '1' : '0',
-        commentsReceivedDate: stages[3]?.date || '',
-        commentsRecRemarks: stages[3]?.remark || '',
-
-        shipping: wingDetails.Shipping?.date ? '1' : '0',
-        shippingDate: wingDetails.Shipping?.date || '',
-        shippingRemarks: wingDetails.Shipping?.remark || '',
-
-        vigilance: wingDetails.Vigilance?.date ? '1' : '0',
-        vigilanceDate: wingDetails.Vigilance?.date || '',
-        vigilanceRemarks: wingDetails.Vigilance?.remark || '',
-
-        ports: wingDetails.Ports?.date ? '1' : '0',
-        portsDate: wingDetails.Ports?.date || '',
-        portsRemarks: wingDetails.Ports?.remark || '',
-
-        iwt: wingDetails.IWT?.date ? '1' : '0',
-        iwtDate: wingDetails.IWT?.date || '',
-        iwtRemarks: wingDetails.IWT?.remark || '',
-
-        administration: wingDetails.Administration?.date ? '1' : '0',
-        administrationDate: wingDetails.Administration?.date || '',
-        administrationRemarks: wingDetails.Administration?.remark || '',
-
-        coordI: wingDetails['Coord-I']?.date ? '1' : '0',
-        coordIDate: wingDetails['Coord-I']?.date || '',
-        coordIRemarks: wingDetails['Coord-I']?.remark || '',
-
-        coordII: wingDetails['Coord-II']?.date ? '1' : '0',
-        coordIIDate: wingDetails['Coord-II']?.date || '',
-        coordIIRemarks: wingDetails['Coord-II']?.remark || '',
-
-        dgll: wingDetails['DGLL, Parliament & TRW']?.date ? '1' : '0',
-        dgllDate: wingDetails['DGLL, Parliament & TRW']?.date || '',
-        dgllRemarks: wingDetails['DGLL, Parliament & TRW']?.remark || '',
-
-        development: wingDetails.Development?.date ? '1' : '0',
-        developmentDate: wingDetails.Development?.date || '',
-        developmentRemarks: wingDetails.Development?.remark || '',
-
-        finance: wingDetails.Finance?.date ? '1' : '0',
-        financeDate: wingDetails.Finance?.date || '',
-        financeRemarks: wingDetails.Finance?.remark || '',
-
-        sagarmala: wingDetails.Sagarmala?.date ? '1' : '0',
-        sagarmalaDate: wingDetails.Sagarmala?.date || '',
-        sagarmalaRemarks: wingDetails.Sagarmala?.remark || '',
-
-        fileSubmitted: stages[4]?.date ? '1' : '0',
-        fileSubmittedDate: stages[4]?.date || '',
-        fileSubmittedRemarks: stages[4]?.remark || '',
-
-        replyFurnished: stages[5]?.date ? '1' : '0',
-        replyFurnishedDate: stages[5]?.date || '',
-        replyFurnishedRemarks: stages[5]?.remark || '',
-
-        selectedMinistryNotesStage,
-        userID: getUserId()
-      };
+      // Wing ids from the master
+      wings: selectedWings
+        .map(wName => wings.find(w => w.wing_name === wName)?.wing_id)
+        .filter(id => id !== undefined)
+    };
+    for (const w of WING_FIELDS) {
+      payload[`${w.key}Date`] = wingDetails[w.name]?.date || '';
+      payload[`${w.key}Remarks`] = wingDetails[w.name]?.remark || '';
+    }
 
     try {
       if (isEdit) {
@@ -488,7 +356,8 @@ export default function InputForm({
       onSuccess();
     } catch (err) {
       console.error("Save error details:", err.response?.data || err.message || err);
-      alert(err.response?.data?.error || "Failed to save Cabinet Note. Please try again.");
+      // Backend 400s (e.g. "Please select a valid ministry.") carry a user-facing message
+      triggerNotification?.(err.response?.data?.error || "Failed to save Cabinet Note. Please try again.", 'error');
     } finally {
       setSubmitting(false);
     }
@@ -533,6 +402,7 @@ export default function InputForm({
                 value={subject}
                 onChange={e => setSubject(e.target.value)}
                 onBlur={() => handleBlur('subject')}
+                maxLength={MAX_TEXT}
                 placeholder="Enter subject name"
                 disabled={readOnly}
                 className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border ${isFieldInvalid('subject', subject) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200`}
@@ -552,8 +422,6 @@ export default function InputForm({
                 onChange={e => {
                   const id = e.target.value;
                   setMinistryId(id);
-                  const min = ministries.find(m => String(m.ministry_id) === String(id));
-                  setMinistryName(min ? min.ministry_name : '');
                 }}
                 onBlur={() => handleBlur('ministryId')}
                 disabled={readOnly}
@@ -582,6 +450,7 @@ export default function InputForm({
                 value={eofficeFileNumber}
                 onChange={e => setEofficeFileNumber(e.target.value)}
                 onBlur={() => handleBlur('eofficeFileNumber')}
+                maxLength={MAX_TEXT}
                 placeholder="Enter file number"
                 disabled={readOnly}
                 className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border ${isFieldInvalid('eofficeFileNumber', eofficeFileNumber) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200`}
@@ -653,7 +522,7 @@ export default function InputForm({
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex-1 min-w-0">
                         <span className={`text-xs font-bold block truncate ${isStageDisabled ? 'text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-slate-200'}`}>
-                          {stageLabels[stageNum]}
+                          {stageName(stageNum)}
                         </span>
                         {isStageDisabled && (
                           <span className="text-[10px] font-semibold text-amber-600/80 dark:text-amber-400/80 italic">
@@ -685,6 +554,7 @@ export default function InputForm({
                         <input
                           type="text"
                           placeholder="Add stage-specific remark (optional)"
+                          maxLength={MAX_REMARK}
                           value={currentStage.remark || ''}
                           onChange={e => handleStageChange(stageNum, 'remark', e.target.value)}
                           disabled={readOnly}
@@ -712,8 +582,9 @@ export default function InputForm({
                             className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 focus:border-[#0f417a] rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 cursor-pointer"
                           >
                             <option value="">--Select Wing--</option>
-                            {(wingsList.length > 0 ? wingsList.map(w => w.wing_name) : COMMON_WINGS)
-                              .filter(w => !selectedWings.includes(w))
+                            {/* Only wings that have their own date/remarks columns in tbl_cabinet_notes_ministry */}
+                            {wings.map(w => w.wing_name)
+                              .filter(w => w in wingDetails && !selectedWings.includes(w))
                               .map(w => (
                                 <option key={w} value={w}>{w}</option>
                               ))}
@@ -752,7 +623,7 @@ export default function InputForm({
                           CONCERNED WINGS RECEIVED DATES & REMARKS
                         </span>
                         <div className="space-y-2">
-                          {selectedWings.map(wName => {
+                          {selectedWings.filter(wName => wName in wingDetails).map(wName => {
                             const wingDate = wingDetails[wName]?.date || '';
                             const wingRemark = wingDetails[wName]?.remark || '';
 
@@ -789,6 +660,7 @@ export default function InputForm({
                                     <input
                                       type="text"
                                       placeholder={`Add remark for ${wName} (optional)`}
+                                      maxLength={MAX_REMARK}
                                       disabled={readOnly}
                                       value={wingRemark}
                                       onChange={e => setWingDetails(prev => ({

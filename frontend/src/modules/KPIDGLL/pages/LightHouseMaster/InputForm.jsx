@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Save } from 'lucide-react';
 import { createLightHouseMaster, updateLightHouseMaster } from '../../api';
 import { getCurrentUserId } from '../../../../utils/authSession';
+import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../../utils/notify';
+import { DGLL_TOASTS } from '../../toastMessages';
 
 // NOTE: exact status options unverified against live data -- confirm with team.
 const STATUS_OPTIONS = [{ label: 'Active', value: '1' }, { label: 'Inactive', value: '0' }];
@@ -14,6 +16,7 @@ export default function LightHouseMasterInputForm({
   onSuccess,
   triggerNotification,
 }) {
+  const notify = useNotifier(triggerNotification);
   const isEdit = !!editData;
   const [submitting, setSubmitting] = useState(false);
 
@@ -39,7 +42,7 @@ export default function LightHouseMasterInputForm({
     e.preventDefault();
     setTouched({ alol: true, lightHouseName: true, dateOfCommissioning: true, stateId: true, districtId: true });
     if (!alol.trim() || !lightHouseName.trim() || !dateOfCommissioning || !stateId || !districtId) {
-      triggerNotification ? triggerNotification('Please fill in all required fields highlighted in red.', 'error') : alert('Please fill in all required fields highlighted in red.');
+      notify(COMMON_TOASTS.mandatoryFieldsMissing());
       return;
     }
 
@@ -58,7 +61,7 @@ export default function LightHouseMasterInputForm({
           lightHouseIdIdOrg: editData.lights_house_id,
           userID: getCurrentUserId(),
         });
-        triggerNotification && triggerNotification('Light House Master entry updated successfully', 'success');
+        notify(DGLL_TOASTS.updated('Light House Master'));
       } else {
         await createLightHouseMaster({
           alol,
@@ -71,37 +74,37 @@ export default function LightHouseMasterInputForm({
           longitude,
           userID: getCurrentUserId(),
         });
-        triggerNotification && triggerNotification('Light House Master entry created successfully', 'success');
+        notify(DGLL_TOASTS.added('Light House Master'));
       }
       if (onSuccess) onSuccess();
     } catch (err) {
       console.error('Error saving Light House Master entry:', err);
-      triggerNotification ? triggerNotification('Failed to save entry.', 'error') : alert('Failed to save entry.');
+      notify(DGLL_TOASTS.saveFailed(isEdit, getErrorMessage(err)));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in">
-      <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
+    <div className="module-form-card overflow-hidden animate-fade-in">
+      <div className="module-form-banner">
         <div>
-          <h3 className="text-sm font-black uppercase tracking-wider">
+          <h3 className="module-form-banner-title">
             {isEdit ? 'Update Light House Master Entry' : 'Add Light House Master Entry'}
           </h3>
-          <p className="text-[10px] text-blue-200 font-semibold tracking-wide mt-0.5">DGLL - Light House Master</p>
+          <p className="module-form-banner-subtext">DGLL - Light House Master</p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="p-6 space-y-5">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">ALOL Number <span className="text-red-500">*</span></label>
+            <label className="module-form-label">ALOL Number <span className="text-red-500">*</span></label>
             <input
               type="text" value={alol} onChange={(e) => setAlol(e.target.value)}
               onBlur={() => handleBlur('alol')}
               placeholder="e.g. 1234"
-              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${isFieldInvalid('alol', alol) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-800 dark:text-slate-100`}
+              className={`module-form-input${isFieldInvalid('alol', alol) ? ' !border-red-500' : ''}`}
             />
             {isFieldInvalid('alol', alol) && (
               <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>
@@ -109,12 +112,12 @@ export default function LightHouseMasterInputForm({
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Light House Name <span className="text-red-500">*</span></label>
+            <label className="module-form-label">Light House Name <span className="text-red-500">*</span></label>
             <input
               type="text" value={lightHouseName} onChange={(e) => setLightHouseName(e.target.value)}
               onBlur={() => handleBlur('lightHouseName')}
               placeholder="Enter light house name"
-              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${isFieldInvalid('lightHouseName', lightHouseName) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-800 dark:text-slate-100`}
+              className={`module-form-input${isFieldInvalid('lightHouseName', lightHouseName) ? ' !border-red-500' : ''}`}
             />
             {isFieldInvalid('lightHouseName', lightHouseName) && (
               <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>
@@ -122,22 +125,22 @@ export default function LightHouseMasterInputForm({
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Status <span className="text-red-500">*</span></label>
+            <label className="module-form-label">Status <span className="text-red-500">*</span></label>
             <select
               value={status} onChange={(e) => setStatus(e.target.value)}
-              className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-250 dark:border-slate-700 rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 focus:border-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+              className="module-form-input cursor-pointer"
             >
               {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Date of Commissioning <span className="text-red-500">*</span></label>
+            <label className="module-form-label">Date of Commissioning <span className="text-red-500">*</span></label>
             <input
               type="date" value={dateOfCommissioning} max={today}
               onChange={(e) => setDateOfCommissioning(e.target.value)}
               onBlur={() => handleBlur('dateOfCommissioning')}
-              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${isFieldInvalid('dateOfCommissioning', dateOfCommissioning) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-700 dark:text-slate-200 dark:[color-scheme:dark]`}
+              className={`module-form-input${isFieldInvalid('dateOfCommissioning', dateOfCommissioning) ? ' !border-red-500' : ''} dark:[color-scheme:dark]`}
             />
             {isFieldInvalid('dateOfCommissioning', dateOfCommissioning) && (
               <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>
@@ -145,13 +148,13 @@ export default function LightHouseMasterInputForm({
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">State <span className="text-red-500">*</span></label>
+            <label className="module-form-label">State <span className="text-red-500">*</span></label>
             <select
               value={stateId}
               onChange={(e) => { setStateId(e.target.value); setDistrictId(''); }}
               onBlur={() => handleBlur('stateId')}
              
-              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${isFieldInvalid('stateId', stateId) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-700 dark:text-slate-200 cursor-pointer`}
+              className={`module-form-input${isFieldInvalid('stateId', stateId) ? ' !border-red-500' : ''} cursor-pointer`}
             >
               <option value="">--Select State--</option>
               {states.map((s) => <option key={s.state_id} value={s.state_id}>{s.state_name}</option>)}
@@ -162,11 +165,11 @@ export default function LightHouseMasterInputForm({
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">District <span className="text-red-500">*</span></label>
+            <label className="module-form-label">District <span className="text-red-500">*</span></label>
             <select
               value={districtId} onChange={(e) => setDistrictId(e.target.value)}
               onBlur={() => handleBlur('districtId')} disabled={!stateId}
-              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${isFieldInvalid('districtId', districtId) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-700 dark:text-slate-200 cursor-pointer disabled:opacity-50`}
+              className={`module-form-input${isFieldInvalid('districtId', districtId) ? ' !border-red-500' : ''} cursor-pointer disabled:opacity-50`}
             >
               <option value="">--Select District--</option>
               {scopedDistricts.map((d) => <option key={d.district_id} value={d.district_id}>{d.district_name}</option>)}
@@ -177,20 +180,20 @@ export default function LightHouseMasterInputForm({
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Latitude</label>
+            <label className="module-form-label">Latitude</label>
             <input
               type="number" step="any" value={latitude} onChange={(e) => setLatitude(e.target.value)}
               placeholder="e.g. 13.0827"
-              className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-250 dark:border-slate-700 rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 focus:border-[#0f417a] font-semibold text-slate-800 dark:text-slate-100"
+              className="module-form-input"
             />
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Longitude</label>
+            <label className="module-form-label">Longitude</label>
             <input
               type="number" step="any" value={longitude} onChange={(e) => setLongitude(e.target.value)}
               placeholder="e.g. 80.2707"
-              className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-250 dark:border-slate-700 rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 focus:border-[#0f417a] font-semibold text-slate-800 dark:text-slate-100"
+              className="module-form-input"
             />
           </div>
         </div>

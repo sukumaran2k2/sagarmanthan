@@ -13,16 +13,26 @@ const ICONS = {
   bars: ChartBar, info: Info, coins: Coins,
 };
 
-/** Card YoY: ▲ green / ▼ red (reversed for lower-is-better KPIs), grey at zero, "0%" when unknown. */
+// Content area beside the sidebar: the soft indigo gradient of the other modules' dashboards
+export const DASHBOARD_CONTENT_CLASS = 'flex-1 min-w-0 p-4 md:p-6 space-y-5 rounded-3xl lg:rounded-l-none border border-slate-200 dark:border-slate-800 lg:border-l-0 shadow-sm bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-indigo-950/25 dark:via-slate-950 dark:to-purple-950/20';
+
+/** Card YoY:▲ green / ▼ red (reversed for lower-is-better KPIs), grey at zero, "0%" when unknown. */
 export function YoyText({ value, reverse = false, size = 'card' }) {
   const n = Number(value);
+  const neutral = size === 'card'
+    ? 'text-xs font-bold px-2 py-0.5 rounded-full border bg-slate-50 border-slate-200 text-slate-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400'
+    : 'text-slate-500';
   if (value === null || value === undefined || value === '' || Number.isNaN(n)) {
-    return <span className="tabular-nums">0%</span>;
+    return <span className={`tabular-nums ${neutral}`}>0%</span>;
   }
   const text = `${Math.abs(n).toFixed(2)}%`;
-  if (n === 0) return <span className="tabular-nums text-slate-500">{n.toFixed(2)}%</span>;
+  if (n === 0) return <span className={`tabular-nums ${neutral}`}>{n.toFixed(2)}%</span>;
   const good = reverse ? n < 0 : n > 0;
-  const pill = size === 'card' ? 'text-[16px] font-medium px-2 py-0.5' : 'font-semibold';
+  const pill = size === 'card'
+    ? `text-xs font-bold px-2 py-0.5 rounded-full border ${good
+      ? 'bg-green-50 border-green-100 dark:bg-green-950/40 dark:border-green-900'
+      : 'bg-red-50 border-red-100 dark:bg-red-950/40 dark:border-red-900'}`
+    : 'font-semibold';
   return (
     <span className={`inline-flex items-center gap-1 tabular-nums ${pill} ${good ? 'text-green-700 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
       <span aria-hidden="true">{n > 0 ? '▲' : '▼'}</span>
@@ -65,20 +75,37 @@ export function DashboardSidebar({ panels, active, onSelect }) {
   );
 }
 
+/** Panel title bar in the shared dashboard theme (indigo gradient, white caps title). */
 export function PanelHeading({ icon, title, sub }) {
   const Icon = ICONS[icon] || Ship;
   return (
-    <div className="mb-4">
-      <div className="flex items-center gap-2.5 pb-2 border-b-2 border-[#e8edf5] dark:border-slate-800">
-        <Icon className="h-5 w-5 text-[#020c6a] dark:text-blue-300" aria-hidden="true" />
-        <h2 className="text-lg font-bold text-[#020c6a] dark:text-blue-200">{title}</h2>
+    <div className="mb-4 rounded-2xl overflow-hidden bg-gradient-to-r from-[#1e1b4b] to-[#6366f1] px-5 py-3 flex items-center gap-3 shadow-sm">
+      <Icon className="h-4 w-4 flex-shrink-0 text-indigo-200" aria-hidden="true" />
+      <div className="min-w-0">
+        <h2 className="text-xs font-black text-white uppercase tracking-wider">{title}</h2>
+        {sub ? <p className="text-[10px] font-medium text-indigo-200/90 mt-0.5">{sub}</p> : null}
       </div>
-      {sub ? <p className="text-xs text-[#888] dark:text-slate-400 mt-1 ml-[30px]">{sub}</p> : null}
     </div>
   );
 }
 
-/** The earlier KPI card: gradient header; current FY and last FY with dots; YoY row below a rule. */
+/** Section divider between card groups, as on the CAPEX dashboard. */
+export function SectionDivider({ title }) {
+  return (
+    <div className="flex items-center gap-3 mt-6 mb-3">
+      <span className="flex-1 h-px bg-slate-300 dark:bg-slate-700" aria-hidden="true" />
+      <h4 className="text-[11px] font-extrabold uppercase tracking-widest text-slate-500 dark:text-slate-400 text-center">{title}</h4>
+      <span className="flex-1 h-px bg-slate-300 dark:bg-slate-700" aria-hidden="true" />
+    </div>
+  );
+}
+
+/** Small group caption inside a section. */
+export function SubSectionTitle({ title }) {
+  return <h4 className="text-[11px] font-extrabold uppercase tracking-widest text-[#4f46e5] dark:text-indigo-300 mb-2.5">{title}</h4>;
+}
+
+/** KPI card in the shared dashboard theme: caps label and icon tile; current FY, last FY and YoY. */
 export function KpiCard({ config, data, labels, onOpen }) {
   const Icon = ICONS[config.icon] || Ship;
   const source = data?.[config.source];
@@ -89,39 +116,35 @@ export function KpiCard({ config, data, labels, onOpen }) {
     <button
       type="button"
       onClick={() => onOpen(config)}
-      className="group text-left flex flex-col justify-between min-h-[200px] rounded-[10px] overflow-hidden bg-white dark:bg-slate-900 border border-black/5 dark:border-slate-800 shadow-[0_4px_14px_rgba(0,0,0,0.1)] transition duration-200 hover:-translate-y-1.5 hover:scale-[1.02] hover:shadow-[0_12px_30px_rgba(0,0,0,0.15)] cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#207fdf]"
+      className="group text-left flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-800 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 dark:focus-visible:ring-indigo-700"
     >
-      <div className="flex items-center gap-2.5 px-3 py-[9px] text-white bg-gradient-to-br from-[#207fdf] to-[#093d72]">
-        <Icon className="h-4 w-4 flex-shrink-0 opacity-90" aria-hidden="true" />
-        <h5 className="text-[15px] font-medium leading-[1.6]">{config.title}</h5>
-      </div>
-      <div className="flex flex-col gap-1.5 flex-1 px-3 py-2.5">
-        <div className="flex items-center justify-between gap-2">
-          <span className="inline-flex items-center gap-1.5 text-[16px] text-[#3b3b3b] dark:text-slate-300">
-            <span className="h-[7px] w-[7px] rounded-full bg-current opacity-70" aria-hidden="true" />
-            {labels.current} (YTD)
-          </span>
-          <span className="text-[26px] font-bold tabular-nums text-[#1f2d3d] dark:text-slate-50">{formatValue(current, config.format)}</span>
-        </div>
-        <div className="flex items-center justify-between gap-2">
-          <span className="inline-flex items-center gap-1.5 text-[16px] text-[#3b3b3b] dark:text-slate-300">
-            <span className="h-[7px] w-[7px] rounded-full bg-[#bbb]" aria-hidden="true" />
-            {labels.last} (YTD)
-          </span>
-          <span className="text-[26px] font-bold tabular-nums text-[#1f2d3d] dark:text-slate-50">{formatValue(last, config.format)}</span>
-        </div>
-        <div className="flex items-center justify-between gap-2 mt-1 pt-2 border-t border-black/[0.07] dark:border-slate-800">
-          <span className="text-[25px] font-medium text-[#555] dark:text-slate-300">YoY</span>
-          <span className="text-[25px] font-medium text-[#555]"><YoyText value={yoy} reverse={config.reverse} /></span>
+      <div className="flex items-start justify-between gap-3">
+        <h5 className="text-[10px] font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-widest leading-snug">{config.title}</h5>
+        <div className="p-2.5 rounded-xl border flex-shrink-0 bg-indigo-50 dark:bg-indigo-950/40 text-[#6366f1] dark:text-indigo-400 border-indigo-100 dark:border-indigo-900 transition group-hover:bg-indigo-100 dark:group-hover:bg-indigo-900/50">
+          <Icon className="h-5 w-5" aria-hidden="true" />
         </div>
       </div>
+      <div className="mt-2">
+        <span className="text-2xl font-black block tabular-nums text-[#6366f1] dark:text-indigo-400">{formatValue(current, config.format)}</span>
+        <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 block">{labels.current} (YTD)</span>
+      </div>
+      <dl className="mt-auto pt-2.5 border-t border-slate-100 dark:border-slate-800 space-y-1.5 text-[11px]">
+        <div className="flex items-center justify-between gap-2 pt-1">
+          <dt className="text-slate-500 dark:text-slate-400 truncate">{labels.last} (YTD)</dt>
+          <dd className="font-bold tabular-nums text-slate-700 dark:text-slate-200 whitespace-nowrap">{formatValue(last, config.format)}</dd>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <dt className="text-slate-500 dark:text-slate-400">YoY</dt>
+          <dd><YoyText value={yoy} reverse={config.reverse} /></dd>
+        </div>
+      </dl>
     </button>
   );
 }
 
 /** Four cards per row (two on tablets, one on phones), as in the earlier page. */
 export function CardGrid({ children }) {
-  return <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-[15px] mb-2.5">{children}</div>;
+  return <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-2.5">{children}</div>;
 }
 
 /** Month multi-select with the earlier "All Months (FY April-March)" and "Clear All Months" choices. */
@@ -153,8 +176,8 @@ export function MonthPicker({ value, onChange, fiscalYear }) {
     : '--Select month--';
 
   return (
-    <div className="space-y-1" ref={ref}>
-      <span className="block text-sm font-semibold text-slate-700 dark:text-slate-200">Month</span>
+    <div ref={ref}>
+      <span className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-600 dark:text-slate-300 mb-1.5">Month</span>
       <div className="relative">
         <button
           type="button"
@@ -162,14 +185,14 @@ export function MonthPicker({ value, onChange, fiscalYear }) {
           aria-expanded={open}
           aria-haspopup="listbox"
           aria-label="Month"
-          className="w-full flex items-center justify-between gap-2 text-sm px-3 py-2 bg-white dark:bg-slate-900 border border-[#ccc] dark:border-slate-700 rounded-md font-medium text-slate-700 dark:text-slate-200 cursor-pointer"
+          className="w-full flex items-center justify-between gap-2 text-xs px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-900 cursor-pointer"
         >
           <span className="truncate">{caption}</span>
           <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
         </button>
         {open ? (
-          <div className="absolute z-30 mt-1 w-full min-w-[240px] rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-1">
-            <ul role="listbox" aria-multiselectable="true" className="max-h-72 overflow-y-auto text-sm">
+          <div className="absolute z-30 mt-1.5 w-full min-w-[240px] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-1">
+            <ul role="listbox" aria-multiselectable="true" className="max-h-72 overflow-y-auto text-xs font-semibold">
               <li>
                 <button
                   type="button"
@@ -209,16 +232,16 @@ export function MonthPicker({ value, onChange, fiscalYear }) {
   );
 }
 
-/** Plain select styled like the earlier filter bar. */
+/** Plain select styled like the other dashboards' filters. */
 export function DashboardSelect({ label, value, onChange, options, disabled = false }) {
   return (
-    <label className="block space-y-1">
-      <span className="block text-sm font-semibold text-slate-700 dark:text-slate-200">{label}</span>
+    <label className="block">
+      <span className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-600 dark:text-slate-300 mb-1.5">{label}</span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
-        className="w-full text-sm px-3 py-2 bg-white dark:bg-slate-900 border border-[#ccc] dark:border-slate-700 rounded-md text-slate-700 dark:text-slate-200 cursor-pointer disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-800"
+        className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-900 cursor-pointer disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
       >
         {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>

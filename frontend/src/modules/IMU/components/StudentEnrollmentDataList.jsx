@@ -1,9 +1,10 @@
-import { useState, useMemo, useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { Edit, Trash2 } from 'lucide-react';
 import Table from '../../../components/Table';
 import TablePagination from '../../../components/TablePagination';
 import DataListToolbar from '../../../components/DataListToolbar';
 import { exportDataListToPdf } from '../../../utils/exportReportPdf';
+import { COMMON_TOASTS } from '../../../utils/notify';
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
@@ -15,6 +16,18 @@ const COLUMN_LABELS = {
   no_of_students_passedout: 'Total Number of Students Passed out',
   no_of_students_placed: 'Number Of Students Placed',
   placement_percentage: 'Placement %',
+};
+
+const DEFAULT_VISIBLE_COLS = {
+  financial_year: true,
+  no_of_seats: true,
+  no_of_students_enrolled: true,
+  percentage_of_student_admission: true,
+  no_of_students_on_roll: true,
+  no_of_final_year_students: true,
+  no_of_students_passedout: true,
+  no_of_students_placed: true,
+  placement_percentage: true,
 };
 
 export default function StudentEnrollmentDataList({
@@ -29,17 +42,17 @@ export default function StudentEnrollmentDataList({
   searchQuery = '',
   onSearchChange,
   years = [],
+  financialYear = '',
+  onFinancialYearChange,
+  visibleCols: storedVisibleCols = null,
+  onVisibleColsChange,
+  notify,
 }) {
-  const [visibleCols, setVisibleCols] = useState({
-    financial_year: true,
-    no_of_seats: true,
-    no_of_students_enrolled: true,
-    percentage_of_student_admission: true,
-    no_of_students_on_roll: true,
-    no_of_final_year_students: true,
-    no_of_students_passedout: true,
-    no_of_students_placed: true,
-    placement_percentage: true,
+  // Column visibility is kept in the IMU store per section; null means "not changed yet"
+  const visibleCols = storedVisibleCols ?? DEFAULT_VISIBLE_COLS;
+  const setVisibleCols = (updater) => onVisibleColsChange?.((prev) => {
+    const current = prev ?? DEFAULT_VISIBLE_COLS;
+    return typeof updater === 'function' ? updater(current) : updater;
   });
   const gridRef = useRef(null);
 
@@ -51,9 +64,13 @@ export default function StudentEnrollmentDataList({
         const line = [i + 1, ...cols.map((c) => row[c] ?? '')];
         tsv += line.join('\t') + '\n';
       });
-      navigator.clipboard.writeText(tsv);
+      navigator.clipboard.writeText(tsv).then(
+        () => notify?.(COMMON_TOASTS.copySuccess(rowData.length)),
+        () => notify?.(COMMON_TOASTS.copyFailed()),
+      );
     } else if (type === 'Excel') {
       gridRef.current?.api?.exportDataAsCsv({ fileName: 'imu_student_enrollment' });
+      notify?.(COMMON_TOASTS.excelExported('imu_student_enrollment.csv'));
     } else if (type === 'PDF') {
       exportDataListToPdf({
         title: 'IMU Student Enrollment Data List',
@@ -62,6 +79,7 @@ export default function StudentEnrollmentDataList({
         rowData: rowData,
         fileName: 'imu_student_enrollment',
       });
+      notify?.(COMMON_TOASTS.downloadStarted('imu_student_enrollment.pdf'));
     }
   };
 
@@ -106,14 +124,14 @@ export default function StudentEnrollmentDataList({
   ], [canEdit, canRemove, onEdit, onDelete, visibleCols]);
 
   return (
-    <div className="space-y-6">
+    <div className="module-card space-y-4">
       <DataListToolbar
         leftContent={
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Financial Year</span>
             <select
-              value={searchQuery}
-              onChange={(e) => onSearchChange && onSearchChange(e.target.value)}
+              value={financialYear}
+              onChange={(e) => onFinancialYearChange && onFinancialYearChange(e.target.value)}
               className="text-xs px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
             >
               <option value="">Show All</option>
@@ -133,17 +151,19 @@ export default function StudentEnrollmentDataList({
         columnLabels={COLUMN_LABELS}
       />
 
-      <Table
-        ref={gridRef}
-        rowData={rowData}
-        columnDefs={colDefs}
-        loading={loading}
-        pagination={false}
-        domLayout="autoHeight"
-        rowHeight={50}
-        headerHeight={42}
-        color="#0f417a"
-      />
+      <div className="module-datalist-grid">
+        <Table
+          ref={gridRef}
+          rowData={rowData}
+          columnDefs={colDefs}
+          loading={loading}
+          pagination={false}
+          domLayout="autoHeight"
+          rowHeight={50}
+          headerHeight={42}
+          color="#0f417a"
+        />
+      </div>
 
       {pagination.totalPages > 1 && (
         <TablePagination

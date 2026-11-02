@@ -1,8 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import { axiosInstance as api } from '../api';
 
 const AICopilotContext = createContext(null);
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
 export function getModuleKeyFromPath(pathname = '', moduleName = '') {
   const p = (pathname || '').toLowerCase();
@@ -63,7 +62,7 @@ export function AICopilotProvider({ children }) {
   // Fetch permissions from server
   const fetchCopilotPermissions = useCallback(async () => {
     try {
-      const res = await axios.get(`${API_BASE}/rbac/sagarbot-permissions`);
+      const res = await api.get('/rbac/sagarbot-permissions'); // needs the login token
       if (res.data) {
         setCopilotPermissions({
           globalEnabled: res.data.globalEnabled !== undefined ? res.data.globalEnabled : true,

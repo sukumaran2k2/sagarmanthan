@@ -1394,7 +1394,6 @@ async function updateHRPostActivitiy(req, res) {
     const postCode = req.body.postCode;
     const userID = req.body.userID;
 
-    const currentDate = new Date().toISOString().slice(0, 10);
 
     const conn = await pool;
     // Every query below must run on the transaction, so the request is bound to it.
@@ -1431,7 +1430,6 @@ async function updateHRPostActivitiy(req, res) {
     request.input("approvalByAuthorityDatePromotion", approvalByAuthorityDatePromotion);
     request.input("orderDatePromotion", orderDatePromotion);
     request.input("selectEmployeeId", selectEmployeeId);
-    request.input("currentDate", currentDate);
     request.input("selectDeputedEmployeeId", selectDeputedEmployeeId);
     request.input("selectDeputedEmployeeMasterId", selectDeputedEmployeeMasterId);
 
@@ -1472,7 +1470,7 @@ async function updateHRPostActivitiy(req, res) {
                     UPDATE tbl_hr_post_strength
                     SET
                         expected_anticipated_vacancy = 'Direct Recruitment',
-                        updated_date = @currentDate,
+                        updated_date = GETDATE(),
                         updated_by = @userID
                     WHERE post_code = @postCode;
 
@@ -1498,7 +1496,7 @@ async function updateHRPostActivitiy(req, res) {
                             A_review_application_by_comm = '',
                             A_approval_received_date = NULL,
                             A_order_issued_date = NULL,
-                            updated_date = @currentDate,
+                            updated_date = GETDATE(),
                             updated_by = @userID,
                             organisation_id = @organisationID
                         WHERE post_code = @postCode;
@@ -1553,7 +1551,7 @@ async function updateHRPostActivitiy(req, res) {
                             '',
                             NULL,
                             NULL,
-                            @currentDate,
+                            GETDATE(),
                             @userID,
                             @organisationID
                         FROM tbl_hr_post_strength ps
@@ -1576,7 +1574,7 @@ async function updateHRPostActivitiy(req, res) {
                     UPDATE tbl_hr_post_strength
                     SET
                         expected_anticipated_vacancy = 'Promotion',
-                        updated_date = @currentDate,
+                        updated_date = GETDATE(),
                         updated_by = @userID
                     WHERE post_code = @postCode;
 
@@ -1602,7 +1600,7 @@ async function updateHRPostActivitiy(req, res) {
                             A_review_application_by_comm = '',
                             A_approval_received_date = NULL,
                             A_order_issued_date = NULL,
-                            updated_date = @currentDate,
+                            updated_date = GETDATE(),
                             updated_by = @userID,
                             organisation_id = @organisationID
                         WHERE post_code = @postCode;
@@ -1657,7 +1655,7 @@ async function updateHRPostActivitiy(req, res) {
                             '',
                             NULL,
                             NULL,
-                            @currentDate,
+                            GETDATE(),
                             @userID,
                             @organisationID
                         FROM tbl_hr_post_strength ps
@@ -1723,88 +1721,100 @@ async function getCommunityWiseCountByOrg(req, res) {
     }
 }
 
+// Vacancy position as recorded in a month's vacancy log (tbl_hr_post_strength_log is a monthly
+// snapshot of tbl_hr_post_strength). A vacancy counts as abolished once it has been vacant for
+// five years by the end of that month, so a past month reads as it stood then.
+// Returns { year, month, organisationID, clusterID } or sends the error response and returns null.
+function readVacancyLogPeriod(req, res) {
+    const organisationID = resolveReportOrganisation(req, req.params.organisationID);
+    if (organisationID === null) {
+        res.status(403).json({ message: "Your account is not linked to an organisation." });
+        return null;
+    }
+    const clusterID = Number.parseInt(req.params.clusterID, 10);
+    const year = Number.parseInt(req.params.year, 10);
+    const month = Number.parseInt(req.params.month, 10);
+    if (!Number.isInteger(clusterID) || clusterID < 0 || !(year >= 2000 && year <= 2100) || !(month >= 1 && month <= 12)) {
+        res.status(400).json({ message: "Invalid cluster, year or month." });
+        return null;
+    }
+    return { organisationID, clusterID, year, month };
+}
+
+// The log has no indexes and holds every month, so the month is copied into #vacancy_log once
+// (one scan) and the report aggregates that; joining the log directly gets plans that time out.
+// `select` reads from #vacancy_log m joined to mmt_organisation mo, and may use @asOf: the end
+// of the logged month, when a vacancy counts as abolished after five years.
+function queryVacancyLogMonth(request, { organisationID, clusterID, year, month }, select) {
+    request.input("year", sql.Int, year);
+    request.input("month", sql.Int, month);
+    if (organisationID !== 0) request.input("organisationID", sql.Int, organisationID);
+    if (clusterID !== 0) request.input("clusterID", sql.Int, clusterID);
+    const where = [];
+    if (organisationID !== 0) where.push("mo.organisation_id = @organisationID");
+    if (clusterID !== 0) where.push("mo.hr_cluster_id = @clusterID");
+    return request.query(`
+        SELECT
+            l.organisation_id,
+            TRY_CAST(l.department_id AS INT) AS department_id,
+            TRY_CAST(l.post_id AS INT) AS post_id,
+            l.post_code,
+            l.vacant_or_filled,
+            l.date_of_arise_in_vacancy,
+            l.exception_abolish
+        INTO #vacancy_log
+        FROM tbl_hr_post_strength_log l
+        WHERE l.log_year = @year AND l.log_month = @month;
+
+        DECLARE @asOf DATE = EOMONTH(DATEFROMPARTS(@year, @month, 1));
+
+        ${select(where.length ? `WHERE ${where.join(" AND ")}` : "")}
+
+        DROP TABLE #vacancy_log;
+    `);
+}
+
+// Post counts for one group of #vacancy_log rows, as in getDepartmentWiseEmpContByOrg.
+const LOG_POST_COUNTS = `
+    COUNT(m.post_code) AS total_sanctioned_strength,
+    COUNT(CASE WHEN m.vacant_or_filled = 'filled' THEN 1 END) AS filled_post,
+    COUNT(CASE WHEN
+        m.vacant_or_filled = 'vacant'
+        AND m.date_of_arise_in_vacancy IS NOT NULL
+        AND ((m.exception_abolish IS NULL OR m.exception_abolish = 0)
+            AND DATEADD(YEAR, 5, m.date_of_arise_in_vacancy) > @asOf
+            OR m.exception_abolish = 1)
+    THEN 1 END) AS totalLivePost,
+    COUNT(CASE WHEN
+        m.vacant_or_filled = 'vacant'
+        AND m.date_of_arise_in_vacancy IS NOT NULL
+        AND (m.exception_abolish IS NULL OR m.exception_abolish = 0)
+        AND DATEADD(YEAR, 5, m.date_of_arise_in_vacancy) <= @asOf
+    THEN 1 END) AS totalAbolishedPost`;
+
 async function getHRDashboardContentDataFiltered(req, res) {
     // Organisation users read their own organisation; ministry users any (0 = all)
-    const organisationID = resolveReportOrganisation(req, req.params.organisationID);
-    if (organisationID === null) return res.status(403).json({ message: "Your account is not linked to an organisation." });
-    const clusterID = parseInt(req.params.clusterID);
-    const year = parseInt(req.params.year);
-    const month = parseInt(req.params.month);
-
-    const conn = await pool;
-    const request = conn.request();
-
-    if (organisationID !== 0) request.input("organisationID", organisationID);
-    if (clusterID !== 0) request.input("clusterID", clusterID);
-
-    request.input("year", year);
-    request.input("month", month);
-
-    let conditions = [];
-
-    if (organisationID !== 0) conditions.push("o.organisation_id = @organisationID");
-    if (clusterID !== 0) conditions.push("o.hr_cluster_id = @clusterID");
-
-    conditions.push("1=1");
-    conditions.push("1=1");
-
-    let whereClause = conditions.length > 0 ? "WHERE " + conditions.join(" AND ") : "";
+    const period = readVacancyLogPeriod(req, res);
+    if (!period) return;
 
     try {
-        const totalSanctionedAndFilledPost = `
-            SELECT
-                COUNT(ps.post_code) AS total_sanctioned_strength,
-                COUNT(CASE WHEN ps.vacant_or_filled = 'filled' THEN 1 END) AS filled_post
-            FROM tbl_hr_post_strength ps
-            INNER JOIN mmt_organisation o ON ps.organisation_id = o.organisation_id
-            ${whereClause} 
-        `;
+        const conn = await pool;
+        const result = await queryVacancyLogMonth(conn.request(), period, (where) => `
+            SELECT ${LOG_POST_COUNTS}
+            FROM #vacancy_log m
+            INNER JOIN mmt_organisation mo ON m.organisation_id = mo.organisation_id
+            ${where};
+        `);
 
-        const totalLiveVacantPost = `
-            SELECT COUNT(*) AS totalLivePost
-            FROM tbl_hr_post_strength ps
-            INNER JOIN mmt_organisation o ON ps.organisation_id = o.organisation_id
-            WHERE
-                ps.vacant_or_filled = 'vacant'
-                AND ps.date_of_arise_in_vacancy IS NOT NULL
-                AND (
-                    (ps.exception_abolish IS NULL OR ps.exception_abolish = 0)
-                    AND DATEADD(YEAR, 5, ps.date_of_arise_in_vacancy) > GETDATE()
-                    OR ps.exception_abolish = 1
-                )
-                ${organisationID !== 0 ? 'AND o.organisation_id = @organisationID' : ''}
-                ${clusterID !== 0 ? 'AND o.hr_cluster_id = @clusterID' : ''}
-            AND 1=1 AND 1=1
-        `;
-
-        const totalAbolishedVacantPost = `
-            SELECT COUNT(*) AS totalAbolishedPost
-            FROM tbl_hr_post_strength ps
-            INNER JOIN mmt_organisation o ON ps.organisation_id = o.organisation_id
-            WHERE
-                ps.vacant_or_filled = 'vacant'
-                AND ps.date_of_arise_in_vacancy IS NOT NULL
-                AND (
-                    (ps.exception_abolish IS NULL OR ps.exception_abolish = 0)
-                    AND DATEADD(YEAR, 5, ps.date_of_arise_in_vacancy) <= GETDATE()
-                )
-                ${organisationID !== 0 ? 'AND o.organisation_id = @organisationID' : ''}
-                ${clusterID !== 0 ? 'AND o.hr_cluster_id = @clusterID' : ''}
-            AND 1=1 AND 1=1
-        `;
-
-        const [result1, result2, result3] = await Promise.all([
-            request.query(totalSanctionedAndFilledPost),
-            request.query(totalLiveVacantPost),
-            request.query(totalAbolishedVacantPost),
-        ]);
-
+        const row = result.recordset[0] || {};
         res.json({
-            totalSanctionedAndFilledPost: result1.recordset[0],
-            totalLiveVacantPost: result2.recordset[0],
-            totalAbolishedVacantPost: result3.recordset[0],
+            totalSanctionedAndFilledPost: {
+                total_sanctioned_strength: row.total_sanctioned_strength ?? 0,
+                filled_post: row.filled_post ?? 0,
+            },
+            totalLiveVacantPost: { totalLivePost: row.totalLivePost ?? 0 },
+            totalAbolishedVacantPost: { totalAbolishedPost: row.totalAbolishedPost ?? 0 },
         });
-
     } catch (err) {
         return res.status(500).json({
             message: "Error occurred while fetching dashboard data",
@@ -1815,64 +1825,28 @@ async function getHRDashboardContentDataFiltered(req, res) {
 
 async function getDepartmentWiseEmpContByOrgFiltered(req, res) {
     // Organisation users read their own organisation; ministry users any (0 = all)
-    const organisationID = resolveReportOrganisation(req, req.params.organisationID);
-    if (organisationID === null) return res.status(403).json({ message: "Your account is not linked to an organisation." });
-    const clusterID = parseInt(req.params.clusterID);
-    const year = parseInt(req.params.year);
-    const month = parseInt(req.params.month);
+    const period = readVacancyLogPeriod(req, res);
+    if (!period) return;
 
-    const conn = await pool;
-    const request = conn.request();
-
-    if (organisationID !== 0) request.input("organisationID", organisationID);
-    if (clusterID !== 0) request.input("clusterID", clusterID);
-
-    request.input("year", year);
-    request.input("month", month);
-
-    let whereClause = [];
-    if (organisationID !== 0) whereClause.push("ps.organisation_id = @organisationID");
-    if (clusterID !== 0) whereClause.push("mo.hr_cluster_id = @clusterID");
-
-    whereClause.push("1=1");
-    whereClause.push("1=1");
-
-    const finalWhereClause =
-        whereClause.length > 0 ? `WHERE ${whereClause.join(" AND ")}` : "";
-    
     try {
-        const result = await request.query(`
+        const conn = await pool;
+        // Same columns as getDepartmentWiseEmpContByOrg, read from the month's log.
+        const result = await queryVacancyLogMonth(conn.request(), period, (where) => `
             SELECT
                 mo.organisation_id,
                 mo.organisation_name,
                 d.department_id,
                 d.department_name,
                 mmtc.class,
-                COALESCE(SUM(CASE WHEN ps.post_code IS NOT NULL THEN 1 ELSE 0 END), 0) AS total_sanctioned_strength,
-                COALESCE(SUM(CASE WHEN ps.vacant_or_filled = 'filled' THEN 1 ELSE 0 END), 0) AS filled_post,
-                COALESCE(SUM(CASE WHEN
-                    ps.vacant_or_filled = 'vacant'
-                    AND ps.date_of_arise_in_vacancy IS NOT NULL
-                    AND ((ps.exception_abolish IS NULL OR ps.exception_abolish = 0)
-                    AND DATEADD(YEAR, 5, ps.date_of_arise_in_vacancy) > GETDATE()
-                    OR ps.exception_abolish = 1)
-                THEN 1 ELSE 0 END), 0) AS totalLivePost,
-                COALESCE(SUM(CASE WHEN
-                    ps.vacant_or_filled = 'vacant'
-                    AND ps.date_of_arise_in_vacancy IS NOT NULL
-                    AND (
-                        (ps.exception_abolish IS NULL OR ps.exception_abolish = 0)
-                        AND DATEADD(YEAR, 5, ps.date_of_arise_in_vacancy) <= GETDATE()
-                    )
-                THEN 1 ELSE 0 END), 0) AS totalAbolishedPost
-            FROM dbo.tbl_hr_post_strength ps
-            LEFT JOIN mmt_hr_department d ON ps.department_id = d.department_id
-            LEFT JOIN mmt_organisation mo ON ps.organisation_id = mo.organisation_id
-            LEFT JOIN mmt_hr_post p ON ps.post_id = p.post_id
+                ${LOG_POST_COUNTS}
+            FROM #vacancy_log m
+            INNER JOIN mmt_organisation mo ON m.organisation_id = mo.organisation_id
+            LEFT JOIN mmt_hr_department d ON m.department_id = d.department_id
+            LEFT JOIN mmt_hr_post p ON m.post_id = p.post_id
             LEFT JOIN mmt_class mmtc ON p.class_id = mmtc.class_id
-            ${finalWhereClause}
-            GROUP BY mo.organisation_name,mmtc.class, d.department_id, d.department_name,mo.organisation_id
-            ORDER BY mo.organisation_name,mmtc.class;
+            ${where}
+            GROUP BY mo.organisation_name, mmtc.class, d.department_id, d.department_name, mo.organisation_id
+            ORDER BY mo.organisation_name, mmtc.class;
         `);
 
         res.json(result.recordset);
@@ -2011,7 +1985,8 @@ async function getAdminHRDashboardContentData(req, res) {
                 ) AS totalAbolishedVacantPost
         `;
 
-        const combinedResult = await request.query(combinedQuery);
+        // MAXDOP 1: the parallel plan stalls (CXSYNC_PORT) when no organisation is chosen
+        const combinedResult = await request.query(`${combinedQuery} OPTION (MAXDOP 1)`);
 
         if (organisationID === 0 && clusterID === 0) {
             return res.json({
@@ -2683,7 +2658,7 @@ async function getAdminViewDepartmentWiseEmpContByOrg(req, res) {
             `;
         }
 
-        const result = await request.query(query);
+        const result = await request.query(`${query} OPTION (MAXDOP 1)`); // parallel plan stalls for all organisations
         res.json(result.recordset);
 
     } catch (err) {

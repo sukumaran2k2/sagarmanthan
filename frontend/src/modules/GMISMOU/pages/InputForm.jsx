@@ -1,18 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useLocation, useNavigate } from 'react-router-dom';
-import { 
-  Save, ArrowLeft, Building2, Calendar, DollarSign, 
-  FileText, CheckCircle2, AlertTriangle, Layers, Upload, 
+import { useState } from 'react';
+import {
+  Save, ArrowLeft, CheckCircle2, Upload,
   Users, Sparkles, X, ChevronRight, Check, TrendingUp, ChevronLeft,
-  Edit3, History, XCircle, Percent
+  Edit3, History, XCircle
 } from 'lucide-react';
-import { 
-  submitGmisMouData, updateGmisMouData, uploadGmisDocument, 
-  fetchOrganisations, fetchMouCategoryNames, fetchGmisNavicVibhas,
-  fetchGmisMouDataById,
+import {
+  submitGmisMouData, updateGmisMouData, uploadGmisDocument,
   addRevisedPhysicalProgressDate, addRevisedFinancialProgressDate,
   fetchRevisedPhysicalProgressDate, fetchRevisedFinancialProgressDate
 } from '../api';
+import { COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { GMIS_TOASTS } from '../toastMessages';
 
 const EVENT_OPTIONS = [
   'GMIS 2025',
@@ -47,23 +45,48 @@ const GMIS_STAGES = [
   { id: 'document', number: '04', title: 'MoU Document', subtitle: 'Attachment & Submit' },
 ];
 
+const dateOnly = (v) => (v ? String(v).substring(0, 10) : '');
+const numberText = (v) => (v !== undefined && v !== null && v !== '' ? String(v) : '');
+
+// Form fields for a record from the list (or empty for a new MoU)
+function formFromRecord(r) {
+  return {
+    mouID: r?.id || r?.mou_id || null,
+    eventName: r?.event_name || '',
+    organisationName: r?.organisation_id || '',
+    firstPartyName: r?.name_of_first_party || '',
+    stakeholderName: r?.name_of_second_party || '',
+    natureOfSecondParty: r?.nature_of_second_party || '',
+    vibhasNavicID: r?.navic_vibhas_id || '',
+    mouProjectName: r?.name_of_mou || '',
+    mouCategory: r?.mou_category_id || '',
+    amount: numberText(r?.amount),
+    presentStatus: r?.present_status || '',
+    revisedAmount: numberText(r?.revised_amount),
+    physicalProgressDate: dateOnly(r?.physical_progress_date),
+    physicalPercentage: numberText(r?.physical_progress_percentage),
+    financialProgressDate: dateOnly(r?.financial_progress_date),
+    financialPercentage: numberText(r?.financial_progress_percentage),
+    detailedRemarks: r?.remark_or_detailed_status || '',
+    mouBrief: r?.mou_brief || '',
+    nextSteps: r?.next_steps || '',
+    reasonForDropping: r?.reason_for_dropping || '',
+  };
+}
+
+// The shell gives the form a key per record, so a new record always starts a fresh form
 export default function GMISInputForm({
-  editData: editDataProp,
+  editData,
   onSuccess,
   onCancel,
-  triggerNotification
+  notify,
+  organisations = [],
+  categories = [],
+  navicCells = [],
 }) {
-  const params = useParams();
-  const location = useLocation();
-  const navigate = useNavigate();
-
-  const [editData, setEditData] = useState(editDataProp || location.state?.item || null);
-  const [organisations, setOrganisations] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [navicList, setNavicList] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
-  const [uploadedFileName, setUploadedFileName] = useState(editData?.document_uploader || editData?.gmisDocumentFileName || '');
+  const [uploadedFileName, setUploadedFileName] = useState(editData?.document_uploader || '');
   const [activeSection, setActiveSection] = useState('event');
 
   // Revision & History Modal States
@@ -75,103 +98,8 @@ export default function GMISInputForm({
   const [reviseForm, setReviseForm] = useState({ date: '', percentage: '' });
   const [savingRevision, setSavingRevision] = useState(false);
 
-  const isEditMode = Boolean(editData && (editData.id || editData.mouID || editData.mou_id));
-
-  // If URL has /edit/:mouId and editData is not yet loaded, fetch by ID
-  useEffect(() => {
-    if (params?.mouId && !editData) {
-      fetchGmisMouDataById(params.mouId)
-        .then(res => {
-          const item = Array.isArray(res.data) ? res.data[0] : res.data;
-          if (item) setEditData(item);
-        })
-        .catch(err => console.warn('Failed to load MoU by ID:', err));
-    }
-  }, [params?.mouId, editData]);
-
-  // Keep internal editData in sync if prop changes
-  useEffect(() => {
-    if (editDataProp) {
-      setEditData(editDataProp);
-    }
-  }, [editDataProp]);
-
-  // Form State with exact field names matching image
-  const [formData, setFormData] = useState({
-    mouID: editData?.id || editData?.mouID || editData?.mou_id || null,
-    eventName: editData?.event_name || editData?.eventName || '',
-    organisationName: editData?.organisation_id || editData?.organisationId || editData?.organisationName || '',
-    firstPartyName: editData?.name_of_first_party || editData?.firstPartyName || '',
-    stakeholderName: editData?.name_of_second_party || editData?.stakeholderName || '',
-    natureOfSecondParty: editData?.nature_of_second_party || editData?.natureOfSecondParty || '',
-    vibhasNavicID: editData?.navic_vibhas_id || editData?.vibhasNavicID || '',
-    mouProjectName: editData?.name_of_mou || editData?.mouProjectName || '',
-    mouCategory: editData?.mou_category_id || editData?.mouCategory || '',
-    amount: editData?.amount !== undefined && editData?.amount !== null ? String(editData.amount) : '',
-    presentStatus: editData?.present_status || editData?.presentStatus || '',
-    revisedAmount: editData?.revised_amount !== undefined && editData?.revised_amount !== null ? String(editData.revised_amount) : (editData?.revisedAmount ? String(editData.revisedAmount) : ''),
-    physicalProgressDate: editData?.physical_progress_date ? String(editData.physical_progress_date).substring(0, 10) : (editData?.physicalProgressDate ? String(editData.physicalProgressDate).substring(0, 10) : ''),
-    physicalPercentage: editData?.physical_progress_percentage !== undefined && editData?.physical_progress_percentage !== null ? String(editData.physical_progress_percentage) : (editData?.physicalPercentage !== undefined ? String(editData.physicalPercentage) : ''),
-    financialProgressDate: editData?.financial_progress_date ? String(editData.financial_progress_date).substring(0, 10) : (editData?.financialProgressDate ? String(editData.financialProgressDate).substring(0, 10) : ''),
-    financialPercentage: editData?.financial_progress_percentage !== undefined && editData?.financial_progress_percentage !== null ? String(editData.financial_progress_percentage) : (editData?.financialPercentage !== undefined ? String(editData.financialPercentage) : ''),
-    detailedRemarks: editData?.remark_or_detailed_status || editData?.detailedRemarks || '',
-    mouBrief: editData?.mou_brief || editData?.mouBrief || '',
-    nextSteps: editData?.next_steps || editData?.nextSteps || '',
-    reasonForDropping: editData?.reason_for_dropping || editData?.reasonForDropping || '',
-  });
-
-  // Re-sync form state whenever editData prop updates
-  useEffect(() => {
-    if (editData) {
-      setFormData({
-        mouID: editData.id || editData.mouID || editData.mou_id || null,
-        eventName: editData.event_name || editData.eventName || '',
-        organisationName: editData.organisation_id || editData.organisationId || editData.organisationName || '',
-        firstPartyName: editData.name_of_first_party || editData.firstPartyName || '',
-        stakeholderName: editData.name_of_second_party || editData.stakeholderName || '',
-        natureOfSecondParty: editData.nature_of_second_party || editData.natureOfSecondParty || '',
-        vibhasNavicID: editData.navic_vibhas_id || editData.vibhasNavicID || '',
-        mouProjectName: editData.name_of_mou || editData.mouProjectName || '',
-        mouCategory: editData.mou_category_id || editData.mouCategory || '',
-        amount: editData.amount !== undefined && editData.amount !== null ? String(editData.amount) : '',
-        presentStatus: editData.present_status || editData.presentStatus || '',
-        revisedAmount: editData.revised_amount !== undefined && editData.revised_amount !== null ? String(editData.revised_amount) : (editData.revisedAmount ? String(editData.revisedAmount) : ''),
-        physicalProgressDate: editData.physical_progress_date ? String(editData.physical_progress_date).substring(0, 10) : (editData.physicalProgressDate ? String(editData.physicalProgressDate).substring(0, 10) : ''),
-        physicalPercentage: editData.physical_progress_percentage !== undefined && editData.physical_progress_percentage !== null ? String(editData.physical_progress_percentage) : (editData.physicalPercentage !== undefined ? String(editData.physicalPercentage) : ''),
-        financialProgressDate: editData.financial_progress_date ? String(editData.financial_progress_date).substring(0, 10) : (editData.financialProgressDate ? String(editData.financialProgressDate).substring(0, 10) : ''),
-        financialPercentage: editData.financial_progress_percentage !== undefined && editData.financial_progress_percentage !== null ? String(editData.financial_progress_percentage) : (editData.financialPercentage !== undefined ? String(editData.financialPercentage) : ''),
-        detailedRemarks: editData.remark_or_detailed_status || editData.detailedRemarks || '',
-        mouBrief: editData.mou_brief || editData.mouBrief || '',
-        nextSteps: editData.next_steps || editData.nextSteps || '',
-        reasonForDropping: editData.reason_for_dropping || editData.reasonForDropping || '',
-      });
-      setUploadedFileName(editData.document_uploader || editData.gmisDocumentFileName || '');
-    } else {
-      setFormData({
-        mouID: null,
-        eventName: '',
-        organisationName: '',
-        firstPartyName: '',
-        stakeholderName: '',
-        natureOfSecondParty: '',
-        vibhasNavicID: '',
-        mouProjectName: '',
-        mouCategory: '',
-        amount: '',
-        presentStatus: '',
-        revisedAmount: '',
-        physicalProgressDate: '',
-        physicalPercentage: '',
-        financialProgressDate: '',
-        financialPercentage: '',
-        detailedRemarks: '',
-        mouBrief: '',
-        nextSteps: '',
-        reasonForDropping: '',
-      });
-      setUploadedFileName('');
-    }
-  }, [editData]);
+  const isEditMode = Boolean(editData && (editData.id || editData.mou_id));
+  const [formData, setFormData] = useState(() => formFromRecord(editData));
 
   const [errors, setErrors] = useState({});
 
@@ -181,20 +109,6 @@ export default function GMISInputForm({
     status: !!formData.presentStatus && !!formData.physicalProgressDate && formData.physicalPercentage !== '' && !!formData.financialProgressDate && formData.financialPercentage !== '',
     document: !!uploadedFileName,
   };
-
-  useEffect(() => {
-    fetchOrganisations()
-      .then(res => { if (Array.isArray(res.data)) setOrganisations(res.data); })
-      .catch(err => console.warn('Failed to load organisations:', err));
-
-    fetchMouCategoryNames()
-      .then(res => { if (Array.isArray(res.data)) setCategories(res.data); })
-      .catch(err => console.warn('Failed to load categories:', err));
-
-    fetchGmisNavicVibhas()
-      .then(res => { if (Array.isArray(res.data)) setNavicList(res.data); })
-      .catch(err => console.warn('Failed to load NAVIC cells:', err));
-  }, []);
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -208,7 +122,7 @@ export default function GMISInputForm({
     if (!file) return;
 
     if (file.size > 20 * 1024 * 1024) {
-      triggerNotification?.('File size exceeds 20 MB limit', 'warning');
+      notify(COMMON_TOASTS.fileTooLarge(20));
       return;
     }
 
@@ -220,10 +134,10 @@ export default function GMISInputForm({
       const res = await uploadGmisDocument(data);
       const filename = res.data?.uniqueFileName || res.data?.filename || file.name;
       setUploadedFileName(filename);
-      triggerNotification?.('MoU document uploaded successfully!', 'success');
+      notify(GMIS_TOASTS.documentUploaded(file.name));
     } catch (err) {
       console.error('File upload failed:', err);
-      triggerNotification?.('Failed to upload MoU document', 'error');
+      notify(GMIS_TOASTS.documentUploadFailed(getErrorMessage(err)));
     } finally {
       setUploadingFile(false);
     }
@@ -231,7 +145,7 @@ export default function GMISInputForm({
 
   const handleOpenHistory = async (type) => {
     setHistoryModalType(type);
-    const mouId = formData.mouID || editData?.id || editData?.mouID || editData?.mou_id;
+    const mouId = formData.mouID;
     if (mouId) {
       setHistoryLoading(true);
       try {
@@ -259,6 +173,7 @@ export default function GMISInputForm({
         }
       } catch (err) {
         console.error('Failed to load history:', err);
+        notify(GMIS_TOASTS.historyLoadFailed(type));
         const baseline = [];
         if (type === 'physical' && formData.physicalProgressDate) {
           baseline.push({
@@ -306,15 +221,15 @@ export default function GMISInputForm({
 
   const handleSaveRevision = async () => {
     if (!reviseForm.date) {
-      triggerNotification?.(`Please enter ${reviseModalType === 'physical' ? 'Physical' : 'Financial'} Progress Date`, 'warning');
+      notify(GMIS_TOASTS.revisionDateMissing(reviseModalType));
       return;
     }
     if (reviseForm.percentage === '' || isNaN(Number(reviseForm.percentage)) || Number(reviseForm.percentage) < 0 || Number(reviseForm.percentage) > 100) {
-      triggerNotification?.('Please enter a valid percentage between 0 and 100', 'warning');
+      notify(GMIS_TOASTS.revisionPercentInvalid());
       return;
     }
 
-    const mouId = formData.mouID || editData?.id || editData?.mouID || editData?.mou_id;
+    const mouId = formData.mouID;
     setSavingRevision(true);
 
     try {
@@ -338,17 +253,17 @@ export default function GMISInputForm({
       if (reviseModalType === 'physical') {
         handleChange('physicalProgressDate', reviseForm.date);
         handleChange('physicalPercentage', reviseForm.percentage);
-        triggerNotification?.('Physical Progress revision saved successfully!', 'success');
+        notify(GMIS_TOASTS.revisionSaved('physical'));
       } else {
         handleChange('financialProgressDate', reviseForm.date);
         handleChange('financialPercentage', reviseForm.percentage);
-        triggerNotification?.('Financial Progress revision saved successfully!', 'success');
+        notify(GMIS_TOASTS.revisionSaved('financial'));
       }
 
       setReviseModalType(null);
     } catch (err) {
       console.error('Failed to save revision:', err);
-      triggerNotification?.('Failed to save progress revision', 'error');
+      notify(GMIS_TOASTS.revisionSaveFailed(reviseModalType, getErrorMessage(err)));
     } finally {
       setSavingRevision(false);
     }
@@ -364,12 +279,7 @@ export default function GMISInputForm({
     
     if (Object.keys(stageErrors).length > 0) {
       setErrors(prev => ({ ...prev, ...stageErrors }));
-      const count = Object.keys(stageErrors).length;
-      const firstMsg = Object.values(stageErrors)[0];
-      const warningMsg = count > 1 
-        ? `Warning: Please fill all ${count} mandatory fields (*) in Stage 1 before proceeding.`
-        : `Warning: ${firstMsg}`;
-      triggerNotification?.(warningMsg, 'warning');
+      notify(GMIS_TOASTS.stageIncomplete(1, Object.keys(stageErrors).length, Object.values(stageErrors)[0]));
       return false;
     }
     return true;
@@ -387,12 +297,7 @@ export default function GMISInputForm({
     
     if (Object.keys(stageErrors).length > 0) {
       setErrors(prev => ({ ...prev, ...stageErrors }));
-      const count = Object.keys(stageErrors).length;
-      const firstMsg = Object.values(stageErrors)[0];
-      const warningMsg = count > 1 
-        ? `Warning: Please fill all ${count} mandatory fields (*) in Stage 2 before proceeding.`
-        : `Warning: ${firstMsg}`;
-      triggerNotification?.(warningMsg, 'warning');
+      notify(GMIS_TOASTS.stageIncomplete(2, Object.keys(stageErrors).length, Object.values(stageErrors)[0]));
       return false;
     }
     return true;
@@ -416,12 +321,7 @@ export default function GMISInputForm({
 
     if (Object.keys(stageErrors).length > 0) {
       setErrors(prev => ({ ...prev, ...stageErrors }));
-      const count = Object.keys(stageErrors).length;
-      const firstMsg = Object.values(stageErrors)[0];
-      const warningMsg = count > 1 
-        ? `Warning: Please fill all ${count} mandatory fields (*) in Stage 3 before proceeding.`
-        : `Warning: ${firstMsg}`;
-      triggerNotification?.(warningMsg, 'warning');
+      notify(GMIS_TOASTS.stageIncomplete(3, Object.keys(stageErrors).length, Object.values(stageErrors)[0]));
       return false;
     }
     return true;
@@ -442,7 +342,7 @@ export default function GMISInputForm({
     try {
       const payload = {
         ...formData,
-        mouID: formData.mouID || editData?.id || editData?.mouID || editData?.mou_id,
+        mouID: formData.mouID,
         gmisDocumentFileName: uploadedFileName,
         uniqueFileName: uploadedFileName,
         amount: Number(formData.amount),
@@ -453,16 +353,16 @@ export default function GMISInputForm({
 
       if (isEditMode) {
         await updateGmisMouData(payload);
-        triggerNotification?.('MoU details updated successfully!', 'success');
+        notify(GMIS_TOASTS.updated(formData.mouProjectName));
       } else {
         await submitGmisMouData(payload);
-        triggerNotification?.('New MoU details submitted successfully!', 'success');
+        notify(GMIS_TOASTS.created(formData.mouProjectName));
       }
 
       onSuccess?.();
     } catch (err) {
       console.error('Submission failed:', err);
-      triggerNotification?.('Failed to save MoU record', 'error');
+      notify(GMIS_TOASTS.saveFailed(isEditMode, getErrorMessage(err)));
     } finally {
       setSubmitting(false);
     }
@@ -508,7 +408,7 @@ export default function GMISInputForm({
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in text-slate-800 dark:text-slate-100">
+    <div className="module-form-card overflow-hidden animate-fade-in text-slate-800 dark:text-slate-100">
       
       {/* ==================================================== */}
       {/* UNIFIED EXECUTIVE FORM HEADING WITH CENTERED STEPPER */}
@@ -519,14 +419,16 @@ export default function GMISInputForm({
           
           {/* Left Column: Back Button + Title */}
           <div className="lg:col-span-3 flex items-center space-x-3.5 shrink-0">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-xl transition cursor-pointer backdrop-blur-sm border border-white/10"
-              title="Back to List"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </button>
+            {onCancel && (
+              <button
+                type="button"
+                onClick={onCancel}
+                className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-xl transition cursor-pointer backdrop-blur-sm border border-white/10"
+                title="Back to List"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </button>
+            )}
             <div>
               <h2 className="text-base font-black tracking-wide uppercase font-display text-white whitespace-nowrap">
                 {editData ? 'Update MoU Details' : 'Add MoU Details'}
@@ -635,7 +537,7 @@ export default function GMISInputForm({
               
               {/* Event Name */}
               <div>
-                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+                <label className="module-form-label">
                   Event Name<span className="text-rose-500 font-bold">*</span>
                 </label>
                 <div className="relative">
@@ -660,7 +562,7 @@ export default function GMISInputForm({
 
               {/* Organization Name/Name of 1st Party */}
               <div>
-                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+                <label className="module-form-label">
                   Organization Name/Name of 1st Party<span className="text-rose-500 font-bold">*</span>
                 </label>
                 <div className="relative">
@@ -687,7 +589,7 @@ export default function GMISInputForm({
 
               {/* MoU Category/Industry */}
               <div>
-                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+                <label className="module-form-label">
                   MoU Category/Industry<span className="text-rose-500 font-bold">*</span>
                 </label>
                 <div className="relative">
@@ -714,7 +616,7 @@ export default function GMISInputForm({
 
               {/* Relevant VIBHAS / NAVIC cell */}
               <div>
-                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+                <label className="module-form-label">
                   Relevant VIBHAS / NAVIC cell<span className="text-rose-500 font-bold">*</span>
                 </label>
                 <div className="relative">
@@ -726,7 +628,7 @@ export default function GMISInputForm({
                     }`}
                   >
                     <option value="">--Select Vibhas / Navic--</option>
-                    {navicList.map((n, i) => (
+                    {navicCells.map((n, i) => (
                       <option key={i} value={n.id || n.navic_vibhas_id || n.navic_name}>
                         {n.navic_name || n}
                       </option>
@@ -774,7 +676,7 @@ export default function GMISInputForm({
               
               {/* Name of Stakeholder(s)/2nd Party */}
               <div>
-                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+                <label className="module-form-label">
                   Name of Stakeholder(s)/2nd Party<span className="text-rose-500 font-bold">*</span>
                 </label>
                 <div className="relative">
@@ -795,7 +697,7 @@ export default function GMISInputForm({
 
               {/* Nature of 2nd Party */}
               <div>
-                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+                <label className="module-form-label">
                   Nature of 2nd Party<span className="text-rose-500 font-bold">*</span>
                 </label>
                 <div className="relative">
@@ -820,7 +722,7 @@ export default function GMISInputForm({
 
               {/* Name of MoU/Project */}
               <div>
-                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+                <label className="module-form-label">
                   Name of MoU/Project<span className="text-rose-500 font-bold">*</span>
                 </label>
                 <div className="relative">
@@ -841,7 +743,7 @@ export default function GMISInputForm({
 
               {/* Amount (in Cr) */}
               <div>
-                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+                <label className="module-form-label">
                   Amount (in Cr)<span className="text-rose-500 font-bold">*</span>
                 </label>
                 <div className="relative">
@@ -863,7 +765,7 @@ export default function GMISInputForm({
 
               {/* Revised Amount (in Cr) */}
               <div>
-                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+                <label className="module-form-label">
                   Revised Amount (in Cr)
                 </label>
                 <div className="relative">
@@ -882,7 +784,7 @@ export default function GMISInputForm({
 
               {/* MoU Brief (if any) */}
               <div>
-                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+                <label className="module-form-label">
                   MoU Brief (if any)
                 </label>
                 <div className="relative">
@@ -941,7 +843,7 @@ export default function GMISInputForm({
               
               {/* Status of MoU */}
               <div>
-                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+                <label className="module-form-label">
                   Status of MoU<span className="text-rose-500 font-bold">*</span>
                 </label>
                 <div className="relative">
@@ -966,7 +868,7 @@ export default function GMISInputForm({
 
               {/* Physical Progress as on Date */}
               <div>
-                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+                <label className="module-form-label">
                   Physical Progress as on Date <span className="text-rose-500 font-bold">*</span>
                 </label>
                 <div className="flex items-center gap-2">
@@ -1011,7 +913,7 @@ export default function GMISInputForm({
 
               {/* Physical Progress (in %) */}
               <div>
-                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+                <label className="module-form-label">
                   Physical Progress (in %)<span className="text-rose-500 font-bold">*</span>
                 </label>
                 <div className="relative">
@@ -1034,7 +936,7 @@ export default function GMISInputForm({
 
               {/* Financial Progress as on Date */}
               <div>
-                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+                <label className="module-form-label">
                   Financial Progress as on Date <span className="text-rose-500 font-bold">*</span>
                 </label>
                 <div className="flex items-center gap-2">
@@ -1079,7 +981,7 @@ export default function GMISInputForm({
 
               {/* Financial Progress (in %) */}
               <div>
-                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+                <label className="module-form-label">
                   Financial Progress (in %)<span className="text-rose-500 font-bold">*</span>
                 </label>
                 <div className="relative">
@@ -1102,7 +1004,7 @@ export default function GMISInputForm({
 
               {/* Next Steps */}
               <div>
-                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+                <label className="module-form-label">
                   Next Steps
                 </label>
                 <div className="relative">
@@ -1122,7 +1024,7 @@ export default function GMISInputForm({
 
             {/* Remarks / Detailed Status */}
             <div>
-              <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+              <label className="module-form-label">
                 Remarks / Detailed Status
               </label>
               <div className="relative">
@@ -1192,7 +1094,7 @@ export default function GMISInputForm({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+              <label className="module-form-label">
                 Upload MoU Document
               </label>
               
@@ -1242,13 +1144,15 @@ export default function GMISInputForm({
               </button>
 
               <div className="flex items-center space-x-3">
-                <button
-                  type="button"
-                  onClick={onCancel}
-                  className="px-6 py-2.5 bg-[#dc3545] hover:bg-[#bb2d3b] text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-sm"
-                >
-                  Exit
-                </button>
+                {onCancel && (
+                  <button
+                    type="button"
+                    onClick={onCancel}
+                    className="px-6 py-2.5 bg-[#dc3545] hover:bg-[#bb2d3b] text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-sm"
+                  >
+                    Exit
+                  </button>
+                )}
                 
                 <button
                   type="button"
@@ -1389,7 +1293,7 @@ export default function GMISInputForm({
               
               {/* Date Input */}
               <div>
-                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+                <label className="module-form-label">
                   {reviseModalType === 'physical' ? 'Physical Progress Date' : 'Financial Progress Date'}<span className="text-rose-500 font-bold">*</span>
                 </label>
                 <input
@@ -1403,7 +1307,7 @@ export default function GMISInputForm({
 
               {/* Percentage Input */}
               <div>
-                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+                <label className="module-form-label">
                   {reviseModalType === 'physical' ? 'Physical Progress %' : 'Financial Progress %'}<span className="text-rose-500 font-bold">*</span>
                 </label>
                 <input

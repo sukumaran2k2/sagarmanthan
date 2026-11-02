@@ -127,3 +127,5 @@ dist
 .pnp.*
 
 fileuploads
+# Local env copies (never commit secrets)
+temp env.txt

@@ -21,6 +21,9 @@ import {
     validateOrganisation,
     buildPagination,
     createEntryAccess,
+    logSource,
+    runLoggedWrite,
+    writeEntryLog,
 } from "./kpiEntryCommon.js";
 
 /**
@@ -565,6 +568,36 @@ async function upsertRoroRow(transaction, { organisationId, fiscalYear, month, u
 }
 
 /**
+ * Every stored value of a period as one flat record for the entry log, read on the
+ * transaction and locked until it commits. Commodity cells are keyed by their ids.
+ */
+async function snapshotPeriod(transaction, { organisationId, fiscalYear, month }) {
+    const bind = () => {
+        const request = new sql.Request(transaction);
+        request.input("organisationId", sql.Int, organisationId);
+        request.input("fiscalYear", sql.NVarChar(20), fiscalYear);
+        request.input("month", sql.Int, month);
+        return request;
+    };
+    const where = "WHERE organisation_id = @organisationId AND fiscal_year = @fiscalYear AND month = @month";
+    // A transaction runs one request at a time, so read sequentially
+    const commodity = await bind().query(`
+        SELECT commodity_id, category_id, direction_id, flag_type_id, value
+        FROM tbl_traffic_commodity_data WITH (UPDLOCK, HOLDLOCK) ${where}
+    `);
+    const roro = await bind().query(`
+        SELECT ro_ro_traffic, ro_pax_traffic FROM tbl_traffic_ro_ro_pax_data WITH (UPDLOCK, HOLDLOCK) ${where}
+    `);
+
+    const values = {};
+    for (const row of commodity.recordset) {
+        values[`commodity_${row.commodity_id}_c${row.category_id}_d${row.direction_id}_f${row.flag_type_id}`] = row.value;
+    }
+    if (roro.recordset[0]) Object.assign(values, roro.recordset[0]);
+    return values;
+}
+
+/**
  * Saves one wizard page (a commodity group and/or Ro-Ro / Ro-Pax) for the caller's
  * organisation. A page that has no saved data yet needs Create; a saved page needs Update.
  */
@@ -623,8 +656,20 @@ async function saveTrafficPeriod(req, res) {
         const context = { organisationId, fiscalYear, month, userId };
         transaction = new sql.Transaction(conn);
         await transaction.begin();
+        const before = await snapshotPeriod(transaction, context);
         if (commodity.rows.length) await upsertCommodityRows(transaction, context, commodity.rows);
         if (roro) await upsertRoroRow(transaction, context, roro);
+        await writeEntryLog(transaction, {
+            section: "TRAFFIC",
+            recordType: "ACTUAL",
+            action: existing.exists ? "UPDATE" : "CREATE",
+            organisationId,
+            fiscalYear,
+            month,
+            userId,
+            before,
+            after: await snapshotPeriod(transaction, context),
+        });
         await transaction.commit();
 
         return res.status(200).json({
@@ -643,6 +688,9 @@ async function deleteTrafficPeriod(req, res) {
     const organisationId = requireOrganisationWriter(req, res);
     if (!organisationId) return undefined;
 
+    const userId = resolveUserId(req);
+    if (!userId) return sendError(res, 401, "Your session has expired. Please sign in again.");
+
     const fiscalYear = normaliseFiscalYear(req.query.fiscalYear);
     const month = parseMonth(req.query.month);
     if (!fiscalYear || !month) return sendError(res, 400, "Select a valid financial year and month.");
@@ -655,6 +703,7 @@ async function deleteTrafficPeriod(req, res) {
 
         transaction = new sql.Transaction(conn);
         await transaction.begin();
+        const before = await snapshotPeriod(transaction, { organisationId, fiscalYear, month });
         // A transaction runs one request at a time, so delete sequentially
         let rowsDeleted = 0;
         for (const table of ["tbl_traffic_commodity_data", "tbl_traffic_ro_ro_pax_data"]) {
@@ -672,6 +721,9 @@ async function deleteTrafficPeriod(req, res) {
             await transaction.rollback();
             return sendError(res, 404, "No traffic data was found for this period.");
         }
+        await writeEntryLog(transaction, {
+            section: "TRAFFIC", recordType: "ACTUAL", action: "DELETE", organisationId, fiscalYear, month, userId, before,
+        });
         await transaction.commit();
         return res.status(200).json({ success: true, message: "Traffic data deleted." });
     } catch (error) {
@@ -803,6 +855,11 @@ const TARGET_FIELDS = [
     { key: "containerTargetMteu", column: "container_target_mteu", label: "Container Target" },
 ];
 
+const TARGET_LOG = logSource({
+    section: "TRAFFIC", recordType: "TARGET", table: "tbl_traffic_fiscal_target",
+    fiscalYearSql: "x.financial_year", columns: TARGET_FIELDS.map((f) => f.column),
+});
+
 function parseTargetValues(body) {
     const values = {};
     for (const field of TARGET_FIELDS) {
@@ -835,25 +892,26 @@ async function createTrafficTarget(req, res) {
         const organisation = await validateOrganisation(conn, organisationId);
         if (!organisation) return sendError(res, 400, "The selected organisation does not exist.");
 
-        const request = conn.request();
-        request.input("fiscalYear", sql.NVarChar(20), fiscalYear);
-        request.input("organisationId", sql.Int, organisationId);
-        request.input("userId", sql.Int, userId);
-        bindTargetValues(request, values);
-        const result = await request.query(`
-            IF EXISTS (
-                SELECT 1 FROM tbl_traffic_fiscal_target WITH (UPDLOCK, HOLDLOCK)
-                WHERE financial_year = @fiscalYear AND organisation_id = @organisationId
-            )
-                SELECT CAST(NULL AS INT) AS id;
-            ELSE
-                INSERT INTO tbl_traffic_fiscal_target
-                    (financial_year, organisation_id, fiscal_year_target, ro_ro_target, ro_pax_target,
-                     container_target_mteu, created_by, created_date)
-                OUTPUT INSERTED.id
-                VALUES (@fiscalYear, @organisationId, @fiscal_year_target, @ro_ro_target, @ro_pax_target,
-                        @container_target_mteu, @userId, GETDATE());
-        `);
+        const result = await runLoggedWrite(conn, TARGET_LOG, { action: "CREATE", userId }, (request) => {
+            request.input("fiscalYear", sql.NVarChar(20), fiscalYear);
+            request.input("organisationId", sql.Int, organisationId);
+            request.input("userId", sql.Int, userId);
+            bindTargetValues(request, values);
+            return request.query(`
+                IF EXISTS (
+                    SELECT 1 FROM tbl_traffic_fiscal_target WITH (UPDLOCK, HOLDLOCK)
+                    WHERE financial_year = @fiscalYear AND organisation_id = @organisationId
+                )
+                    SELECT CAST(NULL AS INT) AS id;
+                ELSE
+                    INSERT INTO tbl_traffic_fiscal_target
+                        (financial_year, organisation_id, fiscal_year_target, ro_ro_target, ro_pax_target,
+                         container_target_mteu, created_by, created_date)
+                    OUTPUT INSERTED.id
+                    VALUES (@fiscalYear, @organisationId, @fiscal_year_target, @ro_ro_target, @ro_pax_target,
+                            @container_target_mteu, @userId, GETDATE());
+            `);
+        });
 
         const id = result.recordset[0]?.id;
         if (!id) {
@@ -878,20 +936,21 @@ async function updateTrafficTarget(req, res) {
 
     try {
         const conn = await pool;
-        const request = conn.request();
-        request.input("id", sql.Int, id);
-        request.input("userId", sql.Int, userId);
-        bindTargetValues(request, values);
-        const result = await request.query(`
-            UPDATE tbl_traffic_fiscal_target
-            SET fiscal_year_target = @fiscal_year_target,
-                ro_ro_target = @ro_ro_target,
-                ro_pax_target = @ro_pax_target,
-                container_target_mteu = @container_target_mteu,
-                updated_by = @userId,
-                updated_date = GETDATE()
-            WHERE id = @id
-        `);
+        const result = await runLoggedWrite(conn, TARGET_LOG, { action: "UPDATE", id, userId }, (request) => {
+            request.input("id", sql.Int, id);
+            request.input("userId", sql.Int, userId);
+            bindTargetValues(request, values);
+            return request.query(`
+                UPDATE tbl_traffic_fiscal_target
+                SET fiscal_year_target = @fiscal_year_target,
+                    ro_ro_target = @ro_ro_target,
+                    ro_pax_target = @ro_pax_target,
+                    container_target_mteu = @container_target_mteu,
+                    updated_by = @userId,
+                    updated_date = GETDATE()
+                WHERE id = @id
+            `);
+        });
         if (!result.rowsAffected[0]) return sendError(res, 404, "This target no longer exists.");
         return res.status(200).json({ success: true, message: "Target updated." });
     } catch (error) {
@@ -902,14 +961,17 @@ async function updateTrafficTarget(req, res) {
 
 async function deleteTrafficTarget(req, res) {
     if (!requireMinistryWriter(req, res, "Traffic targets")) return undefined;
+    const userId = resolveUserId(req);
+    if (!userId) return sendError(res, 401, "Your session has expired. Please sign in again.");
     const id = toPositiveIntOrNull(req.params.id);
     if (!id) return sendError(res, 400, "Invalid target.");
 
     try {
         const conn = await pool;
-        const request = conn.request();
-        request.input("id", sql.Int, id);
-        const result = await request.query("DELETE FROM tbl_traffic_fiscal_target WHERE id = @id");
+        const result = await runLoggedWrite(conn, TARGET_LOG, { action: "DELETE", id, userId }, (request) => {
+            request.input("id", sql.Int, id);
+            return request.query("DELETE FROM tbl_traffic_fiscal_target WHERE id = @id");
+        });
         if (!result.rowsAffected[0]) return sendError(res, 404, "This target no longer exists.");
         return res.status(200).json({ success: true, message: "Target deleted." });
     } catch (error) {

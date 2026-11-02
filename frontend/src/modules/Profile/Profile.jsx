@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import { axiosInstance as api } from '../../api';
 import forge from 'node-forge';
 import { 
   User, 
@@ -19,7 +19,6 @@ import {
   Compass,
   ChevronDown
 } from 'lucide-react';
-import { API_BASE_URL } from '../../config/api';
 
 const PUBLIC_KEY_PEM = (import.meta.env.VITE_RSA_PUBLIC_KEY || "").replace(/\\n/g, "\n");
 
@@ -31,19 +30,6 @@ function encryptPassword(password) {
     mgf1: { md: forge.md.sha256.create() },
   });
   return forge.util.encode64(encrypted);
-}
-
-function decodeToken(token) {
-  try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-    return JSON.parse(jsonPayload);
-  } catch (e) {
-    return null;
-  }
 }
 
 function getInitials(name) {
@@ -108,19 +94,12 @@ export default function ProfileView({ triggerNotification }) {
   });
 
   useEffect(() => {
-    const token = localStorage.getItem('accessToken');
-    console.log("DEBUG_PROFILE: Loaded token:", token);
-    if (!token) return;
-    const decoded = decodeToken(token);
-    console.log("DEBUG_PROFILE: Decoded payload:", decoded);
-    if (!decoded || !decoded.email) return;
+    if (!localStorage.getItem('accessToken')) return;
 
-    axios.get(`${API_BASE_URL}/userlist`)
+    // The signed-in user's own details
+    api.get('/my-profile')
       .then(res => {
-        const users = res.data || [];
-        console.log("DEBUG_PROFILE: Loaded userlist:", users);
-        const matched = users.find(u => u.email.toLowerCase() === decoded.email.toLowerCase());
-        console.log("DEBUG_PROFILE: Matched user object:", matched);
+        const matched = res.data;
         if (matched) {
           setRawUser(matched);
           setProfile({
@@ -163,18 +142,15 @@ export default function ProfileView({ triggerNotification }) {
     e.preventDefault();
     if (!rawUser) return;
 
-    axios.put(`${API_BASE_URL}/edit-user-profile`, {
+    api.put('/edit-user-profile', {
       userID: rawUser.user_id,
       title: profile.title,
       name: profile.fullName,
       designation: profile.designation,
       email: profile.email,
       phone: profile.phone,
-      organisationId: rawUser.organisation_id || 1,
-      wing: rawUser.wing_id || 1,
-      division: rawUser.division_id || 1,
-      state: rawUser.state_id || 1,
-      district: rawUser.district_id || 1,
+      state: rawUser.state_id ?? null,
+      district: rawUser.district_id ?? null,
       loginUser: rawUser.name
     })
     .then(() => {
@@ -210,7 +186,7 @@ export default function ProfileView({ triggerNotification }) {
       return;
     }
 
-    axios.put(`${API_BASE_URL}/edit-password`, {
+    api.put('/edit-password', {
       userID: rawUser.user_id,
       email: rawUser.email,
       loginUser: rawUser.name,

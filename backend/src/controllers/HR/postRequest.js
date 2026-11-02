@@ -8,7 +8,9 @@ async function generateUniquePostRequestID(basePostRequestID) {
 
     do {
         postRequestID = `${basePostRequestID}${counter}`;
-        const result = await conn.query(`SELECT TOP(1) 1 FROM tbl_post_request WHERE post_request_id = '${postRequestID}'`);
+        const result = await conn.request()
+            .input("postRequestID", postRequestID)
+            .query(`SELECT TOP(1) 1 FROM tbl_post_request WHERE post_request_id = @postRequestID`);
         if (result.recordset.length === 0) {
             break;
         }

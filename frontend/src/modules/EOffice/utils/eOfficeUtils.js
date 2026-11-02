@@ -42,7 +42,7 @@ export function formatTimeStr(val) {
       cleanVal = cleanVal.substring(1).trim();
     }
 
-    const dotTimeMatch = cleanVal.match(/^(\d{1,2})[\.:](\d{2})[\.:](\d{2})$/);
+    const dotTimeMatch = cleanVal.match(/^(\d{1,2})[.:](\d{2})[.:](\d{2})$/);
     if (dotTimeMatch) {
       const hours = String(parseInt(dotTimeMatch[1], 10)).padStart(2, "0");
       const minutes = dotTimeMatch[2];
@@ -247,28 +247,97 @@ export function validateEOfficeRows(rows, activeKpi = 'file-pendency') {
   return issues;
 }
 
-export function getKpiPrefix(kpi) {
-  switch (kpi) {
-    case "file-pendency":
-      return "file-pendancy";
-    case "receipt-pendency":
-      return "receipt-pendancy";
-    case "file-disposal":
-      return "file-disposal";
-    default:
-      return "file-pendancy";
-  }
+export const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+// The tables store the calendar year: January-March belong to the second year of the
+// financial year ("2026-2027" + "January" -> 2027)
+export function calendarYear(financialYear, month) {
+  const [start, end] = String(financialYear).split('-').map(Number);
+  return MONTHS.indexOf(month) < 3 ? end : start;
 }
 
-export function getReportTitle(kpi) {
-  switch (kpi) {
-    case "file-pendency":
-      return "File Pendency Abstract Summary Report";
-    case "receipt-pendency":
-      return "Receipt Pendency Abstract Summary Report";
-    case "file-disposal":
-      return "File Disposal Abstract Summary Report";
-    default:
-      return "E-Office Abstract Summary Report";
-  }
+// Field readers: the report and data-list endpoints name some fields differently
+const pick = (row, keys) => {
+  for (const k of keys) if (row?.[k] !== undefined && row[k] !== null && row[k] !== '') return row[k];
+  return undefined;
+};
+const text = (keys) => (r) => pick(r, keys) ?? '—';
+const count = (keys) => (r) => Number(pick(r, keys)) || 0;
+
+export const rowWing = (r) => pick(r, ['Wing']);
+export const rowWeek = (r) => Number(String(pick(r, ['Week', 'WeekName', 'week']) ?? '').replace(/\D/g, '')) || null;
+export const rowPeriod = (r) => `${r.Month} ${r.Year}, Week ${rowWeek(r)}`;
+
+// Columns per category. value() is shared by the grid and the exports; columns with
+// total: true are summed in the grid's Total row.
+const PERSON_COLUMNS = [
+  { key: 'EmpId', label: 'Emp ID', value: text(['Emp ID', 'Emp Id']), width: 110 },
+  { key: 'EmpName', label: 'Employee Name', value: text(['Emp Name', 'EMP Name']), flex: 2, minWidth: 180 },
+  { key: 'Designation', label: 'Designation', value: text(['Designation']), flex: 1.5, minWidth: 150 },
+  { key: 'Wing', label: 'Wing', value: text(['Wing']), flex: 1.5, minWidth: 150 },
+  { key: 'Division', label: 'Division', value: text(['Division']), flex: 1.5, minWidth: 150 },
+];
+
+const PENDENCY_COLUMNS = [
+  ...PERSON_COLUMNS,
+  { key: 'Days0to3', label: '0-3 Days', value: count(['0-3 Days']), total: true },
+  { key: 'Days4to6', label: '4-6 Days', value: count(['4-6 Days']), total: true },
+  { key: 'Days7to15', label: '7-15 Days', value: count(['7-15 Days']), total: true },
+  { key: 'Days16to30', label: '16-30 Days', value: count(['16-30 Days']), total: true },
+  { key: 'Over30', label: '> 30 Days', value: count(['Greater than 30 days', 'Greater Than 30 days']), total: true },
+  { key: 'TotalPendency', label: 'Total Pendency', value: count(['Total Pendency']), total: true },
+];
+
+const DISPOSAL_COLUMNS = [
+  ...PERSON_COLUMNS,
+  { key: 'Transactions', label: 'Count of Transactions', value: count(['Count of Transactions']), total: true, minWidth: 130 },
+  { key: 'Files', label: 'Counts of Files', value: count(['Counts of Files']), total: true, minWidth: 120 },
+  { key: 'ResponseTime', label: 'Average Response Time', value: (r) => formatTimeStr(pick(r, ['Average Response Time'])), minWidth: 140 },
+];
+
+// The three E-Office sheets. id is the URL segment; prefix is the server's route prefix.
+export const CATEGORIES = {
+  'file-pendency': {
+    id: 'file-pendency',
+    label: 'File Pendency',
+    prefix: 'file-pendancy',
+    sampleFile: 'File_Pendency_Sample.xlsx',
+    columns: PENDENCY_COLUMNS,
+  },
+  'receipt-pendency': {
+    id: 'receipt-pendency',
+    label: 'Receipt Pendency',
+    prefix: 'receipt-pendancy',
+    sampleFile: 'Receipt_Pendency_Sample.xlsx',
+    columns: PENDENCY_COLUMNS,
+  },
+  'file-disposal': {
+    id: 'file-disposal',
+    label: 'File Disposal',
+    prefix: 'file-disposal',
+    sampleFile: 'File_Disposal_Sample.xlsx',
+    columns: DISPOSAL_COLUMNS,
+  },
+};
+export const CATEGORY_LIST = Object.values(CATEGORIES);
+
+// The grid's Total row: the summed columns, labelled in the name column
+export function totalsRow(columns, rows) {
+  const total = { EmpName: 'Total' };
+  columns.filter((c) => c.total).forEach((c) => {
+    total[c.key] = rows.reduce((sum, r) => sum + c.value(r), 0);
+  });
+  return total;
+}
+
+// Hands a downloaded blob to the browser as a file
+export function saveBlob(data, fileName) {
+  const url = window.URL.createObjectURL(new Blob([data]));
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', fileName);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
 }

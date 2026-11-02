@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
+import { useCapexStore } from '../store/useCapexStore';
 import CapexForm32Report from '../components/CapexForm32Report';
 import CapexMinistrySummaryReport from '../components/reports/CapexMinistrySummaryReport';
 import CapexMinistryYoYReport from '../components/reports/CapexMinistryYoYReport';
@@ -15,15 +16,17 @@ const ORG_REPORTS = [
   { id: 'detailed', label: '1.2 Detailed Report' },
 ];
 
-export default function CapexReports({ viewMode = 'ministry', showToast }) {
+export default function CapexReports({ viewMode = 'ministry', notify }) {
   const reports = viewMode === 'org' ? ORG_REPORTS : MINISTRY_REPORTS;
-  const [activeReport, setActiveReport] = useState('detailed');
+  // The selected report lives in the module store so it survives leaving the module
+  const activeReport = useCapexStore((state) => state.activeReport);
+  const setActiveReport = useCapexStore((state) => state.setActiveReport);
 
   useEffect(() => {
     if (!reports.some((r) => r.id === activeReport)) {
       setActiveReport(reports[0]?.id || 'detailed');
     }
-  }, [viewMode, reports, activeReport]);
+  }, [viewMode, reports, activeReport, setActiveReport]);
 
   const activeMeta = useMemo(
     () => reports.find((r) => r.id === activeReport) || reports[0],
@@ -59,20 +62,20 @@ export default function CapexReports({ viewMode = 'ministry', showToast }) {
 
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm p-4 sm:p-6">
         {viewMode === 'ministry' && activeReport === 'summary' && (
-          <CapexMinistrySummaryReport showToast={showToast} />
+          <CapexMinistrySummaryReport notify={notify} />
         )}
         {viewMode === 'ministry' && activeReport === 'detailed' && (
-          <CapexForm32Report showToast={showToast} />
+          <CapexForm32Report notify={notify} />
         )}
         {viewMode === 'ministry' && activeReport === 'yoy' && (
-          <CapexMinistryYoYReport showToast={showToast} />
+          <CapexMinistryYoYReport notify={notify} />
         )}
 
         {viewMode === 'org' && activeReport === 'summary' && (
-          <CapexOrgSummaryReport showToast={showToast} />
+          <CapexOrgSummaryReport notify={notify} />
         )}
         {viewMode === 'org' && activeReport === 'detailed' && (
-          <CapexForm32Report showToast={showToast} orgScoped />
+          <CapexForm32Report notify={notify} orgScoped />
         )}
       </div>
     </div>

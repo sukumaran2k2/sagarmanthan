@@ -1,18 +1,18 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
 import InternalNavigation from '../../components/InternalNavigation';
 import ConfirmModal from '../../components/ConfirmModal';
 import InputForm from './pages/InputForm';
 import { useMediaOutreachPermissions } from './hooks/useMediaOutreachPermissions';
 import { resolveMediaOutreachListView } from './views';
-import { fetchOrganisations, fetchSocialMediaData, deleteSocialMedia } from './api';
-import { getCurrentUserId } from '../../utils/authSession';
+import { fetchSocialMediaData, deleteSocialMedia } from './api';
 import { MEDIA_TABS_ALL } from './utils/constants';
+import { normaliseFinancialYear } from './utils/dataTransformers';
+import { MEDIA_LIST_TABS, useMediaOutreachStore } from './store/useMediaOutreachStore';
 
 export default function MediaOutreachView({ triggerNotification }) {
   const permissions = useMediaOutreachPermissions();
   const ListViewComponent = resolveMediaOutreachListView(permissions.uiViewCode);
 
-  // Filter available tabs based on permissions
   const mediaTabs = useMemo(() => {
     if (!permissions.canAdd) {
       return MEDIA_TABS_ALL.filter(tab => tab.id !== 'add_details');
@@ -20,43 +20,52 @@ export default function MediaOutreachView({ triggerNotification }) {
     return MEDIA_TABS_ALL;
   }, [permissions.canAdd]);
 
-  // Read initial tab from sessionStorage if navigated via nav flyout
-  const initTab = (() => {
+  // Open tab and organisations live in the store; the form and edited record are local
+  const mediaTab = useMediaOutreachStore((state) => state.mediaTab);
+  const setMediaTab = useMediaOutreachStore((state) => state.setMediaTab);
+  const organisations = useMediaOutreachStore((state) => state.organisations);
+  const loadOrganisations = useMediaOutreachStore((state) => state.loadOrganisations);
+
+  // The nav flyout leaves the tab to open in sessionStorage; read it once, before the first paint.
+  const [initTab] = useState(() => {
     try {
       const t = sessionStorage.getItem('mediaOutreachInitTab');
       if (t) { sessionStorage.removeItem('mediaOutreachInitTab'); return t; }
-    } catch(e) {}
-    return 'broadcast';
-  })();
+    } catch { /* storage unavailable */ }
+    return null;
+  });
+  useLayoutEffect(() => {
+    if (MEDIA_LIST_TABS.includes(initTab)) setMediaTab(initTab);
+  }, [initTab, setMediaTab]);
 
-  const [activeMediaType, setActiveMediaType] = useState(initTab);
-  const [prevMediaType, setPrevMediaType] = useState(initTab === 'add_details' ? 'broadcast' : initTab);
+  const [showForm, setShowForm] = useState(initTab === 'add_details' && permissions.canAdd);
+  const activeMediaType = showForm ? 'add_details' : mediaTab;
   const [editData, setEditData] = useState(null);
   const [rowData, setRowData] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [organisations, setOrganisations] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Load organisations dropdown using API helper
-  useEffect(() => {
-    fetchOrganisations()
-      .then(res => setOrganisations(res.data || []))
-      .catch(() => {});
-  }, []);
+  useEffect(() => { loadOrganisations(); }, [loadOrganisations]);
 
-  // Fetch all media outreach data using API helper
-  const fetchData = useCallback(() => {
-    setLoading(true);
-    const userId = getCurrentUserId() || 1;
-
-    fetchSocialMediaData(userId)
-      .then(res => setRowData(res.data || []))
+  const loadRecords = useCallback(() => {
+    fetchSocialMediaData()
+      .then(res => {
+        const rows = Array.isArray(res.data) ? res.data : [];
+        setRowData(rows.map(row => ({ ...row, financial_year: normaliseFinancialYear(row.financial_year) })));
+      })
       .catch((err) => {
-        console.error('Error fetching social media data:', err);
+        console.error('Error fetching media outreach records:', err);
+        triggerNotification?.('Could not load media outreach records. Please try again.', 'error');
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [triggerNotification]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  // First load (loading starts true); later refreshes go through fetchData
+  useEffect(() => { loadRecords(); }, [loadRecords]);
+
+  const fetchData = useCallback(() => {
+    setLoading(true);
+    loadRecords();
+  }, [loadRecords]);
 
   const getOrgName = useCallback((orgId) => {
     if (!orgId) return '-';
@@ -68,10 +77,10 @@ export default function MediaOutreachView({ triggerNotification }) {
     if (tabId === 'add_details') {
       if (!permissions.canAdd) return;
       setEditData(null);
-      setActiveMediaType('add_details');
+      setShowForm(true);
     } else {
-      setPrevMediaType(tabId);
-      setActiveMediaType(tabId);
+      setMediaTab(tabId);
+      setShowForm(false);
     }
   };
 
@@ -84,7 +93,7 @@ export default function MediaOutreachView({ triggerNotification }) {
   const handleEdit = (row) => {
     if (!permissions.canEdit) return;
     setEditData(row);
-    setActiveMediaType('add_details');
+    setShowForm(true);
   };
 
   const handleDelete = (row) => {
@@ -102,38 +111,37 @@ export default function MediaOutreachView({ triggerNotification }) {
     setDeleteModal(prev => ({ ...prev, loading: true }));
     try {
       await deleteSocialMedia(row.media_outreach_id);
-      fetchData();
-      if (triggerNotification) triggerNotification("Record deleted successfully.");
-      setDeleteModal({ open: false, row: null, loading: false });
+      triggerNotification?.('Record deleted successfully.', 'success');
     } catch (err) {
-      console.error("Delete error:", err);
-      if (triggerNotification) triggerNotification("Failed to delete record.", "error");
-      setDeleteModal(prev => ({ ...prev, loading: false }));
+      console.error('Delete error:', err);
+      const status = err?.response?.status;
+      if (status === 404) {
+        triggerNotification?.('This record was already deleted.', 'info');
+      } else {
+        triggerNotification?.(status === 403 ? 'You do not have permission to delete this record.' : 'Could not delete the record. Please try again.', 'error');
+        setDeleteModal(prev => ({ ...prev, loading: false }));
+        return;
+      }
     }
-  };
-
-  const handleAddNew = () => {
-    if (!permissions.canAdd) return;
-    setEditData(null);
-    setActiveMediaType('add_details');
+    setDeleteModal({ open: false, row: null, loading: false });
+    fetchData();
   };
 
   const handleBack = () => {
-    setActiveMediaType(prevMediaType);
+    setShowForm(false);
     setEditData(null);
   };
 
   const handleSuccess = () => {
     fetchData();
-    setActiveMediaType(prevMediaType);
+    setShowForm(false);
     setEditData(null);
-    if (triggerNotification) triggerNotification(editData ? 'Record updated successfully!' : 'Record created successfully!');
+    triggerNotification?.(editData ? 'Record updated successfully!' : 'Record created successfully!', 'success');
   };
 
   return (
     <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800 dark:text-slate-100">
       
-      {/* Header Row with Page Title and Integrated Pill Switcher */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4 mb-6 select-none">
         <div>
           <h1 className="text-xl font-black text-[#0f417a] dark:text-blue-400 tracking-wide uppercase font-display">
@@ -157,9 +165,8 @@ export default function MediaOutreachView({ triggerNotification }) {
           onSuccess={handleSuccess}
           triggerNotification={triggerNotification}
           editData={editData}
-          activeMediaType={prevMediaType}
+          activeMediaType={mediaTab}
           organisations={organisations}
-          getOrgName={getOrgName}
           permissions={permissions}
         />
       ) : (
@@ -167,11 +174,8 @@ export default function MediaOutreachView({ triggerNotification }) {
           rowData={rowData}
           loading={loading}
           activeMediaType={activeMediaType}
-          setActiveMediaType={handleTabChange}
           onEdit={handleEdit}
           onDelete={handleDelete}
-          onAddNew={handleAddNew}
-          onRefresh={fetchData}
           organisations={organisations}
           getOrgName={getOrgName}
           triggerNotification={triggerNotification}
@@ -179,7 +183,6 @@ export default function MediaOutreachView({ triggerNotification }) {
         />
       )}
 
-      {/* Delete Confirmation Modal */}
       <ConfirmModal
         isOpen={deleteModal.open}
         onClose={() => setDeleteModal({ open: false, row: null, loading: false })}

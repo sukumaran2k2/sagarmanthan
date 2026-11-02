@@ -51,7 +51,7 @@ function StageDistributionChart({ data, onRootReady }) {
     series.data.setAll(sorted);
     chart.appear(600, 100);
     return () => { root.dispose(); onRootReady?.(null); };
-  }, [data]);
+  }, [data, onRootReady]);
   return <div ref={divRef} style={{ width: '100%', height: '100%', overflow: 'hidden' }} />;
 }
 
@@ -63,7 +63,6 @@ const WING_WISE_LEGEND = [
 
 function WingWiseChart({ data, onRootReady }) {
   const divRef = useRef(null);
-  const chartHeight = Math.max(200, 70 * (data?.length || 0) + 70);
   const rootRef = useRef(null);
   useLayoutEffect(() => {
     if (!divRef.current || !data?.length) return;
@@ -89,15 +88,14 @@ function WingWiseChart({ data, onRootReady }) {
         return am5.Bullet.new(root, { sprite: am5.Label.new(root, { text: '{valueX}', fill: am5.color(0xffffff), centerY: am5.p50, centerX: am5.p50, fontSize: 10, fontWeight: '600', populateText: true }) });
       });
       s.data.setAll(data);
-      return s;
     };
-    const s1 = makeSeries('in_progress', 'In Progress', 0x1e4d8c);
-    const s2 = makeSeries('cabinet_approved', 'Cabinet Approved', 0x3b8a4a);
-    const s3 = makeSeries('on_hold', 'On Hold', 0xb0bec5);
+    makeSeries('in_progress', 'In Progress', 0x1e4d8c);
+    makeSeries('cabinet_approved', 'Cabinet Approved', 0x3b8a4a);
+    makeSeries('on_hold', 'On Hold', 0xb0bec5);
     yAxis.data.setAll(data);
     chart.appear(600, 100);
     return () => { root.dispose(); onRootReady?.(null); };
-  }, [data]);
+  }, [data, onRootReady]);
   return <div ref={divRef} style={{ width: '100%', height: '100%', overflow: 'hidden' }} />;
 }
 
@@ -206,25 +204,26 @@ function TableExportMenu({ headers, data, fileName = 'export', title = 'Report' 
 }
 
 export default function CabinetNotesMopswDashboard() {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [distChartRoot, setDistChartRoot] = useState(null);
   const [wingChartRoot, setWingChartRoot] = useState(null);
   const [wings, setWings] = useState([]);
   const [selectedWing, setSelectedWing] = useState('All');
   const [wingDropdownOpen, setWingDropdownOpen] = useState(false);
 
-  const load = (wingId) => {
-    setLoading(true);
-    setError(null);
-    fetchCabinetMopswDashboard(wingId)
-      .then((res) => setData(res.data))
-      .catch(() => setError('Failed to load dashboard data.'))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => { load(selectedWing); }, [selectedWing]);
+  // Dashboard figures, tagged with the request they answer; Retry bumps reloadKey
+  const [reloadKey, setReloadKey] = useState(0);
+  const requestKey = `${selectedWing}:${reloadKey}`;
+  const [result, setResult] = useState(null); // { key, data, error }
+  useEffect(() => {
+    let cancelled = false;
+    fetchCabinetMopswDashboard(selectedWing)
+      .then((res) => { if (!cancelled) setResult({ key: requestKey, data: res.data, error: null }); })
+      .catch(() => { if (!cancelled) setResult({ key: requestKey, data: null, error: 'Failed to load dashboard data.' }); });
+    return () => { cancelled = true; };
+  }, [requestKey, selectedWing]);
+  const loading = result?.key !== requestKey;
+  const data = loading ? null : result.data;
+  const error = loading ? null : result.error;
 
   useEffect(() => {
     fetchWings()
@@ -259,7 +258,7 @@ export default function CabinetNotesMopswDashboard() {
   if (error) return (
     <div className="flex flex-col items-center justify-center py-20 gap-3">
       <p className="text-sm text-red-500">{error}</p>
-      <button onClick={() => load(selectedWing)} className="text-xs font-semibold text-[#6366f1] underline cursor-pointer">Retry</button>
+      <button onClick={() => setReloadKey((k) => k + 1)} className="text-xs font-semibold text-[#6366f1] underline cursor-pointer">Retry</button>
     </div>
   );
 

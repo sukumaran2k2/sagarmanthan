@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { openBackendFile } from '../../../utils/openBackendFile';
 import { Building2 } from 'lucide-react';
 import { API_BASE, fetchYpReport, fetchYpWingCandidates, fetchYPDivisionWiseCandidates, fetchYoungProfessionals } from '../api';
 import { useNotifier, getErrorMessage, toastError } from '../../../utils/notify';
@@ -423,9 +424,8 @@ export default function Reports({ triggerNotification }) {
             return (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', wordBreak: 'break-word', whiteSpace: 'normal' }}>
                 <a
-                  href={`${API_BASE}/download-yp-document?fileName=${encodeURIComponent(fileName)}`}
-                  target="_blank"
-                  rel="noreferrer"
+                  href="#"
+                  onClick={(e) => { e.preventDefault(); openBackendFile('/download-yp-document', { params: { fileName } }).catch((err) => console.error('Document could not be opened:', err)); }}
                   style={{
                     fontWeight: 600,
                     fontSize: 13,

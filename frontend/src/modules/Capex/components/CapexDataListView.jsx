@@ -1,5 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, Info, Filter, ChevronDown, X } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
+import { COMMON_TOASTS } from '../../../utils/notify';
+import { useCapexStore } from '../store/useCapexStore';
 import Table from '../../../components/Table';
 import TablePagination from '../../../components/TablePagination';
 import CopyButton from '../../../components/CopyButton';
@@ -38,8 +41,17 @@ export default function CapexDataListView({
   filterOrg,
   setFilterOrg,
   viewMode = 'ministry',
+  notify,
 }) {
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  // Filter panel and column choices live in the module store so they survive leaving the module
+  const { showFilterPanel, setShowFilterPanel, visibleCols, setVisibleCols } = useCapexStore(
+    useShallow((state) => ({
+      showFilterPanel: state.showFilterPanel,
+      setShowFilterPanel: state.setShowFilterPanel,
+      visibleCols: state.visibleCols,
+      setVisibleCols: state.setVisibleCols,
+    }))
+  );
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const colDropdownRef = useRef(null);
 
@@ -55,8 +67,6 @@ export default function CapexDataListView({
     [colDefs]
   );
 
-  const [visibleCols, setVisibleCols] = useState({});
-
   useEffect(() => {
     setVisibleCols((prev) => {
       const next = { ...prev };
@@ -69,7 +79,7 @@ export default function CapexDataListView({
       });
       return changed ? next : prev;
     });
-  }, [toggleableCols]);
+  }, [toggleableCols, setVisibleCols]);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -104,6 +114,7 @@ export default function CapexDataListView({
   const clearFilters = () => {
     setFilterYear?.('');
     if (viewMode !== 'org') setFilterOrg?.('');
+    notify?.(COMMON_TOASTS.filtersReset());
   };
 
   const displayColDefs = useMemo(
@@ -129,11 +140,7 @@ export default function CapexDataListView({
           <button
             type="button"
             onClick={() => setShowFilterPanel((prev) => !prev)}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
-              showFilterPanel || activeFiltersCount > 0
-                ? 'bg-blue-50 border-blue-300 text-[#0f417a] dark:bg-blue-950/50 dark:border-blue-700 dark:text-blue-300'
-                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200'
-            }`}
+            className={`module-filter-btn ${showFilterPanel || activeFiltersCount > 0 ? 'active' : ''}`}
           >
             <Filter size={14} className="text-[#0f417a] dark:text-blue-400" />
             <span>Filter</span>
@@ -168,7 +175,7 @@ export default function CapexDataListView({
               placeholder="Search organisation, year..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-8 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 focus:outline-none placeholder-slate-400 text-slate-800 dark:text-slate-200"
+              className="w-full module-search-input"
             />
             {searchTerm ? (
               <button

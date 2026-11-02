@@ -2,7 +2,7 @@
 import e from "express";
 import { pool } from "../../db.js";
 import { addLastUpdatedDate } from "./lastUpdatedDate.js";
-import { addLastUpdatedStagePC } from "./lastUpdatedStage.js";
+import { loadStageSnapshot, syncProjectStage } from "./projectStage.js";
 
 async function addActivityData(req, res) {
     const projectID = req.body.projectID;
@@ -18,8 +18,9 @@ async function addActivityData(req, res) {
     request.input("projectID", projectID);
     request.input("subProjectID", subProjectID);
     try {
+        const before = await loadStageSnapshot(projectID, subProjectID);
         let lastUpdatedStatus;
-        for (let p = 0; p < activityTab.length; p++) 
+        for (let p = 0; p < activityTab.length; p++)
         {
             let activityPlannedDate = activityTab[p].activityPlannedDate
             let activityActualDate = activityTab[p].activityActualDate
@@ -80,9 +81,6 @@ async function addActivityData(req, res) {
                 } else {
                     await request.query(`UPDATE tbl_sub_project SET sub_actual_date_of_completion = @activityActualDate WHERE sub_project_id = '${subProjectID}'`);
                 }
-                if (activityActualDate !== null) {
-                    const lastUpdatedStage = await addLastUpdatedStagePC(projectID, subProjectID, req, res);
-                }
             }
         }
 
@@ -103,6 +101,8 @@ async function addActivityData(req, res) {
                 sub_tentative_inauguration_date = @tentativeInaugurationDate
                 WHERE sub_project_id = @subProjectID`);
         }
+
+        await syncProjectStage(projectID, subProjectID, before);
 
         res.sendStatus(lastUpdatedStatus);
     }
@@ -191,6 +191,7 @@ async function addPhysicalProgress(req, res) {
     request.input("userID", userID);
 
     try {
+        const before = await loadStageSnapshot(projectID, subProjectID);
         let lastUpdatedStatus;
         const result = await request.query(`INSERT INTO tbl_project_physical_progress(project_id, sub_project_id, physical_progress, progress_date, updated_by) 
         VALUES(@projectID, @subProjectID, @progressValue, @progressDate, @userID);
@@ -261,7 +262,6 @@ async function addPhysicalProgress(req, res) {
             const result = await request.query(`UPDATE tbl_project_activity SET
                 end_date = @progressDate, updated_by = @userID, updated_date = getDate()
                 WHERE milestone_id = ${milestone} AND project_id = '${projectID}'`);
-                // console.log(progressDate, "progressDate")
         }
         else 
         {
@@ -280,10 +280,9 @@ async function addPhysicalProgress(req, res) {
                 } else {
                     await request.query(`UPDATE tbl_sub_project SET sub_actual_date_of_completion = @progressDate WHERE sub_project_id = '${subProjectID}'`);
                 }
-                if (progressDate !== null) {
-                    const lastUpdatedStage = await addLastUpdatedStagePC(projectID, subProjectID, req, res);
-                }
             }
+
+        await syncProjectStage(projectID, subProjectID, before);
 
         res.status(lastUpdatedStatus).json(result.recordset);
     } catch (err) {

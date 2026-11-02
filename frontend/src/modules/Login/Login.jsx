@@ -201,28 +201,12 @@ export default function LoginView({ onLogin }) {
       return;
     }
 
-    // First fetch the user list to find the matching userID
+    // The server finds the account by email and checks the emailed code as the current password
     axios
-      .get(`${API_BASE_URL}/userlist`)
-      .then((userListRes) => {
-        const users = userListRes.data || [];
-        const matchedUser = users.find(
-          (u) => u.email.toLowerCase() === forgotEmail.toLowerCase(),
-        );
-
-        if (!matchedUser) {
-          dispatch({ type: 'VERIFY_OTP_FAILURE', error: "User not found." });
-          return;
-        }
-
-        // Send request with userID and loginUser properties
-        return axios.put(`${API_BASE_URL}/edit-password`, {
-          userID: matchedUser.user_id,
-          email: forgotEmail,
-          loginUser: matchedUser.name,
-          oldPassword: encryptedOld,
-          newPassword: encryptedNew,
-        });
+      .put(`${API_BASE_URL}/edit-password`, {
+        email: forgotEmail,
+        oldPassword: encryptedOld,
+        newPassword: encryptedNew,
       })
       .then((res) => {
         if (res) {

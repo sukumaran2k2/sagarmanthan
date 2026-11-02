@@ -43,6 +43,17 @@ export function getSessionOrganisationId() {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+/**
+ * mmt_organisation_category id of the user's organisation (1 = Major Ports). undefined when the
+ * token predates the claim; null when the organisation has no category.
+ */
+export function getSessionOrganisationCategoryId() {
+  const claims = getSessionClaims();
+  if (!claims || !('organisationCategoryId' in claims)) return undefined;
+  const n = Number(claims.organisationCategoryId);
+  return claims.organisationCategoryId != null && Number.isFinite(n) ? n : null;
+}
+
 export function getSessionOrganisationName() {
   const claims = getSessionClaims();
   return claims?.organisationName || claims?.organisation_name || null;

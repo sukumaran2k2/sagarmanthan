@@ -7,7 +7,7 @@ import { useCachedRequest } from '../usePagedList';
 import { RefreshBar } from '../components/ListToolbar';
 import { describePeriod } from './dashboardConfig';
 import {
-  DRILL_PART, YOY_BG, cargoToggleFor, cargoWiseTitle, drillTitle, drillUnit, splitDrillRows, yoyCellStyle,
+  DASHBOARD_TABLE_THEME, DRILL_PART, YOY_BG, cargoToggleFor, cargoWiseTitle, drillTitle, drillUnit, splitDrillRows, yoyCellStyle,
 } from './drillConfig';
 
 const DEFAULT_COL_DEF = { sortable: true, filter: true, resizable: true, minWidth: 100, cellClass: 'text-center', headerClass: 'text-center' };
@@ -32,13 +32,30 @@ function valueFormatterFor(type, kpi, field) {
 
 export function YoyLegend() {
   return (
-    <div className="ml-auto w-fit flex flex-col gap-2 px-4 py-3 border border-[#d5dce5] dark:border-slate-700 rounded-md bg-white dark:bg-slate-900 shadow-sm">
+    <div className="ml-auto w-fit flex flex-wrap items-center gap-x-5 gap-y-1.5 px-4 py-2.5 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 shadow-sm">
       {[['up', 'Positive Value — Above Target'], ['down', 'Negative Value — Below Target']].map(([key, text]) => (
-        <span key={key} className="flex items-center gap-2.5 text-sm font-medium text-[#29476b] dark:text-slate-200">
-          <span className="h-6 w-6 rounded" style={{ backgroundColor: YOY_BG[key] }} aria-hidden="true" />
+        <span key={key} className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+          <span className="h-3 w-3 rounded-sm" style={{ backgroundColor: YOY_BG[key] }} aria-hidden="true" />
           {text}
         </span>
       ))}
+    </div>
+  );
+}
+
+/** Title bar of a "Detail of KPI" page, in the shared dashboard theme, with a Back button. */
+export function DrillHeader({ title, onBack }) {
+  return (
+    <div className="rounded-2xl bg-gradient-to-r from-[#1e1b4b] to-[#6366f1] px-4 py-3 flex items-center gap-3 shadow-sm">
+      <button
+        type="button"
+        onClick={onBack}
+        aria-label="Back"
+        className="flex items-center justify-center w-8 h-8 rounded-lg text-white/90 hover:bg-white/10 transition cursor-pointer"
+      >
+        <ArrowLeft className="h-4 w-4" />
+      </button>
+      <h2 className="flex-1 text-xs md:text-sm font-black text-white uppercase tracking-wider">{title}</h2>
     </div>
   );
 }
@@ -130,21 +147,9 @@ export default function KpiDrillDown({ drill, filters, labels, onBack, onOpenCar
   const toggle = !isCargoWise ? cargoToggleFor(drill.type, drill.kpi) : null;
 
   return (
-    <div className="module-card relative space-y-4 animate-fade-in overflow-hidden">
+    <div className="relative space-y-4 animate-fade-in">
       <RefreshBar active={refreshing && !loading} />
-      <div className="rounded-lg px-4 py-3 bg-gradient-to-tl from-[#a3d9e8] to-[#bbd0d3] dark:from-slate-800 dark:to-slate-700 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={onBack}
-          aria-label="Back"
-          className="p-1.5 rounded-lg text-[#0c3c6b] dark:text-slate-100 hover:bg-white/40 cursor-pointer"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </button>
-        <h2 className="flex-1 text-center text-xl md:text-[28px] font-extrabold text-[#0c3c6b] dark:text-slate-50">
-          Detail of KPI Traffic &amp; Port Performance
-        </h2>
-      </div>
+      <DrillHeader title="Detail of KPI Traffic & Port Performance" onBack={onBack} />
 
       {!isCargoWise ? <YoyLegend /> : null}
 
@@ -166,16 +171,12 @@ export default function KpiDrillDown({ drill, filters, labels, onBack, onOpenCar
             <button
               type="button"
               onClick={() => onOpenCargoWise(toggle.cargo)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-[9px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[13px] font-semibold text-[#4b2424] dark:text-slate-200 hover:bg-[#f7f3f3] dark:hover:bg-slate-800 transition cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 text-xs font-bold text-[#4f46e5] dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition cursor-pointer"
             >
               {toggle.label}
             </button>
           ) : null}
-          themeClass="yp-pro-grid"
-          brandColor="#4b2424"
-          brandColorHover="#6b3535"
-          accentColor="#f7f3f3"
-          oddRowColor="#f8faf6"
+          {...DASHBOARD_TABLE_THEME}
         />
       </div>
     </div>
