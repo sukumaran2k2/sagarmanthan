@@ -5,6 +5,10 @@ export function fetchVIPReferences(params = {}, config = {}) {
   return axiosInstance.get('/vip-reference', { params, ...config });
 }
 
+export function fetchVIPReferenceDashboard() {
+  return axiosInstance.get('/vip-reference-dashboard');
+}
+
 export function fetchVIPReferenceById(id) {
   return axiosInstance.get(`/vip-reference/${id}`);
 }
@@ -29,10 +33,6 @@ export function fetchWings() {
 
 export function fetchDivisions() {
   return axiosInstance.get('/mmt-dropdown/mmt_division');
-}
-
-export function fetchVIPStages() {
-  return axiosInstance.get('/mmt-dropdown/mmt_vip_stage');
 }
 
 // ── Abstract Reports ──

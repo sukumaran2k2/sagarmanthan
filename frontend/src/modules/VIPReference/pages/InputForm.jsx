@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, Save, AlertCircle, CheckCircle2, Calendar, FileText } from 'lucide-react';
-import { createVIPReference, updateVIPReference } from '../api';
 import { STAGE_STEPS as STATUS_STEPS } from '../utils/constants';
+import useVIPReferenceStore from '../store/vipReferenceStore';
 
 // Schema Constraints Definitions
 const SCHEMA_LIMITS = {
@@ -9,78 +9,104 @@ const SCHEMA_LIMITS = {
   eofficeFile: { max: 50 },
   refNumber: { max: 256 },
   receivedFrom: { max: 256 },
-  remarks: { maxWords: 250, maxChars: 2000 }
+  remarks: { maxWords: 250, maxChars: 2000 },
 };
 
-const addDays = (dateStr, days) => {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  const dt = new Date(y, m - 1, d);
-  dt.setDate(dt.getDate() + days);
+const EMPTY_STAGES = () => ({
+  1: { date: '', remark: '' },
+  2: { date: '', remark: '' },
+  3: { date: '', remark: '' },
+  4: { date: '', remark: '' },
+  5: { date: '', remark: '' },
+  6: { date: '', remark: '' },
+});
+
+const EMPTY_TOUCHED = () => ({
+  subject: false,
+  eofficeFile: false,
+  wing: false,
+  division: false,
+  refNumber: false,
+  receivedFrom: false,
+  remarks: false,
+  stage1: false,
+});
+
+// Local-time YYYY-MM-DD (avoids the UTC shift of toISOString)
+const formatLocalDate = (dt) => {
   const yyyy = dt.getFullYear();
   const mm = String(dt.getMonth() + 1).padStart(2, '0');
   const dd = String(dt.getDate()).padStart(2, '0');
   return `${yyyy}-${mm}-${dd}`;
 };
 
+const addDays = (dateStr, days) => {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + days);
+  return formatLocalDate(dt);
+};
+
+const getWordCount = (text) => (text.trim() ? text.trim().split(/\s+/).length : 0);
+
+const getUserIdFromToken = () => {
+  const token = localStorage.getItem('accessToken');
+  if (token) {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return Number(payload.userId) || 1;
+    } catch (e) {
+      console.error('Error parsing token', e);
+    }
+  }
+  return 1;
+};
+
 export default function InputForm({
-  editData = null,
-  wings = [],
-  divisions = [],
+  editData: editDataProp, // optional - falls back to the store's editData
   onBack,
   onSuccess,
-  triggerNotification
+  triggerNotification,
 }) {
+  // ---------- Zustand store ----------
+  const storeEditData = useVIPReferenceStore((s) => s.editData);
+  const wings = useVIPReferenceStore((s) => s.wings);
+  const divisions = useVIPReferenceStore((s) => s.divisions);
+  const fetchDropdowns = useVIPReferenceStore((s) => s.fetchDropdowns);
+  const createVIPReference = useVIPReferenceStore((s) => s.createVIPReference);
+  const updateVIPReference = useVIPReferenceStore((s) => s.updateVIPReference);
+  const clearEditData = useVIPReferenceStore((s) => s.clearEditData);
+
+  // A prop (including an explicit null) wins; otherwise use the store
+  const editData = editDataProp !== undefined ? editDataProp : storeEditData;
   const isEdit = !!editData;
+
+  // Make sure dropdown data is available even if the parent didn't load it
+  useEffect(() => {
+    if (wings.length === 0 || divisions.length === 0) {
+      fetchDropdowns();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchDropdowns]);
+
   const [submitting, setSubmitting] = useState(false);
 
-  const getUserIdFromToken = () => {
-    const token = localStorage.getItem('accessToken');
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        return Number(payload.userId) || 1;
-      } catch (e) {
-        console.error("Error parsing token", e);
-      }
-    }
-    return 1;
-  };
+  // ---------- Form fields ----------
+  const [subject, setSubject] = useState('');
+  const [eofficeFile, setEofficeFile] = useState('');
+  const [wing, setWing] = useState('');
+  const [division, setDivision] = useState('');
+  const [refNumber, setRefNumber] = useState('');
+  const [receivedFrom, setReceivedFrom] = useState('');
+  const [remarks, setRemarks] = useState('');
+  const [deadline, setDeadline] = useState('');
+  const [stages, setStages] = useState(EMPTY_STAGES());
 
-  // Form Fields matching tbl_vip_reference_change schema types
-  const [subject, setSubject] = useState(''); // nvarchar(MAX)
-  const [eofficeFile, setEofficeFile] = useState(''); // nvarchar(50)
-  const [wing, setWing] = useState(''); // int (FK)
-  const [division, setDivision] = useState(''); // int (FK)
-  const [refNumber, setRefNumber] = useState(''); // nvarchar(256)
-  const [receivedFrom, setReceivedFrom] = useState(''); // nvarchar(256)
-  const [remarks, setRemarks] = useState(''); // nvarchar(MAX)
-  const [deadline, setDeadline] = useState(''); // date
-
-  // Milestone Stages (date YYYY-MM-DD + optional stage remark)
-  const [stages, setStages] = useState({
-    1: { date: '', remark: '' }, // received_at_ministry_date
-    2: { date: '', remark: '' }, // submitted_for_approval_date
-    3: { date: '', remark: '' }, // comments_sought_date
-    4: { date: '', remark: '' }, // comments_received_date
-    5: { date: '', remark: '' }, // reply_furnished_date
-    6: { date: '', remark: '' }  // disposed_date
-  });
-
-  // Validation States
-  const [touched, setTouched] = useState({
-    subject: false,
-    eofficeFile: false,
-    wing: false,
-    division: false,
-    refNumber: false,
-    receivedFrom: false,
-    remarks: false,
-    stage1: false
-  });
-
+  // Validation state
+  const [touched, setTouched] = useState(EMPTY_TOUCHED());
   const [formSubmitted, setFormSubmitted] = useState(false);
 
-  // Track initial values for dirty checks in Edit mode
+  // Initial values for dirty check (edit mode)
   const [initialValues, setInitialValues] = useState({
     subject: '',
     eofficeFile: '',
@@ -90,196 +116,112 @@ export default function InputForm({
     receivedFrom: '',
     remarks: '',
     deadline: '',
-    stages: {
-      1: { date: '', remark: '' },
-      2: { date: '', remark: '' },
-      3: { date: '', remark: '' },
-      4: { date: '', remark: '' },
-      5: { date: '', remark: '' },
-      6: { date: '', remark: '' }
-    }
+    stages: EMPTY_STAGES(),
   });
 
- useEffect(() => {
-  let initSubject = '';
-  let initEofficeFile = '';
-  let initWing = '';
-  let initDivision = '';
-  let initRefNumber = '';
-  let initReceivedFrom = '';
-  let initRemarks = '';
-  let initDeadline = '';
-
-  let initStages = {
-    1: { date: '', remark: '' },
-    2: { date: '', remark: '' },
-    3: { date: '', remark: '' },
-    4: { date: '', remark: '' },
-    5: { date: '', remark: '' },
-    6: { date: '', remark: '' }
-  };
-
-  if (editData) {
-
-    initSubject = editData.subject || '';
-    initEofficeFile = editData.eofficeFile || '';
-    initRefNumber = editData.refNumber || '';
-    initReceivedFrom = editData.receivedFrom || '';
-    initRemarks = editData.remarks || '';
-    initDeadline = editData.deadline || '';
-
-    const matchedWing = wings.find(
-      w =>
-        String(w.wing_id) === String(editData.wing) ||
-        String(w.wing_name).trim().toLowerCase() ===
-          String(editData.wing).trim().toLowerCase()
-    );
-
-    if (matchedWing) {
-      initWing = String(matchedWing.wing_id);
-    }
-
-    const matchedDivision = divisions.find(
-      d =>
-        String(d.division_id) === String(editData.division) ||
-        String(d.division_name).trim().toLowerCase() ===
-          String(editData.division).trim().toLowerCase()
-    );
-
-    if (matchedDivision) {
-      initDivision = String(matchedDivision.division_id);
-    }
-
-    initStages = {
-      1: {
-        date: editData.statusDates?.[1] || '',
-        remark: editData.statusRemarks?.[1] || ''
-      },
-      2: {
-        date: editData.statusDates?.[2] || '',
-        remark: editData.statusRemarks?.[2] || ''
-      },
-      3: {
-        date: editData.statusDates?.[3] || '',
-        remark: editData.statusRemarks?.[3] || ''
-      },
-      4: {
-        date: editData.statusDates?.[4] || '',
-        remark: editData.statusRemarks?.[4] || ''
-      },
-      5: {
-        date: editData.statusDates?.[5] || '',
-        remark: editData.statusRemarks?.[5] || ''
-      },
-      6: {
-        date: editData.statusDates?.[6] || '',
-        remark: editData.statusRemarks?.[6] || ''
-      }
-    };
-  } else {
-
-    initWing = '';
-   initDivision = '';
-
-    initStages = {
-      1: {
-        date: new Date().toISOString().split('T')[0],
-        remark: ''
-      },
-      2: { date: '', remark: '' },
-      3: { date: '', remark: '' },
-      4: { date: '', remark: '' },
-      5: { date: '', remark: '' },
-      6: { date: '', remark: '' }
-    };
-
-    // Deadline = Stage 1 + 15 days
-    const d = new Date();
-    d.setDate(d.getDate() + 15);
-    initDeadline = d.toISOString().split('T')[0];
-  }
-
-  setSubject(initSubject);
-  setEofficeFile(initEofficeFile);
-  setWing(initWing);
-  setDivision(initDivision);
-  setRefNumber(initRefNumber);
-  setReceivedFrom(initReceivedFrom);
-  setRemarks(initRemarks);
-  setDeadline(initDeadline);
-  setStages(initStages);
-
-  setInitialValues({
-    subject: initSubject,
-    eofficeFile: initEofficeFile,
-    wing: initWing,
-    division: initDivision,
-    refNumber: initRefNumber,
-    receivedFrom: initReceivedFrom,
-    remarks: initRemarks,
-    deadline: initDeadline,
-    stages: initStages
-  });
-
-  setTouched({
-    subject: false,
-    eofficeFile: false,
-    wing: false,
-    division: false,
-    refNumber: false,
-    receivedFrom: false,
-    remarks: false,
-    stage1: false
-  });
-
-  setFormSubmitted(false);
-
-}, [editData, wings, divisions]);
-
-    const filteredDivisions = useMemo(() => {
-      if (!wing) {
-        return [];
-      }
-
-      return divisions.filter(
-        d => String(d.wing_id) === String(wing)
-      );
-
-    }, [wing, divisions]);
-
+  // ---------- Populate form (edit) or defaults (new) ----------
   useEffect(() => {
-  if (!wing) {
-    setDivision('');
-    return;
-  }
+    let initSubject = '';
+    let initEofficeFile = '';
+    let initWing = '';
+    let initDivision = '';
+    let initRefNumber = '';
+    let initReceivedFrom = '';
+    let initRemarks = '';
+    let initDeadline = '';
+    let initStages = EMPTY_STAGES();
 
-  if (filteredDivisions.length === 0) {
-    setDivision('');
-    return;
-  }
+    if (editData) {
+      initSubject = editData.subject || '';
+      initEofficeFile = editData.eofficeFile || '';
+      initRefNumber = editData.refNumber || '';
+      initReceivedFrom = editData.receivedFrom || '';
+      initRemarks = editData.remarks || '';
+      initDeadline = editData.deadline || '';
 
-  const divisionExists = filteredDivisions.some(
-    d => String(d.division_id) === String(division)
-  );
+      const editWingValue = String(editData.wing || '').trim().toLowerCase();
+      const matchedWing = wings.find(
+        (w) =>
+          String(w.wing_id) === String(editData.wing) ||
+          String(w.wing_name || '').trim().toLowerCase() === editWingValue
+      );
+      if (matchedWing) {
+        initWing = String(matchedWing.wing_id);
+      }
 
-  if (!divisionExists) {
-    setDivision('');
-  }
+      const editDivisionValue = String(editData.division || '').trim().toLowerCase();
+      const matchedDivision = divisions.find(
+        (d) =>
+          String(d.wing_id) === String(initWing) &&
+          (String(d.division_id) === String(editData.division) ||
+            String(d.division_name || '').trim().toLowerCase() === editDivisionValue)
+      );
+      if (matchedDivision) {
+        initDivision = String(matchedDivision.division_id);
+      }
 
-}, [wing, filteredDivisions]);
+      for (let i = 1; i <= 6; i++) {
+        initStages[i] = {
+          date: editData.statusDates?.[i] || '',
+          remark: editData.statusRemarks?.[i] || '',
+        };
+      }
+    } else {
+      // Default deadline = today + 15 days (updated when Stage 1 date is chosen)
+      initDeadline = addDays(formatLocalDate(new Date()), 15);
+    }
+
+    setSubject(initSubject);
+    setEofficeFile(initEofficeFile);
+    setWing(initWing);
+    setDivision(initDivision);
+    setRefNumber(initRefNumber);
+    setReceivedFrom(initReceivedFrom);
+    setRemarks(initRemarks);
+    setDeadline(initDeadline);
+    setStages(initStages);
+
+    setInitialValues({
+      subject: initSubject,
+      eofficeFile: initEofficeFile,
+      wing: initWing,
+      division: initDivision,
+      refNumber: initRefNumber,
+      receivedFrom: initReceivedFrom,
+      remarks: initRemarks,
+      deadline: initDeadline,
+      stages: initStages,
+    });
+
+    setTouched(EMPTY_TOUCHED());
+    setFormSubmitted(false);
+  }, [editData, wings, divisions]);
+
+  // ---------- Wing / Division ----------
+  const filteredDivisions = useMemo(() => {
+    if (!wing) return [];
+    return divisions.filter((d) => String(d.wing_id) === String(wing));
+  }, [wing, divisions]);
+
+  // Clear division if it doesn't belong to the selected wing
+  useEffect(() => {
+    if (!wing || divisions.length === 0) return;
+
+    const divisionExists = divisions.some(
+      (d) => String(d.wing_id) === String(wing) && String(d.division_id) === String(division)
+    );
+    if (!divisionExists) {
+      setDivision('');
+    }
+  }, [wing, division, divisions]);
 
   const handleWingChange = (e) => {
-    const selectedWingId = e.target.value;
-
-    setWing(selectedWingId);
-
-    // Clear division immediately.
+    setWing(e.target.value);
     setDivision('');
   };
 
-
-  // Track if any field was changed (for edit mode enabling)
-    const isDirty = useMemo(() => {
+  // ---------- Dirty check ----------
+  const isDirty = useMemo(() => {
     if (subject !== initialValues.subject) return true;
     if (eofficeFile !== initialValues.eofficeFile) return true;
     if (wing !== initialValues.wing) return true;
@@ -290,59 +232,28 @@ export default function InputForm({
     if (deadline !== initialValues.deadline) return true;
 
     for (let i = 1; i <= 6; i++) {
-      if (
-        stages[i].date !==
-        initialValues.stages[i].date
-      ) {
-        return true;
-      }
-
-      if (
-        stages[i].remark !==
-        initialValues.stages[i].remark
-      ) {
-        return true;
-      }
+      if (stages[i].date !== initialValues.stages[i].date) return true;
+      if (stages[i].remark !== initialValues.stages[i].remark) return true;
     }
-
     return false;
+  }, [subject, eofficeFile, wing, division, refNumber, receivedFrom, remarks, deadline, stages, initialValues]);
 
-  }, [
-    subject,
-    eofficeFile,
-    wing,
-    division,
-    refNumber,
-    receivedFrom,
-    remarks,
-    deadline,
-    stages,
-    initialValues
-  ]);
+  const todayStr = useMemo(() => formatLocalDate(new Date()), []);
 
-  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
-
-  // Compute min/max limits for chronological stage dates (schema: date format)
+  // Min/max limits for chronological stage dates
   const getDateLimits = (stageNum) => {
-    let min = undefined;
-    let max = todayStr;
-
+    let min;
+    const max = todayStr;
     if (stageNum > 1 && stages[stageNum - 1]?.date) {
       min = stages[stageNum - 1].date;
     }
-
     return { min, max };
   };
 
-  const getWordCount = (text) => {
-    return text.trim() ? text.trim().split(/\s+/).length : 0;
-  };
-
-  // Schema-Aligned Data Validation
+  // ---------- Validation ----------
   const validationErrors = useMemo(() => {
     const errs = {};
 
-    // 1. subject: nvarchar(MAX), required, min 3 chars, max 2000 chars
     const trimmedSubject = subject.trim();
     if (!trimmedSubject) {
       errs.subject = 'Subject of VIP Reference is required.';
@@ -352,7 +263,6 @@ export default function InputForm({
       errs.subject = `Subject cannot exceed ${SCHEMA_LIMITS.subject.max} characters.`;
     }
 
-    // 2. eoffice_file_number: nvarchar(50), required
     const trimmedEoffice = eofficeFile.trim();
     if (!trimmedEoffice) {
       errs.eofficeFile = 'E-Office File Number is required.';
@@ -360,17 +270,9 @@ export default function InputForm({
       errs.eofficeFile = `E-Office File Number cannot exceed ${SCHEMA_LIMITS.eofficeFile.max} characters.`;
     }
 
-    // 3. wing: int, required FK
-    if (!wing) {
-      errs.wing = 'Concerned Wing must be selected.';
-    }
+    if (!wing) errs.wing = 'Concerned Wing must be selected.';
+    if (!division) errs.division = 'Concerned Division must be selected.';
 
-    // 4. division: int, required FK
-    if (!division) {
-      errs.division = 'Concerned Division must be selected.';
-    }
-
-    // 5. ref_letter_num: nvarchar(256), required
     const trimmedRefNum = refNumber.trim();
     if (!trimmedRefNum) {
       errs.refNumber = 'Reference Letter Number is required.';
@@ -378,7 +280,6 @@ export default function InputForm({
       errs.refNumber = `Reference Letter Number cannot exceed ${SCHEMA_LIMITS.refNumber.max} characters.`;
     }
 
-    // 6. received_from: nvarchar(256), required
     const trimmedReceivedFrom = receivedFrom.trim();
     if (!trimmedReceivedFrom) {
       errs.receivedFrom = 'Received From (Sender) is required.';
@@ -386,7 +287,6 @@ export default function InputForm({
       errs.receivedFrom = `Received From cannot exceed ${SCHEMA_LIMITS.receivedFrom.max} characters.`;
     }
 
-    // 7. remarks: nvarchar(MAX), required, max 250 words / max 2000 chars
     const trimmedRemarks = remarks.trim();
     if (!trimmedRemarks) {
       errs.remarks = 'General Remarks is required.';
@@ -396,14 +296,12 @@ export default function InputForm({
       errs.remarks = `Remarks cannot exceed ${SCHEMA_LIMITS.remarks.maxChars} characters.`;
     }
 
-    // 8. received_at_ministry_date: date, required, <= today
     if (!stages[1]?.date) {
       errs.stage1 = 'Stage 1 (Received at Ministry) date is required.';
     } else if (stages[1].date > todayStr) {
       errs.stage1 = 'Received at Ministry date cannot be in the future.';
     }
 
-    // 9. Chronological validation for stage 2 to 6 dates
     for (let i = 2; i <= 6; i++) {
       if (stages[i]?.date) {
         if (stages[i].date > todayStr) {
@@ -421,18 +319,15 @@ export default function InputForm({
   const isFormValid = Object.keys(validationErrors).length === 0;
 
   const handleStageChange = (num, field, val) => {
-    setStages(prev => {
-      const updated = { ...prev };
-      updated[num] = {
-        ...updated[num],
-        [field]: val
-      };
+    // Side effect kept out of the state updater
+    if (num === 1 && field === 'date' && val) {
+      setDeadline(addDays(val, 15));
+    }
 
-      if (num === 1 && field === 'date' && val) {
-        setDeadline(addDays(val, 15));
-      }
+    setStages((prev) => {
+      const updated = { ...prev, [num]: { ...prev[num], [field]: val } };
 
-      // Cascade clear later stages if an earlier stage is cleared
+      // Cascade-clear later stages if an earlier stage date is cleared
       if (field === 'date' && !val) {
         for (let i = num + 1; i <= 6; i++) {
           updated[i] = { date: '', remark: '' };
@@ -442,14 +337,31 @@ export default function InputForm({
     });
   };
 
-  const handleBlur = (field) => {
-    setTouched(prev => ({ ...prev, [field]: true }));
+  const handleBlur = (field) => setTouched((prev) => ({ ...prev, [field]: true }));
+
+  const shouldShowError = (field) => (touched[field] || formSubmitted) && !!validationErrors[field];
+
+  const handleBack = () => {
+    clearEditData();
+    onBack?.();
   };
 
-  const shouldShowError = (field) => {
-    return (touched[field] || formSubmitted) && !!validationErrors[field];
+  const FIELD_LABELS = {
+    subject: 'Subject of VIP Reference',
+    eofficeFile: 'E-Office File Number',
+    wing: 'Wing',
+    division: 'Division',
+    refNumber: 'Reference Letter Number',
+    receivedFrom: 'Received From',
+    remarks: 'General Remarks',
+    stage1: 'Stage 1 date (Received at Ministry)',
+    stage2: 'Stage 2 date',
+    stage3: 'Stage 3 date',
+    stage4: 'Stage 4 date',
+    stage5: 'Stage 5 date',
+    stage6: 'Stage 6 date',
   };
-
+  // ---------- Submit ----------
   const handleSubmit = async (e) => {
     e.preventDefault();
     setFormSubmitted(true);
@@ -462,91 +374,115 @@ export default function InputForm({
       refNumber: true,
       receivedFrom: true,
       remarks: true,
-      stage1: true
+      stage1: true,
     });
 
+   
     if (!isFormValid) {
-      const errorCount = Object.keys(validationErrors).length;
+      const invalidFields = Object.keys(validationErrors);
+
+      const messages = invalidFields.map((key) => {
+        const label = FIELD_LABELS[key] || key;
+
+        if (key === 'wing' || key === 'division') {
+          return `Please select ${label}.`;
+        }
+        if (key.startsWith('stage')) {
+          return `Please select ${label}.`;
+        }
+        return `Please enter ${label}.`;
+      });
+
       triggerNotification?.(
-        `Please correct the ${errorCount} schema validation error(s) before saving.`,
-        "warning"
+        messages.join('\n'),
+        'warning'
       );
+
       return;
     }
-
     setSubmitting(true);
-
-    const wingId = Number(wing);
-    const divisionId = Number(division);
 
     let selectedStage = 1;
     for (let i = 1; i <= 6; i++) {
-      if (stages[i].date) {
-        selectedStage = i;
-      }
+      if (stages[i].date) selectedStage = i;
     }
 
-    // Payload structured to exactly match backend request & SQL schema datatypes
     const payload = {
       vipSubject: subject.trim(),
       eofficeFileNumber: eofficeFile.trim(),
-      wing: wingId,
-      division: divisionId,
+      wing: Number(wing),
+      division: Number(division),
       referenceLetterNumber: refNumber.trim(),
       receivedFrom: receivedFrom.trim(),
-      // Stage 1
+
       vipReceivedMinistryDate: stages[1].date || '',
       vipReceivedMinistryRemark: stages[1].remark || '',
 
-      // Stage 2
       vipSubmittedForApprovalDate: stages[2].date || '',
       vipSubmittedForApprovalRemark: stages[2].remark || '',
 
-      // Stage 3
       vipCommentsSoughtDate: stages[3].date || '',
       vipCommentsSoughtRemark: stages[3].remark || '',
 
-      // Stage 4
       vipCommentsReceivedDate: stages[4].date || '',
       vipCommentsReceivedRemark: stages[4].remark || '',
 
-      // Stage 5
       vipReplyFurnishedDate: stages[5].date || '',
       vipReplyFurnishedRemark: stages[5].remark || '',
 
-      // Stage 6
       vipDisposedDate: stages[6].date || '',
       vipDisposedRemark: stages[6].remark || '',
+
       vipRemarks: remarks.trim(),
-      selectedStage: Number(selectedStage), // int
-      deadline: deadline || null, // date
-      userID: getUserIdFromToken() // int
+      selectedStage: Number(selectedStage),
+      deadline: deadline || null,
+      userID: getUserIdFromToken(),
     };
 
     try {
       if (isEdit) {
         payload.vipReferenceID = Number(editData.id);
-        await updateVIPReference(payload);
+        await updateVIPReference(payload); // store refetches the list afterwards
       } else {
-        await createVIPReference(payload);
+        await createVIPReference(payload); // store refetches the list afterwards
       }
+
       triggerNotification?.(
-        isEdit ? "VIP Reference updated successfully." : "New VIP Reference registered successfully.",
-        "success"
+        isEdit ? 'VIP Reference updated successfully.' : 'New VIP Reference registered successfully.',
+        'success'
       );
+      clearEditData();
       onSuccess?.();
       onBack?.();
     } catch (err) {
-      console.error("Error saving VIP reference:", err);
-      triggerNotification?.(err.response?.data?.message || "Failed to save VIP reference.", "error");
+      console.error('Error saving VIP reference:', err);
+      triggerNotification?.(err.response?.data?.message || 'Failed to save VIP reference.', 'error');
     } finally {
       setSubmitting(false);
     }
   };
 
+  // ---------- Shared style helpers ----------
+  const fieldClass = (field) =>
+    `w-full text-xs px-3.5 py-2.5 bg-slate-50 border rounded-xl focus:outline-none font-semibold text-slate-700 dark:bg-slate-950 dark:text-slate-200 transition-all ${
+      shouldShowError(field)
+        ? 'border-rose-500 ring-1 ring-rose-500 bg-rose-50/20 dark:border-rose-500'
+        : 'border-slate-200 focus:border-[#0f417a] dark:border-slate-800'
+    }`;
+
+  const labelClass =
+    'block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider';
+
+  const FieldError = ({ field }) =>
+    shouldShowError(field) ? (
+      <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+        <AlertCircle className="h-3 w-3 inline flex-shrink-0" />
+        <span>{validationErrors[field]}</span>
+      </p>
+    ) : null;
+
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in">
-      
       {/* Header Banner */}
       <div className="bg-gradient-to-r from-[#0f417a] to-[#1e5ea8] px-6 py-4 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
         <div>
@@ -554,10 +490,12 @@ export default function InputForm({
             <FileText className="h-4 w-4" />
             <span>{isEdit ? 'UPDATE VIP REFERENCE' : 'REGISTER NEW VIP REFERENCE'}</span>
           </h3>
-          <p className="text-[10px] text-blue-200 font-semibold tracking-wide mt-0.5">Ministry of Ports, Shipping and Waterways</p>
+          <p className="text-[10px] text-blue-200 font-semibold tracking-wide mt-0.5">
+            Ministry of Ports, Shipping and Waterways
+          </p>
         </div>
         <button
-          onClick={onBack}
+          onClick={handleBack}
           type="button"
           className="flex items-center space-x-1.5 text-xs font-bold bg-white/10 hover:bg-white/20 text-white px-3.5 py-2 rounded-xl transition cursor-pointer"
         >
@@ -567,13 +505,14 @@ export default function InputForm({
       </div>
 
       <form onSubmit={handleSubmit} className="p-6" noValidate>
-
         {/* Global Validation Error Banner */}
         {formSubmitted && !isFormValid && (
           <div className="mb-6 p-4 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 rounded-xl flex items-start space-x-3 animate-fade-in">
             <AlertCircle className="h-5 w-5 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5" />
             <div>
-              <h4 className="text-xs font-bold text-rose-800 dark:text-rose-300">Please correct the following errors before submitting:</h4>
+              <h4 className="text-xs font-bold text-rose-800 dark:text-rose-300">
+                Please correct the following errors before submitting:
+              </h4>
               <ul className="mt-1 list-disc list-inside text-xs text-rose-700 dark:text-rose-400 space-y-0.5">
                 {Object.values(validationErrors).map((msg, i) => (
                   <li key={i}>{msg}</li>
@@ -584,14 +523,12 @@ export default function InputForm({
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          
-          {/* Left Panel: Primary Stationary Fields matching SQL Types */}
+          {/* Left Panel */}
           <div className="lg:col-span-5 space-y-4 pr-0 lg:pr-2">
-            
-            {/* Subject Field (nvarchar(MAX)) */}
+            {/* Subject */}
             <div className="space-y-1.5">
               <div className="flex justify-between items-center">
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                <label className={labelClass}>
                   Subject of VIP Reference <span className="text-rose-500">*</span>
                 </label>
                 <span className="text-[10px] text-slate-400 font-semibold">
@@ -601,28 +538,19 @@ export default function InputForm({
               <textarea
                 value={subject}
                 maxLength={SCHEMA_LIMITS.subject.max}
-                onChange={e => setSubject(e.target.value)}
+                onChange={(e) => setSubject(e.target.value)}
                 onBlur={() => handleBlur('subject')}
                 placeholder="Details of the VIP communication..."
                 rows={3}
-                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border rounded-xl focus:outline-none font-semibold text-slate-700 dark:bg-slate-950 dark:text-slate-200 transition-all ${
-                  shouldShowError('subject')
-                    ? 'border-rose-500 ring-1 ring-rose-500 bg-rose-50/20 dark:border-rose-500'
-                    : 'border-slate-200 focus:border-[#0f417a] dark:border-slate-800'
-                }`}
+                className={fieldClass('subject')}
               />
-              {shouldShowError('subject') && (
-                <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
-                  <AlertCircle className="h-3 w-3 inline flex-shrink-0" />
-                  <span>{validationErrors.subject}</span>
-                </p>
-              )}
+              <FieldError field="subject" />
             </div>
 
-            {/* E-Office File Number (nvarchar(50)) */}
+            {/* E-Office File Number */}
             <div className="space-y-1.5">
               <div className="flex justify-between items-center">
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                <label className={labelClass}>
                   E-Office File Number <span className="text-rose-500">*</span>
                 </label>
                 <span className="text-[10px] text-slate-400 font-semibold">
@@ -633,143 +561,62 @@ export default function InputForm({
                 type="text"
                 value={eofficeFile}
                 maxLength={SCHEMA_LIMITS.eofficeFile.max}
-                onChange={e => setEofficeFile(e.target.value)}
+                onChange={(e) => setEofficeFile(e.target.value)}
                 onBlur={() => handleBlur('eofficeFile')}
                 placeholder="e.g. E-100244"
-                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border rounded-xl focus:outline-none font-semibold text-slate-700 dark:bg-slate-950 dark:text-slate-200 transition-all ${
-                  shouldShowError('eofficeFile')
-                    ? 'border-rose-500 ring-1 ring-rose-500 bg-rose-50/20 dark:border-rose-500'
-                    : 'border-slate-200 focus:border-[#0f417a] dark:border-slate-800'
-                }`}
+                className={fieldClass('eofficeFile')}
               />
-              {shouldShowError('eofficeFile') && (
-                <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
-                  <AlertCircle className="h-3 w-3 inline flex-shrink-0" />
-                  <span>{validationErrors.eofficeFile}</span>
-                </p>
-              )}
+              <FieldError field="eofficeFile" />
             </div>
 
-            {/* Wing & Division Row (int foreign keys) */}
-                <div className="grid grid-cols-2 gap-4">
-
-              {/* WING */}
+            {/* Wing & Division */}
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-
-                  Wing
-                  <span className="text-rose-500">*</span>
-
+                <label className={labelClass}>
+                  Wing <span className="text-rose-500">*</span>
                 </label>
-
                 <select
                   value={wing}
                   onChange={handleWingChange}
-                  onBlur={() =>
-                    handleBlur('wing')
-                  }
-                  className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border rounded-xl focus:outline-none font-semibold text-slate-700 dark:bg-slate-950 dark:text-slate-200 cursor-pointer transition-all ${
-                    shouldShowError('wing')
-                      ? 'border-rose-500 ring-1 ring-rose-500 bg-rose-50/20 dark:border-rose-500'
-                      : 'border-slate-200 focus:border-[#0f417a] dark:border-slate-800'
-                  }`}
+                  onBlur={() => handleBlur('wing')}
+                  className={`${fieldClass('wing')} cursor-pointer`}
                 >
-
-                  <option value="">
-                    --Select Wing--
-                  </option>
-
-                  {wings.map(w => (
-
-                    <option
-                      key={w.wing_id}
-                      value={String(w.wing_id)}
-                    >
+                  <option value="">--Select Wing--</option>
+                  {wings.map((w) => (
+                    <option key={w.wing_id} value={String(w.wing_id)}>
                       {w.wing_name}
                     </option>
-
                   ))}
-
                 </select>
-
-                {shouldShowError('wing') && (
-                  <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
-
-                    <AlertCircle className="h-3 w-3 inline flex-shrink-0" />
-
-                    <span>
-                      {validationErrors.wing}
-                    </span>
-
-                  </p>
-                )}
-
+                <FieldError field="wing" />
               </div>
 
-              {/* DIVISION */}
               <div className="space-y-1.5">
-
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-
-                  Division
-                  <span className="text-rose-500">*</span>
-
+                <label className={labelClass}>
+                  Division <span className="text-rose-500">*</span>
                 </label>
-
                 <select
                   value={division}
-                  onChange={e =>
-                    setDivision(e.target.value)
-                  }
-                  onBlur={() =>
-                    handleBlur('division')
-                  }
+                  onChange={(e) => setDivision(e.target.value)}
+                  onBlur={() => handleBlur('division')}
                   disabled={!wing}
-                  className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border rounded-xl focus:outline-none font-semibold text-slate-700 dark:bg-slate-950 dark:text-slate-200 cursor-pointer transition-all ${
-                    shouldShowError('division')
-                      ? 'border-rose-500 ring-1 ring-rose-500 bg-rose-50/20 dark:border-rose-500'
-                      : 'border-slate-200 focus:border-[#0f417a] dark:border-slate-800'
-                  }`}
+                  className={`${fieldClass('division')} cursor-pointer`}
                 >
-
-                  <option value="">
-                    --Select Division--
-                  </option>
-
-                  {filteredDivisions.map(d => (
-
-                    <option
-                      key={d.division_id}
-                      value={String(d.division_id)}
-                    >
+                  <option value="">--Select Division--</option>
+                  {filteredDivisions.map((d) => (
+                    <option key={d.division_id} value={String(d.division_id)}>
                       {d.division_name}
                     </option>
-
                   ))}
-
                 </select>
-
-                {shouldShowError('division') && (
-                  <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
-
-                    <AlertCircle className="h-3 w-3 inline flex-shrink-0" />
-
-                    <span>
-                      {validationErrors.division}
-                    </span>
-
-                  </p>
-                )}
-
+                <FieldError field="division" />
               </div>
-
             </div>
 
-            {/* Reference Letter Number (nvarchar(256)) */}
+            {/* Reference Letter Number */}
             <div className="space-y-1.5">
               <div className="flex justify-between items-center">
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                <label className={labelClass}>
                   Reference Letter Number <span className="text-rose-500">*</span>
                 </label>
                 <span className="text-[10px] text-slate-400 font-semibold">
@@ -780,27 +627,18 @@ export default function InputForm({
                 type="text"
                 value={refNumber}
                 maxLength={SCHEMA_LIMITS.refNumber.max}
-                onChange={e => setRefNumber(e.target.value)}
+                onChange={(e) => setRefNumber(e.target.value)}
                 onBlur={() => handleBlur('refNumber')}
                 placeholder="e.g. Ref/VIP/647/25"
-                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border rounded-xl focus:outline-none font-semibold text-slate-700 dark:bg-slate-950 dark:text-slate-200 transition-all ${
-                  shouldShowError('refNumber')
-                    ? 'border-rose-500 ring-1 ring-rose-500 bg-rose-50/20 dark:border-rose-500'
-                    : 'border-slate-200 focus:border-[#0f417a] dark:border-slate-800'
-                }`}
+                className={fieldClass('refNumber')}
               />
-              {shouldShowError('refNumber') && (
-                <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
-                  <AlertCircle className="h-3 w-3 inline flex-shrink-0" />
-                  <span>{validationErrors.refNumber}</span>
-                </p>
-              )}
+              <FieldError field="refNumber" />
             </div>
 
-            {/* Received From (nvarchar(256)) */}
+            {/* Received From */}
             <div className="space-y-1.5">
               <div className="flex justify-between items-center">
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                <label className={labelClass}>
                   Received From (Sender) <span className="text-rose-500">*</span>
                 </label>
                 <span className="text-[10px] text-slate-400 font-semibold">
@@ -811,59 +649,43 @@ export default function InputForm({
                 type="text"
                 value={receivedFrom}
                 maxLength={SCHEMA_LIMITS.receivedFrom.max}
-                onChange={e => setReceivedFrom(e.target.value)}
+                onChange={(e) => setReceivedFrom(e.target.value)}
                 onBlur={() => handleBlur('receivedFrom')}
                 placeholder="e.g. Shri Ajay Kumar Mandal, MP / VIP Dignitary"
-                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border rounded-xl focus:outline-none font-semibold text-slate-700 dark:bg-slate-950 dark:text-slate-200 transition-all ${
-                  shouldShowError('receivedFrom')
-                    ? 'border-rose-500 ring-1 ring-rose-500 bg-rose-50/20 dark:border-rose-500'
-                    : 'border-slate-200 focus:border-[#0f417a] dark:border-slate-800'
-                }`}
+                className={fieldClass('receivedFrom')}
               />
-              {shouldShowError('receivedFrom') && (
-                <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
-                  <AlertCircle className="h-3 w-3 inline flex-shrink-0" />
-                  <span>{validationErrors.receivedFrom}</span>
-                </p>
-              )}
+              <FieldError field="receivedFrom" />
             </div>
 
-            {/* Remarks Field (nvarchar(MAX)) */}
+            {/* Remarks */}
             <div className="space-y-1.5">
               <div className="flex justify-between items-center">
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                <label className={labelClass}>
                   General Remarks <span className="text-rose-500">*</span>
                 </label>
-                <span className={`text-[10px] font-bold ${getWordCount(remarks) > SCHEMA_LIMITS.remarks.maxWords ? 'text-rose-500' : 'text-slate-400'}`}>
+                <span
+                  className={`text-[10px] font-bold ${
+                    getWordCount(remarks) > SCHEMA_LIMITS.remarks.maxWords ? 'text-rose-500' : 'text-slate-400'
+                  }`}
+                >
                   {getWordCount(remarks)} / {SCHEMA_LIMITS.remarks.maxWords} words
                 </span>
               </div>
               <textarea
                 value={remarks}
                 maxLength={SCHEMA_LIMITS.remarks.maxChars}
-                onChange={e => setRemarks(e.target.value)}
+                onChange={(e) => setRemarks(e.target.value)}
                 onBlur={() => handleBlur('remarks')}
                 rows={3}
                 placeholder="Enter remarks or details..."
-                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border rounded-xl focus:outline-none font-semibold text-slate-700 dark:bg-slate-950 dark:text-slate-200 transition-all ${
-                  shouldShowError('remarks')
-                    ? 'border-rose-500 ring-1 ring-rose-500 bg-rose-50/20 dark:border-rose-500'
-                    : 'border-slate-200 focus:border-[#0f417a] dark:border-slate-800'
-                }`}
+                className={fieldClass('remarks')}
               />
-              {shouldShowError('remarks') && (
-                <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
-                  <AlertCircle className="h-3 w-3 inline flex-shrink-0" />
-                  <span>{validationErrors.remarks}</span>
-                </p>
-              )}
+              <FieldError field="remarks" />
             </div>
 
-            {/* Deadline (date) */}
+            {/* Deadline */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                Deadline (Auto-calculated: +15 days)
-              </label>
+              <label className={labelClass}>Deadline (Auto-calculated: +15 days)</label>
               <input
                 type="date"
                 value={deadline}
@@ -871,11 +693,13 @@ export default function InputForm({
                 className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none font-semibold text-slate-600 dark:text-slate-400 cursor-not-allowed"
               />
             </div>
-
           </div>
 
-          {/* Right Panel: Stages Checklist & Chronological Dates (date data types) */}
-          <div className="lg:col-span-7 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 overflow-y-auto space-y-4 bg-slate-50/70 dark:bg-slate-950" style={{ maxHeight: '600px' }}>
+          {/* Right Panel: Stages */}
+          <div
+            className="lg:col-span-7 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 overflow-y-auto space-y-4 bg-slate-50/70 dark:bg-slate-950"
+            style={{ maxHeight: '600px' }}
+          >
             <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
               <h4 className="text-xs font-black uppercase text-slate-800 dark:text-slate-200 tracking-wider flex items-center gap-1.5">
                 <Calendar className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
@@ -890,8 +714,9 @@ export default function InputForm({
               {[1, 2, 3, 4, 5, 6].map((stageNum) => {
                 const currentStage = stages[stageNum];
                 const label = STATUS_STEPS[stageNum];
+                const limits = getDateLimits(stageNum);
 
-                // Disable future stages if previous stage has not been completed
+                // Disable later stages until the previous stage has a date (new records only)
                 const isStageDisabled = !isEdit && stageNum > 1 && !stages[stageNum - 1]?.date;
                 const isStageCompleted = !!currentStage.date;
                 const hasStageError = shouldShowError(`stage${stageNum}`);
@@ -903,8 +728,8 @@ export default function InputForm({
                       isStageDisabled
                         ? 'bg-slate-100/50 dark:bg-slate-900/30 border-slate-100 dark:border-slate-850 opacity-60'
                         : isStageCompleted
-                          ? 'bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/50'
-                          : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
+                        ? 'bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/50'
+                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
                     } ${hasStageError ? 'border-rose-500 ring-1 ring-rose-500' : ''}`}
                   >
                     <div className="flex items-center justify-between gap-3">
@@ -912,15 +737,23 @@ export default function InputForm({
                         {isStageCompleted ? (
                           <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
                         ) : (
-                          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black font-mono flex-shrink-0 ${
-                            isStageDisabled ? 'bg-slate-200 text-slate-500' : 'bg-blue-100 text-[#0f417a] dark:bg-blue-900/50 dark:text-blue-300'
-                          }`}>
+                          <span
+                            className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black font-mono flex-shrink-0 ${
+                              isStageDisabled
+                                ? 'bg-slate-200 text-slate-500'
+                                : 'bg-blue-100 text-[#0f417a] dark:bg-blue-900/50 dark:text-blue-300'
+                            }`}
+                          >
                             {stageNum}
                           </span>
                         )}
-                        <span className={`text-xs font-bold block truncate ${
-                          isStageDisabled ? 'text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-slate-200'
-                        }`}>
+                        <span
+                          className={`text-xs font-bold block truncate ${
+                            isStageDisabled
+                              ? 'text-slate-400 dark:text-slate-500'
+                              : 'text-slate-800 dark:text-slate-200'
+                          }`}
+                        >
                           {label} {stageNum === 1 && <span className="text-rose-500">*</span>}
                         </span>
                       </div>
@@ -929,9 +762,9 @@ export default function InputForm({
                         <input
                           type="date"
                           value={currentStage.date}
-                          min={getDateLimits(stageNum).min}
-                          max={getDateLimits(stageNum).max}
-                          onChange={e => handleStageChange(stageNum, 'date', e.target.value)}
+                          min={limits.min}
+                          max={limits.max}
+                          onChange={(e) => handleStageChange(stageNum, 'date', e.target.value)}
                           onBlur={() => handleBlur(`stage${stageNum}`)}
                           disabled={isStageDisabled}
                           className={`text-xs px-3 py-1.5 border rounded-lg focus:outline-none font-semibold dark:[color-scheme:dark] ${
@@ -943,7 +776,7 @@ export default function InputForm({
                       </div>
                     </div>
 
-                    {/* Expandable Remarks field when date is filled */}
+                    {/* Stage remarks (shown once a date is set) */}
                     {Boolean(currentStage.date) && (
                       <div className="mt-2.5 pt-2.5 border-t border-slate-200/80 dark:border-slate-800 space-y-1.5 animate-fade-in">
                         <div className="flex items-center justify-between">
@@ -957,7 +790,7 @@ export default function InputForm({
                         <textarea
                           rows={2}
                           value={currentStage.remark || ''}
-                          onChange={e => handleStageChange(stageNum, 'remark', e.target.value)}
+                          onChange={(e) => handleStageChange(stageNum, 'remark', e.target.value)}
                           placeholder={`Enter remarks for Stage ${stageNum}: ${label}...`}
                           className="w-full text-xs px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:border-[#0f417a] font-medium text-slate-700 dark:text-slate-200"
                         />
@@ -975,10 +808,9 @@ export default function InputForm({
               })}
             </div>
           </div>
-
         </div>
 
-        {/* Footer Submit Actions */}
+        {/* Footer Actions */}
         <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
           <span className="text-xs text-rose-500 font-bold italic">
             * Asterisks marked with red are mandatory fields
@@ -987,7 +819,7 @@ export default function InputForm({
           <div className="flex items-center space-x-3">
             <button
               type="button"
-              onClick={onBack}
+              onClick={handleBack}
               className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
             >
               Cancel
@@ -1003,11 +835,10 @@ export default function InputForm({
               }`}
             >
               <Save className="h-4 w-4" />
-              <span>{submitting ? "Saving..." : isEdit ? "Update Reference" : "Save VIP Letter"}</span>
+              <span>{submitting ? 'Saving...' : isEdit ? 'Update Reference' : 'Save VIP Letter'}</span>
             </button>
           </div>
         </div>
-
       </form>
     </div>
   );

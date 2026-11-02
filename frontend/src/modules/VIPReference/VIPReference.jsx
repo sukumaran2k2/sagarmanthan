@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
 import InternalNavigation from '../../components/InternalNavigation';
+import Dashboard from './pages/Dashboard';
 import DataList from './pages/DataList';
 import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
@@ -16,6 +17,7 @@ export default function VIPReference({ triggerNotification }) {
   const [editData, setEditData] = useState(null);
 
   const tabs = [
+    { id: 'dashboard', label: 'Dashboard' },
     { id: 'input-form', label: 'Input Form' },
     { id: 'data-list', label: 'Data List' },
     { id: 'reports', label: 'Report' }
@@ -23,6 +25,7 @@ export default function VIPReference({ triggerNotification }) {
 
   const currentTab = useMemo(() => {
     const path = location.pathname.toLowerCase();
+    if (path.includes('/dashboard')) return 'dashboard';
     if (path.includes('/input-form') || path.includes('/add') || path.includes('/edit')) return 'input-form';
     if (path.includes('/reports') || path.includes('/report')) return 'reports';
     return 'data-list';
@@ -111,7 +114,8 @@ export default function VIPReference({ triggerNotification }) {
           currentTab={currentTab}
           onTabChange={(tabId) => {
             if (tabId !== 'input-form') setEditData(null);
-            if (tabId === 'input-form') navigate('/governance/vip-reference/input-form');
+            if (tabId === 'dashboard') navigate('/governance/vip-reference/dashboard');
+            else if (tabId === 'input-form') navigate('/governance/vip-reference/input-form');
             else if (tabId === 'reports') navigate('/governance/vip-reference/reports');
             else navigate('/governance/vip-reference/data-list');
           }}
@@ -119,6 +123,7 @@ export default function VIPReference({ triggerNotification }) {
       </div>
 
       <Routes>
+        <Route path="dashboard" element={<Dashboard />} />
         <Route path="data-list" element={
           <DataList
             wings={wings}
@@ -151,8 +156,8 @@ export default function VIPReference({ triggerNotification }) {
           />
         } />
 
-        <Route index element={<Navigate to="data-list" replace />} />
-        <Route path="*" element={<Navigate to="data-list" replace />} />
+        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route path="*" element={<Navigate to="dashboard" replace />} />
       </Routes>
     </div>
   );

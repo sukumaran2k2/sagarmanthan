@@ -266,7 +266,12 @@ import { getContainerTwoLeg } from "./controllers/traffic-container-two-leg.js";
 import formBuilderTab from "./controllers/formBuilder/formBuilderV1.js";
 import formBuilderInputTab from "./controllers/formBuilder/formBuilderInput.js";
 
+  import vipReferenceDashboard from "./controllers/Governance/vipReferenceDashboard.js";
+
+ 
+
 const router = express.Router();
+ router.get("/vip-reference-dashboard", vipReferenceDashboard.getVipReferenceDashboard);
 
 // login
 router.post("/login-validation", logInTab.validation);
