@@ -22,8 +22,6 @@ export default function Reports({ wings = [], triggerNotification }) {
   const [drillDownColDefs, setDrillDownColDefs] = useState([]);
   const [drillDownLoading, setDrillDownLoading] = useState(false);
   const [drillDownError, setDrillDownError] = useState(null);
-  const [wingFilter, setWingFilter] = useState('');
-
   const currentView = drillDownPath[drillDownPath.length - 1];
 
   const handleBack = () => {
@@ -176,12 +174,7 @@ export default function Reports({ wings = [], triggerNotification }) {
     fetchDrillDownData();
   }, [drillDownPath, fetchDrillDownData]);
 
-  const viewData = useMemo(() => {
-    if (currentView.type === 'abstract') {
-      return drillDownData.filter(item => !wingFilter || item["Wing Name"] === wingFilter);
-    }
-    return drillDownData;
-  }, [currentView.type, drillDownData, wingFilter]);
+  const viewData = drillDownData;
 
   const pinnedBottomRowData = useMemo(() => {
     if (!viewData || viewData.length === 0) return undefined;
