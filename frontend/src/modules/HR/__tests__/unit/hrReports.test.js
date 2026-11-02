@@ -14,8 +14,8 @@ import {
   trimLabels,
   yearMonthOptions,
   zeroToBlank,
-} from '../../reports/reportUtils';
-import { indexRows, sectionOf, visibleReports } from '../../reports/reportCatalog';
+} from '../../pages/Reports/reportUtils';
+import { indexRows, sectionOf, visibleReports } from '../../pages/Reports/reportCatalog';
 
 const ministry = { isOrgUser: false, orgId: 1 };
 const majorPortUser = { isOrgUser: true, orgId: 7 };

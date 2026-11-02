@@ -1,7 +1,7 @@
 /* global describe, it, expect, jest */
 import { render, screen, fireEvent } from '@testing-library/react';
-import ReducePostStrengthModal from '../../components/ReducePostStrengthModal';
-import { readStrengthConflict, validateDeletionReason, validateReduction } from '../../utils/postStrength';
+import ReducePostStrengthModal from '../../pages/OrganisationStructure/components/ReducePostStrengthModal';
+import { readStrengthConflict, validateDeletionReason, validateReduction } from '../../pages/OrganisationStructure/postStrength';
 
 const conflictBody = {
   code: 'SELECT_POST_CODES',
@@ -66,7 +66,7 @@ describe('ReducePostStrengthModal', () => {
     fireEvent.click(box('01007054004'));
     expect(screen.getByText('2 of 2 selected')).toBeTruthy();
     expect(box('01007054002').disabled).toBe(true);
-    expect(screen.getByText('01-03-2025')).toBeTruthy();
+    expect(screen.getByText('2025-03-01')).toBeTruthy();
   });
 
   it('does not save without the codes and remarks, then sends both', () => {

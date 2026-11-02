@@ -32,8 +32,6 @@ export const SELECTABLE_APPOINTMENT_METHODS = [
   'Transfer In',
 ];
 
-// "Other organisation" in mmt_organisation: the employee's parent organisation is named in free text
-export const OTHER_ORGANISATION_ID = '73';
 
 const RETURN_PREFIX = '/hr/hr-management/';
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;

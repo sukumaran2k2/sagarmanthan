@@ -1,11 +1,11 @@
 import { useMemo } from 'react';
 import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
 import { FileText, GraduationCap, UserPlus, Briefcase, CalendarDays } from 'lucide-react';
-import ContractualDataForm from '../components/ContractualDataForm';
-import TrainingDataForm from '../components/TrainingDataForm';
-import EmployeeDataForm from '../components/EmployeeDataForm';
-import AddPostForm from '../components/AddPostForm';
-import NonPortMonthlyUploadForm from '../components/NonPortMonthlyUploadForm';
+import ContractualDataForm from './ContractualEmployment/InputForm';
+import TrainingDataForm from './TrainingDetails/InputForm';
+import EmployeeDataForm from './EmployeeDatabase/InputForm';
+import AddPostForm from './OrganisationStructure/InputForm';
+import NonPortMonthlyUploadForm from './NonPortUpload/InputForm';
 import { HrIconTabs } from '../components/HrFormControls';
 import { HR_VIEWS, hrInputForms } from '../utils/hrViews';
 
@@ -102,8 +102,6 @@ export default function InputForm({ permissions, notify, triggerNotification }) 
             <Routes>
               <Route path="contractual-data" element={<ContractualDataForm key={formKey} editData={editItem} notify={notify} />} />
               <Route path="training-data" element={<TrainingDataForm key={formKey} editData={editItem} notify={notify} />} />
-              <Route path="employee-data" element={<EmployeeDataForm notify={notify} />} />
-              <Route path="add-post" element={<AddPostForm notify={notify} />} />
               {/* After a successful upload the form opens the upload history */}
               <Route path="non-port-upload" element={<NonPortMonthlyUploadForm triggerNotification={triggerNotification} />} />
               <Route index element={<Navigate to="contractual-data" replace />} />

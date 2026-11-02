@@ -11,8 +11,8 @@
  *    (employee transaction / employee_id update), whether or not the post becomes filled
  * If the controller changes, update this table with it.
  */
-import { getNormalizedMode } from '../../vacancyActivity/config';
-import { EMPTY_FORM, buildPayload, validateActivity } from '../../vacancyActivity/form';
+import { getNormalizedMode } from '../../pages/VacancyManagement/vacancyActivityConfig';
+import { EMPTY_FORM, buildPayload, validateActivity } from '../../pages/VacancyManagement/vacancyActivityForm';
 
 const BACKEND = {
   promotion: {

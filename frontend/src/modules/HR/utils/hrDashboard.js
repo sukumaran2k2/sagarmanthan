@@ -1,9 +1,6 @@
 // Data shaping for the HR Dashboard (the endpoints are the legacy dashboard's).
 
-export const CLASS_ORDER = ['I/A', 'II/B', 'III/C', 'IV/D'];
-
-const pad = (n) => String(n).padStart(2, '0');
-export const toDdMmYyyy = (d) => `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}`;
+import { CLASS_OPTIONS as CLASS_ORDER } from '../constants';
 
 /**
  * "As on" date per organisation category, as on the legacy dashboard:

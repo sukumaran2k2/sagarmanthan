@@ -1,6 +1,6 @@
 /* global describe, it, expect, jest */
 import { render, screen, fireEvent } from '@testing-library/react';
-import { matchesIdOrName, nameOf } from '../../utils/hrFilters';
+import { matchesIdOrName, nameOf } from '../../pages/EmployeeDatabase/employeeFilters';
 import { classChangeUpdate } from '../../hooks/useHrFilterOptions';
 import { DeptPostClassFilters, HrFilterPanel } from '../../components/HrFilterPanel';
 

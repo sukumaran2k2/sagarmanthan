@@ -22,21 +22,19 @@ import './hrTables.css';
 import { HR_LIST_VIEWS, hrListViewKey } from './views';
 import { HR_VIEWS, hrViewAllows, hrPageFromPath } from './utils/hrViews';
 
-import HrDashboard from './pages/HrDashboard';
-import NonPortDashboard from './pages/NonPortDashboard';
-import NonPortMonthlyUpload from './pages/NonPortMonthlyUpload';
-import OrganisationStructure from './pages/OrganisationStructure';
-import ContractualEmployment from './pages/ContractualEmployment';
-import TrainingDetails from './pages/TrainingDetails';
+import HrDashboard from './pages/Dashboard/HrDashboard';
+import NonPortDashboard from './pages/Dashboard/NonPortDashboard';
+import NonPortMonthlyUpload from './pages/NonPortUpload/NonPortUploadSection';
+import OrganisationStructure from './pages/OrganisationStructure/DataList';
+import ContractualEmployment from './pages/ContractualEmployment/DataList';
+import TrainingDetails from './pages/TrainingDetails/DataList';
 import InputForm from './pages/InputForm';
-import ListAbolishedPosts from './pages/ListAbolishedPosts';
-import EmployeeDatabase from './pages/EmployeeDatabase';
-import EmployeeDetails from './pages/EmployeeDetails';
-import EmployeeDataForm from './components/EmployeeDataForm';
-import AddPostForm from './components/AddPostForm';
-import VacantDetails from './pages/VacantDetails';
-import HrAdministration from './pages/HrAdministration';
-import HrReports from './pages/Reports';
+import ListAbolishedPosts from './pages/AbolishedPosts/DataList';
+import EmployeeDatabase from './pages/EmployeeDatabase/DataList';
+import EmployeeDetails from './pages/EmployeeDatabase/EmployeeDetails';
+import VacantDetails from './pages/VacancyManagement/VacantDetails';
+import HrAdministration from './pages/Administration/DataList';
+import HrReports from './pages/Reports/Reports';
 
 
 export default function HRDashboardView({ onGoHome, triggerNotification }) {
@@ -184,14 +182,15 @@ export default function HRDashboardView({ onGoHome, triggerNotification }) {
             path="non-port-monthly-upload/*"
             element={<NonPortMonthlyUpload notify={notify} triggerNotification={triggerNotification} />}
           />
-          <Route path="organisation-structure" element={<OrganisationStructure notify={notify} />} />
+          <Route path="organisation-structure" element={<OrganisationStructure permissions={permissions} notify={notify} />} />
           <Route path="employee-database" element={<EmployeeDatabase notify={notify} />} />
           <Route
             path="employee-details/:empMasterId"
             element={<EmployeeDetails notify={notify} canEdit={permissions.canEdit && permissions.canUseInputForm} />}
           />
-          <Route path="add-employee" element={<EmployeeDataForm notify={notify} />} />
-          <Route path="add-post" element={<AddPostForm notify={notify} />} />
+          {/* Old links: the input form decides who may add (canUseInputForm and the user's view) */}
+          <Route path="add-employee" element={<Navigate to={{ pathname: '/hr/hr-management/input-form/employee-data', search: location.search }} replace />} />
+          <Route path="add-post" element={<Navigate to="/hr/hr-management/input-form/add-post" replace />} />
           <Route
             path="abolished-posts"
             element={

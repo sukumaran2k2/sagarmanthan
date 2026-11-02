@@ -3,6 +3,7 @@
 // into the shapes the Major Port dashboard's charts and cards already take.
 
 import { exServiceSlices, pwbdSlices } from './hrDashboard';
+import { formatDate } from './dates';
 
 const num = (v) => Number(v) || 0;
 
@@ -21,13 +22,9 @@ export function monthName(value) {
   return Number.isInteger(n) && n >= 1 && n <= 12 ? MONTHS[n - 1] : String(value ?? '');
 }
 
-/**
- * The stored calendar date of an ISO value, as dd/mm/yyyy. The server sends DATE / DATETIME
- * values with a 'Z', so going through new Date() could move them a day in some timezones.
- */
+/** The stored calendar date of an ISO value, as yyyy-mm-dd ('-' when missing; see utils/dates). */
 export function storedDate(value) {
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value ?? ''));
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : '-';
+  return formatDate(value, 0, '-');
 }
 
 /** /get-hr-dashboard-content-other-org -> { sanctioned, filled, live, abolished } */
