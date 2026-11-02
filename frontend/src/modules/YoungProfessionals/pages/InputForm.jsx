@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Upload, X, ArrowLeft, Plus, FileText } from 'lucide-react';
 import { API_BASE, createYoungProfessional, updateYoungProfessional, uploadYPDocument } from '../api';
+import { useYpStore } from '../store/useYpStore';
 import { getCurrentUserId } from '../../../utils/authSession';
 import { useNotifier, COMMON_TOASTS, getErrorMessage, toastError } from '../../../utils/notify';
 import { YP_TOASTS } from '../toastMessages';
@@ -14,8 +15,8 @@ const COMMON_SKILLS = [
 
 export default function InputForm({
   editData = null,
-  wings = [],
-  divisions = [],
+  wings: propsWings = [],
+  divisions: propsDivisions = [],
   onBack,
   onSuccess,
   triggerNotification,
@@ -25,6 +26,20 @@ export default function InputForm({
   const isEdit = !!editData;
   const notify = useNotifier(triggerNotification);
   const fileInputRef = useRef(null);
+
+  // Zustand YP Store for reference metadata
+  const storeWings = useYpStore(state => state.wings);
+  const storeDivisions = useYpStore(state => state.divisions);
+  const loadWingsAndDivisions = useYpStore(state => state.loadWingsAndDivisions);
+
+  const wings = propsWings && propsWings.length > 0 ? propsWings : storeWings;
+  const divisions = propsDivisions && propsDivisions.length > 0 ? propsDivisions : storeDivisions;
+
+  useEffect(() => {
+    if (wings.length === 0 || divisions.length === 0) {
+      loadWingsAndDivisions();
+    }
+  }, [wings.length, divisions.length, loadWingsAndDivisions]);
 
   // Form states
   const [wing, setWing] = useState('');
@@ -124,6 +139,14 @@ export default function InputForm({
   
   const [documentName, setDocumentName] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  const todayStr = useMemo(() => {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }, []);
 
   // Suggestions logic for skills
   const suggestions = useMemo(() => {
@@ -408,7 +431,7 @@ export default function InputForm({
       <form onSubmit={handleSubmit} className="p-6 space-y-6">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           <div className="space-y-1.5">
-            <label className="module-form-label">Wing <span className="text-red-500">*</span></label>
+            <label className="module-form-label">Wing <span className="text-rose-500">*</span></label>
             <select
               value={wing}
               onChange={(e) => { 
@@ -419,27 +442,27 @@ export default function InputForm({
               }}
               onBlur={() => handleBlur('wing')}
               required
-              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-955 border ${isFieldInvalid('wing', wing) ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-755 dark:text-slate-300 cursor-pointer`}
+              className={`module-form-select cursor-pointer ${isFieldInvalid('wing', wing) ? '!border-rose-500 !ring-1 !ring-rose-500' : ''}`}
             >
-              <option value="" className="dark:bg-slate-955 dark:text-slate-300">--Select Wing--</option>
-              {wings.map(w => <option key={w.wing_id} value={w.wing_id} className="dark:bg-slate-955 dark:text-slate-300">{w.wing_name}</option>)}
+              <option value="">--Select Wing--</option>
+              {wings.map(w => <option key={w.wing_id} value={w.wing_id}>{w.wing_name}</option>)}
             </select>
           </div>
 
           <div className="space-y-1.5">
-            <label className="module-form-label">Division <span className="text-red-500">*</span></label>
+            <label className="module-form-label">Division <span className="text-rose-500">*</span></label>
             <select
               value={division}
               onChange={(e) => { setDivision(e.target.value); if (touched.division) handleBlur('division'); }}
               onBlur={() => handleBlur('division')}
               disabled={!wing}
               required
-              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-955 border ${isFieldInvalid('division', division) ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-755 dark:text-slate-300 cursor-pointer ${!wing ? 'opacity-60 cursor-not-allowed' : ''}`}
+              className={`module-form-select cursor-pointer ${isFieldInvalid('division', division) ? '!border-rose-500 !ring-1 !ring-rose-500' : ''} ${!wing ? 'opacity-60 cursor-not-allowed' : ''}`}
             >
-              <option value="" className="dark:bg-slate-955 dark:text-slate-300">
+              <option value="">
                 {!wing ? '--Select Wing First--' : '--Select Division--'}
               </option>
-              {filteredDivisions.map(d => <option key={d.division_id} value={d.division_id} className="dark:bg-slate-955 dark:text-slate-300">{d.division_name}</option>)}
+              {filteredDivisions.map(d => <option key={d.division_id} value={d.division_id}>{d.division_name}</option>)}
             </select>
           </div>
         </div>
@@ -448,7 +471,7 @@ export default function InputForm({
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Name <span className="text-red-500">*</span></label>
+            <label className="module-form-label">Name <span className="text-rose-500">*</span></label>
             <input 
               type="text" 
               value={name} 
@@ -456,13 +479,13 @@ export default function InputForm({
               onBlur={() => handleBlur('name')}
               required 
               placeholder="Enter full name"
-              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border ${isFieldInvalid('name', name) ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200`} 
+              className={`module-form-input ${isFieldInvalid('name', name) ? '!border-rose-500 !ring-1 !ring-rose-500' : ''}`} 
             />
             {errors.name && <p className="text-[10px] font-bold text-red-500 mt-1">{errors.name}</p>}
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Educational Qualification <span className="text-red-500">*</span></label>
+            <label className="module-form-label">Educational Qualification <span className="text-rose-500">*</span></label>
             <input 
               type="text" 
               value={qualification} 
@@ -470,12 +493,12 @@ export default function InputForm({
               onBlur={() => handleBlur('qualification')}
               required 
               placeholder="e.g. B.Tech, MBA"
-              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-955 border ${isFieldInvalid('qualification', qualification) ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200`} 
+              className={`module-form-input ${isFieldInvalid('qualification', qualification) ? '!border-rose-500 !ring-1 !ring-rose-500' : ''}`} 
             />
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Role / Designation <span className="text-red-500">*</span></label>
+            <label className="module-form-label">Role / Designation <span className="text-rose-500">*</span></label>
             <input 
               type="text" 
               value={role} 
@@ -483,26 +506,26 @@ export default function InputForm({
               onBlur={() => handleBlur('role')}
               required 
               placeholder="e.g. Young Professional (HR)"
-              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border ${isFieldInvalid('role', role) ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200`} 
+              className={`module-form-input ${isFieldInvalid('role', role) ? '!border-rose-500 !ring-1 !ring-rose-500' : ''}`} 
             />
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Date of Appointment <span className="text-red-500">*</span></label>
+            <label className="module-form-label">Date of Appointment <span className="text-rose-500">*</span></label>
             <input 
               type="date" 
               value={appointmentDate} 
-              max={new Date().toISOString().split('T')[0]}
+              max={todayStr}
               onChange={e => { setAppointmentDate(e.target.value); validateField('appointmentDate', e.target.value); }} 
               onBlur={() => handleBlur('appointmentDate')}
               required 
-              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border ${isFieldInvalid('appointmentDate', appointmentDate) ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200 dark:[color-scheme:dark]`} 
+              className={`module-form-input ${isFieldInvalid('appointmentDate', appointmentDate) ? '!border-rose-500 !ring-1 !ring-rose-500' : ''} dark:[color-scheme:dark]`} 
             />
             {errors.appointmentDate && <p className="text-[10px] font-bold text-red-500 mt-1">{errors.appointmentDate}</p>}
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Salary (per month) <span className="text-red-500">*</span></label>
+            <label className="module-form-label">Salary (per month) <span className="text-rose-500">*</span></label>
             <input 
               type="number" 
               step="0.01"
@@ -511,13 +534,13 @@ export default function InputForm({
               onBlur={() => handleBlur('salary')}
               required 
               placeholder="e.g. 70000"
-              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-955 border ${isFieldInvalid('salary', salary) ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200`} 
+              className={`module-form-input ${isFieldInvalid('salary', salary) ? '!border-rose-500 !ring-1 !ring-rose-500' : ''}`} 
             />
             {errors.salary && <p className="text-[10px] font-bold text-red-500 mt-1">{errors.salary}</p>}
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Total Experience (Years of Exp - YOE) <span className="text-red-500">*</span></label>
+            <label className="module-form-label">Total Experience (Years of Exp - YOE) <span className="text-rose-500">*</span></label>
             <input 
               type="number" 
               value={experience} 
@@ -525,20 +548,20 @@ export default function InputForm({
               onBlur={() => handleBlur('experience')}
               required 
               placeholder="e.g. 2"
-              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-955 border ${isFieldInvalid('experience', experience) ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200`} 
+              className={`module-form-input ${isFieldInvalid('experience', experience) ? '!border-rose-500 !ring-1 !ring-rose-500' : ''}`} 
             />
             {errors.experience && <p className="text-[10px] font-bold text-red-500 mt-1">{errors.experience}</p>}
           </div>
         </div>
 
         <div className="space-y-2">
-          <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Skills Keyword Pool (Type & press Enter or comma) <span className="text-red-500">*</span></label>
+          <label className="module-form-label">Skills Keyword Pool (Type & press Enter or comma) <span className="text-rose-500">*</span></label>
           {skillsList.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 p-3.5 bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-xl mb-2">
+            <div className="flex flex-wrap gap-1.5 p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl mb-2">
               {skillsList.map(skill => (
                 <span 
                   key={skill} 
-                  className="inline-flex items-center space-x-1 px-2.5 py-1 bg-[#fdfcfc] dark:bg-blue-950/40 text-blue-750 dark:text-blue-300 border border-[#eadede] dark:border-blue-900/30 rounded-lg text-[11px] font-black uppercase"
+                  className="inline-flex items-center space-x-1.5 px-2.5 py-1 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900/40 rounded-lg text-xs font-bold uppercase"
                 >
                   <span
                     onClick={() => handleSkillLabelClick(skill)}
@@ -569,16 +592,16 @@ export default function InputForm({
               onFocus={() => setShowSuggestions(true)}
               onKeyDown={handleAddSkill}
               placeholder="Add skills (e.g. React, SQL, Project Management)"
-              className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-250 dark:border-slate-800 rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200"
+              className="module-form-input"
             />
             {showSuggestions && suggestions.length > 0 && (
-              <div className="absolute left-0 right-0 z-50 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-lg mt-1.5 p-1 max-h-48 overflow-y-auto flex flex-col gap-0.5 select-none animate-fade-in">
+              <div className="absolute left-0 right-0 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-lg mt-1.5 p-1 max-h-48 overflow-y-auto flex flex-col gap-0.5 select-none animate-fade-in">
                 {suggestions.map(s => (
                   <button
                     key={s}
                     type="button"
                     onClick={() => handleSelectSuggestion(s)}
-                    className="w-full text-left px-3.5 py-2 hover:bg-[#fdfcfc] dark:hover:bg-blue-950/50 hover:text-[#2a1313] dark:hover:text-blue-300 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 transition-all cursor-pointer"
+                    className="w-full text-left px-3.5 py-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 transition-all cursor-pointer"
                   >
                     {COMMON_SKILLS.includes(s) ? s : `+ Add "${s}"`}
                   </button>
@@ -590,10 +613,10 @@ export default function InputForm({
 
         {/* Appointment document - Auto grow with text wrapping */}
         <div className="space-y-1.5 w-full max-w-md">
-          <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">
-            Appointment Order Document <span className="text-red-500">*</span>
+          <label className="module-form-label">
+            Appointment Order Document <span className="text-rose-500">*</span>
           </label>
-          <div className={`flex flex-col items-center justify-center border-2 border-dashed ${isFieldInvalid('documentName', documentName) ? 'border-red-500 bg-red-50/10' : 'border-slate-250 dark:border-slate-800'} rounded-xl p-4 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition cursor-pointer relative min-h-[110px] w-full`}>
+          <div className={`flex flex-col items-center justify-center border-2 border-dashed ${isFieldInvalid('documentName', documentName) ? 'border-rose-500 bg-rose-50/20 dark:bg-rose-950/20' : 'border-slate-300 dark:border-slate-700 hover:border-[#0f417a] dark:hover:border-blue-500'} rounded-xl p-4 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition cursor-pointer relative min-h-[110px] w-full`}>
             <input 
               type="file" 
               ref={fileInputRef}
@@ -625,7 +648,7 @@ export default function InputForm({
             />
             <div className="text-center space-y-1 w-full max-w-full px-2">
               <Upload className="mx-auto h-6 w-6 text-slate-400 shrink-0" />
-              <p className="text-[11px] font-bold text-slate-655 dark:text-slate-400 uppercase tracking-wide">Upload PDF file</p>
+              <p className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Upload PDF file</p>
               <p className="text-[9px] text-slate-400 font-semibold">(Only PDF under 10 MB is allowed)</p>
               {documentName && (
                 <p className="text-[11px] font-black text-emerald-600 break-all whitespace-normal leading-relaxed pt-1 max-w-full">
@@ -644,7 +667,7 @@ export default function InputForm({
                 className="inline-flex flex-wrap items-center gap-1 font-bold text-[#0f417a] dark:text-blue-400 hover:underline max-w-full"
               >
                 <span className="shrink-0">View current document:</span>
-                <span className="text-slate-600 dark:text-slate-450 font-semibold break-all" title={editData.appointment_document}>
+                <span className="text-slate-600 dark:text-slate-400 font-semibold break-all" title={editData.appointment_document}>
                   {editData.appointment_document}
                 </span>
               </a>
@@ -660,17 +683,17 @@ export default function InputForm({
             <button
               type="button"
               onClick={onBack}
-              className="px-4.5 py-2.5 border border-slate-250 dark:border-slate-800 text-slate-655 dark:text-slate-400 rounded-xl text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-900 hover:text-slate-800 dark:hover:text-slate-200 transition cursor-pointer"
+              className="px-4 py-2 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-100 transition cursor-pointer"
             >
               Discard
             </button>
             <button
               type="submit"
               disabled={isFormDisabled}
-              className={`px-5.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 isFormDisabled
-                  ? 'bg-slate-300 dark:bg-slate-800 text-slate-500 dark:text-slate-550 cursor-not-allowed border border-slate-200 dark:border-slate-700'
-                  : 'bg-[#0f417a] hover:bg-[#1a5ba3] text-white shadow-md shadow-blue-900/10 hover:shadow-lg dark:bg-[#0f417a] dark:hover:bg-[#0a2d55]'
+                  ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed border border-slate-200 dark:border-slate-700'
+                  : 'bg-[#0f417a] hover:bg-[#1a5ba3] text-white shadow-md shadow-blue-900/10 hover:shadow-lg dark:bg-blue-600 dark:hover:bg-blue-700'
               }`}
             >
               {isEdit ? (submitting ? 'Updating...' : 'Update Young Professional') : (submitting ? 'Saving...' : 'Save Young Professional')}
