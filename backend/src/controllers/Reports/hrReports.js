@@ -10439,13 +10439,13 @@ async function hrAnticipatedReportData(req, res) {
   let dynamicDateColumns = []; // Array to hold dynamic date columns for columnDefs
 
   if (methodOfAppointment == 'Direct Recruitment') {
-    activityQuery = `,CONVERT(VARCHAR, ps.process_initiated_date, 120) AS [Process started but advertisement yet to be published],
-        CONVERT(VARCHAR, ps.A_notification_adv_issued_date,120) AS [Notification/Adv Issued],
-        CONVERT(VARCHAR, ps.A_exam_conducted_date,120) AS [Exam Conducted/Selection Process Completed],
-        CONVERT(VARCHAR, ps.A_interview_conducted_date,120) AS [Interview Conducted],
-        CONVERT(VARCHAR, ps.A_selection_process_completed_date,120) AS [Selection Process Completed],
-        CONVERT(VARCHAR, ps.A_result_declared_date,120) AS [Result Declared],
-        CONVERT(VARCHAR, ps.A_appointment_letter_issued_date,120) AS [Appointment Letter issued]`;
+    activityQuery = `,CONVERT(VARCHAR, a.A_process_initiated_date, 120) AS [Process started but advertisement yet to be published],
+        CONVERT(VARCHAR, a.A_notification_adv_issued_date,120) AS [Notification/Adv Issued],
+        CONVERT(VARCHAR, a.A_exam_conducted_date,120) AS [Exam Conducted/Selection Process Completed],
+        CONVERT(VARCHAR, a.A_interview_conducted_date,120) AS [Interview Conducted],
+        CONVERT(VARCHAR, a.A_selection_process_completed_date,120) AS [Selection Process Completed],
+        CONVERT(VARCHAR, a.A_result_declared_date,120) AS [Result Declared],
+        CONVERT(VARCHAR, a.A_appointment_letter_issued_date,120) AS [Appointment Letter issued]`;
 
     dynamicDateColumns = [
       {
@@ -10486,11 +10486,11 @@ async function hrAnticipatedReportData(req, res) {
     ];
   } else { // Assuming 'Promotion' for any other case based on your previous code
     activityQuery = `
-        ,CONVERT(VARCHAR, ps.A_process_initiated_date, 120) AS [Process initiated vc not received],
-        CONVERT(VARCHAR, ps.A_vigilance_clr_received_date,120) AS [Vigilance clearance received],
-        CONVERT(VARCHAR, ps.A_dpc_conducted_date,120) AS [DPC Conducted],
-        CONVERT(VARCHAR, ps.A_approval_by_ca_date,120) AS [Approval by Competent authority],
-        CONVERT(VARCHAR, ps.A_promotion_order_issued_date,120) AS [Promotion order issued]`;
+        ,CONVERT(VARCHAR, a.A_process_initiated_date, 120) AS [Process initiated vc not received],
+        CONVERT(VARCHAR, a.A_vigilance_clr_received_date,120) AS [Vigilance clearance received],
+        CONVERT(VARCHAR, a.A_dpc_conducted_date,120) AS [DPC Conducted],
+        CONVERT(VARCHAR, a.A_approval_by_ca_date,120) AS [Approval by Competent authority],
+        CONVERT(VARCHAR, a.A_promotion_order_issued_date,120) AS [Promotion order issued]`;
 
     dynamicDateColumns = [
       {
@@ -10531,6 +10531,7 @@ async function hrAnticipatedReportData(req, res) {
         CONVERT(VARCHAR, em_sub.emp_dor, 120) AS 'Date of Retirement'
         ${activityQuery}
       FROM tbl_hr_post_strength ps
+      LEFT JOIN tbl_hr_anticipated_vacancies_details a ON ps.post_code = a.post_code
       INNER JOIN mmt_hr_post post ON ps.post_id = post.post_id
       INNER JOIN mmt_hr_department d ON post.department_id = d.department_id
       INNER JOIN tbl_employee_master em_sub ON ps.emp_master_id = em_sub.emp_master_id
@@ -10549,8 +10550,8 @@ async function hrAnticipatedReportData(req, res) {
           em_sub.emp_name,
           em_sub.emp_dor
           ${methodOfAppointment == 'Direct Recruitment'
-            ? `,ps.process_initiated_date, ps.A_notification_adv_issued_date, ps.A_exam_conducted_date, ps.A_interview_conducted_date, ps.A_selection_process_completed_date, ps.A_result_declared_date, ps.A_appointment_letter_issued_date`
-            : `,ps.A_process_initiated_date, ps.A_vigilance_clr_received_date, ps.A_dpc_conducted_date, ps.A_approval_by_ca_date, ps.A_promotion_order_issued_date`
+            ? `,a.A_process_initiated_date, a.A_notification_adv_issued_date, a.A_exam_conducted_date, a.A_interview_conducted_date, a.A_selection_process_completed_date, a.A_result_declared_date, a.A_appointment_letter_issued_date`
+            : `,a.A_process_initiated_date, a.A_vigilance_clr_received_date, a.A_dpc_conducted_date, a.A_approval_by_ca_date, a.A_promotion_order_issued_date`
           }
       ORDER BY post.post_name
     `);

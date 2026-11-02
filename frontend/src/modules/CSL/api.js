@@ -56,8 +56,8 @@ api.interceptors.response.use(
 );
 
 // ---- Vessels Built (K-4.1) ----
-export function fetchVesselsBuilt(userId) {
-  return api.get(`/vessel-list/${userId}`);
+export function fetchVesselsBuilt(userId, params = {}) {
+  return api.get(`/vessel-list/${userId}`, { params });
 }
 
 export function fetchVesselsBuiltById(cslVesselId) {
@@ -81,8 +81,8 @@ export function fetchVesselsBuiltReport() {
 }
 
 // ---- Ship Building Orders (K-4.2) ----
-export function fetchShipBuildingOrders(userId) {
-  return api.get(`/shipbuilding-list/${userId}`);
+export function fetchShipBuildingOrders(userId, params = {}) {
+  return api.get(`/shipbuilding-list/${userId}`, { params });
 }
 
 export function fetchShipBuildingOrdersById(cslShipbuildingId) {
@@ -106,8 +106,8 @@ export function deleteShipBuildingOrders(cslShipbuildingId, userId) {
 }
 
 // ---- Ship Delivery Performance (K-4.3) ----
-export function fetchShipDeliveryPerformance(userId) {
-  return api.get(`/shipdelivery-list/${userId}`);
+export function fetchShipDeliveryPerformance(userId, params = {}) {
+  return api.get(`/shipdelivery-list/${userId}`, { params });
 }
 
 export function fetchShipDeliveryPerformanceById(cslShipdeliveryId) {
@@ -131,8 +131,8 @@ export function deleteShipDeliveryPerformance(cslShipdeliveryId, userId) {
 }
 
 // ---- Capacity Utilization (K-4.4) ----
-export function fetchCapacityUtilization(userId) {
-  return api.get(`/capacityUtilization-list/${userId}`);
+export function fetchCapacityUtilization(userId, params = {}) {
+  return api.get(`/capacityUtilization-list/${userId}`, { params });
 }
 
 export function fetchCapacityUtilizationById(cslCapacityUtilizationId) {
@@ -156,8 +156,8 @@ export function deleteCapacityUtilization(cslCapacityUtilizationId, userId) {
 }
 
 // ---- Fabrication of Steels (K-4.5) ----
-export function fetchFabricationOfSteels(userId) {
-  return api.get(`/fabrication-list/${userId}`);
+export function fetchFabricationOfSteels(userId, params = {}) {
+  return api.get(`/fabrication-list/${userId}`, { params });
 }
 
 export function fetchFabricationOfSteelsById(cslFabricationId) {
@@ -181,8 +181,8 @@ export function deleteFabricationOfSteels(cslFabricationId, userId) {
 }
 
 // ---- Ships Repaired (K-4.6) ----
-export function fetchShipsRepaired(userId) {
-  return api.get(`/ships-reapired-list/${userId}`);
+export function fetchShipsRepaired(userId, params = {}) {
+  return api.get(`/ships-reapired-list/${userId}`, { params });
 }
 
 export function fetchShipsRepairedById(cslReapiredId) {

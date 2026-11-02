@@ -2,6 +2,9 @@
 import { pool } from "../../db.js";
 import fs from 'fs';
 
+// Stage flags are BIT columns; the form sends 'Yes' / 'No' (true / 1 are accepted too).
+const toBit = (v) => (v === true || v === 1 || /^(yes|true|1)$/i.test(String(v ?? '').trim()) ? 1 : 0);
+
 async function createAuditPara (req, res) 
 {
     const auditParaNumber = req.body.auditParaNumber;
@@ -9,18 +12,18 @@ async function createAuditPara (req, res)
     const wing = req.body.wing;
     const division = req.body.division;
     const category = req.body.category;
-    let yetSentForComment = req.body.yetSentForComment;
+    let yetSentForComment = toBit(req.body.yetSentForComment);
     let yetSentForCommentDate = req.body.yetSentForCommentDate;
-    const commentSoughtOrg = req.body.commentSoughtOrg;
+    const commentSoughtOrg = toBit(req.body.commentSoughtOrg);
     let commentSoughtOrgDate = req.body.commentSoughtOrgDate;
-    const commentReceived = req.body.commentReceived;
+    const commentReceived = toBit(req.body.commentReceived);
     let commentReceivedDate = req.body.commentReceivedDate;
-    const underClarification = req.body.underClarification;    
-    const commentFurnished = req.body.commentFurnished;
+    const underClarification = toBit(req.body.underClarification);    
+    const commentFurnished = toBit(req.body.commentFurnished);
     let commentFurnishedDate = req.body.commentFurnishedDate;
-    const cagAccepted = req.body.cagAccepted;
+    const cagAccepted = toBit(req.body.cagAccepted);
     let cagAcceptedDate = req.body.cagAcceptedDate;
-    const disposed = req.body.disposed;
+    const disposed = toBit(req.body.disposed);
     let disposedDate = req.body.disposedDate;
     const remarks = req.body.remarks;
     const userID = req.body.userID;
@@ -80,12 +83,12 @@ async function createAuditPara (req, res)
         const result = await request.query(`INSERT INTO tbl_audit_para (para_number, subject, wing, division, category, 
             received_at_ministry, date_of_receipt, comments_sought, comments_sought_date, comments_rec, comments_rec_date,
             under_clarification, comments_furnished, comments_furnished_date, cag_accepted, cag_accepted_date, disposed,
-            disposed_date, remarks, stage_id, created_by)
+            disposed_date, remarks, stage_id, created_by, created_date)
             OUTPUT INSERTED.audit_para_id
             VALUES (@auditParaNumber, @subject, @wing, @division, @category, @yetSentForComment, 
             @yetSentForCommentDate, @commentSoughtOrg, @commentSoughtOrgDate, @commentReceived, @commentReceivedDate, @underClarification,
             @commentFurnished, @commentFurnishedDate, @cagAccepted, @cagAcceptedDate, @disposed,
-            @disposedDate, @remarks, @selectedStage, @userID)`);            
+            @disposedDate, @remarks, @selectedStage, @userID, GETDATE())`);            
             
             const audit_para_id = result.recordset[0].audit_para_id;    
             
@@ -105,7 +108,27 @@ async function getAuditPara (req, res)
 
     try 
     {
-        const result = await conn.query(`SELECT audit_para_id, stage_id, para_number, subject, 
+        const userID = req.query.userID;
+        let scopeClause = '';
+        const request = conn.request();
+
+        // MOPSW admin/other-user/wing-head/division-head roles see everything
+        // (matching 2.0's intended behaviour, now enforced server-side rather
+        // than only in the frontend rendering loop). Any other role
+        // (organisation-level users) is scoped to their own wing, or to
+        // records they personally created.
+        if (userID) {
+            const userResult = await request.query(`SELECT role_id, wing_id FROM tbl_user WHERE user_id = ${userID}`);
+            const { role_id, wing_id } = userResult.recordset[0] || {};
+            const isMopswRole = [2, 3, 4, 5, 8].includes(role_id);
+            if (!isMopswRole) {
+                request.input("userWingId", wing_id);
+                request.input("requestingUserId", userID);
+                scopeClause = `WHERE (tbl_audit_para.wing = @userWingId OR tbl_audit_para.created_by = @requestingUserId)`;
+            }
+        }
+
+        const result = await request.query(`SELECT audit_para_id, stage_id, para_number, subject, 
         wing, division, wing_name, division_name, category, 
         received_at_ministry, date_of_receipt, comments_sought, comments_sought_date, comments_rec, comments_rec_date,
         under_clarification, comments_furnished, comments_furnished_date, cag_accepted, cag_accepted_date, disposed,
@@ -114,6 +137,7 @@ async function getAuditPara (req, res)
         INNER JOIN mmt_division ON tbl_audit_para.division = mmt_division.division_id
         INNER JOIN mmt_wings ON tbl_audit_para.wing = mmt_wings.wing_id
         INNER JOIN mmt_audit_para_stage ON mmt_audit_para_stage.audit_para_stage_id = tbl_audit_para.stage_id
+        ${scopeClause}
         ORDER BY audit_para_stage_id ASC
         ;`);
         res.json(result.recordset);
@@ -150,18 +174,18 @@ async function updateAuditPara(req, res)
     const auditParaNumber = req.body.auditParaNumber;
     const subject = req.body.subject;
     const category = req.body.category;
-    const yetSentForComment = req.body.yetSentForComment;
+    const yetSentForComment = toBit(req.body.yetSentForComment);
     let yetSentForCommentDate = req.body.yetSentForCommentDate;
-    const commentSoughtOrg = req.body.commentSoughtOrg;
+    const commentSoughtOrg = toBit(req.body.commentSoughtOrg);
     let commentSoughtOrgDate = req.body.commentSoughtOrgDate;
-    const commentReceived = req.body.commentReceived;
+    const commentReceived = toBit(req.body.commentReceived);
     let commentReceivedDate = req.body.commentReceivedDate;
-    const underClarification = req.body.underClarification;    
-    const commentFurnished = req.body.commentFurnished;        
+    const underClarification = toBit(req.body.underClarification);    
+    const commentFurnished = toBit(req.body.commentFurnished);        
     let commentFurnishedDate = req.body.commentFurnishedDate;
-    const cagAccepted = req.body.cagAccepted;
+    const cagAccepted = toBit(req.body.cagAccepted);
     let cagAcceptedDate = req.body.cagAcceptedDate;
-    const disposed = req.body.disposed;
+    const disposed = toBit(req.body.disposed);
     let disposedDate = req.body.disposedDate;
     const remarks = req.body.remarks;
     const userID = req.body.userID;

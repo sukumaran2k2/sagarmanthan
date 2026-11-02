@@ -1,631 +1,659 @@
-import React, { useState, useEffect, useMemo } from "react";
-import axios from "axios";
-import * as XLSX from "xlsx";
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
+import * as XLSX from 'xlsx';
+import { Calendar, Edit } from 'lucide-react';
+import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
+import { useShallow } from 'zustand/react/shallow';
+
+import InternalNavigation from '../../components/InternalNavigation';
+import RestrictedAccess from '../../components/RestrictedAccess';
+import GEMDataListView from './components/GEMDataListView';
+import GEMInputForm from './pages/InputForm';
+import GEMUpdateForm from './pages/UpdateForm';
+import GEMMonthlyDataPage from './pages/MonthlyDataPage';
+import GEMReports from './pages/Reports';
+import { useGemPermissions } from './hooks/useGemPermissions';
 import {
-  Coins,
-  Calendar,
-  Edit,
-  ShoppingBag,
-  Wrench,
-  Briefcase,
-} from "lucide-react";
+  fetchGemList,
+  createGemTarget,
+  updateGemTarget,
+} from './api';
+import { useGemStore } from './store/useGemStore';
+import { GEM_TOASTS } from './toastMessages';
+import { COMMON_TOASTS, useNotifier } from '../../utils/notify';
+import {
+  getGemRecordId,
+  getGemFinancialYear,
+  getGemOrganisationId,
+  getGemPotential,
+  getElapsedFinancialMonths,
+  proportionalTarget,
+  GEM_CATEGORY_TABS,
+} from './utils/gemUtils';
+import {
+  getWrapColumnProps,
+  renderWrappedText,
+} from '../../utils/tableCellWrap';
 
-import InternalNavigation from "../../components/InternalNavigation";
-import GEMKpiCards from "./components/GEMKpiCards";
-import GEMDataListView from "./components/GEMDataListView";
-import GEMAddTargetModal from "./components/GEMAddTargetModal";
-import GEMMonthlyDataModal from "./components/GEMMonthlyDataModal";
-import GEMReportView from "./components/GEMReportView";
+ModuleRegistry.registerModules([AllCommunityModule]);
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+const GEM_BASE = '/governance/gem-procurements';
+const INIT_TAB_KEY = 'gemInitTab';
+// Category tabs that have targets to add / update (Total is a read-only roll-up)
+const TARGET_CATEGORIES = ['goods', 'services', 'works'];
 
-function getLoggedInUser() {
-  try {
-    const token = localStorage.getItem("accessToken") || localStorage.getItem("token");
-    if (!token) return null;
-    const base64Url = token.split(".")[1];
-    if (!base64Url) return null;
-    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split("")
-        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-        .join("")
-    );
-    return JSON.parse(jsonPayload);
-  } catch (e) {
-    return null;
+function resolvePathSegment(label) {
+  const key = String(label || '').toLowerCase().trim();
+  if (key.includes('report')) return 'reports';
+  if (key.includes('goods')) return 'goods';
+  if (key.includes('service')) return 'services';
+  if (key.includes('work')) return 'works';
+  if (key.includes('total') || key.includes('datalist') || key.includes('data list')) {
+    return 'total';
   }
+  return 'total';
 }
 
-export default function GEMProcurementView() {
-  const [activeTab, setActiveTab] = useState("total"); // Default tab "total"
-  const [viewMode, setViewMode] = useState("ministry"); // "ministry" | "org"
-  const [selectedOrgId, setSelectedOrgId] = useState("1");
-  const [organisations, setOrganisations] = useState([]);
+function getTabKeyFromPath(pathname = '') {
+  const path = pathname.toLowerCase();
+  if (path.includes('/reports') || path.endsWith('/report')) return 'report';
+  if (path.includes('/goods')) return 'goods';
+  if (path.includes('/services')) return 'services';
+  if (path.includes('/works')) return 'works';
+  if (path.includes('/total')) return 'total';
+  return 'total';
+}
+
+function pathSegmentForTab(tabId) {
+  return tabId === 'report' ? 'reports' : tabId;
+}
+
+function listCategoryForTab(tab) {
+  if (tab === 'services') return 'services';
+  if (tab === 'works') return 'works';
+  if (tab === 'goods') return 'goods';
+  return 'total';
+}
+
+export default function GEMProcurementView({
+  activeSubTab: activeSubTabProp,
+  triggerNotification,
+}) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const notify = useNotifier(triggerNotification);
+  const permissions = useGemPermissions();
+  const viewMode = permissions.viewMode;
+  const canManageTargets = Boolean(
+    !permissions.isViewOnlyAdmin && viewMode !== 'org'
+  );
+  const canUpdateMonthly = Boolean(
+    permissions.canEdit && !permissions.isViewOnlyAdmin
+  );
+
+  const elapsedMonths = getElapsedFinancialMonths();
+  const activeTab = getTabKeyFromPath(location.pathname);
+
+  // The record being updated travels with the <category>/input-form route entry, so it is
+  // gone as soon as the form is opened any other way (tab, sidebar, new session):
+  //  - state.target: a ministry user updating the planned procurement
+  //  - state.item:   the monthly procurement data of a record
+  //  - neither:      a new planned procurement
+  const editTarget = location.state?.target ?? null;
+  const monthlyRecord = location.state?.item ?? null;
+
+  const [selectedOrgId, setSelectedOrgId] = useState(
+    permissions.organisationId ? String(permissions.organisationId) : ''
+  );
+  const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [pageSize, setPageSize] = useState(10);
-  const [filterYear, setFilterYear] = useState("2026-2027");
-  const [filterOrg, setFilterOrg] = useState("");
-
-  const [goodsData, setGoodsData] = useState([]);
-  const [servicesData, setServicesData] = useState([]);
-  const [worksData, setWorksData] = useState([]);
-  const [totalData, setTotalData] = useState([]);
-
-  // Modals
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isMonthlyModalOpen, setIsMonthlyModalOpen] = useState(false);
-  const [selectedRecord, setSelectedRecord] = useState(null);
-
-  // Toast State
-  const [toastMsg, setToastMsg] = useState("");
-  const [toastColor, setToastColor] = useState("#10B981");
-  const [toastVisible, setToastVisible] = useState(false);
-
-  const showToast = (msg, color = "#10B981") => {
-    setToastMsg(msg);
-    setToastColor(color);
-    setToastVisible(true);
-    setTimeout(() => setToastVisible(false), 3000);
-  };
-
-  useEffect(() => {
-    const user = getLoggedInUser();
-    if (user) {
-      const roleId = Number(user.roleId || user.role_id || user.role);
-      const orgId = user.organisationId || user.organisation_id || user.orgId;
-
-      if (roleId === 6 || roleId === 7) {
-        setViewMode("org");
-        if (orgId) setSelectedOrgId(String(orgId));
-      } else {
-        setViewMode("ministry");
-      }
-    }
-
-    fetchOrganisations();
-    fetchAllGemData();
-  }, []);
-
-  const fetchOrganisations = async () => {
-    try {
-      const res = await axios.get(`${API_BASE_URL}/data-entry-capex`);
-      if (res.data && res.data.organisations) {
-        setOrganisations(res.data.organisations);
-      } else if (Array.isArray(res.data)) {
-        setOrganisations(res.data);
-      }
-    } catch (err) {
-      setOrganisations([
-        { organisation_id: 1, organisation_name: "Syama Prasad Mookerjee Port Authority, Kolkata" },
-        { organisation_id: 2, organisation_name: "Paradip Port Authority" },
-        { organisation_id: 3, organisation_name: "Visakhapatnam Port Authority" },
-        { organisation_id: 4, organisation_name: "V.O. Chidambaranar Port Authority" },
-        { organisation_id: 5, organisation_name: "Cochin Port Authority" },
-        { organisation_id: 6, organisation_name: "New Mangalore Port Authority" },
-        { organisation_id: 7, organisation_name: "Mormugao Port Authority" },
-        { organisation_id: 8, organisation_name: "Mumbai Port Authority" },
-        { organisation_id: 9, organisation_name: "Jawaharlal Nehru Port Authority" },
-        { organisation_id: 10, organisation_name: "Deendayal Port Authority" },
-      ]);
-    }
-  };
-
-  const fetchAllGemData = async () => {
-    setLoading(true);
-    try {
-      const userID = 1;
-      const [gRes, sRes, wRes, tRes] = await Promise.allSettled([
-        axios.get(`${API_BASE_URL}/gem-procurement-goods/${userID}`),
-        axios.get(`${API_BASE_URL}/gem-procurement-service/${userID}`),
-        axios.get(`${API_BASE_URL}/gem-procurement-work/${userID}`),
-        axios.get(`${API_BASE_URL}/gem-procurement-total`),
-      ]);
-
-      if (gRes.status === "fulfilled") setGoodsData(gRes.value.data || []);
-      if (sRes.status === "fulfilled") setServicesData(sRes.value.data || []);
-      if (wRes.status === "fulfilled") setWorksData(wRes.value.data || []);
-      if (tRes.status === "fulfilled") setTotalData(tRes.value.data || []);
-    } catch (err) {
-      console.error("Fetch GeM Data error:", err);
-      showToast("❌ Failed to load GeM Procurement dataset", "#EF4444");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Map organisation names to total data if missing from backend record
-  const processedTotalData = useMemo(() => {
-    if (!totalData || totalData.length === 0) {
-      // Fallback calculation from goods + services + works if backend total empty
-      const map = new Map();
-      const processItem = (item) => {
-        const orgName = item.organisation_name || "Organisation";
-        const fy = item.goods_financial_year || item.service_financial_year || item.works_financial_year || "2026-2027";
-        const orgId = item.goods_organisation_id || item.service_organisation_id || item.works_organisation_id || item.organisation_id || "1";
-        const key = `${orgId}_${fy}`;
-
-        if (!map.has(key)) {
-          map.set(key, {
-            organisation_id: orgId,
-            organisation_name: orgName,
-            goods_financial_year: fy,
-            total_procurement_potential: 0,
-            eight_months_proportional_target: 0,
-            total_procurement_through_gem: 0,
-            total_procurement_outside_gem: 0,
-          });
-        }
-
-        const entry = map.get(key);
-        entry.total_procurement_potential += Number(item.goods_procurement_potential || item.service_procurement_potential || item.works_procurement_potential || 0);
-        entry.eight_months_proportional_target += Number(item.eight_months_proportional_target || 0);
-        entry.total_procurement_through_gem += Number(item.procurement_through_gem || item.total_gem || 0);
-        entry.total_procurement_outside_gem += Number(item.procurement_outside_gem || item.total_outside || 0);
-      };
-
-      goodsData.forEach(processItem);
-      servicesData.forEach(processItem);
-      worksData.forEach(processItem);
-
-      return Array.from(map.values());
-    }
-
-    return totalData.map((row) => {
-      const orgId = row.common_organisation_id || row.organisation_id;
-      const orgObj = organisations.find((o) => String(o.organisation_id || o.id) === String(orgId));
-      const orgName = row.organisation_name || (orgObj ? orgObj.organisation_name || orgObj.name : `Organisation ${orgId}`);
-
-      return {
-        ...row,
-        organisation_id: orgId,
-        organisation_name: orgName,
-        goods_financial_year: row.common_financial_year || row.financial_year || row.goods_financial_year || "2026-2027",
-        goods_procurement_potential: Number(row.total_procurement_potential || row.planned_procurement || 0),
-        eight_months_proportional_target: Number(row.eight_months_proportional_target || row.proportional_target || 0),
-        procurement_through_gem: Number(row.total_procurement_through_gem || row.procurement_through_gem || 0),
-        procurement_outside_gem: Number(row.total_procurement_outside_gem || row.procurement_outside_gem || 0),
-      };
-    });
-  }, [totalData, goodsData, servicesData, worksData, organisations]);
-
-  const currentCategoryData = useMemo(() => {
-    if (activeTab === "goods") return goodsData;
-    if (activeTab === "services") return servicesData;
-    if (activeTab === "works") return worksData;
-
-    // Total tab returns processed total dataset
-    return processedTotalData;
-  }, [activeTab, goodsData, servicesData, worksData, processedTotalData]);
-
-  const selectedOrgObj = useMemo(() => {
-    return organisations.find((o) => String(o.organisation_id || o.id) === String(selectedOrgId));
-  }, [organisations, selectedOrgId]);
-
-  const filteredData = useMemo(() => {
-    let result = currentCategoryData;
-
-    if (viewMode === "org" && selectedOrgId) {
-      result = result.filter(
-        (row) =>
-          String(row.goods_organisation_id || row.service_organisation_id || row.works_organisation_id || row.common_organisation_id || row.organisation_id) === String(selectedOrgId) ||
-          (selectedOrgObj &&
-            String(row.organisation_name || "").toLowerCase().includes(
-              String(selectedOrgObj.organisation_name || selectedOrgObj.name || "").toLowerCase()
-            ))
-      );
-    } else if (filterOrg) {
-      result = result.filter((row) =>
-        String(row.organisation_name || "").toLowerCase().includes(filterOrg.toLowerCase())
-      );
-    }
-
-    if (filterYear) {
-      result = result.filter(
-        (row) =>
-          String(
-            row.goods_financial_year || row.service_financial_year || row.works_financial_year || row.common_financial_year || ""
-          ).trim() === filterYear.trim()
-      );
-    }
-
-    if (searchTerm.trim()) {
-      const term = searchTerm.toLowerCase();
-      result = result.filter((row) =>
-        Object.values(row).some((val) =>
-          String(val || "").toLowerCase().includes(term)
-        )
-      );
-    }
-
-    return result;
-  }, [currentCategoryData, viewMode, selectedOrgId, selectedOrgObj, filterYear, filterOrg, searchTerm]);
-
-  const [visibleCols, setVisibleCols] = useState({
-    "Sl.No": true,
-    "Organisation": true,
-    "Financial Year": true,
-    "Planned Total Procurement": true,
-    "5 Months Proportional Target": true,
-    "Procurement Through GEM": true,
-    "Procurement Outside GEM": true,
-    "Last Updated Date": true,
-    "Update": true,
+  // Search, filters and paging live in the module store so they survive leaving the module
+  const {
+    organisations,
+    loadOrganisations,
+    searchTerm,
+    setSearchTerm,
+    debouncedSearch,
+    setDebouncedSearch,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    filterYear,
+    setFilterYear,
+    filterOrg,
+    setFilterOrg,
+  } = useGemStore(useShallow((state) => ({
+    organisations: state.organisations,
+    loadOrganisations: state.loadOrganisations,
+    searchTerm: state.searchTerm,
+    setSearchTerm: state.setSearchTerm,
+    debouncedSearch: state.debouncedSearch,
+    setDebouncedSearch: state.setDebouncedSearch,
+    page: state.page,
+    setPage: state.setPage,
+    pageSize: state.pageSize,
+    setPageSize: state.setPageSize,
+    filterYear: state.filterYear,
+    setFilterYear: state.setFilterYear,
+    filterOrg: state.filterOrg,
+    setFilterOrg: state.setFilterOrg,
+  })));
+  const [pagination, setPagination] = useState({
+    total: 0,
+    page: 1,
+    limit: 10,
+    totalPages: 0,
   });
 
+  const goToGemTab = useCallback(
+    (segment) => {
+      navigate(`${GEM_BASE}/${segment}`);
+    },
+    [navigate]
+  );
+
+  const canAddForTab = Boolean(
+    canManageTargets && permissions.canAdd && activeTab !== 'total'
+  );
+  const canUpdateTarget = Boolean(
+    canManageTargets && permissions.canEdit && activeTab !== 'total'
+  );
+
+  useEffect(() => {
+    if (permissions.organisationId) {
+      setSelectedOrgId(String(permissions.organisationId));
+    }
+  }, [permissions.organisationId]);
+
+  useEffect(() => {
+    const apply = (label) => goToGemTab(resolvePathSegment(label));
+    const init = sessionStorage.getItem(INIT_TAB_KEY);
+    if (init) {
+      sessionStorage.removeItem(INIT_TAB_KEY);
+      apply(init);
+    }
+    const onMenu = (e) => apply(e.detail);
+    window.addEventListener('gem-subtab', onMenu);
+    return () => window.removeEventListener('gem-subtab', onMenu);
+  }, [goToGemTab]);
+
+  useEffect(() => {
+    if (!activeSubTabProp) return;
+    goToGemTab(resolvePathSegment(activeSubTabProp));
+  }, [activeSubTabProp, goToGemTab]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm, setDebouncedSearch]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, filterYear, filterOrg, pageSize, viewMode, selectedOrgId, activeTab, setPage]);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadOrganisations().then((ok) => {
+      if (!ok && !cancelled) notify(COMMON_TOASTS.loadFailed('The organisation list'));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [loadOrganisations, notify]);
+
+  const fetchList = useCallback(
+    async (signal) => {
+      if (!permissions.canView || activeTab === 'report') return;
+      setLoading(true);
+      try {
+        const category = listCategoryForTab(activeTab);
+        const params = {
+          page,
+          limit: pageSize,
+          financialYear: filterYear || undefined,
+          search: debouncedSearch.trim() || undefined,
+        };
+        if (viewMode === 'org' && selectedOrgId) {
+          params.organisationId = selectedOrgId;
+        } else if (filterOrg) {
+          params.organisationId = filterOrg;
+        }
+
+        const res = await fetchGemList(category, params, { signal });
+        const payload = res.data || {};
+        const data = Array.isArray(payload.data)
+          ? payload.data
+          : Array.isArray(payload)
+            ? payload
+            : [];
+        setRows(data);
+        setPagination(
+          payload.pagination || {
+            total: data.length,
+            page,
+            limit: pageSize,
+            totalPages: 1,
+          }
+        );
+      } catch (err) {
+        if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return;
+        console.error('Failed to fetch GEM list:', err);
+        notify(COMMON_TOASTS.loadFailed('GEM procurement data'));
+        setRows([]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [
+      permissions.canView,
+      activeTab,
+      page,
+      pageSize,
+      filterYear,
+      debouncedSearch,
+      viewMode,
+      selectedOrgId,
+      filterOrg,
+      notify,
+    ]
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchList(controller.signal);
+    return () => controller.abort();
+  }, [fetchList]);
+
+  const openAddPage = useCallback(() => {
+    navigate(`${GEM_BASE}/${activeTab}/input-form`);
+  }, [navigate, activeTab]);
+
+  const openTargetPage = useCallback((record) => {
+    navigate(`${GEM_BASE}/${activeTab}/input-form`, { state: { target: record } });
+  }, [navigate, activeTab]);
+
+  const openMonthlyPage = useCallback((record) => {
+    navigate(`${GEM_BASE}/${activeTab}/input-form`, { state: { item: record } });
+  }, [navigate, activeTab]);
+
+  const closeUpdatePage = useCallback(() => {
+    goToGemTab(activeTab);
+  }, [goToGemTab, activeTab]);
+
+  // Replace the form entry so browser Back can't reopen the pre-save snapshot
+  const handleSaved = useCallback(() => {
+    navigate(`${GEM_BASE}/${activeTab}`, { replace: true });
+    fetchList();
+  }, [navigate, activeTab, fetchList]);
+
+  const handleTabChange = useCallback(
+    (tabId) => goToGemTab(pathSegmentForTab(tabId)),
+    [goToGemTab]
+  );
+
+  const categoryTitle =
+    activeTab === 'total'
+      ? 'Total'
+      : activeTab.charAt(0).toUpperCase() + activeTab.slice(1);
+
+  const visibleTabs = useMemo(
+    () =>
+      GEM_CATEGORY_TABS.map((t) => ({
+        id: t.id,
+        label: t.label,
+        icon: t.id === 'report' ? Calendar : undefined,
+      })),
+    []
+  );
+
   const colDefs = useMemo(() => {
+    const canUpdate = canUpdateMonthly;
     const allDefs = [
       {
-        headerName: "Sl.No",
-        key: "Sl.No",
-        valueGetter: (params) => (params.node ? params.node.rowIndex + 1 : 1),
+        headerName: 'Sl.No',
+        valueGetter: (params) => {
+          const base = (page - 1) * pageSize;
+          return params.node ? base + params.node.rowIndex + 1 : base + 1;
+        },
         flex: 0.6,
         minWidth: 70,
-        pinned: "left",
-        cellClass: "font-bold text-slate-500 text-center flex items-center justify-center",
-        hide: visibleCols["Sl.No"] === false,
+        pinned: 'left',
+        cellClass: 'font-bold text-slate-500 text-center flex items-center justify-center',
       },
       {
-        field: "organisation_name",
-        headerName: "Organisation",
-        key: "Organisation",
+        field: 'organisation_name',
+        headerName: 'Organisation',
         flex: 2,
         minWidth: 220,
-        cellClass: "font-bold text-slate-800 text-left flex items-center",
-        hide: visibleCols["Organisation"] === false,
+        ...getWrapColumnProps('font-bold text-slate-800 text-left'),
         valueGetter: (params) => {
-          if (!params.data) return "—";
+          if (!params.data) return '—';
           if (params.data.organisation_name) return params.data.organisation_name;
-          if (params.data.Organisation_Name) return params.data.Organisation_Name;
-          if (params.data.org_name) return params.data.org_name;
-          if (params.data.name) return params.data.name;
-
-          const orgId =
-            params.data.common_organisation_id ||
-            params.data.goods_organisation_id ||
-            params.data.service_organisation_id ||
-            params.data.works_organisation_id ||
-            params.data.organisation_id ||
-            params.data.capex_organisation_id ||
-            params.data.org_id ||
-            params.data.id;
-
-          const foundOrg = organisations.find(
+          const orgId = getGemOrganisationId(params.data);
+          const found = organisations.find(
             (o) => String(o.organisation_id || o.id) === String(orgId)
           );
-          return foundOrg ? foundOrg.organisation_name || foundOrg.name : "—";
+          return found ? found.organisation_name || found.name : '—';
         },
+        cellRenderer: (params) =>
+          renderWrappedText(params.value, 'font-bold text-slate-800 text-left', '—'),
       },
       {
-        headerName: "Financial Year",
-        key: "Financial Year",
+        headerName: 'Financial Year',
         flex: 1.2,
         minWidth: 130,
-        cellClass: "font-semibold text-slate-700 text-center flex items-center justify-center",
-        hide: visibleCols["Financial Year"] === false,
-        valueGetter: (params) =>
-          params.data.goods_financial_year ||
-          params.data.service_financial_year ||
-          params.data.works_financial_year ||
-          params.data.common_financial_year ||
-          "2026-2027",
+        ...getWrapColumnProps('font-semibold text-slate-700 text-center'),
+        valueGetter: (params) => getGemFinancialYear(params.data) || '—',
+        cellRenderer: (params) =>
+          renderWrappedText(params.value, 'font-semibold text-slate-700 text-center', '—'),
       },
       {
-        headerName: "Planned Total Procurement (In Crore)",
-        key: "Planned Total Procurement",
+        headerName: 'Planned Total Procurement (In Crore)',
         flex: 2,
         minWidth: 220,
-        cellClass: "font-black text-[#0f417a] text-center flex items-center justify-center",
-        hide: visibleCols["Planned Total Procurement"] === false,
-        valueGetter: (params) => {
-          const val =
-            params.data.goods_procurement_potential ||
-            params.data.service_procurement_potential ||
-            params.data.works_procurement_potential ||
-            params.data.total_procurement_potential ||
-            params.data.planned_procurement ||
-            0;
-          return Number(val).toFixed(2);
-        },
+        ...getWrapColumnProps('font-black text-[#0f417a] text-center'),
+        valueGetter: (params) =>
+          Number(getGemPotential(params.data, listCategoryForTab(activeTab))).toFixed(2),
+        cellRenderer: (params) =>
+          renderWrappedText(params.value, 'font-black text-[#0f417a] text-center', '0.00'),
       },
       {
-        headerName: "5 Months Proportional Target",
-        key: "5 Months Proportional Target",
-        flex: 1.8,
-        minWidth: 180,
-        cellClass: "font-bold text-sky-700 text-center flex items-center justify-center",
-        hide: visibleCols["5 Months Proportional Target"] === false,
-        valueGetter: (params) => {
-          const planned =
-            params.data.goods_procurement_potential ||
-            params.data.service_procurement_potential ||
-            params.data.works_procurement_potential ||
-            params.data.total_procurement_potential ||
-            params.data.planned_procurement ||
-            0;
-          const propVal =
-            params.data.five_months_proportional_target ||
-            params.data.eight_months_proportional_target ||
-            params.data.proportional_target ||
-            (Number(planned) / 12) * 5;
-          return Number(propVal).toFixed(3);
-        },
-      },
-      {
-        headerName: "Procurement Through GEM (In Crore)",
-        key: "Procurement Through GEM",
+        headerName: `${elapsedMonths} Months Proportional Target (In Crore)`,
         flex: 2,
-        minWidth: 200,
-        cellClass: `font-black text-emerald-700 text-center flex items-center justify-center ${
-          activeTab !== "total" ? "cursor-pointer hover:underline" : ""
-        }`,
-        hide: visibleCols["Procurement Through GEM"] === false,
+        minWidth: 220,
+        ...getWrapColumnProps('font-semibold text-slate-700 text-center'),
+        valueGetter: (params) =>
+          proportionalTarget(
+            getGemPotential(params.data, listCategoryForTab(activeTab)),
+            elapsedMonths
+          ).toFixed(2),
+        cellRenderer: (params) =>
+          renderWrappedText(params.value, 'font-semibold text-slate-700 text-center', '0.00'),
+      },
+      {
+        headerName: 'Procurement Through GEM (In Crore)',
+        flex: 2,
+        minWidth: 220,
+        ...getWrapColumnProps(
+          activeTab === 'total'
+            ? 'font-bold text-slate-800 text-center'
+            : 'font-black text-blue-700 text-center cursor-pointer hover:underline'
+        ),
+        valueGetter: (params) =>
+          Number(params.data?.total_procurement_through_gem || 0).toFixed(2),
         cellRenderer: (params) => {
-          const val =
-            params.data?.total_procurement_through_gem ??
-            params.data?.procurement_through_gem ??
-            params.data?.total_gem ??
-            0;
-          if (activeTab === "total") {
-            return <span>₹{Number(val).toFixed(2)}</span>;
+          if (!params.data) return null;
+          if (activeTab === 'total') {
+            return renderWrappedText(params.value, 'font-bold text-slate-800 text-center', '0.00');
           }
           return (
             <div
-              onClick={() => {
-                setSelectedRecord(params.data);
-                setIsMonthlyModalOpen(true);
-              }}
-              className="text-emerald-700 font-black underline cursor-pointer flex items-center justify-center gap-1.5"
-              title="Click to update monthly GeM realizations"
+              onClick={() => openMonthlyPage(params.data)}
+              className="w-full max-w-full text-blue-700 font-black underline cursor-pointer whitespace-normal break-words leading-snug py-0.5 text-center"
+              title="Click to view/edit monthly procurement data"
             >
-              <span>₹{Number(val).toFixed(2)}</span>
+              {params.value}
             </div>
           );
         },
       },
       {
-        headerName: "Procurement Outside GEM (In Crore)",
-        key: "Procurement Outside GEM",
+        headerName: 'Procurement Outside GEM (In Crore)',
         flex: 2,
-        minWidth: 200,
-        cellClass: "font-bold text-slate-700 text-center flex items-center justify-center",
-        hide: visibleCols["Procurement Outside GEM"] === false,
-        valueGetter: (params) => {
-          const val =
-            params.data?.total_procurement_outside_gem ??
-            params.data?.procurement_outside_gem ??
-            params.data?.total_outside ??
-            0;
-          return Number(val).toFixed(2);
-        },
-      },
-      {
-        field: "updated_date",
-        headerName: "Last Updated Date",
-        key: "Last Updated Date",
-        flex: 1.4,
-        minWidth: 140,
-        cellClass: "text-slate-600 font-semibold text-center flex items-center justify-center",
-        hide: visibleCols["Last Updated Date"] === false,
-        valueGetter: (params) => {
-          const date =
-            params.data.updated_date ||
-            params.data.last_updated_date ||
-            params.data.updated_at ||
-            params.data.created_at;
-          return date ? String(date).slice(0, 10) : "--";
-        },
+        minWidth: 220,
+        ...getWrapColumnProps('font-bold text-slate-800 text-center'),
+        valueGetter: (params) =>
+          Number(params.data?.total_procurement_outside_gem || 0).toFixed(2),
+        cellRenderer: (params) =>
+          renderWrappedText(params.value, 'font-bold text-slate-800 text-center', '0.00'),
       },
     ];
 
-    if (activeTab !== "total") {
+    if (activeTab !== 'total') {
       allDefs.push({
-        headerName: "Update",
-        key: "Update",
-        flex: 1,
-        minWidth: 90,
-        cellClass: "text-center flex items-center justify-center",
-        hide: visibleCols["Update"] === false,
-        cellRenderer: (params) => (
-          <button
-            onClick={() => {
-              setSelectedRecord(params.data);
-              setIsMonthlyModalOpen(true);
-            }}
-            className="p-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition cursor-pointer shadow-xs flex items-center justify-center"
-            title="Edit Procurement Realization"
-          >
-            <Edit size={14} />
-          </button>
-        ),
+        headerName: 'Last Updated Date',
+        flex: 1.4,
+        minWidth: 150,
+        ...getWrapColumnProps('text-slate-600 font-semibold text-center'),
+        valueGetter: (params) => {
+          const raw = params.data?.updated_date;
+          if (!raw) return '—';
+          const d = new Date(raw);
+          return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-IN');
+        },
+        cellRenderer: (params) =>
+          renderWrappedText(
+            params.value,
+            'text-slate-600 font-semibold text-center font-mono text-xs',
+            '—'
+          ),
       });
     }
 
-    let finalDefs = allDefs.filter((col) => !col.hide);
-    if (viewMode === "org") {
-      finalDefs = finalDefs.filter((col) => col.field !== "organisation_name");
+    if (canUpdate && activeTab !== 'total') {
+      allDefs.push({
+        headerName: viewMode === 'org' ? 'Update Actuals' : 'Update Target',
+        flex: 1.15,
+        minWidth: 145,
+        maxWidth: 155,
+        pinned: 'right',
+        lockPinned: true,
+        suppressMovable: true,
+        sortable: false,
+        filter: false,
+        cellClass: 'text-center flex items-center justify-center',
+        cellRenderer: (params) => {
+          const row = params.data;
+          if (!row) return null;
+          const isMinistry = viewMode !== 'org';
+          return (
+            <div className="flex items-center justify-center gap-1 w-full h-full py-1">
+              <button
+                type="button"
+                onClick={() => (isMinistry ? openTargetPage(row) : openMonthlyPage(row))}
+                className="p-1.5 hover:bg-amber-50 dark:hover:bg-slate-800 text-amber-600 dark:text-amber-400 rounded-lg transition cursor-pointer"
+                title={isMinistry ? 'Update Planned Procurement' : 'Update Monthly Data'}
+                aria-label={isMinistry ? 'Update Planned Procurement' : 'Update Monthly Data'}
+              >
+                <Edit className="h-4 w-4" />
+              </button>
+            </div>
+          );
+        },
+      });
     }
-    return finalDefs;
-  }, [organisations, activeTab, visibleCols, viewMode]);
 
-  const pinnedBottomRowData = useMemo(() => {
-    if (!filteredData || filteredData.length === 0) return [];
-    let plannedSum = 0;
-    let targetSum = 0;
-    let gemSum = 0;
-    let outsideSum = 0;
+    if (viewMode === 'org') {
+      return allDefs.filter((col) => col.field !== 'organisation_name');
+    }
+    return allDefs;
+  }, [
+    organisations,
+    activeTab,
+    viewMode,
+    elapsedMonths,
+    canUpdateMonthly,
+    openTargetPage,
+    openMonthlyPage,
+    page,
+    pageSize,
+  ]);
 
-    filteredData.forEach((row) => {
-      plannedSum += Number(row.goods_procurement_potential || row.service_procurement_potential || row.works_procurement_potential || row.total_procurement_potential || row.planned_procurement) || 0;
-      targetSum += Number(row.eight_months_proportional_target || row.proportional_target) || 0;
-      gemSum += Number(row.procurement_through_gem || row.total_procurement_through_gem || row.total_gem) || 0;
-      outsideSum += Number(row.procurement_outside_gem || row.total_procurement_outside_gem || row.total_outside) || 0;
-    });
-
-    return [
-      {
-        isSummaryRow: true,
-        organisation_name: "Total",
-        goods_financial_year: "Total Summary",
-        planned_procurement: plannedSum,
-        proportional_target: targetSum,
-        procurement_through_gem: gemSum,
-        procurement_outside_gem: outsideSum,
-      },
-    ];
-  }, [filteredData]);
-
+  // The forms show the success / failure toast; an API error is passed on to them
   const handleAddSubmit = async (payload) => {
-    let endpoint = `${API_BASE_URL}/gem-procurement-goods`;
-    if (activeTab === "services") endpoint = `${API_BASE_URL}/gem-procurement-service`;
-    if (activeTab === "works") endpoint = `${API_BASE_URL}/gem-procurement-work`;
+    const category = listCategoryForTab(activeTab);
+    if (category === 'total') return;
+    await createGemTarget(category, payload);
+  };
 
-    const body = {
-      userID: 1,
-      financialYear: payload.financialYear,
-      organisationId: payload.organisationId,
-      [`${activeTab === "works" ? "works" : activeTab === "services" ? "service" : "goods"}ProcurementPotential`]: payload.plannedPotential,
-    };
-
-    try {
-      const res = await axios.post(endpoint, body);
-      if (res.status === 201 || res.status === 200) {
-        showToast(`✅ GeM ${activeTab} target allocation added successfully!`, "#10B981");
-        fetchAllGemData();
-      }
-    } catch (err) {
-      const serverMsg = err.response?.data?.error || err.message || `Failed to add GeM ${activeTab} target.`;
-      showToast(`❌ ${serverMsg}`, "#EF4444");
-      throw new Error(serverMsg);
-    }
+  const handleTargetUpdate = async (payload) => {
+    const category = listCategoryForTab(activeTab);
+    if (category === 'total') return;
+    await updateGemTarget(category, payload);
   };
 
   const handleCopyData = () => {
-    if (!filteredData || filteredData.length === 0) return;
-    const text = filteredData
-      .map(
-        (r) =>
-          `${r.organisation_name || ""}\tGeM:${r.procurement_through_gem || r.total_procurement_through_gem || 0}\tOutside:${r.procurement_outside_gem || r.total_procurement_outside_gem || 0}`
-      )
-      .join("\n");
-    navigator.clipboard.writeText(text);
-    showToast("📋 GeM Procurement data copied to clipboard!", "#10B981");
+    if (!rows.length) {
+      notify(COMMON_TOASTS.nothingToCopy());
+      return;
+    }
+    const text = rows
+      .map((r) => {
+        const category = listCategoryForTab(activeTab);
+        return [
+          r.organisation_name || '',
+          getGemFinancialYear(r),
+          getGemPotential(r, category),
+          proportionalTarget(getGemPotential(r, category), elapsedMonths),
+          r.total_procurement_through_gem || 0,
+          r.total_procurement_outside_gem || 0,
+        ].join('\t');
+      })
+      .join('\n');
+    navigator.clipboard.writeText(text).then(
+      () => notify(COMMON_TOASTS.copySuccess(rows.length)),
+      () => notify(COMMON_TOASTS.copyFailed()),
+    );
   };
 
   const handleExportExcel = () => {
-    if (!filteredData || filteredData.length === 0) return;
-    const ws = XLSX.utils.json_to_sheet(filteredData);
+    if (!rows.length) {
+      notify(COMMON_TOASTS.nothingToExport());
+      return;
+    }
+    const category = listCategoryForTab(activeTab);
+    const sheet = rows.map((r, idx) => ({
+      'Sl.No': (pagination.page - 1) * pagination.limit + idx + 1,
+      Organisation: r.organisation_name || '',
+      'Financial Year': getGemFinancialYear(r),
+      'Planned Procurement': getGemPotential(r, category),
+      [`${elapsedMonths} Months Proportional Target`]: proportionalTarget(
+        getGemPotential(r, category),
+        elapsedMonths
+      ),
+      'Through GEM': r.total_procurement_through_gem || 0,
+      'Outside GEM': r.total_procurement_outside_gem || 0,
+    }));
+    const fileName = `GEM_${categoryTitle}_${filterYear || 'all'}.xlsx`;
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "GeM_Procurement");
-    XLSX.writeFile(wb, `GeM_Procurement_${activeTab}.xlsx`);
-    showToast("📊 GeM data exported to Excel!", "#10B981");
+    const ws = XLSX.utils.json_to_sheet(sheet);
+    XLSX.utils.book_append_sheet(wb, ws, categoryTitle);
+    XLSX.writeFile(wb, fileName);
+    notify(COMMON_TOASTS.excelExported(fileName));
   };
 
-  const handleExportPdf = () => {
-    showToast("📄 PDF export ready. Print via browser dialog.", "#3B82F6");
-    window.print();
-  };
+  if (!permissions.canView) {
+    return <RestrictedAccess moduleName="GEM Procurement" />;
+  }
 
-  const categoryTitleCap = activeTab === "total" ? "Total GEM Procurements" : activeTab.charAt(0).toUpperCase() + activeTab.slice(1);
+  const listPanel = (
+    <div className="module-card space-y-4">
+      <GEMDataListView
+        categoryTitle={categoryTitle}
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        page={page}
+        pageSize={pageSize}
+        setPageSize={setPageSize}
+        onPageChange={setPage}
+        onPageSizeChange={(n) => {
+          setPageSize(n);
+          setPage(1);
+        }}
+        pagination={pagination}
+        rowData={rows}
+        colDefs={colDefs}
+        loading={loading}
+        showAddButton={canAddForTab}
+        onOpenAddPage={openAddPage}
+        handleCopyData={handleCopyData}
+        handleExportExcel={handleExportExcel}
+        handleExportPdf={() => notify(GEM_TOASTS.pdfComingSoon())}
+        organisations={organisations}
+        filterYear={filterYear}
+        setFilterYear={setFilterYear}
+        filterOrg={filterOrg}
+        setFilterOrg={setFilterOrg}
+        viewMode={viewMode}
+        notify={notify}
+      />
+    </div>
+  );
+
+  // <category>/input-form shows the target update (state.target), the monthly data
+  // (state.item) or a new target; anything the user may not open goes back to the list
+  let formPanel = <Navigate to={`${GEM_BASE}/${activeTab}`} replace />;
+  if (editTarget) {
+    if (canUpdateTarget) {
+      formPanel = (
+        <GEMUpdateForm
+          key={getGemRecordId(editTarget, listCategoryForTab(activeTab)) ?? 'target'}
+          record={editTarget}
+          category={listCategoryForTab(activeTab)}
+          categoryTitle={categoryTitle}
+          onSubmit={handleTargetUpdate}
+          onBack={closeUpdatePage}
+          onSuccess={handleSaved}
+          notify={notify}
+        />
+      );
+    }
+  } else if (monthlyRecord) {
+    formPanel = (
+      <GEMMonthlyDataPage
+        record={monthlyRecord}
+        category={listCategoryForTab(activeTab)}
+        categoryTitle={categoryTitle}
+        canEdit={canUpdateMonthly}
+        onBack={closeUpdatePage}
+        onSaved={handleSaved}
+        notify={notify}
+      />
+    );
+  } else if (canAddForTab) {
+    formPanel = (
+      <GEMInputForm
+        organisations={organisations}
+        categoryTitle={categoryTitle}
+        existingData={rows}
+        onSubmit={handleAddSubmit}
+        onBack={closeUpdatePage}
+        onSuccess={handleSaved}
+        notify={notify}
+      />
+    );
+  }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Toast popup */}
-      {toastVisible && (
-        <div
-          className="fixed top-5 right-5 z-50 px-4 py-3 rounded-xl text-white font-bold text-xs shadow-xl transition-all duration-300 flex items-center space-x-2 animate-bounce select-none"
-          style={{ backgroundColor: toastColor }}
-        >
-          <span>{toastMsg}</span>
-        </div>
-      )}
-
-      {/* Page Title & Subtitle with InternalNavigation on heading line */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4 mb-6 select-none">
+    <div className="module-page-container space-y-6 animate-fade-in">
+      <div className="module-header-container">
         <div>
-          <h1 className="text-xl font-black text-[#0f417a] dark:text-blue-400 tracking-wide uppercase font-display">
-            GeM Procurement
-          </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-sans">
-            Track Government e-Marketplace (GeM) procurement targets, proportional monthly realizations, and compliance across Goods, Services, and Works.
+          <h1 className="module-header-title">GEM Procurement</h1>
+          <p className="module-header-subtitle">
+            Track Goods, Services and Works procurement targets and monthly actuals across organisations.
           </p>
         </div>
-
         <InternalNavigation
-          tabs={
-            viewMode === "org"
-              ? [
-                  { id: "total", label: "Total", icon: Coins },
-                  { id: "goods", label: "Goods", icon: ShoppingBag },
-                  { id: "services", label: "Services", icon: Briefcase },
-                  { id: "works", label: "Works", icon: Wrench },
-                ]
-              : [
-                  { id: "total", label: "Total", icon: Coins },
-                  { id: "goods", label: "Goods", icon: ShoppingBag },
-                  { id: "services", label: "Services", icon: Briefcase },
-                  { id: "works", label: "Works", icon: Wrench },
-                  { id: "report", label: "Report", icon: Calendar },
-                ]
-          }
+          tabs={visibleTabs}
           currentTab={activeTab}
-          onTabChange={(tabId) => setActiveTab(tabId)}
+          onTabChange={handleTabChange}
         />
       </div>
 
-      {/* Main Content Area */}
-      {["total", "goods", "services", "works"].includes(activeTab) && (
-        <>
-          <GEMKpiCards data={filteredData} activeCategory={categoryTitleCap} />
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
-            <GEMDataListView
-              categoryTitle={categoryTitleCap}
-              searchTerm={searchTerm}
-              setSearchTerm={setSearchTerm}
-              pageSize={pageSize}
-              setPageSize={setPageSize}
-              filteredData={filteredData}
-              colDefs={colDefs}
-              pinnedBottomRowData={pinnedBottomRowData}
-              loading={loading}
-              onOpenAddModal={() => setIsAddModalOpen(true)}
-              handleCopyData={handleCopyData}
-              handleExportExcel={handleExportExcel}
-              handleExportPdf={handleExportPdf}
-              organisations={organisations}
-              filterYear={filterYear}
-              setFilterYear={setFilterYear}
-              visibleCols={visibleCols}
-              setVisibleCols={setVisibleCols}
-              filterOrg={filterOrg}
-              setFilterOrg={setFilterOrg}
-              viewMode={viewMode}
-            />
-          </div>
-        </>
-      )}
-
-      {activeTab === "report" && <GEMReportView showToast={showToast} />}
-
-      {/* Modals */}
-      <GEMAddTargetModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        onSubmit={handleAddSubmit}
-        organisations={organisations}
-        categoryTitle={categoryTitleCap}
-        existingData={activeTab === "goods" ? goodsData : activeTab === "services" ? servicesData : worksData}
-      />
-
-      <GEMMonthlyDataModal
-        isOpen={isMonthlyModalOpen}
-        onClose={() => setIsMonthlyModalOpen(false)}
-        record={selectedRecord}
-        categoryType={activeTab === "works" ? "work" : activeTab === "services" ? "service" : "goods"}
-        showToast={showToast}
-      />
+      <Routes>
+        <Route path="total" element={listPanel} />
+        {TARGET_CATEGORIES.map((segment) => (
+          <Route key={segment} path={segment} element={listPanel} />
+        ))}
+        {TARGET_CATEGORIES.map((segment) => (
+          <Route key={`${segment}-form`} path={`${segment}/input-form`} element={formPanel} />
+        ))}
+        <Route path="reports" element={<GEMReports notify={notify} viewMode={viewMode} />} />
+        <Route path="report" element={<Navigate to="../reports" replace />} />
+        <Route index element={<Navigate to="total" replace />} />
+        <Route path="*" element={<Navigate to="total" replace />} />
+      </Routes>
     </div>
   );
 }

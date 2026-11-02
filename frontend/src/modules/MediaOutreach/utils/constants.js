@@ -1,11 +1,16 @@
+import { PlusCircle, Tv, Newspaper, Globe, Share2 } from 'lucide-react';
+
 export const MONTHS = [
   'April', 'May', 'June', 'July', 'August', 'September', 
   'October', 'November', 'December', 'January', 'February', 'March'
 ];
 
+// 2020-2021 up to the current financial year (which starts in April)
 export const FINANCIAL_YEARS = (() => {
+  const today = new Date();
+  const currentStart = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1;
   const years = [];
-  for (let y = 2020; y <= 2028; y++) years.push(`${y}-${y + 1}`);
+  for (let y = 2020; y <= currentStart; y++) years.push(`${y}-${y + 1}`);
   return years;
 })();
 
@@ -19,8 +24,6 @@ export const SOCIAL_CHANNELS = [
 
 export const SOCIAL_CHANNELS_KEYS = ['facebook', 'instagram', 'linkedIn', 'twitter', 'youTube'];
 
-export const SOCIAL_METRICS = ['posts', 'engagement', 'impression'];
-
 export const STEPS = [
   { id: 0, key: 'broadcast', label: 'Broadcast TV Media' },
   { id: 1, key: 'print_media', label: 'Print Media' },
@@ -29,9 +32,9 @@ export const STEPS = [
 ];
 
 export const MEDIA_TABS_ALL = [
-  { id: 'broadcast', label: 'Broadcast / TV Media' },
-  { id: 'print_media', label: 'Print Media' },
-  { id: 'online', label: 'Online' },
-  { id: 'social_media', label: 'Social Media' },
-  { id: 'add_details', label: 'Input Form' },
+  { id: 'add_details', label: 'Input Form', icon: PlusCircle },
+  { id: 'broadcast', label: 'Broadcast / TV Media', icon: Tv },
+  { id: 'print_media', label: 'Print Media', icon: Newspaper },
+  { id: 'online', label: 'Online', icon: Globe },
+  { id: 'social_media', label: 'Social Media', icon: Share2 },
 ];

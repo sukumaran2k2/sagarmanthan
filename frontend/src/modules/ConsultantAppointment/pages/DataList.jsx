@@ -1,11 +1,14 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import Table from '../../../components/Table';
-import { Search, X, Edit, Trash2, ChevronDown, Users, Filter, Plus } from 'lucide-react';
+import { Search, X, Edit, Trash2, ChevronDown, Users, Filter } from 'lucide-react';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import CandidateDrilldownView from './CandidateDrilldownView';
 import TablePagination from '../../../components/TablePagination';
 import { fetchConsultantAppointments } from '../api';
+import { useShallow } from 'zustand/react/shallow';
+import { useCaStore } from '../store/useCaStore';
+import { useNotifier, COMMON_TOASTS } from '../../../utils/notify';
 
 const STAGES = [
   { key: 'adminApproval', label: 'Admin Approval for engaging Consultant' },
@@ -127,27 +130,67 @@ export default function DataList({
   canAdd = true,
   canRemove = true
 }) {
+  // Zustand CA Store (filter/pagination slice only; wings & divisions come from props)
+  const {
+    activeStatusTab: activeTab,
+    setActiveStatusTab: setActiveTab,
+    searchTerm,
+    setSearchTerm,
+    debouncedSearch,
+    setDebouncedSearch,
+    selectedWing,
+    setSelectedWing,
+    selectedDivision,
+    setSelectedDivision,
+    selectedStage,
+    setSelectedStage,
+    showFilterPanel,
+    setShowFilterPanel,
+    currentPage,
+    setCurrentPage,
+    pageSize,
+    setPageSize,
+    resetFilters
+  } = useCaStore(useShallow(state => ({
+    activeStatusTab: state.activeStatusTab,
+    setActiveStatusTab: state.setActiveStatusTab,
+    searchTerm: state.searchTerm,
+    setSearchTerm: state.setSearchTerm,
+    debouncedSearch: state.debouncedSearch,
+    setDebouncedSearch: state.setDebouncedSearch,
+    selectedWing: state.selectedWing,
+    setSelectedWing: state.setSelectedWing,
+    selectedDivision: state.selectedDivision,
+    setSelectedDivision: state.setSelectedDivision,
+    selectedStage: state.selectedStage,
+    setSelectedStage: state.setSelectedStage,
+    showFilterPanel: state.showFilterPanel,
+    setShowFilterPanel: state.setShowFilterPanel,
+    currentPage: state.currentPage,
+    setCurrentPage: state.setCurrentPage,
+    pageSize: state.pageSize,
+    setPageSize: state.setPageSize,
+    resetFilters: state.resetFilters
+  })));
+
+  // Drilldown is view state for this page only; it must not outlive the Data List
+  const [drilldownAppointment, setDrilldownAppointment] = useState(null);
+
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
-
-  const [searchTerm, setSearchTerm] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [selectedWing, setSelectedWing] = useState('');
-  const [selectedDivision, setSelectedDivision] = useState('');
   const [gridApi, setGridApi] = useState(null);
-  const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'completed'
-  const [selectedStage, setSelectedStage] = useState(''); // stage filter for pending tab
-  const [drilldownAppointment, setDrilldownAppointment] = useState(null);
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const notify = useNotifier(triggerNotification);
 
-  // Reset stage filter when switching tabs
+  const [allCount, setAllCount] = useState(0);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [completedCount, setCompletedCount] = useState(0);
+
+  // Reset stage filter when switching tabs (store setters already reset to page 1)
   const handleTabChange = (tab) => {
     setActiveTab(tab);
-    if (tab !== 'pending') setSelectedStage('');
+    if (tab === 'completed') setSelectedStage('');
   };
 
   const activeFiltersCount = (selectedWing ? 1 : 0) + (selectedDivision ? 1 : 0) + (selectedStage ? 1 : 0);
@@ -168,20 +211,14 @@ export default function DataList({
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearch(searchTerm);
-      setCurrentPage(1);
     }, 300);
     return () => clearTimeout(handler);
-  }, [searchTerm]);
+  }, [searchTerm, setDebouncedSearch]);
 
-  const handleWingChange = (val) => {
-    setSelectedWing(val);
-    setCurrentPage(1);
-  };
+  // Store setters already reset to page 1 (and clear division on wing change)
+  const handleWingChange = (val) => setSelectedWing(val);
 
-  const handleDivisionChange = (val) => {
-    setSelectedDivision(val);
-    setCurrentPage(1);
-  };
+  const handleDivisionChange = (val) => setSelectedDivision(val);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -193,7 +230,11 @@ export default function DataList({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Only the latest request may update state (avoids out-of-order responses)
+  const latestRequestRef = useRef(0);
   const fetchData = useCallback(async () => {
+    const requestId = ++latestRequestRef.current;
+    const isStale = () => requestId !== latestRequestRef.current;
     setLoading(true);
     try {
       const res = await fetchConsultantAppointments({
@@ -201,8 +242,11 @@ export default function DataList({
         limit: pageSize,
         search: debouncedSearch,
         wing: selectedWing,
-        division: selectedDivision
+        division: selectedDivision,
+        status: activeTab,
+        stage: selectedStage
       });
+      if (isStale()) return;
 
       const payload = res.data;
       if (payload && payload.data && payload.pagination) {
@@ -213,23 +257,45 @@ export default function DataList({
         setData(parsed);
         setTotalCount(payload.pagination.total || 0);
         setTotalPages(payload.pagination.totalPages || 1);
+        if (payload.pagination.allCount !== undefined) {
+          setAllCount(payload.pagination.allCount || 0);
+          setPendingCount(payload.pagination.pendingCount || 0);
+          setCompletedCount(payload.pagination.completedCount || 0);
+        }
       } else {
         const list = Array.isArray(payload) ? payload : [];
         const parsed = list.map((item, idx) => ({
           ...parseAppointmentRow(item),
           sNo: idx + 1
         }));
-        setData(parsed);
-        setTotalCount(list.length);
-        setTotalPages(Math.ceil(list.length / pageSize) || 1);
+        const total = parsed.length;
+        const comp = parsed.filter(item => item.status === 'Contract Signed').length;
+        const pend = total - comp;
+        setAllCount(total);
+        setCompletedCount(comp);
+        setPendingCount(pend);
+
+        let filtered = parsed;
+        if (activeTab === 'pending') {
+          filtered = filtered.filter(item => item.status !== 'Contract Signed');
+        } else if (activeTab === 'completed') {
+          filtered = filtered.filter(item => item.status === 'Contract Signed');
+        }
+        if (selectedStage && selectedStage !== 'All Stages') {
+          filtered = filtered.filter(item => item.status === selectedStage);
+        }
+        setData(filtered);
+        setTotalCount(filtered.length);
+        setTotalPages(Math.ceil(filtered.length / pageSize) || 1);
       }
     } catch (err) {
+      if (isStale()) return;
       console.error("Error fetching consultant appointments:", err);
       setData([]);
     } finally {
-      setLoading(false);
+      if (!isStale()) setLoading(false);
     }
-  }, [currentPage, pageSize, debouncedSearch, selectedWing, selectedDivision]);
+  }, [currentPage, pageSize, debouncedSearch, selectedWing, selectedDivision, activeTab, selectedStage]);
 
   useEffect(() => {
     fetchData();
@@ -238,24 +304,39 @@ export default function DataList({
   const wingOptions = useMemo(() => {
     return wings.map(w => ({
       value: w.wing_name,
-      label: w.wing_name
+      label: w.wing_name,
+      wing_id: w.wing_id
     }));
   }, [wings]);
 
   const divisionOptions = useMemo(() => {
-    return divisions.map(d => ({
+    if (!selectedWing) return [];
+    let filtered = divisions;
+    const matchingWing = wings.find(w => 
+      (w.wing_name && String(w.wing_name) === String(selectedWing)) || 
+      (w.wing_id && String(w.wing_id) === String(selectedWing))
+    );
+    const targetWingId = matchingWing ? matchingWing.wing_id : null;
+    if (targetWingId !== undefined && targetWingId !== null) {
+      filtered = divisions.filter(d => String(d.wing_id) === String(targetWingId));
+    } else {
+      filtered = divisions.filter(d => String(d.wing_name) === String(selectedWing));
+    }
+    return filtered.map(d => ({
       value: d.division_name,
       label: d.division_name
     }));
-  }, [divisions]);
+  }, [divisions, wings, selectedWing]);
 
-  const pendingCount = useMemo(() => {
-    return data.filter(item => item.status !== 'Contract Signed').length;
-  }, [data]);
-
-  const completedCount = useMemo(() => {
-    return data.filter(item => item.status === 'Contract Signed').length;
-  }, [data]);
+  // Sync division selection if current division is not in filtered list
+  useEffect(() => {
+    if (selectedDivision) {
+      const exists = divisionOptions.some(d => String(d.value) === String(selectedDivision));
+      if (!exists) {
+        setSelectedDivision('');
+      }
+    }
+  }, [divisionOptions, selectedDivision, setSelectedDivision]);
   const handleExport = (type) => {
     if (type === 'Copy') {
       if (gridApi) {
@@ -280,32 +361,26 @@ export default function DataList({
         });
         
         navigator.clipboard.writeText(tsv)
-          .then(() => {
-            if (triggerNotification) triggerNotification('Current page data copied to clipboard!', 'success');
-          })
-          .catch(() => {
-            if (triggerNotification) triggerNotification('Failed to copy table data.', 'error');
-          });
+          .then(() => notify(COMMON_TOASTS.copySuccess(data.length)))
+          .catch(() => notify(COMMON_TOASTS.copyFailed()));
       } else {
-        if (triggerNotification) triggerNotification('Grid is not ready for copy yet.', 'warning');
+        notify(COMMON_TOASTS.tableNotReady('copy'));
       }
     } else if (type === 'Excel') {
       if (gridApi) {
-        gridApi.exportDataAsCsv({
-          fileName: `Consultant_Appointment_Page_${currentPage}.csv`
-        });
-        if (triggerNotification) {
-          triggerNotification(`Register data exported to Excel (CSV) successfully!`, 'success');
-        }
+        const fileName = `Consultant_Appointment_Page_${currentPage}.csv`;
+        gridApi.exportDataAsCsv({ fileName });
+        notify(COMMON_TOASTS.excelExported(fileName));
       } else {
-        if (triggerNotification) triggerNotification("Grid is not ready for export yet.", "warning");
+        notify(COMMON_TOASTS.tableNotReady('export'));
       }
     } else if (type === 'PDF') {
-      if (triggerNotification) {
-        triggerNotification(`Preparing PDF document...`, 'info');
-      }
-
       const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        notify(COMMON_TOASTS.popupBlocked());
+        return;
+      }
+      notify(COMMON_TOASTS.pdfPreparing());
       const title = 'Consultant Appointment - Data List';
 
       let headersHtml = '';
@@ -332,7 +407,7 @@ export default function DataList({
           <head>
             <title>${title}</title>
             <style>
-              body { font-family: system-ui, -apple-system, sans-serif; color: #1e293b; padding: 20px; }
+              body { font-family: 'Google Sans', system-ui, -apple-system, sans-serif; color: #1e293b; padding: 20px; }
               h1 { font-size: 18px; margin-bottom: 5px; color: #0f417a; }
               table { width: 100%; border-collapse: collapse; margin-top: 15px; }
             </style>
@@ -366,17 +441,24 @@ export default function DataList({
       {
         field: 'sNo',
         headerName: 'S.No',
-        minWidth: 95,
-        cellClass: 'font-mono text-slate-800 dark:text-white font-bold text-center',
+        minWidth: 80,
+        width: 85,
+        wrapText: true,
+        autoHeight: true,
+        cellClass: 'font-mono text-slate-800 dark:text-white font-bold text-center flex items-center justify-center',
         headerClass: 'text-center',
-        pinned: 'left'
+        pinned: 'left',
+        cellStyle: { textAlign: 'center', justifyContent: 'center', display: 'flex', alignItems: 'center' }
       },
       {
         field: 'wing',
         headerName: 'Wing',
         flex: 1.5,
         minWidth: 150,
-        cellClass: 'font-bold text-slate-800 dark:text-white',
+        wrapText: true,
+        autoHeight: true,
+        cellClass: 'font-bold text-slate-800 dark:text-white flex items-center',
+        cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4', display: 'flex', alignItems: 'center' },
         hide: !visibleCols.wing,
         pinned: 'left'
       },
@@ -384,24 +466,35 @@ export default function DataList({
         field: 'division',
         headerName: 'Division',
         flex: 1.2,
-        minWidth: 120,
-        cellClass: 'text-slate-700 dark:text-slate-100 font-medium',
+        minWidth: 130,
+        wrapText: true,
+        autoHeight: true,
+        headerClass: 'text-center',
+        cellClass: 'text-slate-700 dark:text-slate-100 font-medium text-center flex items-center justify-center',
+        cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' },
         hide: !visibleCols.division
       },
       {
         field: 'appointmentType',
         headerName: 'Appointment Type',
         flex: 1.2,
-        minWidth: 130,
-        cellClass: 'text-slate-700 dark:text-slate-100 font-medium',
+        minWidth: 140,
+        wrapText: true,
+        autoHeight: true,
+        headerClass: 'text-center',
+        cellClass: 'text-slate-700 dark:text-slate-100 font-medium text-center flex items-center justify-center',
+        cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' },
         hide: !visibleCols.appointmentType
       },
       {
         field: 'status',
         headerName: 'Status',
-        flex: 2,
-        minWidth: 200,
-        cellClass: 'font-semibold text-blue-700 dark:text-blue-400',
+        flex: 3,
+        minWidth: 260,
+        wrapText: true,
+        autoHeight: true,
+        cellClass: 'font-semibold text-blue-700 dark:text-blue-400 flex items-center',
+        cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4', display: 'flex', alignItems: 'center' },
         hide: !visibleCols.status
       },
       {
@@ -409,7 +502,11 @@ export default function DataList({
         headerName: 'Number of Resources',
         flex: 1,
         minWidth: 155,
+        wrapText: true,
+        autoHeight: true,
         headerClass: 'text-center',
+        cellClass: 'flex items-center justify-center',
+        cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' },
         cellRenderer: (params) => {
           const row = params.data;
           const count = params.value || 1;
@@ -434,7 +531,10 @@ export default function DataList({
         headerName: 'Last Updated',
         flex: 1.3,
         minWidth: 165,
-        cellClass: 'font-mono text-slate-700 dark:text-slate-300 text-xs font-semibold text-center',
+        wrapText: true,
+        autoHeight: true,
+        cellClass: 'font-mono text-slate-700 dark:text-slate-300 text-xs font-semibold text-center flex items-center justify-center',
+        cellStyle: { textAlign: 'center', justifyContent: 'center', display: 'flex', alignItems: 'center', whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4' },
         headerClass: 'text-center',
         hide: !visibleCols.lastUpdated
       }
@@ -447,8 +547,11 @@ export default function DataList({
         pinned: 'right',
         lockPinned: true,
         suppressMovable: true,
+        wrapText: true,
+        autoHeight: true,
         headerClass: 'text-center',
-        cellClass: 'text-center',
+        cellClass: 'text-center flex items-center justify-center',
+        cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' },
         cellRenderer: (params) => {
           const row = params.data;
           return (
@@ -456,7 +559,7 @@ export default function DataList({
               {canEdit && (
                 <button
                   onClick={() => onEdit(row)}
-                  className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-[#0f417a] dark:text-blue-400 transition cursor-pointer"
+                  className="p-1.5 hover:bg-orange-50 dark:hover:bg-slate-800 rounded-lg text-orange-500 hover:text-orange-600 dark:text-orange-400 transition cursor-pointer"
                   title="Update Appointment"
                 >
                   <Edit className="h-4 w-4" />
@@ -481,13 +584,16 @@ export default function DataList({
     }
 
     return cols;
-  }, [onEdit, onDelete, visibleCols, canEdit, canRemove, fetchData]);
+  }, [visibleCols, canEdit, canRemove, onEdit, onDelete, fetchData]);
 
   if (drilldownAppointment) {
     return (
       <CandidateDrilldownView
         appointment={drilldownAppointment}
-        onBack={() => setDrilldownAppointment(null)}
+        onBack={() => {
+          setDrilldownAppointment(null);
+          fetchData();
+        }}
         triggerNotification={triggerNotification}
         canEdit={canEdit}
         canAdd={canAdd}
@@ -498,33 +604,25 @@ export default function DataList({
 
   return (
     <div className="space-y-6 animate-fade-in relative">
-      {/* Pending / Completed tabs matching YP DataList */}
-      <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-1 mb-4 select-none px-1">
+      {/* Sub-Tabs: PENDING, CONTRACT SIGNED */}
+      <div className="module-subtabs-strip">
         <button
           onClick={() => handleTabChange('pending')}
-          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
-            activeTab === 'pending'
-              ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
-              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
-          }`}
+          className={`module-subtab-btn ${activeTab === 'pending' ? 'active' : ''}`}
         >
           PENDING ({pendingCount})
         </button>
         <button
           onClick={() => handleTabChange('completed')}
-          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
-            activeTab === 'completed'
-              ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
-              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
-          }`}
+          className={`module-subtab-btn ${activeTab === 'completed' ? 'active' : ''}`}
         >
-          COMPLETED ({completedCount})
+          CONTRACT SIGNED ({completedCount})
         </button>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4 dark:bg-slate-950 dark:border-slate-800">
+      <div className="module-card space-y-4">
 
-        {/* Search, Filters and Actions Toolbar matching YP format */}
+        {/* Search, Filters and Actions Toolbar matching centralized format */}
         <div className="flex flex-col lg:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
           
           {/* 1. Left: Dedicated Filter Button + Reset */}
@@ -532,11 +630,7 @@ export default function DataList({
             <button
               type="button"
               onClick={() => setShowFilterPanel(prev => !prev)}
-              className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer border shadow-2xs ${
-                showFilterPanel || activeFiltersCount > 0
-                  ? 'bg-blue-50 border-blue-300 text-[#0f417a] dark:bg-blue-950/50 dark:border-blue-700 dark:text-blue-300'
-                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800'
-              }`}
+              className={`module-filter-btn ${showFilterPanel || activeFiltersCount > 0 ? 'active' : ''}`}
             >
               <Filter className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
               <span>Filter</span>
@@ -552,11 +646,8 @@ export default function DataList({
               <button
                 type="button"
                 onClick={() => {
-                  setSelectedWing('');
-                  setSelectedDivision('');
-                  setSelectedStage('');
-                  setCurrentPage(1);
-                  triggerNotification?.('Filters have been reset', 'info');
+                  resetFilters();
+                  notify(COMMON_TOASTS.filtersReset());
                 }}
                 className="px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 dark:bg-rose-950/40 rounded-xl border border-rose-200 dark:border-rose-900 transition cursor-pointer"
               >
@@ -579,7 +670,7 @@ export default function DataList({
                 placeholder="Search Wing, Division or Status..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-8 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-slate-400 text-slate-800 dark:text-slate-200"
+                className="w-full module-search-input"
               />
               {searchTerm && (
                 <button
@@ -598,7 +689,6 @@ export default function DataList({
                 value={pageSize}
                 onChange={(e) => {
                   setPageSize(Number(e.target.value));
-                  setCurrentPage(1);
                 }}
                 className="bg-transparent border-none text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
               >
@@ -654,18 +744,6 @@ export default function DataList({
               color="#0f417a"
               hoverColor="#1e5ea8"
             />
-
-            {/* Optional Add Button */}
-            {canAdd && onAddClick && (
-              <button
-                onClick={onAddClick}
-                className="px-3 py-1.5 bg-[#0f417a] hover:bg-[#1a5ba3] text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>Add</span>
-              </button>
-            )}
-
           </div>
         </div>
 
@@ -681,7 +759,7 @@ export default function DataList({
                 <select
                   value={selectedWing}
                   onChange={(e) => handleWingChange(e.target.value)}
-                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                  className="appearance-none w-full text-xs pl-2.5 pr-8 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
                 >
                   <option value="">All Wings</option>
                   {wingOptions.map((w) => (
@@ -701,9 +779,14 @@ export default function DataList({
                 <select
                   value={selectedDivision}
                   onChange={(e) => handleDivisionChange(e.target.value)}
-                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                  disabled={!selectedWing}
+                  className={`appearance-none w-full text-xs pl-2.5 pr-8 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer ${
+                    !selectedWing ? 'opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-800/60' : ''
+                  }`}
                 >
-                  <option value="">All Divisions</option>
+                  <option value="">
+                    {!selectedWing ? 'Select Wing First' : 'All Divisions'}
+                  </option>
                   {divisionOptions.map((d) => (
                     <option key={d.value} value={d.value}>{d.label}</option>
                   ))}
@@ -712,8 +795,8 @@ export default function DataList({
               </div>
             </div>
 
-            {/* Stage Selector (Pending tab) */}
-            {activeTab === 'pending' && (
+            {/* Stage Selector */}
+            {activeTab !== 'completed' && (
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   Stage
@@ -722,10 +805,10 @@ export default function DataList({
                   <select
                     value={selectedStage}
                     onChange={(e) => setSelectedStage(e.target.value)}
-                    className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                    className="appearance-none w-full text-xs pl-2.5 pr-8 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
                   >
                     <option value="">All Stages</option>
-                    {PENDING_STAGES.map(stage => (
+                    {(activeTab === 'pending' ? PENDING_STAGES : STAGES.map(s => s.label)).map(stage => (
                       <option key={stage} value={stage}>{stage}</option>
                     ))}
                   </select>
@@ -736,7 +819,7 @@ export default function DataList({
           </div>
         )}
 
-      <div className="ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
+      <div className="ag-theme-quartz module-datalist-grid w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
         <Table
           rowData={data}
           columnDefs={columnDefs}
@@ -748,7 +831,16 @@ export default function DataList({
             minWidth: 90,
             filter: false,
             sortable: true,
-            resizable: true
+            resizable: true,
+            wrapText: true,
+            autoHeight: true,
+            cellStyle: {
+              whiteSpace: 'normal',
+              wordBreak: 'break-word',
+              lineHeight: '1.4',
+              display: 'flex',
+              alignItems: 'center'
+            }
           }}
         />
 
@@ -763,17 +855,6 @@ export default function DataList({
           onNextPage={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
           color="#0f417a"
         />
-
-        <style dangerouslySetInnerHTML={{
-          __html: `
-          .ag-theme-quartz.rounded-xl,
-          .ag-theme-quartz.rounded-2xl {
-            border-radius: 16px !important;
-          }
-          .ag-theme-quartz .ag-root-wrapper {
-            border-radius: 16px 16px 0 0 !important;
-          }
-        `}} />
       </div>
       </div>
     </div>

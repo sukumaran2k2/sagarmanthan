@@ -1,3 +1,4 @@
+/* global describe, it, expect */
 import { mapIssueToForm } from '../../utils/mapIssue';
 
 describe('mapIssueToForm', () => {

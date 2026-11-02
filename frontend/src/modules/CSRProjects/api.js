@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getCurrentUserId } from '../../utils/authSession';
 
 export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
@@ -58,21 +59,12 @@ api.interceptors.response.use(
   }
 );
 
-export const getUserIdFromToken = () => {
-  const token = localStorage.getItem('accessToken');
-  if (token) {
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      return Number(payload.userId) || 1;
-    } catch (e) {
-      console.error('Error parsing token', e);
-    }
-  }
-  return 1;
-};
+// The server scopes CSR data by the signed token; the user id some routes still carry in
+// their path (from 2.0) is ignored there.
+const pathUserId = () => getCurrentUserId() || 0;
 
 // --- CSR Projects APIs ---
-export const fetchCsrProjectsList = async (userId = getUserIdFromToken()) => {
+export const fetchCsrProjectsList = async (userId = pathUserId()) => {
   const response = await api.get(`/csr-projects-list/${userId}`);
   return response.data;
 };
@@ -100,7 +92,7 @@ export const uploadCsrDocument = async (formData) => {
 };
 
 export const downloadCsrDocument = async (fileName) => {
-  const response = await api.get(`/download-csrfile/${fileName}`, {
+  const response = await api.get(`/download-csrfile/${encodeURIComponent(fileName)}`, {
     responseType: 'blob'
   });
   return response.data;
@@ -141,7 +133,7 @@ export const deleteCsrGalleryFile = async (csrProjectId, filename) => {
 };
 
 // --- CSR Fund Details APIs ---
-export const fetchCsrFundList = async (userId = getUserIdFromToken()) => {
+export const fetchCsrFundList = async (userId = pathUserId()) => {
   const response = await api.get(`/csr-Fund-list/${userId}`);
   return response.data;
 };
@@ -161,34 +153,45 @@ export const updateCsrFund = async (payload) => {
   return response.data;
 };
 
-// --- Dashboard & Drilldowns APIs ---
-export const fetchCsrDashboard = async (clusterId = 0, orgId = 0, fy = 'all', focusId = 0) => {
-  const response = await api.get(`/get-csr-project-dashboard/${clusterId}/${orgId}/${fy}/${focusId}`);
+// --- Dashboard ---
+// Every dashboard figure in one call. params: { clusterId, organisationId, fy, focusId }
+export const fetchCsrDashboardData = async (params) => {
+  const response = await api.get('/get-csr-dashboard', { params });
   return response.data;
 };
 
-export const fetchCsrFundAllocated = async (clusterId = 0, orgId = 0, fy = 'all', focusId = 0) => {
-  const response = await api.get(`/get-csr-fund-allocatted/${clusterId}/${orgId}/${fy}/${focusId}`);
+export const fetchCsrFundYearWiseReport = async (fy = 'all') => {
+  const response = await api.get(`/get-csr-fund-year-wise-report/${fy}`);
   return response.data;
 };
 
-export const fetchCsrProjectStageWise = async (clusterId = 0, orgId = 0, fy = 'all', focusId = 0) => {
-  const response = await api.get(`/get-csr-project-stage-wise/${clusterId}/${orgId}/${fy}/${focusId}`);
+export const fetchCsrFundOrgWiseReport = async (fy = 'all') => {
+  const response = await api.get(`/get-csr-fund-org-wise-report/${fy}`);
   return response.data;
 };
 
-export const fetchCsrProjectCountWise = async (clusterId = 0, orgId = 0, fy = 'all', focusId = 0) => {
-  const response = await api.get(`/get-csr-project-count-wise/${clusterId}/${orgId}/${fy}/${focusId}`);
+export const fetchCsrFundOrgTrendReport = async (orgId = 'all') => {
+  const response = await api.get(`/get-csr-fund-org-trend-report/${orgId}`);
   return response.data;
 };
 
-export const fetchDetailedCsrProjects = async (clusterId = 0, orgId = 0, fy = 'all', stage = 'all', focusId = 0) => {
-  const response = await api.get(`/get-detailed-csr-projects/${clusterId}/${orgId}/${fy}/${stage}/${focusId}`);
+export const fetchCsrProjectsYearWiseSummary = async (orgId = 'all') => {
+  const response = await api.get(`/get-csr-projects-year-wise-summary/${orgId}`);
+  return response.data;
+};
+
+export const fetchCsrProjectsOrgWiseSummary = async () => {
+  const response = await api.get(`/get-csr-projects-org-wise-summary`);
+  return response.data;
+};
+
+export const fetchCsrProjectsFocusWiseSummary = async (orgId = 'all') => {
+  const response = await api.get(`/get-csr-projects-focus-wise-summary/${orgId}`);
   return response.data;
 };
 
 // --- Reports APIs ---
-export const fetchCsrAbstractReport = async (userId = getUserIdFromToken()) => {
+export const fetchCsrAbstractReport = async (userId = pathUserId()) => {
   const response = await api.get(`/get-csr-project-overview-reports/${userId}`);
   return response.data;
 };
@@ -198,28 +201,20 @@ export const fetchCsrDetailedReport = async (orgId, orgName) => {
   return response.data;
 };
 
-export const fetchCsrExpenditureReport = async (userId = getUserIdFromToken()) => {
+export const fetchCsrExpenditureReport = async (userId = pathUserId()) => {
   const response = await api.get(`/get-csr-fund-expenditure-report/${userId}`);
   return response.data;
 };
 
 // Master Dropdowns
 export const fetchOrganisations = async () => {
-  try {
-    const response = await api.get('/mmt-dropdown/mmt_organisation');
-    return response.data;
-  } catch {
-    return [];
-  }
+  const response = await api.get('/mmt-dropdown/mmt_organisation');
+  return response.data;
 };
 
 export const fetchClusters = async () => {
-  try {
-    const response = await api.get('/mmt-dropdown/mmt_hr_cluster');
-    return response.data;
-  } catch {
-    return [];
-  }
+  const response = await api.get('/mmt-dropdown/mmt_hr_cluster');
+  return response.data;
 };
 
 export default api;

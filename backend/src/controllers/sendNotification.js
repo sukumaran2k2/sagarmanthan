@@ -1,18 +1,11 @@
-import nodemailer from "nodemailer";
+import { supportMailer } from "../utils/mailer.js";
 import { pool } from "../db.js";
 
 async function sendEmail(toAddress, cc, subject, body, req, res)
 {
     try
     {
-        const transporter = nodemailer.createTransport({
-            host: "smtp.office365.com",
-            port: 587,
-            auth: {
-            user: "sagarmanthansupport@ntcpwc.iitm.ac.in",
-            pass: "Sagarmanthan@123",
-            },
-        });
+        const transporter = supportMailer();
        
         let footer = `  <br><br>
                     In case you face any difficulty, please reach out to the helpline via email.
@@ -81,14 +74,7 @@ async function generalMailAlertForHR(req, res = null) {
     return;
   }
 
-  const transporter = nodemailer.createTransport({
-    host: "smtp.office365.com",
-    port: 587,
-    auth: {
-      user: "sagarmanthansupport@ntcpwc.iitm.ac.in",
-      pass: "Sagarmanthan@123",
-    },
-  });
+  const transporter = supportMailer();
 
   const subject = 'Automated Reminder: Request to Complete HR Data Entry for This Month - Sagarmanthan Portal';
   const body = `Dear Sir/Madam,
@@ -170,11 +156,11 @@ async function pendingMailAlertForHR(req, res = null) {
       LEFT JOIN tbl_hr_post_strength ps
         ON mmt.organisation_id = ps.organisation_id
       WHERE et.updated_date IS NOT NULL
-        AND et.updated_date BETWEEN DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1)
-        AND EOMONTH(GETDATE())
+        AND et.updated_date >= DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1)
+        AND et.updated_date < DATEADD(DAY, 1, EOMONTH(GETDATE()))
         AND ps.updated_date IS NOT NULL
-        AND ps.updated_date BETWEEN DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1)
-        AND EOMONTH(GETDATE())
+        AND ps.updated_date >= DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1)
+        AND ps.updated_date < DATEADD(DAY, 1, EOMONTH(GETDATE()))
     )
 `;
 
@@ -197,14 +183,7 @@ const incompleteQuery = await request.query(incompleteQueries);
     return;
   }
 
-  const transporter = nodemailer.createTransport({
-    host: "smtp.office365.com",
-    port: 587,
-    auth: {
-      user: "sagarmanthansupport@ntcpwc.iitm.ac.in",
-      pass: "Sagarmanthan@123",
-    },
-  });
+  const transporter = supportMailer();
 
   const subject = 'Automated Reminder: HR Data Entry for This Month is Pending – Sagarmanthan Portal';
   const body = `Dear Sir/Madam,
@@ -268,21 +247,19 @@ async function resetAlertDate(req, res) {
   }
 }
 
+// The HR entry month runs from the 11th to the 10th. Returned as 'YYYY-MM-DD' strings
+// (server-local days) with endDate exclusive, for `col >= @startDate AND col < @endDate`
+// on the DATETIME created_date / updated_date columns.
 function getHRMonthRange(today = new Date()) {
   const year = today.getFullYear();
-  const month = today.getMonth(); 
+  const month = today.getMonth();
+  const startMonth = today.getDate() >= 11 ? month : month - 1;
+  const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-  let startDate, endDate;
-
-  if (today.getDate() >= 11) {
-    startDate = new Date(year, month, 11);
-    endDate = new Date(year, month + 1, 10, 23, 59, 59);
-  } else {
-    startDate = new Date(year, month - 1, 11);
-    endDate = new Date(year, month, 10, 23, 59, 59);
-  }
-
-  return { startDate, endDate };
+  return {
+    startDate: ymd(new Date(year, startMonth, 11)),
+    endDate: ymd(new Date(year, startMonth + 1, 11)),
+  };
 }
 
 async function checkLastUpdateOfEntryInHR() {
@@ -318,11 +295,11 @@ async function checkLastUpdateOfEntryInHR() {
 
       if (row.vacant_or_filled === "vacant") {
         query += `
-          AND created_date BETWEEN @startDate AND @endDate
+          AND created_date >= @startDate AND created_date < @endDate
         `;
       } else if (row.vacant_or_filled === "filled") {
         query += `
-          AND updated_date BETWEEN @startDate AND @endDate
+          AND updated_date >= @startDate AND updated_date < @endDate
         `;
       }
 
@@ -406,15 +383,7 @@ async function PendingMailOrgOrganisations(res = null) {
       return [];
     }
 
-    const transporter = nodemailer.createTransport({
-      host: "smtp.office365.com",
-      port: 587,
-      secure: false,
-      auth: {
-        user: "sagarmanthansupport@ntcpwc.iitm.ac.in",
-        pass: "Sagarmanthan@123",
-      },
-    });
+    const transporter = supportMailer();
 
     const subject = "Automated Reminder: HR (Other Org) Data Entry Pending - Sagarmanthan Portal";
     const body = `

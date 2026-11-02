@@ -67,7 +67,25 @@ async function getMIVOrgWisePerformanceReport(req, res) {
                             THEN 1
                             ELSE 0
                         END
-                    ) AS [Not Started]
+                    ) AS [Not Started],
+                     CAST(
+    (
+        SUM(
+            CASE
+                WHEN ini.status_current = 'Completed'
+                THEN 100
+                WHEN ini.status_current = 'Under Implementation - On Time'
+                THEN 75
+                WHEN ini.status_current = 'Under Implementation - Delayed'
+                THEN 40
+                WHEN ini.status_current = 'Yet to be Started'
+                THEN 0
+                ELSE 0
+            END
+        ) * 1.0
+    ) / NULLIF(COUNT(ini.initiative_id), 0)
+    AS DECIMAL(5,2)
+) AS [performanceScore]
 
                 FROM tbl_initiative ini
                 LEFT JOIN mmt_organisation mmt ON ini.organisation_id = mmt.organisation_id
@@ -118,7 +136,25 @@ async function getMIVOrgWisePerformanceReport(req, res) {
                             THEN 1
                             ELSE 0
                         END
-                    ) AS [Not Started]
+                    ) AS [Not Started],
+                     CAST(
+    (
+        SUM(
+            CASE
+                WHEN ini.status_current = 'Completed'
+                THEN 100
+                WHEN ini.status_current = 'Under Implementation - On Time'
+                THEN 75
+                WHEN ini.status_current = 'Under Implementation - Delayed'
+                THEN 40
+                WHEN ini.status_current = 'Yet to be Started'
+                THEN 0
+                ELSE 0
+            END
+        ) * 1.0
+    ) / NULLIF(COUNT(ini.initiative_id), 0)
+    AS DECIMAL(5,2)
+) AS [performanceScore]
 
                 FROM tbl_initiative ini
                 LEFT JOIN mmt_organisation mmt ON ini.organisation_id = mmt.organisation_id
@@ -213,7 +249,25 @@ COUNT(ini.initiative_id) AS [Total Initiatives],
             THEN 1
             ELSE 0
         END
-    ) AS [Not Started]
+    ) AS [Not Started],
+     CAST(
+    (
+        SUM(
+            CASE
+                WHEN ini.status_current = 'Completed'
+                THEN 100
+                WHEN ini.status_current = 'Under Implementation - On Time'
+                THEN 75
+                WHEN ini.status_current = 'Under Implementation - Delayed'
+                THEN 40
+                WHEN ini.status_current = 'Yet to be Started'
+                THEN 0
+                ELSE 0
+            END
+        ) * 1.0
+    ) / NULLIF(COUNT(ini.initiative_id), 0)
+    AS DECIMAL(5,2)
+) AS [performanceScore]
 
 
 from tbl_initiative ini
@@ -257,7 +311,25 @@ COUNT(ini.initiative_id) AS [Total Initiatives],
             THEN 1
             ELSE 0
         END
-    ) AS [Not Started]
+    ) AS [Not Started],
+     CAST(
+    (
+        SUM(
+            CASE
+                WHEN ini.status_current = 'Completed'
+                THEN 100
+                WHEN ini.status_current = 'Under Implementation - On Time'
+                THEN 75
+                WHEN ini.status_current = 'Under Implementation - Delayed'
+                THEN 40
+                WHEN ini.status_current = 'Yet to be Started'
+                THEN 0
+                ELSE 0
+            END
+        ) * 1.0
+    ) / NULLIF(COUNT(ini.initiative_id), 0)
+    AS DECIMAL(5,2)
+) AS [performanceScore]
 
 
 from tbl_initiative ini
@@ -1015,9 +1087,25 @@ async function getCategoryWiseMIVPerformanceReport(req,res) {
                         THEN 1
                         ELSE 0
                     END
-                ) AS [Not Started]
-
-
+                ) AS [Not Started],
+                  CAST(
+                (
+                    SUM(
+                        CASE
+                            WHEN ini.status_current = 'Completed'
+                            THEN 100
+                            WHEN ini.status_current = 'Under Implementation - On Time'
+                            THEN 75
+                            WHEN ini.status_current = 'Under Implementation - Delayed'
+                            THEN 40
+                            WHEN ini.status_current = 'Yet to be Started'
+                            THEN 0
+                            ELSE 0
+                        END
+                    ) * 1.0
+                ) / NULLIF(COUNT(ini.initiative_id), 0)
+                AS DECIMAL(5,2)
+            ) AS [performanceScore]
             from tbl_initiative ini
             GROUP BY 
                 ini.category
@@ -1058,9 +1146,25 @@ async function getCategoryWiseMIVPerformanceReport(req,res) {
                         THEN 1
                         ELSE 0
                     END
-                ) AS [Not Started]
-
-
+                ) AS [Not Started],
+                CAST(
+                (
+                    SUM(
+                        CASE
+                            WHEN ini.status_current = 'Completed'
+                            THEN 100
+                            WHEN ini.status_current = 'Under Implementation - On Time'
+                            THEN 75
+                            WHEN ini.status_current = 'Under Implementation - Delayed'
+                            THEN 40
+                            WHEN ini.status_current = 'Yet to be Started'
+                            THEN 0
+                            ELSE 0
+                        END
+                    ) * 1.0
+                ) / NULLIF(COUNT(ini.initiative_id), 0)
+                AS DECIMAL(5,2)
+            ) AS [performanceScore]
             from tbl_initiative ini
             WHERE ini.organisation_id = @organisation_id
             GROUP BY 
@@ -1079,30 +1183,17 @@ async function getCategoryWiseMIVPerformanceReport(req,res) {
 const ALL_ORGANISATION_ROLES = [1, 2, 3, 4, 5, 8];
 
 
-// ============================================================
-// REPORT 1.4
-// SUMMARY REPORT - DELAYED / OVERDUE INITIATIVES
-// ============================================================
-
 async function getSummaryReportOverdueInitiatives(req, res) {
     try {
         const conn = await pool;
 
         const userID = Number(req.params.userID);
 
-        // ------------------------------------------------------
-        // Validate userID
-        // ------------------------------------------------------
-
         if (!Number.isInteger(userID) || userID <= 0) {
             return res.status(400).json({
                 message: "Invalid userID"
             });
         }
-
-        // ------------------------------------------------------
-        // Get user role + organisation
-        // ------------------------------------------------------
 
         const userRequest = conn.request();
 
@@ -1133,10 +1224,6 @@ async function getSummaryReportOverdueInitiatives(req, res) {
         const canViewAllOrganisations =
             ALL_ORGANISATION_ROLES.includes(userRoleId);
 
-        // ------------------------------------------------------
-        // Organisation validation
-        // ------------------------------------------------------
-
         if (
             !canViewAllOrganisations &&
             (!Number.isInteger(userOrganisationId) ||
@@ -1147,10 +1234,6 @@ async function getSummaryReportOverdueInitiatives(req, res) {
             });
         }
 
-        // ------------------------------------------------------
-        // Query
-        // ------------------------------------------------------
-
         const request = conn.request();
 
         if (!canViewAllOrganisations) {
@@ -1159,16 +1242,6 @@ async function getSummaryReportOverdueInitiatives(req, res) {
                 userOrganisationId
             );
         }
-
-        /*
-         * IMPORTANT
-         *
-         * We calculate overdue days using:
-         *
-         * actual_date -> today
-         *
-         * This is the same logic used by Report 1.5.
-         */
 
         const organisationFilter = canViewAllOrganisations
             ? ""
@@ -1290,10 +1363,6 @@ async function getSummaryReportOverdueInitiatives(req, res) {
                 organisation_name;
         `);
 
-        // ------------------------------------------------------
-        // Response
-        // ------------------------------------------------------
-
         return res.status(200).json({
             rows: result.recordset
         });
@@ -1312,31 +1381,17 @@ async function getSummaryReportOverdueInitiatives(req, res) {
     }
 }
 
-
-// ============================================================
-// REPORT 1.5
-// DETAILED REPORT - DELAYED / OVERDUE INITIATIVES
-// ============================================================
-
 async function detailedReportDelayedOverdueInitiatives(req, res) {
     try {
         const conn = await pool;
 
         const userID = Number(req.params.userID);
 
-        // ------------------------------------------------------
-        // Validate userID
-        // ------------------------------------------------------
-
         if (!Number.isInteger(userID) || userID <= 0) {
             return res.status(400).json({
                 message: "Invalid userID"
             });
         }
-
-        // ------------------------------------------------------
-        // Get user role + organisation
-        // ------------------------------------------------------
 
         const userRequest = conn.request();
 
@@ -1367,10 +1422,6 @@ async function detailedReportDelayedOverdueInitiatives(req, res) {
         const canViewAllOrganisations =
             ALL_ORGANISATION_ROLES.includes(userRoleId);
 
-        // ------------------------------------------------------
-        // Organisation validation
-        // ------------------------------------------------------
-
         if (
             !canViewAllOrganisations &&
             (!Number.isInteger(userOrganisationId) ||
@@ -1381,10 +1432,6 @@ async function detailedReportDelayedOverdueInitiatives(req, res) {
             });
         }
 
-        // ------------------------------------------------------
-        // Request
-        // ------------------------------------------------------
-
         const request = conn.request();
 
         if (!canViewAllOrganisations) {
@@ -1394,19 +1441,11 @@ async function detailedReportDelayedOverdueInitiatives(req, res) {
             );
         }
 
-        // ------------------------------------------------------
-        // Organisation filter
-        // ------------------------------------------------------
-
         const organisationFilter = canViewAllOrganisations
             ? ""
             : `
                 AND ini.organisation_id = @organisation_id
             `;
-
-        // ------------------------------------------------------
-        // Detailed query
-        // ------------------------------------------------------
 
         const result = await request.query(`
             SELECT
@@ -1523,10 +1562,6 @@ async function detailedReportDelayedOverdueInitiatives(req, res) {
                 ini.actual_date,
                 ini.initiative_id;
         `);
-
-        // ------------------------------------------------------
-        // Response
-        // ------------------------------------------------------
 
         return res.status(200).json({
             rows: result.recordset

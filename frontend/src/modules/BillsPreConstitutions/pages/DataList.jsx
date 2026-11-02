@@ -1,15 +1,19 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { createPortal } from 'react-dom';
+import { useCallback, useMemo, useRef, useEffect, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import Table from '../../../components/Table';
-import { Search, X, Edit, Trash2, ChevronDown, BarChart3, List } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
+import { Search, X, Edit, Trash2, ChevronDown, Filter } from 'lucide-react';
 import { deleteBill } from '../api';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
+import { exportDataListToCsv } from '../../../utils/exportDataListCsv';
+import { COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { useBillsStore } from '../store/useBillsStore';
+import { BILLS_TOASTS } from '../toastMessages';
 
 const STAGES = {
+  0: 'No Status',
   1: 'Draft Bill Prepared',
-  2: 'DCN & Draft Bill Approved by Minister',
+  2: 'Pre-DCN & Draft Bill Approved by Minister',
   3: 'Circulated for IMC',
   4: 'IMC Comments Received',
   5: 'DCN & Draft Bill Prepared',
@@ -25,58 +29,64 @@ const STAGES = {
   15: 'Completed'
 };
 
-function decodeToken(token) {
-  try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function (c) {
-      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-    return JSON.parse(jsonPayload);
-  } catch (e) {
-    return null;
-  }
-}
+// Column labels for copy / Excel / PDF, by visibility key
+const EXPORT_COLUMNS = [
+  { key: 'subject', field: 'subject', label: 'Name of the Subject' },
+  { key: 'wing', field: 'wing_name', label: 'Wing' },
+  { key: 'division', field: 'division_name', label: 'Division' },
+  { key: 'stage', field: 'stage', label: 'Stage' },
+];
+
+// The bill's current stage is tbl_bill.stage_id (as in 2.0, the Dashboard and Reports), not
+// worked out from the dates: 2.0 bills often have stages done without a date.
+// Passed, Notified and Completed bills are disposed (the Dashboard uses the same rule).
+const DISPOSED_FROM_STAGE = 13;
+const stageOf = (item) => Number(item.stage_id) || 0;
+const isDisposed = (item) => stageOf(item) >= DISPOSED_FROM_STAGE;
+const getBillStageText = (item) => STAGES[stageOf(item)] || STAGES[0];
+
+const PAGE_SIZES = [10, 25, 50, 100];
 
 export default function DataList({
   rowData,
   loading,
   onEdit,
-  onRefresh,
-  triggerNotification,
+  onDeleted,
+  notify,
   wings = [],
   divisions = [],
   canEdit = true,
   canRemove = false
 }) {
-  const [selectedWing, setSelectedWing] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedDivision, setSelectedDivision] = useState('');
-  const [selectedStage, setSelectedStage] = useState('');
-  const [viewMode, setViewMode] = useState('table'); // table or chart switching
-  const [gridApi, setGridApi] = useState(null); // Ag Grid API reference
+  // Category, filters, search, paging, filter panel and columns are kept in the module store
+  const {
+    activeCategory, filters, searchQuery, pageSize, showFilterPanel, visibleCols,
+  } = useBillsStore(useShallow((state) => ({
+    activeCategory: state.category,
+    filters: state.filters,
+    searchQuery: state.searchTerm,
+    pageSize: state.pageSize,
+    showFilterPanel: state.showFilterPanel,
+    visibleCols: state.visibleCols,
+  })));
+  const actions = useBillsStore(useShallow((state) => ({
+    setSearchTerm: state.setSearchTerm,
+    setFilters: state.setFilters,
+    resetFilters: state.resetFilters,
+    setCategory: state.setCategory,
+    setPageSize: state.setPageSize,
+    setShowFilterPanel: state.setShowFilterPanel,
+    setVisibleCols: state.setVisibleCols,
+  })));
+  const { wing: selectedWing, division: selectedDivision, stage: selectedStage } = filters;
+  const setSearchQuery = actions.setSearchTerm;
+  const setShowFilterPanel = actions.setShowFilterPanel;
+  const setVisibleCols = actions.setVisibleCols;
+  const setActiveCategory = actions.setCategory;
+  const setPageSize = actions.setPageSize;
+
   const [dropdownOpen, setDropdownOpen] = useState(false); // Visibility checklist dropdown
-  const [pageSize, setPageSize] = useState(10);
   const colDropdownRef = useRef(null);
-  const [visibleCols, setVisibleCols] = useState({
-    subject: true,
-    wing: true,
-    subject: true,
-    wing: true,
-    division: true,
-    stage: true
-  });
-
-  const [activeCategory, setActiveCategory] = useState('active');
-
-  const activeUserId = useMemo(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      const decoded = decodeToken(token);
-      return decoded ? decoded.userID : null;
-    }
-    return null;
-  }, []);
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -98,50 +108,25 @@ export default function DataList({
     }));
   }, [wings]);
 
+  // Only the chosen wing's divisions
   const divisionOptions = useMemo(() => {
-    return divisions.map(d => ({
-      value: d.division_id,
-      label: d.division_name
-    }));
-  }, [divisions]);
+    return divisions
+      .filter(d => !selectedWing || String(d.wing_id) === String(selectedWing))
+      .map(d => ({
+        value: d.division_id,
+        label: d.division_name
+      }));
+  }, [divisions, selectedWing]);
 
-  const getBillStageText = (item) => {
-    if (item.completed_date) return STAGES[15];
-    if (item.bill_notified_date) return STAGES[14];
-    if (item.bill_passed_date) return STAGES[13];
-    if (item.bill_introduced_in_parliament_date) return STAGES[12];
-    if (item.approved_by_cabinet_date) return STAGES[11];
-    if (item.advance_copy_date) return STAGES[10];
-    if (item.final_dcn_approved_date) return STAGES[9];
-    if (item.legal_vetting_completed_date) return STAGES[8];
-    if (item.submited_legal_vetting_date) return STAGES[7];
-    if (item.dcn_draft_bill_approved_date) return STAGES[6];
-    if (item.dcn_draft_bill_prepared_date) return STAGES[5];
-    if (item.imc_comments_rec_date) return STAGES[4];
-    if (item.circulated_imc_date) return STAGES[3];
-    if (item.pre_draft_bill_approved_date) return STAGES[2];
-    if (item.pre_draft_bill_prepared_date) return STAGES[1];
-    return 'Draft';
-  };
-
-  // Derive Stage Options
-  const stageOptions = useMemo(() => {
-    const set = new Set();
-    rowData.forEach(item => {
-      const isDisposed = !!item.bill_passed_date || !!item.bill_notified_date || !!item.completed_date;
-      if (activeCategory === 'active' && isDisposed) return;
-      if (activeCategory === 'disposed' && !isDisposed) return;
-      const st = getBillStageText(item);
-      set.add(st);
-    });
-    return Array.from(set).map(s => ({ value: s, label: s }));
-  }, [rowData, activeCategory]);
+  // Every stage of the tab (active: up to Introduced in Parliament; disposed: Passed onwards)
+  const stageOptions = useMemo(() => Object.entries(STAGES)
+    .filter(([id]) => (activeCategory === 'disposed') === (Number(id) >= DISPOSED_FROM_STAGE))
+    .map(([id, label]) => ({ value: id, label: `${Number(id) ? `${id}. ` : ''}${label}` })), [activeCategory]);
 
   const filteredData = useMemo(() => {
     return rowData.filter(item => {
-      const isDisposed = !!item.bill_passed_date || !!item.bill_notified_date || !!item.completed_date;
-      if (activeCategory === 'active' && isDisposed) return false;
-      if (activeCategory === 'disposed' && !isDisposed) return false;
+      if (activeCategory === 'active' && isDisposed(item)) return false;
+      if (activeCategory === 'disposed' && !isDisposed(item)) return false;
 
       const matchesWing = selectedWing
         ? String(item.wing) === String(selectedWing)
@@ -151,46 +136,48 @@ export default function DataList({
         ? String(item.division) === String(selectedDivision)
         : true;
 
-      const matchesStage = selectedStage
-        ? getBillStageText(item) === selectedStage
+      const matchesStage = selectedStage !== ''
+        ? String(stageOf(item)) === String(selectedStage)
         : true;
 
-      const matchesSearch = searchQuery.trim()
-        ? (item.subject || '').toLowerCase().includes(searchQuery.toLowerCase())
+      // Searches every column on show
+      const query = searchQuery.trim().toLowerCase();
+      const matchesSearch = query
+        ? [item.subject, item.wing_name, item.division_name, getBillStageText(item)]
+          .some((v) => String(v || '').toLowerCase().includes(query))
         : true;
 
       return matchesWing && matchesDivision && matchesStage && matchesSearch;
     });
   }, [rowData, selectedWing, selectedDivision, selectedStage, searchQuery, activeCategory]);
 
-  const activeCount = useMemo(() => rowData.filter(item => !(!!item.bill_passed_date || !!item.bill_notified_date || !!item.completed_date)).length, [rowData]);
-  const disposedCount = useMemo(() => rowData.filter(item => (!!item.bill_passed_date || !!item.bill_notified_date || !!item.completed_date)).length, [rowData]);
+  const activeFiltersCount = [selectedWing, selectedDivision, selectedStage].filter(Boolean).length;
 
-  const chartData = useMemo(() => {
-    const counts = {};
-    filteredData.forEach(item => {
-      const w = item.wing_name || 'Unknown';
-      counts[w] = (counts[w] || 0) + 1;
-    });
-    return Object.keys(counts).map(key => ({
-      name: key,
-      'Bills': counts[key]
-    }));
-  }, [filteredData]);
+  const clearFilters = () => {
+    actions.resetFilters();
+    notify?.(COMMON_TOASTS.filtersReset());
+  };
 
-  const COLORS = ['#0f417a', '#1e5ea8', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+  const activeCount = useMemo(() => rowData.filter((item) => !isDisposed(item)).length, [rowData]);
+  const disposedCount = rowData.length - activeCount;
 
-  const handleDelete = async (billId) => {
+  // Every filtered row goes to the grid, which pages it, so a column sort covers the whole list
+
+  const handleDelete = useCallback(async (bill) => {
     if (!window.confirm("Are you sure you want to delete this Bill?")) return;
     try {
-      await deleteBill(billId, activeUserId || 1);
-      triggerNotification("Bill deleted successfully!");
-      if (onRefresh) onRefresh();
+      await deleteBill(bill.id || bill.bill_id);
+      notify?.(BILLS_TOASTS.deleted(bill.subject));
+      onDeleted?.();
     } catch (err) {
       console.error("Error deleting bill:", err);
-      triggerNotification("Error deleting bill.");
+      notify?.(BILLS_TOASTS.deleteFailed(getErrorMessage(err)));
     }
-  };
+  }, [notify, onDeleted]);
+
+  // Rows as exported: the stage is computed, not a field
+  const exportRows = () => filteredData.map((row) => ({ ...row, stage: getBillStageText(row) }));
+  const exportCols = () => EXPORT_COLUMNS.filter((c) => visibleCols[c.key]);
 
   const columnDefs = useMemo(() => [
     {
@@ -209,9 +196,10 @@ export default function DataList({
       flex: 1,
       minWidth: 250,
       pinned: 'left',
-      cellStyle: { textAlign: 'left' },
-      cellClass: 'text-left font-semibold text-slate-800 dark:text-slate-200 whitespace-normal leading-normal py-2 border-r border-slate-150 dark:border-slate-800',
+      cellStyle: { textAlign: 'center' },
+      cellClass: 'text-center font-semibold text-slate-800 dark:text-slate-200 whitespace-normal leading-normal py-2 border-r border-slate-150 dark:border-slate-800 flex items-center justify-center',
       headerClass: 'border-r border-slate-150 dark:border-slate-800',
+      wrapText: true,
       autoHeight: true,
       hide: !visibleCols.subject
     },
@@ -220,8 +208,7 @@ export default function DataList({
       headerName: 'Wing',
       flex: 1.2,
       minWidth: 150,
-      cellStyle: { textAlign: 'left' },
-      cellClass: 'text-slate-700 dark:text-slate-300 font-medium',
+      cellClass: 'text-center flex items-center justify-center text-slate-700 dark:text-slate-300 font-medium',
       hide: !visibleCols.wing
     },
     {
@@ -229,8 +216,7 @@ export default function DataList({
       headerName: 'Division',
       flex: 1.2,
       minWidth: 150,
-      cellStyle: { textAlign: 'left' },
-      cellClass: 'text-slate-700 dark:text-slate-300 font-medium',
+      cellClass: 'text-center flex items-center justify-center text-slate-700 dark:text-slate-300 font-medium',
       hide: !visibleCols.division
     },
     {
@@ -259,14 +245,14 @@ export default function DataList({
           <>
             <button
               onClick={() => onEdit(bill)}
-              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-[#0f417a] dark:text-blue-400 rounded-lg transition cursor-pointer"
+              className="p-1.5 hover:bg-amber-50 dark:hover:bg-slate-800 text-amber-600 dark:text-amber-400 rounded-lg transition cursor-pointer"
               title={canEdit ? "Update Bill" : "View Bill"}
             >
               <Edit className="h-4.5 w-4.5" />
             </button>
             {canRemove && (
               <button
-                onClick={() => handleDelete(bill.id || bill.bill_id)}
+                onClick={() => handleDelete(bill)}
                 className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950 text-red-600 dark:text-red-400 rounded-lg transition cursor-pointer"
                 title="Delete Bill"
               >
@@ -277,78 +263,51 @@ export default function DataList({
         );
       }
     }
-  ], [onEdit, visibleCols, activeUserId, activeCategory, canEdit, canRemove]);
+  ], [onEdit, handleDelete, visibleCols, activeCategory, canEdit, canRemove]);
 
   const handleExport = (type) => {
+    const cols = exportCols();
+    const rows = exportRows();
     if (type === 'Copy') {
-      let tsv = '';
-      const headers = [];
-      columnDefs.forEach((col) => {
-        if (col.headerName && col.headerName !== 'Actions' && !col.hide) headers.push(col.headerName);
+      let tsv = ['S.No', ...cols.map((c) => c.label)].join('\t') + '\n';
+      rows.forEach((row, i) => {
+        tsv += [i + 1, ...cols.map((c) => String(row[c.field] ?? '').replace(/[\t\n]/g, ' '))].join('\t') + '\n';
       });
-      tsv += headers.join('\t') + '\n';
-      filteredData.forEach((row, rowIndex) => {
-        const line = [];
-        columnDefs.forEach((col) => {
-          if (col.headerName && col.headerName !== 'Actions' && !col.hide) {
-            let val = '';
-            if (col.field === 'sNo') val = rowIndex + 1;
-            else val = row[col.field] !== undefined ? row[col.field] : '';
-            line.push(val);
-          }
-        });
-        tsv += line.join('\t') + '\n';
-      });
-      navigator.clipboard.writeText(tsv)
-        .then(() => { if (triggerNotification) triggerNotification('Copied to clipboard!'); })
-        .catch(() => { if (triggerNotification) triggerNotification('Failed to copy.', 'error'); });
+      navigator.clipboard.writeText(tsv).then(
+        () => notify?.(COMMON_TOASTS.copySuccess(rows.length)),
+        () => notify?.(COMMON_TOASTS.copyFailed()),
+      );
     } else if (type === 'Excel') {
-      if (gridApi) {
-        gridApi.exportDataAsCsv({
-          fileName: `Bills_PreConstitutions_Register.csv`
-        });
-        if (triggerNotification) {
-          triggerNotification(`Register data exported to Excel successfully!`);
-        }
-      } else {
-        alert("Grid is not ready for export yet.");
-      }
+      // Every filtered row, not just the page on show
+      exportDataListToCsv({
+        columnLabels: Object.fromEntries(cols.map((c) => [c.field, c.label])),
+        visibleCols: Object.fromEntries(cols.map((c) => [c.field, true])),
+        rowData: rows,
+        fileName: 'Bills_PreConstitutions_Register',
+      });
+      notify?.(COMMON_TOASTS.excelExported('Bills_PreConstitutions_Register.csv'));
     } else if (type === 'PDF') {
-      if (triggerNotification) {
-        triggerNotification(`Preparing PDF document...`);
-      }
       const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        notify?.(COMMON_TOASTS.popupBlocked());
+        return;
+      }
+      notify?.(COMMON_TOASTS.pdfPreparing());
       const title = 'Bills / Pre-Constitutions Act Register';
-
-      let headersHtml = '';
-      columnDefs.forEach(col => {
-        if (col.headerName && !col.hide && col.headerName !== 'Actions') {
-          headersHtml += `<th style="border:1px solid #0f417a; padding:10px 14px; text-align:left; background:#0f417a; color:#fff; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">${col.headerName}</th>`;
-        }
-      });
-
-      let rowsHtml = '';
-      filteredData.forEach((row, i) => {
-        const bg = i % 2 === 0 ? '#fff' : '#f8fafc';
-        rowsHtml += `<tr style="background:${bg}">`;
-        columnDefs.forEach(col => {
-          if (col.headerName && !col.hide && col.headerName !== 'Actions') {
-            let val = '';
-            if (col.headerName === 'S.No') val = i + 1;
-            else if (col.headerName === 'Status') val = getBillStatusText(row);
-            else if (col.field) val = row[col.field] !== undefined ? row[col.field] : '';
-            rowsHtml += `<td style="border:1px solid #e2e8f0; padding:8px 14px; font-size:12px; color:#334155;">${val}</td>`;
-          }
-        });
-        rowsHtml += '</tr>';
-      });
+      const escape = (v) => String(v ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+      const th = (label) => `<th style="border:1px solid #0f417a; padding:10px 14px; text-align:left; background:#0f417a; color:#fff; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">${label}</th>`;
+      const headersHtml = th('S.No') + cols.map((c) => th(c.label)).join('');
+      const rowsHtml = rows.map((row, i) => {
+        const td = (v) => `<td style="border:1px solid #e2e8f0; padding:8px 14px; font-size:12px; color:#334155;">${escape(v)}</td>`;
+        return `<tr style="background:${i % 2 === 0 ? '#fff' : '#f8fafc'}">${td(i + 1)}${cols.map((c) => td(row[c.field])).join('')}</tr>`;
+      }).join('');
 
       printWindow.document.write(`
         <html>
           <head>
             <title>${title}</title>
             <style>
-              body { font-family: 'Inter', system-ui, sans-serif; color: #1e293b; padding: 24px; }
+              body { font-family: system-ui, sans-serif; color: #1e293b; padding: 24px; }
               h1 { font-size: 18px; margin-bottom: 4px; color: #0f417a; }
               table { width: 100%; border-collapse: collapse; margin-top: 16px; }
             </style>
@@ -403,62 +362,47 @@ export default function DataList({
       </div>
 
       {/* Table & Filters */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-4">
+      <div className="module-card space-y-4">
         {/* Filter Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-4">
           <div className="flex flex-wrap items-center gap-2">
-            {/* Wing Dropdown */}
-            <div className="w-36 relative">
-              <select
-                value={selectedWing}
-                onChange={(e) => setSelectedWing(e.target.value)}
-                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-850 dark:text-slate-200 cursor-pointer"
-              >
-                <option value="">Show all Wings</option>
-                {wingOptions.map(w => (
-                  <option key={w.value} value={w.value}>{w.label}</option>
-                ))}
-              </select>
-            </div>
+            <button
+              type="button"
+              onClick={() => setShowFilterPanel((prev) => !prev)}
+              className={`module-filter-btn ${showFilterPanel || activeFiltersCount > 0 ? 'active' : ''}`}
+            >
+              <Filter size={14} className="text-[#0f417a] dark:text-blue-400" />
+              <span>Filter</span>
+              {activeFiltersCount > 0 && (
+                <span className="bg-[#0f417a] dark:bg-blue-500 text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">
+                  {activeFiltersCount}
+                </span>
+              )}
+              <ChevronDown
+                size={14}
+                className={`transition-transform duration-200 ${showFilterPanel ? 'rotate-180' : ''}`}
+              />
+            </button>
 
-            {/* Division Dropdown */}
-            <div className="w-36 relative">
-              <select
-                value={selectedDivision}
-                onChange={(e) => setSelectedDivision(e.target.value)}
-                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-850 dark:text-slate-200 cursor-pointer"
+            {activeFiltersCount > 0 && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="flex items-center gap-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 px-3.5 py-2 rounded-xl border border-rose-200 hover:bg-rose-50 dark:border-rose-900/30 dark:hover:bg-rose-950/20 transition cursor-pointer"
               >
-                <option value="">Show all Divisions</option>
-                {divisionOptions.map(d => (
-                  <option key={d.value} value={d.value}>{d.label}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Stage Dropdown */}
-            {activeCategory === 'active' && (
-              <div className="w-36 relative">
-                <select
-                  value={selectedStage}
-                  onChange={(e) => setSelectedStage(e.target.value)}
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-850 dark:text-slate-200 cursor-pointer"
-                >
-                  <option value="">Show all Stages</option>
-                  {stageOptions.map(s => (
-                    <option key={s.value} value={s.value}>{s.label}</option>
-                  ))}
-                </select>
-              </div>
+                <X className="h-3.5 w-3.5" />
+                <span>Reset Filters</span>
+              </button>
             )}
 
             {/* Search input */}
             <div className="relative w-32">
               <input
                 type="text"
-                placeholder="Search subject..."
+                placeholder="Search bills..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full text-xs pl-8 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-850 dark:text-slate-200"
+                className="w-full module-search-input"
               />
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               {searchQuery && (
@@ -470,22 +414,11 @@ export default function DataList({
                 </button>
               )}
             </div>
-
-            {/* Clear Button */}
-            {(selectedWing || selectedDivision || selectedStage || searchQuery) && (
-              <button
-                onClick={() => { setSelectedWing(''); setSelectedDivision(''); setSelectedStage(''); setSearchQuery(''); }}
-                className="flex items-center gap-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 px-3.5 py-2 rounded-xl border border-rose-200 hover:bg-rose-50 dark:border-rose-900/30 dark:hover:bg-rose-950/20 transition cursor-pointer"
-              >
-                <span className="h-3.5 w-3.5 text-center">✕</span>
-                <span>Clear</span>
-              </button>
-            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             {/* Rows Limit Select Dropdown */}
-            {viewMode === 'table' && (
+            {(
               <>
                 <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-xs select-none dark:bg-slate-950 dark:border-slate-850 dark:text-slate-200">
                   <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
@@ -494,29 +427,16 @@ export default function DataList({
                     onChange={(e) => setPageSize(Number(e.target.value))}
                     className="bg-transparent border-none text-xs font-bold focus:outline-none cursor-pointer p-0"
                   >
-                    <option value="5">5</option>
-                    <option value="10">10</option>
-                    <option value="20">20</option>
-                    <option value="50">50</option>
+                    {PAGE_SIZES.map((n) => <option key={n} value={n}>{n}</option>)}
                   </select>
                 </div>
 
                 <div className="text-xs font-bold text-slate-555 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
-                  Total Rows: {loading ? '...' : filteredData.length}
+                  Total: {loading ? '...' : filteredData.length}
                 </div>
 
-                <CopyButton onCopy={() => handleExport('Copy')} color="#0f417a" hoverBg="#f1f5f9" />
-                <ExportDropdown
-                  onExportExcel={() => handleExport('Excel')}
-                  onExportPdf={() => handleExport('PDF')}
-                  color="#0f417a"
-                  hoverColor="#1e5ea8"
-                />
-              </>
-            )}
-
-            {/* Column Visibility Dropdown */}
-            {viewMode === 'table' && (
+                {/* Column Visibility Dropdown */}
+                {(
               <div className="relative" ref={colDropdownRef}>
                 <button
                   onClick={() => setDropdownOpen(!dropdownOpen)}
@@ -543,37 +463,100 @@ export default function DataList({
               </div>
             )}
 
-            {/* Toggle View -- hidden for now, kept for potential future use
-            <div className="flex items-center border border-slate-200 dark:border-slate-800 rounded-xl p-0.5 bg-slate-50 dark:bg-slate-900">
-              <button
-                onClick={() => setViewMode('chart')}
-                className={`p-2 rounded-lg transition cursor-pointer ${viewMode === 'chart' ? 'bg-white dark:bg-slate-800 shadow text-[#0f417a] dark:text-blue-400' : 'text-slate-400 hover:text-slate-700'}`}
-                title="Chart View"
-              >
-                <BarChart3 className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => setViewMode('table')}
-                className={`p-2 rounded-lg transition cursor-pointer ${viewMode === 'table' ? 'bg-white dark:bg-slate-800 shadow text-[#0f417a] dark:text-blue-400' : 'text-slate-400 hover:text-slate-700'}`}
-                title="Table View"
-              >
-                <List className="h-4 w-4" />
-              </button>
-            </div>
-            */}
-        </div>
+                <CopyButton onCopy={() => handleExport('Copy')} color="#0f417a" hoverBg="#f1f5f9" />
+                <ExportDropdown
+                  onExportExcel={() => handleExport('Excel')}
+                  onExportPdf={() => handleExport('PDF')}
+                  color="#0f417a"
+                  hoverColor="#1e5ea8"
+                />
+              </>
+            )}
+
         </div>
 
-        {viewMode === 'table' ? (
+        {showFilterPanel && (
+          <div className="bg-slate-50 dark:bg-slate-950/60 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3 animate-fade-in">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Filter className="h-3.5 w-3.5 text-[#0f417a] dark:text-blue-400" />
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
+                  Filter Bills
+                </span>
+              </div>
+              {activeFiltersCount > 0 && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="text-xs font-bold text-rose-600 hover:text-rose-700 dark:text-rose-400 flex items-center space-x-1 cursor-pointer"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  <span>Reset All Filters</span>
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                  Wing
+                </label>
+                <select
+                  value={selectedWing}
+                  onChange={(e) => actions.setFilters({ wing: e.target.value, division: '' })}
+                  className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200 cursor-pointer"
+                >
+                  <option value="">Show all Wings</option>
+                  {wingOptions.map(w => (
+                    <option key={w.value} value={w.value}>{w.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                  Division
+                </label>
+                <select
+                  value={selectedDivision}
+                  onChange={(e) => actions.setFilters({ division: e.target.value })}
+                  className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200 cursor-pointer"
+                >
+                  <option value="">Show all Divisions</option>
+                  {divisionOptions.map(d => (
+                    <option key={d.value} value={d.value}>{d.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                  Stage
+                </label>
+                <select
+                  value={selectedStage}
+                  onChange={(e) => actions.setFilters({ stage: e.target.value })}
+                  className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200 cursor-pointer"
+                >
+                  <option value="">Show all Stages</option>
+                  {stageOptions.map(s => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
+        </div>
+
+        <div className="module-datalist-grid">
           <Table
             rowData={filteredData}
             columnDefs={columnDefs}
             loading={loading}
             pagination={true}
             paginationPageSize={pageSize}
-            paginationPageSizeSelector={[5, 10, 20, 50]}
             enableExport={false}
-            onGridReady={(params) => setGridApi(params.api)}
             autoSizeStrategy={{
               type: 'fitGridWidth'
             }}
@@ -587,27 +570,8 @@ export default function DataList({
               autoHeaderHeight: true
             }}
           />
-        ) : (
-          <div className="w-full h-[350px] p-4 flex items-center justify-center bg-slate-50/50 dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
-            {chartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-                  <XAxis dataKey="name" stroke="#64748b" fontSize={11} fontWeight={600} />
-                  <YAxis stroke="#64748b" fontSize={11} fontWeight={600} />
-                  <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', fontSize: '11px' }} />
-                  <Legend verticalAlign="top" height={36} />
-                  <Bar dataKey="Bills" fill="#0f417a" radius={[6, 6, 0, 0]}>
-                    {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <p className="text-sm font-semibold text-slate-500">No data available for chart representation.</p>
-            )}
-          </div>
-        )}
+        </div>
+
       </div>
     </div>
   );

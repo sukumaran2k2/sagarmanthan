@@ -27,6 +27,7 @@ export default function UserPermissionsTab({
   setAll,
   colAll,
   handleSave,
+  handleOpenAdd,
   allSel,
   someSel,
   grantedCount,
@@ -194,6 +195,12 @@ export default function UserPermissionsTab({
                 : selectedUsers.length > 1
                   ? `Save to ${selectedUsers.length} users`
                   : "Save"}
+            </button>
+            <button
+              type="button"
+              className="add-btn"
+              onClick={handleOpenAdd}
+            >
             </button>
           </div>
         </div>

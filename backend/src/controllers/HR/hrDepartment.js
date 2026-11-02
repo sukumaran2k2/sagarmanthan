@@ -38,7 +38,7 @@ async function getHrDepartment(req, res) {
         const result = await request.query(`
             SELECT
                 d.*,
-                (SELECT COUNT(*) FROM tbl_hr_post p WHERE p.department_id = d.department_id) AS post_count
+                (SELECT COUNT(*) FROM mmt_hr_post p WHERE p.department_id = d.department_id) AS post_count
             FROM
                 mmt_hr_department d
         `);

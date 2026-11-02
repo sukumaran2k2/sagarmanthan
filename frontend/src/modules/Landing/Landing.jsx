@@ -88,7 +88,7 @@ function FileUploadKPIs() {
     <div className="px-6 pb-6 grid grid-cols-1 sm:grid-cols-3 gap-5 animate-fade-in">
       <div className="flex items-center space-x-5 bg-white border border-blue-100 rounded-2xl px-5 py-4 shadow-md">
         <div id="upload-donut-chart" className="w-16 h-16 relative flex items-center justify-center">
-          <span className="absolute text-sm font-black text-[#0f417a]">5</span>
+          <span className="absolute text-sm font-black text-[#0f417a]">4</span>
         </div>
         <div>
           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Active</p>
@@ -136,7 +136,7 @@ function DataEntryKPIs() {
     series1.labels.template.set("forceHidden", true);
     series1.ticks.template.set("forceHidden", true);
     series1.data.setAll([
-      { category: "Modules", value: 19 }
+      { category: "Modules", value: 12 }
     ]);
     series1.appear(1000, 100);
 
@@ -150,15 +150,15 @@ function DataEntryKPIs() {
       })
     );
     let xAxis = chart2.xAxes.push(
-      am5xy.CategoryAxis.new(root2, {
-        categoryField: "wing",
+      am5xy.ValueAxis.new(root2, {
         renderer: am5xy.AxisRendererX.new(root2, { visible: false })
       })
     );
     xAxis.get("renderer").grid.template.set("forceHidden", true);
     xAxis.get("renderer").labels.template.set("forceHidden", true);
     let yAxis = chart2.yAxes.push(
-      am5xy.ValueAxis.new(root2, {
+      am5xy.CategoryAxis.new(root2, {
+        categoryField: "status",
         renderer: am5xy.AxisRendererY.new(root2, { visible: false })
       })
     );
@@ -168,25 +168,21 @@ function DataEntryKPIs() {
       am5xy.ColumnSeries.new(root2, {
         xAxis: xAxis,
         yAxis: yAxis,
-        valueYField: "value",
-        categoryXField: "wing"
+        valueXField: "value",
+        categoryYField: "status",
+        fill: am5.color(0x3b82f6)
       })
     );
     series2.columns.template.setAll({
-      width: am5.percent(70),
-      strokeOpacity: 0
-    });
-    series2.columns.template.adapters.add("fill", (fill, target) => {
-      return chart2.get("colors").getIndex(series2.columns.indexOf(target));
+      height: am5.percent(60),
+      cornerRadiusBR: 4,
+      cornerRadiusTR: 4
     });
     const data = [
-      { wing: "Shp", value: 20 },
-      { wing: "Vig", value: 5 },
-      { wing: "Prt", value: 44 },
-      { wing: "IWT", value: 20 },
-      { wing: "Adm", value: 20 }
+      { status: "Completed", value: 7 },
+      { status: "Pending", value: 5 }
     ];
-    xAxis.data.setAll(data);
+    yAxis.data.setAll(data);
     series2.data.setAll(data);
 
     return () => {
@@ -196,15 +192,14 @@ function DataEntryKPIs() {
   }, []);
 
   return (
-    <div className="px-6 pb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 animate-fade-in">
-      <div className="flex items-center space-x-5 bg-white border border-slate-200 rounded-2xl px-5 py-4 shadow-md">
+    <div className="px-6 pb-6 grid grid-cols-1 sm:grid-cols-3 gap-5 animate-fade-in">
+      <div className="flex items-center space-x-5 bg-white border border-blue-100 rounded-2xl px-5 py-4 shadow-md">
         <div id="entry-donut-chart" className="w-16 h-16 relative flex items-center justify-center">
-          <span className="absolute text-sm font-black text-indigo-600">19</span>
+          <span className="absolute text-sm font-black text-[#0f417a]">12</span>
         </div>
         <div>
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Total</p>
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Active</p>
           <p className="text-lg font-extrabold text-slate-800 leading-tight">Modules</p>
-          <p className="text-[11px] text-slate-400 mt-0.5">Across 5 wings</p>
         </div>
       </div>
 
@@ -338,30 +333,25 @@ function OrgKPIs() {
 }
 
 const FILE_UPLOAD_MODULES = [
-  { id: 'cpgrams',          title: '1. CPGRAMS',             date: 'As on 1 Jul 2026', status: 'Last file uploaded on', badge: 'May - 2026' },
-  { id: 'file-pendency',    title: '2a. File Pendency',      date: 'As on 1 Jul 2026', status: 'Last file uploaded on', badge: 'Week 3 - June 2026' },
-  { id: 'receipt-pendency', title: '2b. Receipt Pendency',   date: 'As on 1 Jul 2026', status: 'Last file uploaded on', badge: 'Week 3 - June 2026' },
-  { id: 'file-disposal',    title: '2c. File Disposal',      date: 'As on 1 Jul 2026', status: 'Last file uploaded on', badge: 'Week 3 - June 2026' },
-  { id: 'attendance',       title: '3. Attendance',          date: 'As on 1 Jul 2026', status: 'Last file uploaded on', badge: 'Week 4 - June 2026' },
+  { id: 'file-pendency',    title: '1a. File Pendency',      date: 'As on 1 Jul 2026', status: 'Last file uploaded on', badge: 'Week 3 - June 2026' },
+  { id: 'receipt-pendency', title: '1b. Receipt Pendency',   date: 'As on 1 Jul 2026', status: 'Last file uploaded on', badge: 'Week 3 - June 2026' },
+  { id: 'file-disposal',    title: '1c. File Disposal',      date: 'As on 1 Jul 2026', status: 'Last file uploaded on', badge: 'Week 3 - June 2026' },
+  { id: 'attendance',       title: '2. Attendance',          date: 'As on 1 Jul 2026', status: 'Last file uploaded on', badge: 'Week 4 - June 2026' },
 ];
 
 const ROW_DATA = [
-  { sno: 4,  moduleName: 'Young Professional',                   shipping: '17-03-2025',    vigilance: '--',           ports: '17-03-2025',  iwt: '19-01-2024',  admin: '19-01-2024',  coordI: '17-03-2025',   coordII: '19-01-2024',  dgll: '17-03-2025',   dev: '19-01-2024',  finance: '17-03-2025',  sagarmala: '--',       it: '17-03-2025', special: '--' },
-  { sno: 5,  moduleName: 'Consultant Appointment',               shipping: '17-03-2025',    vigilance: '--',           ports: '17-03-2025',  iwt: '--',          admin: '17-03-2025',  coordI: '17-03-2025',   coordII: '--',          dgll: '17-03-2025',   dev: '--',          finance: '--',          sagarmala: '--',       it: '--',  special: '--' },
-  { sno: 6,  moduleName: 'VIP Reference',                        shipping: '--',            vigilance: '--',           ports: '--',          iwt: '--',          admin: '--',          coordI: '--',           coordII: '--',          dgll: '--',           dev: '--',          finance: '--',          sagarmala: '--',       it: '--',  special: '--' },
-  { sno: 7,  moduleName: 'Cabinet Notes-Other Ministry',         shipping: 'Not Applicable',vigilance: 'Not Applicable',ports: 'Not Applicable',iwt: 'Not Applicable',admin: 'Not Applicable',coordI: '--',          coordII: '--',          dgll: 'Not Applicable',dev: 'Not Applicable',finance: 'Not Applicable',sagarmala: 'Not Applicable',it: 'Not Applicable',special: 'Not Applicable' },
-  { sno: 8,  moduleName: 'Cabinet Notes-MoPSW',                  shipping: '--',            vigilance: '--',           ports: '16-06-2026',  iwt: '--',          admin: '--',          coordI: '--',           coordII: '--',          dgll: '--',           dev: '--',          finance: '--',          sagarmala: '--',       it: '--',  special: '05-03-2026' },
-  { sno: 9,  moduleName: 'Audit Para',                           shipping: '--',            vigilance: '--',           ports: '--',          iwt: '--',          admin: '--',          coordI: '--',           coordII: '--',          dgll: '--',           dev: '--',          finance: '--',          sagarmala: '--',       it: '--',  special: '--' },
-  { sno: 10, moduleName: 'Bills/PreConstitutions Act',           shipping: '17-03-2025',    vigilance: '--',           ports: '--',          iwt: '--',          admin: '--',          coordI: '--',           coordII: '--',          dgll: '--',           dev: '--',          finance: '--',          sagarmala: '--',       it: '--',  special: '--' },
-  { sno: 11, moduleName: 'MOM OF PSW Meetings',                  shipping: '--',            vigilance: '--',           ports: '24-06-2026',  iwt: '--',          admin: '--',          coordI: '27-05-2026',   coordII: '--',          dgll: '--',           dev: '--',          finance: '--',          sagarmala: '--',       it: '--',  special: '--' },
-  { sno: 12, moduleName: 'Promotion of Indian Flagged Ships',    shipping: '--',            vigilance: 'Not Applicable',ports: 'Not Applicable',iwt: 'Not Applicable',admin: 'Not Applicable',coordI: 'Not Applicable',coordII: 'Not Applicable',dgll: 'Not Applicable',dev: 'Not Applicable',finance: 'Not Applicable',sagarmala: 'Not Applicable',it: 'Not Applicable',special: 'Not Applicable' },
-  { sno: 13, moduleName: 'Parliamentary Issues',                 shipping: '--',            vigilance: '--',           ports: '--',          iwt: '06-12-2024',  admin: '09-03-2026',  coordI: '--',           coordII: '--',          dgll: '--',           dev: '--',          finance: '--',          sagarmala: '--',       it: '--',  special: '24-03-2026' },
-  { sno: 14, moduleName: 'Review Items',                         shipping: '--',            vigilance: '--',           ports: '--',          iwt: '--',          admin: '--',          coordI: '--',           coordII: '--',          dgll: '05-01-2026',   dev: '--',          finance: '--',          sagarmala: '--',       it: '--',  special: '--' },
-  { sno: 15, moduleName: 'MoPSW Tracker',                        shipping: '--',            vigilance: '--',           ports: '--',          iwt: '--',          admin: '--',          coordI: '--',           coordII: '--',          dgll: '--',           dev: '--',          finance: '--',          sagarmala: '--',       it: '--',  special: '--' },
-  { sno: 16, moduleName: 'Expenditure',                          shipping: '--',            vigilance: '--',           ports: '--',          iwt: '--',          admin: '--',          coordI: '--',           coordII: '--',          dgll: '--',           dev: '--',          finance: '--',          sagarmala: '--',       it: '--',  special: '--' },
-  { sno: 17, moduleName: 'Foreign Visit',                        shipping: '26-06-2026',    vigilance: 'Not Applicable',ports: 'Not Applicable',iwt: 'Not Applicable',admin: 'Not Applicable',coordI: 'Not Applicable',coordII: 'Not Applicable',dgll: 'Not Applicable',dev: 'Not Applicable',finance: 'Not Applicable',sagarmala: 'Not Applicable',it: 'Not Applicable',special: 'Not Applicable' },
-  { sno: 18, moduleName: 'Inter State and Inter Ministerial Issues', shipping: '--',        vigilance: '--',           ports: '--',          iwt: '--',          admin: '--',          coordI: '--',           coordII: '--',          dgll: '--',           dev: '--',          finance: '--',          sagarmala: '--',       it: '--',  special: '--' },
-  { sno: 19, moduleName: 'Acts & Rules',                         shipping: '--',            vigilance: '--',           ports: '--',          iwt: '--',          admin: '--',          coordI: '--',           coordII: '--',          dgll: '--',           dev: '--',          finance: '--',          sagarmala: '--',       it: '--',  special: '--' },
+  { sno: 1,  moduleName: 'Young Professional',                   shipping: '17-03-2025',    vigilance: '--',           ports: '17-03-2025',  iwt: '19-01-2024',  admin: '19-01-2024',  coordI: '17-03-2025',   coordII: '19-01-2024',  dgll: '17-03-2025',   dev: '19-01-2024',  finance: '17-03-2025',  sagarmala: '--',       it: '17-03-2025', special: '--' },
+  { sno: 2,  moduleName: 'Consultant Appointment',               shipping: '17-03-2025',    vigilance: '--',           ports: '17-03-2025',  iwt: '--',          admin: '17-03-2025',  coordI: '17-03-2025',   coordII: '--',          dgll: '17-03-2025',   dev: '--',          finance: '--',          sagarmala: '--',       it: '--',  special: '--' },
+  { sno: 3,  moduleName: 'VIP Reference',                        shipping: '--',            vigilance: '--',           ports: '--',          iwt: '--',          admin: '--',          coordI: '--',           coordII: '--',          dgll: '--',           dev: '--',          finance: '--',          sagarmala: '--',       it: '--',  special: '--' },
+  { sno: 4,  moduleName: 'Cabinet Notes-Other Ministry',         shipping: 'Not Applicable',vigilance: 'Not Applicable',ports: 'Not Applicable',iwt: 'Not Applicable',admin: 'Not Applicable',coordI: '--',          coordII: '--',          dgll: 'Not Applicable',dev: 'Not Applicable',finance: 'Not Applicable',sagarmala: 'Not Applicable',it: 'Not Applicable',special: 'Not Applicable' },
+  { sno: 5,  moduleName: 'Cabinet Notes-MoPSW',                  shipping: '--',            vigilance: '--',           ports: '16-06-2026',  iwt: '--',          admin: '--',          coordI: '--',           coordII: '--',          dgll: '--',           dev: '--',          finance: '--',          sagarmala: '--',       it: '--',  special: '05-03-2026' },
+  { sno: 6,  moduleName: 'Audit Para',                           shipping: '--',            vigilance: '--',           ports: '--',          iwt: '--',          admin: '--',          coordI: '--',           coordII: '--',          dgll: '--',           dev: '--',          finance: '--',          sagarmala: '--',       it: '--',  special: '--' },
+  { sno: 7,  moduleName: 'Bills/PreConstitutions Act',           shipping: '17-03-2025',    vigilance: '--',           ports: '--',          iwt: '--',          admin: '--',          coordI: '--',           coordII: '--',          dgll: '--',           dev: '--',          finance: '--',          sagarmala: '--',       it: '--',  special: '--' },
+  { sno: 8,  moduleName: 'Parliamentary Issues',                 shipping: '--',            vigilance: '--',           ports: '--',          iwt: '06-12-2024',  admin: '09-03-2026',  coordI: '--',           coordII: '--',          dgll: '--',           dev: '--',          finance: '--',          sagarmala: '--',       it: '--',  special: '24-03-2026' },
+  { sno: 9,  moduleName: 'MoPSW Tracker',                        shipping: '--',            vigilance: '--',           ports: '--',          iwt: '--',          admin: '--',          coordI: '--',           coordII: '--',          dgll: '--',           dev: '--',          finance: '--',          sagarmala: '--',       it: '--',  special: '--' },
+  { sno: 10, moduleName: 'Foreign Visit',                        shipping: '26-06-2026',    vigilance: 'Not Applicable',ports: 'Not Applicable',iwt: 'Not Applicable',admin: 'Not Applicable',coordI: 'Not Applicable',coordII: 'Not Applicable',dgll: 'Not Applicable',dev: 'Not Applicable',finance: 'Not Applicable',sagarmala: 'Not Applicable',it: 'Not Applicable',special: 'Not Applicable' },
+  { sno: 11, moduleName: 'Inter State and Inter Ministerial Issues', shipping: '--',        vigilance: '--',           ports: '--',          iwt: '--',          admin: '--',          coordI: '--',           coordII: '--',          dgll: '--',           dev: '--',          finance: '--',          sagarmala: '--',       it: '--',  special: '--' },
+  { sno: 12, moduleName: 'Acts & Rules',                         shipping: '--',            vigilance: '--',           ports: '--',          iwt: '--',          admin: '--',          coordI: '--',           coordII: '--',          dgll: '--',           dev: '--',          finance: '--',          sagarmala: '--',       it: '--',  special: '--' },
 ];
 
 export default function LandingView({ onNavigate }) {
@@ -416,8 +406,7 @@ export default function LandingView({ onNavigate }) {
   ], []);
 
   const handleCardClick = (id) => {
-    if (id === 'cpgrams') onNavigate('CPGRAMS');
-    else if (id === 'file-pendency') onNavigate('E Office', 'file-pendency');
+    if (id === 'file-pendency') onNavigate('E Office', 'file-pendency');
     else if (id === 'receipt-pendency') onNavigate('E Office', 'receipt-pendency');
     else if (id === 'file-disposal') onNavigate('E Office', 'file-disposal');
     else if (id === 'attendance') onNavigate('Attendance');
@@ -432,12 +421,8 @@ export default function LandingView({ onNavigate }) {
       'Cabinet Notes-Other Ministry': 'Cabinet Notes - Other Ministries',
       'Cabinet Notes-MoPSW': 'Cabinet Notes - MoPSW',
       'Audit Para': 'Audit Paras',
-      'MOM OF PSW Meetings': 'MOM Of PSW Meetings',
-      'Promotion of Indian Flagged Ships': 'Flagged Ships / FOB Basis',
       'Parliamentary Issues': 'Parliamentary Issue',
-      'Review Items': 'Review Items',
       'MoPSW Tracker': 'Project Milestones',
-      'Expenditure': 'Expenditure Reports',
       'Foreign Visit': 'Foreign Visit',
       'Inter State and Inter Ministerial Issues': 'Inter State & Inter Ministerial',
       'Acts & Rules': 'Acts & Rules',

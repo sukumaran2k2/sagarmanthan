@@ -1,14 +1,47 @@
 export const MODULE_PAGES = {
   PROJECTS: {
     tabs: [
+      'projects',
       'projects-dashboard',
       'projects-list',
+      'projects-data-list',
+      'projects-input-form',
+      'projects-basic-info',
       'projects-less5cr',
       'projects-lumpsum',
       'projects-dropRequests',
+      'projects-drop-requests',
       'projects-reports',
+      'projects-view-project',
+      'Project List',
+      'Projects Less Than 5 Cr',
+      'Lumpsum - IWAI',
+      'View Drop Request',
+      'Projects Input Form',
+      'Projects Reports',
+      'Projects Dashboard',
+      'Project Dashboard',
     ],
-    uiTabs: ['projects-dashboard', 'projects-list'],
+    uiTabs: [
+      'projects',
+      'projects-dashboard',
+      'projects-list',
+      'projects-data-list',
+      'projects-input-form',
+      'projects-basic-info',
+      'projects-less5cr',
+      'projects-lumpsum',
+      'projects-dropRequests',
+      'projects-drop-requests',
+      'projects-reports',
+      'projects-view-project',
+      'Project List',
+      'Projects Less Than 5 Cr',
+      'Lumpsum - IWAI',
+      'View Drop Request',
+      'Projects Input Form',
+      'Projects Reports',
+    ],
   },
 
   CSR_PROJECTS: {
@@ -51,39 +84,22 @@ export const MODULE_PAGES = {
     ],
   },
 
-  EXPENDITURE: {
-    tabs: [
-      'Input Form - Estimate Values',
-      'Expenditure Reports',
-      'Expenditure',
-    ],
-  },
-
   KPI_MAJOR_PORTS: {
     tabs: [
       'Major Ports Dashboard',
       'Major Ports Input Form',
-      'Major Ports Reports',
+      'Major Ports Entry Access',
       'Ports Reports',
     ],
     uiTabs: [
       'Major Ports Dashboard',
       'Major Ports Input Form',
-      'Major Ports Reports',
+      'Major Ports Entry Access',
     ],
   },
 
   KPI_DGS: {
     tabs: ['MMD Master', 'DSG Input Form', 'DSG Reports'],
-  },
-
-  KPI_IWAI: {
-    tabs: [
-      'IWAI Master',
-      'National Waterways',
-      'Terminal/Jetties',
-      'Digital Portals',
-    ],
   },
 
   KPI_DGLL: {
@@ -115,11 +131,6 @@ export const MODULE_PAGES = {
     uiTabs: ['Attendance'],
   },
 
-  CPGRAMS: {
-    tabs: ['CPGRAMS'],
-    uiTabs: ['CPGRAMS'],
-  },
-
   CABINET_NOTES_OTHER_MINISTRIES: {
     tabs: [
       'Cabinet Notes - Other Ministries',
@@ -143,6 +154,7 @@ export const MODULE_PAGES = {
 
   GEM_PROCUREMENT: {
     tabs: ['GEM Procurements'],
+    uiTabs: ['GEM Procurements', 'GEM Procurement', 'GEM', 'gem'],
   },
 
   CABINET_NOTES_MOPSW: {
@@ -183,40 +195,49 @@ export const MODULE_PAGES = {
     tabs: ['Foreign Visit'],
   },
 
-  CRUISE_SHIPPING: {
-    tabs: ['Cruise Shipping'],
-  },
-
-  FLAGSHIP_FOB_BASIS: {
-    tabs: ['Flagged Ships / FOB Basis'],
-  },
-
-  MOM_MINISTRY_MEETINGS: {
-    tabs: ['MOM Of PSW Meetings'],
-  },
-
-  REVIEW_ITEMS: {
-    tabs: ['Review Items'],
-  },
-
   HR_MANAGEMENT: {
     tabs: [
       'HR Dashboard',
+      'Organisation Structure',
+      'Organization Structure',
       'Employee Database',
+      'Employee Details',
       'List of Abolished Ports',
       'List of Abolished Posts',
+      'Abolished Posts',
+      'Vacancy Management',
+      'HR Administration & Actions',
       'Contractual Employment',
       'Training Details',
       'HR Reports',
+      'HR Input Form',
+      'Add Post',
+      'Non Port Monthly Upload',
+      'hr/hr-management/vacancy-management',
+      'hr/hr-management/administration',
+      'hr/hr-management/abolished-posts',
+      'hr/hr-management/contractual-employment',
+      'hr/hr-management/training-details',
+      'hr/hr-management/input-form',
+      'hr/hr-management/non-port-monthly-upload',
     ],
     uiTabs: [
       'HR Dashboard',
+      'Organisation Structure',
+      'Organization Structure',
       'Employee Database',
+      'Employee Details',
       'List of Abolished Ports',
       'List of Abolished Posts',
+      'Abolished Posts',
+      'Vacancy Management',
+      'HR Administration & Actions',
       'Contractual Employment',
       'Training Details',
       'HR Reports',
+      'HR Input Form',
+      'Add Post',
+      'Non Port Monthly Upload',
     ],
   },
 
@@ -236,6 +257,7 @@ export const MODULE_PAGES = {
       'YP Data List',
       'YP Input Form',
       'YP Report',
+      'YP Reports',
       'Data List',
       'Input Form',
       'Report',
@@ -244,11 +266,15 @@ export const MODULE_PAGES = {
 
   CONSULTANT_APPOINTMENT: {
     tabs: [
+      'Consultant Dashboard',
+      'Consultant Appointment',
       'Consultant Input Form',
       'Consultant Data List',
       'Consultant Reports',
     ],
     uiTabs: [
+      'Consultant Dashboard',
+      'Consultant Appointment',
       'Consultant Input Form',
       'Consultant Data List',
       'Consultant Reports',
@@ -369,7 +395,8 @@ export const MODULE_PAGES = {
   },
 
   FORM_BUILDER: {
-    tabs: ['Create Dynamic Form', 'View Submissions'],
+    tabs: ['Create Dynamic Form', 'View Submissions', 'Form Builder', 'FormBuilder', 'Form Studio', 'Form Directory', 'Inbox Forms', 'Edit Form'],
+    uiTabs: ['Create Dynamic Form', 'View Submissions', 'Form Builder', 'FormBuilder', 'Form Studio', 'Form Directory', 'Inbox Forms', 'Edit Form'],
   },
 
   MOPSW_TRACKER: {
@@ -383,11 +410,13 @@ export const MODULE_PAGES = {
       'Action Taken Report',
     ],
   },
+
 };
 
 export const PUBLIC_UI_TABS = [
   'landing',
   'profile',
+  'Contact Us',
   'Ministry Contacts',
   'Helpdesk Support',
 ];

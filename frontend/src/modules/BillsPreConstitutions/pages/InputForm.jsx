@@ -1,37 +1,77 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { createBill, updateBill } from '../api';
 import { Save } from 'lucide-react';
-
-function decodeToken(token) {
-  try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function (c) {
-      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-    return JSON.parse(jsonPayload);
-  } catch (e) {
-    return null;
-  }
-}
+import { COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { BILLS_TOASTS } from '../toastMessages';
 
 const STAGES_LIST = [
-  { id: 1, label: 'Draft Bill Prepared', dateKey: 'draftBillPreparedDate', remarkKey: 'draftBillPreparedRemark' },
-  { id: 2, label: 'DCN & Draft Bill Approved by Minister', dateKey: 'dcnDraftBillApprovedMinisterDate', remarkKey: 'dcnDraftBillApprovedMinisterRemark' },
-  { id: 3, label: 'Circulated for IMC', dateKey: 'circulatedImcDate', remarkKey: 'circulatedImcRemark' },
-  { id: 4, label: 'IMC Comments Received', dateKey: 'imcCommentsRecDate', remarkKey: 'imcCommentsRecRemark' },
-  { id: 5, label: 'DCN & Draft Bill Prepared', dateKey: 'dcnDraftBillPreparedDate', remarkKey: 'dcnDraftBillPreparedRemark' },
-  { id: 6, label: 'DCN & Draft Bill Approved by Minister', dateKey: 'dcnDraftBillApprovedDate', remarkKey: 'dcnDraftBillApprovedRemark' },
-  { id: 7, label: 'Submitted for Legal Vetting', dateKey: 'submittedLegalVettingDate', remarkKey: 'submittedLegalVettingRemark' },
-  { id: 8, label: 'Legal Vetting to be Completed', dateKey: 'legalVettingCompletedDate', remarkKey: 'legalVettingCompletedRemark' },
-  { id: 9, label: 'Final DCN & Draft Bill Approved by Minister', dateKey: 'finalDcnDraftApprovedDate', remarkKey: 'finalDcnDraftApprovedRemark' },
-  { id: 10, label: 'Advance Copy to be Sent to PMO & Cab Sectt.', dateKey: 'advanceCopyDate', remarkKey: 'advanceCopyRemark' },
-  { id: 11, label: 'Approved by Cabinet', dateKey: 'approvedByCabinetDate', remarkKey: 'approvedByCabinetRemark' },
-  { id: 12, label: 'Bill Introduced in Parliament', dateKey: 'billIntroducedInParliamentDate', remarkKey: 'billIntroducedInParliamentRemark' },
-  { id: 13, label: 'Bill Passed', dateKey: 'billPassedDate', remarkKey: 'billPassedRemark' },
-  { id: 14, label: 'Bill Notified', dateKey: 'billNotifiedDate', remarkKey: 'billNotifiedRemark' },
-  { id: 15, label: 'Completed', dateKey: 'completedDate', remarkKey: 'completedRemark' }
+  { id: 1, label: 'Draft Bill Prepared', param: 'draftBillPrepared', field: 'draft_bill_prepared' },
+  { id: 2, label: 'Pre-DCN & Draft Bill Approved by Minister', param: 'dcnDraftBillApprovedMinister', field: 'dcn_draft_bill_approved_minister' },
+  { id: 3, label: 'Circulated for IMC', param: 'circulatedImc', field: 'circulated_imc' },
+  { id: 4, label: 'IMC Comments Received', param: 'imcCommentsRec', field: 'imc_comments_rec' },
+  { id: 5, label: 'DCN & Draft Bill Prepared', param: 'dcnDraftBillPrepared', field: 'dcn_draft_bill_prepared' },
+  { id: 6, label: 'DCN & Draft Bill Approved by Minister', param: 'dcnDraftBillApproved', field: 'dcn_draft_bill_approved' },
+  { id: 7, label: 'Submitted for Legal Vetting', param: 'submittedLegalVetting', field: 'submitted_legal_vetting' },
+  { id: 8, label: 'Legal Vetting to be Completed', param: 'legalVettingCompleted', field: 'legal_vetting_completed' },
+  { id: 9, label: 'Final DCN & Draft Bill Approved by Minister', param: 'finalDcnDraftApproved', field: 'final_dcn_draft_approved' },
+  { id: 10, label: 'Advance Copy to be Sent to PMO & Cab Sectt.', param: 'advanceCopy', field: 'advance_copy' },
+  { id: 11, label: 'Approved by Cabinet', param: 'approvedByCabinet', field: 'approved_by_cabinet' },
+  { id: 12, label: 'Bill Introduced in Parliament', param: 'billIntroducedInParliament', field: 'bill_introduced_in_parliament' },
+  { id: 13, label: 'Bill Passed', param: 'billPassed', field: 'bill_passed' },
+  { id: 14, label: 'Bill Notified', param: 'billNotified', field: 'bill_notified' },
+  { id: 15, label: 'Completed', param: 'completed', field: 'completed' }
 ];
+
+const toDate = (v) => (v ? String(v).split('T')[0] : '');
+const SUBJECT_MAX = 256; // tbl_bill.subject
+const STAGE_REMARK_MAX = 250; // each stage's remark column
+const emptyStage = { done: false, date: '', remark: '' };
+
+// Today as YYYY-MM-DD in the user's time zone (toISOString would give the UTC date)
+const localToday = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+// Field values for a bill (or an empty form); the shell keys the form per bill, so this runs once per open.
+// Each stage is done (Yes) / not done with an optional date, as in 2.0: bills from 2.0 often
+// have a stage done with no date, so the flag is loaded as well as the date.
+function initialValuesFor(editData) {
+  const stages = {};
+  STAGES_LIST.forEach((stage) => {
+    stages[stage.id] = editData
+      ? {
+        done: !!editData[`${stage.field}_done`] || !!editData[`${stage.field}_date`],
+        date: toDate(editData[`${stage.field}_date`]),
+        remark: editData[`${stage.field}_remarks`] || '',
+      }
+      : emptyStage;
+  });
+  if (!editData) return { subject: '', wing: '', division: '', remarks: '', stages };
+  return {
+    subject: editData.subject || '',
+    wing: editData.wing !== undefined && editData.wing !== null ? String(editData.wing) : '',
+    division: editData.division !== undefined && editData.division !== null ? String(editData.division) : '',
+    remarks: editData.remarks || '',
+    stages,
+  };
+}
+
+// The first problem with the stages, or '' when they are fine: a stage newly marked Yes needs
+// its date (2.0 bills already done without one are kept as they are), and the dates must be
+// in stage order
+function stageProblem(stages, initialStages) {
+  let last = null;
+  for (const stage of STAGES_LIST) {
+    const st = stages[stage.id];
+    if (st.done && !st.date && !initialStages[stage.id].done) return `Enter the date for "${stage.label}".`;
+    if (st.date) {
+      if (last && st.date < last.date) return `"${stage.label}" is dated before "${last.label}". Dates must be in stage order.`;
+      last = { date: st.date, label: stage.label };
+    }
+  }
+  return '';
+}
 
 export default function InputForm({
   editData = null,
@@ -39,90 +79,32 @@ export default function InputForm({
   divisions = [],
   onBack,
   onSuccess,
-  triggerNotification,
+  notify,
   readOnly = false
 }) {
   const isEdit = !!editData;
 
-  const [subject, setSubject] = useState('');
-  const [wing, setWing] = useState('');
-  const [division, setDivision] = useState('');
-  const [remarks, setRemarks] = useState('');
+  const [initialValues] = useState(() => initialValuesFor(editData));
+  const [subject, setSubject] = useState(initialValues.subject);
+  const [wing, setWing] = useState(initialValues.wing);
+  const [pickedDivision, setDivision] = useState(initialValues.division);
+  // Only the chosen wing's divisions (as in the master: each division belongs to one wing)
+  const wingDivisions = useMemo(
+    () => divisions.filter((d) => wing !== '' && String(d.wing_id) === String(wing)),
+    [divisions, wing],
+  );
+  const division = wingDivisions.some((d) => String(d.division_id) === pickedDivision) ? pickedDivision : '';
+  const [remarks, setRemarks] = useState(initialValues.remarks);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
 
-  // Focused/Hovered stages for remarks
+  // Focused stage, for its remarks box
   const [focusedStage, setFocusedStage] = useState(null);
-  const [hoveredStage, setHoveredStage] = useState(null);
 
   // Stages dates and remarks
-  const [stages, setStages] = useState(() => {
-    const s = {};
-    STAGES_LIST.forEach(stage => {
-      s[stage.id] = { date: '', remark: '' };
-    });
-    return s;
-  });
+  const [stages, setStages] = useState(initialValues.stages);
 
-  const [initialValues, setInitialValues] = useState({});
   const [touched, setTouched] = useState({});
-
-  useEffect(() => {
-    let initSubject = '';
-    let initWing = '';
-    let initDivision = '';
-    let initRemarks = '';
-    let initStages = {};
-    STAGES_LIST.forEach(stage => {
-      initStages[stage.id] = { date: '', remark: '' };
-    });
-
-    if (editData) {
-      initSubject = editData.subject || '';
-      initWing = editData.wing !== undefined && editData.wing !== null ? String(editData.wing) : '';
-      initDivision = editData.division !== undefined && editData.division !== null ? String(editData.division) : '';
-      initRemarks = editData.remarks || '';
-
-      initStages = {
-        1: { date: editData.draft_bill_prepared_date ? editData.draft_bill_prepared_date.split('T')[0] : '', remark: editData.draft_bill_prepared_remarks || '' },
-        2: { date: editData.dcn_draft_bill_approved_minister_date ? editData.dcn_draft_bill_approved_minister_date.split('T')[0] : '', remark: editData.dcn_draft_bill_approved_minister_remarks || '' },
-        3: { date: editData.circulated_imc_date ? editData.circulated_imc_date.split('T')[0] : '', remark: editData.circulated_imc_remarks || '' },
-        4: { date: editData.imc_comments_rec_date ? editData.imc_comments_rec_date.split('T')[0] : '', remark: editData.imc_comments_rec_remarks || '' },
-        5: { date: editData.dcn_draft_bill_prepared_date ? editData.dcn_draft_bill_prepared_date.split('T')[0] : '', remark: editData.dcn_draft_bill_prepared_remarks || '' },
-        6: { date: editData.dcn_draft_bill_approved_date ? editData.dcn_draft_bill_approved_date.split('T')[0] : '', remark: editData.dcn_draft_bill_approved_remarks || '' },
-        7: { date: editData.submitted_legal_vetting_date ? editData.submitted_legal_vetting_date.split('T')[0] : '', remark: editData.submitted_legal_vetting_remarks || '' },
-        8: { date: editData.legal_vetting_completed_date ? editData.legal_vetting_completed_date.split('T')[0] : '', remark: editData.legal_vetting_completed_remarks || '' },
-        9: { date: editData.final_dcn_draft_approved_date ? editData.final_dcn_draft_approved_date.split('T')[0] : '', remark: editData.final_dcn_draft_approved_remarks || '' },
-        10: { date: editData.advance_copy_date ? editData.advance_copy_date.split('T')[0] : '', remark: editData.advance_copy_remarks || '' },
-        11: { date: editData.approved_by_cabinet_date ? editData.approved_by_cabinet_date.split('T')[0] : '', remark: editData.approved_by_cabinet_remarks || '' },
-        12: { date: editData.bill_introduced_in_parliament_date ? editData.bill_introduced_in_parliament_date.split('T')[0] : '', remark: editData.bill_introduced_in_parliament_remarks || '' },
-        13: { date: editData.bill_passed_date ? editData.bill_passed_date.split('T')[0] : '', remark: editData.bill_passed_remarks || '' },
-        14: { date: editData.bill_notified_date ? editData.bill_notified_date.split('T')[0] : '', remark: editData.bill_notified_remarks || '' },
-        15: { date: editData.completed_date ? editData.completed_date.split('T')[0] : '', remark: editData.completed_remarks || '' }
-      };
-    }
-
-    setSubject(initSubject);
-    setWing(initWing);
-    setDivision(initDivision);
-    setRemarks(initRemarks);
-    setStages(initStages);
-
-    setInitialValues({
-      subject: initSubject,
-      wing: initWing,
-      division: initDivision,
-      remarks: initRemarks,
-      stages: initStages
-    });
-
-    setTouched({
-      subject: false,
-      wing: false,
-      division: false,
-      remarks: false
-    });
-  }, [editData]);
 
   const isDirty = useMemo(() => {
     if (subject !== initialValues.subject) return true;
@@ -131,6 +113,7 @@ export default function InputForm({
     if (remarks !== initialValues.remarks) return true;
 
     for (let i = 1; i <= 15; i++) {
+      if (stages[i]?.done !== initialValues.stages?.[i]?.done) return true;
       if (stages[i]?.date !== initialValues.stages?.[i]?.date) return true;
       if (stages[i]?.remark !== initialValues.stages?.[i]?.remark) return true;
     }
@@ -150,49 +133,32 @@ export default function InputForm({
     }
   };
 
-  // Helper to get today's date YYYY-MM-DD
-  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const todayStr = useMemo(() => localToday(), []);
 
-  // Compute min/max limits for stage dates
+  // Date limits for a stage: not before the latest earlier stage's date, not after today
+  // (the full order is checked again on save)
   const getDateLimits = (idx) => {
-    let min = undefined;
-    let max = todayStr;
-
-    if (idx > 0 && stages[STAGES_LIST[idx - 1].id]?.date) {
-      min = stages[STAGES_LIST[idx - 1].id].date;
-    }
-
-    return { min, max };
+    const earlier = STAGES_LIST.slice(0, idx).map((s) => stages[s.id]?.date).filter(Boolean);
+    return { min: earlier.length ? earlier[earlier.length - 1] : undefined, max: todayStr };
   };
 
-  const isFormValid = useMemo(() => {
-    const hasAtLeastOneDate = Object.values(stages).some(st => !!st.date);
-    return (
-      subject.trim() !== '' &&
-      String(wing).trim() !== '' &&
-      String(division).trim() !== '' &&
-      remarks.trim() !== '' &&
-      !errors.remarks &&
-      hasAtLeastOneDate
-    );
-  }, [subject, wing, division, remarks, errors, stages]);
+  // As in 2.0, only subject, wing and division are required: remarks are optional and a bill
+  // can be registered before its first stage (it is then at stage 0, No Status)
+  const isFormValid = useMemo(() => (
+    subject.trim() !== '' &&
+    String(wing).trim() !== '' &&
+    String(division).trim() !== '' &&
+    !errors.remarks
+  ), [subject, wing, division, errors]);
 
+  // A date marks the stage done; marking it No clears its date. Nothing else changes, so
+  // clearing one date never wipes the later stages.
   const handleStageChange = (num, field, val) => {
     setStages(prev => {
-      const updated = { ...prev };
-      updated[num] = {
-        ...updated[num],
-        [field]: val
-      };
-
-      // Clear subsequent dates and remarks if this date is deleted
-      if (field === 'date' && !val) {
-        for (let i = num + 1; i <= 15; i++) {
-          updated[i] = { date: '', remark: '' };
-        }
-        updated[num].remark = '';
-      }
-      return updated;
+      const next = { ...prev[num], [field]: val };
+      if (field === 'date' && val) next.done = true;
+      if (field === 'done' && !val) next.date = '';
+      return { ...prev, [num]: next };
     });
   };
 
@@ -214,76 +180,38 @@ export default function InputForm({
       subject: true,
       wing: true,
       division: true,
-      remarks: true
     });
 
-    if (!wing || !division || !subject.trim() || !remarks.trim()) {
-      alert("Please fill in all mandatory fields highlighted in red.");
+    if (!wing || !division || !subject.trim()) {
+      notify?.(COMMON_TOASTS.mandatoryFieldsMissing());
       return;
     }
     if (errors.remarks) {
-      alert(errors.remarks);
+      notify?.(BILLS_TOASTS.remarksTooLong());
+      return;
+    }
+    const problem = stageProblem(stages, initialValues.stages);
+    if (problem) {
+      notify?.(BILLS_TOASTS.stagesInvalid(problem));
       return;
     }
 
     setSubmitting(true);
 
-    const token = localStorage.getItem('token');
-    let activeUserId = 1;
-    if (token) {
-      const decoded = decodeToken(token);
-      if (decoded && decoded.userID) {
-        activeUserId = decoded.userID;
-      }
-    }
-
-    // Highest stage filled
-    let selectedBillStage = 1;
-    for (let i = 1; i <= 15; i++) {
-      if (stages[i].date) {
-        selectedBillStage = i;
-      }
-    }
-
+    // The server works out the current stage (the highest stage marked Yes)
     const payload = {
-      subject,
+      subject: subject.trim(),
       wing: parseInt(wing, 10),
       division: parseInt(division, 10),
       remarks: remarks.trim(),
-      selectedBillStage,
-      userID: activeUserId,
 
-      draftBillPreparedDate: stages[1].date || '',
-      draftBillPreparedRemark: stages[1].remark || '',
-      dcnDraftBillApprovedMinisterDate: stages[2].date || '',
-      dcnDraftBillApprovedMinisterRemark: stages[2].remark || '',
-      circulatedImcDate: stages[3].date || '',
-      circulatedImcRemark: stages[3].remark || '',
-      imcCommentsRecDate: stages[4].date || '',
-      imcCommentsRecRemark: stages[4].remark || '',
-      dcnDraftBillPreparedDate: stages[5].date || '',
-      dcnDraftBillPreparedRemark: stages[5].remark || '',
-      dcnDraftBillApprovedDate: stages[6].date || '',
-      dcnDraftBillApprovedRemark: stages[6].remark || '',
-      submittedLegalVettingDate: stages[7].date || '',
-      submittedLegalVettingRemark: stages[7].remark || '',
-      legalVettingCompletedDate: stages[8].date || '',
-      legalVettingCompletedRemark: stages[8].remark || '',
-      finalDcnDraftApprovedDate: stages[9].date || '',
-      finalDcnDraftApprovedRemark: stages[9].remark || '',
-      advanceCopyDate: stages[10].date || '',
-      advanceCopyRemark: stages[10].remark || '',
-      approvedByCabinetDate: stages[11].date || '',
-      approvedByCabinetRemark: stages[11].remark || '',
-      billIntroducedInParliamentDate: stages[12].date || '',
-      billIntroducedInParliamentRemark: stages[12].remark || '',
-      billPassedDate: stages[13].date || '',
-      billPassedRemark: stages[13].remark || '',
-      billNotifiedDate: stages[14].date || '',
-      billNotifiedRemark: stages[14].remark || '',
-      completedDate: stages[15].date || '',
-      completedRemark: stages[15].remark || ''
     };
+    STAGES_LIST.forEach((stage) => {
+      const st = stages[stage.id];
+      payload[`${stage.param}Done`] = st.done;
+      payload[`${stage.param}Date`] = st.date || '';
+      payload[`${stage.param}Remark`] = st.remark.trim();
+    });
 
     try {
       if (isEdit) {
@@ -293,26 +221,24 @@ export default function InputForm({
         await createBill(payload);
       }
 
-      if (triggerNotification) {
-        triggerNotification(isEdit ? "Bill updated successfully." : "Bill created successfully.");
-      }
+      notify?.(isEdit ? BILLS_TOASTS.updated() : BILLS_TOASTS.created());
       if (onSuccess) onSuccess();
     } catch (err) {
       console.error("Error saving bill:", err);
-      alert("Error saving Bill Pre-Constitutions Act details.");
+      notify?.(BILLS_TOASTS.saveFailed(isEdit, getErrorMessage(err)));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in">
-      <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
+    <div className="module-form-card overflow-hidden animate-fade-in">
+      <div className="module-form-banner">
         <div>
-          <h3 className="text-sm font-black uppercase tracking-wider">
+          <h3 className="module-form-banner-title">
             {readOnly ? "View Legislative Bill / Pre-Constitutions Act (Read-only)" : isEdit ? "Update Legislative Bill / Pre-Constitutions Act" : "Add Legislative Bill / Pre-Constitutions Act"}
           </h3>
-          <p className="text-[10px] text-blue-200 font-semibold tracking-wide mt-0.5">Ministry of Ports, Shipping and Waterways</p>
+          <p className="module-form-banner-subtext">Ministry of Ports, Shipping and Waterways</p>
         </div>
       </div>
 
@@ -325,30 +251,34 @@ export default function InputForm({
             
             {/* Subject */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Subject <span className="text-red-500">*</span></label>
+              <label className="module-form-label">Subject <span className="text-red-500">*</span></label>
               <input
                 type="text"
                 value={subject}
                 onChange={e => setSubject(e.target.value)}
                 onBlur={() => handleBlur('subject')}
                 disabled={readOnly}
+                maxLength={SUBJECT_MAX}
                 placeholder="Enter subject name"
-                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${isFieldInvalid('subject', subject) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-700 dark:text-slate-200`}
+                className={`module-form-input${isFieldInvalid('subject', subject) ? ' !border-red-500' : ''}`}
               />
               {isFieldInvalid('subject', subject) && (
                 <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>
+              )}
+              {subject.length > SUBJECT_MAX - 30 && (
+                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 text-right">{subject.length} / {SUBJECT_MAX} characters</p>
               )}
             </div>
 
             {/* Wing */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Wing <span className="text-red-500">*</span></label>
+              <label className="module-form-label">Wing <span className="text-red-500">*</span></label>
               <select
                 value={wing}
-                onChange={e => setWing(e.target.value)}
+                onChange={e => { setWing(e.target.value); setDivision(''); }}
                 onBlur={() => handleBlur('wing')}
                 disabled={readOnly}
-                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${isFieldInvalid('wing', wing) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-700 dark:text-slate-200 cursor-pointer`}
+                className={`module-form-input cursor-pointer${isFieldInvalid('wing', wing) ? ' !border-red-500' : ''}`}
               >
                 <option value="">--Select Wing--</option>
                 {wings.map(w => (
@@ -362,16 +292,16 @@ export default function InputForm({
 
             {/* Division */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Division <span className="text-red-500">*</span></label>
+              <label className="module-form-label">Division <span className="text-red-500">*</span></label>
               <select
                 value={division}
                 onChange={e => setDivision(e.target.value)}
                 onBlur={() => handleBlur('division')}
                 disabled={readOnly}
-                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${isFieldInvalid('division', division) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-700 dark:text-slate-200 cursor-pointer`}
+                className={`module-form-input cursor-pointer${isFieldInvalid('division', division) ? ' !border-red-500' : ''}`}
               >
-                <option value="">--Select Division--</option>
-                {divisions.map(d => (
+                <option value="">{wing ? '--Select Division--' : '--Select Wing first--'}</option>
+                {wingDivisions.map(d => (
                   <option key={d.division_id} value={String(d.division_id)}>{d.division_name}</option>
                 ))}
               </select>
@@ -383,7 +313,7 @@ export default function InputForm({
             {/* Remarks */}
             <div className="space-y-1.5">
               <div className="flex justify-between items-center">
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">General Remarks <span className="text-red-500">*</span> (Max 250 words)</label>
+                <label className="module-form-label">General Remarks (optional, max 250 words)</label>
                 <span className={`text-[10px] font-bold ${getWordCount(remarks) > 250 ? 'text-red-500' : 'text-slate-400 dark:text-slate-500'}`}>
                   {getWordCount(remarks)} / 250 words
                 </span>
@@ -394,15 +324,11 @@ export default function InputForm({
                   setRemarks(e.target.value);
                   validateRemarks(e.target.value);
                 }}
-                onBlur={() => handleBlur('remarks')}
                 disabled={readOnly}
                 rows={4}
-                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${isFieldInvalid('remarks', remarks) || errors.remarks ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-700 dark:text-slate-200`}
+                className={`module-form-input${errors.remarks ? ' !border-red-500' : ''}`}
                 placeholder="Enter remarks..."
               />
-              {isFieldInvalid('remarks', remarks) && (
-                <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>
-              )}
               {errors.remarks && (
                 <p className="text-[10px] text-red-500 font-bold mt-1">{errors.remarks}</p>
               )}
@@ -417,17 +343,17 @@ export default function InputForm({
             <div className="space-y-3.5">
               {STAGES_LIST.map((stage, idx) => {
                 const stageNum = stage.id;
-                const stageVal = stages[stageNum] || { date: '', remark: '' };
-                const isStageDisabled = !isEdit && idx > 0 && !stages[STAGES_LIST[idx - 1].id]?.date;
-                const isRemarkFieldVisible = stageNum === focusedStage || !!stageVal.date;
+                const stageVal = stages[stageNum] || emptyStage;
+                // When adding, stages are marked in order
+                const isStageDisabled = !isEdit && idx > 0 && !stages[STAGES_LIST[idx - 1].id]?.done;
+                const isRemarkFieldVisible = stageNum === focusedStage || stageVal.done;
+                const missingDate = stageVal.done && !stageVal.date;
 
                 return (
                   <div
                     key={stage.id}
-                    onMouseEnter={() => !isStageDisabled && setHoveredStage(stageNum)}
-                    onMouseLeave={() => setHoveredStage(null)}
                     className={`flex flex-col gap-3 p-4 border rounded-xl transition ${
-                      stageVal.date
+                      stageVal.done
                         ? 'border-emerald-250 dark:border-emerald-800 bg-emerald-50/20 dark:bg-emerald-950/20'
                         : 'border-slate-150 dark:border-slate-800 bg-white dark:bg-slate-900'
                     } ${isStageDisabled ? 'opacity-40 pointer-events-none' : ''}`}
@@ -440,7 +366,26 @@ export default function InputForm({
                         <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 mt-0.5">{stage.label}</h4>
                       </div>
 
-                      <div className="w-full sm:w-auto">
+                      <div className="w-full sm:w-auto flex items-center gap-2">
+                        {/* Done (Yes / No), as 2.0's radio buttons */}
+                        <div className="flex rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden text-[10px] font-black uppercase" role="group" aria-label={`${stage.label} done`}>
+                          {[[true, 'Yes'], [false, 'No']].map(([value, text]) => (
+                            <button
+                              key={text}
+                              type="button"
+                              disabled={readOnly || isStageDisabled}
+                              aria-pressed={stageVal.done === value}
+                              onClick={() => handleStageChange(stageNum, 'done', value)}
+                              className={`px-2.5 py-2 transition cursor-pointer disabled:cursor-not-allowed ${
+                                stageVal.done === value
+                                  ? (value ? 'bg-emerald-600 text-white' : 'bg-slate-500 text-white')
+                                  : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                              }`}
+                            >
+                              {text}
+                            </button>
+                          ))}
+                        </div>
                         <input
                           type="date"
                           value={stageVal.date}
@@ -450,10 +395,15 @@ export default function InputForm({
                           onFocus={() => !isStageDisabled && !readOnly && setFocusedStage(stageNum)}
                           onBlur={() => setFocusedStage(null)}
                           disabled={readOnly || isStageDisabled}
-                          className={`w-full sm:w-auto text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#0f417a] font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:[color-scheme:dark] ${isStageDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                          aria-label={`${stage.label} date`}
+                          title={missingDate ? (initialValues.stages[stageNum].done ? 'Done in 2.0 without a date' : 'Enter the date') : undefined}
+                          className={`w-full sm:w-auto text-xs px-3 py-2 bg-white border ${missingDate && !initialValues.stages[stageNum].done ? 'border-amber-400' : 'border-slate-200'} rounded-lg focus:outline-none focus:border-[#0f417a] font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:[color-scheme:dark] ${isStageDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                         />
                       </div>
                     </div>
+                    {missingDate && initialValues.stages[stageNum].done && (
+                      <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 -mt-1">Marked done without a date (from 2.0). Add the date if known.</p>
+                    )}
 
                     {/* Dynamically reveal Stage Remark field with transition animation */}
                     {!isStageDisabled && (
@@ -467,6 +417,7 @@ export default function InputForm({
                           <input
                             type="text"
                             placeholder="Add stage-specific remark (optional)"
+                            maxLength={STAGE_REMARK_MAX}
                             value={stageVal.remark}
                             onChange={e => handleStageChange(stageNum, 'remark', e.target.value)}
                             onFocus={() => !readOnly && setFocusedStage(stageNum)}
@@ -486,21 +437,37 @@ export default function InputForm({
 
         {/* Footer actions */}
         {!readOnly && (
-          <div className="flex justify-end gap-3 pt-6 mt-6 border-t border-slate-150 dark:border-slate-800">
+          <div className="flex justify-between items-center gap-3 pt-6 mt-6 border-t border-slate-150 dark:border-slate-800">
+            <span className="text-xs text-rose-500 font-bold italic">
+            * Asterisks marked with red are mandatory fields
+          </span>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={onBack}
+                className="px-4 py-2 border border-slate-250 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submitting || !isDirty || !isFormValid}
+                className="flex items-center gap-2 px-5 py-2 bg-[#0f417a] hover:bg-[#16569e] disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-600 disabled:cursor-not-allowed text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md hover:shadow-lg transition cursor-pointer"
+              >
+                <Save className="h-4.5 w-4.5" />
+                <span>{submitting ? "Saving..." : "Save details"}</span>
+              </button>
+            </div>
+          </div>
+        )}
+        {readOnly && onBack && (
+          <div className="flex justify-end pt-6 mt-6 border-t border-slate-150 dark:border-slate-800">
             <button
               type="button"
               onClick={onBack}
               className="px-4 py-2 border border-slate-250 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 transition cursor-pointer"
             >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={submitting || !isDirty || !isFormValid}
-              className="flex items-center gap-2 px-5 py-2 bg-[#0f417a] hover:bg-[#16569e] disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-600 disabled:cursor-not-allowed text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md hover:shadow-lg transition cursor-pointer"
-            >
-              <Save className="h-4.5 w-4.5" />
-              <span>{submitting ? "Saving..." : "Save details"}</span>
+              Back
             </button>
           </div>
         )}

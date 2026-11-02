@@ -1,200 +1,136 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { X, FileText, Download } from 'lucide-react';
 import RestrictedAccess from '../../../components/RestrictedAccess';
 import NoteListTable from '../components/NoteListTable';
-import NoteForm from './NoteForm';
 import {
   deleteCabinetNote,
   downloadNoteDocument,
   fetchCabinetNoteById,
   fetchCabinetNotes,
-  fetchCabinetStages,
-  fetchDivisions,
   fetchNoteDocuments,
-  fetchWings,
 } from '../api';
 import { mapNoteListRow, mapNoteToForm } from '../utils/mapNote';
 import { useCabinetNotesPermissions } from '../hooks/useCabinetNotesPermissions';
+import { useCabinetNotesStore } from '../store/useCabinetNotesStore';
 import { statusNamesFromStages } from '../utils/stageHelpers';
 import { getCurrentUserId } from '../../../utils/authSession';
+import { COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { CABINET_NOTES_TOASTS } from '../toastMessages';
 
-const DEFAULT_FILTERS = {
-  wingId: 'All',
-  divisionId: 'All',
-  status: 'All',
-  search: '',
-};
+const EMPTY_PAGINATION = { total: 0, page: 1, limit: 10, totalPages: 0 };
+const ALL_FILTERS = { wingId: 'All', divisionId: 'All', status: 'All', search: '' };
 
-export default function NoteListPage({ notify, onGoHome }) {
+export default function NoteListPage({ notify, onEdit, onGoHome }) {
   const permissions = useCabinetNotesPermissions();
-  const [rows, setRows] = useState([]);
-  const [wings, setWings] = useState([]);
-  const [divisions, setDivisions] = useState([]);
-  const [stages, setStages] = useState([]);
-  const [statusOptions, setStatusOptions] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [filters, setFilters] = useState(DEFAULT_FILTERS);
-  const [category, setCategory] = useState('active');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [counts, setCounts] = useState({ active: 0, completed: 0 });
-  const [pagination, setPagination] = useState({
-    total: 0,
-    page: 1,
-    limit: 10,
-    totalPages: 0,
-  });
-  const [mode, setMode] = useState('list');
-  const [formData, setFormData] = useState(null);
+  const { canView } = permissions;
+
+  // Reference data and list state from the store, so they survive switching tabs
+  const { wings, divisions, stages } = useCabinetNotesStore(useShallow((state) => ({
+    wings: state.wings, divisions: state.divisions, stages: state.stages,
+  })));
+  const {
+    category, filters, searchTerm, debouncedSearch, currentPage, pageSize, showFilterPanel, visibleCols,
+  } = useCabinetNotesStore(useShallow((state) => ({
+    category: state.category,
+    filters: state.filters,
+    searchTerm: state.searchTerm,
+    debouncedSearch: state.debouncedSearch,
+    currentPage: state.currentPage,
+    pageSize: state.pageSize,
+    showFilterPanel: state.showFilterPanel,
+    visibleCols: state.visibleCols,
+  })));
+  const actions = useCabinetNotesStore(useShallow((state) => ({
+    setSearchTerm: state.setSearchTerm,
+    setDebouncedSearch: state.setDebouncedSearch,
+    setFilters: state.setFilters,
+    resetFilters: state.resetFilters,
+    setCategory: state.setCategory,
+    setCurrentPage: state.setCurrentPage,
+    setPageSize: state.setPageSize,
+    setShowFilterPanel: state.setShowFilterPanel,
+    setVisibleCols: state.setVisibleCols,
+  })));
+  const statusOptions = statusNamesFromStages(stages, { excludeCompleted: true });
+
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [docsTarget, setDocsTarget] = useState(null);
   const [docs, setDocs] = useState([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
-  const [debouncedSearch, setDebouncedSearch] = useState('');
 
+  // Search applies 300 ms after the user stops typing (and then returns to page 1)
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(filters.search), 300);
+    const timer = setTimeout(() => actions.setDebouncedSearch(searchTerm), 300);
     return () => clearTimeout(timer);
-  }, [filters.search]);
+  }, [searchTerm, actions]);
 
-  const loadTabTotals = useCallback(async () => {
-    if (!permissions.canView) return;
-    try {
-      const [activeRes, completedRes] = await Promise.allSettled([
-        fetchCabinetNotes({
-          page: 1,
-          limit: 1,
-          category: 'active',
-          wingId: 'All',
-          divisionId: 'All',
-          status: 'All',
-          search: '',
-        }),
-        fetchCabinetNotes({
-          page: 1,
-          limit: 1,
-          category: 'completed',
-          wingId: 'All',
-          divisionId: 'All',
-          status: 'All',
-          search: '',
-        }),
-      ]);
-
-      const activePayload = activeRes.status === 'fulfilled' ? activeRes.value?.data : null;
-      const completedPayload = completedRes.status === 'fulfilled' ? completedRes.value?.data : null;
-
-      setCounts({
-        active: Number(activePayload?.pagination?.total) || 0,
-        completed: Number(completedPayload?.pagination?.total) || 0,
-      });
-    } catch (err) {
-      console.error(err);
-    }
-  }, [permissions.canView]);
+  // Fetched rows are tagged with the request they answer; a mismatch means it is still loading.
+  // Only the latest request may update them (an older response can arrive last).
+  const [reloadKey, setReloadKey] = useState(0);
+  const [result, setResult] = useState(null);
+  const latestRequestRef = useRef(0);
+  const requestKey = JSON.stringify([category, filters, debouncedSearch, currentPage, pageSize, reloadKey]);
 
   useEffect(() => {
-    setPage(1);
-  }, [debouncedSearch]);
-
-  const loadList = useCallback(async (signal) => {
-    if (!permissions.canView) return;
-    setLoading(true);
-    try {
-      const commonParams = {
-        wingId: filters.wingId,
-        divisionId: filters.divisionId,
-        status: filters.status,
-        search: debouncedSearch,
-      };
-
-      const listRes = await fetchCabinetNotes(
-        { page, limit: pageSize, category, ...commonParams },
-        { signal }
-      );
-
-      const payload = listRes?.data || {};
-      const data = Array.isArray(payload.data) ? payload.data : [];
-      setRows(data.map(mapNoteListRow));
-
-      setPagination({
-        total: Number(payload.pagination?.total) || 0,
-        page: Number(payload.pagination?.page) || page,
-        limit: Number(payload.pagination?.limit) || pageSize,
-        totalPages: Number(payload.pagination?.totalPages) || 0,
+    if (!canView) return;
+    const requestId = ++latestRequestRef.current;
+    const isStale = () => requestId !== latestRequestRef.current;
+    fetchCabinetNotes({ page: currentPage, limit: pageSize, category, ...filters, search: debouncedSearch })
+      .then((res) => {
+        if (isStale()) return;
+        const payload = res?.data || {};
+        const data = Array.isArray(payload.data) ? payload.data : [];
+        setResult({
+          key: requestKey,
+          rows: data.map(mapNoteListRow),
+          pagination: {
+            total: Number(payload.pagination?.total) || 0,
+            page: Number(payload.pagination?.page) || currentPage,
+            limit: Number(payload.pagination?.limit) || pageSize,
+            totalPages: Number(payload.pagination?.totalPages) || 0,
+          },
+        });
+      })
+      .catch((err) => {
+        if (isStale()) return;
+        console.error('Error loading cabinet notes:', err);
+        setResult({ key: requestKey, rows: [], pagination: { ...EMPTY_PAGINATION, limit: pageSize } });
+        notify?.(COMMON_TOASTS.loadFailed('Cabinet notes'));
       });
-    } catch (err) {
-      if (err?.code === 'ERR_CANCELED') return;
-      console.error(err);
-      notify?.(err?.response?.data?.message || 'Failed to load cabinet notes.', 'error');
-      setRows([]);
-    } finally {
-      if (!signal?.aborted) setLoading(false);
-    }
-  }, [
-    permissions.canView,
-    notify,
-    page,
-    pageSize,
-    category,
-    filters.wingId,
-    filters.divisionId,
-    filters.status,
-    debouncedSearch,
-  ]);
+  }, [requestKey, canView, category, filters, debouncedSearch, currentPage, pageSize, notify]);
 
+  const loading = result?.key !== requestKey;
+  const rows = result?.rows ?? [];
+  const pagination = result?.pagination ?? { ...EMPTY_PAGINATION, limit: pageSize };
+
+  // Active / Completed tab totals (unfiltered); refreshed after a delete
+  const [counts, setCounts] = useState({ active: 0, completed: 0 });
   useEffect(() => {
-    Promise.all([
-      fetchWings().catch((err) => {
-        console.error(err);
-        return { data: [] };
-      }),
-      fetchDivisions().catch((err) => {
-        console.error(err);
-        return { data: [] };
-      }),
-      fetchCabinetStages().catch((err) => {
-        console.error(err);
-        return { data: [] };
-      }),
-    ]).then(([wingsRes, divisionsRes, stagesRes]) => {
-      setWings(Array.isArray(wingsRes.data) ? wingsRes.data : []);
-      setDivisions(Array.isArray(divisionsRes.data) ? divisionsRes.data : []);
-      const stageRows = Array.isArray(stagesRes.data) ? stagesRes.data : [];
-      setStages(stageRows);
-      setStatusOptions(statusNamesFromStages(stageRows, { excludeCompleted: true }));
+    if (!canView) return;
+    let cancelled = false;
+    const total = (r) => (r.status === 'fulfilled' ? Number(r.value?.data?.pagination?.total) || 0 : 0);
+    Promise.allSettled([
+      fetchCabinetNotes({ page: 1, limit: 1, category: 'active', ...ALL_FILTERS }),
+      fetchCabinetNotes({ page: 1, limit: 1, category: 'completed', ...ALL_FILTERS }),
+    ]).then(([activeRes, completedRes]) => {
+      if (!cancelled) setCounts({ active: total(activeRes), completed: total(completedRes) });
     });
-  }, []);
+    return () => { cancelled = true; };
+  }, [canView, reloadKey]);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    loadList(controller.signal);
-    return () => controller.abort();
-  }, [loadList]);
-
-  useEffect(() => {
-    loadTabTotals();
-  }, [loadTabTotals]);
-
-  const handleAdd = () => {
-    if (!permissions.canAdd) return;
-    setFormData(null);
-    setMode('form');
-  };
-
-  const handleEdit = async (row) => {
-    if (!permissions.canEdit && !permissions.canView) return;
+  // Open the full note (the list row only has summary fields) in the form
+  const handleEdit = useCallback(async (row) => {
     try {
       const res = await fetchCabinetNoteById(row.id);
       const record = Array.isArray(res.data) ? res.data[0] : res.data;
-      setFormData(mapNoteToForm(record));
-      setMode('form');
+      onEdit?.(mapNoteToForm(record));
     } catch (err) {
       console.error(err);
-      notify?.('Failed to load cabinet note for edit.', 'error');
+      notify?.(CABINET_NOTES_TOASTS.openFailed(getErrorMessage(err)));
     }
-  };
+  }, [onEdit, notify]);
 
   const handleDelete = (row) => {
     if (!permissions.canRemove) return;
@@ -211,17 +147,21 @@ export default function NoteListPage({ notify, onGoHome }) {
     setDeleting(true);
     try {
       await deleteCabinetNote(deleteTarget.id, getCurrentUserId());
-      notify?.('Cabinet note deleted successfully.', 'success');
+      notify?.(CABINET_NOTES_TOASTS.deleted());
       setDeleteTarget(null);
-      loadList();
-      loadTabTotals();
+      setReloadKey((k) => k + 1);
     } catch (err) {
       console.error(err);
-      notify?.(err?.response?.data?.message || 'Failed to delete cabinet note.', 'error');
+      notify?.(CABINET_NOTES_TOASTS.deleteFailed(getErrorMessage(err)));
     } finally {
       setDeleting(false);
     }
   };
+
+  // A deleted row can leave the page empty; step back so the list doesn't look blank
+  useEffect(() => {
+    if (!loading && rows.length === 0 && currentPage > 1) actions.setCurrentPage(currentPage - 1);
+  }, [loading, rows.length, currentPage, actions]);
 
   const handleDocs = async (row) => {
     setDocsTarget(row);
@@ -232,54 +172,23 @@ export default function NoteListPage({ notify, onGoHome }) {
     } catch (err) {
       console.error(err);
       setDocs([]);
-      notify?.('Failed to load documents.', 'error');
+      notify?.(COMMON_TOASTS.loadFailed('The documents'));
     } finally {
       setLoadingDocs(false);
     }
   };
 
+  // The table edits filters and search as one object, as before
   const handleFiltersChange = (next) => {
-    setFilters(next);
-    if (next.search === filters.search) setPage(1);
+    if (next.search !== searchTerm) actions.setSearchTerm(next.search);
+    const changed = Object.fromEntries(['wingId', 'divisionId', 'status']
+      .filter((k) => next[k] !== filters[k]).map((k) => [k, next[k]]));
+    if (Object.keys(changed).length) actions.setFilters(changed);
   };
 
-  const handleCategoryChange = (next) => {
-    setCategory(next);
-    setFilters((prev) => ({ ...prev, status: 'All' }));
-    setPage(1);
-  };
-
-  const handlePageSizeChange = (next) => {
-    setPageSize(next);
-    setPage(1);
-  };
-
-  if (!permissions.canView) {
+  if (!canView) {
     return (
       <RestrictedAccess moduleName="Cabinet Notes - MoPSW" onGoHome={onGoHome} />
-    );
-  }
-
-  if (mode === 'form') {
-    return (
-      <NoteForm
-        wings={wings}
-        divisions={divisions}
-        stages={stages}
-        initialForm={formData}
-        readOnly={!permissions.canEdit && !!formData}
-        onBack={() => {
-          setMode('list');
-          setFormData(null);
-        }}
-        onSuccess={() => {
-          setMode('list');
-          setFormData(null);
-          loadList();
-          loadTabTotals();
-        }}
-        notify={notify}
-      />
     );
   }
 
@@ -292,22 +201,27 @@ export default function NoteListPage({ notify, onGoHome }) {
         divisions={divisions}
         statusOptions={statusOptions}
         canEdit={permissions.canEdit}
+        canView={permissions.canView}
         canDelete={permissions.canRemove}
-        canCreate={permissions.canAdd}
-        filters={filters}
+        filters={{ ...filters, search: searchTerm }}
         onFiltersChange={handleFiltersChange}
+        onResetFilters={actions.resetFilters}
         category={category}
-        onCategoryChange={handleCategoryChange}
+        onCategoryChange={actions.setCategory}
         counts={counts}
-        page={page}
+        page={currentPage}
         pageSize={pageSize}
         pagination={pagination}
-        onPageChange={setPage}
-        onPageSizeChange={handlePageSizeChange}
+        onPageChange={actions.setCurrentPage}
+        onPageSizeChange={actions.setPageSize}
+        showFilterPanel={showFilterPanel}
+        onShowFilterPanelChange={actions.setShowFilterPanel}
+        visibleCols={visibleCols}
+        onVisibleColsChange={actions.setVisibleCols}
         onEdit={handleEdit}
         onDelete={handleDelete}
-        onAdd={handleAdd}
         onDocs={handleDocs}
+        notify={notify}
       />
 
       {deleteTarget && (
@@ -408,7 +322,7 @@ export default function NoteListPage({ notify, onGoHome }) {
                           downloadNoteDocument(
                             docsTarget.id,
                             doc.cabinet_notes_mopsw_document
-                          ).catch(() => notify?.('Download failed.', 'error'))
+                          ).catch(() => notify?.(CABINET_NOTES_TOASTS.downloadFailed()))
                         }
                         className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wide text-[#0f417a] hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-lg transition cursor-pointer bg-transparent border border-blue-100 dark:border-blue-900 shrink-0"
                       >

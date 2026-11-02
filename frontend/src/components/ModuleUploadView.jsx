@@ -1,4 +1,4 @@
-import React from "react";
+
 import { Upload, FileSpreadsheet, AlertCircle, FileCheck, ChevronDown, Download } from "lucide-react";
 import Table from "./Table";
 import CopyButton from "./CopyButton";
@@ -25,7 +25,6 @@ export default function ModuleUploadView({
   accentColor = "#0f417a",
   themeClass = "eoffice-blue-grid",
   onDownloadSample,
-  sampleFileName = "Sample Template",
 }) {
   // Builds one plain-text summary shared by both Copy and Download, so a
   // person can paste the exact list of unmet conditions into an email or
@@ -134,6 +133,7 @@ export default function ModuleUploadView({
                 <option value="2">Week 2</option>
                 <option value="3">Week 3</option>
                 <option value="4">Week 4</option>
+                <option value="5">Week 5</option>
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
             </div>
@@ -208,6 +208,18 @@ export default function ModuleUploadView({
               </button>
             </div>
           </div>
+
+          {/* The sheet passed its checks but nothing is saved until Upload File is pressed */}
+          {selectedFile && previewRows?.length > 0 && !fileValidationError && !uploading && (
+            <p role="status" className="mt-2 flex items-center justify-end gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-400">
+              <FileCheck className="h-3.5 w-3.5 flex-shrink-0" />
+              Preview successful. Click Upload File now to save the sheet.
+            </p>
+          )}
+
+          <span className="mt-3 block text-xs text-rose-500 font-bold italic">
+            * Asterisks marked with red are mandatory fields
+          </span>
 
           {/* Validation Alert */}
           {fileValidationError && (

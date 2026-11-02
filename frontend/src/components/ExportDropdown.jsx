@@ -1,5 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { FileSpreadsheet, Download } from 'lucide-react';
+import { FileSpreadsheet, Download, ChevronDown } from 'lucide-react';
+
+const escapeHtml = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;');
+
+// Quote a CSV cell; text starting with = + - @ gets a leading ' so Excel does not run it as a formula
+const csvCell = (value) => {
+  let str = String(value ?? '');
+  if (typeof value === 'string' && /^[=+\-@\t\r]/.test(str)) str = `'${str}`;
+  return `"${str.replace(/"/g, '""')}"`;
+};
 
 export default function ExportDropdown({
   onExportExcel,
@@ -12,7 +25,12 @@ export default function ExportDropdown({
   triggerNotification,
   color = '#0f417a',
   hoverColor = '#1e3a8a',
-  className = ''
+  className = '',
+  // Optional: hide the Print / PDF option, and relabel the Excel option (e.g. for real .xlsx).
+  showPdf = true,
+  excelLabel = 'CSV (Excel)',
+  // Optional: a chevron icon (as on Visibility menus) instead of the ▼ character.
+  chevron = false
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -27,8 +45,10 @@ export default function ExportDropdown({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // rows may be a function so callers can build export rows only when needed
   const getEffectiveRows = () => {
-    return (data && data.length > 0) ? data : rows;
+    if (data && data.length > 0) return data;
+    return typeof rows === 'function' ? rows() : rows;
   };
 
   const handleExcel = () => {
@@ -40,28 +60,25 @@ export default function ExportDropdown({
 
     const rowList = getEffectiveRows();
     if (!rowList || rowList.length === 0) {
-      triggerNotification?.('No data available to export.');
+      triggerNotification?.('No data available to export.', 'warning');
       return;
     }
 
     let csvContent = '\uFEFF'; // UTF-8 BOM for Excel
     if (headers && headers.length > 0) {
-      csvContent += headers.map(h => `"${String(h).replace(/"/g, '""')}"`).join(',') + '\r\n';
+      csvContent += headers.map(csvCell).join(',') + '\r\n';
     }
 
     rowList.forEach(row => {
       if (Array.isArray(row)) {
         const line = row.map(cell => {
-          let str = String(cell ?? '');
-          if (str.startsWith('"') && str.endsWith('"')) {
-            str = str.slice(1, -1).replace(/""/g, '"');
-          }
-          return `"${str.replace(/"/g, '""')}"`;
+          if (typeof cell !== 'string') return csvCell(cell);
+          const str = cell.startsWith('"') && cell.endsWith('"') ? cell.slice(1, -1).replace(/""/g, '"') : cell;
+          return csvCell(str);
         });
         csvContent += line.join(',') + '\r\n';
       } else if (typeof row === 'object' && row !== null) {
-        const line = Object.values(row).map(v => `"${String(v ?? '').replace(/"/g, '""')}"`);
-        csvContent += line.join(',') + '\r\n';
+        csvContent += Object.values(row).map(csvCell).join(',') + '\r\n';
       }
     });
 
@@ -75,7 +92,7 @@ export default function ExportDropdown({
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 
-    triggerNotification?.(`Report exported to Excel (CSV) successfully!`);
+    triggerNotification?.('Report exported to Excel (CSV) successfully!', 'success');
   };
 
   const handlePdf = () => {
@@ -87,18 +104,21 @@ export default function ExportDropdown({
 
     const rowList = getEffectiveRows();
     if (!rowList || rowList.length === 0) {
-      triggerNotification?.('No data available to print.');
+      triggerNotification?.('No data available to print.', 'warning');
       return;
     }
 
-    triggerNotification?.('Preparing PDF document...');
     const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
+    if (!printWindow) {
+      triggerNotification?.('Please allow pop-ups to print or save as PDF.', 'warning');
+      return;
+    }
+    triggerNotification?.('Preparing PDF document...', 'info');
 
     let headersHtml = '';
     if (headers && headers.length > 0) {
       headers.forEach(h => {
-        headersHtml += `<th style="border:1px solid #cbd5e1;padding:8px 10px;text-align:left;background:#0f417a;color:#fff;font-size:11px;font-weight:bold;text-transform:uppercase;">${h}</th>`;
+        headersHtml += `<th style="border:1px solid #cbd5e1;padding:8px 10px;text-align:left;background:#0f417a;color:#fff;font-size:11px;font-weight:bold;text-transform:uppercase;">${escapeHtml(h)}</th>`;
       });
     }
 
@@ -112,11 +132,11 @@ export default function ExportDropdown({
           if (str.startsWith('"') && str.endsWith('"')) {
             str = str.slice(1, -1).replace(/""/g, '"');
           }
-          rowsHtml += `<td style="border:1px solid #e2e8f0;padding:6px 8px;font-size:11px;">${str}</td>`;
+          rowsHtml += `<td style="border:1px solid #e2e8f0;padding:6px 8px;font-size:11px;">${escapeHtml(str)}</td>`;
         });
       } else if (typeof row === 'object' && row !== null) {
         Object.values(row).forEach(v => {
-          rowsHtml += `<td style="border:1px solid #e2e8f0;padding:6px 8px;font-size:11px;">${String(v ?? '')}</td>`;
+          rowsHtml += `<td style="border:1px solid #e2e8f0;padding:6px 8px;font-size:11px;">${escapeHtml(v)}</td>`;
         });
       }
       rowsHtml += '</tr>';
@@ -126,7 +146,7 @@ export default function ExportDropdown({
       <!DOCTYPE html>
       <html>
       <head>
-        <title>${title}</title>
+        <title>${escapeHtml(title)}</title>
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #1e293b; padding: 24px; }
           h1 { font-size: 16px; color: #0f417a; margin-bottom: 4px; font-weight: 800; text-transform: uppercase; }
@@ -139,7 +159,7 @@ export default function ExportDropdown({
         </style>
       </head>
       <body>
-        <h1>${title}</h1>
+        <h1>${escapeHtml(title)}</h1>
         <p>Ministry of Ports, Shipping and Waterways | Generated on: ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
         <table>
           ${headersHtml ? `<thead><tr>${headersHtml}</tr></thead>` : ''}
@@ -177,7 +197,9 @@ export default function ExportDropdown({
         title="Export options"
       >
         <span>Export</span>
-        <span className="text-[10px]">▼</span>
+        {chevron
+          ? <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+          : <span className="text-[10px]">▼</span>}
       </button>
 
       {isOpen && (
@@ -188,8 +210,9 @@ export default function ExportDropdown({
             className="flex items-center gap-2.5 w-full px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer border-none bg-none text-left transition"
           >
             <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-            <span className="text-slate-800 dark:text-white">CSV (Excel)</span>
+            <span className="text-slate-800 dark:text-white">{excelLabel}</span>
           </button>
+          {showPdf && (
           <button
             type="button"
             onClick={handlePdf}
@@ -198,6 +221,7 @@ export default function ExportDropdown({
             <Download className="h-4 w-4 text-rose-600 dark:text-rose-400" />
             <span className="text-slate-800 dark:text-white">Print / PDF</span>
           </button>
+          )}
         </div>
       )}
     </div>

@@ -83,6 +83,10 @@ export function fetchParliamentaryIssues(params = {}, config = {}) {
   });
 }
 
+export function fetchParliamentaryIssueDashboard() {
+  return api.get('/parliamentary-issue-dashboard');
+}
+
 export function fetchParliamentaryIssueById(id) {
   return api.get(`/parliamentary-issue/${id}`);
 }

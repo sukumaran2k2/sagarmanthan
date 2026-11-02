@@ -1,4 +1,4 @@
-import React, { useRef, useMemo, useState, useEffect, forwardRef } from 'react';
+import { useRef, useMemo, useState, useEffect, forwardRef } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import { FileSpreadsheet } from 'lucide-react';
@@ -62,12 +62,16 @@ const Table = forwardRef(({
   };
 
 
+  const shouldFitColumns = autoSizeStrategy !== null && autoSizeStrategy !== false;
+
   const handleGridSizeChanged = (params) => {
     if (params?.api) {
       try {
-        params.api.sizeColumnsToFit();
         params.api.resetRowHeights();
-      } catch (_) {}
+        params.api.sizeColumnsToFit();
+      } catch {
+        // ignore
+      }
     }
     if (onGridSizeChanged) {
       onGridSizeChanged(params);
@@ -77,9 +81,11 @@ const Table = forwardRef(({
   const handleFirstDataRendered = (params) => {
     if (params?.api) {
       try {
-        params.api.sizeColumnsToFit();
         params.api.resetRowHeights();
-      } catch (_) {}
+        params.api.sizeColumnsToFit();
+      } catch {
+        // ignore
+      }
     }
     if (onFirstDataRendered) {
       onFirstDataRendered(params);
@@ -94,9 +100,11 @@ const Table = forwardRef(({
       setTotalRows(params.api.paginationGetRowCount());
       setPageSize(params.api.paginationGetPageSize());
       try {
-        params.api.sizeColumnsToFit();
         params.api.resetRowHeights();
-      } catch (_) {}
+        params.api.sizeColumnsToFit();
+      } catch {
+        // ignore
+      }
     }
     if (onGridReady) {
       onGridReady(params);
@@ -112,6 +120,11 @@ const Table = forwardRef(({
       setTotalPages(params.api.paginationGetTotalPages());
       setTotalRows(params.api.paginationGetRowCount());
       setPageSize(params.api.paginationGetPageSize());
+      try {
+        params.api.resetRowHeights();
+      } catch {
+        // ignore
+      }
     }
     if (onPaginationChanged) {
       onPaginationChanged(params);
@@ -145,7 +158,7 @@ const Table = forwardRef(({
         return col;
       }
       const headerText = col.headerName || col.field || '';
-      const estimatedWidth = (headerText.length + 5) * 12;
+      const estimatedWidth = Math.max((headerText.length + 5) * 14, 120);
       const updatedCol = {
         ...col,
         minWidth: col.minWidth !== undefined ? col.minWidth : estimatedWidth
@@ -160,7 +173,7 @@ const Table = forwardRef(({
 
   useEffect(() => {
     const api = gridApi || activeRef.current?.api;
-    if (api) {
+    if (api && shouldFitColumns) {
       const timer = setTimeout(() => {
         try {
           api.sizeColumnsToFit();
@@ -170,12 +183,26 @@ const Table = forwardRef(({
       }, 50);
       return () => clearTimeout(timer);
     }
-  }, [processedColumnDefs, rowData, gridApi]);
+  }, [processedColumnDefs, rowData, gridApi, shouldFitColumns]);
 
-  const activeAutoSizeStrategy = autoSizeStrategy !== undefined ? autoSizeStrategy : {
-    type: 'fitGridWidth',
-    defaultMinWidth: 100
-  };
+  const activeAutoSizeStrategy = (autoSizeStrategy === null || autoSizeStrategy === false)
+    ? undefined
+    : (autoSizeStrategy !== undefined ? autoSizeStrategy : {
+        type: 'fitGridWidth',
+        defaultMinWidth: 120
+      });
+
+  const hasGroupHeaders = useMemo(() => {
+    return columnDefs.some(col => col.children && Array.isArray(col.children) && col.children.length > 0);
+  }, [columnDefs]);
+
+  const effectiveHeaderHeight = props.headerHeight !== undefined 
+    ? props.headerHeight 
+    : (hasGroupHeaders ? 28 : 36);
+
+  const effectiveGroupHeaderHeight = props.groupHeaderHeight !== undefined 
+    ? props.groupHeaderHeight 
+    : 28;
 
   const colorClass = `custom-table-container-${color.replace(/[^a-zA-Z0-9]/g, '')}`;
 
@@ -184,19 +211,24 @@ const Table = forwardRef(({
       <style>{`
         .${colorClass} .ag-header,
         .${colorClass} .ag-header-row,
-        .${colorClass} .ag-header-cell,
-        .${colorClass} .ag-header-group-cell {
+        .${colorClass} .ag-header-cell:not(.custom-header-bg),
+        .${colorClass} .ag-header-group-cell:not(.custom-header-bg) {
           background-color: ${color} !important;
           background: ${color} !important;
           color: #ffffff !important;
         }
+        .${colorClass} .ag-header-cell-label,
         .${colorClass} .ag-header-cell-text,
-        .${colorClass} .ag-header-group-cell-label {
+        .${colorClass} .ag-header-group-cell-label,
+        .${colorClass} .ag-header-group-text {
           white-space: normal !important;
           word-break: break-word !important;
+          overflow-wrap: anywhere !important;
+          text-overflow: unset !important;
           text-align: center !important;
           justify-content: center !important;
-          line-height: 1.25 !important;
+          line-height: 1.2 !important;
+          font-size: 11.5px !important;
           color: #ffffff !important;
         }
         .dark .${colorClass} .ag-row {
@@ -210,11 +242,48 @@ const Table = forwardRef(({
         .dark .${colorClass} .ag-row-odd {
           background-color: #0f172a !important;
         }
-        .dark .${colorClass} .ag-row:hover {
-          background-color: #1e293b !important;
         .dark .${colorClass} .ag-cell {
           color: #f8fafc !important;
           border-right-color: #1e293b !important;
+        }
+        .${colorClass} .ag-cell {
+          display: flex !important;
+          align-items: center !important;
+        }
+        .${colorClass} .ag-cell-wrapper {
+          display: flex !important;
+          align-items: center !important;
+          width: 100% !important;
+          height: 100% !important;
+        }
+        /* Wrap cells must be block + auto height so AG Grid can measure multi-line content */
+        .${colorClass} .ag-cell.mopsw-wrap-cell,
+        .${colorClass} .ag-cell.ag-cell-wrap-text,
+        .${colorClass} .ag-cell.ag-cell-auto-height {
+          display: block !important;
+          align-items: unset !important;
+          height: auto !important;
+          min-height: 42px !important;
+          overflow: visible !important;
+          padding-top: 8px !important;
+          padding-bottom: 8px !important;
+        }
+        .${colorClass} .ag-cell.mopsw-wrap-cell .ag-cell-wrapper,
+        .${colorClass} .ag-cell.mopsw-wrap-cell .ag-cell-value,
+        .${colorClass} .ag-cell.ag-cell-wrap-text .ag-cell-wrapper,
+        .${colorClass} .ag-cell.ag-cell-wrap-text .ag-cell-value,
+        .${colorClass} .ag-cell.ag-cell-auto-height .ag-cell-wrapper,
+        .${colorClass} .ag-cell.ag-cell-auto-height .ag-cell-value {
+          display: block !important;
+          align-items: unset !important;
+          height: auto !important;
+          min-height: unset !important;
+          width: 100% !important;
+          overflow: visible !important;
+          white-space: normal !important;
+          word-break: break-word !important;
+          overflow-wrap: anywhere !important;
+          line-height: 1.4 !important;
         }
         .${colorClass} .ag-cell.mopsw-wrap-cell,
         .${colorClass} .ag-cell.mopsw-wrap-cell .ag-cell-value,
@@ -224,8 +293,17 @@ const Table = forwardRef(({
         .${colorClass} .ag-cell-wrap-text .ag-cell-wrapper {
           white-space: normal !important;
           word-break: break-word !important;
-          overflow-wrap: break-word !important;
-          line-height: 1.35 !important;
+          overflow-wrap: anywhere !important;
+          line-height: 1.4 !important;
+        }
+        .${colorClass} .ag-row {
+          min-height: 42px;
+        }
+        .${colorClass} .ag-row.ag-row-auto-height {
+          height: auto !important;
+        }
+        .${colorClass} .ag-row.ag-row-auto-height .ag-cell {
+          overflow: visible !important;
         }
         @keyframes indeterminateProgress {
           0% { transform: translateX(-100%) scaleX(0.2); }
@@ -293,12 +371,15 @@ const Table = forwardRef(({
             theme="legacy"
             rowData={rowData}
             columnDefs={processedColumnDefs}
+            headerHeight={effectiveHeaderHeight}
+            groupHeaderHeight={effectiveGroupHeaderHeight}
             defaultColDef={{
               sortable: true,
               filter: true,
               resizable: true,
               wrapHeaderText: true,
-              autoHeaderHeight: true,
+              wrapText: true,
+              autoHeight: true,
               cellStyle: { textAlign: 'center' },
               ...defaultColDef
             }}

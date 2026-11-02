@@ -1,0 +1,153 @@
+/**
+ * ==============================================================================
+ * STANDARDIZED TOAST NOTIFICATION DESIGN SYSTEM
+ * ==============================================================================
+ * Colour tokens for the "standard" toast variant rendered by components/Toast.jsx.
+ * Raise toasts through utils/notify.js (never pick colours at the call site):
+ *  - success -> green  : an action completed
+ *  - error   -> red    : an action failed; the user must retry or fix something
+ *  - warning -> amber  : the user must act before continuing (validation, limits)
+ *  - info    -> navy   : neutral progress / status (export started, filters cleared)
+ *
+ * Title colours meet WCAG AA (>= 4.5:1) on the card background in both themes;
+ * accents (border, icon chip, progress bar) meet the 3:1 non-text contrast minimum.
+ * ==============================================================================
+ */
+
+:root {
+  --toast-card-bg: #ffffff;
+  --toast-message-color: #334155; /* slate-700 */
+  --toast-close-color: #64748b;
+  --toast-close-hover-bg: #f1f5f9;
+  --toast-track-bg: #f1f5f9;
+  --toast-shadow: 0 8px 32px rgba(15, 23, 42, 0.14);
+  --toast-radius: 0.75rem;
+  --toast-width: 22rem;
+
+  --toast-success-accent: #16a34a;
+  --toast-success-title: #15803d;
+  --toast-success-tint: #f0fdf4;
+
+  --toast-error-accent: #dc2626;
+  --toast-error-title: #b91c1c;
+  --toast-error-tint: #fef2f2;
+
+  --toast-warning-accent: #d97706;
+  --toast-warning-title: #b45309;
+  --toast-warning-tint: #fffbeb;
+
+  --toast-info-accent: #0f417a; /* brand navy */
+  --toast-info-title: #0f417a;
+  --toast-info-tint: #eff6ff;
+}
+
+.dark {
+  --toast-card-bg: #0f172a;
+  --toast-message-color: #cbd5e1;
+  --toast-close-color: #94a3b8;
+  --toast-close-hover-bg: #1e293b;
+  --toast-track-bg: #1e293b;
+  --toast-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+
+  --toast-success-accent: #22c55e;
+  --toast-success-title: #4ade80;
+  --toast-success-tint: rgba(34, 197, 94, 0.08);
+
+  --toast-error-accent: #ef4444;
+  --toast-error-title: #f87171;
+  --toast-error-tint: rgba(239, 68, 68, 0.08);
+
+  --toast-warning-accent: #f59e0b;
+  --toast-warning-title: #fbbf24;
+  --toast-warning-tint: rgba(245, 158, 11, 0.08);
+
+  --toast-info-accent: #3b82f6;
+  --toast-info-title: #60a5fa;
+  --toast-info-tint: rgba(59, 130, 246, 0.08);
+}
+
+/* ── Type modifiers map the shared tokens onto one set of local variables ── */
+.std-toast--success { --toast-accent: var(--toast-success-accent); --toast-title: var(--toast-success-title); --toast-tint: var(--toast-success-tint); }
+.std-toast--error   { --toast-accent: var(--toast-error-accent);   --toast-title: var(--toast-error-title);   --toast-tint: var(--toast-error-tint); }
+.std-toast--warning { --toast-accent: var(--toast-warning-accent); --toast-title: var(--toast-warning-title); --toast-tint: var(--toast-warning-tint); }
+.std-toast--info    { --toast-accent: var(--toast-info-accent);    --toast-title: var(--toast-info-title);    --toast-tint: var(--toast-info-tint); }
+
+.std-toast {
+  position: relative;
+  width: var(--toast-width);
+  max-width: calc(100vw - 2rem);
+  overflow: hidden;
+  font-family: var(--font-sans, 'Google Sans', sans-serif);
+  background:
+    linear-gradient(to right, var(--toast-tint), var(--toast-tint)),
+    var(--toast-card-bg);
+  border-left: 4px solid var(--toast-accent);
+  border-radius: var(--toast-radius);
+  box-shadow: var(--toast-shadow);
+  transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+}
+
+.std-toast-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.875rem 2.5rem 0.875rem 1rem;
+}
+
+.std-toast-icon {
+  flex-shrink: 0;
+  margin-top: 0.125rem;
+  padding: 0.375rem;
+  border-radius: 0.5rem;
+  background-color: var(--toast-accent);
+  color: #ffffff;
+  display: flex;
+}
+
+.std-toast-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--toast-title);
+}
+
+.std-toast-message {
+  margin-top: 0.125rem;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  font-weight: 500;
+  color: var(--toast-message-color);
+  overflow-wrap: anywhere;
+}
+
+.std-toast-close {
+  position: absolute;
+  top: 0.625rem;
+  right: 0.625rem;
+  padding: 0.25rem;
+  border-radius: 0.375rem;
+  color: var(--toast-close-color);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.std-toast-close:hover {
+  background-color: var(--toast-close-hover-bg);
+  color: var(--toast-title);
+}
+.std-toast-close:focus-visible {
+  outline: 2px solid var(--toast-accent);
+  outline-offset: 1px;
+}
+
+.std-toast-track {
+  height: 0.25rem;
+  background-color: var(--toast-track-bg);
+}
+.std-toast-bar {
+  height: 100%;
+  background-color: var(--toast-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .std-toast { transition: none; }
+}

@@ -43,6 +43,17 @@ export function getSessionOrganisationId() {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+/**
+ * mmt_organisation_category id of the user's organisation (1 = Major Ports). undefined when the
+ * token predates the claim; null when the organisation has no category.
+ */
+export function getSessionOrganisationCategoryId() {
+  const claims = getSessionClaims();
+  if (!claims || !('organisationCategoryId' in claims)) return undefined;
+  const n = Number(claims.organisationCategoryId);
+  return claims.organisationCategoryId != null && Number.isFinite(n) ? n : null;
+}
+
 export function getSessionOrganisationName() {
   const claims = getSessionClaims();
   return claims?.organisationName || claims?.organisation_name || null;
@@ -134,4 +145,29 @@ export function isOrganisationUser() {
 }
 
 export const isOrgUser = isOrganisationUser;
+
+export function isOtherOrganisationUser() {
+  const claims = getSessionClaims();
+  if (!claims) return false;
+  if (isSuperAdmin()) return false;
+
+  const orgId = Number(claims.organisationId ?? claims.organisation_id ?? 0);
+  // Major ports in Sagarmanthan are IDs 1 to 14. Non-Port / Other Orgs are IDs 15+ (excluding system)
+  if (isOrganisationUser() && orgId > 14) {
+    return true;
+  }
+
+  const orgName = String(claims.organisationName || claims.organisation_name || '').toLowerCase();
+  const otherKeywords = [
+    'cochin shipyard', 'csl', 'shipping corporation', 'sci', 'lighthouses', 'dgll',
+    'shipping, mumbai', 'dgs', 'alhw', 'harbour works', 'iwai', 'inland waterways',
+    'imu', 'maritime university', 'iprcl', 'sagarmala', 'sdcl', 'smfcl', 'ipa',
+    'tamp', 'dci', 'spfo', 'cmec', 'other organisation', 'other organization', 'non port'
+  ];
+  if (isOrganisationUser() && otherKeywords.some(k => orgName.includes(k))) {
+    return true;
+  }
+
+  return false;
+}
 

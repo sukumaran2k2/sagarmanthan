@@ -157,26 +157,18 @@ async function createMmt(req, res) {
         case "mmt_ministry":
             query = "INSERT into mmt_ministry (ministry_name) values (@name)";
             break;
-        case "mmt_organisation":
-            organisationName = req.body.organisationName;
-            organisationCode = req.body.organisationCode;
-            organisationCategory = req.body.organisationCategory;
-            stateId = req.body.state;
-            district = req.body.district;
-            wingId = req.body.wing;
-            divisionCode = req.body.division;
+       case "mmt_organisation":
+        organisationName = req.body.organisationName;
+        organisationCode = req.body.organisationCode;
+        organisationCategory = req.body.organisationCategory;
 
-            request.input("organisationName", organisationName);
-            request.input("organisationCode", organisationCode);
-            request.input("organisationCategory", organisationCategory);
-            request.input("stateId", stateId);
-            request.input("district", district);
-            request.input("wingId", wingId);
-            request.input("divisionCode", divisionCode);
+        request.input("organisationName", organisationName);
+        request.input("organisationCode", organisationCode);
+        request.input("organisationCategory", organisationCategory);
 
             query = `
-                    INSERT INTO mmt_organisation (organisation_name, organisation_code, organisation_category_id, state_id, district_id, wing_id, division_id)
-                    VALUES (@organisationName, @organisationCode, @organisationCategory, @stateId, @district, @wingId, @divisionCode);
+                    INSERT INTO mmt_organisation (organisation_name, organisation_code, organisation_category_id)
+                    VALUES (@organisationName, @organisationCode, @organisationCategory);
                 `;
             break;
 
@@ -264,6 +256,9 @@ async function getDropDownData(req, res) {
     switch (tid) {
         case "mmt_department":
             query = "SELECT department_id, department_name FROM mmt_department WHERE status = 1 ORDER BY department_name";
+            break;
+        case "mmt_hr_department":
+            query = "SELECT department_id, department_name FROM mmt_hr_department WHERE status = 1 ORDER BY department_name";
             break;
 
         case "mmt_mmd_name":
@@ -557,6 +552,16 @@ async function getDropDownData(req, res) {
             break;
         case "mmt_akv_initiatives":
             query = "SELECT * FROM mmt_akv_initiatives";
+            break;
+        case "mmt_hr_method_of_appoitment":
+            query = "SELECT * FROM mmt_hr_method_of_appoitment";
+            break;
+        case "mmt_hr_activities":
+            query = "SELECT * FROM mmt_hr_activities";
+            break;
+
+        case "tbl_project_sub_stage":
+            query = "SELECT sub_stage_id, sub_stage_name FROM tbl_project_sub_stage WHERE sub_stage_id BETWEEN 3 AND 10 ORDER BY sub_stage_id";
             break;
 
         // case "tbl_project":

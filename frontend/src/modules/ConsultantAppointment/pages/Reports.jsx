@@ -55,6 +55,9 @@ export default function Reports({ wings = [], triggerNotification }) {
           filter: true,
           sortable: true,
           resizable: true,
+          wrapText: true,
+          autoHeight: true,
+          cellClass: 'yp-wrap-cell',
           minWidth: col.width || 120,
           cellRenderer: (params) => {
             if (params.value === null || params.value === undefined) return '';
@@ -148,6 +151,9 @@ export default function Reports({ wings = [], triggerNotification }) {
                   filter: true,
                   sortable: true,
                   pinned,
+                  wrapText: true,
+                  autoHeight: true,
+                  cellClass: 'yp-wrap-cell',
                   cellRenderer: (isNumerical && !isIdColumn) ? (params) => {
                     if (params.value === null || params.value === undefined) return '';
                     return params.value;
@@ -217,7 +223,14 @@ export default function Reports({ wings = [], triggerNotification }) {
     sortable: true,
     filter: true,
     resizable: true,
-    cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' }
+    wrapText: true,
+    autoHeight: true,
+    cellClass: 'yp-wrap-cell',
+    cellStyle: {
+      wordBreak: 'break-word',
+      whiteSpace: 'normal',
+      lineHeight: '1.5'
+    }
   }), []);
 
   const subtitle = useMemo(() => (
@@ -253,11 +266,11 @@ export default function Reports({ wings = [], triggerNotification }) {
         triggerNotification={triggerNotification}
         pagination={true}
         themeClass="yp-pro-grid"
-        brandColor="#4b2424"
-        brandColorHover="#6b3535"
-        accentColor="#f3f7f5ff"
-        oddRowColor="#f8faf6"
-        totalLabel="Total Rows"
+        brandColor="var(--module-report-brand-color, #4b2424)"
+        brandColorHover="var(--module-report-brand-color-hover, #6b3535)"
+        accentColor="var(--module-report-accent-color, #f7f3f3)"
+        oddRowColor="var(--module-report-odd-row-bg, #f8faf6)"
+        totalLabel="Total"
       />
     </div>
   );

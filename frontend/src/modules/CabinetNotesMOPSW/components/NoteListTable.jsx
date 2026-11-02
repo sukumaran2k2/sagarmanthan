@@ -1,18 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Edit,
+  Eye,
   Trash2,
-  Plus,
   Search,
   X,
   ChevronDown,
-  Columns3,
+  Filter,
   FileText,
 } from 'lucide-react';
 import Table from '../../../components/Table';
 import TablePagination from '../../../components/TablePagination';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
+import {
+  getWrapColumnProps,
+  renderWrappedText,
+} from '../../../utils/tableCellWrap';
+import { COMMON_TOASTS } from '../../../utils/notify';
+import { DEFAULT_VISIBLE_COLS } from '../store/useCabinetNotesStore';
 
 function formatDate(value) {
   if (!value || value === '--') return '--';
@@ -26,10 +32,11 @@ export default function NoteListTable({
   divisions = [],
   statusOptions = [],
   canEdit = false,
+  canView = false,
   canDelete = false,
-  canCreate = false,
   filters,
   onFiltersChange,
+  onResetFilters,
   category = 'active',
   onCategoryChange,
   counts = { active: 0, completed: 0 },
@@ -40,21 +47,19 @@ export default function NoteListTable({
   onPageSizeChange,
   onEdit,
   onDelete,
-  onAdd,
   onDocs,
+  // Filter panel and column visibility are kept in the module store
+  showFilterPanel = false,
+  onShowFilterPanelChange,
+  visibleCols = DEFAULT_VISIBLE_COLS,
+  onVisibleColsChange,
+  notify,
 }) {
   const [gridApi, setGridApi] = useState(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const colDropdownRef = useRef(null);
-  const [visibleCols, setVisibleCols] = useState({
-    subject: true,
-    wing: true,
-    division: true,
-    status: true,
-    remarks: true,
-    docs: true,
-    lastUpdated: true,
-  });
+  const setShowFilterPanel = (updater) => onShowFilterPanelChange?.(updater);
+  const setVisibleCols = (updater) => onVisibleColsChange?.(updater);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -78,12 +83,23 @@ export default function NoteListTable({
     return rows.map((item, index) => ({ ...item, sNo: start + index + 1 }));
   }, [rows, page, pageSize]);
 
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (filters.wingId && filters.wingId !== 'All') count += 1;
+    if (filters.divisionId && filters.divisionId !== 'All') count += 1;
+    if (filters.status && filters.status !== 'All') count += 1;
+    return count;
+  }, [filters.wingId, filters.divisionId, filters.status]);
+
+  const showActions = (canEdit || canView || canDelete) && visibleCols.actions;
+
   const columnDefs = useMemo(() => {
     const cols = [
       {
         field: 'sNo',
         headerName: 'S.No',
         minWidth: 90,
+        pinned: 'left',
         cellClass: 'font-mono text-slate-600 text-center',
         headerClass: 'text-center',
       },
@@ -92,7 +108,8 @@ export default function NoteListTable({
         headerName: 'Name of the Subject',
         flex: 1.8,
         minWidth: 200,
-        cellClass: 'font-bold text-slate-800',
+        ...getWrapColumnProps('font-bold text-slate-800'),
+        cellRenderer: (params) => renderWrappedText(params.value, 'font-bold text-slate-800'),
         hide: !visibleCols.subject,
       },
       {
@@ -100,7 +117,8 @@ export default function NoteListTable({
         headerName: 'Wing',
         flex: 1,
         minWidth: 120,
-        cellClass: 'text-slate-600 font-medium',
+        ...getWrapColumnProps('text-slate-600 font-medium'),
+        cellRenderer: (params) => renderWrappedText(params.value, 'text-slate-600 font-medium'),
         hide: !visibleCols.wing,
       },
       {
@@ -108,7 +126,8 @@ export default function NoteListTable({
         headerName: 'Division',
         flex: 1,
         minWidth: 120,
-        cellClass: 'text-slate-600 font-medium',
+        ...getWrapColumnProps('text-slate-600 font-medium'),
+        cellRenderer: (params) => renderWrappedText(params.value, 'text-slate-600 font-medium'),
         hide: !visibleCols.division,
       },
       {
@@ -117,18 +136,17 @@ export default function NoteListTable({
         flex: 1.2,
         minWidth: 140,
         hide: !visibleCols.status,
-        cellRenderer: (params) => (
-          <span className="text-xs font-black uppercase text-[#0f417a]">
-            {params.value || '-'}
-          </span>
-        ),
+        ...getWrapColumnProps(),
+        cellRenderer: (params) =>
+          renderWrappedText(params.value, 'text-xs font-black uppercase text-[#0f417a]'),
       },
       {
         field: 'remarks',
         headerName: 'Remarks',
         flex: 1.3,
-        minWidth: 140,
-        cellClass: 'text-slate-600',
+        minWidth: 160,
+        ...getWrapColumnProps('text-slate-600'),
+        cellRenderer: (params) => renderWrappedText(params.value, 'text-slate-600 text-xs'),
         hide: !visibleCols.remarks,
       },
       {
@@ -162,32 +180,46 @@ export default function NoteListTable({
       },
     ];
 
-    if (canEdit || canDelete) {
+    if (showActions) {
       cols.push({
         headerName: 'Update',
+        field: 'actions',
         minWidth: 110,
+        width: 110,
+        pinned: 'right',
         sortable: false,
         filter: false,
+        headerClass: 'text-center',
+        cellClass: 'text-center flex items-center justify-center',
         cellRenderer: (params) => {
           const row = params.data;
           if (!row) return null;
           return (
-            <div className="flex items-center justify-center gap-1 w-full h-full py-1">
-              {canEdit && (
+            <div className="flex items-center justify-center space-x-1.5 h-full w-full py-1">
+              {canEdit ? (
                 <button
                   type="button"
                   onClick={() => onEdit?.(row)}
-                  className="p-1.5 hover:bg-slate-100 rounded text-[#0f417a] transition cursor-pointer"
-                  title="Update"
+                  title="Edit Note"
+                  className="p-1.5 hover:bg-amber-50 dark:hover:bg-slate-800 text-amber-600 dark:text-amber-400 rounded-lg transition cursor-pointer"
                 >
                   <Edit className="h-4 w-4" />
                 </button>
-              )}
+              ) : canView ? (
+                <button
+                  type="button"
+                  onClick={() => onEdit?.(row)}
+                  title="View Note"
+                  className="p-1.5 hover:bg-blue-50 dark:hover:bg-slate-800 text-blue-600 dark:text-blue-400 rounded-lg transition cursor-pointer"
+                >
+                  <Eye className="h-4 w-4" />
+                </button>
+              ) : null}
               {canDelete && (
                 <button
                   type="button"
                   onClick={() => onDelete?.(row)}
-                  className="p-1.5 hover:bg-rose-50 rounded text-rose-600 transition cursor-pointer"
+                  className="p-1.5 hover:bg-rose-50 dark:hover:bg-slate-800 text-rose-600 dark:text-rose-400 rounded-lg transition cursor-pointer"
                   title="Delete"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -199,26 +231,16 @@ export default function NoteListTable({
       });
     }
     return cols;
-  }, [canEdit, canDelete, onEdit, onDelete, onDocs, visibleCols]);
+  }, [canEdit, canView, canDelete, onEdit, onDelete, onDocs, visibleCols, showActions]);
 
   const setFilter = (key, value) => {
     onFiltersChange?.({ ...filters, [key]: value });
   };
 
   const clearFilters = () => {
-    onFiltersChange?.({
-      wingId: 'All',
-      divisionId: 'All',
-      status: 'All',
-      search: '',
-    });
+    onResetFilters?.();
+    notify?.(COMMON_TOASTS.filtersReset());
   };
-
-  const hasActiveFilters =
-    filters.search ||
-    (filters.wingId && filters.wingId !== 'All') ||
-    (filters.divisionId && filters.divisionId !== 'All') ||
-    (filters.status && filters.status !== 'All');
 
   const handleExport = (type) => {
     if (type === 'Copy') {
@@ -234,7 +256,7 @@ export default function NoteListTable({
         const line = [];
         columnDefs.forEach((col) => {
           if (col.headerName && col.headerName !== 'Update' && !col.hide) {
-            let val = '';
+            let val;
             if (col.field === 'sNo') val = row.sNo;
             else if (col.field === 'lastUpdated') val = formatDate(row.lastUpdated);
             else val = row[col.field] ?? '';
@@ -243,24 +265,35 @@ export default function NoteListTable({
         });
         tsv += `${line.join('\t')}\n`;
       });
-      navigator.clipboard.writeText(tsv).catch(() => {});
+      navigator.clipboard.writeText(tsv).then(
+        () => notify?.(COMMON_TOASTS.copySuccess(displayRows.length)),
+        () => notify?.(COMMON_TOASTS.copyFailed()),
+      );
       return;
     }
 
     if (type === 'Excel') {
-      if (!gridApi) return;
+      if (!gridApi) {
+        notify?.(COMMON_TOASTS.tableNotReady('export'));
+        return;
+      }
       gridApi.exportDataAsCsv({
         fileName: 'Cabinet_Notes_MoPSW_Register_export.csv',
         columnKeys: columnDefs
           .filter((c) => c.field && c.headerName !== 'Update' && !c.hide)
           .map((c) => c.field),
       });
+      notify?.(COMMON_TOASTS.excelExported('Cabinet_Notes_MoPSW_Register_export.csv'));
       return;
     }
 
     if (type === 'PDF') {
       const printWindow = window.open('', '_blank');
-      if (!printWindow) return;
+      if (!printWindow) {
+        notify?.(COMMON_TOASTS.popupBlocked());
+        return;
+      }
+      notify?.(COMMON_TOASTS.pdfPreparing());
       let headersHtml = '';
       columnDefs.forEach((col) => {
         if (col.headerName && col.headerName !== 'Update' && !col.hide) {
@@ -272,7 +305,7 @@ export default function NoteListTable({
         rowsHtml += '<tr>';
         columnDefs.forEach((col) => {
           if (col.headerName && col.headerName !== 'Update' && !col.hide) {
-            let val = '';
+            let val;
             if (col.field === 'sNo') val = row.sNo;
             else if (col.field === 'lastUpdated') val = formatDate(row.lastUpdated);
             else val = row[col.field] ?? '';
@@ -295,19 +328,30 @@ export default function NoteListTable({
     }
   };
 
-  const selectClass =
-    'appearance-none text-xs pl-3 pr-7 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 cursor-pointer min-w-[120px]';
+  const filterSelectClass =
+    'w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer';
+
+  const visibilityCols = [
+    { key: 'subject', label: 'Name of the Subject' },
+    { key: 'wing', label: 'Wing' },
+    { key: 'division', label: 'Division' },
+    { key: 'status', label: 'Status' },
+    { key: 'remarks', label: 'Remarks' },
+    { key: 'docs', label: 'Docs' },
+    { key: 'lastUpdated', label: 'Last Updated' },
+    ...(canEdit || canView || canDelete ? [{ key: 'actions', label: 'Update' }] : []),
+  ];
 
   return (
-    <div className="space-y-6 animate-fade-in relative">
-      <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-1 mb-4 select-none px-1">
+    <div className="space-y-4 animate-fade-in relative text-slate-800 dark:text-slate-100">
+      <div className="flex items-center space-x-1 border-b border-slate-200 dark:border-slate-800 select-none">
         <button
           type="button"
           onClick={() => onCategoryChange?.('active')}
           className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
             category === 'active'
-              ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
-              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
+              ? 'border-[#0f417a] text-[#0f417a] bg-blue-50/70 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
+              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
           }`}
         >
           Active ({counts.active})
@@ -317,110 +361,74 @@ export default function NoteListTable({
           onClick={() => onCategoryChange?.('completed')}
           className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
             category === 'completed'
-              ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
-              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
+              ? 'border-[#0f417a] text-[#0f417a] bg-blue-50/70 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
+              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
           }`}
         >
           Completed ({counts.completed})
         </button>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
-        <div className="flex flex-col sm:flex-row gap-3 items-center justify-between border-b border-slate-100 pb-4">
-          <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
-            <div className="relative">
-              <select
-                value={filters.wingId === 'All' ? '' : filters.wingId}
-                onChange={(e) =>
-                  onFiltersChange?.({
-                    ...filters,
-                    wingId: e.target.value || 'All',
-                    divisionId: 'All',
-                  })
-                }
-                className={selectClass}
-              >
-                <option value="">All Wings</option>
-                {wings.map((w) => (
-                  <option key={w.wing_id} value={w.wing_id}>
-                    {w.wing_name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-            </div>
+      <div className="module-card space-y-4">
+        <div className="flex flex-col lg:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
+          <div className="flex items-center gap-2.5 w-full lg:w-auto">
+            <button
+              type="button"
+              onClick={() => setShowFilterPanel((prev) => !prev)}
+              className={`module-filter-btn ${showFilterPanel || activeFiltersCount > 0 ? 'active' : ''}`}
+            >
+              <Filter size={14} className="text-[#0f417a] dark:text-blue-400" />
+              <span>Filter</span>
+              {activeFiltersCount > 0 && (
+                <span className="bg-[#0f417a] dark:bg-blue-500 text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">
+                  {activeFiltersCount}
+                </span>
+              )}
+              <ChevronDown
+                size={14}
+                className={`transition-transform duration-200 ${showFilterPanel ? 'rotate-180' : ''}`}
+              />
+            </button>
 
-            <div className="relative">
-              <select
-                value={filters.divisionId === 'All' ? '' : filters.divisionId}
-                onChange={(e) => setFilter('divisionId', e.target.value || 'All')}
-                className={`${selectClass} min-w-[130px]`}
+            {activeFiltersCount > 0 && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="flex items-center gap-1 text-xs font-bold text-rose-600 hover:text-rose-700 px-2.5 py-2 rounded-xl border border-rose-200 hover:bg-rose-50 dark:border-rose-900/40 dark:hover:bg-rose-950/30 transition cursor-pointer"
               >
-                <option value="">All Divisions</option>
-                {filteredDivisions.map((d) => (
-                  <option key={d.division_id} value={d.division_id}>
-                    {d.division_name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-            </div>
-
-            {category === 'active' && (
-              <div className="relative">
-                <select
-                  value={filters.status === 'All' ? '' : filters.status}
-                  onChange={(e) => setFilter('status', e.target.value || 'All')}
-                  className={`${selectClass} min-w-[140px]`}
-                >
-                  <option value="">All Stages</option>
-                  {statusOptions.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-              </div>
+                <X className="h-3 w-3" />
+                <span>Reset Filters</span>
+              </button>
             )}
+          </div>
 
-            <div className="relative min-w-[160px] max-w-xs flex-1">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-end">
+            <div className="relative min-w-[200px] flex-1 sm:flex-initial">
+              <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
               <input
+                type="text"
+                placeholder="Search subject, remarks..."
                 value={filters.search}
                 onChange={(e) => setFilter('search', e.target.value)}
-                placeholder="Search…"
-                className="w-full text-xs pl-8 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700"
+                className="w-full module-search-input"
               />
               {filters.search ? (
                 <button
                   type="button"
                   onClick={() => setFilter('search', '')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
               ) : null}
             </div>
 
-            {hasActiveFilters && (
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="text-xs font-bold text-slate-500 hover:text-[#0f417a] px-2 py-2"
-              >
-                Clear
-              </button>
-            )}
-          </div>
-
-          <div className="flex items-center space-x-2 flex-shrink-0">
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg">
-              <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Rows</span>
+            <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-xs select-none dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200">
+              <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
               <select
                 value={pageSize}
                 onChange={(e) => onPageSizeChange?.(Number(e.target.value))}
-                className="text-xs font-bold text-slate-700 bg-transparent border-0 focus:outline-none cursor-pointer"
+                className="bg-transparent border-none text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
               >
                 {[10, 25, 50, 100].map((n) => (
                   <option key={n} value={n}>
@@ -430,8 +438,54 @@ export default function NoteListTable({
               </select>
             </div>
 
-            <div className="px-2.5 py-1.5 bg-blue-50 border border-blue-100 rounded-lg text-[10px] font-black uppercase tracking-wider text-[#0f417a]">
-              Total: {pagination.total}
+            <div className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
+              Total:{' '}
+              <span className="text-[#0f417a] dark:text-blue-400 font-extrabold">
+                {pagination.total}
+              </span>
+            </div>
+
+            <div className="relative" ref={colDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setDropdownOpen((o) => !o)}
+                className="px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer flex items-center space-x-1.5 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800 shadow-xs"
+              >
+                <span>Visibility</span>
+                <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+              </button>
+              {dropdownOpen && (
+                <div className="absolute right-0 mt-1.5 w-56 max-h-80 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg p-2 z-50 animate-fade-in flex flex-col space-y-0.5 dark:bg-slate-900 dark:border-slate-800">
+                  <div className="flex items-center justify-between px-2 py-1 border-b border-slate-100 dark:border-slate-800">
+                    <span className="text-[10px] uppercase font-bold text-slate-400">
+                      Toggle Columns
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setVisibleCols(DEFAULT_VISIBLE_COLS)}
+                      className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                    >
+                      Show All
+                    </button>
+                  </div>
+                  {visibilityCols.map(({ key, label }) => (
+                    <label
+                      key={key}
+                      className="flex items-center space-x-2 px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer select-none"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={visibleCols[key]}
+                        onChange={() =>
+                          setVisibleCols((prev) => ({ ...prev, [key]: !prev[key] }))
+                        }
+                        className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
 
             <CopyButton
@@ -443,57 +497,99 @@ export default function NoteListTable({
               onExportExcel={() => handleExport('Excel')}
               onExportPdf={() => handleExport('PDF')}
               color="#0f417a"
-              hoverColor="#1d5594"
+              hoverColor="#1e5ea8"
             />
-
-            <div className="relative" ref={colDropdownRef}>
-              <button
-                type="button"
-                onClick={() => setDropdownOpen((o) => !o)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-[#0f417a] hover:bg-slate-50"
-              >
-                <Columns3 className="h-3.5 w-3.5" />
-                Columns
-              </button>
-              {dropdownOpen && (
-                <div className="absolute right-0 top-full mt-2 w-52 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-2 space-y-1">
-                  {Object.keys(visibleCols).map((key) => (
-                    <label
-                      key={key}
-                      className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={visibleCols[key]}
-                        onChange={() =>
-                          setVisibleCols((prev) => ({ ...prev, [key]: !prev[key] }))
-                        }
-                      />
-                      {key === 'lastUpdated'
-                        ? 'Last Updated'
-                        : key === 'docs'
-                          ? 'Docs'
-                          : key.charAt(0).toUpperCase() + key.slice(1)}
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {canCreate && (
-              <button
-                type="button"
-                onClick={onAdd}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0f417a] hover:bg-[#1d5594] text-white text-xs font-bold rounded-lg shadow-sm"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Add Notes
-              </button>
-            )}
           </div>
         </div>
 
-        <div className="ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+        {showFilterPanel && (
+          <div className="bg-slate-50 dark:bg-slate-950/60 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3 animate-fade-in">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Filter className="h-3.5 w-3.5 text-[#0f417a] dark:text-blue-400" />
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
+                  Filter Notes
+                </span>
+              </div>
+              {activeFiltersCount > 0 && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="text-xs font-bold text-rose-600 hover:text-rose-700 dark:text-rose-400 flex items-center space-x-1 cursor-pointer"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  <span>Reset All Filters</span>
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                  Wing
+                </label>
+                <select
+                  value={filters.wingId === 'All' ? '' : filters.wingId}
+                  onChange={(e) =>
+                    onFiltersChange?.({
+                      ...filters,
+                      wingId: e.target.value || 'All',
+                      divisionId: 'All',
+                    })
+                  }
+                  className={filterSelectClass}
+                >
+                  <option value="">All Wings</option>
+                  {wings.map((w) => (
+                    <option key={w.wing_id} value={w.wing_id}>
+                      {w.wing_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                  Division
+                </label>
+                <select
+                  value={filters.divisionId === 'All' ? '' : filters.divisionId}
+                  onChange={(e) => setFilter('divisionId', e.target.value || 'All')}
+                  className={filterSelectClass}
+                >
+                  <option value="">All Divisions</option>
+                  {filteredDivisions.map((d) => (
+                    <option key={d.division_id} value={d.division_id}>
+                      {d.division_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {category === 'active' && (
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                    Stage
+                  </label>
+                  <select
+                    value={filters.status === 'All' ? '' : filters.status}
+                    onChange={(e) => setFilter('status', e.target.value || 'All')}
+                    className={filterSelectClass}
+                  >
+                    <option value="">All Stages</option>
+                    {statusOptions.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="ag-theme-quartz module-datalist-grid w-full relative border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
           <Table
             rowData={displayRows}
             columnDefs={columnDefs}
@@ -504,7 +600,7 @@ export default function NoteListTable({
             onGridReady={(params) => setGridApi(params.api)}
             defaultColDef={{
               minWidth: 90,
-              filter: true,
+              filter: false,
               sortable: true,
               resizable: true,
             }}

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import Tabs from '../components/Tabs';
@@ -6,24 +6,38 @@ import Footer from '../components/Footer';
 import Toast from '../components/Toast';
 import NetworkCheckView from '../components/NetworkCheckView';
 import RestrictedAccess from '../components/RestrictedAccess';
+import SagarBot from '../components/SagarBot';
 import { 
   canAccessTab, 
   normalizeTab, 
   usesOwnPageHeader, 
-  TAB_USER_MODULE_PERMISSION 
+  TAB_USER_LIST,
+  TAB_USER_MODULE_PERMISSION ,
+  TAB_USER_MASTER_MANAGEMENT
 } from '../utils/moduleAccess';
+import { isOrganisationUser } from '../utils/authSession';
 import { Home } from 'lucide-react';
 
 export const ROUTE_MAP = {
   'landing': '',
   'profile': 'profile',
 
+  'projects': 'projects/project/project-list',
   'projects-dashboard': 'projects/project/project-dashboard',
   'projects-list': 'projects/project/project-list',
+  'projects-input-form': 'projects/project/input-form',
+  'projects-basic-info': 'projects/project/basic-info',
   'projects-less5cr': 'projects/project/projects-less-than-5-cr',
   'projects-lumpsum': 'projects/project/lumpsum-iwai',
   'projects-dropRequests': 'projects/project/view-drop-request',
+  'projects-drop-requests': 'projects/project/view-drop-request',
   'projects-reports': 'projects/project/reports',
+  'Project List': 'projects/project/project-list',
+  'Projects Less Than 5 Cr': 'projects/project/projects-less-than-5-cr',
+  'Lumpsum - IWAI': 'projects/project/lumpsum-iwai',
+  'View Drop Request': 'projects/project/view-drop-request',
+  'Projects Input Form': 'projects/project/input-form',
+  'Projects Reports': 'projects/project/reports',
 
   // CSR Projects nested routes
   'CSR Dashboard': 'projects/csr-projects/dashboard',
@@ -36,6 +50,7 @@ export const ROUTE_MAP = {
   // KPI nested routes
   'Major Ports Dashboard': 'kpi/major-ports/major-ports-dashboard',
   'Major Ports Input Form': 'kpi/major-ports/major-ports-input-form',
+  'Major Ports Entry Access': 'kpi/major-ports/major-ports-entry-access',
   'Major Ports Reports': 'kpi/major-ports/major-ports-reports',
   'DGLL Input Form': 'kpi/dgll',
   'DGLL Reports': 'kpi/dgll',
@@ -50,8 +65,8 @@ export const ROUTE_MAP = {
   'E Office': 'governance/e-office',
   'Attendance': 'governance/attendance',
   'CPGRAMS': 'governance/cpgrams',
-  'Cabinet Notes - MoPSW': 'governance/cabinet-notes/data-list',
-  'Cabinet Notes-MoPSW': 'governance/cabinet-notes/data-list',
+  'Cabinet Notes - MoPSW': 'governance/cabinet-notes/dashboard',
+  'Cabinet Notes-MoPSW': 'governance/cabinet-notes/dashboard',
   'Cabinet Notes - Other Ministries': 'governance/cabinet-notes-other-ministry/data-list',
   'Cabinet Notes-Other Ministry': 'governance/cabinet-notes-other-ministry/data-list',
   'VIP Reference': 'governance/vip-reference/data-list',
@@ -63,7 +78,7 @@ export const ROUTE_MAP = {
   'Parliamentary Issues': 'governance/parliamentary-issues/data-list',
   'Audit Paras': 'governance/audit-paras/input-form',
   'Audit Para': 'governance/audit-paras/input-form',
-  'GEM Procurements': 'governance/gem-procurements',
+  'GEM Procurements': 'governance/gem-procurements/total',
 
   // Legal nested routes
   'Courtcases': 'legal/courtcases',
@@ -76,10 +91,12 @@ export const ROUTE_MAP = {
   'MIV Data List': 'strategies/miv-2030/data-list',
   'MIV Input Form': 'strategies/miv-2030/input-form',
   'MIV Meetings': 'strategies/miv-2030/meetings',
-  'MIV Org Report': 'strategies/miv-2030/org-report',
-  'MIV Theme Report': 'strategies/miv-2030/theme-report',
-  'Organisation Report': 'strategies/miv-2030/org-report',
-  'Theme Report': 'strategies/miv-2030/theme-report',
+  'MIV Reports': 'strategies/miv-2030/reports',
+  'MIV Report': 'strategies/miv-2030/reports',
+  'MIV Org Report': 'strategies/miv-2030/reports',
+  'MIV Theme Report': 'strategies/miv-2030/reports',
+  'Organisation Report': 'strategies/miv-2030/reports',
+  'Theme Report': 'strategies/miv-2030/reports',
   'GMIS & IMW MoUs': 'strategies/gmis-mou/dashboard',
   'GMIS-MoU': 'strategies/gmis-mou/dashboard',
   'GMIS Dashboard': 'strategies/gmis-mou/dashboard',
@@ -91,6 +108,8 @@ export const ROUTE_MAP = {
   'One Vision One Document': 'strategies/drishti-portal/dashboard',
   'OVOD': 'strategies/drishti-portal/dashboard',
   'Intervention List': 'strategies/drishti-portal/intervention-list',
+  'Performance Report': 'strategies/drishti-portal/report',
+  'Data Entry Status Report': 'strategies/drishti-portal/data-entry-status',
   'Vision 2047': 'strategies/vision-2047',
   'Maritime India Summit': 'strategies/maritime-india-summit',
   'Blue Economy Policy': 'strategies/blue-economy-policy',
@@ -101,8 +120,14 @@ export const ROUTE_MAP = {
   'Guidelines': 'knowledge/guidelines',
 
   // Form Builder nested routes
-  'Create Dynamic Form': 'formBuilder/create-dynamic-form',
-  'View Submissions': 'formBuilder/view-submissions',
+  'Create Dynamic Form': 'form-builder',
+  'View Submissions': 'form-builder',
+  'Form Builder': 'form-builder',
+  'FormBuilder': 'form-builder',
+  'Form Studio': 'form-builder/studio',
+  'Form Directory': 'form-builder/directory',
+  'Inbox Forms': 'form-builder/inbox',
+  'Edit Form': 'form-builder/edit',
 
   // Tracker nested routes
   'Project Milestones': 'tracker/project-milestones',
@@ -119,17 +144,31 @@ export const ROUTE_MAP = {
   'Contact Us': 'contact',
 
   // SUPERADMIN
+  [TAB_USER_MODULE_PERMISSION]: 'admin/user-module-permission/users',
+  [TAB_USER_LIST]: 'admin/user-list',
   [TAB_USER_MODULE_PERMISSION]: 'admin/user-module-permission',
   'admin/user-list': 'admin/user-list',
+  [TAB_USER_MASTER_MANAGEMENT]: 'admin/user-master-management',
 
   // HR nested routes
   'HR Dashboard': 'hr/hr-management/hr-dashboard',
+  'Organisation Structure': 'hr/hr-management/organisation-structure',
+  'Organization Structure': 'hr/hr-management/organisation-structure',
   'Employee Database': 'hr/hr-management/employee-database',
-  'List of Abolished Ports': 'hr/hr-management/abolished-ports',
+  'Employee Details': 'hr/hr-management/employee-database',
   'List of Abolished Posts': 'hr/hr-management/abolished-posts',
+  'Abolished Posts': 'hr/hr-management/abolished-posts',
+  'Vacancy Management': 'hr/hr-management/vacancy-management',
+  'HR Administration & Actions': 'hr/hr-management/administration',
   'Contractual Employment': 'hr/hr-management/contractual-employment',
   'Training Details': 'hr/hr-management/training-details',
-  'HR Reports': 'hr/hr-management/hr-reports',
+  'HR Input Form': 'hr/hr-management/input-form',
+  'Input Form': 'hr/hr-management/input-form',
+  'Add Post': 'hr/hr-management/input-form/add-post',
+  'Non Port Monthly Upload': 'hr/hr-management/non-port-monthly-upload',
+  'HR Management': 'hr/hr-management',
+  'HR Reports': 'hr/hr-management/reports',
+  'Non Port Monthly Upload': 'hr/hr-management/non-port-monthly-upload',
 
   // Young Professionals routes
   'Young Professionals': 'hr/young-professionals/list-view',
@@ -143,6 +182,7 @@ export const ROUTE_MAP = {
 
   // Consultant routes
   'Consultant Appointment': 'hr/consultant-appointment/data-list',
+  'Consultant Dashboard': 'hr/consultant-appointment/dashboard',
   'Consultant Input Form': 'hr/consultant-appointment/input-form',
   'Consultant Data List': 'hr/consultant-appointment/data-list',
   'Consultant Reports': 'hr/consultant-appointment/reports',
@@ -157,11 +197,11 @@ export const ROUTE_MAP = {
   'CSR Reports': 'projects/csr-projects/reports',
 
   // Finance / Capex routes
-  'Capex': 'finance/capex/dashboard',
+  'Capex': 'finance/capex/data-list',
   'Capex Dashboard': 'finance/capex/dashboard',
   'Capex Datalist': 'finance/capex/data-list',
   'Capex Input Form': 'finance/capex/input-form',
-  'Estimate Values': 'finance/capex/estimate-values',
+  'Estimate Values': 'finance/capex/data-list',
   'Capex Reports': 'finance/capex/reports',
 };
 
@@ -170,23 +210,60 @@ export const getTabFromSlug = (slug) => {
   if (!cleanSlug || cleanSlug === 'landing') return 'landing';
   
   if (cleanSlug.startsWith('projects/csr-projects') || cleanSlug.startsWith('projects/csr-project')) return 'CSR Projects';
+  if (cleanSlug.startsWith('projects/project/view-drop-request') || cleanSlug.startsWith('projects/project/drop-requests') || cleanSlug.startsWith('projects/view-drop-request') || cleanSlug.startsWith('projects/drop-requests')) return 'projects-dropRequests';
+  if (cleanSlug.startsWith('projects/project/project-dashboard') || cleanSlug.startsWith('projects/project/dashboard') || cleanSlug.startsWith('projects/project-dashboard') || cleanSlug.startsWith('projects/dashboard')) return 'projects-dashboard';
+  if (cleanSlug.startsWith('projects/project/projects-less-than-5-cr') || cleanSlug.startsWith('projects/projects-less-than-5-cr')) return 'projects-less5cr';
+  if (cleanSlug.startsWith('projects/project/lumpsum-iwai') || cleanSlug.startsWith('projects/lumpsum-iwai')) return 'projects-lumpsum';
+  if (cleanSlug.startsWith('projects/project/reports') || cleanSlug.startsWith('projects/reports')) return 'projects-reports';
+  if (cleanSlug.startsWith('projects/project/input-form') || cleanSlug.startsWith('projects/project/basic-info') || cleanSlug.startsWith('projects/input-form') || cleanSlug.startsWith('projects/basic-info')) return 'projects-input-form';
+  if (cleanSlug.startsWith('projects/project/view-project') || cleanSlug.startsWith('projects/view-project') || cleanSlug.startsWith('projects/project/detail')) return 'projects-view-project';
+  if (cleanSlug.startsWith('projects/project') || cleanSlug.startsWith('projects')) return 'projects-list';
+
+  if (cleanSlug.startsWith('hr/hr-management/non-port-monthly-upload')) return 'Non Port Monthly Upload';
+  if (cleanSlug.startsWith('hr/hr-management/reports')) return 'HR Reports';
+  if (cleanSlug.startsWith('hr/hr-management/hr-dashboard')) return 'HR Dashboard';
+  if (cleanSlug.startsWith('hr/hr-management/non-port-monthly-upload')) return 'Non Port Monthly Upload';
+  if (cleanSlug.startsWith('hr/hr-management/employee-details')) return 'Employee Details';
+  if (cleanSlug.startsWith('hr/hr-management/vacancy-management') || cleanSlug.startsWith('hr/hr-management/vacancy-details')) return 'Vacancy Management';
+  if (cleanSlug.startsWith('hr/hr-management/input-form')) return 'HR Input Form';
+  if (cleanSlug.startsWith('hr/hr-management/abolished-posts')) return isOrganisationUser() ? 'Abolished Posts' : 'List of Abolished Posts';
+  if (cleanSlug.startsWith('hr/hr-management/administration')) return 'HR Administration & Actions';
+  if (cleanSlug.startsWith('hr/hr-management/organisation-structure')) return 'Organisation Structure';
+  if (cleanSlug.startsWith('hr/hr-management/employee-database')) return 'Employee Database';
+  if (cleanSlug.startsWith('hr/hr-management/contractual-employment')) return 'Contractual Employment';
+  if (cleanSlug.startsWith('hr/hr-management/training-details')) return 'Training Details';
+  if (cleanSlug.startsWith('hr/hr-management') || cleanSlug === 'hr') return 'HR Management';
   if (cleanSlug.startsWith('hr/young-professionals')) return 'YP Data List';
+  if (cleanSlug.startsWith('hr/consultant-appointment/dashboard')) return 'Consultant Dashboard';
+  if (cleanSlug.startsWith('hr/consultant-appointment/input-form')) return 'Consultant Input Form';
+  if (cleanSlug.startsWith('hr/consultant-appointment/reports')) return 'Consultant Reports';
   if (cleanSlug.startsWith('hr/consultant-appointment')) return 'Consultant Data List';
   if (cleanSlug.startsWith('strategies/gmis-mou')) return 'GMIS & IMW MoUs';
   if (cleanSlug.startsWith('strategies/miv-2030')) return 'MIV 2030';
   if (cleanSlug.startsWith('strategies/drishti-portal') || cleanSlug.startsWith('strategies/ovod') || cleanSlug.startsWith('strategies/one-vision-one-document')) return 'Drishti Portal';
   if (cleanSlug.startsWith('finance/capex')) return 'Capex';
+  if (cleanSlug.startsWith('governance/gem-procurements')) return 'GEM Procurements';
   if (cleanSlug.startsWith('governance/vip-reference')) return 'VIP Reference';
   if (cleanSlug.startsWith('governance/audit-paras')) return 'Audit Paras';
   if (cleanSlug.startsWith('governance/cabinet-notes-other-ministry')) return 'Cabinet Notes - Other Ministries';
   if (cleanSlug.startsWith('governance/cabinet-notes')) return 'Cabinet Notes - MoPSW';
   if (cleanSlug.startsWith('governance/parliamentary-issue')) return 'Parliamentary Issues';
+  if (cleanSlug.startsWith('kpi/major-ports/major-ports-input-form')) return 'Major Ports Input Form';
+  if (cleanSlug.startsWith('kpi/major-ports/major-ports-reports')) return 'Major Ports Reports';
+  if (cleanSlug.startsWith('kpi/major-ports/major-ports-entry-access')) return 'Major Ports Entry Access';
   if (cleanSlug.startsWith('kpi/major-ports')) return 'Major Ports Dashboard';
   if (cleanSlug.startsWith('kpi/dgll')) return 'DGLL Input Form';
   if (cleanSlug.startsWith('kpi/csl')) return 'CSL Input Form';
   if (cleanSlug.startsWith('kpi/imu')) return 'IMU Input Form';
   if (cleanSlug.startsWith('kpi/sci')) return 'SCI Input Form';
   if (cleanSlug.startsWith('governance/media-outreach')) return 'Media Outreach';
+  if (cleanSlug.startsWith('form-builder/studio')) return 'Form Studio';
+  if (cleanSlug.startsWith('form-builder/directory')) return 'Form Directory';
+  if (cleanSlug.startsWith('form-builder/inbox')) return 'Inbox Forms';
+  if (cleanSlug.startsWith('form-builder/edit')) return 'Edit Form';
+  if (cleanSlug.startsWith('admin/user-module-permission')) return TAB_USER_MODULE_PERMISSION;
+  if (cleanSlug.startsWith('admin/user-list')) return TAB_USER_LIST;
+  if (cleanSlug.startsWith('admin/user-master-management')) return TAB_USER_MASTER_MANAGEMENT;
 
   // Exact match
   const entry = Object.entries(ROUTE_MAP).find(([, value]) => value === cleanSlug);
@@ -199,12 +276,27 @@ export const getTabFromSlug = (slug) => {
   return normalizeTab(cleanSlug);
 };
 
+const KPI_SUBTAB_SUFFIX = { add: 'Input Form', list: 'Data List', report: 'Reports' };
+const KPI_MODULE_LABEL = { 'kpi/imu': 'IMU', 'kpi/csl': 'CSL', 'kpi/dgll': 'DGLL', 'kpi/sci': 'SCI' };
+
+// For the four KPI modules that switch tabs via ?tab=, show the real sub-tab in the last crumb.
+// Returns the replacement label, or null when the default crumb should be used.
+const getKpiSubTabCrumb = (pathname, search) => {
+  const cleanPath = pathname.replace(/^\//, '').replace(/\/$/, '');
+  const moduleKey = Object.keys(KPI_MODULE_LABEL).find((k) => cleanPath.startsWith(k));
+  if (!moduleKey) return null;
+  const suffix = KPI_SUBTAB_SUFFIX[new URLSearchParams(search).get('tab')];
+  return suffix ? `${KPI_MODULE_LABEL[moduleKey]} ${suffix}` : null;
+};
+
 const getBreadcrumbs = (tab) => {
   if (tab === 'landing') return ['Home'];
   if (tab === 'Ports Reports') return ['KPI - Major Ports - (Output Reports)'];
 
   if (tab === 'projects-dashboard') return ['Home', 'Projects', 'Project', 'Project Dashboard'];
   if (tab === 'projects-list') return ['Home', 'Projects', 'Project', 'Project List'];
+  if (tab === 'projects-input-form' || tab === 'projects-basic-info') return ['Home', 'Projects', 'Project', 'Input Form'];
+  if (tab === 'projects-view-project') return ['Home', 'Projects', 'Project', 'View Project Details'];
   if (tab === 'projects-less5cr') return ['Home', 'Projects', 'Project', 'Projects Less Than 5 Cr'];
   if (tab === 'projects-lumpsum') return ['Home', 'Projects', 'Project', 'Lumpsum - IWAI'];
   if (tab === 'projects-dropRequests') return ['Home', 'Projects', 'Project', 'View Drop Request'];
@@ -213,14 +305,11 @@ const getBreadcrumbs = (tab) => {
   const kpiItems = {
     'Major Ports Dashboard': ['KPI', 'Major Ports'],
     'Major Ports Input Form': ['KPI', 'Major Ports'],
+    'Major Ports Entry Access': ['KPI', 'Major Ports'],
     'Major Ports Reports': ['KPI', 'Major Ports'],
     'MMD Master': ['KPI', 'DSG'],
     'DSG Input Form': ['KPI', 'DSG'],
     'DSG Reports': ['KPI', 'DSG'],
-    'IWAI Master': ['KPI', 'IWAI'],
-    'National Waterways': ['KPI', 'IWAI'],
-    'Terminal/Jetties': ['KPI', 'IWAI'],
-    'Digital Portals': ['KPI', 'IWAI'],
     'DGLL Input Form': ['KPI', 'DGLL'],
     'DGLL Reports': ['KPI', 'DGLL'],
     'CSL Input Form': ['KPI', 'CSL'],
@@ -236,11 +325,21 @@ const getBreadcrumbs = (tab) => {
 
   const hrItems = {
     'HR Dashboard': ['HR & Institutional', 'HR Management'],
+    'Organisation Structure': ['HR & Institutional', 'HR Management'],
+    'Organization Structure': ['HR & Institutional', 'HR Management'],
     'Employee Database': ['HR & Institutional', 'HR Management'],
-    'List of Abolished Ports': ['HR & Institutional', 'HR Management'],
+    'Employee Details': ['HR & Institutional', 'HR Management', 'Employee Database'],
+    'List of Abolished Posts': ['HR & Institutional', 'HR Management'],
+    'Abolished Posts': ['HR & Institutional', 'HR Management'],
+    'Vacancy Management': ['HR & Institutional', 'HR Management'],
+    'HR Administration & Actions': ['HR & Institutional', 'HR Management'],
     'Contractual Employment': ['HR & Institutional', 'HR Management'],
     'Training Details': ['HR & Institutional', 'HR Management'],
+    'HR Input Form': ['HR & Institutional', 'HR Management'],
+    'Non Port Monthly Upload': ['HR & Institutional', 'HR Management'],
+    'HR Management': ['HR & Institutional'],
     'HR Reports': ['HR & Institutional', 'HR Management'],
+    'Non Port Monthly Upload': ['HR & Institutional', 'HR Management'],
     'Young Professionals': ['HR & Institutional', 'Young Professionals'],
     'YP Data List': ['HR & Institutional', 'Young Professionals'],
     'YP Input Form': ['HR & Institutional', 'Young Professionals'],
@@ -249,18 +348,21 @@ const getBreadcrumbs = (tab) => {
     'Input Form': ['HR & Institutional', 'Young Professionals'],
     'Report': ['HR & Institutional', 'Young Professionals'],
     'Consultant Appointment': ['HR & Institutional', 'Consultant Appointment'],
+    'Consultant Dashboard': ['HR & Institutional', 'Consultant Appointment'],
     'Consultant Input Form': ['HR & Institutional', 'Consultant Appointment'],
     'Consultant Data List': ['HR & Institutional', 'Consultant Appointment'],
     'Consultant Reports': ['HR & Institutional', 'Consultant Appointment'],
   };
-  if (hrItems[tab]) return ['Home', ...hrItems[tab], tab];
+  if (hrItems[tab]) {
+    if (tab === 'HR Input Form') return ['Home', 'HR & Institutional', 'HR Management', 'Input Form'];
+    return ['Home', ...hrItems[tab], tab];
+  }
 
   const governanceItems = [
-    'Attendance', 'CPGRAMS', 'Cabinet Notes - Other Ministries', 'E Office',
+    'Attendance', 'Cabinet Notes - Other Ministries', 'E Office',
     'Parliamentary Issues', 'GEM Procurements', 'Cabinet Notes - MoPSW',
     'VIP Reference', 'Media Outreach', 'Audit Paras',
-    'Inter State & Inter Ministerial', 'Foreign Visit', 'Cruise Shipping',
-    'Flagged Ships / FOB Basis', 'MOM Of PSW Meetings', 'Review Items'
+    'Inter State & Inter Ministerial', 'Foreign Visit'
   ];
   if (tab === 'Media Outreach') return ['Home', 'Media Outreach - (Input Form)'];
   if (governanceItems.includes(tab)) return ['Home', 'Governance', tab];
@@ -268,7 +370,7 @@ const getBreadcrumbs = (tab) => {
   const legalItems = ['Courtcases', 'Bills/PreConstitutions Act', 'Acts & Rules'];
   if (legalItems.includes(tab)) return ['Home', 'Legal', tab];
 
-  const mivItems = ['MIV 2030', 'MIV Dashboard', 'MIV Data List', 'MIV Input Form', 'MIV Meetings', 'MIV Org Report', 'MIV Theme Report', 'Organisation Report', 'Theme Report'];
+  const mivItems = ['MIV 2030', 'MIV Dashboard', 'MIV Data List', 'MIV Input Form', 'MIV Meetings', 'MIV Reports', 'MIV Report', 'MIV Org Report', 'MIV Theme Report', 'Organisation Report', 'Theme Report'];
   if (mivItems.includes(tab)) return ['Home', 'Long Term Strategies', 'MIV 2030', tab === 'MIV 2030' ? 'Dashboard' : tab];
 
   const gmisItems = ['GMIS & IMW MoUs', 'GMIS-MoU', 'GMIS Dashboard', 'GMIS Data List', 'GMIS Input Form', 'GMIS Reports'];
@@ -283,7 +385,7 @@ const getBreadcrumbs = (tab) => {
   const knowledgeItems = ['Research Papers', 'Policy Documents', 'Guidelines'];
   if (knowledgeItems.includes(tab)) return ['Home', 'Knowledge Repository', tab];
 
-  const formBuilderItems = ['Create Dynamic Form', 'View Submissions'];
+  const formBuilderItems = ['Create Dynamic Form', 'View Submissions', 'Form Studio', 'Form Directory', 'Inbox Forms', 'Form Builder', 'Edit Form'];
   if (formBuilderItems.includes(tab)) return ['Home', 'Form Builder', tab];
 
   const trackerItems = ['Project Milestones', 'Delay Analysis'];
@@ -311,6 +413,16 @@ export default function MainLayout({
   const location = useLocation();
   const navigate = useNavigate();
 
+  // KPI modules switch tabs with a raw history.pushState, which React Router never sees.
+  // They fire 'kpi-subtab-change' afterwards; keep the live query string in state so the breadcrumb follows.
+  const [liveSearch, setLiveSearch] = useState(() => window.location.search);
+  useEffect(() => {
+    const sync = () => setLiveSearch(window.location.search);
+    sync();
+    window.addEventListener('kpi-subtab-change', sync);
+    return () => window.removeEventListener('kpi-subtab-change', sync);
+  }, [location.pathname, location.search]);
+
   // Active tab is derived directly from the current URL path
   const activeTab = useMemo(() => {
     const cleanSlug = location.pathname.replace(/^\//, '');
@@ -329,7 +441,10 @@ export default function MainLayout({
   const tabAllowed = canAccessTab(activeTab);
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans relative antialiased selection:bg-blue-100">
+    <div
+      className="min-h-screen flex flex-col font-sans relative antialiased selection:bg-blue-100 transition-colors"
+      style={{ backgroundColor: 'var(--module-page-bg, #f8fafc)' }}
+    >
       {showNetworkCheck && (
         <NetworkCheckView
           isManual={isManualNetworkCheck}
@@ -369,7 +484,7 @@ export default function MainLayout({
               <div key={idx} className="flex items-center space-x-2">
                 <span className="text-slate-350">/</span>
                 <span className={idx === arr.length - 1 ? "text-blue-800 font-bold" : "text-slate-550"}>
-                  {crumb}
+                  {idx === arr.length - 1 ? (getKpiSubTabCrumb(location.pathname, liveSearch) || crumb) : crumb}
                 </span>
               </div>
             ))}
@@ -389,6 +504,9 @@ export default function MainLayout({
 
       {/* Government Portal Footer */}
       <Footer />
+
+      {/* Intelligent Maritime ChatBot Assistant (Temporarily disabled) */}
+      {/* <SagarBot /> */}
     </div>
   );
 }

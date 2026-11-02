@@ -1,762 +1,712 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { 
-  Star, 
-  Layers, 
-  Users, 
-  Globe, 
-  Pencil, 
-  Download, 
-  Filter, 
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import {
+  Star,
+  Layers,
+  Users,
+  Filter,
   RotateCcw,
-  Search,
-  Sparkles,
-  Award,
-  BookOpen,
-  Calendar,
-  Building2,
+  RefreshCw,
   DollarSign,
-  TrendingUp,
-  FileSpreadsheet,
   ChevronDown,
+  AlertTriangle,
+  Ban,
+  XCircle,
   X
 } from 'lucide-react';
-import Table from '../../../components/Table';
-import ExportDropdown from '../../../components/ExportDropdown';
-import CopyButton from '../../../components/CopyButton';
-import { 
-  fetchOvdDashboardCounts, 
-  fetchOvdInterventionsReport, 
-  fetchOrganisations, 
-  getUserIdFromToken 
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  PieChart,
+  Pie,
+  Cell
+} from 'recharts';
+import {
+  fetchOvdMinistryChart,
+  fetchOvdMinistryChartB2,
+  fetchOvdStatusCounts,
+  getUserIdFromToken
 } from '../api';
-import { 
-  OVOD_VISIONS, 
-  OVOD_PRIORITIES, 
-  OVOD_STATUSES, 
-  OVOD_WINGS, 
-  OVOD_VIBHAS, 
-  MIV_CHAPTERS, 
-  MAKV_THEMES 
+import {
+  OVOD_VISIONS,
+  OVOD_PRIORITIES,
+  OVOD_WINGS,
+  OVOD_VIBHAS,
+  MIV_CHAPTERS,
+  MAKV_THEMES
 } from '../utils/constants';
+import { useShallow } from 'zustand/react/shallow';
+import { useOvodStore } from '../store/useOvodStore';
+import { useNotifier, COMMON_TOASTS } from '../../../utils/notify';
 
-export default function Dashboard({ triggerNotification }) {
-  const gridRef = useRef(null);
+/* ----------------------------------------------------------------------------
+ * Progress buckets (average intervention progress). Ordinal, so one sequential
+ * blue ramp (low -> high). Dark mode runs the ramp the other way so that "more
+ * complete" is always the stronger mark against the surface.
+ * -------------------------------------------------------------------------- */
+const BUCKETS = [
+  { key: '0_19', label: '0–19%' },
+  { key: '20_39', label: '20–39%' },
+  { key: '40_59', label: '40–59%' },
+  { key: '60_79', label: '60–79%' },
+  { key: '80_99', label: '80–99%' },
+  { key: '100', label: '100%' }
+];
 
-  // Filter Drawer State
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
+const RAMP_LIGHT = ['#c3d7f1', '#93b8e4', '#5f94d3', '#3571bb', '#1c5199', '#0f2f5c'];
+const RAMP_DARK = ['#243b5c', '#35588a', '#4b78b8', '#6f9bd6', '#9cbfee', '#d3e5fb'];
 
-  // Filters State
-  const [selectedVision, setSelectedVision] = useState('0');
-  const [selectedWing, setSelectedWing] = useState('0');
-  const [selectedOrg, setSelectedOrg] = useState('0');
-  const [selectedVibhas, setSelectedVibhas] = useState('0');
-  const [selectedPriority, setSelectedPriority] = useState('0');
-  const [selectedMivChapter, setSelectedMivChapter] = useState('0');
-  const [selectedMakvTheme, setSelectedMakvTheme] = useState('0');
-  const [selectedStatus, setSelectedStatus] = useState('0');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [pageSize, setPageSize] = useState(10);
+const THEME = {
+  light: { surface: '#ffffff', bar: '#0f417a', ramp: RAMP_LIGHT },
+  dark: { surface: '#0f172a', bar: '#6f9bd6', ramp: RAMP_DARK }
+};
 
-  // Master Organisations
-  const [organisations, setOrganisations] = useState([]);
+function useIsDark() {
+  const read = () =>
+    typeof document !== 'undefined' &&
+    (document.documentElement.classList.contains('dark') || document.body.classList.contains('dark'));
+  const [isDark, setIsDark] = useState(read);
 
-  // Data States
-  const [loadingCounts, setLoadingCounts] = useState(true);
-  const [loadingTable, setLoadingTable] = useState(true);
-  const [countsData, setCountsData] = useState({
-    goalsA1: 101,
-    interventionsA2: 481,
-    actionItemsA3: 514,
-    kpi: 'KPI',
-    goalsB1: 578,
-    interventionsB2: 1921,
-    actionItemsB3: 9050,
-    totalCost: '2,87,322.67'
-  });
-
-  const [tableData, setTableData] = useState([]);
-
-  // Load Organisations
   useEffect(() => {
-    fetchOrganisations()
-      .then(res => setOrganisations(Array.isArray(res) ? res : []))
-      .catch(() => setOrganisations([]));
+    const update = () => setIsDark(read());
+    const observer = new MutationObserver(update);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
   }, []);
 
-  // Fetch Dashboard Counts
-  const loadCounts = useCallback(async () => {
-    setLoadingCounts(true);
-    try {
-      const userId = getUserIdFromToken();
-      const res = await fetchOvdDashboardCounts({
-        wingID: selectedWing,
-        orgID: selectedOrg,
-        vision: selectedVision,
-        priority: selectedPriority,
-        vibhasID: selectedVibhas,
-        userID: userId,
-        mivChapterSelect: selectedMivChapter,
-        makvThemeSelect: selectedMakvTheme
+  return isDark;
+}
+
+const fmtInt = (n) => Number(n || 0).toLocaleString('en-IN');
+const fmtCost = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const pct = (part, whole) => (whole > 0 ? Math.round((part / whole) * 100) : 0);
+
+/* Turn the API's `categories` rows into chart-ready shapes. */
+function shapeLevel(payload) {
+  const rows = Array.isArray(payload?.categories) ? payload.categories : [];
+
+  const categories = rows
+    .map((r) => {
+      const buckets = {};
+      BUCKETS.forEach((b) => {
+        buckets[b.key] = Number(r[b.key] || 0);
       });
+      return {
+        name: String(r.category || 'Uncategorised').trim(),
+        count: Number(r.intervention_count || 0),
+        ...buckets
+      };
+    })
+    .filter((r) => r.count > 0)
+    .sort((a, b) => b.count - a.count);
 
-      if (res && res.total && res.total[0]) {
-        const t = res.total[0];
-        setCountsData({
-          goalsA1: t.goals_a1 || t.goals || 101,
-          interventionsA2: t.interventions_a2 || t.intervention || 481,
-          actionItemsA3: t.actions_a3 || t.action || 514,
-          goalsB1: t.goals_b1 || 578,
-          interventionsB2: t.interventions_b2 || 1921,
-          actionItemsB3: t.actions_b3 || 9050,
-          totalCost: Number(t.total_cost || 287322.67).toLocaleString('en-IN', { maximumFractionDigits: 2 })
-        });
-      }
-    } catch (err) {
-      console.warn("OVOD Counts notice:", err.message);
-    } finally {
-      setLoadingCounts(false);
+  const status = BUCKETS.map((b) => ({
+    key: b.key,
+    label: b.label,
+    value: rows.reduce((sum, r) => sum + Number(r[b.key] || 0), 0)
+  }));
+
+  const total = status.reduce((s, x) => s + x.value, 0);
+  const t = payload?.total?.[0] || {};
+
+  return {
+    categories,
+    status,
+    total,
+    totals: {
+      goals: Number(t.goals || 0),
+      interventions: Number(t.intervention || 0),
+      actions: Number(t.action || 0),
+      cost: Number(t.total_cost_a ?? t.total_cost ?? 0)
     }
-  }, [selectedWing, selectedOrg, selectedVision, selectedPriority, selectedVibhas, selectedMivChapter, selectedMakvTheme]);
-
-  // Fetch Interventions Table
-  const loadTableData = useCallback(async () => {
-    setLoadingTable(true);
-    try {
-      const userId = getUserIdFromToken();
-      const res = await fetchOvdInterventionsReport({
-        wingID: selectedWing,
-        orgID: selectedOrg,
-        vision: selectedVision,
-        priority: selectedPriority,
-        vibhasID: selectedVibhas,
-        userID: userId,
-        mivChapterSelect: selectedMivChapter,
-        makvThemeSelect: selectedMakvTheme,
-        statusCurrent: selectedStatus
-      });
-
-      const rows = Array.isArray(res) ? res : (res?.rowData || []);
-      setTableData(rows);
-    } catch (err) {
-      console.warn("OVOD Interventions Table notice:", err.message);
-      setTableData([]);
-    } finally {
-      setLoadingTable(false);
-    }
-  }, [selectedWing, selectedOrg, selectedVision, selectedPriority, selectedVibhas, selectedMivChapter, selectedMakvTheme, selectedStatus]);
-
-  useEffect(() => {
-    loadCounts();
-    loadTableData();
-  }, [loadCounts, loadTableData]);
-
-  // Count active filters for badge
-  const activeFiltersCount = useMemo(() => {
-    let count = 0;
-    if (selectedVision !== '0') count++;
-    if (selectedWing !== '0') count++;
-    if (selectedOrg !== '0') count++;
-    if (selectedVibhas !== '0') count++;
-    if (selectedPriority !== '0') count++;
-    if (selectedMivChapter !== '0') count++;
-    if (selectedMakvTheme !== '0') count++;
-    if (selectedStatus !== '0') count++;
-    return count;
-  }, [selectedVision, selectedWing, selectedOrg, selectedVibhas, selectedPriority, selectedMivChapter, selectedMakvTheme, selectedStatus]);
-
-  // Reset Filters
-  const handleResetFilters = () => {
-    setSelectedVision('0');
-    setSelectedWing('0');
-    setSelectedOrg('0');
-    setSelectedVibhas('0');
-    setSelectedPriority('0');
-    setSelectedMivChapter('0');
-    setSelectedMakvTheme('0');
-    setSelectedStatus('0');
-    setSearchTerm('');
   };
+}
 
-  // Filtered rows for AG Grid
-  const filteredTableData = useMemo(() => {
-    if (!searchTerm.trim()) return tableData;
-    const q = searchTerm.toLowerCase();
-    return tableData.filter(r => {
-      return (
-        String(r.intervention_a2 || r.goal_a1 || r.action_a3 || '').toLowerCase().includes(q) ||
-        String(r.ia_name || '').toLowerCase().includes(q) ||
-        String(r.wings || '').toLowerCase().includes(q) ||
-        String(r.category || '').toLowerCase().includes(q)
-      );
-    });
-  }, [tableData, searchTerm]);
+/* ------------------------------ Small pieces ------------------------------ */
 
-  // AG Grid Column Definitions
-  const columnDefs = useMemo(() => [
-    {
-      headerName: "S.No",
-      valueGetter: (params) => params.node ? params.node.rowIndex + 1 : 1,
-      width: 70,
-      minWidth: 60,
-      maxWidth: 80,
-      headerClass: "text-center",
-      cellClass: "text-center",
-      cellRenderer: (params) => (
-        <div className="w-full flex items-center justify-center font-bold text-slate-400">
-          {params.value}
+function StatCard({ value, label, icon: Icon, accent, tint, iconColor, loading }) {
+  return (
+    <div
+      className={`relative overflow-hidden rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-4 shadow-xs hover:shadow-md transition-all border-l-4 ${accent}`}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          {loading ? (
+            <div className="h-7 w-20 rounded-md bg-slate-100 dark:bg-slate-800 animate-pulse" />
+          ) : (
+            <span className="block text-2xl font-black text-slate-800 dark:text-slate-100 font-display truncate">
+              {value}
+            </span>
+          )}
+          <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-0.5">
+            {label}
+          </p>
         </div>
-      )
-    },
-    {
-      headerName: "Intervention List",
-      field: "intervention_a2",
-      minWidth: 280,
-      flex: 2,
-      cellRenderer: (params) => (
-        <div className="font-bold text-[#0f417a] dark:text-blue-400 py-1 leading-tight">
-          {params.value || params.data?.goal_a1 || params.data?.action_a3 || '-'}
+        <div className={`h-10 w-10 shrink-0 rounded-xl flex items-center justify-center shadow-xs ${tint}`}>
+          <Icon className={`h-5 w-5 ${iconColor}`} />
         </div>
-      )
-    },
-    {
-      headerName: "Implementing Agency",
-      field: "ia_name",
-      minWidth: 160,
-      flex: 1.2,
-      cellRenderer: (params) => (
-        <span className="font-semibold text-slate-700 dark:text-slate-200">
-          {params.value || 'IMU, CEMS, IPA'}
-        </span>
-      )
-    },
-    {
-      headerName: "Progress (%)",
-      field: "progress",
-      minWidth: 110,
-      flex: 0.9,
-      headerClass: "text-center",
-      cellClass: "text-center",
-      cellRenderer: (params) => (
-        <div className="w-full flex items-center justify-center font-extrabold text-blue-600 dark:text-blue-400">
-          {params.value != null ? `${params.value}%` : '0%'}
-        </div>
-      )
-    },
-    {
-      headerName: "Total Cost (₹ Cr.)",
-      field: "total_cost",
-      minWidth: 130,
-      flex: 1,
-      headerClass: "text-center",
-      cellClass: "text-center",
-      cellRenderer: (params) => (
-        <div className="w-full flex items-center justify-center font-extrabold text-amber-600 dark:text-amber-400">
-          {params.value != null ? Number(params.value).toFixed(2) : '0.00'}
-        </div>
-      )
-    },
-    {
-      headerName: "Category",
-      field: "category",
-      minWidth: 140,
-      flex: 1,
-      cellRenderer: (params) => params.value || 'HR/Capacity Building'
-    },
-    {
-      headerName: "Wing",
-      field: "wings",
-      minWidth: 120,
-      flex: 0.9,
-      cellRenderer: (params) => params.value || 'Shipping'
-    },
-    {
-      headerName: "Priority",
-      field: "priority",
-      minWidth: 90,
-      flex: 0.7,
-      headerClass: "text-center",
-      cellClass: "text-center",
-      cellRenderer: (params) => (
-        <div className="w-full flex items-center justify-center font-bold">
-          {params.value || 'II'}
-        </div>
-      )
-    },
-    {
-      headerName: "Vibhas",
-      field: "vibhas",
-      minWidth: 160,
-      flex: 1.2,
-      cellRenderer: (params) => params.value || 'Capacity building, outreach'
-    },
-    {
-      headerName: "Target Date",
-      field: "target_date",
-      minWidth: 110,
-      flex: 0.9,
-      headerClass: "text-center",
-      cellClass: "text-center",
-      cellRenderer: (params) => (
-        <div className="w-full flex items-center justify-center">
-          {params.value || '31-12-2027'}
-        </div>
-      )
-    },
-    {
-      headerName: "Fund Spent",
-      field: "fund_spent",
-      minWidth: 110,
-      flex: 0.9,
-      headerClass: "text-center",
-      cellClass: "text-center",
-      cellRenderer: (params) => (
-        <div className="w-full flex items-center justify-center font-extrabold text-emerald-600 dark:text-emerald-400">
-          {params.value || params.data?.['Fund Spend'] || '0.00'}
-        </div>
-      )
-    }
-  ], []);
+      </div>
+    </div>
+  );
+}
 
-  // Export headers
-  const exportHeaders = useMemo(() => [
-    { label: 'S.No', key: 'sNo' },
-    { label: 'Intervention List', key: 'intervention' },
-    { label: 'Implementing Agency', key: 'ia_name' },
-    { label: 'Progress (%)', key: 'progress' },
-    { label: 'Total Cost (₹ Cr.)', key: 'total_cost' },
-    { label: 'Category', key: 'category' },
-    { label: 'Wing', key: 'wings' },
-    { label: 'Priority', key: 'priority' },
-    { label: 'Vibhas', key: 'vibhas' },
-    { label: 'Target Date', key: 'target_date' },
-    { label: 'Fund Spent', key: 'fund_spent' }
-  ], []);
+function ChartTooltip({ active, payload, label, total }) {
+  if (!active || !payload?.length) return null;
+  const rows = payload.filter((p) => Number(p.value) > 0 || payload.length === 1);
+  const sum = rows.reduce((s, p) => s + Number(p.value || 0), 0);
+  return (
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg px-3 py-2 text-xs max-w-xs">
+      {label && <div className="font-bold text-slate-800 dark:text-slate-100 mb-1 leading-snug">{label}</div>}
+      {rows.map((p) => (
+        <div key={p.dataKey || p.name} className="flex items-center justify-between gap-4 text-slate-600 dark:text-slate-300">
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm" style={{ background: p.color || p.fill }} />
+            {p.name}
+          </span>
+          <span className="font-bold tabular-nums text-slate-800 dark:text-slate-100">
+            {fmtInt(p.value)}
+            {total ? <span className="font-medium text-slate-400"> · {pct(p.value, total)}%</span> : null}
+          </span>
+        </div>
+      ))}
+      {rows.length > 1 && (
+        <div className="flex justify-between border-t border-slate-100 dark:border-slate-800 mt-1 pt-1 font-bold text-slate-700 dark:text-slate-200">
+          <span>Total</span>
+          <span className="tabular-nums">{fmtInt(sum)}</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
-  const exportData = useMemo(() => filteredTableData.map((r, i) => ({
-    sNo: i + 1,
-    intervention: r.intervention_a2 || r.goal_a1 || r.action_a3 || '-',
-    ia_name: r.ia_name || 'IMU, CEMS, IPA',
-    progress: r.progress != null ? `${r.progress}%` : '0%',
-    total_cost: r.total_cost != null ? Number(r.total_cost).toFixed(2) : '0.00',
-    category: r.category || 'HR/Capacity Building',
-    wings: r.wings || 'Shipping',
-    priority: r.priority || 'II',
-    vibhas: r.vibhas || 'Capacity building',
-    target_date: r.target_date || '31-12-2027',
-    fund_spent: r.fund_spent || r['Fund Spend'] || '0.00'
-  })), [filteredTableData]);
+function Insight({ label, value, sub, tone = 'text-slate-800 dark:text-slate-100' }) {
+  return (
+    <div className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/60 px-3.5 py-2.5 min-w-0">
+      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</div>
+      <div className={`text-sm font-black truncate ${tone}`} title={String(value)}>{value}</div>
+      {sub && <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 truncate">{sub}</div>}
+    </div>
+  );
+}
+
+function ChartCard({ title, subtitle, actions, children }) {
+  return (
+    <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs p-4 flex flex-col">
+      <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
+        <div>
+          <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">{title}</h4>
+          {subtitle && <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{subtitle}</p>}
+        </div>
+        {actions}
+      </div>
+      <div className="flex-1 min-h-0">{children}</div>
+    </div>
+  );
+}
+
+function EmptyChart({ loading, error }) {
+  return (
+    <div className="h-56 flex items-center justify-center text-xs font-semibold text-slate-400">
+      {loading ? 'Loading…' : error ? 'Unable to load this chart. Use Refresh to retry.' : 'No interventions for the selected filters'}
+    </div>
+  );
+}
+
+function Segmented({ value, onChange, options }) {
+  return (
+    <div className="inline-flex rounded-lg bg-slate-100 dark:bg-slate-800 p-0.5 text-[11px] font-bold">
+      {options.map((o) => (
+        <button
+          key={o.id}
+          type="button"
+          onClick={() => onChange(o.id)}
+          className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
+            value === o.id
+              ? 'bg-white dark:bg-slate-700 text-[#0f417a] dark:text-blue-300 shadow-xs'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* Horizontal bar: split of interventions across categories (or progress mix per category) */
+function CategoryBarChart({ data, mode, theme, total }) {
+  const truncate = (s) => (s.length > 26 ? `${s.slice(0, 25)}…` : s);
+  const height = Math.max(220, data.length * 34 + 30);
 
   return (
-    <div className="space-y-6 select-none animate-fade-in text-slate-800 dark:text-slate-100">
-      
-      {/* 8 Modern Stat Cards in 2 Rows matching GMIS & MIV design */}
-      <div className="space-y-3.5">
-        
-        {/* ROW 1: National Goals (A1), Interventions (A2), Action Items (A3), KPI */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          
-          <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-4.5 shadow-xs hover:shadow-md transition-all border-l-4 border-l-rose-500">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-2xl font-black text-slate-800 dark:text-slate-100 font-display">
-                  {countsData.goalsA1}
-                </span>
-                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-0.5">
-                  Total Goals [A1]
-                </p>
-              </div>
-              <div className="h-10 w-10 rounded-xl bg-rose-50 dark:bg-rose-950/50 flex items-center justify-center text-rose-600 shadow-xs">
-                <Star className="h-5 w-5 fill-rose-100 text-rose-500" />
-              </div>
-            </div>
-          </div>
+    <div className="text-slate-500 dark:text-slate-400" style={{ height }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} layout="vertical" margin={{ top: 4, right: 28, left: 0, bottom: 4 }} barCategoryGap={6}>
+          <CartesianGrid horizontal={false} stroke="currentColor" strokeOpacity={0.12} />
+          <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: 'currentColor' }} axisLine={false} tickLine={false} />
+          <YAxis
+            type="category"
+            dataKey="name"
+            width={170}
+            tick={{ fontSize: 11, fill: 'currentColor' }}
+            tickFormatter={truncate}
+            axisLine={false}
+            tickLine={false}
+            interval={0}
+          />
+          <Tooltip cursor={{ fill: 'currentColor', fillOpacity: 0.06 }} content={<ChartTooltip total={mode === 'count' ? total : null} />} />
+          {mode === 'count' ? (
+            <Bar
+              dataKey="count"
+              name="Interventions"
+              fill={theme.bar}
+              radius={[0, 4, 4, 0]}
+              maxBarSize={20}
+              label={{ position: 'right', fontSize: 11, fill: 'currentColor', formatter: (v) => fmtInt(v) }}
+            />
+          ) : (
+            BUCKETS.map((b, i) => (
+              <Bar
+                key={b.key}
+                dataKey={b.key}
+                name={b.label}
+                stackId="progress"
+                fill={theme.ramp[i]}
+                stroke={theme.surface}
+                strokeWidth={2}
+                maxBarSize={20}
+              />
+            ))
+          )}
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
 
-          <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-4.5 shadow-xs hover:shadow-md transition-all border-l-4 border-l-purple-500">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-2xl font-black text-slate-800 dark:text-slate-100 font-display">
-                  {countsData.interventionsA2}
-                </span>
-                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-0.5">
-                  Total Interventions [A2]
-                </p>
-              </div>
-              <div className="h-10 w-10 rounded-xl bg-purple-50 dark:bg-purple-950/50 flex items-center justify-center text-purple-600 shadow-xs">
-                <Layers className="h-5 w-5 text-purple-500" />
-              </div>
-            </div>
-          </div>
+/* Donut: interventions by overall progress bucket, with a legend that doubles as a data table */
+function StatusDonut({ status, total, theme }) {
+  const [active, setActive] = useState(null);
+  const data = status.filter((s) => s.value > 0);
+  const colorOf = (key) => theme.ramp[BUCKETS.findIndex((b) => b.key === key)];
 
-          <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-4.5 shadow-xs hover:shadow-md transition-all border-l-4 border-l-emerald-500">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-2xl font-black text-slate-800 dark:text-slate-100 font-display">
-                  {countsData.actionItemsA3}
-                </span>
-                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-0.5">
-                  Total Action Items [A3]
-                </p>
-              </div>
-              <div className="h-10 w-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 flex items-center justify-center text-emerald-600 shadow-xs">
-                <Users className="h-5 w-5 text-emerald-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-4.5 shadow-xs hover:shadow-md transition-all border-l-4 border-l-amber-500">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-2xl font-black text-slate-800 dark:text-slate-100 font-display">
-                  KPI
-                </span>
-                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-0.5">
-                  Knowledge Repository
-                </p>
-              </div>
-              <div className="h-10 w-10 rounded-xl bg-amber-50 dark:bg-amber-950/50 flex items-center justify-center text-amber-600 shadow-xs">
-                <Globe className="h-5 w-5 text-amber-600" />
-              </div>
-            </div>
-          </div>
-
+  return (
+    <div className="flex flex-col sm:flex-row items-center gap-4">
+      <div className="relative h-56 w-56 shrink-0 text-slate-500 dark:text-slate-400">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Tooltip content={<ChartTooltip total={total} />} />
+            <Pie
+              data={data}
+              dataKey="value"
+              nameKey="label"
+              innerRadius={66}
+              outerRadius={104}
+              paddingAngle={0}
+              startAngle={90}
+              endAngle={-270}
+              stroke={theme.surface}
+              strokeWidth={2}
+              onMouseEnter={(_, i) => setActive(data[i]?.key)}
+              onMouseLeave={() => setActive(null)}
+            >
+              {data.map((d) => (
+                <Cell key={d.key} fill={colorOf(d.key)} fillOpacity={active && active !== d.key ? 0.35 : 1} />
+              ))}
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-2xl font-black text-slate-800 dark:text-slate-100 font-display tabular-nums">{fmtInt(total)}</span>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Interventions</span>
         </div>
-
-        {/* ROW 2: Port Goals (B1), Interventions (B2), Action Items (B3), Total Cost */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          
-          <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-4.5 shadow-xs hover:shadow-md transition-all border-l-4 border-l-orange-500">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-2xl font-black text-slate-800 dark:text-slate-100 font-display">
-                  {countsData.goalsB1}
-                </span>
-                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-0.5">
-                  Total Goals [B1]
-                </p>
-              </div>
-              <div className="h-10 w-10 rounded-xl bg-orange-50 dark:bg-orange-950/50 flex items-center justify-center text-orange-600 shadow-xs">
-                <Star className="h-5 w-5 text-orange-500" />
-              </div>
-            </div>
-          </div>
-
-          <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-4.5 shadow-xs hover:shadow-md transition-all border-l-4 border-l-indigo-500">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-2xl font-black text-slate-800 dark:text-slate-100 font-display">
-                  {countsData.interventionsB2}
-                </span>
-                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-0.5">
-                  Total Interventions [B2]
-                </p>
-              </div>
-              <div className="h-10 w-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center text-indigo-600 shadow-xs">
-                <Layers className="h-5 w-5 text-indigo-500" />
-              </div>
-            </div>
-          </div>
-
-          <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-4.5 shadow-xs hover:shadow-md transition-all border-l-4 border-l-teal-500">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-2xl font-black text-slate-800 dark:text-slate-100 font-display">
-                  {countsData.actionItemsB3}
-                </span>
-                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-0.5">
-                  Total Action Items [B3]
-                </p>
-              </div>
-              <div className="h-10 w-10 rounded-xl bg-teal-50 dark:bg-teal-950/50 flex items-center justify-center text-teal-600 shadow-xs">
-                <Users className="h-5 w-5 text-teal-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-4.5 shadow-xs hover:shadow-md transition-all border-l-4 border-l-yellow-500">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-2xl font-black text-slate-800 dark:text-slate-100 font-display">
-                  ₹ {countsData.totalCost}
-                </span>
-                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-0.5">
-                  Total Cost (In Cr.)
-                </p>
-              </div>
-              <div className="h-10 w-10 rounded-xl bg-yellow-50 dark:bg-yellow-950/50 flex items-center justify-center text-yellow-600 shadow-xs">
-                <DollarSign className="h-5 w-5 text-yellow-600" />
-              </div>
-            </div>
-          </div>
-
-        </div>
-
       </div>
 
-      {/* Main Table Toolbar & Collapsible Filter Panel matching GMIS DataList */}
-      <div className="space-y-3">
-        
-        {/* Action Toolbar Header with Search & Filter on Left, Copy & Export on Right */}
-        <div className="flex flex-col sm:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-3">
-          
-          {/* LEFT SIDE: Search Bar + Filter Button + Reset Button */}
-          <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
-            
-            {/* Search Input on the Left */}
-            <div className="relative w-full sm:w-72">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search in interventions..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-8 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-slate-400 text-slate-800 dark:text-slate-200"
-              />
-              {searchTerm && (
-                <button
-                  type="button"
-                  onClick={() => setSearchTerm('')}
-                  className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
-                >
-                  <X size={14} />
-                </button>
-              )}
-            </div>
-
-            {/* Filter Drawer Toggle Button */}
-            <button
-              type="button"
-              onClick={() => setShowFilterPanel(prev => !prev)}
-              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
-                showFilterPanel || activeFiltersCount > 0
-                  ? 'bg-blue-50 border-blue-300 text-[#0f417a] dark:bg-blue-950/60 dark:border-blue-700 dark:text-blue-300'
-                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200'
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="text-[10px] uppercase tracking-wider text-slate-400">
+            <th className="text-left font-bold pb-1">Progress</th>
+            <th className="text-right font-bold pb-1">Count</th>
+            <th className="text-right font-bold pb-1">Share</th>
+          </tr>
+        </thead>
+        <tbody>
+          {status.map((s) => (
+            <tr
+              key={s.key}
+              onMouseEnter={() => setActive(s.key)}
+              onMouseLeave={() => setActive(null)}
+              className={`border-t border-slate-100 dark:border-slate-800 transition-opacity ${
+                active && active !== s.key ? 'opacity-50' : ''
               }`}
             >
-              <Filter size={14} className="text-[#0f417a] dark:text-blue-400" />
-              <span>Filter</span>
-              {activeFiltersCount > 0 && (
-                <span className="bg-[#0f417a] text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">
-                  {activeFiltersCount}
+              <td className="py-1.5">
+                <span className="inline-flex items-center gap-2 font-semibold text-slate-700 dark:text-slate-200">
+                  <span className="h-2.5 w-2.5 rounded-sm" style={{ background: colorOf(s.key) }} />
+                  {s.label}
+                  {s.key === '100' && <span className="text-[10px] font-medium text-slate-400">completed</span>}
                 </span>
-              )}
-              <ChevronDown size={14} className={`transition-transform duration-200 ${showFilterPanel ? 'rotate-180' : ''}`} />
-            </button>
+              </td>
+              <td className="py-1.5 text-right font-bold tabular-nums text-slate-800 dark:text-slate-100">{fmtInt(s.value)}</td>
+              <td className="py-1.5 text-right tabular-nums text-slate-500 dark:text-slate-400">{pct(s.value, total)}%</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
-            {activeFiltersCount > 0 && (
-              <button
-                type="button"
-                onClick={handleResetFilters}
-                className="inline-flex items-center gap-1 px-2.5 py-2 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 dark:bg-rose-950/40 rounded-xl border border-rose-200 dark:border-rose-900 transition cursor-pointer"
-              >
-                <RotateCcw size={12} />
-                <span>Reset</span>
-              </button>
-            )}
+/* One analytics level (A2 or B2): insight strip + category chart + progress donut */
+function LevelAnalytics({ code, title, description, level, loading, error, theme }) {
+  const [mode, setMode] = useState('count');
+  const { categories, status, total } = level;
+  const hasData = total > 0 || categories.length > 0;
+  const catTotal = categories.reduce((s, c) => s + c.count, 0);
 
-          </div>
+  const top = categories[0];
+  const completed = status.find((s) => s.key === '100')?.value || 0;
+  const lagging = (status.find((s) => s.key === '0_19')?.value || 0) + (status.find((s) => s.key === '20_39')?.value || 0);
 
-          {/* RIGHT SIDE: Row Count Selector + Total Badge + Copy Button + Export Dropdown */}
-          <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto justify-end">
-            
-            {/* Row Count Selector matching GMIS DataList */}
-            <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-xs select-none dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200">
-              <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
-              <select
-                value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value))}
-                className="bg-transparent border-none text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
-              >
-                <option value="10">10</option>
-                <option value="25">25</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
-              </select>
-            </div>
-
-            {/* Total Records Badge matching GMIS DataList */}
-            <div className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider px-3 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
-              Total: <span className="text-[#0f417a] dark:text-blue-400 font-extrabold">{filteredTableData.length}</span>
-            </div>
-
-            <CopyButton
-              headers={exportHeaders}
-              data={exportData}
-              triggerNotification={triggerNotification}
-            />
-
-            <ExportDropdown
-              headers={exportHeaders}
-              data={exportData}
-              title="OVOD Intervention List"
-              triggerNotification={triggerNotification}
-            />
-          </div>
-
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center gap-3">
+        <span className="inline-flex h-7 min-w-7 px-2 items-center justify-center rounded-lg bg-[#0f417a] text-white text-[11px] font-black">
+          {code}
+        </span>
+        <div>
+          <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-wide">{title}</h3>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">{description}</p>
         </div>
-
-        {/* Collapsible Dedicated Filter Drawer */}
-        {showFilterPanel && (
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4 animate-fade-in">
-            
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex items-center space-x-2">
-                <Filter className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
-                <span className="text-xs font-black uppercase text-slate-800 dark:text-slate-200 tracking-wider">
-                  Filter Goals & Interventions
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={handleResetFilters}
-                className="text-xs font-bold text-rose-600 hover:text-rose-700 flex items-center space-x-1 cursor-pointer"
-              >
-                <X className="h-3.5 w-3.5" />
-                <span>Reset All Filters</span>
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-              
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-                  Vision
-                </label>
-                <select
-                  value={selectedVision}
-                  onChange={(e) => setSelectedVision(e.target.value)}
-                  className="w-full text-xs px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                >
-                  {OVOD_VISIONS.map(v => (
-                    <option key={v.id} value={v.id}>{v.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-                  Wing
-                </label>
-                <select
-                  value={selectedWing}
-                  onChange={(e) => setSelectedWing(e.target.value)}
-                  className="w-full text-xs px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                >
-                  {OVOD_WINGS.map(w => (
-                    <option key={w.id} value={w.id}>{w.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-                  Organisation
-                </label>
-                <select
-                  value={selectedOrg}
-                  onChange={(e) => setSelectedOrg(e.target.value)}
-                  className="w-full text-xs px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                >
-                  <option value="0">Show All</option>
-                  {organisations.map(o => (
-                    <option key={o.organisation_id} value={o.organisation_id}>{o.organisation_name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-                  VIBHAS / NAWIC Cell
-                </label>
-                <select
-                  value={selectedVibhas}
-                  onChange={(e) => setSelectedVibhas(e.target.value)}
-                  className="w-full text-xs px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                >
-                  {OVOD_VIBHAS.map(v => (
-                    <option key={v.id} value={v.id}>{v.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-                  Priority
-                </label>
-                <select
-                  value={selectedPriority}
-                  onChange={(e) => setSelectedPriority(e.target.value)}
-                  className="w-full text-xs px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                >
-                  {OVOD_PRIORITIES.map(p => (
-                    <option key={p.id} value={p.id}>{p.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-                  MIV Chapter
-                </label>
-                <select
-                  value={selectedMivChapter}
-                  onChange={(e) => setSelectedMivChapter(e.target.value)}
-                  className="w-full text-xs px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                >
-                  {MIV_CHAPTERS.map(c => (
-                    <option key={c.id} value={c.id}>{c.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-                  MAKV Theme
-                </label>
-                <select
-                  value={selectedMakvTheme}
-                  onChange={(e) => setSelectedMakvTheme(e.target.value)}
-                  className="w-full text-xs px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                >
-                  {MAKV_THEMES.map(t => (
-                    <option key={t.id} value={t.id}>{t.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-                  Current Status
-                </label>
-                <select
-                  value={selectedStatus}
-                  onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="w-full text-xs px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                >
-                  {OVOD_STATUSES.map(s => (
-                    <option key={s.id} value={s.id}>{s.label}</option>
-                  ))}
-                </select>
-              </div>
-
-            </div>
-
-          </div>
-        )}
-
-        {/* AG Grid Table */}
-        <Table
-          ref={gridRef}
-          rowData={filteredTableData}
-          columnDefs={columnDefs}
-          loading={loadingTable}
-          pagination={true}
-          paginationPageSize={pageSize}
-          enableExport={false}
-          color="#0f417a"
-        />
-
       </div>
 
+      {hasData && !loading && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <Insight label="Interventions" value={fmtInt(total)} sub={`across ${categories.length} categories`} />
+          <Insight
+            label="Largest category"
+            value={top ? top.name : '—'}
+            sub={top ? `${fmtInt(top.count)} · ${pct(top.count, catTotal)}% of interventions` : undefined}
+          />
+          <Insight
+            label="Completed (100%)"
+            value={`${fmtInt(completed)} · ${pct(completed, total)}%`}
+            sub="interventions fully delivered"
+            tone="text-emerald-600 dark:text-emerald-400"
+          />
+          <Insight
+            label="Below 40% progress"
+            value={`${fmtInt(lagging)} · ${pct(lagging, total)}%`}
+            sub="may need follow-up"
+            tone={pct(lagging, total) >= 50 ? 'text-rose-600 dark:text-rose-400' : 'text-amber-600 dark:text-amber-400'}
+          />
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <ChartCard
+          title={`${code} Level – Split of Interventions across Categories`}
+          subtitle={mode === 'count' ? 'Number of interventions per category' : 'Progress mix within each category'}
+          actions={
+            <Segmented
+              value={mode}
+              onChange={setMode}
+              options={[
+                { id: 'count', label: 'Count' },
+                { id: 'progress', label: 'By progress' }
+              ]}
+            />
+          }
+        >
+          {hasData && !loading ? (
+            <>
+              <CategoryBarChart data={categories} mode={mode} theme={theme} total={catTotal} />
+              {mode === 'progress' && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-[11px] text-slate-500 dark:text-slate-400">
+                  {BUCKETS.map((b, i) => (
+                    <span key={b.key} className="inline-flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-sm" style={{ background: theme.ramp[i] }} />
+                      {b.label}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <EmptyChart loading={loading} error={error} />
+          )}
+        </ChartCard>
+
+        <ChartCard title={`${code} Level – Intervention Level Overall Status`} subtitle="Interventions grouped by average completion">
+          {hasData && !loading ? <StatusDonut status={status} total={total} theme={theme} /> : <EmptyChart loading={loading} error={error} />}
+        </ChartCard>
+      </div>
+    </section>
+  );
+}
+
+function FilterSelect({ label, value, onChange, options }) {
+  return (
+    <div>
+      <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">{label}</label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full text-xs px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
+      >
+        {options.map((o) => (
+          <option key={o.id} value={o.id}>{o.label}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+/* --------------------------------- Page ---------------------------------- */
+
+const EMPTY_LEVEL = shapeLevel(null);
+
+export default function Dashboard({ triggerNotification }) {
+  const isDark = useIsDark();
+  const theme = isDark ? THEME.dark : THEME.light;
+
+  const notify = useNotifier(triggerNotification);
+
+  // Filters and panel state live in the OVOD store so they survive switching tabs
+  const { filters, showFilterPanel } = useOvodStore(useShallow((s) => s.dashboard));
+  const { setDashboardFilter, setDashboardFilterPanel, resetDashboardFilters, loadOrganisations } = useOvodStore(
+    useShallow((s) => ({
+      setDashboardFilter: s.setDashboardFilter,
+      setDashboardFilterPanel: s.setDashboardFilterPanel,
+      resetDashboardFilters: s.resetDashboardFilters,
+      loadOrganisations: s.loadOrganisations
+    }))
+  );
+  const organisations = useOvodStore((s) => s.organisations);
+
+  const {
+    vision: selectedVision,
+    wing: selectedWing,
+    org: selectedOrg,
+    vibhas: selectedVibhas,
+    priority: selectedPriority,
+    mivChapter: selectedMivChapter,
+    makvTheme: selectedMakvTheme
+  } = filters;
+
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState({ a: false, b: false });
+  const [levelA, setLevelA] = useState(EMPTY_LEVEL);
+  const [levelB, setLevelB] = useState(EMPTY_LEVEL);
+  const [statusCounts, setStatusCounts] = useState({ notApplicable: 0, dropped: 0 });
+
+  useEffect(() => {
+    loadOrganisations();
+  }, [loadOrganisations]);
+
+  // Only the latest request may update state (filters can change faster than the API answers)
+  const latestRequestRef = useRef(0);
+  const load = useCallback(async () => {
+    const requestId = ++latestRequestRef.current;
+    setLoading(true);
+    const params = {
+      wingID: selectedWing,
+      orgID: selectedOrg,
+      vision: selectedVision,
+      priority: selectedPriority,
+      vibhasID: selectedVibhas,
+      mivChapterSelect: selectedMivChapter,
+      makvThemeSelect: selectedMakvTheme
+    };
+
+    const [a, b, s] = await Promise.allSettled([
+      fetchOvdMinistryChart(params),
+      fetchOvdMinistryChartB2(params),
+      fetchOvdStatusCounts({ ...params, userID: getUserIdFromToken() })
+    ]);
+    if (requestId !== latestRequestRef.current) return;
+
+    setLevelA(a.status === 'fulfilled' ? shapeLevel(a.value) : EMPTY_LEVEL);
+    setLevelB(b.status === 'fulfilled' ? shapeLevel(b.value) : EMPTY_LEVEL);
+    const sc = s.status === 'fulfilled' && Array.isArray(s.value) ? s.value[0] : null;
+    setStatusCounts({
+      notApplicable: Number(sc?.Not_Applicable_Count || 0),
+      dropped: Number(sc?.Dropped_Count || 0)
+    });
+    setFailed({ a: a.status === 'rejected', b: b.status === 'rejected' });
+
+    if (a.status === 'rejected' && b.status === 'rejected') {
+      notify(COMMON_TOASTS.loadFailed('The dashboard analytics'));
+    }
+    setLoading(false);
+  }, [selectedWing, selectedOrg, selectedVision, selectedPriority, selectedVibhas, selectedMivChapter, selectedMakvTheme, notify]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const filterDefs = useMemo(() => [
+    { id: 'vision', label: 'Vision', value: selectedVision, set: (v) => setDashboardFilter('vision', v), options: OVOD_VISIONS },
+    { id: 'wing', label: 'Wing', value: selectedWing, set: (v) => setDashboardFilter('wing', v), options: OVOD_WINGS },
+    {
+      id: 'org',
+      label: 'Organisation',
+      value: selectedOrg,
+      set: (v) => setDashboardFilter('org', v),
+      options: [{ id: '0', label: 'Show All' }, ...organisations.map((o) => ({ id: String(o.ia_id), label: o.ia_name }))]
+    },
+    { id: 'vibhas', label: 'VIBHAS / NAVIC Cell', value: selectedVibhas, set: (v) => setDashboardFilter('vibhas', v), options: OVOD_VIBHAS },
+    { id: 'priority', label: 'Priority', value: selectedPriority, set: (v) => setDashboardFilter('priority', v), options: OVOD_PRIORITIES },
+    { id: 'miv', label: 'MIV Chapter', value: selectedMivChapter, set: (v) => setDashboardFilter('mivChapter', v), options: MIV_CHAPTERS },
+    { id: 'makv', label: 'MAKV Theme', value: selectedMakvTheme, set: (v) => setDashboardFilter('makvTheme', v), options: MAKV_THEMES }
+  ], [selectedVision, selectedWing, selectedOrg, selectedVibhas, selectedPriority, selectedMivChapter, selectedMakvTheme, organisations, setDashboardFilter]);
+
+  const activeFilters = filterDefs.filter((f) => f.value !== '0');
+
+  const handleResetFilters = () => resetDashboardFilters();
+
+  const labelOf = (f) => f.options.find((o) => String(o.id) === String(f.value))?.label || f.value;
+
+  return (
+    <div className="space-y-6 animate-fade-in text-slate-800 dark:text-slate-100">
+
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => setDashboardFilterPanel((p) => !p)}
+            className={`module-filter-btn ${showFilterPanel || activeFilters.length > 0 ? 'active' : ''}`}
+          >
+            <Filter size={14} className="text-[#0f417a] dark:text-blue-400" />
+            <span>Filters</span>
+            {activeFilters.length > 0 && (
+              <span className="bg-[#0f417a] text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">
+                {activeFilters.length}
+              </span>
+            )}
+            <ChevronDown size={14} className={`transition-transform duration-200 ${showFilterPanel ? 'rotate-180' : ''}`} />
+          </button>
+
+          {activeFilters.length > 0 && (
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="inline-flex items-center gap-1 px-2.5 py-2 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 dark:bg-rose-950/40 rounded-xl border border-rose-200 dark:border-rose-900 transition cursor-pointer"
+            >
+              <RotateCcw size={12} />
+              <span>Reset</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={load}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200 transition cursor-pointer disabled:opacity-60"
+          >
+            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+            <span>Refresh</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Filter panel */}
+      {showFilterPanel && (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs animate-fade-in">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {filterDefs.map((f) => (
+              <FilterSelect key={f.id} label={f.label} value={f.value} onChange={f.set} options={f.options} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Active filter chips when the panel is collapsed */}
+      {!showFilterPanel && activeFilters.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {activeFilters.map((f) => (
+            <span
+              key={f.id}
+              className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-900 text-[11px] font-semibold text-[#0f417a] dark:text-blue-300"
+            >
+              <span className="text-slate-500 dark:text-slate-400">{f.label}:</span> {labelOf(f)}
+              <button type="button" onClick={() => f.set('0')} className="hover:text-rose-600 cursor-pointer" aria-label={`Clear ${f.label}`}>
+                <X size={12} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Stat cards: A row then B row */}
+      <div className="space-y-3.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard loading={loading} value={fmtInt(levelA.totals.goals)} label="Total Goals [A1]" icon={Star} accent="border-l-rose-500" tint="bg-rose-50 dark:bg-rose-950/50" iconColor="text-rose-500" />
+          <StatCard loading={loading} value={fmtInt(levelA.totals.interventions)} label="Total Interventions [A2]" icon={Layers} accent="border-l-purple-500" tint="bg-purple-50 dark:bg-purple-950/50" iconColor="text-purple-500" />
+          <StatCard loading={loading} value={fmtInt(levelA.totals.actions)} label="Total Action Items [A3]" icon={Users} accent="border-l-emerald-500" tint="bg-emerald-50 dark:bg-emerald-950/50" iconColor="text-emerald-600" />
+          <StatCard loading={loading} value={`₹ ${fmtCost(levelA.totals.cost)}`} label="Total Cost [A] (In Cr.)" icon={DollarSign} accent="border-l-yellow-500" tint="bg-yellow-50 dark:bg-yellow-950/50" iconColor="text-yellow-600" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard loading={loading} value={fmtInt(levelB.totals.goals)} label="Total Goals [B1]" icon={Star} accent="border-l-orange-500" tint="bg-orange-50 dark:bg-orange-950/50" iconColor="text-orange-500" />
+          <StatCard loading={loading} value={fmtInt(levelB.totals.interventions)} label="Total Interventions [B2]" icon={Layers} accent="border-l-indigo-500" tint="bg-indigo-50 dark:bg-indigo-950/50" iconColor="text-indigo-500" />
+          <StatCard loading={loading} value={fmtInt(levelB.totals.actions)} label="Total Action Items [B3]" icon={Users} accent="border-l-teal-500" tint="bg-teal-50 dark:bg-teal-950/50" iconColor="text-teal-600" />
+          <StatCard loading={loading} value={`₹ ${fmtCost(levelB.totals.cost)}`} label="Total Cost [B] (In Cr.)" icon={DollarSign} accent="border-l-yellow-500" tint="bg-yellow-50 dark:bg-yellow-950/50" iconColor="text-yellow-600" />
+        </div>
+      </div>
+
+      {/* Not Applicable / Dropped */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-y border-slate-100 dark:border-slate-800 py-3">
+        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+          <span className="font-black text-rose-600">Note!</span> Not Applicable and Dropped counts represent A3(s) and B3(s).
+        </p>
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200">
+            <Ban size={13} className="text-slate-500" />
+            Not Applicable: <span className="tabular-nums">{fmtInt(statusCounts.notApplicable)}</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-xs font-bold text-rose-700 dark:text-rose-300">
+            <XCircle size={13} />
+            Dropped: <span className="tabular-nums">{fmtInt(statusCounts.dropped)}</span>
+          </span>
+        </div>
+      </div>
+
+      {(failed.a || failed.b) && !loading && (
+        <div className="flex items-center gap-2 rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 px-3.5 py-2 text-xs font-semibold text-amber-800 dark:text-amber-300">
+          <AlertTriangle size={14} />
+          {failed.a && failed.b ? 'Analytics could not be loaded.' : `${failed.a ? 'A-level' : 'B-level'} analytics could not be loaded.`} Use Refresh to retry.
+        </div>
+      )}
+
+      <p className="text-[11px] text-right text-slate-500 dark:text-slate-400 -mb-3">
+        <span className="font-black text-rose-600">Note!</span> An intervention may fall into multiple categories, which may result in varying total counts.
+      </p>
+
+      {/* Analytics */}
+      <LevelAnalytics
+        code="A2"
+        title="Ministry Interventions (A2)"
+        description="Distribution and delivery progress of Ministry-level interventions"
+        level={levelA}
+        loading={loading}
+        error={failed.a}
+        theme={theme}
+      />
+      <LevelAnalytics
+        code="B2"
+        title="Organisation Interventions (B2)"
+        description="Distribution and delivery progress of organisation-level interventions"
+        level={levelB}
+        loading={loading}
+        error={failed.b}
+        theme={theme}
+      />
     </div>
   );
 }

@@ -151,10 +151,16 @@ async function getYoungProfessional(req, res) {
                     FORMAT(yp.last_working_date, 'yyyy-MM-dd') AS last_working_date,
                     yp.remarks,
                     yp.relieved_at,
-                    yp.appointment_document
+                    yp.appointment_document,
+                    FORMAT(yp.created_date, 'dd-MM-yyyy HH:mm') AS created_at,
+                    FORMAT(yp.created_date, 'yyyy-MM-dd HH:mm') AS created_date,
+                    COALESCE(u.name, CAST(yp.created_by AS VARCHAR), 'Admin') AS created_by,
+                    FORMAT(yp.last_updated_date, 'dd-MM-yyyy HH:mm') AS last_updated_at,
+                    FORMAT(yp.last_updated_date, 'yyyy-MM-dd HH:mm') AS last_updated_date
                 FROM dbo.tbl_young_professionals yp
                 LEFT JOIN mmt_wings w ON w.wing_id = yp.wing_id
                 LEFT JOIN mmt_division d ON d.division_id = yp.division_id
+                LEFT JOIN tbl_user u ON u.user_id = yp.created_by
                 ${filteredWhereSql}
                 ORDER BY yp.yp_id DESC
             `;
@@ -200,10 +206,16 @@ async function getYoungProfessional(req, res) {
                 yp.remarks,
                 yp.relieved_at,
                 yp.appointment_document,
+                FORMAT(yp.created_date, 'dd-MM-yyyy HH:mm') AS created_at,
+                FORMAT(yp.created_date, 'yyyy-MM-dd HH:mm') AS created_date,
+                COALESCE(u.name, CAST(yp.created_by AS VARCHAR), 'Admin') AS created_by,
+                FORMAT(yp.last_updated_date, 'dd-MM-yyyy HH:mm') AS last_updated_at,
+                FORMAT(yp.last_updated_date, 'yyyy-MM-dd HH:mm') AS last_updated_date,
                 COUNT(*) OVER() AS total_count
             FROM dbo.tbl_young_professionals yp
             LEFT JOIN mmt_wings w ON w.wing_id = yp.wing_id
             LEFT JOIN mmt_division d ON d.division_id = yp.division_id
+            LEFT JOIN tbl_user u ON u.user_id = yp.created_by
             ${filteredWhereSql}
             ORDER BY yp.yp_id DESC
             OFFSET @offset ROWS

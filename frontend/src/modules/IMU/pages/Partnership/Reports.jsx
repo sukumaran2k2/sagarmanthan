@@ -1,38 +1,40 @@
 import { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
-import { TrendingUp } from 'lucide-react';
+import { TrendingUp, Search, X } from 'lucide-react';
 import * as am5 from '@amcharts/amcharts5';
 import * as am5xy from '@amcharts/amcharts5/xy';
 import am5themes_Animated from '@amcharts/amcharts5/themes/Animated';
+import { newChartRoot } from '../../../../utils/amCharts';
 import { fetchPartnershipReport } from '../../api';
 import Table from '../../../../components/Table';
 import ExportDropdown from '../../../../components/ExportDropdown';
 import CopyButton from '../../../../components/CopyButton';
 import { exportReportToPdf } from '../../../../utils/exportReportPdf';
+import { COMMON_TOASTS } from '../../../../utils/notify';
 import ChartExportMenu from '../../../../components/ChartExportMenu';
 
 // Confirmed from the legacy site: two separate charts -- Academic
 // Domestic/International on one, Industry Domestic/International on
 // another -- both sourced from the same single report endpoint (unlike
 // K-5.1, which needed two separate API calls for its two charts).
-export default function PartnershipReports() {
+export default function PartnershipReports({ notify }) {
   const gridRef = useRef(null);
   const academicChartDivRef = useRef(null);
   const academicChartRootRef = useRef(null);
   const industryChartDivRef = useRef(null);
   const industryChartRootRef = useRef(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [rowData, setRowData] = useState([]);
   const [columnDefs, setColumnDefs] = useState([]);
   const [academicChartData, setAcademicChartData] = useState([]);
   const [industryChartData, setIndustryChartData] = useState([]);
   const [error, setError] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [chartRoot, setChartRoot] = useState(null);
 
   const title = 'Form No. IMU K-5.4 - Abstract - Partnerships/MoUs - Academic';
 
-  const fetchData = () => {
-    setLoading(true);
-    setError(null);
+  // Load once on open
+  useEffect(() => {
     fetchPartnershipReport()
       .then((res) => {
         const data = res.data?.rowData || [];
@@ -61,6 +63,7 @@ export default function PartnershipReports() {
 
         const gridCols = cols.length ? cols.map((c) => ({
           ...c,
+          pinned: c.field === 'Metric' ? 'left' : undefined,
           cellClass: c.field === 'Metric'
             ? 'font-bold text-slate-800 dark:text-slate-100 flex items-center border-r border-slate-200 dark:border-slate-700'
             : 'text-center font-semibold flex items-center justify-center border-r border-slate-100 dark:border-slate-700',
@@ -71,17 +74,16 @@ export default function PartnershipReports() {
       .catch((err) => {
         console.error('Error loading Partnership report:', err);
         setError('Failed to load report data.');
+        notify?.(COMMON_TOASTS.loadFailed('The report'));
       })
       .finally(() => setLoading(false));
-  };
-
-  useEffect(() => { fetchData(); }, []);
+  }, [notify]);
 
   const buildLineChart = (divRef, rootRef, data, seriesConfig, isPrimary) => {
     if (!divRef.current || !data.length) return null;
     if (rootRef.current) rootRef.current.dispose();
 
-    const root = am5.Root.new(divRef.current);
+    const root = newChartRoot(divRef.current);
     rootRef.current = root;
     if (isPrimary) setChartRoot(root);
     root.setThemes([am5themes_Animated.new(root)]);
@@ -157,45 +159,78 @@ export default function PartnershipReports() {
     cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' }
   }), []);
 
+  const filteredRowData = useMemo(() => {
+    if (!searchQuery.trim()) return rowData;
+    const q = searchQuery.toLowerCase();
+    return rowData.filter((row) => Object.values(row).some((val) => String(val ?? '').toLowerCase().includes(q)));
+  }, [rowData, searchQuery]);
+
   const handleCopy = () => {
-    if (!rowData.length) return;
+    if (!filteredRowData.length) return;
     let tsv = columnDefs.map((c) => c.headerName).join('\t') + '\n';
-    rowData.forEach((row) => { tsv += columnDefs.map((c) => row[c.field] ?? '').join('\t') + '\n'; });
-    navigator.clipboard.writeText(tsv);
+    filteredRowData.forEach((row) => { tsv += columnDefs.map((c) => row[c.field] ?? '').join('\t') + '\n'; });
+    navigator.clipboard.writeText(tsv).then(
+      () => notify?.(COMMON_TOASTS.copySuccess(filteredRowData.length)),
+      () => notify?.(COMMON_TOASTS.copyFailed()),
+    );
   };
 
   const handleExport = (type) => {
-    if (type === 'Excel' && gridRef.current?.api) gridRef.current.api.exportDataAsCsv({ fileName: 'imu_partnership_report.csv' });
+    if (type === 'Excel' && gridRef.current?.api) {
+      gridRef.current.api.exportDataAsCsv({ fileName: 'imu_partnership_report.csv' });
+      notify?.(COMMON_TOASTS.excelExported('imu_partnership_report.csv'));
+    }
     else if (type === 'PDF') {
       exportReportToPdf({
         title,
         chartRoots: [chartRoot, industryChartRootRef.current],
         columnDefs,
-        rowData,
+        rowData: filteredRowData,
         fileName: 'imu_partnership_report',
       });
+      notify?.(COMMON_TOASTS.downloadStarted('imu_partnership_report.pdf'));
     }
   };
 
   return (
-    <div>
-      <div className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-950 p-5 md:p-6 border-b border-slate-200 dark:border-slate-800 flex flex-col gap-4 rounded-t-2xl">
-        <div>
+    <div className="rounded-2xl shadow-lg">
+      <div className="rounded-2xl overflow-hidden">
+      <div className="relative flex flex-wrap items-center justify-between gap-4 px-6 py-6 bg-gradient-to-r from-[#fdfcfc] to-slate-50 dark:from-slate-900 dark:to-slate-800 border-b border-slate-200 dark:border-slate-800 rounded-t-2xl">
+        <div className="flex-1 min-w-[300px]">
           <div className="flex items-center gap-2 mb-1">
             <TrendingUp size={14} className="text-[#8c4242] dark:text-blue-400" strokeWidth={2.5} />
             <span className="text-[10.5px] font-black text-[#8c4242] dark:text-blue-400 uppercase tracking-widest">IMU - Partnerships/MoUs Report</span>
           </div>
-          <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100 tracking-tight">{title}</h3>
+          <h3 className="text-xl font-bold text-[#4b2424] dark:text-blue-400 tracking-wide">{title}</h3>
           <div className="flex items-center gap-2 mt-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">
-            <span>As on date: <strong className="text-slate-800 dark:text-slate-200">{new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong></span>
+            <span>As on date: <strong className="text-[#4b2424] dark:text-blue-400">{new Date().toISOString().split('T')[0]}</strong></span>
             <span className="text-slate-300 dark:text-slate-700">•</span>
-            <span>Report for the month — <strong className="text-slate-800 dark:text-slate-200">{new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</strong></span>
+            <span>Report for the month — <strong className="text-[#4b2424] dark:text-blue-400">{new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</strong></span>
           </div>
         </div>
         <div className="flex items-center justify-end gap-2.5 flex-wrap">
+          <div className="relative w-56">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#4b2424] dark:text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search reports..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-8 py-2 text-[13.5px] font-medium rounded-[9px] outline-none border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:border-[#4b2424] focus:ring-[3px] focus:ring-[#4b2424]/10 transition"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer bg-transparent border-0 p-0.5"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
           <CopyButton onCopy={handleCopy} color="#4b2424" className="!rounded-xl !py-2 !px-4" />
-          <ExportDropdown onExportExcel={() => handleExport('Excel')} onExportPdf={() => handleExport('PDF')} />
-          <ChartExportMenu chartRoot={chartRoot} fileName="imu_partnership_chart" />
+          <ExportDropdown onExportExcel={() => handleExport('Excel')} onExportPdf={() => handleExport('PDF')} color="#4b2424" hoverColor="#6b3535" />
+          <ChartExportMenu chartRoot={chartRoot} fileName="imu_partnership_chart" color="#4b2424" />
         </div>
       </div>
 
@@ -211,26 +246,13 @@ export default function PartnershipReports() {
             <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Industry Partnerships/MoUs</p>
             <div ref={industryChartDivRef} style={{ width: '100%', height: '360px' }} />
           </div>
-          <div className="ag-theme-quartz imu-partnership-report-grid mt-4" style={{ width: '100%' }}>
-            <Table ref={gridRef} theme="legacy" rowData={rowData} columnDefs={columnDefs} defaultColDef={defaultColDef} domLayout="autoHeight" rowHeight={48} headerHeight={42} suppressColumnVirtualisation={true} animateRows={true} enableExport={false} color="#4b2424" />
+          <div className="ag-theme-quartz kpi-report-grid mt-4" style={{ width: '100%' }}>
+            <Table ref={gridRef} loading={loading} theme="legacy" rowData={filteredRowData} columnDefs={columnDefs} defaultColDef={defaultColDef} domLayout="autoHeight" rowHeight={48} headerHeight={42} suppressColumnVirtualisation={true} animateRows={true} enableExport={false} color="#4b2424" />
           </div>
         </>
       )}
 
-      <style dangerouslySetInnerHTML={{ __html: `
-        .imu-partnership-report-grid.ag-theme-quartz { --ag-font-family: 'Inter', system-ui, sans-serif; --ag-row-height: 48px; --ag-active-color: #4b2424; }
-        .imu-partnership-report-grid .ag-root-wrapper { border: none !important; border-radius: 0 !important; }
-        .imu-partnership-report-grid .ag-header { background: #4b2424 !important; border-bottom: 2px solid #3a1a1a !important; }
-        .imu-partnership-report-grid .ag-header-cell { color: #ffffff !important; font-weight: 600 !important; font-size: 11px !important; text-transform: uppercase !important; letter-spacing: 0.05em !important; border-right: 1px solid rgba(255,255,255,0.15) !important; }
-        .imu-partnership-report-grid .ag-header-cell-label { justify-content: center !important; }
-        .imu-partnership-report-grid .ag-row-even { background: #ffffff !important; }
-        .imu-partnership-report-grid .ag-row-odd { background: #f8faf6 !important; }
-        .imu-partnership-report-grid .ag-cell { border-right: 1px solid #D3D6D9 !important; }
-        .dark .imu-partnership-report-grid .ag-header { background: #0f172a !important; }
-        .dark .imu-partnership-report-grid .ag-row-even { background: #090d16 !important; }
-        .dark .imu-partnership-report-grid .ag-row-odd { background: #0f172a !important; }
-        .dark .imu-partnership-report-grid .ag-cell { border-right: 1px solid #1e293b !important; color: #e2e8f0 !important; }
-      `}} />
+      </div>
     </div>
   );
 }

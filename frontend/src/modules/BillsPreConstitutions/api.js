@@ -2,7 +2,8 @@ import axios from 'axios';
 
 export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
-const api = axios.create({ baseURL: API_BASE });
+// A stalled request fails after 30 s, so the page shows its error and Retry instead of loading forever
+const api = axios.create({ baseURL: API_BASE, timeout: 30000 });
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('accessToken');
@@ -63,8 +64,13 @@ export function fetchDivisions() {
   return api.get('/mmt-dropdown/mmt_division');
 }
 
-export function fetchBills() {
-  return api.get('/bill');
+// Dashboard figures; wingId narrows the cards, heat map and long-pending list
+export function fetchBillDashboard(wingId) {
+  return api.get('/bill-dashboard', { params: wingId ? { wingId } : {} });
+}
+
+export function fetchBills(userID) {
+  return api.get('/bill', { params: { userID } });
 }
 
 export function createBill(payload) {
@@ -75,8 +81,8 @@ export function updateBill(payload) {
   return api.put('/bill', payload);
 }
 
-export function deleteBill(billId, userId) {
-  return api.delete(`/delete-bill/${billId}/${userId}`);
+export function deleteBill(billId) {
+  return api.delete(`/delete-bill/${billId}`);
 }
 
 export function fetchBillWingWiseReport() {
@@ -85,6 +91,11 @@ export function fetchBillWingWiseReport() {
 
 export function fetchBillDivisionWiseReport(wingId) {
   return api.get(`/billdivisionwise-report/${wingId}`);
+}
+
+// Every wing with each of its divisions (and wings without divisions), in one request
+export function fetchBillAbstractReport() {
+  return api.get('/bill-abstract-report');
 }
 
 export function fetchBillWingWiseDetail(wingId, stageId) {

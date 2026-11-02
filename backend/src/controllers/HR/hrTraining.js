@@ -5,11 +5,25 @@ import sql from 'mssql';
 
 async function createHRTraining(req, res) {
     let {
-        trainingTitle,otherTitleName,trainingType,otherTypeName,fromDate, toDate, trainingSource,
-        outsideAgencyName, country, location, expenditure,
-        participantData, organisationID, userID,numberOfParticipant
-    } = req.body;
-    
+    trainingTitle,
+    otherTitleName,
+    trainingType,
+    otherTypeName,
+    fromDate,
+    toDate,
+    trainingSource,
+    outsideAgencyName,
+    country,
+    location,
+    expenditure,
+    organisationID,
+    userID,
+    numberOfParticipant
+} = req.body;
+
+const participantData = Array.isArray(req.body.participantData)
+    ? req.body.participantData
+    : [];
 
     const conn = await pool;
     const transaction = new sql.Transaction(conn);
@@ -108,6 +122,7 @@ async function createHRTraining(req, res) {
         await transaction.commit();
         return res.status(201).json({ message: "Training added successfully", trainingID });
     } catch (err) {
+        console.log("err",err)
         await transaction.rollback();
         return res.status(500).json({ message: "Failed to add training", error: err.message });
     }
@@ -115,8 +130,15 @@ async function createHRTraining(req, res) {
 
 
 async function updateHRTraining(req, res) {
+    const trainingID = Number(req.params.trainingID);
+
+    if (!Number.isInteger(trainingID) || trainingID <= 0) {
+        return res.status(400).json({
+            message: "Valid training ID is required"
+        });
+    }
     let {
-        trainingID, trainingTitle,otherTypeName,otherTitleName,trainingType, fromDate, toDate, trainingSource,
+        trainingTitle,otherTypeName,otherTitleName,trainingType, fromDate, toDate, trainingSource,
         outsideAgencyName, country, location, expenditure,
         participantData, organisationID, userID,numberOfParticipant
     } = req.body;
@@ -190,7 +212,7 @@ async function updateHRTraining(req, res) {
         await request.query(`
             UPDATE tbl_hr_training SET
                 training_title_id = @trainingTitle,
-                other_type = otherTypeName,
+                other_type = @otherTypeName,
                 from_date = @fromDate,
                 to_date = @toDate,
                 training_source = @trainingSource,
@@ -228,6 +250,7 @@ async function updateHRTraining(req, res) {
         await transaction.commit();
         return res.status(200).json({ message: "Training updated successfully" });
     } catch (err) {
+        console.log("err",err)
         await transaction.rollback();
         return res.status(500).json({ message: "Failed to update training", error: err.message });
     }
@@ -332,7 +355,7 @@ async function getHRTrainingDataByOrg(req, res) {
                     ht.expenditure,
                     ht.organisation_id,
                     o.organisation_name,
-                    COUNT(hst.emp_master_id) AS number_of_participants,
+                    COUNT(hst.emp_master_id) AS NO_OF_PARTICIPANTS,
                     ht.NO_OF_PARTICIPANTS,
                     MAX(ht.updated_date) AS updated_date
 
@@ -379,50 +402,69 @@ async function getHRTrainingDataByID(req,res){
 
     try{
         const trainingResult = await request.query(`
-            SELECT [TRAINING_ID]
-                  ,[TITLE]
+            SELECT ht.[TRAINING_ID]
+                  ,tit.[TITLE]
                   ,ty.[TRAINING_TYPE_NAME]
                   ,ty.[TRAINING_TYPE_ID]
-                  ,t.[TRAINING_TITLE_ID]
-                  ,other_type
-                  ,[from_date]
-                  ,[to_date]
-                  ,[training_source]
-                  ,[outside_agency_name]
-                  ,[country_id]
-                  ,[location]
-                  ,[expenditure]
-                  ,[TBL_HR_TRAINING].[organisation_id]
-                  ,[created_date]
-                  ,[created_by]
-                  ,[updated_date]
-                  ,[updated_by],
-                  [NO_OF_PARTICIPANTS]
-            FROM [TBL_HR_TRAINING]
-            LEFT JOIN [TBL_TRAINING_TITLE] t ON [TBL_HR_TRAINING].[TRAINING_TITLE_ID] = t.[TRAINING_TITLE_ID]
-            LEFT JOIN [TBL_TRAINING_TYPE] ty ON t.[TRAINING_TYPE_ID] = ty.[TRAINING_TYPE_ID] WHERE [TBL_HR_TRAINING].TRAINING_ID = @trainingID
+                  ,ht.[TRAINING_TITLE_ID]
+                  ,ht.[other_type]
+                  ,ht.[from_date]
+                  ,ht.[to_date]
+                  ,ht.[training_source]
+                  ,ht.[outside_agency_name]
+                  ,ht.[country_id]
+                  ,mmt.[country] AS [country_name]
+                  ,ht.[location]
+                  ,ht.[expenditure]
+                  ,ht.[organisation_id]
+                  ,ht.[created_date]
+                  ,ht.[created_by]
+                  ,ht.[updated_date]
+                  ,ht.[updated_by]
+                  ,ht.[NO_OF_PARTICIPANTS]
+            FROM [tbl_hr_training] ht
+            LEFT JOIN [TBL_TRAINING_TITLE] tit ON ht.[TRAINING_TITLE_ID] = tit.[TRAINING_TITLE_ID]
+            LEFT JOIN [TBL_TRAINING_TYPE] ty ON tit.[TRAINING_TYPE_ID] = ty.[TRAINING_TYPE_ID]
+            LEFT JOIN [mmt_country] mmt ON ht.[country_id] = mmt.id
+            WHERE ht.TRAINING_ID = @trainingID
         `);
 
         const trainingStaffResult = await request.query(`
-            SELECT
-                [transaction_id]
-                ,[training_id]
-                ,[emp_master_id]
-                ,[employee_id]
-                ,[emp_transaction_id]
-
-            FROM [tbl_hr_staff_training] WHERE training_id = @trainingID
-
+            WITH StaffData AS (
+                SELECT
+                     hst.[training_id]
+                    ,hst.[emp_master_id]
+                    ,COALESCE(NULLIF(hst.[employee_id], ''), etd.employee_id, etd.emp_reference_id, '') AS [employee_id]
+                    ,hst.[emp_transaction_id]
+                    ,COALESCE(em.emp_name, '') AS [emp_name]
+                    ,COALESCE(etd.emp_department_name, '') AS [emp_department_name]
+                    ,COALESCE(etd.emp_post_name, po.post_name, em.emp_parent_org_designation, '') AS [emp_post_name]
+                    ,COALESCE(etd.emp_reference_id, '') AS [emp_reference_id]
+                    ,ROW_NUMBER() OVER (
+                        PARTITION BY hst.training_id, COALESCE(NULLIF(hst.employee_id, ''), NULLIF(etd.employee_id, ''), CAST(hst.emp_master_id AS VARCHAR(50)))
+                        ORDER BY CASE WHEN etd.emp_post_end_date IS NULL THEN 0 ELSE 1 END, etd.transaction_id DESC
+                    ) AS rn
+                FROM [tbl_hr_staff_training] hst
+                LEFT JOIN tbl_employee_master em ON hst.emp_master_id = em.emp_master_id
+                LEFT JOIN tbl_employee_transaction_details etd ON (
+                    (hst.emp_transaction_id IS NOT NULL AND hst.emp_transaction_id = etd.transaction_id)
+                    OR (hst.employee_id IS NOT NULL AND hst.employee_id = etd.employee_id)
+                    OR (hst.emp_master_id IS NOT NULL AND hst.emp_master_id = etd.emp_master_id)
+                )
+                LEFT JOIN mmt_hr_post po ON etd.emp_post_id = po.post_id
+                WHERE hst.training_id = @trainingID
+            )
+            SELECT * FROM StaffData WHERE rn = 1;
         `);
 
         res.json({
-            training: trainingResult.recordset[0],
-            participants: trainingStaffResult.recordset
+            training: trainingResult.recordset[0] || null,
+            participants: trainingStaffResult.recordset || []
         });
 
     }catch(e){
-        // console.error(err);
-        return res.status(500).json({message:"Internal Server Error",error:e});
+        console.error("Error in getHRTrainingDataByID:", e);
+        return res.status(500).json({message:"Internal Server Error",error:e.message});
     }
 }
 
@@ -475,7 +517,10 @@ try {
         .input("userID", userID)
         .input("organisationID", organisationID)
         .query(updateQuery);
-    res.status(201).json({ message: "Updated successfully" });
+    return res.status(200).json({
+    success: true,
+    message: "Updated successfully"
+});
 
     }else{
         const insertQuery = `
@@ -508,7 +553,11 @@ try {
     insertRequest.input("organisationID", organisationID);
 
     const result = await insertRequest.query(insertQuery)
-    return res.status(201).json({ result });
+    return res.status(201).json({
+    success: true,
+    message: "Created successfully",
+    result
+});
     }
 } catch (error) {
     //console.log("error",error)
@@ -752,23 +801,29 @@ async function submitHrVacancyAnticipation(req,res){
     }
 }
 
-async function deleteContracturalData(req,res) {
-    const contractId = req.params.contractId;
-    const organisationID = req.params.organisationID;
+async function deleteContracturalData(req, res) {
+    const { contractId, organisationID } = req.params;
 
-    const conn = await pool;
-    const request = conn.request();
-    request.input("contractId", contractId);
-    request.input("organisationID", organisationID);
+    try {
+        const conn = await pool;
+        const request = conn.request();
+        request.input("contractId", contractId);
+        request.input("organisationID", organisationID);
 
-   try {
-       let contractIdQuery = `DELETE FROM tbl_hr_contract_data WHERE contract_id = @contractId AND organisation_id= @organisationID`;
-       const result = await request.query(contractIdQuery);
-       res.json(result.recordset);
-    }
-    catch (err) {
-        // console.log(err);
-       return res.status(500).json({error: "failed to load data" });
+        const result = await request.query(`
+            DELETE FROM tbl_hr_contract_data
+            WHERE contract_id = @contractId
+              AND organisation_id = @organisationID
+        `);
+
+        if (!result.rowsAffected[0]) {
+            return res.status(404).json({ success: false, message: "Record not found" });
+        }
+
+        return res.json({ success: true, message: "Record deleted successfully" });
+    } catch (err) {
+        console.error("deleteContracturalData error:", err);
+        return res.status(500).json({ success: false, message: "Failed to delete record" });
     }
 }
 
@@ -786,7 +841,7 @@ async function getHRTrainingDetailsDataByOrg(req, res) {
         return res.status(400).json({ message: "Missing required query parameters" });
     }
 
-    if (!(roleID == 2 || roleID == 3 || roleID == 4 || roleID == 5 || roleID == 8)) {
+    if (!(roleID == 1 || roleID == 2 || roleID == 3 || roleID == 4 || roleID == 5 || roleID == 8)) {
         return res.status(403).json({ message: "Access denied" });
     }
 
@@ -829,7 +884,7 @@ async function getHRTrainingDetailsDataByOrg(req, res) {
                 ht.expenditure,
                 ht.organisation_id,
                 o.organisation_name,
-                ISNULL(ht.NO_OF_PARTICIPANTS, 0) + ISNULL(sc.staff_count, 0) AS number_of_participants
+                ISNULL(ht.NO_OF_PARTICIPANTS, 0) + ISNULL(sc.staff_count, 0) AS NO_OF_PARTICIPANTS
             FROM tbl_hr_training ht
             LEFT JOIN StaffCounts sc ON ht.training_id = sc.training_id
             LEFT JOIN mmt_organisation o ON o.organisation_id = ht.organisation_id
@@ -899,7 +954,7 @@ async function getAllTrainingData(req, res) {
         const allowedOrgIds = [23,15,27,21,24,19,25,22,16,17,18,20];
 
         let result;
-        if ([2,3,4,5].includes(role_id)) {
+        if ([1,2,3,4,5,8].includes(role_id)) {
 
             result = await conn.query(`
                 WITH StaffRanked AS (
@@ -918,7 +973,7 @@ async function getAllTrainingData(req, res) {
                 SELECT 
                     ROW_NUMBER() OVER (ORDER BY org.organisation_id) AS [S.No],
                     org.organisation_name AS [Organisation Name],
-                     org.organisation_id AS [Organisation ID],
+                    org.organisation_id AS [Organisation ID],
                     ht.TRAINING_ID AS [Training ID],
                     typ.TRAINING_TYPE_NAME AS [Training Type],
                     ht.TRAINING_TITLE_ID AS [Training tile ID],
@@ -930,7 +985,7 @@ async function getAllTrainingData(req, res) {
                     mmt.country AS [Country],
                     ht.LOCATION AS [Location],
                     ht.EXPENDITURE AS [Expenditure],
-                    ht.NO_OF_PARTICIPANTS AS [No of Participants],
+                    ht.NO_OF_PARTICIPANTS AS [NO_OF_PARTICIPANTS],
                     sr.emp_name AS [Employ name],
                     sr.post_name AS [Designation],
                     sr.emp_department_name AS [Department name],
@@ -979,7 +1034,7 @@ async function getAllTrainingData(req, res) {
                     mmt.country AS [Country],
                     ht.LOCATION AS [Location],
                     ht.EXPENDITURE AS [Expenditure],
-                    ht.NO_OF_PARTICIPANTS AS [No of Participants],
+                    ht.NO_OF_PARTICIPANTS AS [NO_OF_PARTICIPANTS],
                     ht.created_date AS [Date Created],
                     ht.updated_date AS [Date Updated],
                     ht.created_by AS [Created By],
@@ -1027,6 +1082,7 @@ async function getAllTrainingData(req, res) {
                     mmt.country AS [Country],
                     ht.LOCATION AS [Location],
                     ht.EXPENDITURE AS [Expenditure],
+                    ht.NO_OF_PARTICIPANTS AS [NO_OF_PARTICIPANTS],
                     sr.emp_name AS [Employ name],
                     sr.post_name AS [Designation],
                     sr.emp_department_name AS [Department name],
@@ -1168,7 +1224,7 @@ async function getAllContractualData(req,res) {
         const userResult = await conn.query(` SELECT role_id,organisation_id FROM tbl_user WHERE user_id = ${userID} `);
         const { role_id,organisation_id  } = userResult.recordset[0];
         let result;
-        if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8) {
+        if ([1,2,3,4,5,8].includes(role_id)) {
             result = await conn.query(`
             SELECT 
                 ROW_NUMBER() OVER (ORDER BY org.organisation_id) AS [S.No],

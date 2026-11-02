@@ -1,3 +1,4 @@
+/* global describe, it, expect */
 /**
  * mapNoteToForm: turns an API row into edit form fields.
  */

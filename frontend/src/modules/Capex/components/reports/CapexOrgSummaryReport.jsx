@@ -16,6 +16,8 @@ import {
   getCapexReportAsOnMeta,
   getCapexStatusMeta,
 } from '../../utils/capexUtils';
+import { COMMON_TOASTS } from '../../../../utils/notify';
+import { CAPEX_TOASTS } from '../../toastMessages';
 
 const BRAND = '#4b2424';
 const BRAND_HOVER = '#6b3535';
@@ -28,7 +30,7 @@ function fmt(num) {
   return Number(num).toFixed(2);
 }
 
-export default function CapexOrgSummaryReport({ showToast }) {
+export default function CapexOrgSummaryReport({ notify }) {
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState([]);
   const [isFilterOpen, setIsFilterOpen] = useState(true);
@@ -77,11 +79,11 @@ export default function CapexOrgSummaryReport({ showToast }) {
     } catch (err) {
       console.error(err);
       setRows([]);
-      showToast?.('❌ Failed to load organisation Capex summary', '#EF4444');
+      notify?.(COMMON_TOASTS.loadFailed('The organisation Capex summary'));
     } finally {
       setLoading(false);
     }
-  }, [orgId, showToast]);
+  }, [orgId, notify]);
 
   useEffect(() => {
     fetchSummary();
@@ -104,7 +106,7 @@ export default function CapexOrgSummaryReport({ showToast }) {
       ),
     ];
     navigator.clipboard.writeText(lines.join('\n')).then(() => {
-      showToast?.('📋 Organisation Capex summary copied!', BRAND);
+      notify?.(CAPEX_TOASTS.reportCopied('organisation Capex summary'));
     });
   };
 
@@ -121,7 +123,7 @@ export default function CapexOrgSummaryReport({ showToast }) {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Org Capex Summary');
     XLSX.writeFile(wb, 'Capex_Org_Summary_Report.xlsx');
-    showToast?.('📊 Organisation Capex summary exported!', BRAND);
+    notify?.(COMMON_TOASTS.excelExported('Capex_Org_Summary_Report.xlsx', 'The report'));
   };
 
   const orgLabel = rows[0]?.organisation_name || 'Your organisation';
@@ -164,9 +166,11 @@ export default function CapexOrgSummaryReport({ showToast }) {
             className="!rounded-[9px] !py-[9px] !px-[16px]"
           />
           <ExportDropdown
+            color="#4b2424"
+            hoverColor="#6b3535"
             onExportExcel={handleExportExcel}
             onExportPdf={() => {
-              showToast?.('📄 Opening print…', BRAND);
+              notify?.(COMMON_TOASTS.pdfPreparing());
               window.print();
             }}
             color={BRAND}

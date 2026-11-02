@@ -5,6 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import xlsx from 'xlsx';
 import { fileURLToPath } from 'url';
+import { getDataScope } from '../../middleware/dataScope.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -544,54 +545,63 @@ async function getDataFromVacancyDetails(req, res) {
     try {
         const organisationID = parseInt(req.params.organisationID);
         const conn = await pool;
-        const request = conn.request();
 
-        request.input("organisationID", organisationID);
+        let year = parseInt(req.query.year);
+        let month = parseInt(req.query.month);
+        year = Number.isInteger(year) ? year : null;
+        month = Number.isInteger(month) && month >= 1 && month <= 12 ? month : null;
 
-        // First get the latest year and month for this organisation
-        const latestDateResult = await request.query(`
-            SELECT TOP 1 Uploaded_year, Uploaded_month
-            FROM tbl_hr_other_org_vacancy_details vd
-            --LEFT JOIN mmt_class cls ON vd.class = cls.class_id
-            WHERE organisation_id = @organisationID
-            ORDER BY Uploaded_year DESC, Uploaded_month DESC
-        `);
+        console.log('vacancy filter received ->', { organisationID, year, month, query: req.query });
 
-        if (latestDateResult.recordset.length === 0) {
-            return res.status(404).json({ error: 'No data available' });
+        // No filter given -> default to the latest upload
+        if (year === null && month === null) {
+            const latest = await conn.request()
+                .input("organisationID", organisationID)
+                .query(`
+                    SELECT TOP 1 Uploaded_year, Uploaded_month
+                    FROM tbl_hr_other_org_vacancy_details
+                    WHERE organisation_id = @organisationID
+                      AND Uploaded_month BETWEEN 1 AND 12
+                    ORDER BY Uploaded_year DESC, Uploaded_month DESC
+                `);
+
+            if (latest.recordset.length === 0) {
+                return res.json({ columnDefs: [], rowData: [] });
+            }
+            year = latest.recordset[0].Uploaded_year;
+            month = latest.recordset[0].Uploaded_month;
         }
 
-        const { Uploaded_year, Uploaded_month } = latestDateResult.recordset[0];
+        const request = conn.request();
+        request.input("organisationID", organisationID);
 
-        // Now fetch data only for the latest year and month
-        request.input("Uploaded_year", Uploaded_year);
-        request.input("Uploaded_month", Uploaded_month);
+        let filterSql = '';
+        if (year !== null)  { request.input("Uploaded_year", year);   filterSql += ' AND vd.Uploaded_year = @Uploaded_year'; }
+        if (month !== null) { request.input("Uploaded_month", month); filterSql += ' AND vd.Uploaded_month = @Uploaded_month'; }
 
         const result = await request.query(`
             SELECT  
-            vd.Uploaded_year As [Year], 
-            vd.Uploaded_month As [Month], 
-            vd.department As [Department], 
-            vd.post_id As [Post ID], 
-            vd.post_name As [Post Name],
-            vd.class As [Class], 
-            vd.vacant_or_filled As [Vacant or Filled], 
-            vd.date_of_arise As [Date of Arise in Vacancy], 
-            vd.name_of_employee As [Employee Name],
-            vd.staff_reference_id As [Employee Reference ID], 
-            vd.date_of_retirement As [Date of Retirement]
+                vd.Uploaded_year      AS [Year],
+                vd.Uploaded_month     AS [Month],
+                vd.department         AS [Department],
+                vd.post_id            AS [Post ID],
+                vd.post_name          AS [Post Name],
+                vd.class              AS [Class],
+                vd.vacant_or_filled   AS [Vacant or Filled],
+                vd.date_of_arise      AS [Date of Arise in Vacancy],
+                vd.name_of_employee   AS [Employee Name],
+                vd.staff_reference_id AS [Employee Reference ID],
+                vd.date_of_retirement AS [Date of Retirement]
             FROM [dbo].[tbl_hr_other_org_vacancy_details] vd
             INNER JOIN mmt_organisation org ON vd.organisation_id = org.organisation_id
-            --LEFT JOIN mmt_class cls ON vd.class = cls.class_id
             WHERE vd.organisation_id = @organisationID
-              AND vd.Uploaded_year = @Uploaded_year
-              AND vd.Uploaded_month = @Uploaded_month
+            ${filterSql}
+            ORDER BY vd.Uploaded_year DESC, vd.Uploaded_month DESC
         `);
 
         const rowData = result.recordset;
-
         if (rowData.length === 0) {
-            return res.status(404).json({ columnDefs: [], rowData: [] });
+            return res.json({ columnDefs: [], rowData: [] });
         }
 
         const columnDefs = Object.keys(rowData[0]).map(key => ({
@@ -600,9 +610,8 @@ async function getDataFromVacancyDetails(req, res) {
         }));
 
         res.json({ columnDefs, rowData });
-
     } catch (err) {
-        // console.error("error", err);
+        console.error("getDataFromVacancyDetails error", err);
         res.status(500).send('Internal Server Error');
     }
 }
@@ -765,6 +774,34 @@ function yesNoToInt(value) {
         .toLowerCase() === 'yes' ? 1 : 0;
 }
 
+// Runs after multer, before fileUploadVacancyDetails. The monthly file belongs to the signed-in
+// organisation user: organisation and user come from the token, not the form, and year / month
+// must be whole numbers (the handler puts them into SQL). A rejected request's file is removed.
+function pinUploadScope(req, res, next) {
+    const reject = (status, message) => {
+        if (req.file?.path) fs.promises.unlink(req.file.path).catch(() => {});
+        return res.status(status).json({ message });
+    };
+    const { isOrganisation, organisationId } = getDataScope(req.user);
+    if (!isOrganisation || !(Number.isFinite(organisationId) && organisationId > 0)) {
+        return reject(403, "Only organisation users can upload monthly vacancy details.");
+    }
+    const financialYear = Number(req.body?.financialYear);
+    const month = Number(req.body?.month);
+    if (!Number.isInteger(financialYear) || financialYear < 2000 || financialYear > 2100) {
+        return reject(400, "Invalid year.");
+    }
+    if (!Number.isInteger(month) || month < 1 || month > 12) {
+        return reject(400, "Invalid month.");
+    }
+    if (!req.file) return reject(400, "Please choose a file to upload.");
+    req.body.financialYear = financialYear;
+    req.body.month = month;
+    req.body.organisationID = organisationId;
+    req.body.userID = req.user?.userId ?? null;
+    return next();
+}
+
 async function fileUploadVacancyDetails(req, res) {
     let transaction;
     try {
@@ -827,12 +864,9 @@ async function fileUploadVacancyDetails(req, res) {
         }
  
         // Insert into file metadata table
-        const currentDate = new Date();
-        const formattedDate = currentDate.toISOString().slice(0, 19).replace('T', ' ');
- 
         await transaction.request().query(`
             INSERT INTO tbl_hr_other_org_vacancy_file_details (Uploaded_year,uploaded_month,file_name, uploaded_by, uploaded_date,organisation_id)
-            VALUES ('${financialYear}','${month}','${uniqueFileName}', ${userID}, '${formattedDate}','${organisationID}')
+            VALUES ('${financialYear}','${month}','${uniqueFileName}', ${userID}, GETDATE(),'${organisationID}')
         `);
  
         const fileIdResult = await transaction.request().query(`
@@ -1116,13 +1150,20 @@ async function deleteVacancyFile(req, res) {
         request.input("fileId", fileId);
 
         const getFileQuery = `
-            SELECT file_name 
+            SELECT file_name, organisation_id
             FROM tbl_hr_other_org_vacancy_file_details 
             WHERE Uploaded_File_id = @fileId
         `;
         const fileResult = await request.query(getFileQuery);
         if (fileResult.recordset.length === 0) {
             return res.status(404).json({ error: "File not found" });
+        }
+
+        // An organisation user may only remove their own organisation's uploads
+        const { isWide, isOrganisation, organisationId } = getDataScope(req.user);
+        const ownerOrgId = Number(fileResult.recordset[0].organisation_id);
+        if (!isWide && !(isOrganisation && ownerOrgId === organisationId)) {
+            return res.status(403).json({ error: "You may not delete this file" });
         }
 
         const fileName = fileResult.recordset[0].file_name;
@@ -1231,5 +1272,5 @@ async function getClassOrgWise(req, res) {
 export default {
     getOtherOrgVacancyDetails, getHRDashboardContentOtherOrgData, getOtherOrgAbolishingPostWithinmonth, getOtherOrgEmpGoingToRetireWithinSixMonths,
     getOtherOrgGenderWiseCountByOrg, getOtherOrgCommunityWiseCountByOrg, getOtherOrgExperiencedEmpCount, getOtherOrgPwbdWiseCount, getLastUploadDate, getDataFromVacancyDetails, getFileUploadDetails,
-    fileUploadVacancyDetails, upload,deleteVacancyFile, getClassOrgWise
+    fileUploadVacancyDetails, upload, pinUploadScope, deleteVacancyFile, getClassOrgWise
 }

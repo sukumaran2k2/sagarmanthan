@@ -112,6 +112,7 @@ export function exportDataListToPdf({
   visibleCols = {},
   rowData = [],
   fileName = 'data_list',
+  serialStart = 0, // S.No of the first row minus one (e.g. 20 for page 3 of 10-row pages)
 }) {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -134,7 +135,7 @@ export function exportDataListToPdf({
   const fields = Object.keys(columnLabels).filter((f) => visibleCols[f]);
   const head = [['S.No', ...fields.map((f) => columnLabels[f])]];
   const body = rowData.map((row, i) => [
-    String(i + 1),
+    String(serialStart + i + 1),
     ...fields.map((f) => {
       const val = row[f];
       return val === null || val === undefined ? '' : String(val);

@@ -76,9 +76,12 @@ async function getDashboardDataEntryStatus(req,res){
             FROM tbl_cabinet_notes_mopsw 
             GROUP BY wing) cnm ON mmt_wings.wing_id = cnm.wing
         LEFT JOIN 
-            (SELECT wing, COUNT(*) AS [total_cabinet_notes_other_ministries]
-            FROM tbl_cabinet_notes_ministry_change
-            GROUP BY wing) cno ON mmt_wings.wing_id = cno.wing
+            -- Other ministry notes have no owning wing; count each note under the wings it was sent to for comments
+            (SELECT w.wing_id AS wing, COUNT(DISTINCT n.cabinet_notes_ministry_id) AS [total_cabinet_notes_other_ministries]
+            FROM tbl_cabinet_notes_ministry n
+            CROSS APPLY STRING_SPLIT(n.sent_for_comments_wings, ',') s
+            JOIN mmt_wings w ON LTRIM(RTRIM(s.value)) IN (CAST(w.wing_id AS NVARCHAR(10)), LTRIM(RTRIM(w.wing_name)))
+            GROUP BY w.wing_id) cno ON mmt_wings.wing_id = cno.wing
         LEFT JOIN 
             (SELECT wing, COUNT(*) AS [total_audit_para]
             FROM tbl_audit_para 
@@ -86,6 +89,7 @@ async function getDashboardDataEntryStatus(req,res){
         LEFT JOIN 
             (SELECT wing, COUNT(*) AS [total_bills]
             FROM tbl_bill
+            WHERE ISNULL(is_deleted, 0) = 0
             GROUP BY wing) bp ON mmt_wings.wing_id = bp.wing
         LEFT JOIN 
             (SELECT wing, COUNT(*) AS [total_parliamentary_issue]
@@ -236,9 +240,10 @@ async function getDashboardGemProAndCapex(req, res) {
         const conn = await pool;
         const request = conn.request();
 
-        const userID = req.params.userId;
+        // The signed-in user, not the one named in the URL
+        const userID = req.user?.userId;
         request.input("userID", userID);
-        const financialYear = getCurrentFinancialYear(); 
+        const financialYear = getCurrentFinancialYear();
         request.input("financialYear", financialYear);
 
         // Get user role and organisation
@@ -653,7 +658,7 @@ async function getDashboardGemProAndCapex(req, res) {
 
     } catch (error) {
         console.error("Error:", error);
-        return res.status(500).json({ error: error.message });
+        return res.status(500).json({ error: "Failed to load the dashboard." });
     }
 }
 
@@ -674,7 +679,8 @@ async function getDashboardGemProAndCapexministryView(req, res) {
         const conn = await pool;
         const request = conn.request();
 
-        const userID = req.params.userId;
+        // The signed-in user, not the one named in the URL
+        const userID = req.user?.userId;
         request.input("userID", userID);
 
         const financialYear = getCurrentFinancialYear();
@@ -747,7 +753,7 @@ async function getDashboardGemProAndCapexministryView(req, res) {
 
     } catch (error) {
         console.error("Error:", error);
-        return res.status(500).json({ error: error.message });
+        return res.status(500).json({ error: "Failed to load the dashboard." });
     }
 }
 
@@ -888,7 +894,11 @@ const moduleConfig = {
   },
   "Cabinet Notes-Other Ministry": {
     table: "tbl_cabinet_notes_ministry",
-    wingColumn: "wing",
+    // sent_for_comments_wings holds comma-separated wing ids (older rows may hold names)
+    wingJoin: `EXISTS (
+      SELECT 1 FROM STRING_SPLIT(com.sent_for_comments_wings, ',') s
+      WHERE LTRIM(RTRIM(s.value)) IN (CAST(wing.wing_id AS NVARCHAR(10)), LTRIM(RTRIM(wing.wing_name)))
+    )`,
     dateExpression: `
       CASE 
         WHEN com.created_date > com.updated_date 
@@ -938,6 +948,7 @@ const moduleConfig = {
       END
     `,
     alias: "bpa",
+    joinFilter: "ISNULL(bpa.is_deleted, 0) = 0", // deleted bills are kept, marked is_deleted
     noDataStatus: "No Active Matters",
     completionColumn: "completed_date"
   },
@@ -1215,11 +1226,15 @@ function buildWingCases(wings, module) {
 function buildModuleQuery(moduleName, module, wings) {
   const wingCases = buildWingCases(wings, module);
 
-  const joinClause = module.wingColumn
+  const extra = module.joinFilter ? ` AND ${module.joinFilter}` : '';
+  const joinClause = module.wingJoin
     ? `LEFT JOIN ${module.table} ${module.alias}
-       ON wing.wing_id = ${module.alias}.${module.wingColumn}`
+       ON ${module.wingJoin}${extra}`
+    : module.wingColumn
+    ? `LEFT JOIN ${module.table} ${module.alias}
+       ON wing.wing_id = ${module.alias}.${module.wingColumn}${extra}`
     : `LEFT JOIN ${module.table} ${module.alias}
-       ON 1 = 1`; // fallback when no wing column exists
+       ON 1 = 1${extra}`; // fallback when no wing column exists
 
   return `
     SELECT 

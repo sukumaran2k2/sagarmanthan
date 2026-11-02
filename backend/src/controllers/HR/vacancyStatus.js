@@ -1,5 +1,5 @@
 import { pool } from "../../db.js";
-import {convertIntoVacantPost, getNewEmployeeIDofOrg} from "../HR/hrHelperFunctions.js";
+import {convertIntoVacantPost, getNewEmployeeIDofOrg, safeRollback, httpError, resolveReportOrganisation, readListQuery, likePattern, resolveListOrganisation, runPagedQuery, buildPagination} from "../HR/hrHelperFunctions.js";
 import sql from 'mssql';
 
 async function getAllHrPostByOrgID(req,res){
@@ -72,7 +72,7 @@ async function updateHrEmployeeActivity(req,res){
         let empPostID = empAssignedPostResult.recordset.length > 0 ? empAssignedPostResult.recordset[0].post_id : null;
 
         if(employeePostCode == null || empPostID == null){
-            return res.status(400).json({ message: "User doesn't have any designation"});
+            throw httpError(400, "User doesn't have any designation");
         }
 
         request.input("employeePostCode",employeePostCode);
@@ -142,7 +142,7 @@ async function updateHrEmployeeActivity(req,res){
         //ABSORPTION ACTIVITY
         else if(activityName == "Absorption"){
             if(absorptionDate == null){
-                return res.status(400).json({message : "Absorption date is missing for the absorption activity"});
+                throw httpError(400, "Absorption date is missing for the absorption activity");
             }
 
             postEndDate = new Date(absorptionDate);
@@ -151,8 +151,7 @@ async function updateHrEmployeeActivity(req,res){
 
             //Validate whether user have deputing organisation
             if(deputedOrgID == null){
-                return res.status(400).json({ message: "User don't have any organisation to be deputed"});
-                await transaction.rollback();
+                throw httpError(400, "User don't have any organisation to be deputed");
             }
 
             //Generating a new employee id for the absorbed employee
@@ -325,8 +324,9 @@ async function updateHrEmployeeActivity(req,res){
         await transaction.commit();
         return res.status(200).json({message : "No Activity Done for the employee"});
     } catch (err) {
-        if (transaction) {
-            await transaction.rollback();
+        await safeRollback(transaction);
+        if (err.status) {
+            return res.status(err.status).json({ message: err.message });
         }
         res.status(500).json({
             error: err.message || 'Internal Server Error',
@@ -380,7 +380,9 @@ async function getPromotionVacantPostCode(req,res){
 //DASHBOARD APIS
 
 async function getHRDashboardContentData(req, res) {
-    const organisationID = parseInt(req.params.organisationID);
+    // Organisation users read their own organisation; ministry users any (0 = all)
+    const organisationID = resolveReportOrganisation(req, req.params.organisationID);
+    if (organisationID === null) return res.status(403).json({ message: "Your account is not linked to an organisation." });
     const clusterID = parseInt(req.params.clusterID);
 
     const conn = await pool;
@@ -708,7 +710,9 @@ async function getGenderWiseContByOrg(req, res) {
 
 
 async function getDepartmentWiseEmpContByOrg(req, res) {
-    const organisationID = parseInt(req.params.organisationID);
+    // Organisation users read their own organisation; ministry users any (0 = all)
+    const organisationID = resolveReportOrganisation(req, req.params.organisationID);
+    if (organisationID === null) return res.status(403).json({ message: "Your account is not linked to an organisation." });
     const clusterID = parseInt(req.params.clusterID);
 
     const conn = await pool;
@@ -1390,12 +1394,11 @@ async function updateHRPostActivitiy(req, res) {
     const postCode = req.body.postCode;
     const userID = req.body.userID;
 
-    const currentDate = new Date().toISOString().slice(0, 10);
 
     const conn = await pool;
-    const request = conn.request();
-
+    // Every query below must run on the transaction, so the request is bound to it.
     const transaction = new sql.Transaction(conn);
+    const request = new sql.Request(transaction);
 
     request.input("organisationID", organisationID);
     request.input("processInitiatedDate", processInitiatedDate);
@@ -1427,7 +1430,6 @@ async function updateHRPostActivitiy(req, res) {
     request.input("approvalByAuthorityDatePromotion", approvalByAuthorityDatePromotion);
     request.input("orderDatePromotion", orderDatePromotion);
     request.input("selectEmployeeId", selectEmployeeId);
-    request.input("currentDate", currentDate);
     request.input("selectDeputedEmployeeId", selectDeputedEmployeeId);
     request.input("selectDeputedEmployeeMasterId", selectDeputedEmployeeMasterId);
 
@@ -1443,7 +1445,11 @@ async function updateHRPostActivitiy(req, res) {
 
     request.input("numberOfEligibleApplication", numberOfEligibleApplication);
 
-    await transaction.begin();
+    try {
+        await transaction.begin();
+    } catch (err) {
+        return res.status(500).json({ message: "Could not start the database transaction", error: err.message });
+    }
     switch (methodOfAppointment) {
         case 'directRecruitment':
             try {
@@ -1461,36 +1467,103 @@ async function updateHRPostActivitiy(req, res) {
 
 
                 await request.query(`
-                UPDATE tbl_hr_post_strength
-                SET
-                    expected_anticipated_vacancy = 'Direct Recruitment',
-                    A_is_recruitment_through_ipa = @recruitmentThrough,
-                    A_process_initiated_date = @processInitiatedDate,
-                    A_notification_adv_issued_date = @notificationIssuedDate,
-                    A_number_of_eligible_application = @numberOfEligibleApplication,
-                    A_renotification_adv_issued_date = @reNotificationIssuedDate,
-                    A_exam_conducted_date = @examConductedDate,
-                    A_interview_conducted_date = @interviewConductedDate,
-                    A_selection_process_completed_date = @selectionProcessDate,
-                    A_result_declared_date = @resultDeclaredDate,
-                    A_appointment_letter_issued_date = @appointmentLetterIssuedDate,
-                    A_vigilance_clr_received_date = NULL,
-                    A_dpc_conducted_date = NULL,
-                    A_approval_by_ca_date = NULL,
-                    A_promotion_order_issued_date = NULL,
-                    A_application_received_date = NULL,
-                    A_review_application_by_comm = NULL,
-                    A_approval_received_date = NULL,
-                    A_order_issued_date = NULL,
-                    updated_date = @currentDate,
-                    updated_by = @userID
-                WHERE post_code = @postCode
-            `);
+                    UPDATE tbl_hr_post_strength
+                    SET
+                        expected_anticipated_vacancy = 'Direct Recruitment',
+                        updated_date = GETDATE(),
+                        updated_by = @userID
+                    WHERE post_code = @postCode;
+
+                    IF EXISTS (SELECT 1 FROM tbl_hr_anticipated_vacancies_details WHERE post_code = @postCode)
+                    BEGIN
+                        UPDATE tbl_hr_anticipated_vacancies_details
+                        SET
+                            A_is_recruitment_through_ipa = @recruitmentThrough,
+                            A_process_initiated_date = @processInitiatedDate,
+                            A_notification_adv_issued_date = @notificationIssuedDate,
+                            A_number_of_eligible_application = @numberOfEligibleApplication,
+                            A_renotification_adv_issued_date = @reNotificationIssuedDate,
+                            A_exam_conducted_date = @examConductedDate,
+                            A_interview_conducted_date = @interviewConductedDate,
+                            A_selection_process_completed_date = @selectionProcessDate,
+                            A_result_declared_date = @resultDeclaredDate,
+                            A_appointment_letter_issued_date = @appointmentLetterIssuedDate,
+                            A_vigilance_clr_received_date = NULL,
+                            A_dpc_conducted_date = NULL,
+                            A_approval_by_ca_date = NULL,
+                            A_promotion_order_issued_date = NULL,
+                            A_application_received_date = NULL,
+                            A_review_application_by_comm = '',
+                            A_approval_received_date = NULL,
+                            A_order_issued_date = NULL,
+                            updated_date = GETDATE(),
+                            updated_by = @userID,
+                            organisation_id = @organisationID
+                        WHERE post_code = @postCode;
+                    END
+                    ELSE
+                    BEGIN
+                        INSERT INTO tbl_hr_anticipated_vacancies_details (
+                            post_code,
+                            post_id,
+                            department_id,
+                            A_is_recruitment_through_ipa,
+                            A_process_initiated_date,
+                            A_notification_adv_issued_date,
+                            A_number_of_eligible_application,
+                            A_renotification_adv_issued_date,
+                            A_exam_conducted_date,
+                            A_interview_conducted_date,
+                            A_selection_process_completed_date,
+                            A_result_declared_date,
+                            A_appointment_letter_issued_date,
+                            A_vigilance_clr_received_date,
+                            A_dpc_conducted_date,
+                            A_approval_by_ca_date,
+                            A_promotion_order_issued_date,
+                            A_application_received_date,
+                            A_review_application_by_comm,
+                            A_approval_received_date,
+                            A_order_issued_date,
+                            created_date,
+                            created_by,
+                            organisation_id
+                        )
+                        SELECT
+                            @postCode,
+                            ps.post_id,
+                            ps.department_id,
+                            @recruitmentThrough,
+                            @processInitiatedDate,
+                            @notificationIssuedDate,
+                            @numberOfEligibleApplication,
+                            @reNotificationIssuedDate,
+                            @examConductedDate,
+                            @interviewConductedDate,
+                            @selectionProcessDate,
+                            @resultDeclaredDate,
+                            @appointmentLetterIssuedDate,
+                            NULL,
+                            NULL,
+                            NULL,
+                            NULL,
+                            NULL,
+                            '',
+                            NULL,
+                            NULL,
+                            GETDATE(),
+                            @userID,
+                            @organisationID
+                        FROM tbl_hr_post_strength ps
+                        WHERE ps.post_code = @postCode;
+                    END
+                `);
 
                 await transaction.commit();
                 res.sendStatus(201);
             } catch (err) {
                 //console.log(err);
+                await safeRollback(transaction);
                 return res.status(500).json({message:"Internal Server Error",error:err});
             }
             break;
@@ -1501,33 +1574,107 @@ async function updateHRPostActivitiy(req, res) {
                     UPDATE tbl_hr_post_strength
                     SET
                         expected_anticipated_vacancy = 'Promotion',
-                        A_process_initiated_date = @processInitiatedDate,
-                        A_vigilance_clr_received_date = @vigilanceClearanceDatePromotion,
-                        A_dpc_conducted_date = @dpcConductedDatePromotion,
-                        A_approval_by_ca_date = @approvalByAuthorityDatePromotion,
-                        A_promotion_order_issued_date = @orderDatePromotion,
-                        A_application_received_date = NULL,
-                        A_review_application_by_comm = NULL,
-                        A_approval_received_date = NULL,
-                        A_order_issued_date = NULL,
-                        A_number_of_eligible_application = NULL,
-                        A_exam_conducted_date = NULL,
-                        A_interview_conducted_date = NULL,
-                        A_selection_process_completed_date = NULL,
-                        A_result_declared_date = NULL,
-                        A_appointment_letter_issued_date = NULL,
-                        updated_date = @currentDate,
+                        updated_date = GETDATE(),
                         updated_by = @userID
-                    WHERE post_code = @postCode
+                    WHERE post_code = @postCode;
+
+                    IF EXISTS (SELECT 1 FROM tbl_hr_anticipated_vacancies_details WHERE post_code = @postCode)
+                    BEGIN
+                        UPDATE tbl_hr_anticipated_vacancies_details
+                        SET
+                            A_is_recruitment_through_ipa = NULL,
+                            A_process_initiated_date = @processInitiatedDate,
+                            A_notification_adv_issued_date = NULL,
+                            A_number_of_eligible_application = NULL,
+                            A_renotification_adv_issued_date = NULL,
+                            A_exam_conducted_date = NULL,
+                            A_interview_conducted_date = NULL,
+                            A_selection_process_completed_date = NULL,
+                            A_result_declared_date = NULL,
+                            A_appointment_letter_issued_date = NULL,
+                            A_vigilance_clr_received_date = @vigilanceClearanceDatePromotion,
+                            A_dpc_conducted_date = @dpcConductedDatePromotion,
+                            A_approval_by_ca_date = @approvalByAuthorityDatePromotion,
+                            A_promotion_order_issued_date = @orderDatePromotion,
+                            A_application_received_date = NULL,
+                            A_review_application_by_comm = '',
+                            A_approval_received_date = NULL,
+                            A_order_issued_date = NULL,
+                            updated_date = GETDATE(),
+                            updated_by = @userID,
+                            organisation_id = @organisationID
+                        WHERE post_code = @postCode;
+                    END
+                    ELSE
+                    BEGIN
+                        INSERT INTO tbl_hr_anticipated_vacancies_details (
+                            post_code,
+                            post_id,
+                            department_id,
+                            A_is_recruitment_through_ipa,
+                            A_process_initiated_date,
+                            A_notification_adv_issued_date,
+                            A_number_of_eligible_application,
+                            A_renotification_adv_issued_date,
+                            A_exam_conducted_date,
+                            A_interview_conducted_date,
+                            A_selection_process_completed_date,
+                            A_result_declared_date,
+                            A_appointment_letter_issued_date,
+                            A_vigilance_clr_received_date,
+                            A_dpc_conducted_date,
+                            A_approval_by_ca_date,
+                            A_promotion_order_issued_date,
+                            A_application_received_date,
+                            A_review_application_by_comm,
+                            A_approval_received_date,
+                            A_order_issued_date,
+                            created_date,
+                            created_by,
+                            organisation_id
+                        )
+                        SELECT
+                            @postCode,
+                            ps.post_id,
+                            ps.department_id,
+                            NULL,
+                            @processInitiatedDate,
+                            NULL,
+                            NULL,
+                            NULL,
+                            NULL,
+                            NULL,
+                            NULL,
+                            NULL,
+                            NULL,
+                            @vigilanceClearanceDatePromotion,
+                            @dpcConductedDatePromotion,
+                            @approvalByAuthorityDatePromotion,
+                            @orderDatePromotion,
+                            NULL,
+                            '',
+                            NULL,
+                            NULL,
+                            GETDATE(),
+                            @userID,
+                            @organisationID
+                        FROM tbl_hr_post_strength ps
+                        WHERE ps.post_code = @postCode;
+                    END
                 `);
 
                 await transaction.commit();
                 res.sendStatus(201);
             } catch (err) {
                 //console.log(err);
+                await safeRollback(transaction);
                 return res.status(500).json({message:"Internal Server Error",error:err});
             }
             break;
+
+        default:
+            await safeRollback(transaction);
+            return res.status(400).json({ message: `Unknown method of appointment: ${methodOfAppointment}` });
     }
 };
 
@@ -1574,86 +1721,100 @@ async function getCommunityWiseCountByOrg(req, res) {
     }
 }
 
+// Vacancy position as recorded in a month's vacancy log (tbl_hr_post_strength_log is a monthly
+// snapshot of tbl_hr_post_strength). A vacancy counts as abolished once it has been vacant for
+// five years by the end of that month, so a past month reads as it stood then.
+// Returns { year, month, organisationID, clusterID } or sends the error response and returns null.
+function readVacancyLogPeriod(req, res) {
+    const organisationID = resolveReportOrganisation(req, req.params.organisationID);
+    if (organisationID === null) {
+        res.status(403).json({ message: "Your account is not linked to an organisation." });
+        return null;
+    }
+    const clusterID = Number.parseInt(req.params.clusterID, 10);
+    const year = Number.parseInt(req.params.year, 10);
+    const month = Number.parseInt(req.params.month, 10);
+    if (!Number.isInteger(clusterID) || clusterID < 0 || !(year >= 2000 && year <= 2100) || !(month >= 1 && month <= 12)) {
+        res.status(400).json({ message: "Invalid cluster, year or month." });
+        return null;
+    }
+    return { organisationID, clusterID, year, month };
+}
+
+// The log has no indexes and holds every month, so the month is copied into #vacancy_log once
+// (one scan) and the report aggregates that; joining the log directly gets plans that time out.
+// `select` reads from #vacancy_log m joined to mmt_organisation mo, and may use @asOf: the end
+// of the logged month, when a vacancy counts as abolished after five years.
+function queryVacancyLogMonth(request, { organisationID, clusterID, year, month }, select) {
+    request.input("year", sql.Int, year);
+    request.input("month", sql.Int, month);
+    if (organisationID !== 0) request.input("organisationID", sql.Int, organisationID);
+    if (clusterID !== 0) request.input("clusterID", sql.Int, clusterID);
+    const where = [];
+    if (organisationID !== 0) where.push("mo.organisation_id = @organisationID");
+    if (clusterID !== 0) where.push("mo.hr_cluster_id = @clusterID");
+    return request.query(`
+        SELECT
+            l.organisation_id,
+            TRY_CAST(l.department_id AS INT) AS department_id,
+            TRY_CAST(l.post_id AS INT) AS post_id,
+            l.post_code,
+            l.vacant_or_filled,
+            l.date_of_arise_in_vacancy,
+            l.exception_abolish
+        INTO #vacancy_log
+        FROM tbl_hr_post_strength_log l
+        WHERE l.log_year = @year AND l.log_month = @month;
+
+        DECLARE @asOf DATE = EOMONTH(DATEFROMPARTS(@year, @month, 1));
+
+        ${select(where.length ? `WHERE ${where.join(" AND ")}` : "")}
+
+        DROP TABLE #vacancy_log;
+    `);
+}
+
+// Post counts for one group of #vacancy_log rows, as in getDepartmentWiseEmpContByOrg.
+const LOG_POST_COUNTS = `
+    COUNT(m.post_code) AS total_sanctioned_strength,
+    COUNT(CASE WHEN m.vacant_or_filled = 'filled' THEN 1 END) AS filled_post,
+    COUNT(CASE WHEN
+        m.vacant_or_filled = 'vacant'
+        AND m.date_of_arise_in_vacancy IS NOT NULL
+        AND ((m.exception_abolish IS NULL OR m.exception_abolish = 0)
+            AND DATEADD(YEAR, 5, m.date_of_arise_in_vacancy) > @asOf
+            OR m.exception_abolish = 1)
+    THEN 1 END) AS totalLivePost,
+    COUNT(CASE WHEN
+        m.vacant_or_filled = 'vacant'
+        AND m.date_of_arise_in_vacancy IS NOT NULL
+        AND (m.exception_abolish IS NULL OR m.exception_abolish = 0)
+        AND DATEADD(YEAR, 5, m.date_of_arise_in_vacancy) <= @asOf
+    THEN 1 END) AS totalAbolishedPost`;
+
 async function getHRDashboardContentDataFiltered(req, res) {
-    const organisationID = parseInt(req.params.organisationID);
-    const clusterID = parseInt(req.params.clusterID);
-    const year = parseInt(req.params.year);
-    const month = parseInt(req.params.month);
-
-    const conn = await pool;
-    const request = conn.request();
-
-    if (organisationID !== 0) request.input("organisationID", organisationID);
-    if (clusterID !== 0) request.input("clusterID", clusterID);
-
-    request.input("year", year);
-    request.input("month", month);
-
-    let conditions = [];
-
-    if (organisationID !== 0) conditions.push("o.organisation_id = @organisationID");
-    if (clusterID !== 0) conditions.push("o.hr_cluster_id = @clusterID");
-
-    conditions.push("1=1");
-    conditions.push("1=1");
-
-    let whereClause = conditions.length > 0 ? "WHERE " + conditions.join(" AND ") : "";
+    // Organisation users read their own organisation; ministry users any (0 = all)
+    const period = readVacancyLogPeriod(req, res);
+    if (!period) return;
 
     try {
-        const totalSanctionedAndFilledPost = `
-            SELECT
-                COUNT(ps.post_code) AS total_sanctioned_strength,
-                COUNT(CASE WHEN ps.vacant_or_filled = 'filled' THEN 1 END) AS filled_post
-            FROM tbl_hr_post_strength ps
-            INNER JOIN mmt_organisation o ON ps.organisation_id = o.organisation_id
-            ${whereClause} 
-        `;
+        const conn = await pool;
+        const result = await queryVacancyLogMonth(conn.request(), period, (where) => `
+            SELECT ${LOG_POST_COUNTS}
+            FROM #vacancy_log m
+            INNER JOIN mmt_organisation mo ON m.organisation_id = mo.organisation_id
+            ${where};
+        `);
 
-        const totalLiveVacantPost = `
-            SELECT COUNT(*) AS totalLivePost
-            FROM tbl_hr_post_strength ps
-            INNER JOIN mmt_organisation o ON ps.organisation_id = o.organisation_id
-            WHERE
-                ps.vacant_or_filled = 'vacant'
-                AND ps.date_of_arise_in_vacancy IS NOT NULL
-                AND (
-                    (ps.exception_abolish IS NULL OR ps.exception_abolish = 0)
-                    AND DATEADD(YEAR, 5, ps.date_of_arise_in_vacancy) > GETDATE()
-                    OR ps.exception_abolish = 1
-                )
-                ${organisationID !== 0 ? 'AND o.organisation_id = @organisationID' : ''}
-                ${clusterID !== 0 ? 'AND o.hr_cluster_id = @clusterID' : ''}
-            AND 1=1 AND 1=1
-        `;
-
-        const totalAbolishedVacantPost = `
-            SELECT COUNT(*) AS totalAbolishedPost
-            FROM tbl_hr_post_strength ps
-            INNER JOIN mmt_organisation o ON ps.organisation_id = o.organisation_id
-            WHERE
-                ps.vacant_or_filled = 'vacant'
-                AND ps.date_of_arise_in_vacancy IS NOT NULL
-                AND (
-                    (ps.exception_abolish IS NULL OR ps.exception_abolish = 0)
-                    AND DATEADD(YEAR, 5, ps.date_of_arise_in_vacancy) <= GETDATE()
-                )
-                ${organisationID !== 0 ? 'AND o.organisation_id = @organisationID' : ''}
-                ${clusterID !== 0 ? 'AND o.hr_cluster_id = @clusterID' : ''}
-            AND 1=1 AND 1=1
-        `;
-
-        const [result1, result2, result3] = await Promise.all([
-            request.query(totalSanctionedAndFilledPost),
-            request.query(totalLiveVacantPost),
-            request.query(totalAbolishedVacantPost),
-        ]);
-
+        const row = result.recordset[0] || {};
         res.json({
-            totalSanctionedAndFilledPost: result1.recordset[0],
-            totalLiveVacantPost: result2.recordset[0],
-            totalAbolishedVacantPost: result3.recordset[0],
+            totalSanctionedAndFilledPost: {
+                total_sanctioned_strength: row.total_sanctioned_strength ?? 0,
+                filled_post: row.filled_post ?? 0,
+            },
+            totalLiveVacantPost: { totalLivePost: row.totalLivePost ?? 0 },
+            totalAbolishedVacantPost: { totalAbolishedPost: row.totalAbolishedPost ?? 0 },
         });
-
     } catch (err) {
         return res.status(500).json({
             message: "Error occurred while fetching dashboard data",
@@ -1663,63 +1824,29 @@ async function getHRDashboardContentDataFiltered(req, res) {
 }
 
 async function getDepartmentWiseEmpContByOrgFiltered(req, res) {
-    const organisationID = parseInt(req.params.organisationID);
-    const clusterID = parseInt(req.params.clusterID);
-    const year = parseInt(req.params.year);
-    const month = parseInt(req.params.month);
+    // Organisation users read their own organisation; ministry users any (0 = all)
+    const period = readVacancyLogPeriod(req, res);
+    if (!period) return;
 
-    const conn = await pool;
-    const request = conn.request();
-
-    if (organisationID !== 0) request.input("organisationID", organisationID);
-    if (clusterID !== 0) request.input("clusterID", clusterID);
-
-    request.input("year", year);
-    request.input("month", month);
-
-    let whereClause = [];
-    if (organisationID !== 0) whereClause.push("ps.organisation_id = @organisationID");
-    if (clusterID !== 0) whereClause.push("mo.hr_cluster_id = @clusterID");
-
-    whereClause.push("1=1");
-    whereClause.push("1=1");
-
-    const finalWhereClause =
-        whereClause.length > 0 ? `WHERE ${whereClause.join(" AND ")}` : "";
-    
     try {
-        const result = await request.query(`
+        const conn = await pool;
+        // Same columns as getDepartmentWiseEmpContByOrg, read from the month's log.
+        const result = await queryVacancyLogMonth(conn.request(), period, (where) => `
             SELECT
                 mo.organisation_id,
                 mo.organisation_name,
                 d.department_id,
                 d.department_name,
                 mmtc.class,
-                COALESCE(SUM(CASE WHEN ps.post_code IS NOT NULL THEN 1 ELSE 0 END), 0) AS total_sanctioned_strength,
-                COALESCE(SUM(CASE WHEN ps.vacant_or_filled = 'filled' THEN 1 ELSE 0 END), 0) AS filled_post,
-                COALESCE(SUM(CASE WHEN
-                    ps.vacant_or_filled = 'vacant'
-                    AND ps.date_of_arise_in_vacancy IS NOT NULL
-                    AND ((ps.exception_abolish IS NULL OR ps.exception_abolish = 0)
-                    AND DATEADD(YEAR, 5, ps.date_of_arise_in_vacancy) > GETDATE()
-                    OR ps.exception_abolish = 1)
-                THEN 1 ELSE 0 END), 0) AS totalLivePost,
-                COALESCE(SUM(CASE WHEN
-                    ps.vacant_or_filled = 'vacant'
-                    AND ps.date_of_arise_in_vacancy IS NOT NULL
-                    AND (
-                        (ps.exception_abolish IS NULL OR ps.exception_abolish = 0)
-                        AND DATEADD(YEAR, 5, ps.date_of_arise_in_vacancy) <= GETDATE()
-                    )
-                THEN 1 ELSE 0 END), 0) AS totalAbolishedPost
-            FROM dbo.tbl_hr_post_strength ps
-            LEFT JOIN mmt_hr_department d ON ps.department_id = d.department_id
-            LEFT JOIN mmt_organisation mo ON ps.organisation_id = mo.organisation_id
-            LEFT JOIN mmt_hr_post p ON ps.post_id = p.post_id
+                ${LOG_POST_COUNTS}
+            FROM #vacancy_log m
+            INNER JOIN mmt_organisation mo ON m.organisation_id = mo.organisation_id
+            LEFT JOIN mmt_hr_department d ON m.department_id = d.department_id
+            LEFT JOIN mmt_hr_post p ON m.post_id = p.post_id
             LEFT JOIN mmt_class mmtc ON p.class_id = mmtc.class_id
-            ${finalWhereClause}
-            GROUP BY mo.organisation_name,mmtc.class, d.department_id, d.department_name,mo.organisation_id
-            ORDER BY mo.organisation_name,mmtc.class;
+            ${where}
+            GROUP BY mo.organisation_name, mmtc.class, d.department_id, d.department_name, mo.organisation_id
+            ORDER BY mo.organisation_name, mmtc.class;
         `);
 
         res.json(result.recordset);
@@ -1858,7 +1985,8 @@ async function getAdminHRDashboardContentData(req, res) {
                 ) AS totalAbolishedVacantPost
         `;
 
-        const combinedResult = await request.query(combinedQuery);
+        // MAXDOP 1: the parallel plan stalls (CXSYNC_PORT) when no organisation is chosen
+        const combinedResult = await request.query(`${combinedQuery} OPTION (MAXDOP 1)`);
 
         if (organisationID === 0 && clusterID === 0) {
             return res.json({
@@ -2530,7 +2658,7 @@ async function getAdminViewDepartmentWiseEmpContByOrg(req, res) {
             `;
         }
 
-        const result = await request.query(query);
+        const result = await request.query(`${query} OPTION (MAXDOP 1)`); // parallel plan stalls for all organisations
         res.json(result.recordset);
 
     } catch (err) {
@@ -2543,9 +2671,98 @@ async function getAdminViewDepartmentWiseEmpContByOrg(req, res) {
 }
 
 
+// ---------------------------------------------------------------------------
+// Server-side paginated list
+// ---------------------------------------------------------------------------
+
+/**
+ * Vacancy Management - Anticipated Vacancies: filled posts whose holder retires in the
+ * selected years, one page at a time.
+ * GET /hr/anticipated-vacancies?years=2026,2027&page&limit&departmentId&postId&className&search
+ */
+async function listAnticipatedVacancies(req, res) {
+    const scope = resolveListOrganisation(req);
+    if (!scope.ok) return res.status(403).json({ message: "Your account is not linked to an organisation." });
+    if (!scope.organisationId) return res.status(400).json({ message: "Select an organisation." });
+
+    const years = [...new Set(String(req.query.years || "").split(",")
+        .map((y) => Number.parseInt(y.trim(), 10))
+        .filter((y) => Number.isInteger(y) && y >= 1900 && y <= 2100))];
+    if (!years.length) return res.status(400).json({ message: "Select at least one year of retirement." });
+
+    const { page, limit, offset, search } = readListQuery(req.query);
+
+    const bindFilters = (request) => {
+        request.input("orgId", sql.Int, scope.organisationId);
+        // Retirement-date window per selected year
+        const yearSql = years.map((y, i) => {
+            request.input(`yFrom${i}`, sql.Date, `${y}-01-01`);
+            request.input(`yTo${i}`, sql.Date, `${y}-12-31`);
+            return `(em.emp_dor >= @yFrom${i} AND em.emp_dor <= @yTo${i})`;
+        }).join(" OR ");
+        const parts = [`(${yearSql})`];
+        if (req.query.departmentId) {
+            request.input("departmentId", sql.NVarChar(50), String(req.query.departmentId));
+            parts.push("ps.department_id = @departmentId");
+        }
+        if (req.query.postId) {
+            request.input("postId", sql.NVarChar(50), String(req.query.postId));
+            parts.push("ps.post_id = @postId");
+        }
+        if (req.query.className) {
+            request.input("className", sql.NVarChar(20), String(req.query.className));
+            parts.push("mmtc.class = @className");
+        }
+        if (search) {
+            request.input("search", sql.NVarChar(200), likePattern(search));
+            parts.push("(em.emp_name LIKE @search OR d.department_name LIKE @search OR p.post_name LIKE @search OR ps.post_code LIKE @search)");
+        }
+        return ` AND ${parts.join(" AND ")}`;
+    };
+    // EXISTS keeps the "post has an active holder" rule without joining every transaction row
+    const fromSql = (where) => `
+        FROM tbl_hr_post_strength ps
+        LEFT JOIN tbl_employee_master em ON ps.emp_master_id = em.emp_master_id
+        LEFT JOIN mmt_hr_post p ON ps.post_id = p.post_id
+        LEFT JOIN mmt_class mmtc ON p.class_id = mmtc.class_id
+        LEFT JOIN mmt_hr_department d ON ps.department_id = d.department_id
+        WHERE ps.organisation_id = @orgId
+          AND ps.vacant_or_filled = 'filled'
+          AND EXISTS (SELECT 1 FROM tbl_employee_transaction_details et
+                      WHERE et.emp_post_id = ps.post_id AND et.emp_post_end_date IS NULL)
+          ${where}`;
+
+    try {
+        const conn = await pool;
+        const dataRequest = conn.request();
+        const dataWhere = bindFilters(dataRequest);
+        dataRequest.input("offset", sql.Int, offset);
+        dataRequest.input("limit", sql.Int, limit);
+        const countQuery = async () => {
+            const countRequest = conn.request();
+            const countWhere = bindFilters(countRequest);
+            return (await countRequest.query(`SELECT COUNT(*) AS total ${fromSql(countWhere)}`)).recordset[0];
+        };
+
+        const { rows, total } = await runPagedQuery(dataRequest, `
+            SELECT ps.*, mmtc.class, d.department_name, p.post_name, em.emp_name, em.emp_dor,
+                   DATEADD(DAY, 1, em.emp_dor) AS Anticipated_date,
+                   COUNT(*) OVER() AS total_count
+            ${fromSql(dataWhere)}
+            ORDER BY em.emp_dor, ps.post_code
+            OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
+        `, countQuery, page);
+
+        return res.status(200).json({ data: rows, pagination: buildPagination(total, page, limit) });
+    } catch (error) {
+        console.error("Error fetching anticipated vacancies:", error);
+        return res.status(500).json({ message: "Anticipated vacancies could not be loaded." });
+    }
+}
+
 let vacancyStatusTab = {getAllHrPostByOrgID, updateHrEmployeeActivity, getPwbdWiseCount, getDepartmentWiseEmpContByOrg, getExperiencedEmpCount, getGenderWiseContByOrg,updateReasonForProcessNotInitiated,updateHRPostActivitiy,
     getHRDashboardContentData, getPromotionVacantPostCode, getAbolishingPostWithinAmonth, getEmpGoingToRetireWithinSixMonths, getAnticipatedVacanciesByOrg, getHRAssessmentData, saveHrVacancyAnticipation, submitAnticipatedVacancies, getOrganisationByCluster,
 getCommunityWiseCountByOrg,getHRDashboardContentDataFiltered,getDepartmentWiseEmpContByOrgFiltered,getAdminHRDashboardContentData,getAdminViewGenderWiseContByOrg, getAdminViewExperiencedEmpCount,getAdminViewPwbdWiseCount,
-getAdminViewCommunityWiseCountByOrg,getAdminViewDepartmentWiseEmpContByOrg};
+getAdminViewCommunityWiseCountByOrg,getAdminViewDepartmentWiseEmpContByOrg, listAnticipatedVacancies};
 
 export default vacancyStatusTab;

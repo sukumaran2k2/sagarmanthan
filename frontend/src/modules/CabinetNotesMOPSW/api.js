@@ -160,4 +160,9 @@ export function fetchCabinetDivisionDetail(divisionId, stage) {
   return api.get(`/getmopsw-divisionwise/${divisionId}/${stage}`);
 }
 
+export function fetchCabinetMopswDashboard(wingId) {
+  const params = wingId && wingId !== 'All' ? { wingId } : {};
+  return api.get('/cabinet-mopsw-dashboard', { params });
+}
+
 export default api;

@@ -14,6 +14,8 @@ import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import { fetchCapexReport } from '../api';
 import { getSessionOrganisationId } from '../../../utils/authSession';
+import { COMMON_TOASTS } from '../../../utils/notify';
+import { CAPEX_TOASTS } from '../toastMessages';
 
 const BRAND = '#4b2424';
 const BRAND_HOVER = '#6b3535';
@@ -21,40 +23,44 @@ const BRAND_SOFT = '#8c4242';
 const ACCENT = '#f5eeea';
 const BORDER = '#e8d5c8';
 
+// Report sections and their order, as in the old portal's capexReport.html. Organisations
+// are matched by organisation_code, not ID: the IDs were renumbered in the revamp and
+// differ between databases (CAPEX1 / CAPEX2 get theirs when
+// backend/sql/capex/remap_tbl_capex_organisation_ids.sql adds them), the codes don't.
+// Vadhavan Port Project Ltd is not in the revamp master yet; add it here once it is.
 const DEFAULT_MAJOR_PORTS = [
-  { id: 1, name: 'Chennai Port Authority' },
-  { id: 2, name: 'Cochin Port Authority' },
-  { id: 5, name: 'Deendayal Port Authority' },
-  { id: 9, name: 'Jawaharlal Nehru Port Authority' },
-  { id: 3, name: 'Kamarajar Port Limited' },
-  { id: 7, name: 'Mormugao Port Authority' },
-  { id: 8, name: 'Mumbai Port Authority' },
-  { id: 6, name: 'New Mangalore Port Authority' },
-  { id: 10, name: 'Paradip Port Authority' },
-  { id: 54, name: 'SMPA - Kolkata Dock System' },
-  { id: 55, name: 'Visakhapatnam Port Authority' },
-  { id: 12, name: 'V.O. Chidambaranar Port Authority' },
-  { id: 11, name: 'SMPA - Haldia Dock Complex' },
-  { id: 74, name: 'Vadhavan Port Project Ltd' },
+  { code: 'ChPA', name: 'Chennai Port Authority' },
+  { code: 'CoPA', name: 'Cochin Port Authority' },
+  { code: 'DPA', name: 'Deendayal Port Authority' },
+  { code: 'JNPA', name: 'Jawaharlal Nehru Port Authority' },
+  { code: 'KPL', name: 'Kamarajar Port Limited' },
+  { code: 'MgPA', name: 'Mormugao Port Authority' },
+  { code: 'MbPA', name: 'Mumbai Port Authority' },
+  { code: 'NMPA', name: 'New Mangalore Port Authority' },
+  { code: 'PPA', name: 'Paradip Port Authority' },
+  { code: 'SMPA-KDS', name: 'SMPA - Kolkata Dock System' },
+  { code: 'SMPA-HDC', name: 'SMPA - Haldia Dock Complex' },
+  { code: 'VPA', name: 'Visakhapatnam Port Authority' },
+  { code: 'VOCPA', name: 'V.O. Chidambaranar Port Authority' },
 ];
 
 const DEFAULT_SHIPPING_ORGS = [
-  { id: 18, name: 'Cochin Shipyard Limited' },
-  { id: 15, name: 'Shipping Corporation of India' },
-  { id: 66, name: 'Shipping Corporation of India Land and Assets Limited' },
-  { id: 22, name: 'Sagarmala Finance Corporation Limited' },
-  { id: 20, name: 'Indian Port Rail & Ropeway Corporation Ltd' },
-  { id: 27, name: 'Dredging Corporation of India' },
+  { code: 'CSL', name: 'Cochin Shipyard Limited' },
+  { code: 'SCI', name: 'Shipping Corporation of India' },
+  { code: 'SCILAL', name: 'Shipping Corporation of India Land and Assets Limited' },
+  { code: 'SMFCL', name: 'Sagarmala Finance Corporation Limited' },
+  { code: 'IPRCL', name: 'Indian Port Rail & Ropeway Corporation Ltd' },
+  { code: 'DCI', name: 'Dredging Corporation of India' },
 ];
 
 const DEFAULT_OTHER_ORGS = [
-  { id: 17, name: 'Inland Waterways Authority of India' },
-  { id: 56, name: 'Sagarmala (ALW)' },
-  { id: 19, name: 'Directorate General of Lighthouses and Lightships' },
-  { id: 21, name: 'Directorate General of Shipping, Mumbai' },
-  { id: 25, name: 'Indian Maritime University' },
-  { id: 23, name: 'Andaman Lakshadweep Harbour Works' },
-  { id: 57, name: 'Secretariat-Economic Service (Capital)' },
+  { code: 'IWAI', name: 'Inland Waterways Authority of India' },
+  { code: 'CAPEX1', name: 'sagarmala+ALHW' },
+  { code: 'DGLL', name: 'Directorate General of Lighthouses and Lightships' },
+  { code: 'DGS', name: 'Directorate General of Shipping, Mumbai' },
+  { code: 'IMU', name: 'Indian Maritime University' },
+  { code: 'ALHW', name: 'Andaman, Lakshadweep Harbour Works' },
+  { code: 'CAPEX2', name: 'Secretariat-Economic Service (capital)' },
 ];
 
 function fmt(num) {
@@ -64,7 +70,8 @@ function fmt(num) {
 
 function emptyRow(d) {
   return {
-        organisation_id: d.id,
+        organisation_id: null,
+        organisation_code: d.code,
         organisation_name: d.name,
         capex_gbs_value: 0,
         capex_iebr_value: 0,
@@ -79,10 +86,21 @@ function emptyRow(d) {
   };
 }
 
+// As in the old portal's report: each section keeps only the organisations in its own list,
+// in that list's order. The API's section queries overlap (category 3 is in both B and C),
+// so without this an organisation is counted twice.
+function keepSectionOrgs(itemsList, defaultList) {
+  const order = new Map(defaultList.map((d, i) => [d.code, i]));
+  return (itemsList || [])
+    .filter((item) => order.has(item.organisation_code))
+    .sort((a, b) => order.get(a.organisation_code) - order.get(b.organisation_code));
+}
+
 function processCategoryData(itemsList, defaultList, { orgScoped, selectedOrgFilter, quickFilter }) {
+  const sectionItems = keepSectionOrgs(itemsList, defaultList);
   let list =
-    itemsList && itemsList.length > 0
-      ? itemsList
+    sectionItems.length > 0
+      ? sectionItems
       : orgScoped
         ? []
         : defaultList.map(emptyRow);
@@ -102,6 +120,10 @@ function processCategoryData(itemsList, defaultList, { orgScoped, selectedOrgFil
       );
     }
 
+    // Same calculations as the old portal's capexReport.html (processCategory):
+    //  - row IR % / PPP % are the API's exp_ir / exp_ppp
+    //  - row % Expenditure is total_Capex / capex_total_value, 'NA' when there is no BE
+    //  - a section's IR % / PPP % is the sum of its rows' IR % / PPP %
     let capexGbsSum = 0;
     let capexIebrSum = 0;
     let capexPppSum = 0;
@@ -110,21 +132,24 @@ function processCategoryData(itemsList, defaultList, { orgScoped, selectedOrgFil
     let totalIebrSum = 0;
     let totalPppSum = 0;
     let totalGbsIebrPppSum = 0;
+    let irPctSum = 0;
+    let pppPctSum = 0;
 
     const rows = list.map((item) => {
       const gbs = parseFloat(item.capex_gbs_value) || 0;
       const iebr = parseFloat(item.capex_iebr_value) || 0;
       const ppp = parseFloat(item.capex_ppp_value) || 0;
-    const totalBE = parseFloat(item.capex_total_value) || gbs + iebr + ppp;
+    const totalBE = parseFloat(item.capex_total_value) || 0;
 
       const expGBS = parseFloat(item.total_GBS) || 0;
       const expIEBR = parseFloat(item.total_IEBR) || 0;
-      const expIRpct = iebr > 0 ? (expIEBR * 100) / iebr : parseFloat(item.exp_ir) || 0;
+      const expIRpct = parseFloat(item.exp_ir) || 0;
       const expPPP = parseFloat(item.total_PPP) || 0;
-      const expPPPpct = ppp > 0 ? (expPPP * 100) / ppp : parseFloat(item.exp_ppp) || 0;
-    const sumExp = expGBS + expIEBR + expPPP;
-    const expTotal = sumExp || parseFloat(item.total_Capex) || 0;
-      const expPct = totalBE > 0 ? (expTotal * 100) / totalBE : 0;
+      const expPPPpct = parseFloat(item.exp_ppp) || 0;
+    const expTotal = expGBS + expIEBR + expPPP;
+    // Divide, then x100, in the old portal's order (it rounds the same at .xx5)
+    const rowPct = ((parseFloat(item.total_Capex) || 0) / totalBE) * 100;
+      const expPct = Number.isFinite(rowPct) ? rowPct : 'NA';
 
       capexGbsSum += gbs;
       capexIebrSum += iebr;
@@ -134,6 +159,8 @@ function processCategoryData(itemsList, defaultList, { orgScoped, selectedOrgFil
       totalIebrSum += expIEBR;
       totalPppSum += expPPP;
       totalGbsIebrPppSum += expTotal;
+      irPctSum += expIRpct;
+      pppPctSum += expPPPpct;
 
       return {
         ...item,
@@ -160,9 +187,9 @@ function processCategoryData(itemsList, defaultList, { orgScoped, selectedOrgFil
         capexTotalSum,
         totalGbsSum,
         totalIebrSum,
-      categoryIRpct: capexIebrSum > 0 ? (totalIebrSum * 100) / capexIebrSum : 0,
+      categoryIRpct: irPctSum,
         totalPppSum,
-      categoryPPPpct: capexPppSum > 0 ? (totalPppSum * 100) / capexPppSum : 0,
+      categoryPPPpct: pppPctSum,
         totalGbsIebrPppSum,
       categoryTotalPct: capexTotalSum > 0 ? (totalGbsIebrPppSum * 100) / capexTotalSum : 0,
     },
@@ -213,7 +240,7 @@ function DataRow({ sNo, row }) {
         {fmt(row.expTotal)}
       </td>
       <td className="p-2 border border-[#eadede] text-right font-black text-[#4b2424] bg-[#f7f3f3]">
-        {fmt(row.expPct)}
+        {row.expPct === 'NA' ? 'NA' : fmt(row.expPct)}
       </td>
     </tr>
   );
@@ -231,7 +258,7 @@ function SectionHeader({ title }) {
   );
 }
 
-export default function CapexForm32Report({ showToast, orgScoped = false }) {
+export default function CapexForm32Report({ notify, orgScoped = false }) {
   const [selectedYear, setSelectedYear] = useState('2026-2027');
   const [selectedOrgFilter, setSelectedOrgFilter] = useState('ALL');
   const [quickFilter, setQuickFilter] = useState('');
@@ -271,7 +298,7 @@ export default function CapexForm32Report({ showToast, orgScoped = false }) {
       }
     } catch (err) {
       console.error('Error fetching Capex Report Form 3.2 data:', err);
-      if (showToast) showToast('❌ Failed to fetch Capex detailed report data', '#EF4444');
+      notify?.(COMMON_TOASTS.loadFailed('The Capex detailed report'));
     } finally {
       setLoading(false);
     }
@@ -326,12 +353,19 @@ export default function CapexForm32Report({ showToast, orgScoped = false }) {
     majorCategory.totals.totalIebrSum +
     shippingCategory.totals.totalIebrSum +
     otherCategory.totals.totalIebrSum;
-  const grandIebrPct = grandIebrBE > 0 ? (grandIebrExp * 100) / grandIebrBE : 0;
+  // As in the old portal: the grand IR % / PPP % add up the sections' IR % / PPP %
+  const grandIebrPct =
+    majorCategory.totals.categoryIRpct +
+    shippingCategory.totals.categoryIRpct +
+    otherCategory.totals.categoryIRpct;
   const grandPppExp =
     majorCategory.totals.totalPppSum +
     shippingCategory.totals.totalPppSum +
     otherCategory.totals.totalPppSum;
-  const grandPppPct = grandPppBE > 0 ? (grandPppExp * 100) / grandPppBE : 0;
+  const grandPppPct =
+    majorCategory.totals.categoryPPPpct +
+    shippingCategory.totals.categoryPPPpct +
+    otherCategory.totals.categoryPPPpct;
   const grandTotalExp =
     majorCategory.totals.totalGbsIebrPppSum +
     shippingCategory.totals.totalGbsIebrPppSum +
@@ -356,9 +390,9 @@ export default function CapexForm32Report({ showToast, orgScoped = false }) {
 
   const allCapexOrgNames = useMemo(() => {
     const fromApi = [
-      ...reportData.majorPorts,
-      ...reportData.shippingsectorOrganisations,
-      ...reportData.otherOrganisations,
+      ...keepSectionOrgs(reportData.majorPorts, DEFAULT_MAJOR_PORTS),
+      ...keepSectionOrgs(reportData.shippingsectorOrganisations, DEFAULT_SHIPPING_ORGS),
+      ...keepSectionOrgs(reportData.otherOrganisations, DEFAULT_OTHER_ORGS),
     ]
       .map((o) => o.organisation_name)
       .filter(Boolean);
@@ -393,7 +427,7 @@ export default function CapexForm32Report({ showToast, orgScoped = false }) {
       tsv += `${rowData.join('\t')}\n`;
     }
     navigator.clipboard.writeText(tsv).then(() => {
-      if (showToast) showToast('📋 Detailed Capex Report copied to clipboard!', BRAND);
+      notify?.(CAPEX_TOASTS.reportCopied('Capex detailed report'));
     });
   };
 
@@ -402,11 +436,11 @@ export default function CapexForm32Report({ showToast, orgScoped = false }) {
     if (!tableEl) return;
     const wb = XLSX.utils.table_to_book(tableEl, { sheet: 'Capex Detailed' });
     XLSX.writeFile(wb, `Capex_Detailed_Report_${selectedYear}.xlsx`);
-    if (showToast) showToast('📊 Exported Capex Detailed Report to Excel!', BRAND);
+    notify?.(COMMON_TOASTS.excelExported(`Capex_Detailed_Report_${selectedYear}.xlsx`, 'The report'));
   };
 
   const handleExportPdf = () => {
-    if (showToast) showToast('📄 Opening browser print for Capex Detailed Report...', BRAND);
+    notify?.(COMMON_TOASTS.pdfPreparing());
     window.print();
   };
 
@@ -478,6 +512,8 @@ export default function CapexForm32Report({ showToast, orgScoped = false }) {
             className="!rounded-[9px] !py-[9px] !px-[16px]"
           />
           <ExportDropdown
+            color="#4b2424"
+            hoverColor="#6b3535"
             onExportExcel={handleExportExcel}
             onExportPdf={handleExportPdf}
             color={BRAND}

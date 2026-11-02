@@ -14,6 +14,8 @@ import ExportDropdown from '../../../../components/ExportDropdown';
 import CopyButton from '../../../../components/CopyButton';
 import { fetchCapexYoYReport } from '../../api';
 import { getCapexReportAsOnMeta } from '../../utils/capexUtils';
+import { COMMON_TOASTS } from '../../../../utils/notify';
+import { CAPEX_TOASTS } from '../../toastMessages';
 
 const BRAND = '#4b2424';
 const BRAND_HOVER = '#6b3535';
@@ -48,7 +50,7 @@ function YearCells({ cell, total = false }) {
   );
 }
 
-export default function CapexMinistryYoYReport({ showToast }) {
+export default function CapexMinistryYoYReport({ notify }) {
   const [financialYears, setFinancialYears] = useState([]);
   const [rows, setRows] = useState([]);
   const [selectedOrgFilter, setSelectedOrgFilter] = useState('ALL');
@@ -73,11 +75,11 @@ export default function CapexMinistryYoYReport({ showToast }) {
       console.error(err);
       setFinancialYears([]);
       setRows([]);
-      showToast?.('❌ Failed to load Capex year-on-year report', '#EF4444');
+      notify?.(COMMON_TOASTS.loadFailed('The Capex year-on-year report'));
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [notify]);
 
   useEffect(() => {
     fetchReport();
@@ -157,7 +159,7 @@ export default function CapexMinistryYoYReport({ showToast }) {
       ].join('\t'),
     ];
     navigator.clipboard.writeText(lines.join('\n')).then(() => {
-      showToast?.('📋 Capex year-on-year report copied!', BRAND);
+      notify?.(CAPEX_TOASTS.reportCopied('Capex year-on-year report'));
     });
   };
 
@@ -189,11 +191,11 @@ export default function CapexMinistryYoYReport({ showToast }) {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Capex YoY');
     XLSX.writeFile(wb, 'Capex_Year_on_Year_Report.xlsx');
-    showToast?.('📊 Capex year-on-year exported to Excel!', BRAND);
+    notify?.(COMMON_TOASTS.excelExported('Capex_Year_on_Year_Report.xlsx', 'The report'));
   };
 
   const handleExportPdf = () => {
-    showToast?.('📄 Opening print for Capex year-on-year…', BRAND);
+    notify?.(COMMON_TOASTS.pdfPreparing());
     window.print();
   };
 
@@ -276,6 +278,8 @@ export default function CapexMinistryYoYReport({ showToast }) {
             className="!rounded-[9px] !py-[9px] !px-[16px]"
           />
           <ExportDropdown
+            color="#4b2424"
+            hoverColor="#6b3535"
             onExportExcel={handleExportExcel}
             onExportPdf={handleExportPdf}
             color={BRAND}

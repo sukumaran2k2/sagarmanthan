@@ -17,6 +17,8 @@ import {
   mapCapexSummaryReportRows,
   getCapexReportAsOnMeta,
 } from '../../utils/capexUtils';
+import { COMMON_TOASTS } from '../../../../utils/notify';
+import { CAPEX_TOASTS } from '../../toastMessages';
 
 const BRAND = '#4b2424';
 const BRAND_HOVER = '#6b3535';
@@ -31,7 +33,7 @@ function fmt(num) {
   return Number(num).toFixed(2);
 }
 
-export default function CapexMinistrySummaryReport({ showToast }) {
+export default function CapexMinistrySummaryReport({ notify }) {
   const [selectedYear, setSelectedYear] = useState('2026-2027');
   const [selectedOrgFilter, setSelectedOrgFilter] = useState('ALL');
   const [quickFilter, setQuickFilter] = useState('');
@@ -52,11 +54,11 @@ export default function CapexMinistrySummaryReport({ showToast }) {
     } catch (err) {
       console.error(err);
       setRows([]);
-      showToast?.('❌ Failed to load Capex summary report', '#EF4444');
+      notify?.(COMMON_TOASTS.loadFailed('The Capex summary report'));
     } finally {
       setLoading(false);
     }
-  }, [selectedYear, showToast]);
+  }, [selectedYear, notify]);
 
   useEffect(() => {
     fetchSummary();
@@ -117,7 +119,7 @@ export default function CapexMinistrySummaryReport({ showToast }) {
       ['', 'Total', fmt(totals.be), fmt(totals.exp), fmt(totals.pct), ''].join('\t'),
     ];
     navigator.clipboard.writeText(lines.join('\n')).then(() => {
-      showToast?.('📋 Capex summary report copied!', BRAND);
+      notify?.(CAPEX_TOASTS.reportCopied('Capex summary report'));
     });
   };
 
@@ -142,11 +144,11 @@ export default function CapexMinistrySummaryReport({ showToast }) {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Capex Summary');
     XLSX.writeFile(wb, `Capex_Summary_Report_${selectedYear}.xlsx`);
-    showToast?.('📊 Capex summary exported to Excel!', BRAND);
+    notify?.(COMMON_TOASTS.excelExported(`Capex_Summary_Report_${selectedYear}.xlsx`, 'The report'));
   };
 
   const handleExportPdf = () => {
-    showToast?.('📄 Opening print for Capex summary…', BRAND);
+    notify?.(COMMON_TOASTS.pdfPreparing());
     window.print();
   };
 
@@ -215,6 +217,8 @@ export default function CapexMinistrySummaryReport({ showToast }) {
             className="!rounded-[9px] !py-[9px] !px-[16px]"
           />
           <ExportDropdown
+            color="#4b2424"
+            hoverColor="#6b3535"
             onExportExcel={handleExportExcel}
             onExportPdf={handleExportPdf}
             color={BRAND}

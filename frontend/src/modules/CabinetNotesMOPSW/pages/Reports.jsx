@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Building2 } from 'lucide-react';
 import ReportTable from '../../../components/ReportTable';
 import { stripTimesFromReportRows } from '../../../utils/formatReportDate';
@@ -6,11 +6,12 @@ import { buildStageDrilldownMap, lookupStageDrilldownId } from '../utils/stageHe
 import {
   fetchCabinetDivisionDetail,
   fetchCabinetDivisionWiseReport,
-  fetchCabinetStages,
   fetchCabinetWingDetail,
   fetchCabinetWingDivisionReport,
   fetchCabinetWingWiseReport,
 } from '../api';
+import { useCabinetNotesStore } from '../store/useCabinetNotesStore';
+import { COMMON_TOASTS } from '../../../utils/notify';
 
 const WING_FIELDS = new Set(['Wing Id', 'Wing ID', 'Wing Name', 'Wing']);
 const DIVISION_FIELDS = new Set(['Division Id', 'Division ID', 'Division Name', 'Division']);
@@ -95,61 +96,52 @@ function flattenColumns(cols = []) {
 }
 
 export default function CabinetNotesReports({ notify }) {
-  const [stages, setStages] = useState([]);
-  const [reportView, setReportView] = useState('wing');
+  // Stages come from the module store (loaded once by the shell); the view choice is kept there too
+  const stages = useCabinetNotesStore((state) => state.stages);
+  const reportView = useCabinetNotesStore((state) => state.reportView);
+  const setReportView = useCabinetNotesStore((state) => state.setReportView);
   const [drillDownPath, setDrillDownPath] = useState([buildRootView()]);
-  const [loading, setLoading] = useState(false);
-  const [reportData, setReportData] = useState([]);
-  const [reportCols, setReportCols] = useState([]);
-
-  useEffect(() => {
-    fetchCabinetStages()
-      .then((res) => setStages(Array.isArray(res.data) ? res.data : []))
-      .catch((err) => {
-        console.error(err);
-        notify?.('Failed to load cabinet stages.', 'error');
-      });
-  }, [notify]);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const currentView = drillDownPath[drillDownPath.length - 1];
   const isSummary = currentView?.type === 'summary';
 
   const stageMap = useMemo(() => buildStageDrilldownMap(stages), [stages]);
 
-  const fetchReportData = useCallback(async () => {
-    const fetcher =
-      currentView?.type === 'summary'
-        ? summaryFetcher(reportView)
-        : currentView?.fetcher;
-    if (!fetcher) return;
-    setLoading(true);
-    try {
-      const response = await fetcher();
-      const payload = response.data || {};
-      if (Array.isArray(payload)) {
-        setReportData(stripTimesFromReportRows(payload));
-        setReportCols(
-          payload[0]
-            ? Object.keys(payload[0]).map((key) => ({ headerName: key, field: key }))
-            : []
-        );
-      } else {
-        setReportData(stripTimesFromReportRows(payload.rowData || []));
-        setReportCols(payload.columnDefs || []);
-      }
-    } catch (err) {
-      console.error(err);
-      notify?.(err?.response?.data?.message || 'Failed to load report.', 'error');
-      setReportData([]);
-      setReportCols([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [currentView, notify, reportView]);
-
+  // The result is tagged with the view, report view and reload it answers; a mismatch means
+  // it is still loading, and a late answer for an earlier view is ignored
+  const [result, setResult] = useState(null);
   useEffect(() => {
-    fetchReportData();
-  }, [fetchReportData]);
+    const fetcher = currentView?.type === 'summary' ? summaryFetcher(reportView) : currentView?.fetcher;
+    if (!fetcher) return;
+    let cancelled = false;
+    const tag = { view: currentView, reportView, reloadKey };
+    fetcher()
+      .then((response) => {
+        if (cancelled) return;
+        const payload = response.data || {};
+        if (Array.isArray(payload)) {
+          setResult({
+            ...tag,
+            data: stripTimesFromReportRows(payload),
+            cols: payload[0] ? Object.keys(payload[0]).map((key) => ({ headerName: key, field: key })) : [],
+          });
+        } else {
+          setResult({ ...tag, data: stripTimesFromReportRows(payload.rowData || []), cols: payload.columnDefs || [] });
+        }
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error(err);
+        notify?.(COMMON_TOASTS.loadFailed('The report'));
+        setResult({ ...tag, data: [], cols: [] });
+      });
+    return () => { cancelled = true; };
+  }, [currentView, reportView, reloadKey, notify]);
+
+  const loading = !result || result.view !== currentView || result.reportView !== reportView || result.reloadKey !== reloadKey;
+  const reportData = useMemo(() => (loading ? [] : result.data), [loading, result]);
+  const reportCols = useMemo(() => (loading ? [] : result.cols), [loading, result]);
 
   const viewData = useMemo(() => {
     if (!isSummary) return reportData;
@@ -172,8 +164,8 @@ export default function CabinetNotesReports({ notify }) {
     return reportData.map((row, idx) => ({ ...row, 'S No': idx + 1 }));
   }, [isSummary, reportData, reportView]);
 
-  const mapColumnRenderers = useCallback(
-    (cols) =>
+  const columns = useMemo(() => {
+    const mapColumnRenderers = (cols) =>
       cols.map((col) => {
         if (col.children) {
           return { ...col, children: mapColumnRenderers(col.children) };
@@ -292,11 +284,8 @@ export default function CabinetNotesReports({ notify }) {
             });
           },
         };
-      }),
-    [currentView, stageMap, isSummary, reportView]
-  );
+      });
 
-  const columns = useMemo(() => {
     const mapped = mapColumnRenderers(reportCols);
     const isSerial = (col) => {
       const field = col.field || '';
@@ -320,45 +309,46 @@ export default function CabinetNotesReports({ notify }) {
     const serial = visible.filter(isSerial);
     const rest = visible.filter((col) => !isSerial(col));
     return [...serial, ...rest];
-  }, [mapColumnRenderers, reportCols, isSummary, reportView]);
+  }, [currentView, stageMap, reportCols, isSummary, reportView]);
 
   const reportTitle = isSummary
     ? form11Title(abstractLevel(reportView))
     : currentView?.title;
 
+  const { wingName, divisionName, stageLabel } = currentView || {};
   const reportSubtitle = useMemo(() => {
     const asOn = formatAsOnDate();
     const month = formatReportMonth();
     return (
       <>
-        {currentView?.wingName && (
+        {wingName && (
           <>
             <span>
               For Wing:{' '}
               <strong className="text-[#4b2424] dark:text-[#eadede]">
-                {currentView.wingName}
+                {wingName}
               </strong>
             </span>
             <span className="text-[#eadede] dark:text-slate-600">•</span>
           </>
         )}
-        {currentView?.divisionName && (
+        {divisionName && (
           <>
             <span>
               For Division:{' '}
               <strong className="text-[#4b2424] dark:text-[#eadede]">
-                {currentView.divisionName}
+                {divisionName}
               </strong>
             </span>
             <span className="text-[#eadede] dark:text-slate-600">•</span>
           </>
         )}
-        {currentView?.stageLabel && (
+        {stageLabel && (
           <>
             <span>
               Stage:{' '}
               <strong className="text-[#4b2424] dark:text-[#eadede]">
-                {currentView.stageLabel}
+                {stageLabel}
               </strong>
             </span>
             <span className="text-[#eadede] dark:text-slate-600">•</span>
@@ -375,7 +365,7 @@ export default function CabinetNotesReports({ notify }) {
         </span>
       </>
     );
-  }, [currentView?.wingName, currentView?.divisionName, currentView?.stageLabel]);
+  }, [wingName, divisionName, stageLabel]);
 
   const reportViewSelect = isSummary ? (
     <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-50/90 via-indigo-50/80 to-blue-50/90 dark:from-slate-900 dark:via-indigo-950/40 dark:to-slate-900 border-2 border-indigo-400/60 dark:border-indigo-500/60 text-xs shadow-sm">
@@ -416,7 +406,7 @@ export default function CabinetNotesReports({ notify }) {
           viewData={viewData}
           columns={columns}
           loading={loading}
-          onRefresh={fetchReportData}
+          onRefresh={() => setReloadKey((k) => k + 1)}
           pagination
           brandColor="#4b2424"
           brandColorHover="#6b3535"

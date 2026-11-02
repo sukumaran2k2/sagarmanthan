@@ -3,7 +3,7 @@ import sql from 'mssql';
 import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
-import {convertIntoVacantPost, getNewEmployeeIDofOrg} from "../HR/hrHelperFunctions.js";
+import {convertIntoVacantPost, getNewEmployeeIDofOrg, safeRollback} from "../HR/hrHelperFunctions.js";
 
 const uploadDestination = "./fileuploads/HR";
 
@@ -857,9 +857,9 @@ async function updatePostStrengthLog(req, res) {
     const currentDate = new Date().toISOString().slice(0, 10);
 
     const conn = await pool;
-    const request = conn.request();
-
+    // Every query below must run on the transaction, so the request is bound to it.
     const transaction = new sql.Transaction(conn);
+    const request = new sql.Request(transaction);
 
     request.input("organisationID", organisationID);
     request.input("processInitiatedDate", processInitiatedDate);
@@ -891,7 +891,6 @@ async function updatePostStrengthLog(req, res) {
     request.input("approvalByAuthorityDatePromotion", approvalByAuthorityDatePromotion);
     request.input("orderDatePromotion", orderDatePromotion);
     request.input("selectEmployeeId", selectEmployeeId);
-    request.input("currentDate", currentDate);
     request.input("selectDeputedEmployeeId", selectDeputedEmployeeId);
     request.input("selectDeputedEmployeeMasterId", selectDeputedEmployeeMasterId);
 
@@ -914,7 +913,11 @@ async function updatePostStrengthLog(req, res) {
     request.input("fromWhichPostCHD", fromWhichPostCHD);
     request.input("chdCategoryEmpMasterId", chdCategoryEmpMasterId);
 
-    await transaction.begin();
+    try {
+        await transaction.begin();
+    } catch (err) {
+        return res.status(500).json({ message: "Could not start the database transaction", error: err.message });
+    }
     switch (methodOfAppointment) {
         case 'directRecruitment':
             try {
@@ -959,7 +962,7 @@ async function updatePostStrengthLog(req, res) {
                     approval_received_date = NULL,
                     order_issued_date = NULL,
                     discharge_reason = @dischargeReason,
-                    updated_date = @currentDate,
+                    updated_date = GETDATE(),
                     updated_by = @userID
                 WHERE post_code = @postCode
             `);
@@ -968,6 +971,7 @@ async function updatePostStrengthLog(req, res) {
                 res.sendStatus(201);
             } catch (err) {
                 //console.log(err);
+                await safeRollback(transaction);
                 return res.status(500).json({message:"Internal Server Error",error:err});
             }
             break;
@@ -1011,7 +1015,7 @@ async function updatePostStrengthLog(req, res) {
                         result_declared_date = NULL,
                         appointment_letter_issued_date = NULL,
                         discharge_reason = @dischargeReason,
-                        updated_date = @currentDate,
+                        updated_date = GETDATE(),
                         updated_by = @userID
                     WHERE post_code = @postCode
                 `);
@@ -1067,7 +1071,7 @@ async function updatePostStrengthLog(req, res) {
                     SET
                         employee_id = @employeeIDPrev,
                         emp_master_id = @empMasterIDPrev,
-                        updated_date = @currentDate,
+                        updated_date = GETDATE(),
                         updated_by = @userID
                         WHERE post_code = @postCode`);
 
@@ -1076,7 +1080,7 @@ async function updatePostStrengthLog(req, res) {
                             SET method_of_discharge = @methodOfDischarge,
                                 emp_post_end_date = @postEndDate,
                                 activity_name = 'Promotion',
-                                updated_date = @currentDate,
+                                updated_date = GETDATE(),
                             updated_by = @userID
                             WHERE employee_id = @employeeIDPrev
                                 AND emp_master_id = @empMasterIDPrev
@@ -1102,7 +1106,7 @@ async function updatePostStrengthLog(req, res) {
                     employee_id, emp_master_id, emp_reference_id, emp_post_join_date, method_of_appointment, employee_joining_date, emp_department_id, emp_post_id,
                     emp_post_code, emp_post_name, emp_department_name, emp_working_org_id,  promotion_date, created_date, created_by)
                     VALUES (@employeeIDPrev, @empMasterIDPrev, @employeeRefIDPrev , @employeeJoinedDate, 'Promotion' , @employeeJoinedDate, @departmentId, @postID,
-                    @postCode, @postName, @departmentName, @empWorkingOrgIDPrev,  @promotionDate,  @currentDate, @userID)
+                    @postCode, @postName, @departmentName, @empWorkingOrgIDPrev,  @promotionDate,  GETDATE(), @userID)
                     `);
 
                 }
@@ -1110,6 +1114,7 @@ async function updatePostStrengthLog(req, res) {
                 res.sendStatus(201);
             } catch (err) {
                 //console.log(err);
+                await safeRollback(transaction);
                 return res.status(500).json({message:"Internal Server Error",error:err});
             }
             break;
@@ -1167,7 +1172,7 @@ async function updatePostStrengthLog(req, res) {
                 dpc_conducted_date = NULL,
                 approval_by_ca_date = NULL,
                 promotion_order_issued_date = NULL,
-                updated_date = @currentDate,
+                updated_date = GETDATE(),
                 updated_by = @userID
                 WHERE post_code = @postCode`);
 
@@ -1196,7 +1201,7 @@ async function updatePostStrengthLog(req, res) {
                     emp_post_code = @postCode,
                     emp_post_name = @postName,
                     emp_department_name = @departmentName,
-                    updated_date = @currentDate,
+                    updated_date = GETDATE(),
                     updated_by = @userID
                     WHERE employee_id = @selectDeputedEmployeeId
                         AND emp_master_id = @selectDeputedEmployeeMasterId
@@ -1210,6 +1215,7 @@ async function updatePostStrengthLog(req, res) {
                 break;
             } catch (err) {
                 //console.log(err);
+                await safeRollback(transaction);
                 return res.status(500).json({message:"Internal Server Error",error:err});
             }
         case 'composite':
@@ -1252,7 +1258,7 @@ async function updatePostStrengthLog(req, res) {
                         dpc_conducted_date = NULL,
                         approval_by_ca_date = NULL,
                         promotion_order_issued_date = NULL,
-                        updated_date = @currentDate,
+                        updated_date = GETDATE(),
                         updated_by = @userID
                     WHERE post_code = @postCode
                 `);
@@ -1314,7 +1320,7 @@ async function updatePostStrengthLog(req, res) {
                     SET
                         employee_id = @employeeIDPrev,
                         emp_master_id = @empMasterIDPrev,
-                        updated_date = @currentDate,
+                        updated_date = GETDATE(),
                         updated_by = @userID
                         WHERE post_code = @postCode`);
 
@@ -1323,7 +1329,7 @@ async function updatePostStrengthLog(req, res) {
                             UPDATE tbl_employee_transaction_details
                             SET method_of_discharge = @methodOfDischarge,
                                 emp_post_end_date = @postEndDate,
-                                updated_date = @currentDate,
+                                updated_date = GETDATE(),
                             updated_by = @userID
                             WHERE employee_id = @employeeIDPrev
                                 AND emp_master_id = @empMasterIDPrev
@@ -1336,7 +1342,7 @@ async function updatePostStrengthLog(req, res) {
                     employee_id, emp_master_id, emp_reference_id, emp_post_join_date, method_of_appointment, employee_joining_date, emp_department_id, emp_post_id,
                     emp_post_code, emp_post_name, emp_department_name, emp_working_org_id, created_date, created_by)
                     VALUES (@employeeIDPrev, @empMasterIDPrev, @employeeRefIDPrev , @employeeJoinedDate, 'Composite Method' , @employeeJoinedDate, @departmentId, @postID,
-                    @postCode, @postName, @departmentName, @empWorkingOrgIDPrev,  @currentDate, @userID)
+                    @postCode, @postName, @departmentName, @empWorkingOrgIDPrev,  GETDATE(), @userID)
                     `);
 
                 }
@@ -1345,6 +1351,7 @@ async function updatePostStrengthLog(req, res) {
                 await transaction.commit();
                 res.sendStatus(201);
             } catch (err) {
+                await safeRollback(transaction);
                 return res.status(500).json({message:"Internal Server Error",error:err});
             }
             break;
@@ -1378,7 +1385,7 @@ async function updatePostStrengthLog(req, res) {
                 employee_joined_date = @dateOfJoiningTransferIn,
                 discharge_reason = @dischargeReason,
                 vacancy_type = @vacancyType,
-                updated_date = @currentDate,
+                updated_date = GETDATE(),
                 updated_by = @userID
                 WHERE post_code = @postCode`);
                 const postResult = await request.query(`SELECT p.post_id , p.post_name, d.department_name , d.department_id  FROM mmt_hr_post p
@@ -1403,7 +1410,7 @@ async function updatePostStrengthLog(req, res) {
                 emp_post_name = @postName,
                 emp_department_name = @departmentName,
                 emp_working_org_id = @organisationID,
-                updated_date = @currentDate,
+                updated_date = GETDATE(),
                 updated_by = @userID,
                 employee_id = @newEmployeeID
                 WHERE employee_id = @transferEmpId
@@ -1422,7 +1429,7 @@ async function updatePostStrengthLog(req, res) {
                 res.sendStatus(201);
                 break;
             } catch (err) {
-                await transaction.rollback();
+                await safeRollback(transaction);
                 res.status(500).json({message:"Internal Server Error",error:err});
             }
             break;
@@ -1461,7 +1468,7 @@ async function updatePostStrengthLog(req, res) {
                 res.sendStatus(201);
                 break;
             } catch (err) {
-                await transaction.rollback();
+                await safeRollback(transaction);
                 return res.status(500).json({message:"Internal Server Error",error:err});
             }
             break;
@@ -1516,7 +1523,7 @@ async function updatePostStrengthLog(req, res) {
                     review_application_by_comm          = NULL,
                     approval_received_date              = NULL,
                     discharge_reason                    = NULL,
-                    updated_date                        = @currentDate,   
+                    updated_date                        = GETDATE(),   
                     updated_by                          = @userID
                 WHERE post_code = @postCode
                 `);
@@ -1598,12 +1605,15 @@ async function updatePostStrengthLog(req, res) {
                 )
             `);
 
+            // Separation (Redeployment-out) set the employee inactive; joining this post brings them back
+            await request.query(`UPDATE tbl_employee_master SET emp_status = 1 WHERE emp_master_id = @chdCategoryEmpMasterId`);
+
             await transaction.commit();
             res.sendStatus(201);
             break;
 
             } catch (err) {
-                await transaction.rollback();
+                await safeRollback(transaction);
                 return res.status(500).json({ message: "Internal Server Error", error: err });
             }
             break;
@@ -1645,7 +1655,7 @@ async function updatePostStrengthLog(req, res) {
                         approval_received_date           = NULL,
                         order_issued_date                = NULL,
                         discharge_reason                 = NULL,
-                        updated_date                     = @currentDate,
+                        updated_date                     = GETDATE(),
                         updated_by                       = @userID
                     WHERE post_code = @postCode
                 `);
@@ -1701,13 +1711,16 @@ async function updatePostStrengthLog(req, res) {
                 )
         `);
 
+            // Separation (Redeployment-out) set the employee inactive; joining this post brings them back
+            await request.query(`UPDATE tbl_employee_master SET emp_status = 1 WHERE emp_master_id = @chdCategoryEmpMasterId`);
+
         await transaction.commit();
         res.sendStatus(201);
         break;
 
         
     } catch (err) {
-        await transaction.rollback();
+        await safeRollback(transaction);
         return res.status(500).json({ message: "Internal Server Error", error: err });
     }
     break;
@@ -1751,7 +1764,7 @@ async function updatePostStrengthLog(req, res) {
                 review_application_by_comm          = NULL,
                 approval_received_date              = NULL,
                 discharge_reason                    = NULL,
-                updated_date                        = @currentDate,
+                updated_date                        = GETDATE(),
                 updated_by                          = @userID
             WHERE post_code = @postCode
         `);
@@ -1831,10 +1844,14 @@ async function updatePostStrengthLog(req, res) {
         break;
 
     } catch (err) {
-        await transaction.rollback();
+        await safeRollback(transaction);
         return res.status(500).json({ message: "Internal Server Error", error: err });
     }
     break;
+
+    default:
+        await safeRollback(transaction);
+        return res.status(400).json({ message: `Unknown method of appointment: ${methodOfAppointment}` });
     }
     
 };
@@ -1869,7 +1886,12 @@ async function getPostNamesByPostCode(req, res) {
     request.input("postCode", postCode);
 
     try {
-        let query = ` SELECT ps.post_code, ps.post_id  ,d.department_id , d.department_name , p.post_name
+        // Department and post of a post code, plus the vacancy it holds (method, date of arise,
+        // vacant/filled, organisation): the React Add Employee form reads these instead of
+        // trusting values carried in its URL. The date is yyyy-mm-dd (style 23) for date inputs.
+        let query = ` SELECT ps.post_code, ps.post_id  ,d.department_id , d.department_name , p.post_name,
+                ps.method_of_appointment, CONVERT(VARCHAR(10), ps.date_of_arise_in_vacancy, 23) AS date_of_arise_in_vacancy,
+                ps.vacant_or_filled, ps.organisation_id
             FROM tbl_hr_post_strength ps
            	LEFT JOIN mmt_hr_department d ON d.department_id = ps.department_id
             LEFT JOIN  mmt_hr_post p ON p.post_id = ps.post_id
@@ -1893,9 +1915,85 @@ async function getVaccancyLogDetailsByPostCode(req, res) {
     request.input("postCode", postCode);
 
     try {
-        let query = ` SELECT *
-            FROM tbl_hr_post_strength
-            WHERE post_code=@postCode`;
+        let query = ` SELECT 
+                ps.id,
+                ps.post_code,
+                ps.post_id,
+                ps.department_id,
+                ps.vacant_or_filled,
+                ps.is_new,
+                ps.employee_id,
+                ps.emp_master_id,
+                ps.reference_id,
+                ps.date_of_arise_in_vacancy,
+                ps.vacancy_type,
+                ps.method_of_appointment,
+                ps.expected_anticipated_vacancy,
+                ps.exception_abolish,
+                ps.reason_for_exemption,
+                ps.exception_abolish_date,
+                ps.employee_joined_date,
+                ps.is_recruitment_through_ipa,
+                ps.process_initiated_date,
+                ps.notification_adv_issued_date,
+                ps.renotification_adv_issued_date,
+                ps.number_of_eligible_application,
+                ps.exam_conducted_date,
+                ps.interview_conducted_date,
+                ps.selection_process_completed_date,
+                ps.result_declared_date,
+                ps.appointment_letter_issued_date,
+                ps.vigilance_clr_received_date,
+                ps.dpc_conducted_date,
+                ps.approval_by_ca_date,
+                ps.promotion_order_issued_date,
+                ps.application_received_date,
+                ps.review_application_by_comm,
+                ps.approval_received_date,
+                ps.order_issued_date,
+                ps.discharge_reason,
+                ps.revival_process_initiated,
+                ps.revival_remarks,
+                ps.revival_date,
+                ps.revival_stage_id,
+                ps.revival_submission_date,
+                ps.revive_proposal_sent_to_doe_date,
+                ps.revive_approval_date_from_doe,
+                ps.revive_rejection_date_from_doe,
+                ps.revive_remarks_from_doe,
+                ps.revive_proposal_rejected_by_doe_date,
+                ps.order_of_revival_issued_date,
+                ps.revival_doc_name,
+                ps.revoke_reason,
+                ps.created_date,
+                ps.created_by,
+                ps.updated_date,
+                ps.updated_by,
+                ps.organisation_id,
+                ps.organisation_name,
+                ps.reason_for_process_not_initiated,
+                ps.post_chd,
+                a.A_is_recruitment_through_ipa,
+                a.A_process_initiated_date,
+                a.A_notification_adv_issued_date,
+                a.A_renotification_adv_issued_date,
+                a.A_number_of_eligible_application,
+                a.A_exam_conducted_date,
+                a.A_interview_conducted_date,
+                a.A_selection_process_completed_date,
+                a.A_result_declared_date,
+                a.A_appointment_letter_issued_date,
+                a.A_vigilance_clr_received_date,
+                a.A_dpc_conducted_date,
+                a.A_approval_by_ca_date,
+                a.A_promotion_order_issued_date,
+                a.A_application_received_date,
+                a.A_review_application_by_comm,
+                a.A_approval_received_date,
+                a.A_order_issued_date
+            FROM tbl_hr_post_strength ps
+            LEFT JOIN tbl_hr_anticipated_vacancies_details a ON ps.post_code = a.post_code
+            WHERE ps.post_code = @postCode`;
 
         const result = await request.query(query);
         res.json(result.recordset);
@@ -2121,7 +2219,6 @@ async function updateHRPostActivitiy(req, res) {
     request.input("approvalByAuthorityDatePromotion", approvalByAuthorityDatePromotion);
     request.input("orderDatePromotion", orderDatePromotion);
     request.input("selectEmployeeId", selectEmployeeId);
-    request.input("currentDate", currentDate);
     request.input("selectDeputedEmployeeId", selectDeputedEmployeeId);
     request.input("selectDeputedEmployeeMasterId", selectDeputedEmployeeMasterId);
 
@@ -2182,7 +2279,7 @@ async function updateHRPostActivitiy(req, res) {
                     approval_received_date = NULL,
                     order_issued_date = NULL,
                     discharge_reason = @dischargeReason,
-                    updated_date = @currentDate,
+                    updated_date = GETDATE(),
                     updated_by = @userID
                 WHERE post_code = @postCode
             `);
@@ -2234,7 +2331,7 @@ async function updateHRPostActivitiy(req, res) {
                         result_declared_date = NULL,
                         appointment_letter_issued_date = NULL,
                         discharge_reason = @dischargeReason,
-                        updated_date = @currentDate,
+                        updated_date = GETDATE(),
                         updated_by = @userID
                     WHERE post_code = @postCode
                 `);
@@ -2290,7 +2387,7 @@ async function updateHRPostActivitiy(req, res) {
                     SET
                         employee_id = @employeeIDPrev,
                         emp_master_id = @empMasterIDPrev,
-                        updated_date = @currentDate,
+                        updated_date = GETDATE(),
                         updated_by = @userID
                         WHERE post_code = @postCode`);
 
@@ -2301,7 +2398,7 @@ async function updateHRPostActivitiy(req, res) {
                             SET method_of_discharge = @methodOfDischarge,
                                 emp_post_end_date = @postEndDate,
                                 activity_name = 'Promotion',
-                                updated_date = @currentDate,
+                                updated_date = GETDATE(),
                             updated_by = @userID
                             WHERE employee_id = @employeeIDPrev
                                 AND emp_master_id = @empMasterIDPrev
@@ -2327,7 +2424,7 @@ async function updateHRPostActivitiy(req, res) {
                     employee_id, emp_master_id, emp_reference_id, emp_post_join_date, method_of_appointment, employee_joining_date, emp_department_id, emp_post_id,
                     emp_post_code, emp_post_name, emp_department_name, emp_working_org_id,  promotion_date, created_date, created_by)
                     VALUES (@employeeIDPrev, @empMasterIDPrev, @employeeRefIDPrev , @employeeJoinedDate, 'Promotion' , @employeeJoinedDate, @departmentId, @postID,
-                    @postCode, @postName, @departmentName, @empWorkingOrgIDPrev,  @promotionDate,  @currentDate, @userID)
+                    @postCode, @postName, @departmentName, @empWorkingOrgIDPrev,  @promotionDate,  GETDATE(), @userID)
                     `);
 
                 }
@@ -2392,7 +2489,7 @@ async function updateHRPostActivitiy(req, res) {
                 dpc_conducted_date = NULL,
                 approval_by_ca_date = NULL,
                 promotion_order_issued_date = NULL,
-                updated_date = @currentDate,
+                updated_date = GETDATE(),
                 updated_by = @userID
                 WHERE post_code = @postCode`);
 
@@ -2421,7 +2518,7 @@ async function updateHRPostActivitiy(req, res) {
                     emp_post_code = @postCode,
                     emp_post_name = @postName,
                     emp_department_name = @departmentName,
-                    updated_date = @currentDate,
+                    updated_date = GETDATE(),
                     updated_by = @userID
                     WHERE employee_id = @selectDeputedEmployeeId
                         AND emp_master_id = @selectDeputedEmployeeMasterId
@@ -2477,7 +2574,7 @@ async function updateHRPostActivitiy(req, res) {
                         dpc_conducted_date = NULL,
                         approval_by_ca_date = NULL,
                         promotion_order_issued_date = NULL,
-                        updated_date = @currentDate,
+                        updated_date = GETDATE(),
                         updated_by = @userID
                     WHERE post_code = @postCode
                 `);
@@ -2539,7 +2636,7 @@ async function updateHRPostActivitiy(req, res) {
                     SET
                         employee_id = @employeeIDPrev,
                         emp_master_id = @empMasterIDPrev,
-                        updated_date = @currentDate,
+                        updated_date = GETDATE(),
                         updated_by = @userID
                         WHERE post_code = @postCode`);
 
@@ -2549,7 +2646,7 @@ async function updateHRPostActivitiy(req, res) {
                             UPDATE tbl_employee_transaction_details
                             SET method_of_discharge = @methodOfDischarge,
                                 emp_post_end_date = @postEndDate,
-                                updated_date = @currentDate,
+                                updated_date = GETDATE(),
                             updated_by = @userID
                             WHERE employee_id = @employeeIDPrev
                                 AND emp_master_id = @empMasterIDPrev
@@ -2562,7 +2659,7 @@ async function updateHRPostActivitiy(req, res) {
                     employee_id, emp_master_id, emp_reference_id, emp_post_join_date, method_of_appointment, employee_joining_date, emp_department_id, emp_post_id,
                     emp_post_code, emp_post_name, emp_department_name, emp_working_org_id, created_date, created_by)
                     VALUES (@employeeIDPrev, @empMasterIDPrev, @employeeRefIDPrev , @employeeJoinedDate, 'Composite Method' , @employeeJoinedDate, @departmentId, @postID,
-                    @postCode, @postName, @departmentName, @empWorkingOrgIDPrev,  @currentDate, @userID)
+                    @postCode, @postName, @departmentName, @empWorkingOrgIDPrev,  GETDATE(), @userID)
                     `);
 
                 }
@@ -2604,7 +2701,7 @@ async function updateHRPostActivitiy(req, res) {
                 employee_joined_date = @dateOfJoiningTransferIn,
                 discharge_reason = @dischargeReason,
                 vacancy_type = @vacancyType,
-                updated_date = @currentDate,
+                updated_date = GETDATE(),
                 updated_by = @userID
                 WHERE post_code = @postCode`);
                 const postResult = await request.query(`SELECT p.post_id , p.post_name, d.department_name , d.department_id  FROM mmt_hr_post p
@@ -2629,7 +2726,7 @@ async function updateHRPostActivitiy(req, res) {
                 emp_post_name = @postName,
                 emp_department_name = @departmentName,
                 emp_working_org_id = @organisationID,
-                updated_date = @currentDate,
+                updated_date = GETDATE(),
                 updated_by = @userID,
                 employee_id = @newEmployeeID
                 WHERE employee_id = @transferEmpId
