@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FolderKanban, ClipboardList, Gavel, HardHat, CheckCircle2, IndianRupee, Wallet, CalendarRange,
-  Activity, Gauge, CalendarClock, Landmark, Flag, Timer, MousePointerClick, BadgeCheck, Handshake, Hourglass,
+  Activity, Gauge, CalendarClock, Landmark, Flag, MousePointerClick, BadgeCheck, Handshake, Hourglass,
   Clock, AlertTriangle, AlertOctagon, HelpCircle, Target,
 } from 'lucide-react';
 import DashboardPieChart from '../components/dashboard/DashboardPieChart';
@@ -18,14 +18,14 @@ import {
 import TableExportMenu from '../../../components/TableExportMenu';
 import { PANEL_KEYS } from '../components/dashboard/dashboardConfig';
 import {
-  ALL, CARD_THEME, DELAY_COLORS, DELAY_THEME, FY_MILESTONE_SERIES, FY_PROGRESS_SERIES, PRIMARY_COLOR, SECONDARY_COLOR, STAGE_COLORS, STAGE_THEME,
-  formatAmount, formatCount, formatCrore, formatDays, formatNumber, formatPercent, rowsHeight, tableExport,
+  ALL, DELAY_COLORS, DELAY_THEME, FY_MILESTONE_SERIES, FY_PROGRESS_SERIES, PRIMARY_COLOR, STAGE_COLORS, STAGE_THEME,
+  formatAmount, formatCount, formatCrore, formatNumber, formatPercent, rowsHeight, tableExport,
 } from '../components/dashboard/dashboardTheme';
 
 // Projects dashboard, built on the "Major Port Projects - Monitoring & Review Dashboard"
 // workbook and the earlier portal's project dashboard: filters, stage cards, portfolio
-// figures, stage / organisation / category / financial-year / parameter analysis and the
-// largest projects. Every figure opens the projects behind it (drill-down), and each
+// figures, delay status, stage / organisation / broad category / financial-year and
+// parameter analysis. Every figure opens the projects behind it (drill-down), and each
 // project opens its full dashboard record.
 
 const MAJOR_PORTS_TYPE_ID = '1';
@@ -62,12 +62,33 @@ const ORG_STATUS_SERIES = [
   { field: 'completed', name: 'Completed', color: STAGE_COLORS.completed },
   { field: 'ongoing', name: 'Ongoing', color: STAGE_COLORS.implementation },
 ];
-const COST_SERIES = [
-  { field: 'estimatedCost', name: 'Estimated cost (₹ Cr)', color: PRIMARY_COLOR },
-  { field: 'expenditure', name: 'Expenditure (₹ Cr)', color: SECONDARY_COLOR },
-];
 const PROJECTS_SERIES = [{ field: 'projects', name: 'Projects', color: PRIMARY_COLOR }];
-const COST_ONLY_SERIES = [{ field: 'estimatedCost', name: 'Estimated cost (₹ Cr)', color: PRIMARY_COLOR }];
+
+// Hover details of the charts; the fields hold text formatted when the chart data is built.
+const STAGE_GROUP_NAMES = { planning: 'Planning & Sanctioning', tendering: 'Under Tendering', implementation: 'Under Implementation', completed: 'Completed' };
+const STAGE_TOOLTIP = [
+  { label: 'Stage group', field: 'groupText' },
+  { label: 'Share of all projects', field: 'shareText' },
+  { label: 'Estimated cost', field: 'costText' },
+];
+const ORG_TOOLTIP = [
+  { label: 'Total projects', field: 'projectsText' },
+  { label: 'Estimated cost', field: 'costText' },
+  { label: 'Expenditure', field: 'expenditureText' },
+  { label: 'Avg physical progress', field: 'progressText' },
+];
+const PARAMETER_TOOLTIP = [
+  { label: 'Share of all projects', field: 'shareText' },
+  { label: 'Estimated cost', field: 'costText' },
+  { label: 'Expenditure', field: 'expenditureText' },
+  { label: 'Avg physical progress', field: 'progressText' },
+];
+const DELAY_STAGE_TOOLTIP = [
+  { label: 'Planning & Sanctioning', field: 'planningText' },
+  { label: 'Under Tendering', field: 'tenderingText' },
+  { label: 'Under Implementation', field: 'implementationText' },
+];
+const shareOf = (part, whole) => (whole ? formatPercent(Math.round((part / whole) * 1000) / 10) : '—');
 
 const PARAMETER_TABS = [
   { id: 'broadCategory', label: 'Broad Category' },
@@ -95,30 +116,6 @@ const countCol = (key, label, extra = {}) => ({ key, label, format: (v) => forma
 
 // Column totals of a table: sum of the given keys.
 const totalsOf = (rows, keys) => Object.fromEntries(keys.map((k) => [k, rows.reduce((acc, r) => acc + (Number(r[k]) || 0), 0)]));
-
-// Two side-by-side figures (EPC / PPP) under one heading.
-function SplitCard({ label, caption, icon: Icon, theme = 'indigo', items }) {
-  const t = CARD_THEME[theme];
-  return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <span className="text-[10px] font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-widest block">{label}</span>
-          <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 block">{caption}</span>
-        </div>
-        <div className={`p-2.5 rounded-xl border flex-shrink-0 ${t.icon}`}><Icon className="h-5 w-5" /></div>
-      </div>
-      <div className="grid grid-cols-2 gap-3 mt-3">
-        {items.map((item) => (
-          <div key={item.label} className="rounded-xl bg-slate-50 dark:bg-slate-800/50 px-3 py-2">
-            <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 dark:text-slate-400 block">{item.label}</span>
-            <span className={`text-xl font-black ${t.value}`}>{item.value}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 // Section holding one chart, with the chart export menu in its header.
 function ChartSection({ title, fileName, height, note, hint, legend, tabs, children }) {
@@ -151,7 +148,6 @@ export default function ProjectDashboardPage({ triggerNotification }) {
   const [reloadKey, setReloadKey] = useState(0);
   // Drill-down stack: { type: 'list', title, params } or { type: 'project', project }.
   const [drills, setDrills] = useState([]);
-  const [categoryMetric, setCategoryMetric] = useState('projects');
   const [parameterTab, setParameterTab] = useState('broadCategory');
   const [delayTab, setDelayTab] = useState('all');
 
@@ -216,24 +212,47 @@ export default function ProjectDashboardPage({ triggerNotification }) {
   const loading = result?.key !== key;
 
   // Chart data (memoised: a new array rebuilds the chart).
-  const stageChart = useMemo(() => (data?.byStage || []).map((s) => ({ ...s, color: STAGE_COLORS[s.group] })), [data]);
+  const stageChart = useMemo(() => (data?.byStage || []).map((s) => ({
+    ...s,
+    color: STAGE_COLORS[s.group],
+    groupText: STAGE_GROUP_NAMES[s.group],
+    shareText: shareOf(s.projects, data.kpis.projects),
+    costText: formatCrore(s.estimatedCost),
+  })), [data]);
   const orgChart = useMemo(() => (data?.byOrganisation || [])
-    .map((o) => ({ id: o.id, name: o.code, fullName: o.name, completed: o.completed, ongoing: o.ongoing, estimatedCost: o.estimatedCost, expenditure: o.expenditure }))
+    .map((o) => ({
+      id: o.id,
+      name: o.code,
+      fullName: o.name,
+      completed: o.completed,
+      ongoing: o.ongoing,
+      projectsText: formatCount(o.projects),
+      costText: formatCrore(o.estimatedCost),
+      expenditureText: formatCrore(o.expenditure),
+      progressText: formatPercent(o.avgProgress),
+    }))
     .sort((a, b) => (b.completed + b.ongoing) - (a.completed + a.ongoing)), [data]);
-  const costChart = useMemo(() => [...orgChart].sort((a, b) => b.estimatedCost - a.estimatedCost), [orgChart]);
-  const categoryChart = useMemo(() => [...(data?.byCategory || [])]
-    .sort((a, b) => (categoryMetric === 'projects' ? b.projects - a.projects : b.estimatedCost - a.estimatedCost))
-    .slice(0, 15)
-    .map((c) => ({ name: c.key, projects: c.projects, estimatedCost: c.estimatedCost })), [data, categoryMetric]);
   const fyChart = useMemo(() => data?.byFinancialYear || [], [data]);
   const delayChart = useMemo(() => {
     if (!data?.delay) return [];
     const counts = delayTab === 'all' ? data.delay.total : data.delay.byStage[delayTab];
     return data.delay.statuses
-      .map((s) => ({ name: s, value: counts?.[s] || 0, color: DELAY_COLORS[s] }))
+      .map((s) => ({
+        name: s,
+        value: counts?.[s] || 0,
+        color: DELAY_COLORS[s],
+        ...Object.fromEntries(ONGOING_STAGES.map((g) => [`${g.id}Text`, formatCount(data.delay.byStage[g.id][s])])),
+      }))
       .filter((d) => d.value > 0);
   }, [data, delayTab]);
-  const parameterChart = useMemo(() => (data?.parameters?.[parameterTab] || []).map((p) => ({ name: p.key, projects: p.projects })), [data, parameterTab]);
+  const parameterChart = useMemo(() => (data?.parameters?.[parameterTab] || []).map((p) => ({
+    name: p.key,
+    projects: p.projects,
+    shareText: shareOf(p.projects, data.kpis.projects),
+    costText: formatCrore(p.estimatedCost),
+    expenditureText: formatCrore(p.expenditure),
+    progressText: formatPercent(p.avgProgress),
+  })), [data, parameterTab]);
 
   if (error && !data) {
     return (
@@ -281,19 +300,6 @@ export default function ProjectDashboardPage({ triggerNotification }) {
     amountCol('estimatedCost', 'Estimated Cost (₹ Cr)'),
   ];
 
-  const orgStageColumns = [
-    { key: 'name', label: 'Port / Organisation', align: 'left' },
-    ...data.stages.map((s) => countCol(`stage_${s.id}`, s.name, {
-      drill: (r) => orgDrill(r, s.name, 'stage', String(s.id)),
-      totalDrill: () => () => openList(s.name, { dim: 'stage', value: String(s.id) }),
-    })),
-    countCol('projects', 'Total', { drill: (r) => orgDrill(r, 'All projects'), totalDrill: () => () => openList('All projects') }),
-  ];
-  const orgStageRows = data.byOrganisation.map((o) => ({
-    key: o.id, id: o.id, name: o.name, projects: o.projects,
-    ...Object.fromEntries(data.stages.map((s) => [`stage_${s.id}`, o.byStage[s.id] || 0])),
-  }));
-
   const progressColumns = [
     { key: 'name', label: 'Port / Organisation', align: 'left' },
     ...data.progressBands.map((b, i) => countCol(`band_${i}`, b, {
@@ -307,40 +313,18 @@ export default function ProjectDashboardPage({ triggerNotification }) {
     ...Object.fromEntries(data.progressBands.map((b, i) => [`band_${i}`, o.byProgressBand[b] || 0])),
   }));
 
-  const categoryDrill = (r, title, dim2, value2) => () => openList(`${r.key} - ${title}`, { dim: 'category', value: r.key, ...(dim2 ? { dim2, value2 } : {}) });
-  const categoryColumns = [
-    { key: 'key', label: 'Project Category', align: 'left', wrap: true },
-    countCol('projects', 'Projects', { drill: (r) => categoryDrill(r, 'All projects') }),
-    countCol('completed', 'Completed', { drill: (r) => categoryDrill(r, 'Completed', 'completion', 'completed') }),
-    countCol('ongoing', 'Ongoing', { drill: (r) => categoryDrill(r, 'Ongoing', 'completion', 'ongoing') }),
+  // Category Analysis sheet, by broad category.
+  const broadDrill = (r, title, dim2, value2) => () => openList(`${r.key} - ${title}`, { dim: 'broadCategory', value: r.key, ...(dim2 ? { dim2, value2 } : {}) });
+  const broadColumns = [
+    { key: 'key', label: 'Broad Category', align: 'left', wrap: true },
+    countCol('projects', 'Projects', { drill: (r) => broadDrill(r, 'All projects') }),
+    countCol('completed', 'Completed', { drill: (r) => broadDrill(r, 'Completed', 'completion', 'completed') }),
+    countCol('ongoing', 'Ongoing', { drill: (r) => broadDrill(r, 'Ongoing', 'completion', 'ongoing') }),
     amountCol('estimatedCost', 'Estimated Cost (₹ Cr)'),
     amountCol('awardedCost', 'Awarded Cost (₹ Cr)'),
     amountCol('expenditure', 'Expenditure (₹ Cr)'),
     { key: 'capacity', label: 'Capacity (MTPA)', format: (v) => formatNumber(v) },
   ];
-
-  const broadDrill = (r, title, dim2, value2) => () => openList(`${r.key} - ${title}`, { dim: 'broadCategory', value: r.key, ...(dim2 ? { dim2, value2 } : {}) });
-  const broadColumns = [
-    { key: 'key', label: 'Broad Category', align: 'left', wrap: true },
-    countCol('ongoingEpc', 'Ongoing EPC', {
-      drill: (r) => broadDrill(r, 'Ongoing EPC', 'ongoingMode', 'EPC'),
-      totalDrill: () => () => openList('Ongoing EPC projects', { dim: 'ongoingMode', value: 'EPC' }),
-    }),
-    countCol('ongoingPpp', 'Ongoing PPP', {
-      drill: (r) => broadDrill(r, 'Ongoing PPP', 'ongoingMode', 'PPP'),
-      totalDrill: () => () => openList('Ongoing PPP projects', { dim: 'ongoingMode', value: 'PPP' }),
-    }),
-    countCol('ongoing', 'Total Ongoing', {
-      drill: (r) => broadDrill(r, 'Ongoing', 'completion', 'ongoing'),
-      totalDrill: () => () => openList('Ongoing projects', { dim: 'completion', value: 'ongoing' }),
-    }),
-    { key: 'share', label: 'Share of Ongoing', format: (v) => formatPercent(v) },
-    amountCol('ongoingEstimatedCost', 'Ongoing Estimated Cost (₹ Cr)'),
-  ];
-  const ongoingTotal = data.byBroadCategory.reduce((acc, r) => acc + r.ongoing, 0);
-  const broadRows = data.byBroadCategory
-    .filter((r) => r.ongoing > 0)
-    .map((r) => ({ ...r, share: ongoingTotal ? Math.round((r.ongoing / ongoingTotal) * 1000) / 10 : null }));
 
   const fyColumns = [
     { key: 'financialYear', label: 'Financial Year', align: 'left' },
@@ -358,19 +342,6 @@ export default function ProjectDashboardPage({ triggerNotification }) {
     { key: 'avgProgress', label: 'Avg Physical Progress', format: (v) => formatPercent(v) },
   ];
   const parameterRows = data.parameters[parameterTab] || [];
-
-  const largestColumns = [
-    { key: 'rank', label: '#', align: 'left' },
-    { key: 'code', label: 'Project ID', align: 'left' },
-    { key: 'name', label: 'Project Name', align: 'left', wrap: true },
-    { key: 'organisationName', label: 'Port / Organisation', align: 'left' },
-    { key: 'category', label: 'Category', align: 'left', wrap: true },
-    { key: 'stageName', label: 'Current Stage', align: 'left' },
-    amountCol('estimatedCost', 'Estimated Cost (₹ Cr)'),
-    amountCol('awardedCost', 'Awarded Cost (₹ Cr)'),
-    amountCol('expenditure', 'Expenditure (₹ Cr)'),
-  ];
-  const largestRows = data.largest.map((p, i) => ({ ...p, rank: i + 1, name: p.subProjectName ? `${p.projectName} / ${p.subProjectName}` : p.projectName }));
 
   const { delay } = data;
   const delayStatusColumns = (drillOf, totalDrillOf) => delay.statuses.map((s) => countCol(s, s, {
@@ -569,29 +540,6 @@ export default function ProjectDashboardPage({ triggerNotification }) {
             onOpen={() => openList('Projects inaugurated', { dim: 'inaugurated', value: 'Yes' })}
           />
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <SplitCard
-            label="Average days from sanction to award"
-            caption="Board / admin approval to award (LOA issued)"
-            icon={Timer}
-            theme="indigo"
-            items={[
-              { label: 'EPC', value: formatDays(kpis.avgDaysSanctionToAward.epc) },
-              { label: 'PPP', value: formatDays(kpis.avgDaysSanctionToAward.ppp) },
-            ]}
-          />
-          <SplitCard
-            label="Average days from initiation to award"
-            caption="Project initiated to award (LOA issued)"
-            icon={Timer}
-            theme="purple"
-            items={[
-              { label: 'EPC', value: formatDays(kpis.avgDaysInitiationToAward.epc) },
-              { label: 'PPP', value: formatDays(kpis.avgDaysInitiationToAward.ppp) },
-            ]}
-          />
-        </div>
-
         <SectionDivider title="Delay status of ongoing projects" />
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           {delay.statuses.map((s) => (
@@ -622,6 +570,7 @@ export default function ProjectDashboardPage({ triggerNotification }) {
                 {(setRoot) => (delayChart.length ? (
                   <DashboardPieChart
                     data={delayChart}
+                    tooltipLines={delayTab === 'all' ? DELAY_STAGE_TOOLTIP : undefined}
                     onRootReady={setRoot}
                     dark={dark}
                     onSelect={(d) => d && openList(
@@ -677,6 +626,7 @@ export default function ProjectDashboardPage({ triggerNotification }) {
                     data={stageChart}
                     series={STAGE_SERIES}
                     valueFormat="#,###"
+                    tooltipLines={STAGE_TOOLTIP}
                     onRootReady={setRoot}
                     dark={dark}
                     onSelect={(d) => d && openList(d.name, { dim: 'stage', value: String(d.key) })}
@@ -699,6 +649,8 @@ export default function ProjectDashboardPage({ triggerNotification }) {
                       stacked
                       showValues={false}
                       valueFormat="#,###"
+                      tooltipLines={ORG_TOOLTIP}
+                      tooltipTitleField="fullName"
                       onRootReady={setRoot}
                       dark={dark}
                       onSelect={(d, field) => d && openList(`${d.fullName} - ${field === 'completed' ? 'Completed' : 'Ongoing'}`, { dim: 'organisation', value: String(d.id), dim2: 'completion', value2: field })}
@@ -727,34 +679,6 @@ export default function ProjectDashboardPage({ triggerNotification }) {
                   fileName="projects_port_wise_position"
                   note="Current-year spend counts projects under implementation only. Click a count to see its projects."
                 />
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-                  <ChartSection
-                    title="Estimated cost and expenditure by port (₹ Cr)"
-                    fileName="projects_cost_and_expenditure_by_organisation"
-                    height={rowsHeight(costChart.length, 40, 300)}
-                    legend={COST_SERIES.map((s) => ({ label: s.name, color: s.color }))}
-                  >
-                    {(setRoot) => (
-                      <DashboardChart
-                        data={costChart}
-                        series={COST_SERIES}
-                        horizontal
-                        valueFormat="#,###"
-                        onRootReady={setRoot}
-                        dark={dark}
-                        onSelect={(d) => d && openList(`${d.fullName} - All projects`, { dim: 'organisation', value: String(d.id) })}
-                      />
-                    )}
-                  </ChartSection>
-                  <TableSection
-                    title="Port by current stage"
-                    columns={orgStageColumns}
-                    rows={orgStageRows}
-                    totals={totalsOf(orgStageRows, ['projects', ...data.stages.map((s) => `stage_${s.id}`)])}
-                    rowKey="id"
-                    fileName="projects_port_by_stage"
-                  />
-                </div>
                 <TableSection
                   title="Physical progress by port - implementation milestones"
                   columns={progressColumns}
@@ -768,48 +692,13 @@ export default function ProjectDashboardPage({ triggerNotification }) {
             ) : null}
 
             <SectionDivider title="Category-wise analysis" />
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-              <ChartSection
-                title="Fifteen largest project categories"
-                fileName={`projects_top_categories_${categoryMetric}`}
-                height={rowsHeight(categoryChart.length, 26, 300)}
-                hint="Click a bar to see the category's projects."
-                tabs={(
-                  <SectionTabs
-                    tabs={[{ id: 'projects', label: 'By projects' }, { id: 'estimatedCost', label: 'By estimated cost (₹ Cr)' }]}
-                    value={categoryMetric}
-                    onChange={setCategoryMetric}
-                  />
-                )}
-              >
-                {(setRoot) => (
-                  <DashboardChart
-                    data={categoryChart}
-                    series={categoryMetric === 'projects' ? PROJECTS_SERIES : COST_ONLY_SERIES}
-                    horizontal
-                    valueFormat={categoryMetric === 'projects' ? '#,###' : '#,###.##'}
-                    onRootReady={setRoot}
-                    dark={dark}
-                    onSelect={(d) => d && openList(d.name, { dim: 'category', value: d.name })}
-                  />
-                )}
-              </ChartSection>
-              <TableSection
-                title="Ongoing projects by broad category"
-                columns={broadColumns}
-                rows={broadRows}
-                totals={{ ...totalsOf(broadRows, ['ongoingEpc', 'ongoingPpp', 'ongoing', 'ongoingEstimatedCost']), share: broadRows.length ? 100 : null }}
-                fileName="projects_ongoing_by_broad_category"
-                note="Broad category of the project's first category. Ongoing = not yet completed."
-              />
-            </div>
             <TableSection
-              title="All project categories"
-              columns={categoryColumns}
-              rows={data.byCategory}
-              totals={totalsOf(data.byCategory, ['projects', 'completed', 'ongoing', 'estimatedCost', 'awardedCost', 'expenditure', 'capacity'])}
-              fileName="projects_by_category"
-              note="A project with several categories is shown under their combined name, so each project is counted once."
+              title="Projects by broad category"
+              columns={broadColumns}
+              rows={data.byBroadCategory}
+              totals={totalsOf(data.byBroadCategory, ['projects', 'completed', 'ongoing', 'estimatedCost', 'awardedCost', 'expenditure', 'capacity'])}
+              fileName="projects_by_broad_category"
+              note="Broad category of the project's first category. Ongoing = not yet completed. Click a count to see its projects."
             />
 
             <SectionDivider title="Financial-year timeline" />
@@ -883,6 +772,7 @@ export default function ProjectDashboardPage({ triggerNotification }) {
                     series={PROJECTS_SERIES}
                     horizontal
                     valueFormat="#,###"
+                    tooltipLines={PARAMETER_TOOLTIP}
                     dark={dark}
                     onSelect={(d) => d && openList(`${parameterLabel}: ${d.name}`, { dim: parameterTab, value: d.name })}
                   />
@@ -891,16 +781,6 @@ export default function ProjectDashboardPage({ triggerNotification }) {
               </div>
             </Section>
 
-            <SectionDivider title="Watchlist" />
-            <TableSection
-              title="Largest projects by estimated cost"
-              columns={largestColumns.map((c) => (c.key === 'code'
-                ? { ...c, drill: (r) => () => openProject(r) }
-                : c))}
-              rows={largestRows}
-              fileName="projects_largest_by_estimated_cost"
-              note="The twenty largest projects in the current filter. Click a Project ID to see its details."
-            />
           </>
         )}
       </div>

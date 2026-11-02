@@ -541,11 +541,9 @@ const DRILL_DIMENSIONS = {
   stageGroup: (r) => r.stageGroup,
   completion: (r) => (r.stageGroup === 'completed' ? 'completed' : 'ongoing'),
   delayStatus: (r) => r.delayStatus,
-  ongoingMode: (r) => (r.stageGroup === 'completed' ? null : r.mode),
   stage: (r) => String(r.stageId),
   organisation: (r) => String(r.organisationId),
   organisationType: (r) => String(r.organisationTypeId),
-  category: (r) => r.category,
   broadCategory: (r) => r.broadCategory,
   mode: (r) => r.mode,
   approvalRoute: (r) => r.approvalRoute,
@@ -560,8 +558,6 @@ const DRILL_DIMENSIONS = {
   revisedTarget: (r) => (r.revisions > 0 ? 'Yes' : 'No'),
   capacityAdded: (r) => (r.capacityAddition > 0 ? 'Yes' : 'No'),
   currentFyTarget: (r) => (r.currentFyTarget > 0 ? 'Yes' : 'No'),
-  sanctionToAward: (r) => (r.daysSanctionToAward !== null ? r.mode : null),
-  initiationToAward: (r) => (r.daysInitiationToAward !== null ? r.mode : null),
   ...Object.fromEntries(Object.entries(FY_EVENTS).map(([event, field]) => [`fy-${event}`, (r) => r[field]])),
 };
 
@@ -596,10 +592,7 @@ function groupBy(rows, keyOf, build, order = null) {
 }
 
 const avgProgress = (list) => round1(average(list.filter((r) => hasNumber(r.physicalProgress)).map((r) => r.physicalProgress)));
-const avgDays = (list, field) => {
-  const v = average(list.map((r) => r[field]).filter((d) => d !== null));
-  return v === null ? null : Math.round(v);
-};
+const positiveSum = (list, field) => list.reduce((acc, r) => acc + (r[field] > 0 ? r[field] : 0), 0);
 
 // Projects / estimated cost / expenditure / average physical progress, as on the
 // Parameter Analysis sheet.
@@ -622,8 +615,6 @@ function buildSummary(rows) {
   const expenditure = sumOf(rows, 'expenditure');
   const currentFyTarget = sumOf(rows, 'currentFyTarget');
   const currentFyExpenditure = sumOf(rows, 'currentFyExpenditure');
-  const epc = rows.filter((r) => r.mode === 'EPC');
-  const ppp = rows.filter((r) => r.mode === 'PPP');
 
   const kpis = {
     projects: rows.length,
@@ -634,19 +625,17 @@ function buildSummary(rows) {
     estimatedCost: crore(estimatedCost),
     sanctionedCost: crore(sumOf(rows, 'sanctionedCost')),
     // Awarded cost counts non-negative amounts only, as in the workbook.
-    awardedCost: crore(rows.reduce((acc, r) => acc + (r.awardedCost > 0 ? r.awardedCost : 0), 0)),
+    awardedCost: crore(positiveSum(rows, 'awardedCost')),
     expenditure: crore(expenditure),
     expenditurePercent: estimatedCost > 0 ? round1((expenditure / estimatedCost) * 100) : null,
     currentFyTarget: crore(currentFyTarget),
     currentFyExpenditure: crore(currentFyExpenditure),
     currentFySpendPercent: currentFyTarget > 0 ? round1((currentFyExpenditure / currentFyTarget) * 100) : null,
     avgProgressOngoing: avgProgress(ongoing),
-    capacityAddition: crore(rows.reduce((acc, r) => acc + (r.capacityAddition > 0 ? r.capacityAddition : 0), 0)),
+    capacityAddition: crore(positiveSum(rows, 'capacityAddition')),
     revisedTarget: rows.filter((r) => r.revisions > 0).length,
     foundationLaid: rows.filter((r) => r.foundationLaid === 'Yes').length,
     inaugurated: rows.filter((r) => r.inaugurated === 'Yes').length,
-    avgDaysSanctionToAward: { epc: avgDays(epc, 'daysSanctionToAward'), ppp: avgDays(ppp, 'daysSanctionToAward') },
-    avgDaysInitiationToAward: { epc: avgDays(epc, 'daysInitiationToAward'), ppp: avgDays(ppp, 'daysInitiationToAward') },
     ongoing: ongoing.length,
     ongoingEstimatedCost: crore(sumOf(ongoing, 'estimatedCost')),
   };
@@ -670,7 +659,7 @@ function buildSummary(rows) {
       projects: list.length,
       costLabel: g.id === 'planning' ? 'Estimated cost' : 'Awarded cost',
       cost: crore(sumOf(list, costField)),
-      capacity: crore(list.reduce((acc, r) => acc + (r.capacityAddition > 0 ? r.capacityAddition : 0), 0)),
+      capacity: crore(positiveSum(list, 'capacityAddition')),
       ...modeSplit(list, costField),
     };
   });
@@ -681,8 +670,6 @@ function buildSummary(rows) {
     projects: list.length,
     estimatedCost: crore(sumOf(list, 'estimatedCost')),
   })).sort((a, b) => a.key - b.key);
-
-  const stages = byStage.map((s) => ({ id: s.key, name: s.name }));
 
   // Port Analysis sheet (Overdue, On-time rate and Avg overrun left out). Current-year
   // spend counts projects under implementation only.
@@ -698,13 +685,12 @@ function buildSummary(rows) {
       ongoing: list.length - completed,
       estimatedCost: crore(sumOf(list, 'estimatedCost')),
       sanctionedCost: crore(sumOf(list, 'sanctionedCost')),
-      awardedCost: crore(list.reduce((acc, r) => acc + (r.awardedCost > 0 ? r.awardedCost : 0), 0)),
+      awardedCost: crore(positiveSum(list, 'awardedCost')),
       expenditure: crore(sumOf(list, 'expenditure')),
       currentFyTarget: crore(sumOf(list, 'currentFyTarget')),
       currentFySpendImplementation: crore(sumOf(implementation, 'currentFyExpenditure')),
       avgProgress: avgProgress(list),
-      capacity: crore(list.reduce((acc, r) => acc + (r.capacityAddition > 0 ? r.capacityAddition : 0), 0)),
-      byStage: Object.fromEntries(stages.map((s) => [s.id, list.filter((r) => r.stageId === s.id).length])),
+      capacity: crore(positiveSum(list, 'capacityAddition')),
       byProgressBand: Object.fromEntries(PROGRESS_BANDS.map((b) => [b, list.filter((r) => r.progressBand === b).length])),
       byDelayStatus: delayCounts(list.filter((r) => r.stageGroup !== 'completed')),
     };
@@ -712,30 +698,17 @@ function buildSummary(rows) {
     .map(({ key, ...o }) => ({ id: key, ...o }))
     .sort((a, b) => String(a.name).localeCompare(String(b.name)));
 
-  // Category Analysis sheet (Overdue and Avg physical progress left out).
-  const byCategory = groupBy(rows, (r) => r.category, (list) => {
+  // Category Analysis sheet by broad category (Overdue and Avg physical progress left out).
+  const byBroadCategory = groupBy(rows, (r) => r.broadCategory, (list) => {
     const completed = list.filter((r) => r.stageGroup === 'completed').length;
     return {
       projects: list.length,
       completed,
       ongoing: list.length - completed,
       estimatedCost: crore(sumOf(list, 'estimatedCost')),
-      awardedCost: crore(list.reduce((acc, r) => acc + (r.awardedCost > 0 ? r.awardedCost : 0), 0)),
+      awardedCost: crore(positiveSum(list, 'awardedCost')),
       expenditure: crore(sumOf(list, 'expenditure')),
-      capacity: crore(list.reduce((acc, r) => acc + (r.capacityAddition > 0 ? r.capacityAddition : 0), 0)),
-    };
-  });
-
-  // Broad category with the EPC / PPP split of ongoing projects (earlier portal).
-  const byBroadCategory = groupBy(rows, (r) => r.broadCategory, (list) => {
-    const live = list.filter((r) => r.stageGroup !== 'completed');
-    return {
-      projects: list.length,
-      ongoing: live.length,
-      ongoingEpc: live.filter((r) => r.mode === 'EPC').length,
-      ongoingPpp: live.filter((r) => r.mode === 'PPP').length,
-      estimatedCost: crore(sumOf(list, 'estimatedCost')),
-      ongoingEstimatedCost: crore(sumOf(live, 'estimatedCost')),
+      capacity: crore(positiveSum(list, 'capacityAddition')),
     };
   });
 
@@ -760,13 +733,6 @@ function buildSummary(rows) {
     progressBand: groupBy(rows, (r) => r.progressBand, parameterGroup, PROGRESS_BANDS),
   };
 
-  // Watchlist: the twenty largest projects by estimated cost.
-  const largest = rows
-    .filter((r) => hasNumber(r.estimatedCost))
-    .sort((a, b) => b.estimatedCost - a.estimatedCost)
-    .slice(0, 20)
-    .map(listRow);
-
   const lastUpdated = rows.reduce((max, r) => (r.lastUpdated && (!max || r.lastUpdated > max) ? r.lastUpdated : max), null);
 
   return {
@@ -774,14 +740,11 @@ function buildSummary(rows) {
     delay,
     stageCards,
     byStage,
-    stages,
     progressBands: PROGRESS_BANDS,
     byOrganisation,
-    byCategory,
     byBroadCategory,
     byFinancialYear,
     parameters,
-    largest,
     lastUpdated,
   };
 }

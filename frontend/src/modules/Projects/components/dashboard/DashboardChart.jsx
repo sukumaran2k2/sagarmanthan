@@ -9,7 +9,10 @@ import { newChartRoot, chartColors } from '../../../../utils/amCharts';
 //   horizontal: categories down the left, largest first; otherwise categories along the bottom.
 //   stacked: columns stacked per category.
 //   onSelect(dataContext, field): clicking a column (or a line point) opens its projects.
-// data must be memoised by the caller: a new array rebuilds the chart.
+//   tooltipLines: [{ label, field }] - details shown on hover below the hovered series'
+//   value; each field holds ready-formatted text. tooltipTitleField names the hover title (default:
+//   the category).
+// data, series and tooltipLines must be memoised by the caller: a new array rebuilds the chart.
 export default function DashboardChart({
   data,
   categoryField = 'name',
@@ -19,6 +22,8 @@ export default function DashboardChart({
   valueFormat = '#,###.##',
   valueSuffix = '',
   showValues = true,
+  tooltipLines,
+  tooltipTitleField,
   onSelect,
   onRootReady,
   dark,
@@ -60,19 +65,27 @@ export default function DashboardChart({
     const valueKey = horizontal ? 'valueX' : 'valueY';
     const categoryKey = horizontal ? 'categoryY' : 'categoryX';
     const labelSingle = showValues && (series.length === 1 || !stacked);
+    const tooltipTitle = `[bold]{${tooltipTitleField || categoryKey}}[/]`;
+    const detailText = tooltipLines?.map((l) => `${l.label}: [bold]{${l.field}}[/]`).join('\n');
 
     series.forEach((s) => {
       const color = am5.color(s.color);
       const fields = horizontal
         ? { valueXField: s.field, categoryYField: categoryField }
         : { valueYField: s.field, categoryXField: categoryField };
-      const tooltip = am5.Tooltip.new(root, { labelText: `[bold]{${categoryKey}}[/]\n${s.name}: [bold]{${valueKey}.formatNumber("${valueFormat}")}${valueSuffix}[/]` });
+      const seriesText = `${s.name}: [bold]{${valueKey}.formatNumber("${valueFormat}")}${valueSuffix}[/]`;
+      const body = detailText ? `${seriesText}\n${detailText}` : seriesText;
+      // The chart has no cursor, so each column / point carries its own hover text.
+      const tooltipText = `${tooltipTitle}\n${body}`;
+      const tooltip = am5.Tooltip.new(root, {});
 
       if (s.type === 'line') {
         const line = chart.series.push(am5xy.LineSeries.new(root, { name: s.name, xAxis, yAxis, ...fields, stroke: color, tooltip }));
         line.strokes.template.setAll({ strokeWidth: 2 });
         line.bullets.push(() => {
-          const circle = am5.Circle.new(root, { radius: 4, fill: color, stroke: am5.color(c.totalBullet), strokeWidth: 2, cursorOverStyle: onSelect ? 'pointer' : undefined });
+          const circle = am5.Circle.new(root, {
+            radius: 4, fill: color, stroke: am5.color(c.totalBullet), strokeWidth: 2, tooltip, tooltipText, cursorOverStyle: onSelect ? 'pointer' : undefined,
+          });
           circle.events.on('click', (ev) => onSelectRef.current?.(ev.target.dataItem?.dataContext, s.field));
           return am5.Bullet.new(root, { sprite: circle });
         });
@@ -85,6 +98,7 @@ export default function DashboardChart({
         fill: color,
         stroke: am5.color(c.totalBullet),
         strokeWidth: stacked ? 1 : 0,
+        tooltipText,
         ...(horizontal
           ? { height: am5.percent(80), cornerRadiusTR: 4, cornerRadiusBR: 4 }
           : { width: am5.percent(80), cornerRadiusTL: 4, cornerRadiusTR: 4 }),
@@ -116,7 +130,7 @@ export default function DashboardChart({
     return () => { root.dispose(); onRootReady?.(null); };
     // onRootReady / onSelect are read once per build; data and theme rebuild the chart.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, dark, series, horizontal, stacked]);
+  }, [data, dark, series, horizontal, stacked, tooltipLines, tooltipTitleField]);
 
   return <div ref={divRef} style={{ width: '100%', height: '100%', overflow: 'hidden' }} />;
 }
