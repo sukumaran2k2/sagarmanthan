@@ -15,6 +15,7 @@ export const OVOD_PRIORITIES = [
 
 export const OVOD_STATUSES = [
   { id: '0', label: 'Show All' },
+  { id: 'No Update', label: 'No Update' },
   { id: 'Yet to be Started', label: 'Yet to be Started' },
   { id: 'Under Implementation - On Time', label: 'Under Implementation - On Time' },
   { id: 'Under Implementation - Delayed', label: 'Under Implementation - Delayed' },

@@ -10,7 +10,7 @@ import { useConsultantPermissions } from './hooks/useConsultantPermissions';
 import { deleteConsultantAppointment } from './api';
 import { getCurrentUserId } from '../../utils/authSession';
 import { useCaStore } from './store/useCaStore';
-import { useNotifier, getErrorMessage } from '../../utils/notify';
+import { useNotifier, getErrorMessage, toastError } from '../../utils/notify';
 import { CA_TOASTS } from './toastMessages';
 
 export default function ConsultantAppointmentView({ triggerNotification }) {
@@ -73,7 +73,11 @@ export default function ConsultantAppointmentView({ triggerNotification }) {
     if (!window.confirm(`Are you sure you want to delete this Consultant Appointment record (${ca.wing} / ${ca.division})? This will also remove associated candidate records and documents.`)) {
       return;
     }
-    const userId = getCurrentUserId() || 1;
+    const userId = getCurrentUserId();
+    if (!userId) {
+      notify(toastError('Session Expired', 'Please log in again before deleting.'));
+      return;
+    }
     try {
       await deleteConsultantAppointment(ca.id, userId);
       notify(CA_TOASTS.deleted(ca.wing, ca.division));
@@ -138,6 +142,8 @@ export default function ConsultantAppointmentView({ triggerNotification }) {
               onSuccess={handleSuccess}
               triggerNotification={triggerNotification}
               editData={editData}
+              canEdit={canEdit}
+              canAdd={canAdd}
             />
           } />
 

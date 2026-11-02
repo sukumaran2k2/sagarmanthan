@@ -45,13 +45,10 @@ export function getModuleCrud(moduleCode) {
     return false;
   });
 
+  // No permission entry found — fail closed. If read-only access is intended
+  // as the default for authenticated users, return { ...VIEW_ONLY } instead.
   if (!match) {
-    return {
-      create: true,
-      read: true,
-      update: true,
-      delete: true,
-    };
+    return { ...EMPTY };
   }
 
   return {

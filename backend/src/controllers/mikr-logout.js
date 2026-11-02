@@ -68,6 +68,13 @@ export const mikrLogout = async (req, res) => {
             console.log("✓ Current session token blacklisted");
         }
 
+        // Clear the httpOnly refresh token cookie
+        res.clearCookie('refreshToken', {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'Strict',
+        });
+
         return res.status(200).json({
             success: true,
             message: "Logged out successfully",

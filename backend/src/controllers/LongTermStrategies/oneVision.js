@@ -83,7 +83,13 @@ async function getAllResultOVDData(req, res) {
         if (vibhasID !== 0) whereClause.push("tbl_one_vision_doc.vibhas = @vibhasID");
         if (mivChapterSelect !== 0) whereClause.push("tbl_one_vision_doc.miv_chapter = @mivChapterSelect");
         if (makvThemeSelect !== 0) whereClause.push("tbl_one_vision_doc.makv_theme = @makvThemeSelect");
-        if (statusCurrent !== "0") whereClause.push("tbl_one_vision_doc.current_status = @statusCurrent");
+        if (statusCurrent !== "0") {
+            if (statusCurrent === "No Update") {
+                whereClause.push("(tbl_one_vision_doc.current_status = @statusCurrent OR tbl_one_vision_doc.current_status IS NULL)");
+            } else {
+                whereClause.push("tbl_one_vision_doc.current_status = @statusCurrent");
+            }
+        }
 
         if (vision !== 0) {
             switch (vision) {
@@ -998,12 +1004,12 @@ async function createOVDData(req, res) {
                 goal_a1, intervention_a2, goal_b1, intervention_b2, action_b3, action_a3,
                 category, wings, priority, vibhas, is_miv, is_makv, is_sgos, is_additional_item, is_gmis,
                 miv_chapter, makv_theme, target_date, expected_date, imp_agency, party_1, party_2,
-                Response, created_by
+                Response, created_by, current_status
             ) VALUES (
-                @goalA1, @a2Intervention, @goalB1, @interventionB2, @actionB3ID, @actionableA3ID, 
+                @goalA1, @a2Intervention, @goalB1, @interventionB2, @actionB3ID, @actionableA3ID,
                 @category, @wings, @priority, @ViBhas, @partOfMIV2030, @partOfMAKV2047, @partOfSGoS2, @partOfAddItem, @partOfGMIS,
                 @mivChapterSelect, @makvThemeSelect, @completionDate, @actualDate, @implementingAgency, @party1, @party2,
-                @Remarks, @userID
+                @Remarks, @userID, 'No Update'
             )
         `);
 
@@ -1077,6 +1083,8 @@ async function createOVDL2Data(req, res) {
         const b2Code = B2Data.recordset[0].b2_code;
         const b2Id = B2Data.recordset[0].id;
 
+        const createdIds = [];
+
         if (actionB3 && actionB3.length > 0) {
 
             for (const row of actionB3) {
@@ -1136,19 +1144,22 @@ async function createOVDL2Data(req, res) {
                         goal_a1, intervention_a2, goal_b1, intervention_b2, action_b3, action_a3,
                         category, wings, priority, vibhas, is_miv, is_makv, is_sgos, is_additional_item, is_gmis,
                         miv_chapter, makv_theme, target_date, expected_date, imp_agency, party_1, party_2,
-                        Response, created_by
+                        Response, created_by, current_status
                     ) VALUES (
-                        @goalA1, @a2Intervention, @goalB1, @b2Id, @actionB3ID, @actionableA3ID, 
+                        @goalA1, @a2Intervention, @goalB1, @b2Id, @actionB3ID, @actionableA3ID,
                         @category, @wings, @priority, @ViBhas, @partOfMIV2030, @partOfMAKV2047, @partOfSGoS2, @partOfAddItem, @partOfGMIS,
                         @mivChapterSelect, @makvThemeSelect, @completionDate, @actualDate, @implementingAgency, @party1, @party2,
-                        @Remarks, @userID
+                        @Remarks, @userID, 'No Update'
                     )
                 `);
+
+                const newOvod = await conn.query(`SELECT TOP 1 id FROM tbl_one_vision_doc ORDER BY id DESC`);
+                if (newOvod.recordset?.[0]?.id) createdIds.push(newOvod.recordset[0].id);
             }
-            
+
         }
 
-        res.sendStatus(201);
+        res.status(201).json({ ids: createdIds });
     } catch (err) {
         console.error(err);
         res.sendStatus(500);
@@ -1394,8 +1405,8 @@ async function updateOVDData(req, res) {
                 `);
             const existingLogs = existingLogsResult.recordset;
 
-            const incomingLogs = (ovodProgressLogData || []).filter(row => 
-                row.progressDate && row.physicalProgress !== '' && row.financialProgress !== ''
+            const incomingLogs = (ovodProgressLogData || []).filter(row =>
+                row.progressDate
             );
 
             let hasChanges = false;

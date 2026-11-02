@@ -4,6 +4,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import cors from "cors";
+import cookieParser from 'cookie-parser';
 import bodyParser from 'body-parser';
 import cron from 'node-cron';
 import { sendEmail } from './src/controllers/Dashboard/emailService.js';
@@ -16,13 +17,19 @@ const __dirname = dirname(__filename);
 
 const app = express();
 
-// Enable CORS as the first middleware
-app.use(cors({
-  origin: "*",
+// Enable CORS as the first middleware.
+// Credentials: true is required so the browser sends the httpOnly refreshToken cookie.
+// ALLOWED_ORIGIN must not be "*" when credentials are enabled.
+const ALLOWED_ORIGIN = process.env.FRONTEND_URL || 'http://localhost:5173';
+const corsOptions = {
+  origin: ALLOWED_ORIGIN,
+  credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
-}));
-app.options("*", cors());
+};
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
+app.use(cookieParser());
 
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true, parameterLimit: 50000 }));

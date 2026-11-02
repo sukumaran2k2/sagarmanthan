@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { openBackendFile } from '../../../utils/openBackendFile';
 import { Building2 } from 'lucide-react';
-import api from '../api';
+import { fetchYpReport, fetchYpWingCandidates, fetchYPDivisionWiseCandidates, fetchYoungProfessionals } from '../api';
+import { useNotifier, getErrorMessage, toastError } from '../../../utils/notify';
 import ReportTable from '../../../components/ReportTable';
 import { useAICopilot } from '../../../context/AICopilotContext';
 
 export default function Reports({ triggerNotification }) {
   const { registerReport, clearReport } = useAICopilot();
+  const notify = useNotifier(triggerNotification);
   const [reportView, setReportView] = useState('all');
 
   const [drillDownPath, setDrillDownPath] = useState([
@@ -30,11 +32,11 @@ export default function Reports({ triggerNotification }) {
     setError(null);
     try {
       if (currentView.type === 'summary') {
-        const response = await api.get("/yp-report");
+        const response = await fetchYpReport();
         const list = response.data?.rowData || [];
         setData(list.map((item, idx) => ({ ...item, 'S No': idx + 1 })));
       } else if (currentView.type === 'wing_drilldown') {
-        const response = await api.get(`/wingwise-ypcandidate/0/${currentView.wingId}`);
+        const response = await fetchYpWingCandidates(currentView.wingId);
         const list = response.data?.rowData || response.data || [];
         setData(list.map((item, idx) => ({
           'S No': idx + 1,
@@ -53,7 +55,7 @@ export default function Reports({ triggerNotification }) {
           'Last Updated At': item['Last Updated At'] || item.last_updated_at || item.last_updated_date || '—'
         })));
       } else if (currentView.type === 'drilldown') {
-        const response = await api.get(`/divisionwise-ypcandidate/0/${currentView.divisionId}`);
+        const response = await fetchYPDivisionWiseCandidates(currentView.divisionId);
         const list = response.data?.rowData || response.data || [];
         setData(list.map((item, idx) => ({
           'S No': idx + 1,
@@ -72,9 +74,9 @@ export default function Reports({ triggerNotification }) {
           'Last Updated At': item['Last Updated At'] || item.last_updated_at || item.last_updated_date || '—'
         })));
       } else if (currentView.type === 'all_drilldown') {
-        const response = await api.get('/young-professional?all=true');
+        const response = await fetchYoungProfessionals({ all: true });
         const raw = response.data;
-        const list = (Array.isArray(raw) ? raw : (raw?.data || [])).filter(item => Number(item.is_active) === 1 || item.is_active === true || item.is_active == null);
+        const list = (Array.isArray(raw) ? raw : (raw?.data || [])).filter(item => item.is_active !== 0 && item.is_active !== '0' && item.is_active !== false);
         setData(list.map((item, idx) => ({
           'S No': idx + 1,
           'Wing Name': item.wing || item.wing_name || item['Wing Name'] || '—',
@@ -95,6 +97,7 @@ export default function Reports({ triggerNotification }) {
     } catch (err) {
       console.error("Error loading YP report data:", err);
       setError("Failed to load report data.");
+      notify(toastError('Report Error', getErrorMessage(err) || 'Failed to load report data.'));
       setData([]);
     } finally {
       setLoading(false);
@@ -138,7 +141,7 @@ export default function Reports({ triggerNotification }) {
         cellClass: 'yp-wrap-cell',
         cellRenderer: (p) => {
           if (p.node && p.node.rowPinned) {
-            return <strong style={{ fontWeight: 850, color: '#4b2424' }}>Total</strong>;
+            return <strong style={{ fontWeight: 850, color: 'var(--module-report-brand-color, #4b2424)' }}>Total</strong>;
           }
           return <span style={{ fontWeight: 600, wordBreak: 'break-word', whiteSpace: 'normal' }}>{p.value || '—'}</span>;
         }
@@ -156,7 +159,7 @@ export default function Reports({ triggerNotification }) {
         cellClass: 'yp-wrap-cell',
         cellRenderer: (p) => {
           if (p.node && p.node.rowPinned) {
-            return <strong style={{ fontWeight: 850, color: '#4b2424' }}>Total</strong>;
+            return <strong style={{ fontWeight: 850, color: 'var(--module-report-brand-color, #4b2424)' }}>Total</strong>;
           }
           return <span style={{ fontWeight: 600, wordBreak: 'break-word', whiteSpace: 'normal' }}>{p.value || '—'}</span>;
         }
@@ -184,7 +187,7 @@ export default function Reports({ triggerNotification }) {
               style={{
                 background: 'none',
                 border: 'none',
-                color: '#4b2424',
+                color: 'var(--module-report-brand-color, #4b2424)',
                 fontWeight: 850,
                 fontSize: '13px',
                 textDecoration: 'underline',
@@ -229,7 +232,7 @@ export default function Reports({ triggerNotification }) {
               style={{
                 background: 'none',
                 border: 'none',
-                color: '#4b2424',
+                color: 'var(--module-report-brand-color, #4b2424)',
                 fontWeight: 800,
                 fontSize: '13px',
                 textDecoration: 'underline',
@@ -448,7 +451,7 @@ export default function Reports({ triggerNotification }) {
         autoHeight: true,
         cellClass: 'yp-wrap-cell',
         cellRenderer: (p) => (
-          <span style={{ fontSize: 12, fontWeight: 600, color: '#0f172a', textAlign: 'center', width: '100%', display: 'block', wordBreak: 'break-word', whiteSpace: 'normal' }} className="dark:text-slate-100">
+          <span style={{ fontSize: 12, fontWeight: 600,  textAlign: 'center', width: '100%', display: 'block', wordBreak: 'break-word', whiteSpace: 'normal' }} className="dark:text-slate-100">
             {p.value || '—'}
           </span>
         )
@@ -461,7 +464,7 @@ export default function Reports({ triggerNotification }) {
         autoHeight: true,
         cellClass: 'yp-wrap-cell',
         cellRenderer: (p) => (
-          <span style={{ fontSize: 12.5, fontWeight: 650, color: '#0f172a', wordBreak: 'break-word', whiteSpace: 'normal' }} className="dark:text-slate-100">
+          <span style={{ fontSize: 12.5, fontWeight: 650,  wordBreak: 'break-word', whiteSpace: 'normal' }} className="dark:text-slate-100">
             {p.value || '—'}
           </span>
         )
@@ -474,7 +477,7 @@ export default function Reports({ triggerNotification }) {
         autoHeight: true,
         cellClass: 'yp-wrap-cell',
         cellRenderer: (p) => (
-          <span style={{ fontSize: 12, fontWeight: 600, color: '#0f172a', textAlign: 'center', width: '100%', display: 'block', wordBreak: 'break-word', whiteSpace: 'normal' }} className="dark:text-slate-100">
+          <span style={{ fontSize: 12, fontWeight: 600,  textAlign: 'center', width: '100%', display: 'block', wordBreak: 'break-word', whiteSpace: 'normal' }} className="dark:text-slate-100">
             {p.value || '—'}
           </span>
         )
@@ -576,30 +579,35 @@ export default function Reports({ triggerNotification }) {
     };
   }, [aggregatedData, currentView, columns, reportView, registerReport, clearReport, pinnedBottomRowData]);
 
-  const subtitle = useMemo(() => (
-    <>
-      <span>As on date: <strong style={{ color: '#4b2424' }}>15-07-2026</strong></span>
-      <span style={{ color: '#eadede' }}>•</span>
-      <span>Report for the month — <strong style={{ color: '#4b2424' }}>July 2026</strong></span>
-    </>
-  ), []);
+  const subtitle = useMemo(() => {
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const monthStr = now.toLocaleString('en-IN', { month: 'long', year: 'numeric' });
+    return (
+      <>
+        <span>As on date: <strong style={{ color: 'var(--module-report-brand-color, #4b2424)' }}>{dateStr}</strong></span>
+        <span className="text-slate-300 dark:text-slate-600 font-bold">•</span>
+        <span>Report for the month — <strong style={{ color: 'var(--module-report-brand-color, #4b2424)' }}>{monthStr}</strong></span>
+      </>
+    );
+  }, []);
 
   const toolbarExtra = currentView.type === 'summary' ? (
-    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#f7f3f3] dark:bg-slate-900 border border-[#e8d5d5] dark:border-slate-800 text-xs shadow-xs">
-      <div className="flex items-center gap-1.5 text-[#4b2424] dark:text-amber-300 font-bold shrink-0">
-        <Building2 className="h-4 w-4 text-[#4b2424] dark:text-amber-400 shrink-0" />
-        <span className="text-[10px] uppercase tracking-wider font-extrabold text-[#4b2424] dark:text-amber-300 whitespace-nowrap">
+    <div className="module-report-control-pill">
+      <div className="flex items-center gap-1.5 shrink-0">
+        <Building2 className="h-4 w-4 shrink-0" />
+        <span className="text-[10px] uppercase tracking-wider font-extrabold whitespace-nowrap">
           Report View:
         </span>
       </div>
       <select
         value={reportView}
         onChange={(e) => setReportView(e.target.value)}
-        className="bg-transparent border-none text-xs font-bold text-[#4b2424] dark:text-slate-100 outline-none cursor-pointer pr-1 max-w-[200px]"
+        className="bg-transparent border-none text-xs font-bold text-inherit outline-none cursor-pointer pr-1 max-w-[200px]"
       >
-        <option value="wing" className="dark:bg-slate-900 dark:text-slate-200 font-semibold">Wing</option>
-        <option value="division" className="dark:bg-slate-900 dark:text-slate-200 font-semibold">Division</option>
-        <option value="all" className="dark:bg-slate-900 dark:text-slate-200 font-semibold">Wing and Division</option>
+        <option value="wing" className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-semibold">Wing</option>
+        <option value="division" className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-semibold">Division</option>
+        <option value="all" className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-semibold">Wing and Division</option>
       </select>
     </div>
   ) : null;
