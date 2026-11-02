@@ -6,16 +6,16 @@ import {
   getGemFinancialYear,
   getGemPotential,
 } from '../utils/gemUtils';
+import { COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { GEM_TOASTS } from '../toastMessages';
 
 const FY_MONTHS = [
   'April', 'May', 'June', 'July', 'August', 'September',
   'October', 'November', 'December', 'January', 'February', 'March',
 ];
 
-const labelClass =
-  'block text-[11px] font-bold text-slate-700 uppercase tracking-wider';
-const inputClass =
-  'w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 disabled:opacity-60 disabled:cursor-not-allowed';
+const labelClass = 'module-form-label';
+const inputClass = 'module-form-input disabled:opacity-60 disabled:cursor-not-allowed';
 const sectionCardClass =
   'rounded-2xl border border-slate-200 bg-slate-50/50 p-4 shadow-sm';
 
@@ -64,7 +64,7 @@ export default function GEMMonthlyDataPage({
     } catch (err) {
       console.error('Failed to fetch monthly GeM data:', err);
       setAllMonthsData(createEmptyMonthsData());
-      notify?.('Failed to load monthly procurement data.', 'error');
+      notify?.(COMMON_TOASTS.loadFailed('The monthly procurement data'));
     } finally {
       setLoading(false);
     }
@@ -108,11 +108,11 @@ export default function GEMMonthlyDataPage({
       payload.totalProcurementOutsideGem = totals.outside;
 
       await saveGemMonthlyData(category, recordId, payload);
-      notify?.('Monthly data submitted successfully.', 'success');
+      notify?.(GEM_TOASTS.monthlySaved());
       onSaved?.();
     } catch (err) {
       console.error('Save GeM monthly error:', err);
-      notify?.(err.message || 'Failed to save monthly data.', 'error');
+      notify?.(GEM_TOASTS.monthlySaveFailed(getErrorMessage(err)));
     } finally {
       setSaving(false);
     }
@@ -134,13 +134,13 @@ export default function GEMMonthlyDataPage({
     }`;
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in w-full text-left">
-      <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-white border-b border-[#0a2d55]/20">
+    <div className="module-form-card overflow-hidden animate-fade-in w-full text-left">
+      <div className="module-form-banner flex-col sm:flex-row sm:items-center gap-3">
         <div>
-          <h3 className="text-sm font-black uppercase tracking-wider font-display">
+          <h3 className="module-form-banner-title">
             GeM Procurement ({categoryTitle}) — Monthly Data
           </h3>
-          <p className="text-[10px] text-[#eadede] font-semibold tracking-wide mt-0.5">
+          <p className="module-form-banner-subtext">
             {record.organisation_name || 'Organisation'} • Financial Year:{' '}
             {getGemFinancialYear(record) || '—'}
           </p>

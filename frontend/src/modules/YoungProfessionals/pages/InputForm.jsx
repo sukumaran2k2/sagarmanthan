@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { openBackendFile } from '../../../utils/openBackendFile';
 import { Upload, X, ArrowLeft, Plus, FileText } from 'lucide-react';
 import { API_BASE, createYoungProfessional, updateYoungProfessional, uploadYPDocument } from '../api';
 import { useYpStore } from '../store/useYpStore';

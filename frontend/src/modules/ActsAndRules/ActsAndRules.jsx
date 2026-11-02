@@ -1,9 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import { Scale } from 'lucide-react';
 import PageBanner from '../../components/PageBanner';
 import CopyButton from '../../components/CopyButton';
 import ExportDropdown from '../../components/ExportDropdown';
 import { ACTS_AND_RULES, WINGS } from './actsAndRulesData';
+import { useActsAndRulesStore } from './store/useActsAndRulesStore';
+import { useNotifier, COMMON_TOASTS } from '../../utils/notify';
 
 const FILTERS = ['All', ...WINGS];
 
@@ -39,8 +41,11 @@ function RuleList({ entry }) {
   );
 }
 
-export default function ActsAndRules() {
-  const [activeFilter, setActiveFilter] = useState('All');
+export default function ActsAndRules({ triggerNotification }) {
+  const notify = useNotifier(triggerNotification);
+  // The wing filter is kept in the module store, so it survives leaving the page
+  const activeFilter = useActsAndRulesStore((state) => state.wing);
+  const setActiveFilter = useActsAndRulesStore((state) => state.setWing);
 
   const rows = useMemo(
     () => (activeFilter === 'All' ? ACTS_AND_RULES : ACTS_AND_RULES.filter((r) => r.wing === activeFilter)),
@@ -64,7 +69,10 @@ export default function ActsAndRules() {
     flatRows.forEach((r) => {
       tsv += [r.sno, r.wing, r.act, r.rule].join('\t') + '\n';
     });
-    navigator.clipboard.writeText(tsv);
+    navigator.clipboard.writeText(tsv).then(
+      () => notify(COMMON_TOASTS.copySuccess(flatRows.length)),
+      () => notify(COMMON_TOASTS.copyFailed()),
+    );
   };
 
   const handleExport = (type) => {
@@ -81,13 +89,14 @@ export default function ActsAndRules() {
       link.download = 'acts_and_rules.csv';
       link.click();
       URL.revokeObjectURL(url);
+      notify(COMMON_TOASTS.excelExported('acts_and_rules.csv'));
     } else if (type === 'PDF') {
       window.print();
     }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="module-page-container space-y-6 animate-fade-in">
       <PageBanner title="Acts & Rules" icon={Scale} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -113,7 +122,7 @@ export default function ActsAndRules() {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-x-auto">
+      <div className="module-card !p-0 overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-blue-900 text-white">

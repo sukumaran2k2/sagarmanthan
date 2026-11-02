@@ -1,13 +1,15 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { ChevronLeft, Search, RefreshCw, X, TrendingUp, Building2 } from 'lucide-react';
-import { fetchBillWingWiseReport, fetchBillDivisionWiseReport, fetchBillWingWiseDetail, fetchBillDivisionWiseDetail } from '../api';
+import { fetchBillAbstractReport, fetchBillWingWiseDetail, fetchBillDivisionWiseDetail } from '../api';
+import { useBillsStore } from '../store/useBillsStore';
+import { COMMON_TOASTS } from '../../../utils/notify';
 import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import ReportTable from '../../../components/ReportTable';
 
 const COLUMN_STAGE_MAP = {
-  "Draft Bill Prepared": 1, "DCN And Draft Bill Approved by Minister": 2, "Circulated for IMC": 3,
+  "Draft Bill Prepared": 1, "Pre-DCN & Draft Bill Approved by Minister": 2, "Circulated for IMC": 3,
   "IMC comments received": 4, "DCN & Draft Bill prepared": 5, "DCN & draft bill Approved by Minister": 6,
   "Submitted for Legal Vetting": 7, "Legal Vetting to be Completed": 8,
   "Final DCN & draft bill Approved by Minister": 9, "Advance Copy to be Sent to PMO & Cab Sectt": 10,
@@ -17,13 +19,34 @@ const COLUMN_STAGE_MAP = {
 
 const ABSTRACT_TITLE = 'Report No. 1.1 - Abstract ( Wing & Division Wise ) - Bills/Pre-Constitutions Act';
 
-export default function Reports({ triggerNotification, wings = [] }) {
+const TOTAL_FIELD = 'No of Bills/PreConstitutions Act';
+const NO_DIVISION = '(No division)';
+
+// The abstract: one row per wing and division, wings without divisions included (a failure
+// shows as the report's load error, not as missing wings)
+async function fetchAbstract() {
+  const res = await fetchBillAbstractReport();
+  return {
+    cols: res.data?.columnDefs || [],
+    rows: (res.data?.rowData || []).map((r) => ({ ...r, Division: r.Division || NO_DIVISION })),
+  };
+}
+
+async function fetchView(view) {
+  if (view.type === 'combined') return fetchAbstract();
+  const response = view.type === 'detail-wing'
+    ? await fetchBillWingWiseDetail(view.wingId, view.stageId)
+    : await fetchBillDivisionWiseDetail(view.divisionId, view.stageId);
+  return { cols: response.data?.columnDefs || [], rows: response.data?.rowData || [] };
+}
+
+// `notify` takes the standard toasts; ReportTable still calls the plain triggerNotification
+export default function Reports({ notify, triggerNotification, wings = [] }) {
   const gridRef = useRef(null);
-  const [reportView, setReportView] = useState('wing');
+  // The view choice is kept in the module store, so it survives switching tabs
+  const reportView = useBillsStore((state) => state.reportView);
+  const setReportView = useBillsStore((state) => state.setReportView);
   const [drillDownPath, setDrillDownPath] = useState([{ type: 'combined' }]);
-  const [loading, setLoading] = useState(false);
-  const [data, setData] = useState([]);
-  const [columnDefs, setColumnDefs] = useState([]);
   const [quickFilter, setQuickFilter] = useState('');
 
   const currentView = drillDownPath[drillDownPath.length - 1];
@@ -41,7 +64,10 @@ export default function Reports({ triggerNotification, wings = [] }) {
           onClick={() => {
             const divisionId = getDivisionId(p.data);
             const divisionName = p.data.Division;
-            setDrillDownPath((prev) => [...prev, { type: 'detail-division', divisionId, stageId, title: `Bills - Division: ${divisionName} | Stage: ${p.colDef.field}` }]);
+            // A wing with no divisions drills down by wing
+            setDrillDownPath((prev) => [...prev, divisionId
+              ? { type: 'detail-division', divisionId, stageId, title: `Bills - Division: ${divisionName} | Stage: ${p.colDef.field}` }
+              : { type: 'detail-wing', wingId: p.data.wing_id, stageId, title: `Bills - Wing: ${p.data.Wing} | Stage: ${p.colDef.field}` }]);
           }}
           style={{ background: 'none', border: 'none', color: '#4b2424', fontWeight: 800, textDecoration: 'underline', cursor: 'pointer', fontSize: '12px' }}
         >
@@ -52,54 +78,35 @@ export default function Reports({ triggerNotification, wings = [] }) {
     return val > 0 ? <span style={{ fontWeight: 700 }}>{val}</span> : <span style={{ color: '#94a3b8', fontWeight: 600 }}>—</span>;
   };
 
-  const fetchAbstract = useCallback(async () => {
-    const results = await Promise.all(
-      wings.map(async (w) => {
-        try {
-          const res = await fetchBillDivisionWiseReport(w.wing_id);
-          const rows = (res.data?.rowData || []).filter((r) => r.Division !== 'Total');
-          return { wing: w, cols: res.data?.columnDefs || [], rows: rows.map((r) => ({ ...r, Wing: w.wing_name })) };
-        } catch {
-          return { wing: w, cols: [], rows: [] };
-        }
+  // The result is tagged with the view, wings and reload it answers; a mismatch means it is
+  // still loading, and a late answer for an earlier view is ignored
+  const [reloadKey, setReloadKey] = useState(0);
+  const [result, setResult] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    const tag = { view: currentView, wings, reloadKey };
+    fetchView(currentView)
+      .then(({ cols, rows }) => {
+        if (!cancelled) setResult({ ...tag, cols, rows });
       })
-    );
-    const mergedRows = results.flatMap((r) => r.rows);
-    const referenceCols = results.find((r) => r.cols.length)?.cols || [];
-    setColumnDefs(referenceCols);
-    setData(mergedRows);
-  }, [wings]);
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('Error loading Bills reports:', err);
+        notify?.(COMMON_TOASTS.loadFailed('The report'));
+        setResult({ ...tag, cols: [], rows: [] });
+      });
+    return () => { cancelled = true; };
+  }, [currentView, wings, reloadKey, notify]);
 
-  const fetchReportData = useCallback(async () => {
-    setLoading(true);
-    try {
-      if (currentView.type === 'combined') {
-        await fetchAbstract();
-      } else if (currentView.type === 'detail-wing') {
-        const response = await fetchBillWingWiseDetail(currentView.wingId, currentView.stageId);
-        setColumnDefs(response.data?.columnDefs || []);
-        setData(response.data?.rowData || []);
-      } else if (currentView.type === 'detail-division') {
-        const response = await fetchBillDivisionWiseDetail(currentView.divisionId, currentView.stageId);
-        setColumnDefs(response.data?.columnDefs || []);
-        setData(response.data?.rowData || []);
-      }
-    } catch (err) {
-      console.error('Error loading Bills reports:', err);
-      setData([]);
-      setColumnDefs([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [currentView, fetchAbstract]);
-
-  useEffect(() => { fetchReportData(); }, [fetchReportData]);
+  const loading = !result || result.view !== currentView || result.wings !== wings || result.reloadKey !== reloadKey;
+  const data = useMemo(() => (loading ? [] : result.rows), [loading, result]);
+  const columnDefs = useMemo(() => (loading ? [] : result.cols), [loading, result]);
 
   /* ── Aggregation by report view (wing / division / all) ──────── */
   const aggregatedData = useMemo(() => {
     if (!isAbstractLevel) return data.map((r, idx) => ({ ...r, 'S No': idx + 1 }));
 
-    const stageFields = Object.keys(COLUMN_STAGE_MAP);
+    const stageFields = [TOTAL_FIELD, ...Object.keys(COLUMN_STAGE_MAP)];
     const sumStages = (rows) => {
       const out = {};
       stageFields.forEach((f) => { out[f] = rows.reduce((s, r) => s + Number(r[f] || 0), 0); });
@@ -118,18 +125,20 @@ export default function Reports({ triggerNotification, wings = [] }) {
     if (reportView === 'division') {
       const map = {};
       data.forEach((row) => {
-        if (!map[row.Division]) map[row.Division] = [];
-        map[row.Division].push(row);
+        // A wing with no divisions keeps its own row
+        const key = row.Division === NO_DIVISION ? `${row.Wing} ${NO_DIVISION}` : row.Division;
+        if (!map[key]) map[key] = [];
+        map[key].push(row);
       });
       return Object.entries(map).map(([Division, rows]) => ({ Division, division_id: rows[0]?.division_id, ...sumStages(rows) }))
         .sort((a, b) => a.Division.localeCompare(b.Division));
     }
-    return data.sort((a, b) => (a.Wing || '').localeCompare(b.Wing || '') || (a.Division || '').localeCompare(b.Division || ''));
+    return [...data].sort((a, b) => (a.Wing || '').localeCompare(b.Wing || '') || (a.Division || '').localeCompare(b.Division || ''));
   }, [data, reportView, isAbstractLevel]);
 
   const pinnedBottomRowData = useMemo(() => {
     if (!isAbstractLevel) return undefined;
-    const stageFields = Object.keys(COLUMN_STAGE_MAP);
+    const stageFields = [TOTAL_FIELD, ...Object.keys(COLUMN_STAGE_MAP)];
     const totals = { Wing: 'Total', Division: 'Total', isTotalRow: true };
     stageFields.forEach((f) => { totals[f] = aggregatedData.reduce((s, r) => s + Number(r[f] || 0), 0); });
     return [totals];
@@ -155,6 +164,10 @@ export default function Reports({ triggerNotification, wings = [] }) {
           : <span style={{ fontWeight: 600 }} className="text-slate-800 dark:text-slate-200">{p.value || '—'}</span>
       });
     }
+    cols.push({
+      field: TOTAL_FIELD, headerName: 'No. of Bills', minWidth: 120,
+      cellRenderer: (p) => <span style={{ fontWeight: p.data?.isTotalRow ? 850 : 800 }}>{p.value || 0}</span>
+    });
     Object.keys(COLUMN_STAGE_MAP).forEach((field) => {
       const stageId = COLUMN_STAGE_MAP[field];
       cols.push({
@@ -177,13 +190,20 @@ export default function Reports({ triggerNotification, wings = [] }) {
     aggregatedData.forEach((row) => {
       tsv += columns.filter((c) => c.headerName).map((c) => row[c.field] ?? '').join('\t') + '\n';
     });
-    navigator.clipboard.writeText(tsv);
-    triggerNotification?.('Report copied to clipboard!');
+    navigator.clipboard.writeText(tsv).then(
+      () => notify?.(COMMON_TOASTS.copySuccess(aggregatedData.length)),
+      () => notify?.(COMMON_TOASTS.copyFailed()),
+    );
   };
 
   const handleExport = (type) => {
-    if (type === 'Excel' && gridRef.current?.api) {
+    if (type === 'Excel') {
+      if (!gridRef.current?.api) {
+        notify?.(COMMON_TOASTS.tableNotReady('export'));
+        return;
+      }
       gridRef.current.api.exportDataAsCsv({ fileName: `bills_report_export.csv` });
+      notify?.(COMMON_TOASTS.excelExported('bills_report_export.csv'));
     } else if (type === 'PDF') {
       window.print();
     }
@@ -253,7 +273,7 @@ export default function Reports({ triggerNotification, wings = [] }) {
             <div className="flex items-center gap-2.5">
               <CopyButton onCopy={handleCopy} color="#4b2424" className="!rounded-xl !py-2 !px-4" />
               <ExportDropdown onExportExcel={() => handleExport('Excel')} onExportPdf={() => handleExport('PDF')} color="#4b2424" hoverColor="#6b3535" />
-              <button onClick={fetchReportData} className="flex items-center justify-center w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer">
+              <button onClick={() => setReloadKey((k) => k + 1)} className="flex items-center justify-center w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer">
                 <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
               </button>
             </div>
@@ -263,7 +283,7 @@ export default function Reports({ triggerNotification, wings = [] }) {
 
       {isAbstractLevel ? (
         <>
-          <div className="ag-theme-quartz bills-pro-grid" style={{ width: '100%' }}>
+          <div className="ag-theme-quartz module-report-grid" style={{ width: '100%' }}>
             <Table
               ref={gridRef}
               theme="legacy"
@@ -283,28 +303,6 @@ export default function Reports({ triggerNotification, wings = [] }) {
               color="#4b2424"
             />
           </div>
-          <style dangerouslySetInnerHTML={{
-            __html: `
-            .bills-pro-grid.ag-theme-quartz { --ag-font-family: 'Inter', system-ui, sans-serif; --ag-font-size: 13.5px; --ag-border-color: #B9BDC2; --ag-row-border-color: #D3D6D9; --ag-row-height: 52px; --ag-active-color: #4b2424; }
-            .bills-pro-grid .ag-root-wrapper { border: none !important; border-radius: 0 !important; }
-            .bills-pro-grid .ag-header { background: #4b2424ff !important; border-bottom: 2px solid !important; }
-            .bills-pro-grid .ag-header-cell { color: #ffffff !important; font-weight: 600 !important; font-size: 11px !important; text-transform: uppercase !important; letter-spacing: 0.05em !important; border-right: 1px solid #4b2424ff !important; }
-            .bills-pro-grid .ag-header-cell-label { justify-content: center !important; text-align: center !important; }
-            .bills-pro-grid .ag-header-cell:hover { background: #6b3535ff !important; }
-            .bills-pro-grid .ag-header-cell-label .ag-header-cell-text { color: #ffffff !important; }
-            .bills-pro-grid .ag-row { border-bottom: 1px solid #D3D6D9 !important; }
-            .bills-pro-grid .ag-row-even { background: #ffffff !important; }
-            .bills-pro-grid .ag-row-odd { background: #f8faf6 !important; }
-            .bills-pro-grid .ag-cell { display: flex; align-items: center; padding-left: 14px !important; padding-right: 14px !important; border-right: 1px solid #D3D6D9 !important; }
-            .bills-pro-grid .ag-paging-panel { border-top: 1px solid #D3D6D9 !important; background: #f8faf6 !important; font-size: 12.5px !important; font-weight: 600 !important; color: #657386 !important; }
-            .dark .bills-pro-grid.ag-theme-quartz { --ag-background-color: #090d16; --ag-foreground-color: #f1f5f9; --ag-border-color: #1e293b; }
-            .dark .bills-pro-grid .ag-header { background: #0f172a !important; border-bottom: 2px solid #1e293b !important; }
-            .dark .bills-pro-grid .ag-header-cell { color: #f1f5f9 !important; border-right: 1px solid #1e293b !important; }
-            .dark .bills-pro-grid .ag-row-even { background: #090d16 !important; }
-            .dark .bills-pro-grid .ag-row-odd { background: #0f172a !important; }
-            .dark .bills-pro-grid .ag-cell { border-right: 1px solid #1e293b !important; color: #e2e8f0 !important; }
-            .dark .bills-pro-grid .ag-paging-panel { border-top: 1px solid #1e293b !important; background: #0f172a !important; color: #94a3b8 !important; }
-          `}} />
         </>
       ) : (
         <ReportTable
@@ -315,6 +313,7 @@ export default function Reports({ triggerNotification, wings = [] }) {
           title={currentView.title}
           showBackButton={true}
           onBack={handleBack}
+          triggerNotification={triggerNotification}
         />
       )}
     </div>

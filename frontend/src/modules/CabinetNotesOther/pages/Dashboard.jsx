@@ -223,7 +223,7 @@ export default function CabinetNotesOtherDashboard() {
     Subject: row.subject,
     Ministry: row.ministry_name,
     'Current stage': row.current_stage,
-    'Last Updated': row.updated_date ? new Date(row.updated_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
+    'Last Updated': row.updated_date ? new Date(row.updated_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' }) : '—',
     Days: row.pending_days,
   }));
 
@@ -232,7 +232,7 @@ export default function CabinetNotesOtherDashboard() {
       <div className="flex items-center justify-between">
         <p className="text-[10px] text-slate-700 dark:text-slate-300 font-semibold">
           Last updated date: {lastDataUpdate
-            ? new Date(lastDataUpdate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+            ? new Date(lastDataUpdate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' })
             : '—'}
         </p>
       </div>
@@ -377,7 +377,7 @@ export default function CabinetNotesOtherDashboard() {
                     <td className="px-2.5 py-2 text-slate-800 dark:text-slate-100 font-semibold max-w-[220px] whitespace-normal break-words align-top">{row.subject}</td>
                     <td className="px-2.5 py-2 text-slate-800 dark:text-slate-100 font-semibold whitespace-normal break-words">{row.ministry_name}</td>
                     <td className="px-2.5 py-2 text-slate-800 dark:text-slate-100 font-semibold whitespace-normal break-words">{row.current_stage}</td>
-                    <td className="px-2.5 py-2 text-slate-600 dark:text-slate-300 whitespace-nowrap font-mono">{row.updated_date ? new Date(row.updated_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</td>
+                    <td className="px-2.5 py-2 text-slate-600 dark:text-slate-300 whitespace-nowrap font-mono">{row.updated_date ? new Date(row.updated_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' }) : '—'}</td>
                     <td className="px-2.5 py-2 text-right"><PendingDays days={row.pending_days} /></td>
                   </tr>
                 ))}

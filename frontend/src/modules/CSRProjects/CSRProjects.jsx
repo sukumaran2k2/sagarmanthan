@@ -1,133 +1,103 @@
-import React, { useState, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
-import { 
-  LayoutDashboard, Coins, ListTodo, PlusCircle, 
-  FilePieChart, Heart 
-} from 'lucide-react';
+import { LayoutDashboard, Coins, ListTodo, PlusCircle, FilePieChart } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import Dashboard from './pages/Dashboard';
 import FundDetails from './pages/FundDetails';
 import DataList from './pages/DataList';
 import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
-import { isOrganisationUser } from '../../utils/authSession';
+import { useCsrPermissions } from './hooks/useCsrPermissions';
+import { useCsrStore } from './store/useCsrStore';
+import { reportsFor, resolveReport } from './utils/reports';
+import { useNotifier } from '../../utils/notify';
+
+const BASE = '/projects/csr-projects';
 
 export default function CSRProjects({ triggerNotification }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const notify = useNotifier(triggerNotification);
+  const permissions = useCsrPermissions();
+  const { isOrgUser, canAdd, canEdit } = permissions;
 
-  const [inputFormType, setInputFormType] = useState('project'); // 'project' | 'fund'
+  const loadLookups = useCsrStore((state) => state.loadLookups);
+  const reportType = useCsrStore((state) => state.reportType);
+  const setReportType = useCsrStore((state) => state.setReportType);
 
-  const isOrgUser = useMemo(() => isOrganisationUser(), []);
+  useEffect(() => {
+    loadLookups();
+  }, [loadLookups]);
 
-  const [reportType, setReportType] = useState(() => (isOrgUser ? 'fund-org-trend-report' : 'fund-year-wise-report'));
-  const [editData, setEditData] = useState(null);
+  // The project being edited travels with the route entry, so it is gone as soon as the
+  // form is opened any other way (tab, menu, new session)
+  const editData = location.state?.item ?? null;
+  const path = location.pathname.toLowerCase();
+  const formType = path.includes('/input-form/fund') ? 'fund' : 'project';
+  const activeReport = resolveReport(reportType, isOrgUser);
 
-  // Derive active tab from current pathname
-  const currentTab = useMemo(() => {
-    const path = location.pathname.toLowerCase();
-    if (path.includes('/fund-details') || path.includes('/fund')) return 'fund-details';
-    if (path.includes('/project-list') || path.includes('/list') || path.includes('/data-list')) return 'list';
-    if (path.includes('/input-form') || path.includes('/add') || path.includes('/edit')) return 'add';
-    if (path.includes('/reports') || path.includes('/fund-year-wise-report') || path.includes('/fund-org-wise-report')) return 'reports';
-    return 'dashboard';
-  }, [location.pathname]);
+  const currentTab = path.includes('/fund-details') ? 'fund-details'
+    : path.includes('/project-list') ? 'list'
+      : path.includes('/input-form') ? 'add'
+        : path.includes('/reports') ? 'reports'
+          : 'dashboard';
 
   const tabs = useMemo(() => {
-    const list = [
-      { id: 'dashboard', label: 'CSR Dashboard', icon: LayoutDashboard },
-    ];
-    if (isOrgUser) {
-      list.push({ 
-        id: 'add', 
-        label: editData ? 'Update CSR Project' : 'Input Form', 
+    const list = [{ id: 'dashboard', label: 'CSR Dashboard', icon: LayoutDashboard }];
+    if (canAdd) {
+      list.push({
+        id: 'add',
+        label: editData ? 'Update CSR Project' : 'Input Form',
         icon: PlusCircle,
         subMenu: [
           { id: 'project', label: 'Add CSR Project' },
           { id: 'fund', label: 'Add CSR Fund Detail' },
-        ]
+        ],
       });
     }
     list.push(
       { id: 'fund-details', label: 'CSR Fund Details', icon: Coins },
       { id: 'list', label: 'CSR Project List', icon: ListTodo },
-      { 
-        id: 'reports', 
-        label: 'CSR Reports', 
+      {
+        id: 'reports',
+        label: 'CSR Reports',
         icon: FilePieChart,
-        subMenu: [
-          { id: 'fund-year-wise-report', label: 'CSR Fund Year Wise Report' },
-          { id: 'fund-org-wise-report', label: 'CSR Fund Organisation Wise Report' },
-          { id: 'fund-org-trend-report', label: 'Organisation-wise CSR Fund Trend' },
-          { id: 'projects-year-wise-summary', label: 'Financial Year-wise CSR Projects Summary' },
-          { id: 'projects-org-wise-summary', label: 'Organisation-wise CSR Projects Summary' },
-          { id: 'projects-focus-wise-summary', label: 'CSR Focus/Project Area-wise CSR Projects Summary' },
-        ].filter(item => !isOrgUser || !['fund-year-wise-report', 'fund-org-wise-report', 'projects-org-wise-summary'].includes(item.id))
-      }
+        subMenu: reportsFor(isOrgUser).map((r) => ({ id: r.id, label: r.label })),
+      },
     );
     return list;
-  }, [editData, isOrgUser]);
+  }, [canAdd, editData, isOrgUser]);
 
-  const handleTabChange = (tabId) => {
-    if (tabId === 'dashboard') {
-      navigate('/projects/csr-projects/dashboard');
-    } else if (tabId === 'fund-details') {
-      navigate('/projects/csr-projects/fund-details');
-    } else if (tabId === 'list') {
-      navigate('/projects/csr-projects/project-list');
-    } else if (tabId === 'add') {
-      setEditData(null);
-      navigate('/projects/csr-projects/input-form');
-    } else if (tabId === 'reports') {
-      navigate('/projects/csr-projects/reports');
-    }
-  };
+  const TAB_PATHS = { dashboard: 'dashboard', 'fund-details': 'fund-details', list: 'project-list', add: 'input-form', reports: 'reports' };
+  const handleTabChange = (tabId) => navigate(`${BASE}/${TAB_PATHS[tabId]}`);
 
   const handleSubItemChange = (subId) => {
-    if (subId === 'project' || subId === 'fund') {
-      setInputFormType(subId);
-      navigate('/projects/csr-projects/input-form');
-    } else if (subId === 'fund-year-wise-report' || subId === 'fund-org-wise-report' || subId === 'fund-org-trend-report' || subId === 'projects-year-wise-summary' || subId === 'projects-org-wise-summary' || subId === 'projects-focus-wise-summary') {
+    if (subId === 'project') navigate(`${BASE}/input-form`);
+    else if (subId === 'fund') navigate(`${BASE}/input-form/fund`);
+    else {
       setReportType(subId);
-      navigate('/projects/csr-projects/reports');
+      navigate(`${BASE}/reports`);
     }
   };
 
-  const handleEdit = (item) => {
-    if (!isOrgUser) return;
-    setEditData(item);
-    setInputFormType('project');
-    navigate(`/projects/csr-projects/edit/${item.csr_project_id || item.id}`, { state: { item } });
-  };
+  const handleEdit = useCallback((item) => {
+    navigate(`${BASE}/input-form`, { state: { item } });
+  }, [navigate]);
 
-  const handleAddNew = () => {
-    if (!isOrgUser) return;
-    setEditData(null);
-    setInputFormType('project');
-    navigate('/projects/csr-projects/input-form');
-  };
+  // Replace the form entry so browser Back can't reopen the pre-save snapshot
+  const handleProjectSaved = useCallback(() => navigate(`${BASE}/project-list`, { replace: true }), [navigate]);
+  const handleFundSaved = useCallback(() => navigate(`${BASE}/fund-details`, { replace: true }), [navigate]);
+  const handleBack = useCallback(() => navigate(`${BASE}/project-list`), [navigate]);
 
-  const handleFormSuccess = () => {
-    setEditData(null);
-    navigate('/projects/csr-projects/project-list');
-  };
-
-  const handleFormBack = () => {
-    setEditData(null);
-    navigate('/projects/csr-projects/project-list');
-  };
+  // Opening a project needs edit rights; a new record needs add rights
+  const formAllowed = editData ? canEdit : canAdd;
 
   return (
-    <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800 dark:text-slate-100">
-      
-      {/* Module Header Row */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4 mb-6 select-none">
+    <div className="module-page-container space-y-6 animate-fade-in">
+      <div className="module-header-container">
         <div>
-          <h1 className="text-xl font-black text-[#0f417a] dark:text-blue-400 tracking-wide uppercase font-display flex items-center gap-2">
-            <Heart className="h-5 w-5 text-[#0f417a] dark:text-blue-400" />
-            <span>CSR Projects</span>
-          </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-sans">
+          <h1 className="module-header-title">CSR Projects</h1>
+          <p className="module-header-subtitle">
             Corporate Social Responsibility Project Monitoring, Fund Allocations, and Physical/Financial Progress.
           </p>
         </div>
@@ -135,66 +105,40 @@ export default function CSRProjects({ triggerNotification }) {
         <InternalNavigation
           tabs={tabs}
           currentTab={currentTab}
-          currentSubItem={currentTab === 'add' ? inputFormType : currentTab === 'reports' ? reportType : null}
+          currentSubItem={currentTab === 'add' ? formType : currentTab === 'reports' ? activeReport.id : null}
           onTabChange={handleTabChange}
           onSubItemChange={handleSubItemChange}
         />
       </div>
 
-      {/* Module Content Routes */}
-      <div>
-        <Routes>
-          <Route index element={<Navigate to="dashboard" replace />} />
-          <Route path="dashboard" element={<Dashboard triggerNotification={triggerNotification} />} />
-          <Route path="fund-details" element={<FundDetails isOrgUser={isOrgUser} triggerNotification={triggerNotification} />} />
-          <Route path="project-list" element={
-            <DataList 
-              isOrgUser={isOrgUser}
-              onAddNew={handleAddNew}
-              onEdit={handleEdit}
-              triggerNotification={triggerNotification}
-            />
-          } />
-          <Route path="data-list" element={<Navigate to="../project-list" replace />} />
-          <Route path="input-form" element={
-            isOrgUser ? (
-              <InputForm 
-                editData={editData}
-                initialFormType={inputFormType}
-                onFormTypeChange={setInputFormType}
-                onBack={handleFormBack}
-                onSuccess={handleFormSuccess}
-                triggerNotification={triggerNotification}
-              />
-            ) : (
-              <Navigate to="../project-list" replace />
-            )
-          } />
-          <Route path="edit/:id" element={
-            isOrgUser ? (
-              <InputForm 
-                editData={editData}
-                initialFormType="project"
-                onFormTypeChange={setInputFormType}
-                onBack={handleFormBack}
-                onSuccess={handleFormSuccess}
-                triggerNotification={triggerNotification}
-              />
-            ) : (
-              <Navigate to="../project-list" replace />
-            )
-          } />
-          <Route path="reports" element={
-            <Reports 
-              initialReportType={reportType}
-              onReportTypeChange={setReportType}
-              triggerNotification={triggerNotification} 
-            />
-          } />
-          <Route path="*" element={<Navigate to="dashboard" replace />} />
-        </Routes>
-      </div>
-
+      <Routes>
+        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route path="dashboard" element={<Dashboard notify={notify} isOrgUser={isOrgUser} />} />
+        <Route path="fund-details" element={<FundDetails notify={notify} permissions={permissions} />} />
+        <Route path="project-list" element={
+          <DataList notify={notify} permissions={permissions} onEdit={handleEdit} />
+        } />
+        <Route path="data-list" element={<Navigate to="../project-list" replace />} />
+        <Route path="input-form/*" element={formAllowed ? (
+          <InputForm
+            key={formType === 'project' ? (editData?.csr_project_id ?? 'new') : 'fund'}
+            formType={formType}
+            editData={formType === 'project' ? editData : null}
+            permissions={permissions}
+            onFormTypeChange={(type) => navigate(type === 'fund' ? `${BASE}/input-form/fund` : `${BASE}/input-form`)}
+            onBack={handleBack}
+            onProjectSaved={handleProjectSaved}
+            onFundSaved={handleFundSaved}
+            notify={notify}
+          />
+        ) : <Navigate to="../project-list" replace />} />
+        {/* Old edit links: the project now travels with the route state */}
+        <Route path="edit/*" element={<Navigate to="../project-list" replace />} />
+        <Route path="reports" element={
+          <Reports notify={notify} triggerNotification={triggerNotification} isOrgUser={isOrgUser} />
+        } />
+        <Route path="*" element={<Navigate to="dashboard" replace />} />
+      </Routes>
     </div>
   );
 }

@@ -199,3 +199,12 @@ export const yoyCellStyle = (params) => {
     ? null : n > 0 ? YOY_BG.up : n < 0 ? YOY_BG.down : YOY_BG.zero;
   return { justifyContent: 'center', textAlign: 'center', fontWeight: 700, color: bg ? '#000' : undefined, backgroundColor: bg || undefined };
 };
+
+// Indigo table header, as in the other modules' dashboard tables
+export const DASHBOARD_TABLE_THEME = {
+  themeClass: 'yp-pro-grid',
+  brandColor: '#4f46e5',
+  brandColorHover: '#4338ca',
+  accentColor: '#eef2ff',
+  oddRowColor: '#f8fafc',
+};

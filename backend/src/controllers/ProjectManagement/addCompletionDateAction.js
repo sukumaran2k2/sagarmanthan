@@ -1,15 +1,13 @@
-
 import { pool } from "../../db.js";
 import { addLastUpdatedDate } from "./lastUpdatedDate.js";
-import { addLastUpdatedStagePC } from "./lastUpdatedStage.js";
+import { loadStageSnapshot, syncProjectStage } from "./projectStage.js";
 
 
 async function addCompletionDate(req, res) {
     const projectID = req.body.projectID;
     const subProjectID = req.body.subProjectID;
-    const actualCompletionDate = req.body.actualCompletionDate;
+    const actualCompletionDate = req.body.actualCompletionDate || null;
     const closureCost = req.body.closureCost;
-    const projectStageID = req.body.projectStageID;
 
     const conn = await pool;
     const request = conn.request();
@@ -17,43 +15,24 @@ async function addCompletionDate(req, res) {
     request.input("subProjectID", subProjectID);
     request.input("actualCompletionDate", actualCompletionDate);
     request.input("closureCost", closureCost);
-    request.input("projectStageID", projectStageID);
 
     try {
-        let lastUpdatedStatus;
+        const before = await loadStageSnapshot(projectID, subProjectID);
+
         if (subProjectID == -1) {
-            const result = await request.query(`UPDATE tbl_project SET actual_date_of_completion = @actualCompletionDate, 
+            await request.query(`UPDATE tbl_project SET actual_date_of_completion = @actualCompletionDate, 
             closure_cost = @closureCost
             WHERE project_id = @projectID`);
-
-            lastUpdatedStatus = await addLastUpdatedDate(projectID, subProjectID, req, res);
         }
         else {
-            const result = await request.query(`UPDATE tbl_sub_project SET sub_actual_date_of_completion = @actualCompletionDate, 
+            await request.query(`UPDATE tbl_sub_project SET sub_actual_date_of_completion = @actualCompletionDate, 
             sub_closure_cost = @closureCost
             WHERE sub_project_id = @subProjectID`);
-
-            lastUpdatedStatus = await addLastUpdatedDate(projectID, subProjectID, req, res);
         }
 
-        if (subProjectID == -1) {
-            // const result = await request.query(`UPDATE tbl_project SET project_stage_id = @projectStageID WHERE project_id = @projectID;`);
+        const lastUpdatedStatus = await addLastUpdatedDate(projectID, subProjectID, req, res);
+        await syncProjectStage(projectID, subProjectID, before);
 
-            lastUpdatedStatus = await addLastUpdatedDate(projectID, subProjectID, req, res);
-        }
-        else {
-            // const result = await request.query(`UPDATE tbl_sub_project SET sub_project_stage_id = @projectStageID WHERE sub_project_id = @subProjectID;`);
-
-            lastUpdatedStatus = await addLastUpdatedDate(projectID, subProjectID, req, res);
-        }
-
-        if(actualCompletionDate == "" || !actualCompletionDate){
-            actualCompletionDate = null;
-        }
-
-        if( actualCompletionDate !== null ){
-            const lastUpdatedStage = await addLastUpdatedStagePC(projectID, subProjectID, req, res);
-        }
         res.sendStatus(lastUpdatedStatus);
     }
     catch (err) {

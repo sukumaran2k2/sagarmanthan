@@ -49,7 +49,8 @@ export default function CopyButton({
       return;
     }
 
-    const rowList = (data && data.length > 0) ? data : rows;
+    // rows may be a function so callers can build copy rows only when needed
+    const rowList = (data && data.length > 0) ? data : (typeof rows === 'function' ? rows() : rows);
     // Nothing to copy: say so instead of reporting a successful copy.
     if (!rowList || rowList.length === 0) {
       if (typeof triggerNotification === 'function') {

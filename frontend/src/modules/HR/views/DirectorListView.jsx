@@ -1,6 +1,5 @@
-import React from 'react';
-import VacancyManagement from '../pages/VacancyManagement';
+import VacancyManagement from '../pages/VacancyManagement/DataList';
 
 export default function DirectorListView(props) {
-  return <VacancyManagement {...props} viewType="DIRECTOR" />;
+  return <VacancyManagement {...props} />;
 }

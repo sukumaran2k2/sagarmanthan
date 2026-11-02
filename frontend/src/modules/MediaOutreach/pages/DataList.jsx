@@ -1,53 +1,123 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import Table from '../../../components/Table';
 import TablePagination from '../../../components/TablePagination';
 import CopyButton from '../../../components/CopyButton';
 import ExportDropdown from '../../../components/ExportDropdown';
-import { 
-  Search, X, Edit, Trash2, Filter, ChevronDown, 
-  Landmark, Anchor, Building 
+import {
+  Search, X, Edit, Trash2, Filter, ChevronDown,
+  Landmark, Anchor, Building
 } from 'lucide-react';
-import { SOCIAL_CHANNELS_KEYS, SOCIAL_METRICS, MONTHS, FINANCIAL_YEARS } from '../utils/constants';
+import { MONTHS, FINANCIAL_YEARS, MEDIA_TABS_ALL } from '../utils/constants';
 import { getOrgCategory, calculateCategoryCounts } from '../utils/categoryHelpers';
 import { aggregateYearWiseData } from '../utils/dataTransformers';
-import { copyTableToClipboard, exportTableCSV, printTablePDF } from '../utils/exportHelpers';
+import { useMediaOutreachStore } from '../store/useMediaOutreachStore';
+
+// Every column is visible by default; the store keeps only the user's changes
+const DEFAULT_VISIBLE_COLS = {
+  sNo: true,
+  organisation: true,
+  financialYear: true,
+  month: true,
+  national: true,
+  regional: true,
+  overall: true,
+  facebook: true,
+  instagram: true,
+  linkedIn: true,
+  twitter: true,
+  youTube: true,
+  action: true
+};
+
+// visKey is the Visibility checkbox that controls the column
+const SECTION_COLUMNS = {
+  broadcast: [
+    { field: 'broadcast_national', header: 'National', visKey: 'national' },
+    { field: 'broadcast_regional', header: 'Regional', visKey: 'regional' },
+    { field: 'broadcast_overall', header: 'Overall', visKey: 'overall' },
+  ],
+  print_media: [
+    { field: 'print_media_national', header: 'National', visKey: 'national' },
+    { field: 'print_media_regional', header: 'Regional', visKey: 'regional' },
+    { field: 'print_media_overall', header: 'Overall', visKey: 'overall' },
+  ],
+  online: [
+    { field: 'online_english', header: 'English', visKey: 'national' },
+    { field: 'online_vernacular', header: 'Vernacular', visKey: 'regional' },
+    { field: 'online_overall', header: 'Overall', visKey: 'overall' },
+  ],
+};
+
+const CHANNEL_COLUMNS = [
+  { key: 'facebook', label: 'Facebook' },
+  { key: 'instagram', label: 'Instagram' },
+  { key: 'linkedIn', label: 'LinkedIn' },
+  { key: 'twitter', label: 'Twitter / X' },
+  { key: 'youTube', label: 'YouTube' },
+];
+
+const METRIC_COLUMNS = [
+  { key: 'posts', label: 'No. of Posts' },
+  { key: 'impression', label: 'Impression' },
+  { key: 'engagement', label: 'Engagement' },
+];
+
+const HEADER_CLASS = 'text-center-header font-bold text-white';
+
+// Organisation chip panel styles; Ministry has no chip panel
+const CHIP_STYLES = {
+  major_port: {
+    panel: 'bg-emerald-50/15 border-emerald-255/30 border-l-4 border-l-emerald-500',
+    dot: 'bg-emerald-500',
+    label: 'text-emerald-700 dark:text-emerald-455',
+    name: 'Major Port',
+    all: 'All Major Ports',
+    active: 'bg-emerald-600 border-emerald-600 text-white shadow-md transform scale-[1.02]',
+  },
+  non_port: {
+    panel: 'bg-indigo-50/15 border-indigo-255/30 border-l-4 border-l-indigo-500',
+    dot: 'bg-indigo-500',
+    label: 'text-indigo-700 dark:text-indigo-405',
+    name: 'Non-Port',
+    all: 'All Non-Ports',
+    active: 'bg-indigo-600 border-indigo-600 text-white shadow-md transform scale-[1.02]',
+  },
+};
 
 export default function DataList({
   rowData = [],
   loading,
   activeMediaType,
-  setActiveMediaType,
-  mediaTabs,
   onEdit,
   onDelete,
-  onAddNew,
-  onRefresh,
   organisations = [],
   getOrgName,
   triggerNotification,
   isStandardView = false,
   permissions
 }) {
-  const hideOrgFilter = isStandardView || permissions?.isStandardView;
-  const [gridApi, setGridApi] = useState(null);
+  const isOrgView = isStandardView || permissions?.isStandardView || permissions?.isOrgScoped;
+  const canEdit = !!permissions?.canEdit;
+  const canDelete = !!permissions?.canRemove;
 
-  // Filter states
-  const [financialYearFilter, setFinancialYearFilter] = useState('');
-  const [monthFilter, setMonthFilter] = useState('');
-  const [organisationFilter, setOrganisationFilter] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [showYearWise, setShowYearWise] = useState(false);
-  const [activeCategory, setActiveCategory] = useState('all'); // 'all' | 'major_port' | 'ministry' | 'non_port'
-  const [selectedSubOrgId, setSelectedSubOrgId] = useState('');
-  
-  // Filter panel collapse/expand state
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  // Filters, search, pagination and columns live in the store so they survive tab switches
+  const {
+    financialYear: financialYearFilter,
+    month: monthFilter,
+    organisationId: organisationFilter,
+    showYearWise,
+    category: activeCategory, // 'all' | 'major_port' | 'ministry' | 'non_port'
+    subOrgId: selectedSubOrgId,
+    searchTerm,
+    showFilterPanel,
+    currentPage: storedPage,
+    pageSize,
+    visibleCols: colChanges,
+  } = useMediaOutreachStore(useShallow((state) => state.list));
+  const actions = useMediaOutreachStore((state) => state.listActions);
+  const visibleCols = useMemo(() => ({ ...DEFAULT_VISIBLE_COLS, ...colChanges }), [colChanges]);
 
-  // Pagination states
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-
-  // Column visibility checklist dropdown
   const [colDropdownOpen, setColDropdownOpen] = useState(false);
   const colDropdownRef = useRef(null);
 
@@ -61,204 +131,110 @@ export default function DataList({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Rows carry the organisation name from the API; the dropdown list is only a fallback
+  const orgNameOf = useCallback((row) => row.organisation_name || getOrgName(row.organisation_id), [getOrgName]);
+
   const organisationOptions = useMemo(() => {
-    const list = [];
-    const map = new Map();
-
-    (organisations || []).forEach(o => {
-      if (o.organisation_id && o.organisation_name) {
-        map.set(String(o.organisation_id), o.organisation_name);
-      }
+    const names = new Map();
+    organisations.forEach(o => {
+      if (o.organisation_id && o.organisation_name) names.set(String(o.organisation_id), o.organisation_name);
     });
-
-    (rowData || []).forEach(r => {
-      const id = r.organisation_id ?? r.organisation;
-      const name = r.organisation_name || r['Organisation Name'] || getOrgName(id);
-      if (id && name && name !== '-' && !name.startsWith('Org ')) {
-        map.set(String(id), name);
-      }
+    rowData.forEach(row => {
+      const name = orgNameOf(row);
+      if (row.organisation_id && name !== '-') names.set(String(row.organisation_id), name);
     });
+    return [...names].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [organisations, rowData, orgNameOf]);
 
-    map.forEach((name, id) => {
-      list.push({ id, name });
-    });
+  // Standard years plus any other year that records were saved under
+  const yearOptions = useMemo(
+    () => [...new Set([...FINANCIAL_YEARS, ...rowData.map(row => row.financial_year).filter(Boolean)])].sort(),
+    [rowData]
+  );
 
-    return list.sort((a, b) => a.name.localeCompare(b.name));
-  }, [organisations, rowData, getOrgName]);
-  
-  // Clear selectedSubOrgId whenever activeCategory changes
-  useEffect(() => {
-    setSelectedSubOrgId('');
-  }, [activeCategory]);
+  const handleShowAllCols = () => actions.setVisibleCols({});
 
-  // Default visibility for columns
-  const [visibleCols, setVisibleCols] = useState({
-    sNo: true,
-    organisation: true,
-    financialYear: true,
-    month: true,
-    national: true,
-    regional: true,
-    overall: true,
-    facebook: true,
-    instagram: true,
-    linkedIn: true,
-    twitter: true,
-    youTube: true,
-    action: true
-  });
-
-  const handleShowAllCols = () => {
-    setVisibleCols({
-      sNo: true,
-      organisation: true,
-      financialYear: true,
-      month: true,
-      national: true,
-      regional: true,
-      overall: true,
-      facebook: true,
-      instagram: true,
-      linkedIn: true,
-      twitter: true,
-      youTube: true,
-      action: true
-    });
-  };
-
-  // Active filters count for badge
   const activeFiltersCount = useMemo(() => {
     let count = 0;
     if (financialYearFilter) count++;
     if (!showYearWise && monthFilter) count++;
-    if (!hideOrgFilter && organisationFilter) count++;
+    if (!isOrgView && organisationFilter) count++;
     if (showYearWise) count++;
     return count;
-  }, [financialYearFilter, monthFilter, organisationFilter, showYearWise, hideOrgFilter]);
+  }, [financialYearFilter, monthFilter, organisationFilter, showYearWise, isOrgView]);
 
   const handleResetFilters = () => {
-    setFinancialYearFilter('');
-    setMonthFilter('');
-    setOrganisationFilter('');
-    setShowYearWise(false);
-    setSelectedSubOrgId('');
-    setSearchTerm('');
-    setCurrentPage(1);
+    actions.resetFilters();
     triggerNotification?.('Filters have been reset', 'info');
   };
 
-  // Category counts computed based on current filters (except activeCategory itself)
-  const categoryCounts = useMemo(() => {
-    const baseFiltered = rowData.filter(row => {
-      const matchesFY = financialYearFilter ? row.financial_year === financialYearFilter : true;
-      const matchesMonth = monthFilter ? row.month === monthFilter : true;
-      const rowOrgId = row.organisation_id ?? row.organisation;
-      const matchesOrg = organisationFilter ? String(rowOrgId) === String(organisationFilter) : true;
-      
-      const search = searchTerm.toLowerCase();
-      const orgName = getOrgName(rowOrgId).toLowerCase();
-      const matchesSearch = search ? (
-        orgName.includes(search) ||
-        (row.financial_year || '').toLowerCase().includes(search) ||
-        (row.month || '').toLowerCase().includes(search)
-      ) : true;
+  // Year-wise view sums each organisation's months into one row per financial year
+  const baseRows = useMemo(
+    () => (showYearWise ? aggregateYearWiseData(rowData) : rowData),
+    [rowData, showYearWise]
+  );
 
-      return matchesFY && matchesMonth && matchesOrg && matchesSearch;
+  // Rows matching the filter panel and search; the category cards apply on top
+  const panelFilteredRows = useMemo(() => {
+    const search = searchTerm.trim().toLowerCase();
+    return baseRows.filter(row => {
+      if (financialYearFilter && row.financial_year !== financialYearFilter) return false;
+      if (!showYearWise && monthFilter && row.month !== monthFilter) return false;
+      if (organisationFilter && String(row.organisation_id) !== String(organisationFilter)) return false;
+      if (!search) return true;
+      return orgNameOf(row).toLowerCase().includes(search)
+        || (row.financial_year || '').toLowerCase().includes(search)
+        || (!showYearWise && (row.month || '').toLowerCase().includes(search));
     });
+  }, [baseRows, financialYearFilter, monthFilter, organisationFilter, searchTerm, showYearWise, orgNameOf]);
 
-    return calculateCategoryCounts(baseFiltered, organisations, getOrgCategory);
-  }, [rowData, financialYearFilter, monthFilter, organisationFilter, searchTerm, getOrgName, organisations]);
+  const categoryCounts = useMemo(
+    () => calculateCategoryCounts(panelFilteredRows, organisations, getOrgCategory),
+    [panelFilteredRows, organisations]
+  );
 
-  // Unique list of sub-organisations belonging to the active category
+  const categoryOf = useCallback(
+    (row) => getOrgCategory(row.organisation_id, row.organisation_category_name, organisations),
+    [organisations]
+  );
+
+  const filteredRowData = useMemo(() => panelFilteredRows.filter(row => {
+    if (activeCategory !== 'all' && categoryOf(row) !== activeCategory) return false;
+    if (selectedSubOrgId && String(row.organisation_id) !== String(selectedSubOrgId)) return false;
+    return true;
+  }), [panelFilteredRows, activeCategory, selectedSubOrgId, categoryOf]);
+
+  const chipStyle = CHIP_STYLES[activeCategory];
+
+  // Organisations in the active category, for the organisation chips
   const subOrganisations = useMemo(() => {
     if (activeCategory === 'all') return [];
-
-    const orgIds = rowData
-      .filter(row => getOrgCategory(row.organisation_id ?? row.organisation, row.organisation_category_name) === activeCategory)
-      .map(row => row.organisation_id ?? row.organisation);
-    const uniqueIds = [...new Set(orgIds)];
-
-    return uniqueIds
-      .map(id => organisations.find(o => o.organisation_id === id))
-      .filter(Boolean)
-      .sort((a, b) => a.organisation_name.localeCompare(b.organisation_name));
-  }, [rowData, activeCategory, organisations]);
-
-  // Filter rowData based on user selections (handles year-wise aggregation, activeCategory and selectedSubOrgId)
-  const filteredRowData = useMemo(() => {
-    if (!showYearWise) {
-      return rowData.filter(row => {
-        const matchesFY = financialYearFilter ? row.financial_year === financialYearFilter : true;
-        const matchesMonth = monthFilter ? row.month === monthFilter : true;
-        const rowOrgId = row.organisation_id ?? row.organisation;
-        const matchesOrg = organisationFilter ? String(rowOrgId) === String(organisationFilter) : true;
-        
-        // Category filter
-        if (activeCategory !== 'all') {
-          const cat = getOrgCategory(rowOrgId, row.organisation_category_name);
-          if (cat !== activeCategory) return false;
-        }
-
-        // Sub organisation filter
-        if (selectedSubOrgId && String(rowOrgId) !== String(selectedSubOrgId)) {
-          return false;
-        }
-
-        const search = searchTerm.toLowerCase();
-        const orgName = getOrgName(rowOrgId).toLowerCase();
-        const matchesSearch = search ? (
-          orgName.includes(search) ||
-          (row.financial_year || '').toLowerCase().includes(search) ||
-          (row.month || '').toLowerCase().includes(search)
-        ) : true;
-
-        return matchesFY && matchesMonth && matchesOrg && matchesSearch;
-      });
-    }
-
-    // Group and sum all numerical fields by Financial Year + Organisation ID
-    const aggregated = aggregateYearWiseData(rowData);
-
-    return aggregated.filter(row => {
-      const matchesFY = financialYearFilter ? row.financial_year === financialYearFilter : true;
-      const rowOrgId = row.organisation_id ?? row.organisation;
-      const matchesOrg = organisationFilter ? String(rowOrgId) === String(organisationFilter) : true;
-      
-      // Category filter
-      if (activeCategory !== 'all') {
-        const cat = getOrgCategory(rowOrgId, row.organisation_category_name, organisations);
-        if (cat !== activeCategory) return false;
-      }
-
-      // Sub organisation filter
-      if (selectedSubOrgId && String(rowOrgId) !== String(selectedSubOrgId)) {
-        return false;
-      }
-
-      const search = searchTerm.toLowerCase();
-      const orgName = getOrgName(rowOrgId).toLowerCase();
-      const matchesSearch = search ? (
-        orgName.includes(search) ||
-        (row.financial_year || '').toLowerCase().includes(search)
-      ) : true;
-
-      return matchesFY && matchesOrg && matchesSearch;
+    const names = new Map();
+    rowData.forEach(row => {
+      if (categoryOf(row) === activeCategory) names.set(row.organisation_id, orgNameOf(row));
     });
-  }, [rowData, showYearWise, financialYearFilter, monthFilter, organisationFilter, searchTerm, getOrgName, activeCategory, organisations, selectedSubOrgId]);
+    return [...names]
+      .map(([organisation_id, organisation_name]) => ({ organisation_id, organisation_name }))
+      .sort((a, b) => a.organisation_name.localeCompare(b.organisation_name));
+  }, [rowData, activeCategory, categoryOf, orgNameOf]);
 
-  // Paginated records for table view
+  // Clamp the stored page so a shorter list never opens on an empty page
+  const totalPages = Math.ceil(filteredRowData.length / pageSize) || 1;
+  const currentPage = Math.min(storedPage, totalPages);
+
+  // S.No is set on each row so it always matches the page shown
   const paginatedRowData = useMemo(() => {
     const startIndex = (currentPage - 1) * pageSize;
-    return filteredRowData.slice(startIndex, startIndex + pageSize);
+    return filteredRowData
+      .slice(startIndex, startIndex + pageSize)
+      .map((row, i) => ({ ...row, sNo: startIndex + i + 1 }));
   }, [filteredRowData, currentPage, pageSize]);
 
-  const totalPages = Math.ceil(filteredRowData.length / pageSize) || 1;
+  // Summed year-wise rows are not real records, so they cannot be edited or deleted
+  const showActions = (canEdit || canDelete) && !showYearWise;
 
-  const isOrgView = isStandardView || permissions?.isStandardView;
-
-  // Define table columns
   const columnDefs = useMemo(() => {
-    const baseCols = [
+    const cols = [
       {
         field: 'sNo',
         headerName: 'S.NO',
@@ -267,15 +243,14 @@ export default function DataList({
         maxWidth: 80,
         pinned: 'left',
         suppressSizeToFit: true,
-        headerClass: 'font-bold text-white text-center-header',
+        headerClass: HEADER_CLASS,
         cellClass: 'font-semibold text-slate-700 dark:text-slate-200 text-center',
-        valueGetter: (params) => (params.node ? (currentPage - 1) * pageSize + params.node.rowIndex + 1 : ''),
         hide: !visibleCols.sNo
       }
     ];
 
     if (!isOrgView) {
-      baseCols.push({
+      cols.push({
         field: 'organisation_id',
         headerName: 'ORGANISATION NAME',
         minWidth: 220,
@@ -283,7 +258,7 @@ export default function DataList({
         wrapText: true,
         autoHeight: true,
         pinned: 'left',
-        headerClass: 'font-bold text-white text-center-header',
+        headerClass: HEADER_CLASS,
         cellClass: 'mopsw-wrap-cell text-center flex items-center justify-center font-bold text-slate-800 dark:text-slate-100',
         cellStyle: {
           whiteSpace: 'normal',
@@ -294,10 +269,7 @@ export default function DataList({
           alignItems: 'center',
           justifyContent: 'center'
         },
-        valueGetter: (params) => {
-          if (!params.data) return '';
-          return getOrgName(params.data.organisation_id ?? params.data.organisation);
-        },
+        valueGetter: (params) => (params.data ? orgNameOf(params.data) : ''),
         cellRenderer: (p) => (
           <div className="w-full flex items-center justify-center text-center font-bold text-slate-800 dark:text-slate-100 whitespace-normal break-words py-1.5 leading-snug">
             {p.value || '-'}
@@ -307,105 +279,66 @@ export default function DataList({
       });
     }
 
-    baseCols.push({
+    cols.push({
       field: 'financial_year',
       headerName: 'FINANCIAL YEAR',
       minWidth: 130,
       flex: 1,
-      headerClass: 'font-bold text-white text-center-header',
+      headerClass: HEADER_CLASS,
       cellClass: 'font-semibold text-slate-700 dark:text-slate-300 text-center',
       hide: !visibleCols.financialYear
     });
 
     if (!showYearWise) {
-      baseCols.push({
+      cols.push({
         field: 'month',
         headerName: 'MONTH',
         minWidth: 110,
         flex: 1,
-        headerClass: 'font-bold text-white text-center-header',
+        headerClass: HEADER_CLASS,
         cellClass: 'font-semibold text-slate-700 dark:text-slate-300 text-center',
         hide: !visibleCols.month
       });
     }
 
-    let dataCols = [];
-
-    if (activeMediaType === 'broadcast') {
-      dataCols = [
-        { field: 'broadcast_national', headerName: 'NATIONAL', minWidth: 120, cellClass: 'text-center font-medium', headerClass: 'text-center-header font-bold text-white', hide: !visibleCols.national, valueFormatter: (p) => p.value ?? 0 },
-        { field: 'broadcast_regional', headerName: 'REGIONAL', minWidth: 120, cellClass: 'text-center font-medium', headerClass: 'text-center-header font-bold text-white', hide: !visibleCols.regional, valueFormatter: (p) => p.value ?? 0 },
-        { field: 'broadcast_overall', headerName: 'OVERALL', minWidth: 120, cellClass: 'text-center font-bold text-blue-700 dark:text-blue-400', headerClass: 'text-center-header font-bold text-white', hide: !visibleCols.overall, valueFormatter: (p) => p.value ?? 0 }
-      ];
-    } else if (activeMediaType === 'print_media' || activeMediaType === 'print') {
-      dataCols = [
-        { field: 'print_media_national', headerName: 'NATIONAL', minWidth: 120, cellClass: 'text-center font-medium', headerClass: 'text-center-header font-bold text-white', hide: !visibleCols.national, valueFormatter: (p) => p.value ?? 0 },
-        { field: 'print_media_regional', headerName: 'REGIONAL', minWidth: 120, cellClass: 'text-center font-medium', headerClass: 'text-center-header font-bold text-white', hide: !visibleCols.regional, valueFormatter: (p) => p.value ?? 0 },
-        { field: 'print_media_overall', headerName: 'OVERALL', minWidth: 120, cellClass: 'text-center font-bold text-blue-700 dark:text-blue-400', headerClass: 'text-center-header font-bold text-white', hide: !visibleCols.overall, valueFormatter: (p) => p.value ?? 0 }
-      ];
-    } else if (activeMediaType === 'online') {
-      dataCols = [
-        { field: 'online_english', headerName: 'ENGLISH', minWidth: 120, cellClass: 'text-center font-medium', headerClass: 'text-center-header font-bold text-white', hide: !visibleCols.national, valueFormatter: (p) => p.value ?? 0 },
-        { field: 'online_vernacular', headerName: 'VERNACULAR', minWidth: 120, cellClass: 'text-center font-medium', headerClass: 'text-center-header font-bold text-white', hide: !visibleCols.regional, valueFormatter: (p) => p.value ?? 0 },
-        { field: 'online_overall', headerName: 'OVERALL', minWidth: 120, cellClass: 'text-center font-bold text-blue-700 dark:text-blue-400', headerClass: 'text-center-header font-bold text-white', hide: !visibleCols.overall, valueFormatter: (p) => p.value ?? 0 }
-      ];
-    } else if (activeMediaType === 'social_media' || activeMediaType === 'social') {
-      const channelConfigs = [
-        { key: 'facebook', label: 'FACEBOOK', visible: visibleCols.facebook },
-        { key: 'instagram', label: 'INSTAGRAM', visible: visibleCols.instagram },
-        { key: 'linkedIn', label: 'LINKEDIN', visible: visibleCols.linkedIn },
-        { key: 'twitter', label: 'TWITTER / X', visible: visibleCols.twitter },
-        { key: 'youTube', label: 'YOUTUBE', visible: visibleCols.youTube }
-      ];
-
-      channelConfigs.forEach(config => {
-        if (config.visible) {
-          dataCols.push({
-            headerName: config.label,
-            headerClass: 'font-bold text-white text-center-header',
-            children: [
-              {
-                field: `${config.key}_posts`,
-                headerName: 'NO. OF POSTS',
-                minWidth: 135,
-                cellClass: 'text-center font-medium',
-                headerClass: 'text-center-header text-[10px] font-bold text-white',
-                valueFormatter: (p) => p.value ?? 0
-              },
-              {
-                field: `${config.key}_impression`,
-                headerName: 'IMPRESSION',
-                minWidth: 135,
-                cellClass: 'text-center font-medium',
-                headerClass: 'text-center-header text-[10px] font-bold text-white',
-                valueFormatter: (p) => p.value ?? 0
-              },
-              {
-                field: `${config.key}_engagement`,
-                headerName: 'ENGAGEMENT',
-                minWidth: 135,
-                cellClass: 'text-center font-medium',
-                headerClass: 'text-center-header text-[10px] font-bold text-white',
-                valueFormatter: (p) => p.value ?? 0
-              }
-            ]
-          });
-        }
+    if (SECTION_COLUMNS[activeMediaType]) {
+      SECTION_COLUMNS[activeMediaType].forEach(({ field, header, visKey }) => {
+        cols.push({
+          field,
+          headerName: header.toUpperCase(),
+          minWidth: 120,
+          cellClass: visKey === 'overall' ? 'text-center font-bold text-blue-700 dark:text-blue-400' : 'text-center font-medium',
+          headerClass: HEADER_CLASS,
+          hide: !visibleCols[visKey],
+          valueFormatter: (p) => p.value ?? 0
+        });
+      });
+    } else if (activeMediaType === 'social_media') {
+      CHANNEL_COLUMNS.filter(ch => visibleCols[ch.key]).forEach(ch => {
+        cols.push({
+          headerName: ch.label.toUpperCase(),
+          headerClass: HEADER_CLASS,
+          children: METRIC_COLUMNS.map(m => ({
+            field: `${ch.key}_${m.key}`,
+            headerName: m.label.toUpperCase(),
+            minWidth: 135,
+            cellClass: 'text-center font-medium',
+            headerClass: 'text-center-header text-[10px] font-bold text-white',
+            valueFormatter: (p) => p.value ?? 0
+          }))
+        });
       });
     }
 
-    const canEdit = permissions ? permissions.canEdit : true;
-    const canDelete = permissions ? permissions.canRemove : true;
-
-    if (canEdit || canDelete) {
-      const actionCol = {
+    if (showActions) {
+      cols.push({
         headerName: 'ACTIONS',
         field: 'media_outreach_id',
         minWidth: 110,
         width: 110,
         pinned: 'right',
         suppressSizeToFit: true,
-        headerClass: 'text-center-header font-bold text-white',
+        headerClass: HEADER_CLASS,
         cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' },
         cellRenderer: (params) => {
           const item = params.data;
@@ -416,16 +349,16 @@ export default function DataList({
                 <button
                   onClick={() => onEdit(item)}
                   className="p-1.5 hover:bg-amber-50 dark:hover:bg-amber-950/30 text-amber-500 hover:text-amber-600 dark:text-amber-400 rounded-lg transition cursor-pointer"
-                  title="Edit Note"
+                  title="Edit"
                 >
                   <Edit className="h-4 w-4" />
                 </button>
               )}
               {canDelete && (
                 <button
-                  onClick={() => onDelete && onDelete(item)}
+                  onClick={() => onDelete(item)}
                   className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600 dark:text-red-400 rounded-lg transition cursor-pointer"
-                  title="Delete Note"
+                  title="Delete"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -434,51 +367,29 @@ export default function DataList({
           );
         },
         hide: !visibleCols.action
-      };
-
-      return [...baseCols, ...dataCols, actionCol];
+      });
     }
 
-    return [...baseCols, ...dataCols];
-  }, [activeMediaType, getOrgName, onEdit, onDelete, visibleCols, showYearWise, permissions, isOrgView, currentPage, pageSize]);
+    return cols;
+  }, [activeMediaType, orgNameOf, onEdit, onDelete, visibleCols, showYearWise, isOrgView, canEdit, canDelete, showActions]);
 
-  // Dynamic list of toggleable columns for Visibility dropdown
   const toggleableCols = useMemo(() => {
     const list = [
       { key: 'sNo', label: 'S.No' },
-      ...(!isOrgView ? [{ key: 'organisation', label: 'Organization Name' }] : []),
+      ...(!isOrgView ? [{ key: 'organisation', label: 'Organisation Name' }] : []),
       { key: 'financialYear', label: 'Financial Year' },
       ...(!showYearWise ? [{ key: 'month', label: 'Month' }] : [])
     ];
 
-    if (activeMediaType === 'broadcast' || activeMediaType === 'print_media' || activeMediaType === 'print') {
-      list.push(
-        { key: 'national', label: 'National' },
-        { key: 'regional', label: 'Regional' },
-        { key: 'overall', label: 'Overall' }
-      );
-    } else if (activeMediaType === 'online') {
-      list.push(
-        { key: 'national', label: 'English' },
-        { key: 'regional', label: 'Vernacular' },
-        { key: 'overall', label: 'Overall' }
-      );
-    } else if (activeMediaType === 'social_media' || activeMediaType === 'social') {
-      list.push(
-        { key: 'facebook', label: 'Facebook' },
-        { key: 'instagram', label: 'Instagram' },
-        { key: 'linkedIn', label: 'LinkedIn' },
-        { key: 'twitter', label: 'Twitter / X' },
-        { key: 'youTube', label: 'YouTube' }
-      );
+    if (SECTION_COLUMNS[activeMediaType]) {
+      SECTION_COLUMNS[activeMediaType].forEach(c => list.push({ key: c.visKey, label: c.header }));
+    } else if (activeMediaType === 'social_media') {
+      CHANNEL_COLUMNS.forEach(ch => list.push({ key: ch.key, label: ch.label }));
     }
 
-    if (permissions?.canEdit || permissions?.canRemove) {
-      list.push({ key: 'action', label: 'Actions' });
-    }
-
+    if (showActions) list.push({ key: 'action', label: 'Actions' });
     return list;
-  }, [activeMediaType, isOrgView, showYearWise, permissions]);
+  }, [activeMediaType, isOrgView, showYearWise, showActions]);
 
   const defaultColDef = useMemo(() => ({
     sortable: true,
@@ -490,46 +401,43 @@ export default function DataList({
     autoHeaderHeight: true
   }), []);
 
-  // Export handlers using exportHelpers
-  const handleCopy = () => {
-    copyTableToClipboard({
-      gridApi,
-      columnDefs,
-      filteredRowData,
-      activeMediaType,
-      getOrgName,
-      showYearWise,
-      isOrgView,
-      triggerNotification
-    });
-  };
+  // Copy, Excel and PDF use the visible columns (no Actions) and every filtered row
+  const exportColumns = useMemo(() => {
+    const cols = [];
+    if (visibleCols.sNo) cols.push({ header: 'S.No', value: (row, i) => i + 1 });
+    if (!isOrgView && visibleCols.organisation) cols.push({ header: 'Organisation Name', value: orgNameOf });
+    if (visibleCols.financialYear) cols.push({ header: 'Financial Year', value: row => row.financial_year });
+    if (!showYearWise && visibleCols.month) cols.push({ header: 'Month', value: row => row.month });
 
-  const handleExportCSV = () => {
-    exportTableCSV(gridApi, activeMediaType);
-  };
+    if (SECTION_COLUMNS[activeMediaType]) {
+      SECTION_COLUMNS[activeMediaType].forEach(({ field, header, visKey }) => {
+        if (visibleCols[visKey]) cols.push({ header, value: row => row[field] ?? 0 });
+      });
+    } else if (activeMediaType === 'social_media') {
+      CHANNEL_COLUMNS.filter(ch => visibleCols[ch.key]).forEach(ch => {
+        METRIC_COLUMNS.forEach(m => cols.push({ header: `${ch.label} - ${m.label}`, value: row => row[`${ch.key}_${m.key}`] ?? 0 }));
+      });
+    }
+    return cols;
+  }, [activeMediaType, visibleCols, isOrgView, showYearWise, orgNameOf]);
 
-  const handlePrintPDF = () => {
-    printTablePDF({
-      filteredRowData,
-      activeMediaType,
-      getOrgName,
-      showYearWise,
-      isOrgView
-    });
-  };
+  const exportHeaders = useMemo(() => exportColumns.map(c => c.header), [exportColumns]);
+  // Built only when Copy or Export is clicked
+  const buildExportRows = useCallback(
+    () => filteredRowData.map((row, i) => exportColumns.map(c => c.value(row, i))),
+    [filteredRowData, exportColumns]
+  );
+  const mediaLabel = MEDIA_TABS_ALL.find(tab => tab.id === activeMediaType)?.label || 'Media Outreach';
 
   return (
     <div className="space-y-4 font-sans text-black select-none">
       
-      {/* KPI Card Style Tabs (Glassmorphism effect with Landmark/Anchor/Building Icons) */}
       {!isOrgView && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Ministry Category Card */}
             <div
               onClick={() => {
-                setActiveCategory(prev => prev === 'ministry' ? 'all' : 'ministry');
-                setCurrentPage(1);
+                actions.setCategory(prev => prev === 'ministry' ? 'all' : 'ministry');
               }}
               className={`flex items-center justify-between p-4 border rounded-2xl cursor-pointer transition-all duration-300 backdrop-blur-md ${
                 activeCategory === 'ministry'
@@ -556,11 +464,9 @@ export default function DataList({
               </div>
             </div>
 
-            {/* Major Port Category Card */}
             <div
               onClick={() => {
-                setActiveCategory(prev => prev === 'major_port' ? 'all' : 'major_port');
-                setCurrentPage(1);
+                actions.setCategory(prev => prev === 'major_port' ? 'all' : 'major_port');
               }}
               className={`flex items-center justify-between p-4 border rounded-2xl cursor-pointer transition-all duration-300 backdrop-blur-md ${
                 activeCategory === 'major_port'
@@ -587,11 +493,9 @@ export default function DataList({
               </div>
             </div>
 
-            {/* Non-Port Category Card */}
             <div
               onClick={() => {
-                setActiveCategory(prev => prev === 'non_port' ? 'all' : 'non_port');
-                setCurrentPage(1);
+                actions.setCategory(prev => prev === 'non_port' ? 'all' : 'non_port');
               }}
               className={`flex items-center justify-between p-4 border rounded-2xl cursor-pointer transition-all duration-300 backdrop-blur-md ${
                 activeCategory === 'non_port'
@@ -619,31 +523,19 @@ export default function DataList({
             </div>
           </div>
 
-          {/* Deep-down Organisation Selector */}
-          {activeCategory !== 'all' && activeCategory !== 'ministry' && subOrganisations.length > 0 && (
-            <div className={`border rounded-2xl p-5 space-y-3.5 backdrop-blur-md animate-fade-in shadow-xs transition-all duration-300 dark:bg-slate-900/10 dark:border-slate-800/80 ${
-              activeCategory === 'major_port'
-                ? 'bg-emerald-50/15 border-emerald-255/30 border-l-4 border-l-emerald-500'
-                : activeCategory === 'ministry'
-                  ? 'bg-amber-50/15 border-amber-255/30 border-l-4 border-l-amber-500'
-                  : 'bg-indigo-50/15 border-indigo-255/30 border-l-4 border-l-indigo-500'
-            }`}>
+          {chipStyle && subOrganisations.length > 0 && (
+            <div className={`border rounded-2xl p-5 space-y-3.5 backdrop-blur-md animate-fade-in shadow-xs transition-all duration-300 dark:bg-slate-900/10 dark:border-slate-800/80 ${chipStyle.panel}`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
-                  <span className={`h-1.5 w-1.5 rounded-full ${
-                    activeCategory === 'major_port' ? 'bg-emerald-500 animate-pulse' : activeCategory === 'ministry' ? 'bg-amber-500 animate-pulse' : 'bg-indigo-500 animate-pulse'
-                  }`} />
-                  <span className={`text-[10px] font-extrabold uppercase tracking-wider ${
-                    activeCategory === 'major_port' ? 'text-emerald-700 dark:text-emerald-455' : activeCategory === 'ministry' ? 'text-amber-700 dark:text-amber-455' : 'text-indigo-700 dark:text-indigo-405'
-                  }`}>
-                    Filter by {activeCategory === 'major_port' ? 'Major Port' : activeCategory === 'ministry' ? 'Ministry' : 'Non-Port'} Organisation
+                  <span className={`h-1.5 w-1.5 rounded-full animate-pulse ${chipStyle.dot}`} />
+                  <span className={`text-[10px] font-extrabold uppercase tracking-wider ${chipStyle.label}`}>
+                    Filter by {chipStyle.name} Organisation
                   </span>
                 </div>
                 {selectedSubOrgId && (
                   <button
                     onClick={() => {
-                      setSelectedSubOrgId('');
-                      setCurrentPage(1);
+                      actions.setFilters({ subOrgId: '' });
                     }}
                     className="text-[10px] font-black text-[#0f417a] dark:text-blue-400 hover:underline uppercase tracking-wide cursor-pointer flex items-center gap-1"
                   >
@@ -654,8 +546,7 @@ export default function DataList({
               <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto pr-1 custom-scrollbar">
                 <button
                   onClick={() => {
-                    setSelectedSubOrgId('');
-                    setCurrentPage(1);
+                    actions.setFilters({ subOrgId: '' });
                   }}
                   className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer border ${
                     !selectedSubOrgId
@@ -663,27 +554,19 @@ export default function DataList({
                       : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-350 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800 dark:hover:bg-slate-800'
                   }`}
                 >
-                  All {activeCategory === 'major_port' ? 'Major Ports' : activeCategory === 'ministry' ? 'Ministries' : 'Non-Ports'}
+                  {chipStyle.all}
                 </button>
                 {subOrganisations.map(org => {
                   const isSelected = String(org.organisation_id) === String(selectedSubOrgId);
-                  let activeColorClass = 'bg-emerald-600 border-emerald-600 text-white shadow-md transform scale-[1.02]';
-                  if (activeCategory === 'ministry') {
-                    activeColorClass = 'bg-amber-600 border-amber-600 text-white shadow-md transform scale-[1.02]';
-                  } else if (activeCategory === 'non_port') {
-                    activeColorClass = 'bg-indigo-600 border-indigo-600 text-white shadow-md transform scale-[1.02]';
-                  }
-                  
                   return (
                     <button
                       key={org.organisation_id}
                       onClick={() => {
-                        setSelectedSubOrgId(prev => String(prev) === String(org.organisation_id) ? '' : org.organisation_id);
-                        setCurrentPage(1);
+                        actions.setFilters({ subOrgId: isSelected ? '' : org.organisation_id });
                       }}
                       className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer border ${
                         isSelected
-                          ? activeColorClass
+                          ? chipStyle.active
                           : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-355 hover:scale-[1.01] dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800 dark:hover:bg-slate-800'
                       }`}
                     >
@@ -697,17 +580,14 @@ export default function DataList({
         </>
       )}
 
-      {/* Main Container matching CSR Projects design */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
         
-        {/* Toolbar matching CSR Projects */}
         <div className="flex flex-col lg:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
           
-          {/* Left: Dedicated Filter Button + Reset Filters */}
           <div className="flex items-center gap-2.5 w-full lg:w-auto">
             <button
               type="button"
-              onClick={() => setShowFilterPanel(prev => !prev)}
+              onClick={() => actions.setShowFilterPanel(prev => !prev)}
               className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
                 showFilterPanel || activeFiltersCount > 0
                   ? 'bg-blue-50 border-blue-300 text-[#0f417a] dark:bg-blue-950/50 dark:border-blue-700 dark:text-blue-300'
@@ -735,22 +615,20 @@ export default function DataList({
             )}
           </div>
 
-          {/* Right-aligned Tools: Search bar, Rows, Total, Visibility, Copy, Export */}
           <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-end">
             
-            {/* Search Input */}
             <div className="relative min-w-[200px] flex-1 sm:flex-initial">
               <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
               <input
                 type="text"
                 placeholder="Search"
                 value={searchTerm}
-                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                onChange={(e) => actions.setSearchTerm(e.target.value)}
                 className="w-full pl-9 pr-8 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 focus:outline-none placeholder-slate-400 text-slate-800 dark:text-slate-200"
               />
               {searchTerm && (
                 <button
-                  onClick={() => { setSearchTerm(''); setCurrentPage(1); }}
+                  onClick={() => actions.setSearchTerm('')}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
                   <X className="h-3.5 w-3.5" />
@@ -758,24 +636,21 @@ export default function DataList({
               )}
             </div>
 
-            {/* Rows Limit Selector */}
             <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-xs select-none dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200">
               <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
               <select
                 value={pageSize}
-                onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
+                onChange={(e) => actions.setPageSize(Number(e.target.value))}
                 className="bg-transparent border-none text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
               >
                 {[10, 25, 50, 100].map(sz => <option key={sz} value={sz}>{sz}</option>)}
               </select>
             </div>
 
-            {/* Total Badge */}
             <div className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
               Total: <span className="text-[#0f417a] dark:text-blue-400 font-extrabold">{filteredRowData.length}</span>
             </div>
 
-            {/* Visibility Column Toggle Dropdown */}
             <div className="relative" ref={colDropdownRef}>
               <button
                 type="button"
@@ -802,7 +677,7 @@ export default function DataList({
                       <input
                         type="checkbox"
                         checked={visibleCols[key] !== false}
-                        onChange={() => setVisibleCols(prev => ({ ...prev, [key]: !prev[key] }))}
+                        onChange={() => actions.setVisibleCols(prev => ({ ...prev, [key]: visibleCols[key] === false }))}
                         className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
                       />
                       <span>{label}</span>
@@ -812,20 +687,19 @@ export default function DataList({
               )}
             </div>
 
-            {/* Copy Button */}
             <CopyButton
-              onCopy={handleCopy}
+              headers={exportHeaders}
+              rows={buildExportRows}
               color="#0f417a"
               hoverBg="#f1f5f9"
               triggerNotification={triggerNotification}
             />
 
-            {/* Export Dropdown */}
             <ExportDropdown
-              onExportExcel={handleExportCSV}
-              onExportPdf={handlePrintPDF}
+              headers={exportHeaders}
+              rows={buildExportRows}
               fileName={`Media_Outreach_${activeMediaType}_Export`}
-              title={`Media Outreach - ${activeMediaType}`}
+              title={`Media Outreach - ${mediaLabel}`}
               color="#0f417a"
               hoverColor="#1d5594"
               triggerNotification={triggerNotification}
@@ -833,12 +707,10 @@ export default function DataList({
           </div>
         </div>
 
-        {/* Collapsible Filter Panel */}
         {showFilterPanel && (
           <div className="bg-slate-50 dark:bg-slate-950/60 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3 animate-fade-in">
-            <div className={`grid grid-cols-1 ${hideOrgFilter ? 'sm:grid-cols-3' : 'sm:grid-cols-2 md:grid-cols-4'} gap-3`}>
+            <div className={`grid grid-cols-1 ${isOrgView ? 'sm:grid-cols-3' : 'sm:grid-cols-2 md:grid-cols-4'} gap-3`}>
               
-              {/* Financial Year Filter */}
               <div>
                 <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider">
                   Financial Year
@@ -846,17 +718,15 @@ export default function DataList({
                 <select
                   value={financialYearFilter}
                   onChange={(e) => {
-                    setFinancialYearFilter(e.target.value);
-                    setCurrentPage(1);
+                    actions.setFilters({ financialYear: e.target.value });
                   }}
                   className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 text-slate-800 dark:text-slate-200 cursor-pointer"
                 >
                   <option value="">Show All</option>
-                  {FINANCIAL_YEARS.map(fy => <option key={fy} value={fy}>{fy}</option>)}
+                  {yearOptions.map(fy => <option key={fy} value={fy}>{fy}</option>)}
                 </select>
               </div>
 
-              {/* Month Filter */}
               <div className={showYearWise ? 'opacity-40 pointer-events-none' : ''}>
                 <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider">
                   Month
@@ -865,8 +735,7 @@ export default function DataList({
                   value={monthFilter}
                   disabled={showYearWise}
                   onChange={(e) => {
-                    setMonthFilter(e.target.value);
-                    setCurrentPage(1);
+                    actions.setFilters({ month: e.target.value });
                   }}
                   className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 text-slate-800 dark:text-slate-200 cursor-pointer disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:cursor-not-allowed"
                 >
@@ -875,8 +744,7 @@ export default function DataList({
                 </select>
               </div>
 
-              {/* Organisation Filter */}
-              {!hideOrgFilter && (
+              {!isOrgView && (
                 <div>
                   <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider">
                     Organisation
@@ -884,8 +752,7 @@ export default function DataList({
                   <select
                     value={organisationFilter}
                     onChange={(e) => {
-                      setOrganisationFilter(e.target.value);
-                      setCurrentPage(1);
+                      actions.setFilters({ organisationId: e.target.value });
                     }}
                     className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 text-slate-800 dark:text-slate-200 cursor-pointer"
                   >
@@ -897,7 +764,6 @@ export default function DataList({
                 </div>
               )}
 
-              {/* Summary View Toggle */}
               <div>
                 <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider">
                   Summary View
@@ -906,8 +772,7 @@ export default function DataList({
                   <button
                     type="button"
                     onClick={() => {
-                      setShowYearWise(false);
-                      setCurrentPage(1);
+                      actions.setFilters({ showYearWise: false });
                     }}
                     className={`flex-1 text-center py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                       !showYearWise
@@ -920,9 +785,7 @@ export default function DataList({
                   <button
                     type="button"
                     onClick={() => {
-                      setShowYearWise(true);
-                      setMonthFilter('');
-                      setCurrentPage(1);
+                      actions.setFilters({ showYearWise: true, month: '' });
                     }}
                     className={`flex-1 text-center py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                       showYearWise
@@ -938,7 +801,6 @@ export default function DataList({
           </div>
         )}
 
-        {/* AG Grid Table with Integrated Pagination */}
         <div className="w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-xs dark:border-slate-800">
           <Table
             rowData={paginatedRowData}
@@ -948,7 +810,6 @@ export default function DataList({
             pagination={false}
             enableExport={false}
             color="#0f417a"
-            onGridReady={(params) => setGridApi(params.api)}
           />
 
           <TablePagination
@@ -956,15 +817,14 @@ export default function DataList({
             totalPages={totalPages}
             totalRows={filteredRowData.length}
             pageSize={pageSize}
-            onPageChange={(zeroIdx) => setCurrentPage(zeroIdx + 1)}
-            onPrevPage={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-            onNextPage={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+            onPageChange={(zeroIdx) => actions.setCurrentPage(zeroIdx + 1)}
+            onPrevPage={() => actions.setCurrentPage(Math.max(1, currentPage - 1))}
+            onNextPage={() => actions.setCurrentPage(Math.min(totalPages, currentPage + 1))}
             color="#0f417a"
           />
         </div>
       </div>
 
-      {/* Global CSS injection to match the table headers and cell text */}
       <style dangerouslySetInnerHTML={{ __html: `
         .text-center-header .ag-header-cell-label {
           justify-content: center !important;

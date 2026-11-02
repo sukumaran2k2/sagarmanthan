@@ -1,11 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
+import { axiosInstance as api } from '../api';
 import { ChevronDown, Globe, Type, Sun, Moon, Bell } from 'lucide-react';
 import sagarmanthanLogo from '../assets/sagarmanthan_logo.png';
 import { useTheme } from '../context/ThemeContext.jsx';
-import axios from 'axios';
 import { isOrgSeniorOfficer, getCurrentUserId, isOrganisationUser } from '../utils/authSession';
 import { TAB_USER_MODULE_PERMISSION } from '../utils/moduleAccess';
-import { API_BASE_URL } from '../config/api';
 import NotificationPanel from './NotificationPanel';
 
 function decodeToken(token) {
@@ -65,13 +64,11 @@ export default function Header({ onLogout, onProfileClick, onUserManagementClick
       setUserOrg(decoded.organisationName);
     }
 
-    axios
-      .get(`${API_BASE_URL}/userlist`)
+    // The signed-in user's own details (name, organisation)
+    api
+      .get('/my-profile')
       .then((res) => {
-        const users = res.data || [];
-        const matched = users.find(
-          (u) => u.email && u.email.toLowerCase() === decoded.email.toLowerCase()
-        );
+        const matched = res.data;
         if (matched) {
           setUserName(matched.name || '');
           if (matched.organisation_name) {

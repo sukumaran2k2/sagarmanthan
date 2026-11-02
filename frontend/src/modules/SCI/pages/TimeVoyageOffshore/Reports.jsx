@@ -5,10 +5,11 @@ import Table from '../../../../components/Table';
 import ExportDropdown from '../../../../components/ExportDropdown';
 import CopyButton from '../../../../components/CopyButton';
 import { exportReportToPdf } from '../../../../utils/exportReportPdf';
+import { COMMON_TOASTS } from '../../../../utils/notify';
 
-export default function TimeVoyageOffshoreReports() {
+export default function TimeVoyageOffshoreReports({ notify }) {
   const gridRef = useRef(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [rowData, setRowData] = useState([]);
   const [columnDefs, setColumnDefs] = useState([]);
   const [error, setError] = useState(null);
@@ -16,9 +17,8 @@ export default function TimeVoyageOffshoreReports() {
 
   const title = 'Form No. K-6.1.4 - Abstract - SCI - Vessel Availability/Utilization(%) - Time & Voyage Chartered Ships - Offshore';
 
-  const fetchData = () => {
-    setLoading(true);
-    setError(null);
+  // Load once on open
+  useEffect(() => {
     fetchTimeVoyageOffshoreReport()
       .then((res) => {
         const data = res.data?.rowData || [];
@@ -35,11 +35,10 @@ export default function TimeVoyageOffshoreReports() {
       .catch((err) => {
         console.error('Error loading report:', err);
         setError('Failed to load report data.');
+        notify?.(COMMON_TOASTS.loadFailed('The report'));
       })
       .finally(() => setLoading(false));
-  };
-
-  useEffect(() => { fetchData(); }, []);
+  }, [notify]);
 
   const defaultColDef = useMemo(() => ({
     sortable: true, resizable: true,
@@ -56,11 +55,17 @@ export default function TimeVoyageOffshoreReports() {
     if (!filteredRowData.length) return;
     let tsv = columnDefs.map((c) => c.headerName).join('\t') + '\n';
     filteredRowData.forEach((row) => { tsv += columnDefs.map((c) => row[c.field] ?? '').join('\t') + '\n'; });
-    navigator.clipboard.writeText(tsv);
+    navigator.clipboard.writeText(tsv).then(
+      () => notify?.(COMMON_TOASTS.copySuccess(filteredRowData.length)),
+      () => notify?.(COMMON_TOASTS.copyFailed()),
+    );
   };
 
   const handleExport = (type) => {
-    if (type === 'Excel' && gridRef.current?.api) gridRef.current.api.exportDataAsCsv({ fileName: 'sci_time_voyage_offshore_report.csv' });
+    if (type === 'Excel' && gridRef.current?.api) {
+      gridRef.current.api.exportDataAsCsv({ fileName: 'sci_time_voyage_offshore_report.csv' });
+      notify?.(COMMON_TOASTS.excelExported('sci_time_voyage_offshore_report.csv'));
+    }
     else if (type === 'PDF') {
       exportReportToPdf({
         title,
@@ -69,6 +74,7 @@ export default function TimeVoyageOffshoreReports() {
         rowData: filteredRowData,
         fileName: 'sci_time_voyage_offshore_report',
       });
+      notify?.(COMMON_TOASTS.downloadStarted('sci_time_voyage_offshore_report.pdf'));
     }
   };
 
@@ -116,25 +122,11 @@ export default function TimeVoyageOffshoreReports() {
       {error ? (
         <div className="p-8 text-center text-sm font-semibold text-red-500 dark:text-red-400">{error}</div>
       ) : (
-        <div className="ag-theme-quartz sci-time-voyage-offshore-report-grid mt-4" style={{ width: '100%' }}>
-          <Table ref={gridRef} theme="legacy" rowData={filteredRowData} columnDefs={columnDefs} defaultColDef={defaultColDef} domLayout="autoHeight" rowHeight={48} headerHeight={42} suppressColumnVirtualisation={true} animateRows={true} enableExport={false} color="#4b2424" />
+        <div className="ag-theme-quartz kpi-report-grid mt-4" style={{ width: '100%' }}>
+          <Table ref={gridRef} loading={loading} theme="legacy" rowData={filteredRowData} columnDefs={columnDefs} defaultColDef={defaultColDef} domLayout="autoHeight" rowHeight={48} headerHeight={42} suppressColumnVirtualisation={true} animateRows={true} enableExport={false} color="#4b2424" />
         </div>
       )}
 
-      <style dangerouslySetInnerHTML={{ __html: `
-        .sci-time-voyage-offshore-report-grid.ag-theme-quartz { --ag-font-family: 'Inter', system-ui, sans-serif; --ag-row-height: 48px; --ag-active-color: #4b2424; }
-        .sci-time-voyage-offshore-report-grid .ag-root-wrapper { border: none !important; border-radius: 0 !important; }
-        .sci-time-voyage-offshore-report-grid .ag-header { background: #4b2424 !important; border-bottom: 2px solid #3a1a1a !important; }
-        .sci-time-voyage-offshore-report-grid .ag-header-cell { color: #ffffff !important; font-weight: 600 !important; font-size: 11px !important; text-transform: uppercase !important; letter-spacing: 0.05em !important; border-right: 1px solid rgba(255,255,255,0.15) !important; }
-        .sci-time-voyage-offshore-report-grid .ag-header-cell-label { justify-content: center !important; }
-        .sci-time-voyage-offshore-report-grid .ag-row-even { background: #ffffff !important; }
-        .sci-time-voyage-offshore-report-grid .ag-row-odd { background: #f8faf6 !important; }
-        .sci-time-voyage-offshore-report-grid .ag-cell { border-right: 1px solid #D3D6D9 !important; }
-        .dark .sci-time-voyage-offshore-report-grid .ag-header { background: #0f172a !important; }
-        .dark .sci-time-voyage-offshore-report-grid .ag-row-even { background: #090d16 !important; }
-        .dark .sci-time-voyage-offshore-report-grid .ag-row-odd { background: #0f172a !important; }
-        .dark .sci-time-voyage-offshore-report-grid .ag-cell { border-right: 1px solid #1e293b !important; color: #e2e8f0 !important; }
-      `}} />
       </div>
     </div>
   );

@@ -1,3 +1,6 @@
+/* global describe, it, expect, jest */
+// The hook reads the organisation master from the HR store; these rules do not need it
+jest.mock('../../store/useHrStore', () => ({ useHrStore: () => [] }));
 import {
   canUseHrInputForm,
   canViewHrAdministration,
@@ -18,6 +21,15 @@ describe('HR page rules', () => {
   it('offers HR Administration to organisation users only', () => {
     expect(canViewHrAdministration(org)).toBe(true);
     expect(canViewHrAdministration(ministry)).toBe(false);
+  });
+
+  it('keeps Vacancy Management and HR Administration from non-port organisations', () => {
+    const port = { ...org, organisationCategoryId: 1 };
+    const nonPort = { ...org, organisationCategoryId: 3 };
+    expect(canViewVacancyManagement(port)).toBe(true);
+    expect(canViewVacancyManagement(nonPort)).toBe(false);
+    expect(canViewHrAdministration(port)).toBe(true);
+    expect(canViewHrAdministration(nonPort)).toBe(false);
   });
 
   it('offers the input form to organisation users who can create or update', () => {

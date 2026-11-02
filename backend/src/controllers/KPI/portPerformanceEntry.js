@@ -19,6 +19,7 @@ import {
     buildPagination,
     parseListQuery,
     createEntryAccess,
+    writeEntryLog,
 } from "./kpiEntryCommon.js";
 import {
     ALL_COLUMNS,
@@ -241,14 +242,15 @@ async function getPortPerformanceActuals(req, res) {
 // Actuals — single period
 // ---------------------------------------------------------------------------
 
-async function loadPeriodRow(conn, organisationId, fiscalYear, month) {
+/** lock: hold the row until the caller's transaction commits (reads made for the entry log). */
+async function loadPeriodRow(conn, organisationId, fiscalYear, month, { lock = false } = {}) {
     const request = conn.request();
     request.input("organisationId", sql.Int, organisationId);
     request.input("fiscalYear", sql.NVarChar(20), fiscalYear);
     request.input("month", sql.Int, month);
     const result = await request.query(`
         SELECT ${ALL_COLUMNS.join(", ")}
-        FROM tbl_kpi_time_performance
+        FROM tbl_kpi_time_performance${lock ? " WITH (UPDLOCK, HOLDLOCK)" : ""}
         WHERE organisation_id = @organisationId AND fiscal_year = @fiscalYear AND month = @month
     `);
     return result.recordset[0] || null;
@@ -330,6 +332,7 @@ async function savePortPerformancePeriod(req, res) {
     const { values, error } = parseSectionValues(section, req.body?.values);
     if (error) return sendError(res, 400, error);
 
+    let transaction = null;
     try {
         const conn = await pool;
         const accessResult = await getEntryAccess(conn, organisationId, fiscalYear, month);
@@ -339,7 +342,10 @@ async function savePortPerformancePeriod(req, res) {
         const isUpdate = savedSectionIds(existing).includes(section.id);
         if (!requireAction(req, res, isUpdate ? "update" : "create")) return undefined;
 
-        const request = conn.request();
+        transaction = new sql.Transaction(conn);
+        await transaction.begin();
+        const before = await loadPeriodRow(transaction, organisationId, fiscalYear, month, { lock: true });
+        const request = transaction.request();
         request.input("organisationId", sql.Int, organisationId);
         request.input("fiscalYear", sql.NVarChar(20), fiscalYear);
         request.input("month", sql.Int, month);
@@ -361,6 +367,19 @@ async function savePortPerformancePeriod(req, res) {
                 INSERT (fiscal_year, month, organisation_id, ${columns.join(", ")}, created_by, created_date)
                 VALUES (@fiscalYear, @month, @organisationId, ${columns.map((_, i) => `@v${i}`).join(", ")}, @userId, GETDATE());
         `);
+        await writeEntryLog(transaction, {
+            section: "PORT_PERFORMANCE",
+            recordType: "ACTUAL",
+            action: isUpdate ? "UPDATE" : "CREATE",
+            organisationId,
+            fiscalYear,
+            month,
+            userId,
+            note: section.label,
+            before,
+            after: await loadPeriodRow(transaction, organisationId, fiscalYear, month),
+        });
+        await transaction.commit();
 
         return res.status(200).json({
             success: true,
@@ -368,6 +387,7 @@ async function savePortPerformancePeriod(req, res) {
             message: isUpdate ? `${section.label} updated.` : `${section.label} saved.`,
         });
     } catch (err) {
+        if (transaction) await transaction.rollback().catch(() => {});
         console.error("Error saving port performance period:", err);
         return sendError(res, 500, "Port performance data could not be saved.");
     }
@@ -376,17 +396,23 @@ async function savePortPerformancePeriod(req, res) {
 async function deletePortPerformancePeriod(req, res) {
     const organisationId = requireOrganisation(req, res);
     if (!organisationId) return undefined;
+    const userId = resolveUserId(req);
+    if (!userId) return sendError(res, 401, "Your session has expired. Please sign in again.");
 
     const fiscalYear = normaliseFiscalYear(req.query.fiscalYear);
     const month = parseMonth(req.query.month);
     if (!fiscalYear || !month) return sendError(res, 400, "Select a valid financial year and month.");
 
+    let transaction = null;
     try {
         const conn = await pool;
         const accessResult = await getEntryAccess(conn, organisationId, fiscalYear, month);
         if (!accessResult.open) return sendError(res, 403, lockedMessage(fiscalYear, month));
 
-        const request = conn.request();
+        transaction = new sql.Transaction(conn);
+        await transaction.begin();
+        const before = await loadPeriodRow(transaction, organisationId, fiscalYear, month, { lock: true });
+        const request = transaction.request();
         request.input("organisationId", sql.Int, organisationId);
         request.input("fiscalYear", sql.NVarChar(20), fiscalYear);
         request.input("month", sql.Int, month);
@@ -394,9 +420,17 @@ async function deletePortPerformancePeriod(req, res) {
             DELETE FROM tbl_kpi_time_performance
             WHERE organisation_id = @organisationId AND fiscal_year = @fiscalYear AND month = @month
         `);
-        if (!result.rowsAffected[0]) return sendError(res, 404, "No port performance data was found for this period.");
+        if (!result.rowsAffected[0]) {
+            await transaction.rollback();
+            return sendError(res, 404, "No port performance data was found for this period.");
+        }
+        await writeEntryLog(transaction, {
+            section: "PORT_PERFORMANCE", recordType: "ACTUAL", action: "DELETE", organisationId, fiscalYear, month, userId, before,
+        });
+        await transaction.commit();
         return res.status(200).json({ success: true, message: "Port performance data deleted." });
     } catch (error) {
+        if (transaction) await transaction.rollback().catch(() => {});
         console.error("Error deleting port performance period:", error);
         return sendError(res, 500, "Port performance data could not be deleted.");
     }
@@ -525,13 +559,13 @@ function resolveTargetRow(req, res, rawKey) {
     return row;
 }
 
-async function loadTargetRecord(conn, fiscalYear, row) {
+async function loadTargetRecord(conn, fiscalYear, row, { lock = false } = {}) {
     const request = conn.request();
     request.input("fiscalYear", sql.NVarChar(20), fiscalYear);
     const rowSql = bindRowCondition(request, row);
     const result = await request.query(`
         SELECT t.kpi_type_id, t.target_value
-        FROM tbl_kpi_time_performance_target t
+        FROM tbl_kpi_time_performance_target t${lock ? " WITH (UPDLOCK, HOLDLOCK)" : ""}
         WHERE t.financial_year = @fiscalYear AND ${rowSql}
     `);
     return Object.fromEntries(result.recordset.map((r) => [r.kpi_type_id, r.target_value]));
@@ -553,6 +587,17 @@ async function getPortPerformanceTargetRecord(req, res) {
     }
 }
 
+/** Entry log fields of one target row; Overall / Total SMPA rows have no organisation. */
+function targetLogContext(fiscalYear, row) {
+    const note = row.isOverall ? "Overall" : row.isTotalSmpa ? "Total SMPA" : null;
+    return { section: "PORT_PERFORMANCE", recordType: "TARGET", organisationId: row.organisationId, fiscalYear, note };
+}
+
+/** { kpiTypeId: value } as { kpi_type_<id>: value }, so the log names what each value is. */
+function targetLogValues(record) {
+    return Object.fromEntries(Object.entries(record).map(([id, value]) => [`kpi_type_${id}`, value]));
+}
+
 /**
  * Saves the targets of one row (organisation, Total SMPA or Overall) for a financial year.
  * values: { [kpiTypeId]: number | null }; null clears that KPI's target.
@@ -572,6 +617,7 @@ async function savePortPerformanceTargetRecord(req, res) {
         return sendError(res, 400, "Enter at least one target.");
     }
 
+    let transaction = null;
     try {
         const conn = await pool;
         const kpiTypes = await loadKpiTypes(conn);
@@ -599,7 +645,10 @@ async function savePortPerformanceTargetRecord(req, res) {
         const isUpdate = Object.keys(existing).length > 0;
         if (!requireAction(req, res, isUpdate ? "update" : "create")) return undefined;
 
-        const request = conn.request();
+        transaction = new sql.Transaction(conn);
+        await transaction.begin();
+        const before = await loadTargetRecord(transaction, fiscalYear, row, { lock: true });
+        const request = transaction.request();
         request.input("fiscalYear", sql.NVarChar(20), fiscalYear);
         request.input("organisationId", sql.Int, row.organisationId);
         request.input("isOverall", sql.Bit, row.isOverall);
@@ -624,6 +673,14 @@ async function savePortPerformanceTargetRecord(req, res) {
                 INSERT (financial_year, kpi_type_id, organisation_id, target_value, is_overall, is_totalSmpa, created_by, created_date)
                 VALUES (@fiscalYear, src.kpi_type_id, @organisationId, src.target_value, @isOverall, @isTotalSmpa, @userId, GETDATE());
         `);
+        await writeEntryLog(transaction, {
+            ...targetLogContext(fiscalYear, row),
+            action: isUpdate ? "UPDATE" : "CREATE",
+            userId,
+            before: targetLogValues(before),
+            after: targetLogValues(await loadTargetRecord(transaction, fiscalYear, row)),
+        });
+        await transaction.commit();
 
         return res.status(isUpdate ? 200 : 201).json({
             success: true,
@@ -631,6 +688,7 @@ async function savePortPerformanceTargetRecord(req, res) {
             message: isUpdate ? "Targets updated." : "Targets added.",
         });
     } catch (error) {
+        if (transaction) await transaction.rollback().catch(() => {});
         console.error("Error saving port performance targets:", error);
         return sendError(res, 500, "The targets could not be saved.");
     }
@@ -638,23 +696,37 @@ async function savePortPerformanceTargetRecord(req, res) {
 
 async function deletePortPerformanceTargetRecord(req, res) {
     if (!requireMinistryWriter(req, res, "Port performance targets")) return undefined;
+    const userId = resolveUserId(req);
+    if (!userId) return sendError(res, 401, "Your session has expired. Please sign in again.");
     const fiscalYear = normaliseFiscalYear(req.query.financialYear);
     if (!fiscalYear) return sendError(res, 400, "Select a valid financial year.");
     const row = parseRowKey(req.query.rowKey);
     if (!row) return sendError(res, 400, "Select an organisation, Total SMPA or Overall.");
 
+    let transaction = null;
     try {
         const conn = await pool;
-        const request = conn.request();
+        transaction = new sql.Transaction(conn);
+        await transaction.begin();
+        const before = await loadTargetRecord(transaction, fiscalYear, row, { lock: true });
+        const request = transaction.request();
         request.input("fiscalYear", sql.NVarChar(20), fiscalYear);
         const rowSql = bindRowCondition(request, row);
         const result = await request.query(`
             DELETE t FROM tbl_kpi_time_performance_target t
             WHERE t.financial_year = @fiscalYear AND ${rowSql}
         `);
-        if (!result.rowsAffected[0]) return sendError(res, 404, "These targets no longer exist.");
+        if (!result.rowsAffected[0]) {
+            await transaction.rollback();
+            return sendError(res, 404, "These targets no longer exist.");
+        }
+        await writeEntryLog(transaction, {
+            ...targetLogContext(fiscalYear, row), action: "DELETE", userId, before: targetLogValues(before),
+        });
+        await transaction.commit();
         return res.status(200).json({ success: true, message: "Targets deleted." });
     } catch (error) {
+        if (transaction) await transaction.rollback().catch(() => {});
         console.error("Error deleting port performance targets:", error);
         return sendError(res, 500, "The targets could not be deleted.");
     }

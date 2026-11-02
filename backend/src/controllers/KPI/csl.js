@@ -63,6 +63,13 @@ import fs from 'fs';
             pageRequest.input("search", `%${search}%`);
             whereClause = 'WHERE (financial_year LIKE @search OR CAST(no_of_vessels_built AS VARCHAR(50)) LIKE @search OR CAST(tonnage_of_vessels_built AS VARCHAR(50)) LIKE @search OR CAST(value_of_vessels_built AS VARCHAR(50)) LIKE @search)';
         }
+        // Financial year dropdown: exact match, combined with the free-text search
+        const financialYear = (req.query.financialYear || '').trim();
+        if (financialYear) {
+            countRequest.input("financialYear", financialYear);
+            pageRequest.input("financialYear", financialYear);
+            whereClause = whereClause ? `${whereClause} AND financial_year = @financialYear` : 'WHERE financial_year = @financialYear';
+        }
 
         const [countResult, pageResult] = await Promise.all([
             countRequest.query(`SELECT COUNT(*) AS total FROM tbl_csl_vessels_built ${whereClause}`),
@@ -264,6 +271,13 @@ import fs from 'fs';
             countRequest.input("search", `%${search}%`);
             pageRequest.input("search", `%${search}%`);
             whereClause = 'WHERE (financial_year LIKE @search OR financial_quater LIKE @search OR CAST(ship_orders_received AS VARCHAR(50)) LIKE @search OR CAST(value_of_ship_orders_received AS VARCHAR(50)) LIKE @search)';
+        }
+        // Financial year dropdown: exact match, combined with the free-text search
+        const financialYear = (req.query.financialYear || '').trim();
+        if (financialYear) {
+            countRequest.input("financialYear", financialYear);
+            pageRequest.input("financialYear", financialYear);
+            whereClause = whereClause ? `${whereClause} AND financial_year = @financialYear` : 'WHERE financial_year = @financialYear';
         }
 
         const [countResult, pageResult] = await Promise.all([
@@ -469,6 +483,13 @@ import fs from 'fs';
             pageRequest.input("search", `%${search}%`);
             whereClause = 'WHERE (financial_year LIKE @search OR financial_quater LIKE @search OR CAST(total_no_ship_orders_received AS VARCHAR(50)) LIKE @search OR CAST(no_of_ships_delivered AS VARCHAR(50)) LIKE @search)';
         }
+        // Financial year dropdown: exact match, combined with the free-text search
+        const financialYear = (req.query.financialYear || '').trim();
+        if (financialYear) {
+            countRequest.input("financialYear", financialYear);
+            pageRequest.input("financialYear", financialYear);
+            whereClause = whereClause ? `${whereClause} AND financial_year = @financialYear` : 'WHERE financial_year = @financialYear';
+        }
 
         const [countResult, pageResult] = await Promise.all([
             countRequest.query(`SELECT COUNT(*) AS total FROM tbl_csl_ship_delivery_performance ${whereClause}`),
@@ -653,6 +674,13 @@ import fs from 'fs';
             countRequest.input("search", `%${search}%`);
             pageRequest.input("search", `%${search}%`);
             whereClause = 'WHERE (financial_year LIKE @search OR CAST(total_shipbuilding_capacity AS VARCHAR(50)) LIKE @search OR CAST(tonnage_of_vessels AS VARCHAR(50)) LIKE @search)';
+        }
+        // Financial year dropdown: exact match, combined with the free-text search
+        const financialYear = (req.query.financialYear || '').trim();
+        if (financialYear) {
+            countRequest.input("financialYear", financialYear);
+            pageRequest.input("financialYear", financialYear);
+            whereClause = whereClause ? `${whereClause} AND financial_year = @financialYear` : 'WHERE financial_year = @financialYear';
         }
 
         const [countResult, pageResult] = await Promise.all([
@@ -845,6 +873,13 @@ import fs from 'fs';
             countRequest.input("search", `%${search}%`);
             pageRequest.input("search", `%${search}%`);
             whereClause = 'WHERE (financial_year LIKE @search OR month LIKE @search OR CAST(fabrication_of_steel_targets AS VARCHAR(50)) LIKE @search OR CAST(fabrication_of_steel_actual AS VARCHAR(50)) LIKE @search)';
+        }
+        // Financial year dropdown: exact match, combined with the free-text search
+        const financialYear = (req.query.financialYear || '').trim();
+        if (financialYear) {
+            countRequest.input("financialYear", financialYear);
+            pageRequest.input("financialYear", financialYear);
+            whereClause = whereClause ? `${whereClause} AND financial_year = @financialYear` : 'WHERE financial_year = @financialYear';
         }
 
         const [countResult, pageResult] = await Promise.all([
@@ -1052,6 +1087,13 @@ import fs from 'fs';
             countRequest.input("search", `%${search}%`);
             pageRequest.input("search", `%${search}%`);
             whereClause = 'WHERE (financial_year LIKE @search OR financial_quater LIKE @search OR CAST(no_of_ships_repaired AS VARCHAR(50)) LIKE @search OR CAST(value_of_ships_repaired AS VARCHAR(50)) LIKE @search)';
+        }
+        // Financial year dropdown: exact match, combined with the free-text search
+        const financialYear = (req.query.financialYear || '').trim();
+        if (financialYear) {
+            countRequest.input("financialYear", financialYear);
+            pageRequest.input("financialYear", financialYear);
+            whereClause = whereClause ? `${whereClause} AND financial_year = @financialYear` : 'WHERE financial_year = @financialYear';
         }
 
         const [countResult, pageResult] = await Promise.all([

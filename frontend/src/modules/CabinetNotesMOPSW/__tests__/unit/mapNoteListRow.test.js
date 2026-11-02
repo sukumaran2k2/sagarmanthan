@@ -1,3 +1,4 @@
+/* global describe, it, expect */
 /**
  * mapNoteListRow: turns an API row into list/table fields.
  */

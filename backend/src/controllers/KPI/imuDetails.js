@@ -92,6 +92,13 @@ async function getStudentEnrollment(req,res) {
             pageRequest.input("search", `%${search}%`);
             whereClause = 'WHERE financial_year LIKE @search';
         }
+        // Financial year dropdown: exact match, combined with the free-text search
+        const financialYear = (req.query.financialYear || '').trim();
+        if (financialYear) {
+            countRequest.input("financialYear", financialYear);
+            pageRequest.input("financialYear", financialYear);
+            whereClause = whereClause ? `${whereClause} AND financial_year = @financialYear` : 'WHERE financial_year = @financialYear';
+        }
 
         const [countResult, pageResult] = await Promise.all([
             countRequest.query(`SELECT COUNT(*) AS total FROM tbl_imu_k_5_1 ${whereClause}`),
@@ -258,6 +265,13 @@ async function getimuNewCourseUpgradation(req,res) {
             countRequest.input("search", `%${search}%`);
             pageRequest.input("search", `%${search}%`);
             whereClause = 'WHERE financial_year LIKE @search';
+        }
+        // Financial year dropdown: exact match, combined with the free-text search
+        const financialYear = (req.query.financialYear || '').trim();
+        if (financialYear) {
+            countRequest.input("financialYear", financialYear);
+            pageRequest.input("financialYear", financialYear);
+            whereClause = whereClause ? `${whereClause} AND financial_year = @financialYear` : 'WHERE financial_year = @financialYear';
         }
 
         const [countResult, pageResult] = await Promise.all([
@@ -448,6 +462,13 @@ async function getimuFacilities(req,res) {
             countRequest.input("search", `%${search}%`);
             pageRequest.input("search", `%${search}%`);
             whereClause = 'WHERE financial_year LIKE @search';
+        }
+        // Financial year dropdown: exact match, combined with the free-text search
+        const financialYear = (req.query.financialYear || '').trim();
+        if (financialYear) {
+            countRequest.input("financialYear", financialYear);
+            pageRequest.input("financialYear", financialYear);
+            whereClause = whereClause ? `${whereClause} AND financial_year = @financialYear` : 'WHERE financial_year = @financialYear';
         }
 
         const [countResult, pageResult] = await Promise.all([
@@ -640,6 +661,13 @@ async function getimuPartnership(req,res) {
             pageRequest.input("search", `%${search}%`);
             whereClause = 'WHERE financial_year LIKE @search';
         }
+        // Financial year dropdown: exact match, combined with the free-text search
+        const financialYear = (req.query.financialYear || '').trim();
+        if (financialYear) {
+            countRequest.input("financialYear", financialYear);
+            pageRequest.input("financialYear", financialYear);
+            whereClause = whereClause ? `${whereClause} AND financial_year = @financialYear` : 'WHERE financial_year = @financialYear';
+        }
 
         const [countResult, pageResult] = await Promise.all([
             countRequest.query(`SELECT COUNT(*) AS total FROM tbl_imu_k_5_4 ${whereClause}`),
@@ -814,6 +842,13 @@ async function getImuResearch(req,res) {
             countRequest.input("search", `%${search}%`);
             pageRequest.input("search", `%${search}%`);
             whereClause = 'WHERE financial_year LIKE @search';
+        }
+        // Financial year dropdown: exact match, combined with the free-text search
+        const financialYear = (req.query.financialYear || '').trim();
+        if (financialYear) {
+            countRequest.input("financialYear", financialYear);
+            pageRequest.input("financialYear", financialYear);
+            whereClause = whereClause ? `${whereClause} AND financial_year = @financialYear` : 'WHERE financial_year = @financialYear';
         }
 
         const [countResult, pageResult] = await Promise.all([

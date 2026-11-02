@@ -1,6 +1,6 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Activity, Columns3, DollarSign, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Activity, Columns3, DollarSign, Pencil, Plus, Save, Trash2 } from 'lucide-react';
 import {
   deleteExpenditureLogRow,
   editExpenditureComponentsDetails,
@@ -12,18 +12,28 @@ import {
   fetchPhysicalProgress,
   fetchTotalExpenditureValue,
   fetchUnderImplementationMilestones,
+  submitUnderImplementationProgress,
   submitExpenditureDetail,
 } from '../api';
 import { getProjectIdentity } from '../utils/mapProject';
+import { useProjectsPermissions } from '../hooks/useProjectsPermissions';
 import {
   DEFAULT_MILESTONES,
+  findMissingMilestoneDate,
   mapMilestonesFromApi,
+  milestoneIndexForProgress,
   sliceDate,
   yearForMonth,
 } from '../utils/stageMappers';
+import {
+  getScheduleStatus,
+  SCHEDULE_STATUS,
+  summarizeScheduleStatuses,
+} from '../utils/scheduleStatus';
 import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
+import ScheduleStatusBadge, { ScheduleStatusSummary } from './ScheduleStatusBadge';
 
 const COMPONENT_KEYS = [
   { key: 'gbsComponents', label: 'GBS Components (In Cr.)', apiField: 'gbs_components' },
@@ -92,12 +102,14 @@ export default function UnderImplementationStage({
     return getProjectIdentity(initialData || {});
   }, [projectIDProp, subProjectIDProp, initialData]);
 
+  const permissions = useProjectsPermissions();
   const { projectID, subProjectID } = identity;
   const [progressDate, setProgressDate] = useState('');
   const [progressValue, setProgressValue] = useState('0');
   const [previousProgressValue, setPreviousProgressValue] = useState(null);
   const [progressLocked, setProgressLocked] = useState(true);
   const [progressSnapshot, setProgressSnapshot] = useState({ date: '', value: '0' });
+  const [progressSaving, setProgressSaving] = useState(false);
   const [delayReason, setDelayReason] = useState('');
   const [inauguration, setInauguration] = useState('');
   const [inaugurationDate, setInaugurationDate] = useState('');
@@ -133,6 +145,8 @@ export default function UnderImplementationStage({
 
   const disabled = !canSubmit || readOnly;
   const progressDisabled = disabled || progressLocked;
+  // Actual end dates open only for milestones the SAVED progress has reached.
+  const openMilestoneIndex = milestoneIndexForProgress(previousProgressValue);
 
   const visibleFields = useMemo(
     () => COMPONENT_KEYS.filter((item) => visibleComponents[item.key]),
@@ -169,7 +183,7 @@ export default function UnderImplementationStage({
       });
       return {
         sNo: index + 1,
-        financialYear: row.year || row.financial_year || '-',
+        financialYear: row.financial_year || row.year || '-',
         month: displayMonth(row.month),
         components: toComponentsText(source) || '-',
         rawFinancialYear: row.financial_year || row.year || '',
@@ -371,7 +385,8 @@ export default function UnderImplementationStage({
         ]);
         if (!mounted) return;
 
-        setMilestones(mapMilestonesFromApi(Array.isArray(milestoneRes?.data) ? milestoneRes.data : []));
+        const loadedMilestones = mapMilestonesFromApi(Array.isArray(milestoneRes?.data) ? milestoneRes.data : []);
+        setMilestones(loadedMilestones);
 
         const progressRow = Array.isArray(progressRes?.data) ? progressRes.data[0] : null;
         if (progressRow) {
@@ -439,38 +454,143 @@ export default function UnderImplementationStage({
   };
 
   const today = new Date().toISOString().slice(0, 10);
+  const milestoneScheduleById = useMemo(() => {
+    const map = new Map();
+    milestones.forEach((row) => {
+      map.set(
+        row.id,
+        getScheduleStatus({
+          targetDate: row.targetedEndDate,
+          actualDate: row.actualEndDate,
+        })
+      );
+    });
+    return map;
+  }, [milestones]);
 
-  const handleSubmit = () => {
+  const milestoneScheduleSummary = useMemo(() => {
+    const statuses = milestones
+      .map((row) => milestoneScheduleById.get(row.id))
+      .filter(Boolean);
+    return summarizeScheduleStatuses(statuses);
+  }, [milestones, milestoneScheduleById]);
+
+  const milestoneAttentionItems = useMemo(
+    () =>
+      milestones
+        .map((row) => {
+          const status = milestoneScheduleById.get(row.id);
+          if (
+            !status ||
+            ![
+              SCHEDULE_STATUS.OVERDUE,
+              SCHEDULE_STATUS.AT_RISK,
+              SCHEDULE_STATUS.COMPLETED_LATE,
+            ].includes(status.key)
+          ) {
+            return null;
+          }
+          return { row, status, label: row.milestone };
+        })
+        .filter(Boolean),
+    [milestones, milestoneScheduleById]
+  );
+
+  const savePhysicalProgress = async () => {
+    if (disabled || progressLocked || progressSaving) return;
+    if (!projectID) {
+      notify?.('Project details are missing. Please reload and try again.', 'error');
+      return;
+    }
+
     const progressNum = Number(progressValue);
-    const hasProgressValue = String(progressValue || '').trim() !== '';
 
-    // Legacy addPhysicalProgress always required the as-on date when saving progress.
-    if (!progressDate && hasProgressValue && String(progressValue) !== '0') {
+    if (!String(progressDate || '').trim()) {
       notify?.('Please select a physical progress as on date', 'error');
       return;
     }
 
-    if (progressDate) {
-      if (Number.isNaN(progressNum) || progressNum > 100 || progressNum < 0) {
-        notify?.('The physical progress must be less than or equal to 100 %.', 'error');
-        return;
-      }
-      if (
-        previousProgressValue != null &&
-        !Number.isNaN(previousProgressValue) &&
-        progressNum <= Number(previousProgressValue)
-      ) {
+    if (String(progressValue ?? '').trim() === '' || Number.isNaN(progressNum) || progressNum > 100 || progressNum < 0) {
+      notify?.('Please enter a physical progress between 0 and 100 %.', 'error');
+      return;
+    }
+
+    if (
+      previousProgressValue != null &&
+      !Number.isNaN(Number(previousProgressValue)) &&
+      progressNum <= Number(previousProgressValue)
+    ) {
+      notify?.(
+        'The physical progress percentage must always be greater the previous value.',
+        'error'
+      );
+      return;
+    }
+
+    setProgressSaving(true);
+    try {
+      await submitUnderImplementationProgress({
+        projectID,
+        subProjectID: subProjectID || '-1',
+        userID: permissions.userId,
+        progressDate,
+        progressValue,
+      });
+
+      setPreviousProgressValue(progressNum);
+      setProgressSnapshot({ date: progressDate, value: String(progressValue) });
+      setProgressLocked(true);
+
+      const missingMilestone = findMissingMilestoneDate(milestones, progressNum);
+      if (missingMilestone) {
         notify?.(
-          'The physical progress percentage must always be greater the previous value.',
+          `Physical progress saved. Now enter the Actual End Date for ${missingMilestone.milestone} and click "Save Physical Progress".`,
+          'info'
+        );
+      } else {
+        notify?.('Physical progress submitted successfully', 'success');
+      }
+    } catch (error) {
+      console.error(error);
+      notify?.(
+        error?.response?.data?.message ||
+          'Unable to save physical progress. Please try again.',
+        'error'
+      );
+    } finally {
+      setProgressSaving(false);
+    }
+  };
+
+  // Saving reloads this screen, so an unsaved progress edit must be saved or cancelled first.
+  const savePhysicalDetails = () => {
+    if (disabled) return undefined;
+
+    if (!progressLocked) {
+      const progressEdited =
+        String(progressDate || '') !== String(progressSnapshot.date || '') ||
+        String(progressValue ?? '') !== String(progressSnapshot.value ?? '');
+      if (progressEdited) {
+        notify?.(
+          'Please save or cancel the Physical Progress (%) first, then save the milestones.',
           'error'
         );
-        return;
+        return undefined;
       }
     }
 
-    onSubmitStage?.('implementation', {
-      progressDate,
-      progressValue: progressDate ? progressValue : '',
+    const missingMilestone = findMissingMilestoneDate(milestones, previousProgressValue);
+    if (missingMilestone) {
+      notify?.(
+        `Physical progress is ${Number(previousProgressValue)}%. Please enter the Actual End Date for ${missingMilestone.milestone} before saving.`,
+        'error'
+      );
+      return undefined;
+    }
+
+    return onSubmitStage?.('implementation', {
+      progressDate: '',
+      progressValue: '',
       milestones,
       delayReason,
       inauguration,
@@ -742,6 +862,20 @@ export default function UnderImplementationStage({
             </div>
           </div>
 
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="mb-3">
+              <p className="text-[11px] font-black uppercase tracking-wider text-[#0f417a]">
+                Milestone schedule health
+              </p>
+            </div>
+            <ScheduleStatusSummary
+              summary={milestoneScheduleSummary}
+              attentionItems={milestoneAttentionItems}
+              titleWhenOverdue="Implementation delay attention required"
+              titleWhenWatch="Implementation milestones to watch"
+            />
+          </div>
+
           <div className="border border-amber-200 bg-amber-50 rounded-xl p-4">
             <div className="grid grid-cols-1 md:grid-cols-[1.3fr_1fr_auto] gap-4 items-end">
               <div>
@@ -775,29 +909,39 @@ export default function UnderImplementationStage({
                   }`}
                 />
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  disabled={disabled || !progressLocked}
+                  disabled={disabled || !progressLocked || progressSaving}
                   onClick={() => {
                     setProgressSnapshot({ date: progressDate, value: progressValue });
                     setProgressLocked(false);
                   }}
-                  className="px-3 py-2 text-xs font-bold rounded-lg border border-blue-200 text-blue-700 bg-blue-50 disabled:opacity-60"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 disabled:opacity-60"
                 >
+                  <Pencil className="h-3.5 w-3.5" />
                   Edit
                 </button>
                 <button
                   type="button"
-                  disabled={disabled || progressLocked}
+                  disabled={disabled || progressLocked || progressSaving}
                   onClick={() => {
                     setProgressDate(progressSnapshot.date);
                     setProgressValue(progressSnapshot.value);
                     setProgressLocked(true);
                   }}
-                  className="px-3 py-2 text-xs font-bold rounded-lg border border-rose-200 text-rose-700 bg-rose-50 disabled:opacity-60"
+                  className="px-3 py-2 text-xs font-bold rounded-lg border border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100 disabled:opacity-60"
                 >
                   Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={disabled || progressLocked || progressSaving}
+                  onClick={savePhysicalProgress}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg border border-emerald-200 text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60"
+                >
+                  <Save className="h-3.5 w-3.5" />
+                  {progressSaving ? 'Saving...' : 'Save'}
                 </button>
               </div>
             </div>
@@ -816,13 +960,39 @@ export default function UnderImplementationStage({
                 </tr>
               </thead>
               <tbody>
-                {milestones.map((row) => (
-                  <tr key={row.id} className="border-t border-slate-200">
-                    <td className="px-3 py-2.5 font-semibold text-slate-800">{row.milestone}</td>
+                {milestones.map((row, index) => {
+                  const rowStatus = milestoneScheduleById.get(row.id);
+                  const actualDateDisabled = disabled || index > openMilestoneIndex;
+                  return (
+                  <tr key={row.id} className="border-t border-slate-200 align-top">
+                    <td className="px-3 py-2.5">
+                      <div className="space-y-1.5">
+                        <p className="font-semibold text-slate-800">{row.milestone}</p>
+                        <div>
+                          <ScheduleStatusBadge status={rowStatus} compact />
+                        </div>
+                      </div>
+                    </td>
                     <td className="px-3 py-2.5"><input type="date" value={row.targetedEndDate} disabled={disabled} onChange={(e) => updateMilestone(row.id, { targetedEndDate: e.target.value })} className="w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-slate-50" /></td>
-                    <td className="px-3 py-2.5"><input type="date" max={today} value={row.actualEndDate} disabled={disabled} onChange={(e) => updateMilestone(row.id, { actualEndDate: e.target.value })} className="w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-slate-50" /></td>
+                    <td className="px-3 py-2.5">
+                      <input
+                        type="date"
+                        max={today}
+                        value={row.actualEndDate}
+                        disabled={actualDateDisabled}
+                        title={!disabled && index > openMilestoneIndex ? 'Opens once the saved physical progress reaches this milestone.' : undefined}
+                        onChange={(e) => updateMilestone(row.id, { actualEndDate: e.target.value })}
+                        className={`w-full text-xs px-2.5 py-2 border rounded-lg ${
+                          actualDateDisabled
+                            ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
+                            : index === openMilestoneIndex && !row.actualEndDate
+                              ? 'bg-white border-rose-400'
+                              : 'bg-slate-50 border-slate-200'
+                        }`}
+                      />
+                    </td>
                   </tr>
-                ))}
+                )})}
               </tbody>
             </table>
           </div>
@@ -852,6 +1022,18 @@ export default function UnderImplementationStage({
                 </div>
               )}
             </div>
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              type="button"
+              disabled={disabled || progressSaving}
+              onClick={() => savePhysicalDetails()}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-black rounded-lg border border-emerald-200 text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60"
+            >
+              <Save className="h-3.5 w-3.5" />
+              Save Physical Progress
+            </button>
           </div>
         </>
       )}
@@ -1001,16 +1183,7 @@ export default function UnderImplementationStage({
           >
             Continue to Financial Progress
           </button>
-        ) : (
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={handleSubmit}
-            className="px-4 py-2 text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg disabled:opacity-60"
-          >
-            Submit Under Implementation
-          </button>
-        )}
+        ) : null}
       </div>
 
       {financialModalOpen

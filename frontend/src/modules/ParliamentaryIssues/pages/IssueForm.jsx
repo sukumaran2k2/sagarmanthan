@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import StageDateField from '../components/StageDateField';
 import {
   buildIssuePayload,
@@ -15,14 +15,14 @@ import {
   updateParliamentaryIssue,
 } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
+import { getErrorMessage } from '../../../utils/notify';
+import { PARLIAMENTARY_TOASTS } from '../toastMessages';
 
 const EMPTY_FORM = emptyIssueForm();
 
-const labelClass =
-  'block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider';
-const inputClass =
-  'w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-250 dark:border-slate-800 rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200 disabled:opacity-60 disabled:cursor-not-allowed';
-const selectClass = `${inputClass} cursor-pointer dark:[color-scheme:dark]`;
+const labelClass = 'module-form-label';
+const inputClass = 'module-form-input disabled:opacity-60 disabled:cursor-not-allowed';
+const selectClass = 'module-form-select cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed dark:[color-scheme:dark]';
 const sectionCardClass =
   'rounded-2xl border border-slate-200 bg-slate-50/50 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/40';
 
@@ -38,12 +38,9 @@ export default function IssueForm({
   notify,
 }) {
   const isEdit = !!initialForm?.parliamentaryIssueID;
-  const [form, setForm] = useState(EMPTY_FORM);
+  // The shell keys the form per issue, so it starts from that issue (or empty) on every open
+  const [form, setForm] = useState(() => (initialForm ? { ...EMPTY_FORM, ...initialForm } : { ...EMPTY_FORM }));
   const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    setForm(initialForm ? { ...EMPTY_FORM, ...initialForm } : { ...EMPTY_FORM });
-  }, [initialForm]);
 
   const setField = (key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -97,11 +94,11 @@ export default function IssueForm({
     if (readOnly) return;
 
     if (!form.wing || !form.division) {
-      notify?.('Please select Wing and Division.', 'error');
+      notify?.(PARLIAMENTARY_TOASTS.missingWingDivision());
       return;
     }
     if (!form.issueType) {
-      notify?.('Please select Type of Issue.', 'error');
+      notify?.(PARLIAMENTARY_TOASTS.missingIssueType());
       return;
     }
 
@@ -114,18 +111,15 @@ export default function IssueForm({
           ...payload,
           parliamentaryIssueID: form.parliamentaryIssueID,
         });
-        notify?.('Parliamentary issue updated successfully.', 'success');
+        notify?.(PARLIAMENTARY_TOASTS.updated());
       } else {
         await createParliamentaryIssue(payload);
-        notify?.('Parliamentary issue created successfully.', 'success');
+        notify?.(PARLIAMENTARY_TOASTS.created());
       }
       onSuccess?.();
     } catch (err) {
       console.error(err);
-      notify?.(
-        err?.response?.data?.message || 'Failed to save parliamentary issue.',
-        'error'
-      );
+      notify?.(PARLIAMENTARY_TOASTS.saveFailed(isEdit, getErrorMessage(err)));
     } finally {
       setSubmitting(false);
     }
@@ -138,13 +132,13 @@ export default function IssueForm({
       : 'Add Parliamentary Issue';
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in">
-      <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
+    <div className="module-form-card overflow-hidden animate-fade-in">
+      <div className="module-form-banner">
         <div>
-          <h3 className="text-sm font-black uppercase tracking-wider font-display">
+          <h3 className="module-form-banner-title">
             {formTitle}
           </h3>
-          <p className="text-[10px] text-[#eadede] font-semibold tracking-wide mt-0.5">
+          <p className="module-form-banner-subtext">
             Ministry of Ports, Shipping and Waterways
           </p>
         </div>
@@ -153,7 +147,7 @@ export default function IssueForm({
       <form onSubmit={handleSubmit} className="p-6 space-y-6">
         <div className="grid grid-cols-1 xl:grid-cols-[minmax(340px,0.95fr)_minmax(0,1.45fr)] gap-6 items-start">
           <div className={sectionCardClass}>
-            <h3 className="text-[13px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-wide border-b border-slate-200 dark:border-slate-800 pb-2 mb-4">
+            <h3 className="module-form-section-title border-b border-slate-200 dark:border-slate-800 pb-2 mb-4">
               Issue Information
             </h3>
 
@@ -317,7 +311,7 @@ export default function IssueForm({
           </div>
 
           <div className={sectionCardClass}>
-            <h3 className="text-[13px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-wide border-b border-slate-200 dark:border-slate-800 pb-2 mb-4">
+            <h3 className="module-form-section-title border-b border-slate-200 dark:border-slate-800 pb-2 mb-4">
               Stages Checklist & Dates
             </h3>
 

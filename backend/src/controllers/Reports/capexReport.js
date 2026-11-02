@@ -15,8 +15,12 @@ const MONTHLY_TOTALS_JOIN = `
   ) AS tbl_capex_monthly ON tbl_capex.capex_id = tbl_capex_monthly.capex_id
 `;
 
+// The report organisation categories, plus any other organisation that has a target
+// (e.g. MoPSW, maritime boards), so the totals match the Form 3.2 grand total
 const SUMMARY_ORG_CATEGORY_WHERE =
-  "mmt_organisation.organisation_category_id IN (1, 3, 5, 6)";
+  "(mmt_organisation.organisation_category_id IN (1, 3, 5, 6) OR tbl_capex.capex_id IS NOT NULL)";
+
+const FY_PATTERN = /^\d{4}-\d{4}$/;
 
 function detailedReportSelectSql(categoryWhere) {
   return `
@@ -32,6 +36,7 @@ function detailedReportSelectSql(categoryWhere) {
       tbl_capex.updated_by,
       tbl_capex.updated_date,
       mmt_organisation.organisation_name,
+      mmt_organisation.organisation_code,
       mmt_organisation.organisation_category_id,
       ISNULL(tbl_capex_monthly.total_GBS, 0) AS total_GBS,
       ISNULL(tbl_capex_monthly.total_IEBR, 0) AS total_IEBR,
@@ -93,17 +98,21 @@ function summaryReportSelectSql(scopeWhereSql = "") {
 
 async function capexReportData(req, res) {
   const selectedYear = req.params.selectedYear;
-  const conn = await pool;
-  const request = conn.request();
-  request.input("selectedYear", selectedYear);
-
-  const { whereSql } = applyDataScope(request, req.user, {
-    strategy: "directOrgColumn",
-    alias: "mmt_organisation",
-    orgColumn: "organisation_id",
-  });
+  if (!FY_PATTERN.test(String(selectedYear || ""))) {
+    return res.status(400).json({ error: "Invalid financial year." });
+  }
 
   try {
+    const conn = await pool;
+    const request = conn.request();
+    request.input("selectedYear", selectedYear);
+
+    const { whereSql } = applyDataScope(request, req.user, {
+      strategy: "directOrgColumn",
+      alias: "mmt_organisation",
+      orgColumn: "organisation_id",
+    });
+
     const majorPortsQuery = await request.query(
       detailedReportSelectSql(
         `mmt_organisation.organisation_category_id = 1${whereSql}`
@@ -133,17 +142,21 @@ async function capexReportData(req, res) {
 
 async function capexSummaryReportData(req, res) {
   const selectedYear = req.params.selectedYear;
-  const conn = await pool;
-  const request = conn.request();
-  request.input("selectedYear", selectedYear);
-
-  const { whereSql } = applyDataScope(request, req.user, {
-    strategy: "directOrgColumn",
-    alias: "mmt_organisation",
-    orgColumn: "organisation_id",
-  });
+  if (!FY_PATTERN.test(String(selectedYear || ""))) {
+    return res.status(400).json({ error: "Invalid financial year." });
+  }
 
   try {
+    const conn = await pool;
+    const request = conn.request();
+    request.input("selectedYear", selectedYear);
+
+    const { whereSql } = applyDataScope(request, req.user, {
+      strategy: "directOrgColumn",
+      alias: "mmt_organisation",
+      orgColumn: "organisation_id",
+    });
+
     const result = await request.query(summaryReportSelectSql(whereSql));
     res.json({
       selectedYear,
@@ -247,22 +260,22 @@ async function capexYoYReportData(req, res) {
     return res.json({ financialYears: [], data: [] });
   }
 
-  const conn = await pool;
-  const request = conn.request();
-
-  const fyParams = financialYears.map((fy, i) => {
-    const name = `fy${i}`;
-    request.input(name, fy);
-    return `@${name}`;
-  });
-
-  const { whereSql } = applyDataScope(request, req.user, {
-    strategy: "directOrgColumn",
-    alias: "mmt_organisation",
-    orgColumn: "organisation_id",
-  });
-
   try {
+    const conn = await pool;
+    const request = conn.request();
+
+    const fyParams = financialYears.map((fy, i) => {
+      const name = `fy${i}`;
+      request.input(name, fy);
+      return `@${name}`;
+    });
+
+    const { whereSql } = applyDataScope(request, req.user, {
+      strategy: "directOrgColumn",
+      alias: "mmt_organisation",
+      orgColumn: "organisation_id",
+    });
+
     const result = await request.query(
       yoyFlatSelectSql(fyParams.join(", "), whereSql)
     );

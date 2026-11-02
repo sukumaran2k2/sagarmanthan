@@ -454,3 +454,126 @@ export function createEntryAccess({ moduleId, subject }) {
         revokeGrant,
     };
 }
+
+// ---------------------------------------------------------------------------
+// Entry log (tbl_kpi_major_ports_entry_log, see sql/kpi-major-ports/entry-log)
+// ---------------------------------------------------------------------------
+
+function sameValue(a, b) {
+    if (a === null || a === undefined || b === null || b === undefined) {
+        return (a === null || a === undefined) && (b === null || b === undefined);
+    }
+    if (typeof a === "number" || typeof b === "number") return Number(a) === Number(b);
+    return String(a) === String(b);
+}
+
+/** { column: { from, to } } for every value that differs between two flat records. */
+export function diffValues(before, after) {
+    const changes = {};
+    const keys = new Set([...Object.keys(before || {}), ...Object.keys(after || {})]);
+    for (const key of keys) {
+        const from = before?.[key] ?? null;
+        const to = after?.[key] ?? null;
+        if (!sameValue(from, to)) changes[key] = { from, to };
+    }
+    return changes;
+}
+
+/**
+ * Writes one log row on the caller's transaction, so the log and the change commit together.
+ * before / after are flat { column: value } records (null for a create / delete).
+ * A save that changes nothing is not logged. Returns whether a row was written.
+ */
+export async function writeEntryLog(transaction, {
+    section, recordType, action, organisationId = null, fiscalYear = null, month = null,
+    recordId = null, userId, note = null, before = null, after = null,
+}) {
+    const changes = diffValues(before, after);
+    const count = Object.keys(changes).length;
+    if (!count) return false;
+
+    const text = action === "CREATE" ? "Added" : action === "DELETE" ? "Deleted" : `${count} value(s) changed`;
+    const request = transaction.request();
+    request.input("section", sql.NVarChar(40), section);
+    request.input("recordType", sql.NVarChar(10), recordType);
+    request.input("action", sql.NVarChar(10), action);
+    request.input("organisationId", sql.Int, organisationId);
+    request.input("fiscalYear", sql.NVarChar(20), fiscalYear);
+    request.input("month", sql.Int, month);
+    request.input("recordId", sql.Int, recordId);
+    request.input("summary", sql.NVarChar(500), (note ? `${note}: ${text}` : text).slice(0, 500));
+    request.input("changesJson", sql.NVarChar(sql.MAX), JSON.stringify(changes));
+    request.input("userId", sql.Int, userId);
+    await request.query(`
+        INSERT INTO tbl_kpi_major_ports_entry_log
+            (section, record_type, action, organisation_id, fiscal_year, month, record_id,
+             summary, changes_json, created_by, created_date)
+        VALUES (@section, @recordType, @action, @organisationId, @fiscalYear, @month, @recordId,
+                @summary, @changesJson, @userId, GETDATE())
+    `);
+    return true;
+}
+
+/**
+ * Describes a table whose rows are changed one at a time by id, for runLoggedWrite.
+ * fiscalYearSql / monthSql are expressions on alias x ("NULL" when the table has none).
+ */
+export function logSource({ section, recordType, table, idColumn = "id", fiscalYearSql, monthSql = "NULL", columns }) {
+    return { section, recordType, table, idColumn, fiscalYearSql, monthSql, columns };
+}
+
+async function loadLogRecord(transaction, source, id) {
+    const request = transaction.request();
+    request.input("logRecordId", sql.Int, id);
+    // UPDLOCK keeps the row as read until the change and its log commit
+    const result = await request.query(`
+        SELECT x.organisation_id AS log_organisation_id, ${source.fiscalYearSql} AS log_fiscal_year,
+               ${source.monthSql} AS log_month, ${source.columns.map((c) => `x.${c}`).join(", ")}
+        FROM ${source.table} x WITH (UPDLOCK, HOLDLOCK)
+        WHERE x.${source.idColumn} = @logRecordId
+    `);
+    const row = result.recordset[0];
+    if (!row) return null;
+    const { log_organisation_id: organisationId, log_fiscal_year: fiscalYear, log_month: month, ...values } = row;
+    return {
+        context: { organisationId, fiscalYear, month: month === null ? null : Number(month) },
+        values,
+    };
+}
+
+/**
+ * Runs one create / update / delete of a single row and logs it in the same transaction.
+ * write(request) gets a request on that transaction and returns its result; a create must
+ * OUTPUT the new id as "id". Nothing is logged when no row was written.
+ * Returns the write's result, so the handler keeps its own 404 / 409 checks.
+ */
+export async function runLoggedWrite(conn, source, { action, id = null, userId }, write) {
+    const transaction = new sql.Transaction(conn);
+    await transaction.begin();
+    try {
+        const before = action === "CREATE" ? null : await loadLogRecord(transaction, source, id);
+        const result = await write(transaction.request());
+        const recordId = action === "CREATE" ? result.recordset?.[0]?.id ?? null : id;
+        const written = action === "CREATE" ? Boolean(recordId) : (result.rowsAffected?.[0] || 0) > 0;
+        if (!written) {
+            await transaction.rollback();
+            return result;
+        }
+        const after = action === "DELETE" ? null : await loadLogRecord(transaction, source, recordId);
+        await writeEntryLog(transaction, {
+            section: source.section,
+            recordType: source.recordType,
+            action,
+            ...(after || before).context,
+            recordId,
+            userId,
+            before: before?.values,
+            after: after?.values,
+        });
+        await transaction.commit();
+        return result;
+    } catch (error) {
+        await transaction.rollback().catch(() => {});
+        throw error;
+    }
+}

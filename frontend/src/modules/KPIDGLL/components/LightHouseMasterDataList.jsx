@@ -1,14 +1,21 @@
-import { useState, useMemo, useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { Edit, Trash2 } from 'lucide-react';
 import Table from '../../../components/Table';
 import TablePagination from '../../../components/TablePagination';
 import DataListToolbar from '../../../components/DataListToolbar';
 import { exportDataListToPdf } from '../../../utils/exportReportPdf';
+import { COMMON_TOASTS } from '../../../utils/notify';
 
 const COLUMN_LABELS = {
   alol: 'ALOL',
   light_house_name: 'Light House Name',
   light_status: 'Status',
+};
+
+const DEFAULT_VISIBLE_COLS = {
+  alol: true,
+  light_house_name: true,
+  light_status: true,
 };
 
 export default function LightHouseMasterDataList({
@@ -25,11 +32,15 @@ export default function LightHouseMasterDataList({
   statusFilter = 'active',
   onStatusChange,
   counts = { active: 0, inactive: 0 },
+  visibleCols: storedVisibleCols = null,
+  onVisibleColsChange,
+  notify,
 }) {
-  const [visibleCols, setVisibleCols] = useState({
-    alol: true,
-    light_house_name: true,
-    light_status: true,
+  // Column visibility is kept in the DGLL store per list; null means "not changed yet"
+  const visibleCols = storedVisibleCols ?? DEFAULT_VISIBLE_COLS;
+  const setVisibleCols = (updater) => onVisibleColsChange?.((prev) => {
+    const current = prev ?? DEFAULT_VISIBLE_COLS;
+    return typeof updater === 'function' ? updater(current) : updater;
   });
   const gridRef = useRef(null);
 
@@ -41,9 +52,13 @@ export default function LightHouseMasterDataList({
         const line = [i + 1, ...cols.map((c) => c === 'light_status' ? (String(row[c]) === '1' ? 'Active' : 'Inactive') : (row[c] ?? ''))];
         tsv += line.join('\t') + '\n';
       });
-      navigator.clipboard.writeText(tsv);
+      navigator.clipboard.writeText(tsv).then(
+        () => notify?.(COMMON_TOASTS.copySuccess(rowData.length)),
+        () => notify?.(COMMON_TOASTS.copyFailed()),
+      );
     } else if (type === 'Excel') {
       gridRef.current?.api?.exportDataAsCsv({ fileName: 'light_house_master' });
+      notify?.(COMMON_TOASTS.excelExported('light_house_master.csv'));
     } else if (type === 'PDF') {
       exportDataListToPdf({
         title: 'Light House Master Data List',
@@ -52,6 +67,7 @@ export default function LightHouseMasterDataList({
         rowData: rowData,
         fileName: 'light_house_master',
       });
+      notify?.(COMMON_TOASTS.downloadStarted('light_house_master.pdf'));
     }
   };
 
@@ -103,7 +119,7 @@ export default function LightHouseMasterDataList({
   ], [canEdit, canRemove, onEdit, onDelete, visibleCols]);
 
   return (
-    <div className="space-y-6">
+    <div className="module-card space-y-4">
       <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-1 select-none">
         <button
           onClick={() => onStatusChange && onStatusChange('active')}
@@ -138,17 +154,19 @@ export default function LightHouseMasterDataList({
         columnLabels={COLUMN_LABELS}
       />
 
-      <Table
-        ref={gridRef}
-        rowData={rowData}
-        columnDefs={colDefs}
-        loading={loading}
-        pagination={false}
-        domLayout="autoHeight"
-        rowHeight={50}
-        headerHeight={42}
-        color="#0f417a"
-      />
+      <div className="module-datalist-grid">
+        <Table
+          ref={gridRef}
+          rowData={rowData}
+          columnDefs={colDefs}
+          loading={loading}
+          pagination={false}
+          domLayout="autoHeight"
+          rowHeight={50}
+          headerHeight={42}
+          color="#0f417a"
+        />
+      </div>
 
       {pagination.totalPages > 1 && (
         <TablePagination

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { CheckCircle2 } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
@@ -8,7 +8,8 @@ import resolveCabinetNotesListView from './views';
 import Dashboard from './pages/Dashboard';
 import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
-import { fetchCabinetMinistry, fetchWings, deleteCabinetMinistry } from './api';
+import { fetchCabinetMinistry, deleteCabinetMinistry } from './api';
+import { useCabinetNotesOtherStore } from './store/useCabinetNotesOtherStore';
 
 const INIT_TAB_KEY = 'cabinetNotesOtherInitTab';
 
@@ -26,17 +27,20 @@ export default function CabinetNotesOther({
   triggerNotification
 }) {
   const permissions = useCabinetNotesPermissions();
-  const [activeSubTab, setActiveSubTab] = useState('dashboard'); // 'dashboard' | 'list' | 'add' | 'report'
+  // The open tab and the reference data live in the store, so they survive leaving the module
+  const activeSubTab = useCabinetNotesOtherStore((state) => state.activeSubTab); // 'dashboard' | 'list' | 'add' | 'report'
+  const setActiveSubTab = useCabinetNotesOtherStore((state) => state.setActiveSubTab);
+  const wingsList = useCabinetNotesOtherStore((state) => state.wings);
+  const loadMasters = useCabinetNotesOtherStore((state) => state.loadMasters);
   const [loading, setLoading] = useState(false);
   const [rowData, setRowData] = useState([]);
   const [editData, setEditData] = useState(null);
-  const [wingsList, setWingsList] = useState([]);
   const [toast, setToast] = useState(null);
 
   const notify = useCallback(
     (message, type = 'success') => {
       if (typeof triggerNotification === 'function') {
-        triggerNotification(message);
+        triggerNotification(message, type);
         return;
       }
       setToast({ message, type });
@@ -45,35 +49,21 @@ export default function CabinetNotesOther({
     [triggerNotification]
   );
 
-  const getActiveUserId = () => {
-    try {
-      const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
-      if (token) {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        return payload.userId || payload.user_id || payload.id || 1;
-      }
-    } catch (e) {
-      console.error("Error decoding token:", e);
-    }
-    return 1;
-  };
-
-  useEffect(() => {
-    fetchWings()
-      .then(res => setWingsList(Array.isArray(res.data) ? res.data : []))
-      .catch(err => console.error("Error loading wings:", err));
-  }, []);
+  // Ministries, stages and wings for every tab, loaded once
+  useEffect(() => { loadMasters(); }, [loadMasters]);
 
   const fetchData = useCallback(() => {
     setLoading(true);
-    const userId = getActiveUserId();
-    fetchCabinetMinistry(userId)
+    fetchCabinetMinistry()
       .then(res => {
         setRowData(Array.isArray(res.data) ? res.data : []);
       })
-      .catch(err => console.error("Error loading Cabinet Notes Other Ministry data:", err))
+      .catch(err => {
+        console.error("Error loading Cabinet Notes Other Ministry data:", err);
+        notify(err.response?.data?.error || "Could not load cabinet notes. Please try again.", "error");
+      })
       .finally(() => setLoading(false));
-  }, []);
+  }, [notify]);
 
   useEffect(() => {
     fetchData();
@@ -95,19 +85,19 @@ export default function CabinetNotesOther({
     const onMenu = (e) => apply(e.detail);
     window.addEventListener('cabinet-notes-other-subtab', onMenu);
     return () => window.removeEventListener('cabinet-notes-other-subtab', onMenu);
-  }, [permissions.canAdd]);
+  }, [permissions.canAdd, setActiveSubTab]);
 
   useEffect(() => {
     const next = resolveSubTabId(activeSubTabProp, permissions.canAdd);
     if (next) setActiveSubTab(next);
-  }, [activeSubTabProp, permissions.canAdd]);
+  }, [activeSubTabProp, permissions.canAdd, setActiveSubTab]);
 
   // Enforce read-only tab restriction
   useEffect(() => {
     if (activeSubTab === 'add' && !permissions.canAdd) {
       setActiveSubTab('list');
     }
-  }, [activeSubTab, permissions.canAdd]);
+  }, [activeSubTab, permissions.canAdd, setActiveSubTab]);
 
   const tabs = useMemo(() => {
     const items = [{ id: 'dashboard', label: 'Dashboard' }];
@@ -163,14 +153,13 @@ export default function CabinetNotesOther({
 
     setDeleteModal(prev => ({ ...prev, loading: true }));
     try {
-      const userId = getActiveUserId();
-      await deleteCabinetMinistry(noteId, userId);
+      await deleteCabinetMinistry(noteId);
       notify("Cabinet Notes Ministry record deleted successfully.");
       setDeleteModal({ open: false, note: null, loading: false });
       fetchData();
     } catch (err) {
       console.error("Delete error:", err);
-      notify("Error deleting record. Please try again.", "error");
+      notify(err.response?.data?.error || "Error deleting record. Please try again.", "error");
       setDeleteModal(prev => ({ ...prev, loading: false }));
     }
   };

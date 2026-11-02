@@ -1,7 +1,7 @@
 import express from "express";
 
 import auth from "./authenticate.js";
-import { requireModulePermission, requireAnyModulePermission } from "./middleware/modulePermission.js";
+import { requireModulePermission, requireAnyModulePermission, requireStrictModulePermission } from "./middleware/modulePermission.js";
 import mikrAuth from "./mikrAuthenticate.js";
 
 
@@ -63,6 +63,7 @@ import reviewItemsTab from "./controllers/Governance/reviewItems.js"
 import youngProfessionalsTab from "./controllers/HR/youngProfessionals.js";
 import candidateDocumentTab from "./controllers/HR/appointmentOrderUploader.js";
 import consultantAppointmentTab from "./controllers/HR/consultantAppointment.js";
+import consultantAppointmentDashboard from "./controllers/HR/consultantAppointmentDashboard.js";
 import candidateCaDocumentTab from "./controllers/HR/caAppointmentOrderUploader.js";
 import hrDepartmentTab from "./controllers/HR/hrDepartment.js";
 import hrPostTab from "./controllers/HR/hrPost.js";
@@ -73,6 +74,7 @@ import vacancyStatusTab from "./controllers/HR/vacancyStatus.js";
 import revisedHrPost from "./controllers/HR/revisedHrPost.js";
 import revisedHrDepartment from "./controllers/HR/revisedHrDepartment.js";
 import hrHelperTab from "./controllers/HR/hrHelperFunctions.js";
+import { pinOwnOrganisation, pinOwnRole } from "./controllers/HR/hrHelperFunctions.js";
 import hrReportInputTab from "./controllers/HR/hrReportInput.js";
 import otherOrgVacancyDetailsTab from "./controllers/HR/otherOrgVacancyDetails.js";
 
@@ -83,21 +85,13 @@ import billTab from "./controllers/Legal/bills.js";
 import arbitCourtCaseTab from "./controllers/Legal/arbitrationCourtCase.js";
 import litigationCourtCaseTab from "./controllers/Legal/litigationCourtCase.js";
 
-// Proposal
-// import proposalDocumentTab from "./controllers/ProjectManagement/proposalDocument.js";
 import projectListTab from "./controllers/ProjectManagement/projectList.js";
-// import viewProjectDataTab from "./controllers/ProjectManagement/viewProjectDetail.js";
 
 import dropRequestTab from "./controllers/ProjectManagement/dropRequest.js";
 
 import addNewProjectTab from "./controllers/ProjectManagement/addNewProject.js";
 import capexController from "./controllers/ProjectManagement/capex.js";
 import capexDashboard from "./controllers/ProjectManagement/capexDashboard.js";
-import expenditureController from "./controllers/ProjectManagement/expenditureOutlay.js";
-import projectDashboardTab from "./controllers/ProjectManagement/projectDashboard.js";
-
-// LumpSum
-import addNewLumpSumTab from "./controllers/ProjectManagement/addLumpSum.js";
 
 // CSR Projects
 import csrProjectTab from "./controllers/ProjectManagement/csrprojects.js"; 
@@ -105,17 +99,12 @@ import csrProjectTab from "./controllers/ProjectManagement/csrprojects.js";
 
 // Edit Project
 import editProjectTab from "./controllers/ProjectManagement/editProject.js";
-// import documentUploaderTab from "./controllers/ProjectManagement/document.js"
-import clearanceTab from "./controllers/ProjectManagement/clearanceDetailsAction.js";
 import revisionDateTab from "./controllers/ProjectManagement/projectRevisionDates.js";
 import planningSanctioningTab from "./controllers/ProjectManagement/planningSanctioning.js";
 import underTenderingTab from "./controllers/ProjectManagement/utProjectDatesAction.js";
-// import awardOfContractTab from "./controllers/ProjectManagement/awardofContractDatesAction.js";
 import activityTab from "./controllers/ProjectManagement/projectActivitiesAction.js";
 import expenditureTab from "./controllers/ProjectManagement/projectExpenditureAction.js";
 import completionTab from "./controllers/ProjectManagement/addCompletionDateAction.js";
-import clearanceDocumentUploaderTab from "./controllers/ProjectManagement/editProjectDocumentUploder.js";
-// import updateProjectStageTab from "./controllers/ProjectManagement/updateProjectStage.js";
 
 // REPORTS
 import parlimentaryReportTab from "./controllers/Reports/parliamentaryReports.js";
@@ -141,6 +130,8 @@ import projectReport from "./controllers/Reports/projectReport.js";
 
 import lumpsumReportTab from "./controllers/Reports/lumpsumReport.js";
 import capexReportTab from "./controllers/Reports/capexReport.js";
+import projectsDataQcReportTab from "./controllers/Reports/dataQc/index.js";
+import projectsMisReportTab from "./controllers/Reports/projectMis/index.js";
 import kpiDgs1_0Tab from "./controllers/Reports/kpiDgs1_0.js";
 import kpiDgs2_0Tab from "./controllers/Reports/kpiDgs2_0.js";
 import kpiDgs3_0Tab from "./controllers/Reports/kpiDgs2_3.js";
@@ -251,6 +242,7 @@ import ModuleControllerTab from "./controllers/UserManagement/moduleManagement.j
 import { getAuthCode, getToken } from "./controllers/mikr-authcode-token-generation.js";
 import { getVerifyToken } from "./controllers/verify-api-token.js";
 import { getRefreshToken } from "./controllers/refresh-token.js";
+import { requireSuperAdmin, requireUserAdmin, guardManagedUser, guardManagedUserList, guardOrganisation, requireSelf, ownOrganisationQuery, guardUserIdsQuery } from "./middleware/userAdmin.js";
 import { getKrDocumentData } from "./controllers/fetch-kr-document-data.js";
 import { getUpdateDocStatus } from "./controllers/update-document-status.js";
 import { getDownloadDocument } from "./controllers/download-document.js";
@@ -281,6 +273,40 @@ import { acceptFormFiles } from "./controllers/formBuilder/formBuilderFiles.js";
 
 const router = express.Router();
 
+// Every request needs a signed-in user, except logging in, the password reset steps (they check
+// the emailed code / current password), refreshing the session (it carries the refresh token),
+// MIKR's token routes (they check their own token), the external KPI / project data feed (it
+// checks an email and password sent with each request) and the chatbot reading its
+// permissions. Uploaded files under /fileuploads are served by express.static after the router
+// and stay as they are.
+const EXTERNAL_DATA_FEED = [
+    '/project-proposal', '/project-clearance', '/traffic-kpi-targets', '/traffic-kpi-actual',
+    '/cruise-and-passenger-traffic-actual', '/cruise-and-passenger-traffic-target', '/kpi-port-performance-actual',
+    '/traffic-liquid-bulk-single-leg', '/traffic-liquid-bulk-two-leg', '/traffic-dry-bulk-single-leg',
+    '/traffic-dry-bulk-two-leg', '/traffic-break-bulk-single-leg', '/traffic-break-bulk-two-leg',
+    '/traffic-container-single-leg', '/traffic-container-two-leg',
+];
+const PUBLIC_ROUTES = new Set([
+    ...EXTERNAL_DATA_FEED.map((p) => `GET ${p}`),
+    'GET /api/sagarbot-permissions',
+    'POST /login-validation',
+    'POST /password-reset-validation',
+    'PUT /edit-password',
+    'GET /refresh-token',
+    'GET /token',
+    'GET /verify-api-token',
+    'GET /fetch-kr-document-data',
+    'PUT /update-document-status',
+    'GET /download-document',
+]);
+router.use((req, res, next) => {
+    const path = req.path.length > 1 ? req.path.replace(/\/+$/, '') : req.path;
+    if (req.method === 'OPTIONS' || PUBLIC_ROUTES.has(`${req.method} ${path}`) || path.startsWith('/fileuploads/')) {
+        return next();
+    }
+    return auth(req, res, next);
+});
+
 // login
 router.post("/login-validation", logInTab.validation);
 router.post("/password-reset-validation", logInTab.resetpassword);
@@ -294,7 +320,6 @@ router.put("/update-document-status", mikrAuth, getUpdateDocStatus);
 router.get("/download-document", mikrAuth, getDownloadDocument);
 router.post("/mikr-logout", auth, mikrLogout);
 
-// router.use(auth);
 
 // MMT
 router.get("/mmt/:tid", masterTable.getMmt);
@@ -311,20 +336,21 @@ router.get("/allvalue-dropdown/:tid", masterTable.getDropDownAllValues);
 //Terminal/Jetty image uploader
 router.post("/terminal-image-uploader", terminalImageUploaderTab.upload.single('imageFile'), terminalImageUploaderTab.terminalImageUploader);
 
-router.post("/createuser", userTable.createuser);
-router.post("/createnodaluser", userTable.createNodalUser);
-router.get("/userlist", userTable.getUserData);
-router.get("/org-userlist/:organisation", userTable.getOrgUserData);
-router.put("/edituser", userTable.updateUser);
-router.put("/editnodaluser", userTable.updateNodalUser);
-router.put("/edit-user-profile", userTable.editUserProfileData);
-router.put("/user-status", userTable.toggleUserStatusData);
-router.post("/changepassword", userTable.changePasswordAction);
-router.put("/edit-password", userTable.updatePassword);
+router.post("/createuser", auth, guardManagedUser({ checkNewRole: true }), userTable.createuser);
+router.post("/createnodaluser", auth, requireSuperAdmin, userTable.createNodalUser);
+router.get("/userlist", auth, requireSuperAdmin, userTable.getUserData);
+router.get("/my-profile", auth, userTable.getMyProfile);
+router.get("/org-userlist/:organisation", auth, guardOrganisation((req) => req.params.organisation), userTable.getOrgUserData);
+router.put("/edituser", auth, guardManagedUser({ userIdOf: (req) => req.body.userID, checkNewRole: true }), userTable.updateUser);
+router.put("/editnodaluser", auth, requireSuperAdmin, userTable.updateNodalUser);
+router.put("/edit-user-profile", auth, requireSelf((req) => req.body.userID), userTable.editUserProfileData);
+router.put("/user-status", auth, guardManagedUser({ userIdOf: (req) => req.body.userID }), userTable.toggleUserStatusData);
+router.post("/changepassword", auth, guardManagedUser({ userIdOf: (req) => req.body.userID }), userTable.changePasswordAction);
+router.put("/edit-password", userTable.updatePassword); // checks the current password; used by Forgot Password before login
 // router.get("/user/:userId", userTable.getUpdateUser);
-router.get("/get-user-permission-modules/:userId/:organisationId", userTable.getPermissionModulesData);
-router.put("/update-user-permission", userTable.updatePermissions);
-router.get("/get-user-data/:userId", userTable.getUserDetails);
+router.get("/get-user-permission-modules/:userId/:organisationId", auth, requireSuperAdmin, userTable.getPermissionModulesData);
+router.put("/update-user-permission", auth, requireSuperAdmin, userTable.updatePermissions);
+router.get("/get-user-data/:userId", auth, requireSelf((req) => req.params.userId), userTable.getUserDetails);
 
 //Dashboard Data Entry Status
 router.get("/dashboard-data-entry-status", dashboardController.getDashboardDataEntryStatus);
@@ -333,83 +359,52 @@ router.get("/dashboard-data-entry-status", dashboardController.getDashboardDataE
 router.get("/get-court-cases-dashboard-status", dashboardController.getDashboardCourtCaseStatus);
 
 //Capex
-router.post('/capex', auth, requireModulePermission("CAPEX", "create"), capexController.addCapex);
-router.get('/capex', auth, requireModulePermission("CAPEX", "read"), capexController.getCapexData);
-router.get('/capex/:userID', auth, requireModulePermission("CAPEX", "read"), capexController.getCapexData);
-router.get('/data-entry-capex', auth, requireModulePermission("CAPEX", "read"), capexController.getCapexDataEntry);
-router.get('/capex-monthly-data/:capexID', auth, requireModulePermission("CAPEX", "read"), capexController.getCapexMonthlyData);
-router.get('/get-capex/:capexID', auth, requireModulePermission("CAPEX", "read"), capexController.getCapexExpediture);
-router.post('/capex-edit', auth, requireModulePermission("CAPEX", "update"), capexController.editCapexExpediture);
-router.post('/capex-monthly-data', auth, requireModulePermission("CAPEX", "update"), capexController.addCapexMonthlyData);
-router.get("/get-capex-dashboard-filters", auth, requireModulePermission("CAPEX", "read"), capexDashboard.getCapexDashboardFilters);
-router.get("/get-capex-dashboard-summary", auth, requireModulePermission("CAPEX", "read"), capexDashboard.getCapexDashboardSummary);
-router.get("/get-capex-dashboard-fy-summary", auth, requireModulePermission("CAPEX", "read"), capexDashboard.getCapexDashboardFySummary);
-router.get("/get-capex-dashboard-yoy", auth, requireModulePermission("CAPEX", "read"), capexDashboard.getCapexDashboardYoy);
-
-// ExpenditureOutlay
-router.get('/get-main-scheme-dropdown', expenditureController.getMainSchemeDropdown);
-router.get('/get-sub-scheme-dropdown', expenditureController.getSubSchemeDropdown);
-router.get('/get-financial-year-dropdown', expenditureController.getFinancialYearDropdown);
-router.get("/get-scheme-data/:financialYearValue/:subSchemeValue", expenditureController.getSchemeData);
-router.post('/submit-expenditure-data', expenditureController.submitExpenditureData);
-router.post('/add-main-scheme', expenditureController.addMainScheme);
-router.post('/add-sub-scheme', expenditureController.addSubScheme);
-router.post('/add-exp-financial-year', expenditureController.addExpFinancialYear);
-
-router.get('/get-main-schemes', expenditureController.getMainSchemes);
-router.get('/get-sub-schemes/:mainSchemeId', expenditureController.getSubSchemes);
-router.get('/get-scheme-year-data/:schemeId/:financialYearId', expenditureController.getSchemeYearData);
-router.get('/get-scheme-year-last-week-data/:schemeId/:financialYearId', expenditureController.getSchemeYearLastWeekData);
-router.delete('/delete-row/:dataId/:rowId', expenditureController.deleteRowdata);
-router.get('/get-last-date-exp-up-date', expenditureController.getLastExpUpdate);
-
-
-//projectDashboardTab
-// router.get("/get-project-dashboard/:clusterID/:organisationID/:fromFoundationTentativeDate/:toFoundationTentativeDate/:fromTentativeInaugurationDate/:toTentativeInaugurationDate", 
-//             projectDashboardTab.getProjectDashboard);
-
-router.post("/get-project-dashboard", projectDashboardTab.getProjectDashboard);
-// router.get("/detailed-stage-wise-data/:clusterID/:organisationID/:stage", projectDashboardTab.detailedStageWiseProjectData);
-router.post("/detailed-stage-wise-data", projectDashboardTab.detailedStageWiseProjectData);
-
-router.post("/get-projec-org-wise-bar-graph", projectDashboardTab.getProjectOrgWiseBarGraph);
-router.post("/get-pysical-progress-org-wise", projectDashboardTab.getPysicalProgressOrgWise);
-
-router.get("/get-project-details-by-project/:projectID", projectDashboardTab.getProjectDetailsByProject);
-router.post("/detailed-pysical-progress-org-wise", projectDashboardTab.detailedPysicalProgressOrgWise);
-
-router.post("/get-project-delaystatus-wise", projectDashboardTab.getDelayedStatusPieChart);
-
-router.post("/get-detail-project-delaystatus-wise", projectDashboardTab.detailedDelayedStatusProjectData);
-// Project Dashboard Cost card
-// router.get("/get-project-dashboard-cost/:clusterID/:organisationID", projectDashboardTab.getProjectCostWise);
-router.post("/get-org-wise-data/", projectDashboardTab.detailedOrgWiseProjectData);
-
-
-// Project Dashboar -Ongoing Projects
-
-router.get("/get-ongoing-project-dashboard", projectDashboardTab.getOngingProjectDashboard);
-router.get("/detail-ongoing-project-dashboard", projectDashboardTab.detailedOngoingProDashboard);
-
-router.get("/get-broadcategory-project-dashboard", projectDashboardTab.getBroadCategoryListDashboard);
-router.get("/detail-broadcategory-project-dashboard/:moi/:broadId", projectDashboardTab.detailedBroadCategoryDashboard);
+router.post('/capex', auth, requireStrictModulePermission("CAPEX", "create"), capexController.addCapex);
+router.get('/capex', auth, requireStrictModulePermission("CAPEX", "read"), capexController.getCapexData);
+router.get('/capex/:userID', auth, requireStrictModulePermission("CAPEX", "read"), capexController.getCapexData);
+router.get('/data-entry-capex', auth, requireStrictModulePermission("CAPEX", "read"), capexController.getCapexDataEntry);
+router.get('/capex-monthly-data/:capexID', auth, requireStrictModulePermission("CAPEX", "read"), capexController.getCapexMonthlyData);
+router.get('/get-capex/:capexID', auth, requireStrictModulePermission("CAPEX", "read"), capexController.getCapexExpediture);
+router.post('/capex-edit', auth, requireStrictModulePermission("CAPEX", "update"), capexController.editCapexExpediture);
+router.post('/capex-monthly-data', auth, requireStrictModulePermission("CAPEX", "update"), capexController.addCapexMonthlyData);
+router.get("/get-capex-dashboard-filters", auth, requireStrictModulePermission("CAPEX", "read"), capexDashboard.getCapexDashboardFilters);
+router.get("/get-capex-dashboard-summary", auth, requireStrictModulePermission("CAPEX", "read"), capexDashboard.getCapexDashboardSummary);
+router.get("/get-capex-dashboard-fy-summary", auth, requireStrictModulePermission("CAPEX", "read"), capexDashboard.getCapexDashboardFySummary);
+router.get("/get-capex-dashboard-yoy", auth, requireStrictModulePermission("CAPEX", "read"), capexDashboard.getCapexDashboardYoy);
 
 
 
+// Attendance and E-Office: login and module access on every route (none were guarded, so
+// anyone could read every employee's attendance and upload, replace or delete files)
+const attRead = requireModulePermission("ATTENDANCE", "read");
+const attCreate = requireModulePermission("ATTENDANCE", "create");
+const attUpdate = requireModulePermission("ATTENDANCE", "update");
+const attDelete = requireModulePermission("ATTENDANCE", "delete");
+const eofficeRead = requireModulePermission("E_OFFICE", "read");
+const eofficeCreate = requireModulePermission("E_OFFICE", "create");
+const eofficeUpdate = requireModulePermission("E_OFFICE", "update");
+const eofficeDelete = requireModulePermission("E_OFFICE", "delete");
+
+// Bills / Pre-Constitutions Act: login and module access on every route (none were guarded)
+const billsRead = requireModulePermission("BILLS_PRE_CONSTITUTION", "read");
+const billsCreate = requireModulePermission("BILLS_PRE_CONSTITUTION", "create");
+const billsUpdate = requireModulePermission("BILLS_PRE_CONSTITUTION", "update");
+const billsDelete = requireModulePermission("BILLS_PRE_CONSTITUTION", "delete");
 
 // GOVERNANCE MENU
 
 //attendance
 //check
-router.get("/employee-attendance-file", empAttendanceTab.getEmployeeAttendance);
-router.get("/employee-attendance-sample", empAttendanceTab.agSample);
+router.get("/employee-attendance-file", auth, attRead, empAttendanceTab.getEmployeeAttendance);
+router.get("/employee-attendance-sample", auth, attRead, empAttendanceTab.agSample);
 
-router.get("/employee-attendance-view", empAttendanceTab.getEmpAttendance);
-router.post("/employee-attendance", empAttendanceTab.uploadSingleFile, empAttendanceTab.createEmpAttendance);
-router.put("/attend-employee", empAttendanceTab.uploadSingleFile, empAttendanceTab.updateEmpAttendance);
-router.post("/employee-attendance-data", empAttendanceTab.addEmpDataAttendance);
-// router.get("/employee-attendance/download/:id", empAttendanceTab.downloadEmpAttendance);
-// router.delete("/employee-attendance/:id", empAttendanceTab.deleteEmpAttendance);
+router.get("/employee-attendance-view", auth, attRead, empAttendanceTab.getEmpAttendance);
+router.post("/employee-attendance", auth, attCreate, empAttendanceTab.uploadSingleFile, empAttendanceTab.createEmpAttendance);
+router.put("/attend-employee", auth, attUpdate, empAttendanceTab.uploadSingleFile, empAttendanceTab.updateEmpAttendance);
+router.post("/employee-attendance-data", auth, attCreate, empAttendanceTab.addEmpDataAttendance);
+router.get("/employee-org-units", auth, attRead, empAttendanceTab.getEmployeeOrgUnits);
+router.get("/employee-attendance/download/:id", auth, attRead, empAttendanceTab.downloadEmpAttendanceFile);
+router.delete("/employee-attendance/:id", auth, attDelete, empAttendanceTab.deleteEmpAttendanceFile);
 // router.post("/employee-attendance/storecsv/:id",empAttendanceTab.storeEMPAttendanceData);
 // router.get("/employee-attendance/downloadSampleDocument", empAttendanceTab.downloadEmpSampleDocument);
 
@@ -417,17 +412,17 @@ router.post("/employee-attendance-data", empAttendanceTab.addEmpDataAttendance);
 // router.get("/employee-excelData", empAttendanceTab.getEmpExcelData);
 
 //attendance
-router.get("/attendance", attendanceTab.getAttendance);
-router.post("/attendance", attendanceTab.uploadSingleFile, attendanceTab.createAttendance);
-router.get("/attendance/download/:id", attendanceTab.downloadAttendance);
-router.delete("/attendance/:id", attendanceTab.deleteAttendance);
-router.post("/attendance/storecsv/:id", attendanceTab.storeCsvData);
-router.get("/attendance/downloadSampleDocument", attendanceTab.downloadSampleDocument);
+router.get("/attendance", auth, attRead, attendanceTab.getAttendance);
+router.post("/attendance", auth, attCreate, attendanceTab.uploadSingleFile, attendanceTab.createAttendance);
+router.get("/attendance/download/:id", auth, attRead, attendanceTab.downloadAttendance);
+router.delete("/attendance/:id", auth, attDelete, attendanceTab.deleteAttendance);
+router.post("/attendance/storecsv/:id", auth, attCreate, attendanceTab.storeCsvData);
+router.get("/attendance/downloadSampleDocument", auth, attRead, attendanceTab.downloadSampleDocument);
 
 //view Data - Attendance
-router.get("/excelData", excelDataTab.getExcelData);
+router.get("/excelData", auth, attRead, excelDataTab.getExcelData);
 
-router.get("/attendance/user-manual", userManualMenu.attendanceManual);
+router.get("/attendance/user-manual", auth, attRead, userManualMenu.attendanceManual);
 
 //cpgrams
 router.get("/cpgrams", cpgramsTab.getCpgrams);
@@ -472,13 +467,13 @@ router.get("/age-cpgram-check", cpgramAgeController.getCPGRAMAgeCheck);
 router.get("/age-cpgram-History", cpgramController.getCPGRAMAgeHistory);
 
 // disposal
-router.get("/disposal", disposalTab.getDisposal);
-router.post("/disposal", disposalTab.upload.single('file'), disposalTab.createDisposal);
-router.get("/disposal/download/:id", disposalTab.downloadDisposal);
-router.delete("/disposal/:id", disposalTab.deleteDisposal);
-router.post("/disposal/storecsv/:id", disposalTab.storeFileData);
+router.get("/disposal", auth, eofficeRead, disposalTab.getDisposal);
+router.post("/disposal", auth, eofficeCreate, disposalTab.upload.single('file'), disposalTab.createDisposal);
+router.get("/disposal/download/:id", auth, eofficeRead, disposalTab.downloadDisposal);
+router.delete("/disposal/:id", auth, eofficeDelete, disposalTab.deleteDisposal);
+router.post("/disposal/storecsv/:id", auth, eofficeCreate, disposalTab.storeFileData);
 // viewData-disposal
-router.get("/disposalData", fileDataTab.getFileData);
+router.get("/disposalData", auth, eofficeRead, fileDataTab.getFileData);
 
 //pendency
 router.get("/pendency", pendencyTab.getPendency);
@@ -576,8 +571,9 @@ router.get(
   requireModulePermission("CABINET_NOTES_OTHER_MINISTRIES", "read"),
   cabinetNotesOtherDashboard.getCabinetNotesOtherDashboard
 );
+// The signed-in user (req.user) decides the data scope
 router.get(
-  "/cabinet-ministry/:userID",
+  "/cabinet-ministry",
   auth,
   requireModulePermission("CABINET_NOTES_OTHER_MINISTRIES", "read"),
   cabinetBillTab.getCabinetMinistry
@@ -600,13 +596,8 @@ router.put(
   requireModulePermission("CABINET_NOTES_OTHER_MINISTRIES", "update"),
   cabinetBillTab.editMinistryCabinet
 );
-router.post(
-  "/cabinet-ministry-stage",
-  auth,
-  cabinetBillTab.createCabinetNotesMinistryStage
-);
 router.delete(
-  "/cabinet-ministry/:cabinet_notes_ministry_id/:userID",
+  "/cabinet-ministry/:cabinet_notes_ministry_id",
   auth,
   requireModulePermission("CABINET_NOTES_OTHER_MINISTRIES", "delete"),
   cabinetBillTab.deleteCabinetNotesMinistry
@@ -781,47 +772,50 @@ router.get("/decision-implement/:ID", decisionController.getUpdateDecisionImplem
 
 // E-OFFICE
 //File pendancy
-router.get('/file-pendancy-report/:Year/:Month/:Week', eOfficeTab.getFilePendenceReport);
-router.get("/file-pendancy-all", eOfficeTab.getFilePendenceAll);
-router.get("/file-pendancy-check", eOfficeTab.getFilePendenceCheck);
-router.get("/file-pendancy-History", eOfficeTab.getFilePendencyHistory);
-router.get("/file-pendancy/download/:id", eOfficeTab.downloadFilePendancy);
-router.get("/file-pendancy/download-sample", eOfficeTab.downloadFilePendancySample);
-router.delete("/file-pendancy/delete/:id", eOfficeTab.deleteFilePendency);
-router.post("/file-pendancy-create", EofficeFilePendancyTab.upload.single('file'), EofficeFilePendancyTab.addFilePendancy);
-router.put("/file-pendancy-update", EofficeFilePendancyTab.upload.single('file'), EofficeFilePendancyTab.updateFilePendancy);
+router.get('/file-pendancy-report/:Year/:Month/:Week', auth, eofficeRead, eOfficeTab.getFilePendenceReport);
+router.get("/file-pendancy-all", auth, eofficeRead, eOfficeTab.getFilePendenceAll);
+router.get("/file-pendancy-check", auth, eofficeRead, eOfficeTab.getFilePendenceCheck);
+router.get("/file-pendancy-History", auth, eofficeRead, eOfficeTab.getFilePendencyHistory);
+router.get("/file-pendancy/download/:id", auth, eofficeRead, eOfficeTab.downloadFilePendancy);
+router.get("/file-pendancy/download-sample", auth, eofficeRead, eOfficeTab.downloadFilePendancySample);
+router.delete("/file-pendancy/delete/:id", auth, eofficeDelete, eOfficeTab.deleteFilePendency);
+// Unknown Emp Ids in an E-Office sheet: create them (same as Attendance, under E-Office rights)
+router.post("/eoffice-employee-data", auth, eofficeCreate, empAttendanceTab.addEmpDataAttendance);
+router.get("/eoffice-employee-org-units", auth, eofficeRead, empAttendanceTab.getEmployeeOrgUnits);
+router.post("/file-pendancy-create", auth, eofficeCreate, EofficeFilePendancyTab.upload.single('file'), EofficeFilePendancyTab.addFilePendancy);
+router.put("/file-pendancy-update", auth, eofficeUpdate, EofficeFilePendancyTab.upload.single('file'), EofficeFilePendancyTab.updateFilePendancy);
 
 //File disposal Chart
-router.get('/file-pendancy-chart/:Year/:Month/:Hierarchy', eOfficeTab.getFilePendancyChart);
+router.get('/file-pendancy-chart/:Year/:Month/:Hierarchy', auth, eofficeRead, eOfficeTab.getFilePendancyChart);
 
 //Receipt pendancy
-router.get('/receipt-pendancy-report/:Year/:Month/:Week', eOfficeTab.getReceiptPendenceReport);
-router.get("/receipt-pendancy-all", eOfficeTab.getReceiptPendenceAll);
-router.get("/receipt-pendancy-check", eOfficeTab.getReceiptPendenceCheck);
-router.get("/receipt-pendancy-History", eOfficeTab.getReceiptPendencyHistory);
-router.get("/receipt-pendancy/download/:id", eOfficeTab.downloadReceiptPendency);
-router.get("/receipt-pendancy/download-sample", eOfficeTab.downloadReceiptPendencySample);
-router.delete("/receipt-pendancy/delete/:id", eOfficeTab.deleteReceiptPendency);
-router.post("/receipt-pendancy-create", EofficeReceiptPendancyTab.upload.single('file'), EofficeReceiptPendancyTab.addReceiptPendancy);
-router.put("/receipt-pendancy-update", EofficeReceiptPendancyTab.upload.single('file'), EofficeReceiptPendancyTab.updateReceiptPendancy);
+router.get('/receipt-pendancy-report/:Year/:Month/:Week', auth, eofficeRead, eOfficeTab.getReceiptPendenceReport);
+router.get("/receipt-pendancy-all", auth, eofficeRead, eOfficeTab.getReceiptPendenceAll);
+router.get("/receipt-pendancy-check", auth, eofficeRead, eOfficeTab.getReceiptPendenceCheck);
+router.get("/receipt-pendancy-History", auth, eofficeRead, eOfficeTab.getReceiptPendencyHistory);
+router.get("/receipt-pendancy/download/:id", auth, eofficeRead, eOfficeTab.downloadReceiptPendency);
+router.get("/receipt-pendancy/download-sample", auth, eofficeRead, eOfficeTab.downloadReceiptPendencySample);
+router.delete("/receipt-pendancy/delete/:id", auth, eofficeDelete, eOfficeTab.deleteReceiptPendency);
+router.post("/receipt-pendancy-create", auth, eofficeCreate, EofficeReceiptPendancyTab.upload.single('file'), EofficeReceiptPendancyTab.addReceiptPendancy);
+router.put("/receipt-pendancy-update", auth, eofficeUpdate, EofficeReceiptPendancyTab.upload.single('file'), EofficeReceiptPendancyTab.updateReceiptPendancy);
 
 //Receipt pendancy Chart
-router.get('/receipt-pendancy-chart/:Year/:Month/:Hierarchy', eOfficeTab.getReceiptPendancyChart);
+router.get('/receipt-pendancy-chart/:Year/:Month/:Hierarchy', auth, eofficeRead, eOfficeTab.getReceiptPendancyChart);
 
 //File disposal
-router.get('/file-disposal-report/:Year/:Month/:Week', eOfficeTab.getFileDisposalReport);
-router.get("/file-disposal-all", eOfficeTab.getFileDisposalAll);
-router.get("/file-disposal-check", eOfficeTab.getFileDisposalCheck);
-router.get("/file-disposal-History", eOfficeTab.getFileDisposalHistory);
-router.get("/file-disposal/download/:id", eOfficeTab.downloadFileDisposal);
-router.get("/file-disposal/download-sample", eOfficeTab.downloadFileDisposalSample);
-router.delete("/file-disposal/delete/:id", eOfficeTab.deleteFileDisposal);
-router.delete("/delete-employee/:empID", EofficeFileDisposalTab.deleteEmployee);
-router.post("/file-disposal-create", EofficeFileDisposalTab.upload.single('file'), EofficeFileDisposalTab.addFileDisposal);
-router.put("/file-disposal-update", EofficeFileDisposalTab.upload.single('file'), EofficeFileDisposalTab.updateFileDisposal);
+router.get('/file-disposal-report/:Year/:Month/:Week', auth, eofficeRead, eOfficeTab.getFileDisposalReport);
+router.get("/file-disposal-all", auth, eofficeRead, eOfficeTab.getFileDisposalAll);
+router.get("/file-disposal-check", auth, eofficeRead, eOfficeTab.getFileDisposalCheck);
+router.get("/file-disposal-History", auth, eofficeRead, eOfficeTab.getFileDisposalHistory);
+router.get("/file-disposal/download/:id", auth, eofficeRead, eOfficeTab.downloadFileDisposal);
+router.get("/file-disposal/download-sample", auth, eofficeRead, eOfficeTab.downloadFileDisposalSample);
+router.delete("/file-disposal/delete/:id", auth, eofficeDelete, eOfficeTab.deleteFileDisposal);
+router.delete("/delete-employee/:empID", auth, eofficeDelete, EofficeFileDisposalTab.deleteEmployee);
+router.post("/file-disposal-create", auth, eofficeCreate, EofficeFileDisposalTab.upload.single('file'), EofficeFileDisposalTab.addFileDisposal);
+router.put("/file-disposal-update", auth, eofficeUpdate, EofficeFileDisposalTab.upload.single('file'), EofficeFileDisposalTab.updateFileDisposal);
 
 //File disposal Chart
-router.get('/file-disposal-chart/:Year/:Month/:Hierarchy', eOfficeTab.getFileDisposalChart);
+router.get('/file-disposal-chart/:Year/:Month/:Hierarchy', auth, eofficeRead, eOfficeTab.getFileDisposalChart);
 
 // Official Foreign Visit
 router.get("/OFV-data/:userID/:organisationID", officialForeignVisitTab.getOFVData);
@@ -862,11 +856,12 @@ router.get("/get-review-item-code-data-by-id/:reviewItemCode",reviewItemsTab.get
 
 // LEGAL MENU
 //  Bills/PreConstitutions Act
-router.get("/bill", billTab.getBill);
-router.post("/bill", billTab.createBill);
-router.get("/bill/:billID", billTab.getUpdateBill);
-router.put("/bill", billTab.updateBill);
-router.delete("/delete-bill/:billID/:userID", billTab.deleteBill);
+router.get("/bill-dashboard", auth, billsRead, billTab.getBillDashboard);
+router.get("/bill", auth, billsRead, billTab.getBill);
+router.post("/bill", auth, billsCreate, billTab.createBill);
+router.get("/bill/:billID", auth, billsRead, billTab.getUpdateBill);
+router.put("/bill", auth, billsUpdate, billTab.updateBill);
+router.delete("/delete-bill/:billID", auth, billsDelete, billTab.deleteBill);
 // router.post("/bill-stage", billTab.createBillStage);
 
 //Court cases
@@ -944,191 +939,151 @@ router.delete("/delete-court-case/:courtID", arbitCourtCaseTab.deleteCaseDocumen
 router.get("/download-court-document/:courtID", arbitCourtCaseTab.downloadCaseDocument);
 
 //Court Case Report
-router.get("/all-court-case-report/:userID", arbitCourtCaseTab.getCourtCaseReport),
-router.get("/get-detailed-case-report/:organisationID/:stageID", arbitCourtCaseTab.getArbitrationDetailCourtCaseReport),
-router.get("/get-conciliation-detailed-case-report/:organisationID/:stageID", arbitCourtCaseTab.getConciliationDetailCourtCaseReport),
-router.get("/get-litigation-detailed-case-report/:organisationID/:stageID", arbitCourtCaseTab.getLitigationcourtcasesReport),
-// View Proposal - DPR, feasibility documents
-// router.post("/proposal-document-uploader", proposalDocumentTab.upload.array('file'), proposalDocumentTab.propDocumentUploader);
+router.get("/all-court-case-report/:userID", arbitCourtCaseTab.getCourtCaseReport);
+router.get("/get-detailed-case-report/:organisationID/:stageID", arbitCourtCaseTab.getArbitrationDetailCourtCaseReport);
+router.get("/get-conciliation-detailed-case-report/:organisationID/:stageID", arbitCourtCaseTab.getConciliationDetailCourtCaseReport);
+router.get("/get-litigation-detailed-case-report/:organisationID/:stageID", arbitCourtCaseTab.getLitigationcourtcasesReport);
 
-
-// Lump Sum
-router.post("/add-lumpsum", addNewLumpSumTab.createLumpSumData);
-router.get("/lumpsum-list", addNewLumpSumTab.getLumpSumList);
-router.get("/getedit-lumpsum-data/:projectID", addNewLumpSumTab.getLumpSumData);
-router.get("/getedit-lumpsum-activitydata/:projectID", addNewLumpSumTab.getActivityNameData);
-router.put("/edit-lumpsum", addNewLumpSumTab.editLumpSumData);
-router.delete("/delete-lumpsum/:lumpsumId", addNewLumpSumTab.deleteLumpSumData);
-router.post("/add-lumpsum-activity", addNewLumpSumTab.createLumpSumActivityData);
-router.get("/getdata-lumpsum-activitydata/:projectID", addNewLumpSumTab.getSubProActivityData);
-
-// CSR Projects
-router.post("/csr-gallery-upload", csrProjectTab.handleUploadErrors(csrProjectTab.upload.array('file')), csrProjectTab.addNewCsrFileGallery);
-router.post('/add-csr-projects', csrProjectTab.createCsrProjects);
-router.get('/csr-projects-list/:userID',csrProjectTab.getCsrProjectslist);
-router.put("/update-csr-list", csrProjectTab.updateCsrProjects);
-router.get("/csr-list/:csrProjectId", csrProjectTab.getUpdateCsrProjectsData);
-router.post("/csrprojectdocument", csrProjectTab.handleUploadErrors(csrProjectTab.upload.single('file')), csrProjectTab.csrProjectDocumentUploader);
-router.get("/download-csrfile/:fileName", csrProjectTab.csrfileDownload);
-router.delete("/delete-csrfile", csrProjectTab.csrfileDelete);
-router.get("/get-csr-expenditure/:csrProjectId", csrProjectTab.getCsrExpenditureCost);
-router.post('/add-csr-expenditure', csrProjectTab.addCsrExpenditure);
-router.get("/get-csr-project-files/:csrProjectId", csrProjectTab.getCsrFileUploadDocument);
-router.delete("/delete-csr-gallery-file/:csrProjectId/:filename",csrProjectTab.deleteGalleryFile);
-router.put("/update-csr-gallery-file",csrProjectTab.handleUploadErrors(csrProjectTab.fileUpload.single('file')),csrProjectTab.updateGalleryFile);
-router.post("/update-csr-gallery-upload/:csrProjectId", csrProjectTab.handleUploadErrors(csrProjectTab.fileUpload.array('file')),csrProjectTab.uploadMediaGalleryFile)
-router.get("/download-csrfile-pdf-document", csrProjectTab.csrPdfFileDownload);
-router.get("/get-csr-project-overview-reports/:userID",csrProjectTab.csrProjectsAbstractReport);
-router.get("/get-csr-projects-detailed-reports/:organisationID/:OrganisationName",csrProjectTab.csrProjectsDetailedReport)
+// CSR Projects: login and CSR access required on every route (2.0 had neither); the handlers
+// scope records by the signed token. Uploads happen while adding or editing, so either is enough.
+const csrRead = requireModulePermission("CSR_PROJECTS", "read");
+const csrCreate = requireModulePermission("CSR_PROJECTS", "create");
+const csrUpdate = requireModulePermission("CSR_PROJECTS", "update");
+const csrWrite = requireAnyModulePermission("CSR_PROJECTS", ["create", "update"]);
+router.post("/csr-gallery-upload", auth, csrWrite, csrProjectTab.handleUploadErrors(csrProjectTab.upload.array('file')), csrProjectTab.addNewCsrFileGallery);
+router.post('/add-csr-projects', auth, csrCreate, csrProjectTab.createCsrProjects);
+router.get('/csr-projects-list/:userID', auth, csrRead, csrProjectTab.getCsrProjectslist);
+router.put("/update-csr-list", auth, csrUpdate, csrProjectTab.updateCsrProjects);
+router.get("/csr-list/:csrProjectId", auth, csrRead, csrProjectTab.getUpdateCsrProjectsData);
+router.post("/csrprojectdocument", auth, csrWrite, csrProjectTab.handleUploadErrors(csrProjectTab.upload.single('file')), csrProjectTab.csrProjectDocumentUploader);
+router.get("/download-csrfile/:fileName", auth, csrRead, csrProjectTab.csrfileDownload);
+router.delete("/delete-csrfile", auth, csrUpdate, csrProjectTab.csrfileDelete);
+router.get("/get-csr-expenditure/:csrProjectId", auth, csrRead, csrProjectTab.getCsrExpenditureCost);
+router.post('/add-csr-expenditure', auth, csrCreate, csrProjectTab.addCsrExpenditure);
+router.get("/get-csr-project-files/:csrProjectId", auth, csrRead, csrProjectTab.getCsrFileUploadDocument);
+router.delete("/delete-csr-gallery-file/:csrProjectId/:filename", auth, csrUpdate, csrProjectTab.deleteGalleryFile);
+router.put("/update-csr-gallery-file", auth, csrUpdate, csrProjectTab.handleUploadErrors(csrProjectTab.fileUpload.single('file')),csrProjectTab.updateGalleryFile);
+router.post("/update-csr-gallery-upload/:csrProjectId", auth, csrWrite, csrProjectTab.handleUploadErrors(csrProjectTab.fileUpload.array('file')),csrProjectTab.uploadMediaGalleryFile)
+router.get("/download-csrfile-pdf-document", auth, csrRead, csrProjectTab.csrPdfFileDownload);
+router.get("/get-csr-project-overview-reports/:userID", auth, csrRead, csrProjectTab.csrProjectsAbstractReport);
+router.get("/get-csr-projects-detailed-reports/:organisationID/:OrganisationName", auth, csrRead, csrProjectTab.csrProjectsDetailedReport)
 
 // CSR Fund Detail
-router.get('/csr-Fund-list/:userID',csrProjectTab.getCsrFundList);
-router.get("/csr-update-fundlist/:csrFundId", csrProjectTab.getUpdateFundData);
-router.post('/csrFund-edit', csrProjectTab.editCsrFund);
-router.post('/add-csr-Fund',csrProjectTab.addCsrFundDetails);
-router.get('/get-csr-fund-expenditure-report/:userID',csrProjectTab.csrExpenditureReport);
-router.get('/get-csr-project-dashboard/:clusterID/:organisationID/:fy/:focusID',csrProjectTab.getCSRProjectDashboard);
-router.get('/get-csr-fund-allocatted/:clusterID/:organisationID/:fy/:focusID',csrProjectTab.getCsrFundAllocatted);
-router.get('/get-csr-fund-year-wise-report/:fy',csrProjectTab.getCsrFundYearWiseReport);
-router.get('/get-csr-fund-org-wise-report/:fy',csrProjectTab.getCsrFundOrgWiseReport);
-router.get('/get-csr-fund-org-trend-report/:orgId',csrProjectTab.getCsrFundOrgTrendReport);
-router.get('/get-csr-projects-year-wise-summary/:orgId',csrProjectTab.getCsrProjectsYearWiseSummary);
-router.get('/get-csr-projects-org-wise-summary',csrProjectTab.getCsrProjectsOrgWiseSummary);
-router.get('/get-csr-projects-focus-wise-summary/:orgId',csrProjectTab.getCsrProjectsFocusWiseSummary);
-router.get('/get-csr-project-stage-wise/:clusterID/:organisationID/:fy/:focusID',csrProjectTab.getCsrProjectStageWise);
-router.get('/get-csr-project-count-wise/:clusterID/:organisationID/:fy/:focusID',csrProjectTab.getCSRProjectCountWise);
-router.get('/get-detailed-csr-projects/:clusterID/:organisationID/:fy/:stage/:focusID',csrProjectTab.getDetailedCSRProjects);
-// Drop Project
-router.post("/dropproject-request", dropRequestTab.deleteProjectRequest);
-router.get("/viewdrop-projectlist/:userID", dropRequestTab.viewDropProjectList);
-router.put("/delete-project/:projectID/:subProjectID", dropRequestTab.deleteProject);
-router.post("/reject-project-drop-request", dropRequestTab.rejectProjectDropRequest);
-
-
-// crct but delete in add new project page
-// router.post("/add-project-document-uploader", addNewProjectTab.upload.array('projectDocument'),addNewProjectTab.addProjectDocumentUploader);
-
-
-router.get("/project-ppt-document/:projectID", addNewProjectTab.getProjectPptDocument);
-router.get("/project-pert-document/:projectID", addNewProjectTab.getProjectPertDocument);
-router.get("/project-image-document/:projectID", addNewProjectTab.getProjectImageDocument);
+router.get('/csr-Fund-list/:userID', auth, csrRead, csrProjectTab.getCsrFundList);
+router.get("/csr-update-fundlist/:csrFundId", auth, csrRead, csrProjectTab.getUpdateFundData);
+router.post('/csrFund-edit', auth, csrUpdate, csrProjectTab.editCsrFund);
+router.post('/add-csr-Fund', auth, csrCreate, csrProjectTab.addCsrFundDetails);
+router.get('/get-csr-fund-expenditure-report/:userID', auth, csrRead, csrProjectTab.csrExpenditureReport);
+router.get('/get-csr-dashboard', auth, csrRead, csrProjectTab.getCsrDashboard);
+router.get('/get-csr-project-dashboard/:clusterID/:organisationID/:fy/:focusID', auth, csrRead, csrProjectTab.getCSRProjectDashboard);
+router.get('/get-csr-fund-allocatted/:clusterID/:organisationID/:fy/:focusID', auth, csrRead, csrProjectTab.getCsrFundAllocatted);
+router.get('/get-csr-fund-year-wise-report/:fy', auth, csrRead, csrProjectTab.getCsrFundYearWiseReport);
+router.get('/get-csr-fund-org-wise-report/:fy', auth, csrRead, csrProjectTab.getCsrFundOrgWiseReport);
+router.get('/get-csr-fund-org-trend-report/:orgId', auth, csrRead, csrProjectTab.getCsrFundOrgTrendReport);
+router.get('/get-csr-projects-year-wise-summary/:orgId', auth, csrRead, csrProjectTab.getCsrProjectsYearWiseSummary);
+router.get('/get-csr-projects-org-wise-summary', auth, csrRead, csrProjectTab.getCsrProjectsOrgWiseSummary);
+router.get('/get-csr-projects-focus-wise-summary/:orgId', auth, csrRead, csrProjectTab.getCsrProjectsFocusWiseSummary);
+router.get('/get-csr-project-stage-wise/:clusterID/:organisationID/:fy/:focusID', auth, csrRead, csrProjectTab.getCsrProjectStageWise);
+router.get('/get-csr-project-count-wise/:clusterID/:organisationID/:fy/:focusID', auth, csrRead, csrProjectTab.getCSRProjectCountWise);
+router.get('/get-detailed-csr-projects/:clusterID/:organisationID/:fy/:stage/:focusID', auth, csrRead, csrProjectTab.getDetailedCSRProjects);
+// Drop Project (soft-drop workflow — not CRUD delete)
+router.post("/dropproject-request", auth, requireModulePermission("PROJECTS", "update"), dropRequestTab.deleteProjectRequest);
+router.get("/viewdrop-projectlist/:userID", auth, requireModulePermission("PROJECTS", "read"), dropRequestTab.viewDropProjectList);
+router.put("/delete-project/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "update"), dropRequestTab.deleteProject);
+router.post("/reject-project-drop-request", auth, requireModulePermission("PROJECTS", "update"), dropRequestTab.rejectProjectDropRequest);
 
 // Project list
-router.get("/project-list/:userID", projectListTab.getProjectList);
-router.get("/project-list-data/:userID", projectListTab.getProjectAllData);
-router.get("/project-folder-download/:userID/:emailId", projectListTab.projectFolderDownloadLog);
+router.get("/project-list/:userID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.getProjectList);
+router.get("/project-schedule-alerts/:userID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.getProjectScheduleAlerts);
+router.get("/projects-data-qc/summary", auth, requireModulePermission("PROJECTS", "read"), projectsDataQcReportTab.getDataQcSummary);
+router.get("/projects-data-qc/:checkId", auth, requireModulePermission("PROJECTS", "read"), projectsDataQcReportTab.getDataQcCheckDetail);
+router.get("/projects-mis/summary", auth, requireModulePermission("PROJECTS", "read"), projectsMisReportTab.getMisSummary);
+router.get("/projects-mis/:reportId", auth, requireModulePermission("PROJECTS", "read"), projectsMisReportTab.getMisReport);
+router.get("/project-list-data/:userID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.getProjectAllData);
+router.get("/project-folder-download/:userID/:emailId", auth, requireModulePermission("PROJECTS", "read"), projectListTab.projectFolderDownloadLog);
+// Email link download — keep public (tokenised filename)
 router.get("/project-media-files-download/:fileName", projectListTab.projectMediaLinkDownload)
 
-router.get("/project-list-expenditurelogs/:userID", projectListTab.getExpLogsData);
-router.get("/get-project-category-name/:projectCategoryID", projectListTab.getProjectCategoryName);
-router.get("/get-project-initiative-name/:projectInitiativeID", projectListTab.getProjectInitiativeName);
-router.get("/get-sof-name/:sourceOfFundingID", projectListTab.getSourceOfFundingName);
-router.post('/submit-capex-project-data', projectListTab.submitCapexProjectData);
-router.get('/get-capex-projects-data', projectListTab.getCapexProjectsData);
-router.get('/get-update-capex-projects-data', projectListTab.getUpdateCapexProjectsData);
-router.post('/update-capex-project-data', projectListTab.updateCapexProjectData);
+router.get("/project-list-expenditurelogs/:userID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.getExpLogsData);
+router.post('/submit-capex-project-data', auth, requireModulePermission("PROJECTS", "create"), projectListTab.submitCapexProjectData);
+router.get('/get-capex-projects-data', auth, requireModulePermission("PROJECTS", "read"), projectListTab.getCapexProjectsData);
+router.get('/get-update-capex-projects-data', auth, requireModulePermission("PROJECTS", "read"), projectListTab.getUpdateCapexProjectsData);
+router.post('/update-capex-project-data', auth, requireModulePermission("PROJECTS", "update"), projectListTab.updateCapexProjectData);
 
-router.get("/project-id-dropdown/:organisationID/:tid", masterTable.getDropDownProjectList);
-router.get("/subproject-id-dropdown/:organisationID/:tid/:projectId", masterTable.getDropDownSubProjectList);
+router.get("/project-id-dropdown/:organisationID/:tid", auth, requireModulePermission("PROJECTS", "read"), masterTable.getDropDownProjectList);
+router.get("/subproject-id-dropdown/:organisationID/:tid/:projectId", auth, requireModulePermission("PROJECTS", "read"), masterTable.getDropDownSubProjectList);
 
-router.get("/view-projectdata/:projectID/:subProjectID", projectListTab.viewProjectData);
-router.get("/view-projectimages/:projectID/:subProjectID", projectListTab.viewProjectImages);
+router.get("/view-projectdata/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.viewProjectData);
+router.get("/view-projectimages/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.viewProjectImages);
 
-router.get("/project/user-manual", userManualMenu.projectManual);
+router.get("/project/user-manual", auth, requireModulePermission("PROJECTS", "read"), userManualMenu.projectManual);
 
-router.get("/view-projectdata/:projectID/:subProjectID", projectListTab.viewProjectData);
-router.get("/viewproject-milestone-data/:projectID/:subProjectID", projectListTab.getUnderImplementationDate);
-router.get("/viewproject-tender-data/:projectID/:subProjectID", projectListTab.getUnderTenderingDate);
-router.get("/view-projectimages/:projectID/:subProjectID", projectListTab.viewProjectImages);
-// router.get("/get-viewproject-documents/:projectID/:subProjectID", viewProjectDataTab.getViewProjectDocuments);
+router.get("/viewproject-milestone-data/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.getUnderImplementationDate);
+router.get("/viewproject-tender-data/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.getUnderTenderingDate);
 
 // Edit Project
 
-router.get("/get-editprojectdata/:projectID/:subProjectID", editProjectTab.getEdiProjectData);
-router.get("/get-expenditure-outlay/:projectID/:subProjectID", expenditureTab.getExpenditureOutlayCost);
-router.post("/add-expenditure-outlay", expenditureTab.addExpenditureOutlay);
-router.get("/sum-expenditure-outlay/:projectID/:subProjectID/:year",expenditureTab.sumOfExpIncurredFy)
+router.get("/get-editprojectdata/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), editProjectTab.getEdiProjectData);
+router.get("/get-expenditure-outlay/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), expenditureTab.getExpenditureOutlayCost);
+router.post("/add-expenditure-outlay", auth, requireModulePermission("PROJECTS", "update"), expenditureTab.addExpenditureOutlay);
 
-router.post("/add-revised-date", editProjectTab.addRevisedDate);
-router.get("/get-revised-date/:projectID/:subProjectID", editProjectTab.getRevisedDate);
+router.post("/add-revised-date", auth, requireModulePermission("PROJECTS", "update"), editProjectTab.addRevisedDate);
+router.get("/get-revised-date/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), editProjectTab.getRevisedDate);
 
-router.put("/viewproject-update", editProjectTab.updateViewProjectDetails);
-// router.post("/viewproject", documentUploaderTab.upload.single('file'), documentUploaderTab.projectDocumentUploader);
-router.get("/bi-check-points/:projectID/:subProjectID", editProjectTab.getBasicInformationCheckPoints);
+router.put("/viewproject-update", auth, requireModulePermission("PROJECTS", "update"), editProjectTab.updateViewProjectDetails);
+router.get("/bi-check-points/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), editProjectTab.getBasicInformationCheckPoints);
 
-router.post("/revisionDate", revisionDateTab.saveRevisionDate);
-router.post("/add-basic-project-document-uploader", editProjectTab.upload.array('projectDocument'), editProjectTab.addProjectDocumentUploader);
-router.get("/get-project-documents/:projectID/:subProjectID", editProjectTab.getProjectDocuments);
-router.delete("/delete-project-document/:projectID/:subProjectID/:documentName", editProjectTab.deleteProjectDocument);
-router.get("/download-project-document/:projectID/:subProjectID/:documentName", editProjectTab.downloadProjectDocument);
-router.get("/download-project-error-log-document", editProjectTab.downloadErrorLogFile);
-
-router.post("/add-basic-project-document-uploader-edit", editProjectTab.upload.array('projectDocument'), editProjectTab.editProjectDocumentUploader);
+router.post("/revisionDate", auth, requireModulePermission("PROJECTS", "update"), revisionDateTab.saveRevisionDate);
+router.post("/add-basic-project-document-uploader", auth, requireAnyModulePermission("PROJECTS", ["create", "update"]), editProjectTab.upload.array('projectDocument'), editProjectTab.addProjectDocumentUploader);
+router.get("/get-project-documents/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), editProjectTab.getProjectDocuments);
+router.delete("/delete-project-document/:projectID/:subProjectID/:documentName", auth, requireModulePermission("PROJECTS", "update"), editProjectTab.deleteProjectDocument);
+router.get("/download-project-document/:projectID/:subProjectID/:documentName", auth, requireModulePermission("PROJECTS", "read"), editProjectTab.downloadProjectDocument);
 
 //Planning and Sanctioning
-router.post("/planning-sanctioning", planningSanctioningTab.updatePlanningSanctionedData);
-router.get("/planning-sanctioning/:projectID/:subProjectID", planningSanctioningTab.getPlanningSanctioningData);
-router.get("/ps-check-points/:projectID/:subProjectID", planningSanctioningTab.getPlanningCheckPoints);
+router.post("/planning-sanctioning", auth, requireModulePermission("PROJECTS", "update"), planningSanctioningTab.updatePlanningSanctionedData);
+router.get("/planning-sanctioning/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), planningSanctioningTab.getPlanningSanctioningData);
+router.get("/ps-check-points/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), planningSanctioningTab.getPlanningCheckPoints);
 
 // Under Tendering
-router.post("/undertendering", underTenderingTab.utProjectDatesAction);
-router.get("/undertendering/:projectID/:subProjectID", underTenderingTab.getDisplayUtProjectDates);
-router.get("/undertendering-revision/:projectID/:projectSubStageID/:subProjectID", underTenderingTab.getRevisionHistory);
-router.post("/awardofcontract-cost", underTenderingTab.addUtCostandCalls);
-router.get("/awardofcontract-cost/:subProjectID/:projectID", underTenderingTab.getUtCostandCallsData);
+router.post("/undertendering", auth, requireModulePermission("PROJECTS", "update"), underTenderingTab.utProjectDatesAction);
+router.get("/undertendering/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), underTenderingTab.getDisplayUtProjectDates);
+router.get("/undertendering-revision/:projectID/:projectSubStageID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), underTenderingTab.getRevisionHistory);
+router.post("/awardofcontract-cost", auth, requireModulePermission("PROJECTS", "update"), underTenderingTab.addUtCostandCalls);
+router.get("/awardofcontract-cost/:subProjectID/:projectID", auth, requireModulePermission("PROJECTS", "read"), underTenderingTab.getUtCostandCallsData);
 
-router.post("/project-document-uploader", underTenderingTab.upload.array('projectDocument'), underTenderingTab.utProjectDocumentUploader);
-router.get("/check-file-exists", underTenderingTab.fileCheck);
+router.post("/project-document-uploader", auth, requireAnyModulePermission("PROJECTS", ["create", "update"]), underTenderingTab.upload.array('projectDocument'), underTenderingTab.utProjectDocumentUploader);
+router.get("/check-file-exists", auth, requireModulePermission("PROJECTS", "read"), underTenderingTab.fileCheck);
 
-router.get("/checkstageid/:subProjectID/:projectID", underTenderingTab.checkProjectStageID);
-router.get("/ut-check-points/:projectID/:subProjectID", underTenderingTab.getUnderTenderingCheckPoints);
-router.get("/ui-check-points/:projectID/:subProjectID", underTenderingTab.getUnderImplementationCheckPoints);
-router.get("/download-file", underTenderingTab.fileDownload);
-router.delete("/delete-file", underTenderingTab.fileDelete);
-// router.get("/checkstageid/:subProjectID/:projectID", updateProjectStageTab.checkProjectStage);
-
-// router.post("/undertendering-revision/", underTenderingTab.getRevisionHistory);
-
-// awardOfContractTab
-// router.post("/awardofcontact", awardOfContractTab.utProjectDatesAction);
-// router.post("/awardofcontract-cost", awardOfContractTab.addAwardOfContractCost);
-// router.get("/awardofcontract-cost/:projectID", awardOfContractTab.getAwardofCotractCost);
-
-// Clearance
-router.post("/addclearance", clearanceTab.addClearanceDetails);
-router.get("/clearance/:projectID/:subProjectID", clearanceTab.getClearanceData);
-router.post("/clearancedocument", clearanceDocumentUploaderTab.upload.single('file'), clearanceDocumentUploaderTab.clearanceDocumentUploader);
-router.get("/clearancedocument/:documentName", clearanceDocumentUploaderTab.downloadClearanceDocument);
+router.get("/ut-check-points/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), underTenderingTab.getUnderTenderingCheckPoints);
+router.get("/ui-check-points/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), underTenderingTab.getUnderImplementationCheckPoints);
+router.get("/download-file", auth, requireModulePermission("PROJECTS", "read"), underTenderingTab.fileDownload);
+router.delete("/delete-file", auth, requireModulePermission("PROJECTS", "update"), underTenderingTab.fileDelete);
 
 // Activity -Milestone
-router.post("/milestone", activityTab.addActivityData);
-router.get("/milestone/:projectID/:subProjectID", activityTab.getActivityData);
-router.get("/get-delay-reason/:projectID/:subProjectID", activityTab.getDelayReason);
-router.post("/add-physical-progress", activityTab.addPhysicalProgress);
-router.get("/get-progress-value/:projectID/:subProjectID", activityTab.getProgressValue);
-router.get("/get-inauguration-dates/:projectID/:subProjectID", activityTab.getInaugurationDate);
+router.post("/milestone", auth, requireModulePermission("PROJECTS", "update"), activityTab.addActivityData);
+router.get("/milestone/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), activityTab.getActivityData);
+router.get("/get-delay-reason/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), activityTab.getDelayReason);
+router.post("/add-physical-progress", auth, requireModulePermission("PROJECTS", "update"), activityTab.addPhysicalProgress);
+router.get("/get-progress-value/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), activityTab.getProgressValue);
+router.get("/get-inauguration-dates/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), activityTab.getInaugurationDate);
 
 //Expenditure Logs
-router.get("/get-component/:projectID/:subProjectID", expenditureTab.getSourceOfFundingComponent);
-router.post("/add-expenditure-detail", expenditureTab.addExpenditureDetails);
-router.get("/get-expenditure-detail/:projectID/:subProjectID", expenditureTab.getExpenditureDetails);
-router.get("/get-total-expenditure-detail/:projectID/:subProjectID", expenditureTab.getTotalExpenditureDetails);
-router.get("/get-total-expenditure-value/:projectID/:subProjectID", expenditureTab.getTotalExpenditureValue);
-// router.post("/edit-expenditure-outlay", expenditureTab.editExpenditureOutlay);
-// router.get("/get-expenditure-outlay/:projectID/:subProjectID", expenditureTab.getExpenditureOutlay);
-router.get("/get-expenditure-financial-year/:projectID/:subProjectID/:financialYear", expenditureTab.getExpenditureFinancialYear);
-router.get("/get-expenditure-main-financial-year/:projectID/:subProjectID/:financialYear/:month", expenditureTab.getExpenditureMainFinancialYear);
-router.post('/edit-expenditure-components-details', expenditureTab.editExpenditureComponentsDetails);
-router.post("/delete-expenditure-log-row", expenditureTab.deleteExpenditureLogRow);
+router.get("/get-component/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), expenditureTab.getSourceOfFundingComponent);
+router.post("/add-expenditure-detail", auth, requireModulePermission("PROJECTS", "update"), expenditureTab.addExpenditureDetails);
+router.get("/get-expenditure-detail/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), expenditureTab.getExpenditureDetails);
+router.get("/get-total-expenditure-value/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), expenditureTab.getTotalExpenditureValue);
+router.get("/get-expenditure-main-financial-year/:projectID/:subProjectID/:financialYear/:month", auth, requireModulePermission("PROJECTS", "read"), expenditureTab.getExpenditureMainFinancialYear);
+router.post('/edit-expenditure-components-details', auth, requireModulePermission("PROJECTS", "update"), expenditureTab.editExpenditureComponentsDetails);
+router.post("/delete-expenditure-log-row", auth, requireModulePermission("PROJECTS", "update"), expenditureTab.deleteExpenditureLogRow);
 
 // Completion page
-router.post("/completionpage", completionTab.addCompletionDate);
-router.get("/completionpage/:projectID/:subProjectID", completionTab.getCompletionPageData);
+router.post("/completionpage", auth, requireModulePermission("PROJECTS", "update"), completionTab.addCompletionDate);
+router.get("/completionpage/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), completionTab.getCompletionPageData);
 
 // ADD PROJECT MODULE
-router.post("/add-newproject", addNewProjectTab.createNewProject);
-router.post("/update-subproject", addNewProjectTab.updateSubProject);
-
+router.post("/add-newproject", auth, requireModulePermission("PROJECTS", "create"), addNewProjectTab.createNewProject);
+router.get("/subproject-parent-list", auth, requireModulePermission("PROJECTS", "create"), addNewProjectTab.getSubProjectParentList);
+router.post("/add-subproject", auth, requireModulePermission("PROJECTS", "create"), addNewProjectTab.addSubProjects);
 
 //young professionals
 router.get("/young-professional", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), youngProfessionalsTab.getYoungProfessional);
@@ -1153,6 +1108,7 @@ router.get("/candidate-detail-document/:candidate_id", auth, requireModulePermis
 
 router.put("/relieve-young-professional", auth, requireModulePermission("YOUNG_PROFESSIONAL", "update"), youngProfessionalsTab.relieveYoungProfessional);
 //consultant appointment
+router.get("/consultant-appointment-dashboard", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentDashboard.getConsultantAppointmentDashboard);
 router.get("/consultant-appointment", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentTab.getConsultantAppointment);
 router.post("/consultant-appointment", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "create"), consultantAppointmentTab.createConsultantAppointment);
 router.put("/consultant-appointment", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "update"), consultantAppointmentTab.updateConsultantAppointment);
@@ -1175,41 +1131,41 @@ router.delete("/consultant-candidate-all-data/:consultant_appointment_id/:userID
 router.delete("/ca-candidate-single/:candidate_id/:userID", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "delete"), consultantAppointmentTab.deleteCACandidateSingle);
 
 //HR
-router.post("/hr-department", hrDepartmentTab.createHrDepartment);
-router.get("/hr-department/:Id", hrDepartmentTab.getHrDepartment);
-router.get("/get-hr-department-by-org/:organisationID", hrDepartmentTab.getHrDepartmentByOrg);
-router.get("/get-hr-department-by-org-and-deprtid/:organisationID/:departmentID", hrDepartmentTab.getHrPostsByOrgAndDept);
+router.post("/hr-department", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrDepartmentTab.createHrDepartment);
+router.get("/hr-department/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrDepartmentTab.getHrDepartment);
+router.get("/get-hr-department-by-org/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrDepartmentTab.getHrDepartmentByOrg);
+router.get("/get-hr-department-by-org-and-deprtid/:organisationID/:departmentID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrDepartmentTab.getHrPostsByOrgAndDept);
 
-router.get("/hr-total-post-details-org", hrDepartmentTab.getTotalHrPostDetailsOrg);
-router.post("/hr-post", hrPostTab.createHrPost);
-router.get("/hr-post/:Id", hrPostTab.getHrPost);
-router.delete("/delete-hr-post/:postId", hrPostTab.deleteHrPost);
-router.delete("/delete-hr-department-data/:deptID/:orgID", hrManagementTab.deleteHrDepartment);
-router.put("/update-hr-post-strength/:Id", hrPostTab.updateHrPostStrength);
-router.get("/hr-management-post/:Id", hrPostTab.getHrManagementPost);
-router.get("/sanctioned-strength/:Id", hrPostTab.getSanctionedStrength);
-router.get("/get-filled-vacant-data-count/:Id", hrPostTab.getFilledVacantDataCount);
-router.get("/get-missing-post-data-count/:organisationId", hrPostTab.getMissingPostDataCount);
+router.get("/hr-total-post-details-org", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrDepartmentTab.getTotalHrPostDetailsOrg);
+router.post("/hr-post", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrPostTab.createHrPost);
+router.get("/hr-post/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrPostTab.getHrPost);
+router.delete("/delete-hr-post/:postId", auth, requireModulePermission("HR_MANAGEMENT", "delete"), hrPostTab.deleteHrPost);
+router.delete("/delete-hr-department-data/:deptID/:orgID", auth, requireModulePermission("HR_MANAGEMENT", "delete"), hrManagementTab.deleteHrDepartment);
+router.put("/update-hr-post-strength/:Id", auth, requireModulePermission("HR_MANAGEMENT", "update"), hrPostTab.updateHrPostStrength);
+router.get("/hr-management-post/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrPostTab.getHrManagementPost);
+router.get("/sanctioned-strength/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrPostTab.getSanctionedStrength);
+router.get("/get-filled-vacant-data-count/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrPostTab.getFilledVacantDataCount);
+router.get("/get-missing-post-data-count/:organisationId", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation("organisationId"), hrPostTab.getMissingPostDataCount);
 
 // Organisation Structure Routes
-router.get("/get-organisation-structure-posts", hrPostTab.getOrganisationStructurePosts);
-router.get("/get-organisation-structure-posts/:organisationId", hrPostTab.getOrganisationStructurePosts);
-router.post("/add-organisation-structure-post", hrPostTab.addOrganisationStructurePost);
-router.put("/update-organisation-structure-post/:postId", hrPostTab.updateOrganisationStructurePost);
-router.delete("/delete-organisation-structure-post/:postId", hrPostTab.deleteOrganisationStructurePost);
-router.get("/get-organisation-structure-departments", hrPostTab.getOrganisationStructureDepartments);
-router.get("/get-organisation-structure-classes", hrPostTab.getOrganisationStructureClasses);
-router.get("/get-organisation-code/:organisationId", hrManagementTab.getOrganisationCode);
-router.get("/get-department-id/:postId", hrManagementTab.getDepartmentId);
-router.get("/check-post-code/:Id", hrManagementTab.checkPostCode);
-router.post("/post-strength-detail", hrManagementTab.addPostStrengthDetail);
+router.get("/get-organisation-structure-posts", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation("organisationId"), hrPostTab.getOrganisationStructurePosts);
+router.get("/get-organisation-structure-posts/:organisationId", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation("organisationId"), hrPostTab.getOrganisationStructurePosts);
+router.post("/add-organisation-structure-post", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrPostTab.addOrganisationStructurePost);
+router.put("/update-organisation-structure-post/:postId", auth, requireModulePermission("HR_MANAGEMENT", "update"), hrPostTab.updateOrganisationStructurePost);
+router.delete("/delete-organisation-structure-post/:postId", auth, requireModulePermission("HR_MANAGEMENT", "delete"), hrPostTab.deleteOrganisationStructurePost);
+router.get("/get-organisation-structure-departments", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrPostTab.getOrganisationStructureDepartments);
+router.get("/get-organisation-structure-classes", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrPostTab.getOrganisationStructureClasses);
+router.get("/get-organisation-code/:organisationId", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation("organisationId"), hrManagementTab.getOrganisationCode);
+router.get("/get-department-id/:postId", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getDepartmentId);
+router.get("/check-post-code/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.checkPostCode);
+router.post("/post-strength-detail", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrManagementTab.addPostStrengthDetail);
 router.post("/post-hr-anticipated-vacancies", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrManagementTab.addAnticipatedVancancies);
 router.post("/put-hr-anticipated-vacancies", auth, requireModulePermission("HR_MANAGEMENT", "update"), hrManagementTab.updateAnticipatedVacancies);
 router.delete("/delete-hr-anticipated-vacancies/:anticipatedId", auth, requireModulePermission("HR_MANAGEMENT", "delete"), hrManagementTab.deleteAnticipatedVacancy);
 router.get("/get-hr-anticipated-vacancies/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getAnticipatedVacancies);
-router.post("/post-revive-detail", hrManagementTab.addRevivePost);
-router.get("/get-strength-data/:Id", hrManagementTab.getPostStrengthData);
-router.get("/get-strength-absolute-data/:Id", hrManagementTab.getPostStrengthAbsoluteData);
+router.post("/post-revive-detail", auth, requireModulePermission("HR_MANAGEMENT", "update"), hrManagementTab.addRevivePost);
+router.get("/get-strength-data/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getPostStrengthData);
+router.get("/get-strength-absolute-data/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getPostStrengthAbsoluteData);
 router.get("/get-permanent-abolished-post/", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getPermanentAbolishedPost);
 router.get("/get-permanent-abolished-post-org/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getPermanentAbolishedPostOrg);
 router.get("/get-filled-post/:postId", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getFilledPost);
@@ -1223,52 +1179,52 @@ router.get('/get-transfer-in-employees-by-organisation/:organisationID', auth, r
 router.get('/get-emp-details-for-vacancy-management/:employeeID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getEmpDetailsForVacancyManagement);
 router.get('/get-chd-in-employees-by-organisation/:organisationId', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getCHDEmployeesByOrgId);
 
-router.get("/get-organisation-name/:organisationID", postRequestTab.getOrgName);
+router.get("/get-organisation-name/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), postRequestTab.getOrgName);
 
-router.get("/get-post-request-data/:postRequestId", postRequestTab.getPostRequestData);
-router.post("/update-post-approval", postRequestTab.updatePostApprovalDetails);
-router.post("/approve-post-request", postRequestTab.approvePostRequest);
-router.post("/reject-approve-request", postRequestTab.rejectApproveRequest);
-router.post("/update-post-request-approval", postRequestTab.updatePostRequestApprovalDetail);
-router.get("/get-user-name/:userID", postRequestTab.getUserName);
+router.get("/get-post-request-data/:postRequestId", auth, requireModulePermission("HR_MANAGEMENT", "read"), postRequestTab.getPostRequestData);
+router.post("/update-post-approval", requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.updatePostApprovalDetails);
+router.post("/approve-post-request", requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.approvePostRequest);
+router.post("/reject-approve-request", requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.rejectApproveRequest);
+router.post("/update-post-request-approval", requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.updatePostRequestApprovalDetail);
+router.get("/get-user-name/:userID", auth, requireModulePermission("HR_MANAGEMENT", "read"), postRequestTab.getUserName);
 
 router.get("/get-activity-date-data/:fromDate/:toDate/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrPostTab.getActivityDateData);
 
-router.get("/get-emp-details-by-reference-id", hrEmployeeTab.getEmployeeDetailsByReferenceId);
-router.get("/get-emp-details-by-reference-id-and-emp-name/:referenceID", hrEmployeeTab.getEmployeeDetailsByReferenceIdOnly);
+router.get("/get-emp-details-by-reference-id", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getEmployeeDetailsByReferenceId);
+router.get("/get-emp-details-by-reference-id-and-emp-name/:referenceID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getEmployeeDetailsByReferenceIdOnly);
 //Dashboard
 
 router.get("/get-wing-wise-dashboard/:userId", dashboardController.getDashboardWingWise);
-router.get("/get-dashboard-gem-pro-and-capex/:userId", dashboardController.getDashboardGemProAndCapex);
-router.get("/get-dashboard-gem-pro-and-capex-ministry-view/:userId", dashboardController.getDashboardGemProAndCapexministryView);
+router.get("/get-dashboard-gem-pro-and-capex/:userId", auth, requireStrictModulePermission("CAPEX", "read"), dashboardController.getDashboardGemProAndCapex);
+router.get("/get-dashboard-gem-pro-and-capex-ministry-view/:userId", auth, requireStrictModulePermission("CAPEX", "read"), dashboardController.getDashboardGemProAndCapexministryView);
 router.get("/get-dashboard-organisation-view/:userId", dashboardController.getDashboardorganisationview);
 
 //REVISED HR
 
-router.get("/hr-post-by-orgId/:organisationID/:departmentId", hrManagementTab.getPostListByOrgId);
-router.post("/add-new-emplyee" , hrManagementTab.addNewEmployee);
-router.post("/edit-employee-details", hrManagementTab.editEmployeeDetails);
-router.get("/get-sanctioned-strength-details/:userID", hrManagementTab.getDetailedSanctionedStrength);
-router.get("/get-total-filled-post-details/:organisationID", hrManagementTab.getDetailedTotalFilledPosts);
-router.get("/get-total-vacant-posts-details/:organisationID", hrManagementTab.getTotalVacantPosts);
-router.get("/get-abolised-vacant-posts-details/:organisationID", hrManagementTab.getAbolishedVacantPosts);
+router.get("/hr-post-by-orgId/:organisationID/:departmentId", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrManagementTab.getPostListByOrgId);
+router.post("/add-new-emplyee" , auth, requireModulePermission("HR_MANAGEMENT", "create"), hrManagementTab.addNewEmployee);
+router.post("/edit-employee-details", auth, requireModulePermission("HR_MANAGEMENT", "update"), hrManagementTab.editEmployeeDetails);
+router.put("/edit-employee-details/:employeeMasterId/:employeeId", auth, requireModulePermission("HR_MANAGEMENT", "update"), hrManagementTab.editEmployeeDetails);
+router.get("/get-sanctioned-strength-details/:userID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getDetailedSanctionedStrength);
+router.get("/get-total-filled-post-details/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrManagementTab.getDetailedTotalFilledPosts);
+router.get("/get-total-vacant-posts-details/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrManagementTab.getTotalVacantPosts);
+router.get("/get-abolised-vacant-posts-details/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrManagementTab.getAbolishedVacantPosts);
 router.get("/get-year-and-month/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getYearAndMonth);
 
-router.post("/revised-hr-post", revisedHrPost.createRevisedHrPost);
-router.get("/revised-hr-post/:organisationID", revisedHrPost.getRevisedHrPost);
-router.delete("/revised-delete-hr-post/:postId/:reason/:userID", revisedHrPost.revisedDeleteHrPost);
-router.get("/revised-get-hr-division/", revisedHrPost.getDivisionDropdownData);
-router.put("/revised-update-hr-post-strength/:Id", revisedHrPost.updateRevisedHrPostStrength);
-router.get("/revised-hr-management-post/:Id", revisedHrPost.getRevisedHrManagementPost);
-router.get("/sanctioned-strength/:Id", revisedHrPost.updateRevisedHrPostStrength);
+router.post("/revised-hr-post", auth, requireModulePermission("HR_MANAGEMENT", "create"), revisedHrPost.createRevisedHrPost);
+router.get("/revised-hr-post/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), revisedHrPost.getRevisedHrPost);
+router.delete("/revised-delete-hr-post/:postId/:reason/:userID", auth, requireModulePermission("HR_MANAGEMENT", "delete"), revisedHrPost.revisedDeleteHrPost);
+router.get("/revised-get-hr-division/", auth, requireModulePermission("HR_MANAGEMENT", "read"), revisedHrPost.getDivisionDropdownData);
+router.put("/revised-update-hr-post-strength/:Id", auth, requireModulePermission("HR_MANAGEMENT", "update"), revisedHrPost.updateRevisedHrPostStrength);
+router.get("/revised-hr-management-post/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), revisedHrPost.getRevisedHrManagementPost);
 
-router.get("/get-hr-employee-data/:Id", hrEmployeeTab.getHrEmployee);
-router.get("/get-hr-employee-by-id/:employeeMasterID", hrEmployeeTab.getHrEmployeeByID);
-router.get('/get-hr-department-dropdown-list', hrEmployeeTab.getDepartmentList);
-router.post("/submit-employee-leave-history", hrEmployeeTab.submitEmpLeaveHistory);
-router.get("/get-emp-leave-history-details/:employeeID", hrEmployeeTab.getEmpLeaveHistoryData);
-router.get("/get-post-names-by-org/:selectedOrganisationId", hrEmployeeTab.getPostNamesByOrgId);
-router.post('/update-employee-status/:status/:empID/:referenceID', hrEmployeeTab.updateEmployeeStatus);
+router.get("/get-hr-employee-data/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getHrEmployee);
+router.get("/get-hr-employee-by-id/:employeeMasterID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getHrEmployeeByID);
+router.get('/get-hr-department-dropdown-list', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getDepartmentList);
+router.post("/submit-employee-leave-history", auth, requireModulePermission("HR_MANAGEMENT", "update"), hrEmployeeTab.submitEmpLeaveHistory);
+router.get("/get-emp-leave-history-details/:employeeID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getEmpLeaveHistoryData);
+router.get("/get-post-names-by-org/:selectedOrganisationId", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getPostNamesByOrgId);
+router.post('/update-employee-status/:status/:empID/:referenceID', auth, requireModulePermission("HR_MANAGEMENT", "update"), hrEmployeeTab.updateEmployeeStatus);
 
 router.get('/get-hr-department-list/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getHrDepartmentList);
 router.get('/get-hr-division-list', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getHrDivisionList);
@@ -1283,7 +1239,7 @@ router.get('/get-post-code-by-postId/:postID/:methodOfApp', auth, requireModuleP
 router.get("/get-all-hr-post-by-org/:orgID", auth, requireModulePermission("HR_MANAGEMENT", "read"), vacancyStatusTab.getAllHrPostByOrgID);
 router.get('/get-hr-postList-by-department-organisation/:departmentID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), revisedHrPost.getPostListByDepAndOrg);
 
-router.post("/delete-hr-post-codes",revisedHrPost.deleteHrPostCodes);
+router.post("/delete-hr-post-codes",auth, requireModulePermission("HR_MANAGEMENT", "delete"), revisedHrPost.deleteHrPostCodes);
 router.put("/update-hr-employee-activity", auth, requireModulePermission("HR_MANAGEMENT", "update"), vacancyStatusTab.updateHrEmployeeActivity);
 // HR lists with server-side pagination (?page=&limit=, limit=all for export; organisation from the token)
 router.get('/hr/employees', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.listEmployeesHoldingDesignation);
@@ -1293,42 +1249,42 @@ router.get('/hr/abolished-posts', auth, requireModulePermission("HR_MANAGEMENT",
 router.get('/hr/abolished-posts/facets', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.listAbolishedPostFilters);
 
 router.get('/get-employee-list-holding-designation/:orgID/:depID/:postID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getEmployeeListHoldingDesig);
-router.get('/get-employee-transaction-history-by-org/:empMasterID/:orgID/:roleID',hrEmployeeTab.getTransactionHstryOfEmp);
-router.put("/update-filled-post-activity-data",revisedHrPost.updateFilledPostActivity);
+router.get('/get-employee-transaction-history-by-org/:empMasterID/:orgID/:roleID',auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getTransactionHstryOfEmp);
+router.put("/update-filled-post-activity-data",auth, requireModulePermission("HR_MANAGEMENT", "update"), revisedHrPost.updateFilledPostActivity);
 
 //vacancy status
 router.put("/update-all-vacancies", auth, requireModulePermission("HR_MANAGEMENT", "update"), hrEmployeeTab.updatedVaccancyPosts);
 // router.get('/get-hr-postList-by-department-organisation/:departmentID/:organisationID', revisedHrPost.getPostListByDepAndOrg);
 router.put("/update-post-strength-log", auth, requireModulePermission("HR_MANAGEMENT", "update"), revisedHrPost.updatePostStrengthLog);
-router.get('/get-employeeId-from-post-strength/:organisationID', revisedHrPost.getEmployeeIdFromPostStrength);
-router.get('/get-post-names-by-post-code/:postCode', revisedHrPost.getPostNamesByPostCode);
-router.get('/get-deputed-employees-by-organisation/:organisationId', hrEmployeeTab.getDeputedEmployeeListByOrgId);
+router.get('/get-employeeId-from-post-strength/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), revisedHrPost.getEmployeeIdFromPostStrength);
+router.get('/get-post-names-by-post-code/:postCode', auth, requireModulePermission("HR_MANAGEMENT", "read"), revisedHrPost.getPostNamesByPostCode);
+router.get('/get-deputed-employees-by-organisation/:organisationId', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getDeputedEmployeeListByOrgId);
 router.get('/get-vacancy-log-details-by-postcode/:postCode', auth, requireModulePermission("HR_MANAGEMENT", "read"), revisedHrPost.getVaccancyLogDetailsByPostCode);
 router.get('/get-deputed-employees-by-orgId/:organisationId/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getDeputedEmployeesByOrgId);
-router.get('/get-employee-list-by-orgID/:organisationID', hrEmployeeTab.getHrEmployeeListByOrgId);
+router.get('/get-employee-list-by-orgID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getHrEmployeeListByOrgId);
 router.get('/get-composite-employee-list-by-orgID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getHrCompositeEmployeeListByOrgId);
 
 //hr dash
 router.get(`/get-hr-promotion-postcode/:postID`, auth, requireModulePermission("HR_MANAGEMENT", "read"), vacancyStatusTab.getPromotionVacantPostCode);
-router.get("/get-hr-all-employee-data/:roleID/:organisationID", hrManagementTab.getHRAllEmployeeData);
+router.get("/get-hr-all-employee-data/:roleID/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getHRAllEmployeeData);
 router.get('/get-hr-dashboard-content/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), vacancyStatusTab.getHRDashboardContentData);
-router.get('/get-abolishing-post-within-month/:clusterID/:organisationID', vacancyStatusTab.getAbolishingPostWithinAmonth);
-router.get('/get-emp-going-to-retire-within-six-months/:clusterID/:organisationID', vacancyStatusTab.getEmpGoingToRetireWithinSixMonths);
-router.get('/get-pwbd-wise-count/:clusterID/:organisationID', vacancyStatusTab.getPwbdWiseCount);
-router.get('/get-experienced-emp-count/:clusterID/:organisationID', vacancyStatusTab.getExperiencedEmpCount);
-router.get('/get-gender-wise-cont-by-org/:clusterID/:organisationID', vacancyStatusTab.getGenderWiseContByOrg);
+router.get('/get-abolishing-post-within-month/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), vacancyStatusTab.getAbolishingPostWithinAmonth);
+router.get('/get-emp-going-to-retire-within-six-months/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), vacancyStatusTab.getEmpGoingToRetireWithinSixMonths);
+router.get('/get-pwbd-wise-count/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), vacancyStatusTab.getPwbdWiseCount);
+router.get('/get-experienced-emp-count/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), vacancyStatusTab.getExperiencedEmpCount);
+router.get('/get-gender-wise-cont-by-org/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), vacancyStatusTab.getGenderWiseContByOrg);
 router.get('/get-department-wise-post-status/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), vacancyStatusTab.getDepartmentWiseEmpContByOrg);
-router.get('/get-community-wise-count-by-org/:clusterID/:organisationID', vacancyStatusTab.getCommunityWiseCountByOrg);
+router.get('/get-community-wise-count-by-org/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), vacancyStatusTab.getCommunityWiseCountByOrg);
 router.get('/get-hr-dashboard-content-data-filter/:clusterID/:organisationID/:year/:month', auth, requireModulePermission("HR_MANAGEMENT", "read"), vacancyStatusTab.getHRDashboardContentDataFiltered);
 router.get('/get-department-wise-emp-count-by-org-data-filter/:clusterID/:organisationID/:year/:month', auth, requireModulePermission("HR_MANAGEMENT", "read"), vacancyStatusTab.getDepartmentWiseEmpContByOrgFiltered);
-router.get('/get-admin-hr-dashboard-content/:clusterID/:organisationID', vacancyStatusTab.getAdminHRDashboardContentData);
-router.get('/get-admin-hr-gender-wise-cont-by-org/:clusterID/:organisationID', vacancyStatusTab.getAdminViewGenderWiseContByOrg);
-router.get('/get-admin-view-experienced-emp-count/:clusterID/:organisationID', vacancyStatusTab.getAdminViewExperiencedEmpCount);
-router.get('/get-admin-view-pwbd-wise-count/:clusterID/:organisationID', vacancyStatusTab.getAdminViewPwbdWiseCount);
-router.get('/get-admin-view-community-wise-count-by-org/:clusterID/:organisationID', vacancyStatusTab.getAdminViewCommunityWiseCountByOrg);
-router.get('/get-admin-view-department-wise-post-status/:clusterID/:organisationID', vacancyStatusTab.getAdminViewDepartmentWiseEmpContByOrg);
+router.get('/get-admin-hr-dashboard-content/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), vacancyStatusTab.getAdminHRDashboardContentData);
+router.get('/get-admin-hr-gender-wise-cont-by-org/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), vacancyStatusTab.getAdminViewGenderWiseContByOrg);
+router.get('/get-admin-view-experienced-emp-count/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), vacancyStatusTab.getAdminViewExperiencedEmpCount);
+router.get('/get-admin-view-pwbd-wise-count/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), vacancyStatusTab.getAdminViewPwbdWiseCount);
+router.get('/get-admin-view-community-wise-count-by-org/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), vacancyStatusTab.getAdminViewCommunityWiseCountByOrg);
+router.get('/get-admin-view-department-wise-post-status/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), vacancyStatusTab.getAdminViewDepartmentWiseEmpContByOrg);
 
-router.post('/revoke-revive-hr-vacant-post', revisedHrPost.upload.single('file'), revisedHrPost.revokeHRVacantPost);
+router.post('/revoke-revive-hr-vacant-post', auth, requireModulePermission("HR_MANAGEMENT", "update"), revisedHrPost.upload.single('file'), revisedHrPost.revokeHRVacantPost);
 router.get('/get-hr-mis-total-manpower-actual/:departmentID/:classID/:orgCategory/:deptCategory', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportTab.getTotalManpowerSanctionActual);
 router.get('/get-hr-mis-gender-wise-major-port/:orgCategory', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportTab.getHRGenderWiseCountMajorReport);
 router.get('/get-total-manpower-class-wise-report/:orgCategory/:deptCategory', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportTab.getTotalManpowerClassWiseReport);
@@ -1358,9 +1314,9 @@ router.post("/submit-anticipated-vacancies", auth, requireModulePermission("HR_M
 router.get("/get-mmt-organisation-by-cluster-id/:clusterID", auth, requireModulePermission("HR_MANAGEMENT", "read"), vacancyStatusTab.getOrganisationByCluster);
 router.put("/update-hr-post-activity", auth, requireModulePermission("HR_MANAGEMENT", "update"), vacancyStatusTab.updateHRPostActivitiy);
 router.put("/update-reason-process-not-initiated", auth, requireModulePermission("HR_MANAGEMENT", "update"), vacancyStatusTab.updateReasonForProcessNotInitiated);
-router.delete("/delete-contractual-data/:contractId/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "delete"), hrTrainingTab.deleteContracturalData);
+router.delete("/delete-contractual-data/:contractId/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "delete"), pinOwnOrganisation(), hrTrainingTab.deleteContracturalData);
 router.get('/get-hr-training-details-data-by-org', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.getHRTrainingDetailsDataByOrg);
-router.delete("/delete-training-data/:trainingID/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "delete"), hrTrainingTab.deleteTrainingData);
+router.delete("/delete-training-data/:trainingID/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "delete"), pinOwnOrganisation(), hrTrainingTab.deleteTrainingData);
 router.get("/get-all-training-data/:userID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.getAllTrainingData);
 router.get("/get-all-contractual-data/:userID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.getAllContractualData);
 router.get("/get-financial-year-by-organisation/:organisationID/:financialYear", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.checkFinancialYearExist);
@@ -1391,21 +1347,21 @@ router.get('/update-Hr-report-Input-update1_5/:organisationID/:financialYear/:mo
 router.post("/update-hr-vacancy-report-input-1-1", auth, requireModulePermission("HR_MANAGEMENT", "update"), hrReportInputTab.updateReportInput1_1);
 router.get('/update-Hr-report-Input1_1/:organisationID/:financialYear', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportInputTab.getUpdatehrReport1_1data);
 // -------------------------------------------------------------------------------------------------------
-router.get('/get-hr-other-org-vacany-details/:organisationID', otherOrgVacancyDetailsTab.getOtherOrgVacancyDetails);
-router.get('/get-hr-dashboard-content-other-org/:clusterID/:organisationID', otherOrgVacancyDetailsTab.getHRDashboardContentOtherOrgData);
-router.get('/get-other-org-abolishing-post-within-month/:clusterID/:organisationID', otherOrgVacancyDetailsTab.getOtherOrgAbolishingPostWithinmonth);
-router.get('/get-other-org-emp-going-to-retire-within-six-months/:clusterID/:organisationID', otherOrgVacancyDetailsTab.getOtherOrgEmpGoingToRetireWithinSixMonths);
-router.get('/get-other-org-emp-gender-wise-count/:clusterID/:organisationID', otherOrgVacancyDetailsTab.getOtherOrgGenderWiseCountByOrg);
-router.get('/get-other-org-community-wise-count-by-org/:clusterID/:organisationID', otherOrgVacancyDetailsTab.getOtherOrgCommunityWiseCountByOrg);
-router.get('/get-other-org-ex-service-count-by-org/:clusterID/:organisationID', otherOrgVacancyDetailsTab.getOtherOrgExperiencedEmpCount);
-router.get('/get-other-org-pwbd-wise-count-by-org/:clusterID/:organisationID', otherOrgVacancyDetailsTab.getOtherOrgPwbdWiseCount);
-router.get('/get-last-upload-date-by-org/:organisationID', otherOrgVacancyDetailsTab.getLastUploadDate);
-router.get('/get-data-from-vacancy-details/:organisationID', otherOrgVacancyDetailsTab.getDataFromVacancyDetails);
-router.get('/get-file-upload-details/:organisationID', otherOrgVacancyDetailsTab.getFileUploadDetails);
-router.post("/upload-vacany-details-file", otherOrgVacancyDetailsTab.upload.single('file'), otherOrgVacancyDetailsTab.fileUploadVacancyDetails);
-router.delete("/delete-vacany-details-file/:fileId", otherOrgVacancyDetailsTab.deleteVacancyFile);
+router.get('/get-hr-other-org-vacany-details/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), otherOrgVacancyDetailsTab.getOtherOrgVacancyDetails);
+router.get('/get-hr-dashboard-content-other-org/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), otherOrgVacancyDetailsTab.getHRDashboardContentOtherOrgData);
+router.get('/get-other-org-abolishing-post-within-month/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), otherOrgVacancyDetailsTab.getOtherOrgAbolishingPostWithinmonth);
+router.get('/get-other-org-emp-going-to-retire-within-six-months/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), otherOrgVacancyDetailsTab.getOtherOrgEmpGoingToRetireWithinSixMonths);
+router.get('/get-other-org-emp-gender-wise-count/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), otherOrgVacancyDetailsTab.getOtherOrgGenderWiseCountByOrg);
+router.get('/get-other-org-community-wise-count-by-org/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), otherOrgVacancyDetailsTab.getOtherOrgCommunityWiseCountByOrg);
+router.get('/get-other-org-ex-service-count-by-org/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), otherOrgVacancyDetailsTab.getOtherOrgExperiencedEmpCount);
+router.get('/get-other-org-pwbd-wise-count-by-org/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), otherOrgVacancyDetailsTab.getOtherOrgPwbdWiseCount);
+router.get('/get-last-upload-date-by-org/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), otherOrgVacancyDetailsTab.getLastUploadDate);
+router.get('/get-data-from-vacancy-details/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), otherOrgVacancyDetailsTab.getDataFromVacancyDetails);
+router.get('/get-file-upload-details/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), otherOrgVacancyDetailsTab.getFileUploadDetails);
+router.post("/upload-vacany-details-file", auth, requireModulePermission("HR_MANAGEMENT", "create"), otherOrgVacancyDetailsTab.upload.single('file'), otherOrgVacancyDetailsTab.pinUploadScope, otherOrgVacancyDetailsTab.fileUploadVacancyDetails);
+router.delete("/delete-vacany-details-file/:fileId", auth, requireModulePermission("HR_MANAGEMENT", "delete"), otherOrgVacancyDetailsTab.deleteVacancyFile);
 
-router.get('/get-class-org-wise/:clusterID/:organisationID', otherOrgVacancyDetailsTab.getClassOrgWise);
+router.get('/get-class-org-wise/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), otherOrgVacancyDetailsTab.getClassOrgWise);
 // REPORTS
 // Parliamentar Issues
 // Assurance
@@ -1505,16 +1461,17 @@ router.get(
 );
 
 // Bill Report
-router.get("/billwingwise-report", billReportTab.billWingWiseData);
-router.get("/billdivisionwise-report/:wingID/", billReportTab.billDivisionWiseData);
-router.get("/getbill-wingwise/:wingID/:billStage", billReportTab.getDetailBillWingWise);
-router.get("/getbill-divisionwise/:divisionID/:billStage", billReportTab.getDetailBillDivisionWise);
+router.get("/billwingwise-report", auth, billsRead, billReportTab.billWingWiseData);
+router.get("/billdivisionwise-report/:wingID/", auth, billsRead, billReportTab.billDivisionWiseData);
+router.get("/bill-abstract-report", auth, billsRead, billReportTab.billAbstractData);
+router.get("/getbill-wingwise/:wingID/:billStage", auth, billsRead, billReportTab.getDetailBillWingWise);
+router.get("/getbill-divisionwise/:divisionID/:billStage", auth, billsRead, billReportTab.getDetailBillDivisionWise);
 
 //Attendance Report
-router.get("/attendance-weekone-report/:attendanceMonth/:attendanceYear", attendanceReportTab.attendanceWeekOneReport);
-router.get("/employee-attendance-weekone-report/:attendanceMonth/:attendanceYear/:week", empAttendanceReportTab.empAttendanceWeekOneReport);
-router.get("/employee-attendance-weekone-detail/:Year/:Month/:Wing/:Division/:type/:week", empAttendanceReportTab.getDetailAttendanceWeekOneReport);
-router.get("/employee-attendance-check", empAttendanceReportTab.getEmpAttendanceCheck);
+router.get("/attendance-weekone-report/:attendanceMonth/:attendanceYear", auth, attRead, attendanceReportTab.attendanceWeekOneReport);
+router.get("/employee-attendance-weekone-report/:attendanceMonth/:attendanceYear/:week", auth, attRead, empAttendanceReportTab.empAttendanceWeekOneReport);
+router.get("/employee-attendance-weekone-detail/:Year/:Month/:Wing/:Division/:type/:week", auth, attRead, empAttendanceReportTab.getDetailAttendanceWeekOneReport);
+router.get("/employee-attendance-check", auth, attRead, empAttendanceReportTab.getEmpAttendanceCheck);
 
 //Court Case Report
 // router.get("/all-court-case-report", arbitCourtCaseTab.getCourtCaseReport),
@@ -1553,12 +1510,32 @@ router.get(
 );
 
 // Cabinet Ministry
-router.get("/cabinetministry-report", cabinetMinistryReportTab.cabinetMinistryReport);
-router.get("/detailministry-report/:ministryId/:cabinetMinistryStage", cabinetMinistryReportTab.getMinistryDetailsReport);
+router.get(
+  "/cabinetministry-report",
+  auth,
+  requireModulePermission("CABINET_NOTES_OTHER_MINISTRIES", "read"),
+  cabinetMinistryReportTab.cabinetMinistryReport
+);
+router.get(
+  "/detailministry-report/:ministryId/:cabinetMinistryStage",
+  auth,
+  requireModulePermission("CABINET_NOTES_OTHER_MINISTRIES", "read"),
+  cabinetMinistryReportTab.getMinistryDetailsReport
+);
 
 // Pendency Cabinet Ministry
-router.get("/minstry-pendencyreport", cabinetMinistryReportTab.cabinetMinistryPendencyReport);
-router.get("/detailministry-pendencyreport/:ministryId/:countDate", cabinetMinistryReportTab.getDetailMinistryPendencyReport);
+router.get(
+  "/minstry-pendencyreport",
+  auth,
+  requireModulePermission("CABINET_NOTES_OTHER_MINISTRIES", "read"),
+  cabinetMinistryReportTab.cabinetMinistryPendencyReport
+);
+router.get(
+  "/detailministry-pendencyreport/:ministryId/:countDate",
+  auth,
+  requireModulePermission("CABINET_NOTES_OTHER_MINISTRIES", "read"),
+  cabinetMinistryReportTab.getDetailMinistryPendencyReport
+);
 
 // Audit Para
 router.get("/auditparawise-report", aditParaReportTab.auditParaWiseReport);
@@ -1598,40 +1575,28 @@ router.post(
   socialmediaTab.createSocialMedia
 );
 router.get(
-  "/socialmedia-parameter",
+  "/monthly-socialmedia-parameter",
   auth,
   requireModulePermission("MEDIA_OUTREACH", "read"),
-  socialmediaTab.getSocialMediaData
+  socialmediaTab.getSocialMediaList
 );
 router.get(
-  "/monthly-socialmedia-parameter/:userID/",
+  "/quarterly-socialmedia-parameter/:platform",
   auth,
   requireModulePermission("MEDIA_OUTREACH", "read"),
-  socialmediaTab.getMonthlySocialParameter
+  socialmediaTab.getQuarterlySummary
 );
 router.get(
-  "/quarterly-socialmedia-parameter/:platform/:userID/",
+  "/annually-socialmedia-parameter/:platform",
   auth,
   requireModulePermission("MEDIA_OUTREACH", "read"),
-  socialmediaTab.getQuarterlySocialParameter
-);
-router.get(
-  "/annually-socialmedia-parameter/:platform/:userID/",
-  auth,
-  requireModulePermission("MEDIA_OUTREACH", "read"),
-  socialmediaTab.getAnnuallySocialMediaData
-);
-router.get(
-  "/update-Broadcast-media-data/:mediaOutreachId",
-  auth,
-  requireModulePermission("MEDIA_OUTREACH", "read"),
-  socialmediaTab.getUpdateBroadcastmediadata
+  socialmediaTab.getAnnualSummary
 );
 router.put(
-  '/media-outreach-data-edit',
+  "/media-outreach-data-edit",
   auth,
   requireModulePermission("MEDIA_OUTREACH", "update"),
-  socialmediaTab.updateBroadcastmediadata
+  socialmediaTab.updateSocialMedia
 );
 router.delete(
   "/delete-social-media/:mediaOutreachId",
@@ -1640,21 +1605,21 @@ router.delete(
   socialmediaTab.deleteSocialMedia
 );
 
-// social Media week1 Report
+// Social media monthly reports
 router.get(
-  "/monthly-onlinemedia-report-parameter/:userID/:currentMonth/:currentFinYear/",
+  "/monthly-onlinemedia-report-parameter/:currentMonth/:currentFinYear",
   auth,
   requireModulePermission("MEDIA_OUTREACH", "read"),
   socialmediaTab.getMonthlyOnlineReport
 );
 router.get(
-  "/monthly-socialmedia-report-parameter/:userID/:currentMonth/:currentFinYear/",
+  "/monthly-socialmedia-report-parameter/:currentMonth/:currentFinYear",
   auth,
   requireModulePermission("MEDIA_OUTREACH", "read"),
   socialmediaTab.getMonthlySocialReport
 );
 router.get(
-  "/monthly-BroadPrint-report-parameter/:userID/:platform/:currentMonth/:currentFinYear/",
+  "/monthly-BroadPrint-report-parameter/:platform/:currentMonth/:currentFinYear",
   auth,
   requireModulePermission("MEDIA_OUTREACH", "read"),
   socialmediaTab.getMonthlyBroadPrintReport
@@ -1688,64 +1653,61 @@ router.get("/detailed-report-delayed-overdue-initiatives/:userID", auth, require
 router.delete("/meeting/delete/:id", auth, requireModulePermission("MIV_2030", "delete"), mivReportTab.deleteMeeting);
 
 // HR
-router.get("/hrdetailed-abstarct-report/:organisationId/:classId", hrReportTab.hrDetailedAbstarctReport);
-router.get("/hrabstarct-report/:orgCatDrop/:orgDrop/:classDrop", hrReportTab.hrAbstarctReport);
+router.get("/hrdetailed-abstarct-report/:organisationId/:classId", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation("organisationId"), hrReportTab.hrDetailedAbstarctReport);
+router.get("/hrabstarct-report/:orgCatDrop/:orgDrop/:classDrop", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportTab.hrAbstarctReport);
 // router.post("/hroverview-report/", hrReportTab.hrOverviewReport);
-router.get("/hrfirst-report/:orgCatDrop/:orgDrop/:financialDrop", hrReportTab.hrFirstReport);
-router.get("/hrdetailed-report/:organisationID/:type/:financialDrop", hrReportTab.detailedHrReport);
-router.get("/hrsecond-report/:orgCatDrop/:orgDrop", hrReportTab.hrSecondReport);
-router.get("/hrdetailed-revival-report/:organisationID/:classID/:type/:postID", hrReportTab.hrDetailedRevivalReport);
-router.get("/hrdetailed-status-report/:organisationID/:classID/:type/:postID", hrReportTab.hrDetailedStatusReport);
-router.get("/hrdetailed-status-filling-report/:organisationID/:type", hrReportTab.detailedHrStatusFillingReport);
+router.get("/hrfirst-report/:orgCatDrop/:orgDrop/:financialDrop", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportTab.hrFirstReport);
+router.get("/hrdetailed-report/:organisationID/:type/:financialDrop", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrReportTab.detailedHrReport);
+router.get("/hrsecond-report/:orgCatDrop/:orgDrop", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportTab.hrSecondReport);
+router.get("/hrdetailed-revival-report/:organisationID/:classID/:type/:postID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrReportTab.hrDetailedRevivalReport);
+router.get("/hrdetailed-status-report/:organisationID/:classID/:type/:postID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrReportTab.hrDetailedStatusReport);
+router.get("/hrdetailed-status-filling-report/:organisationID/:type", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrReportTab.detailedHrStatusFillingReport);
 
-router.get("/hrfirst-report-other-org/:roleID/:organisationID", hrReportInputTab.hrFirstReportOtherOrg);
-router.get("/hrsecond-report-other-org/:roleID/:organisationID", hrReportInputTab.hrSecondReportOtherOrg);
-router.get("/hrsixth-report-other-org/:roleID/:organisationID", hrReportInputTab.hrSixthReportOtherOrg);
-router.get("/hrseventh-report-other-org/:roleID/:organisationID", hrReportInputTab.hrSeventhReportOtherOrg);
-router.get("/hreighth-report-other-org/:roleID/:organisationID", hrReportInputTab.hrEighthReportOtherOrg);
-router.get("/hrabstarct-report-other-org/:roleID/:organisationID",hrReportInputTab.hrAbstarctReportOtherOrg);
-router.get("/hrfourth-report-other-org/:roleID/:organisationID",hrReportInputTab.hrFourthReportOtherOrg);
-router.get("/hrfifth-report-other-org/:roleID/:organisationID",hrReportInputTab.hrFifthReportOtherOrg);
-router.get("/hr-report-input-list/:userID", hrReportInputTab. getHrreportInputformList);
+router.get("/hrfirst-report-other-org/:roleID/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnRole(), pinOwnOrganisation(), hrReportInputTab.hrFirstReportOtherOrg);
+router.get("/hrsecond-report-other-org/:roleID/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnRole(), pinOwnOrganisation(), hrReportInputTab.hrSecondReportOtherOrg);
+router.get("/hrsixth-report-other-org/:roleID/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnRole(), pinOwnOrganisation(), hrReportInputTab.hrSixthReportOtherOrg);
+router.get("/hrseventh-report-other-org/:roleID/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnRole(), pinOwnOrganisation(), hrReportInputTab.hrSeventhReportOtherOrg);
+router.get("/hreighth-report-other-org/:roleID/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnRole(), pinOwnOrganisation(), hrReportInputTab.hrEighthReportOtherOrg);
+router.get("/hrabstarct-report-other-org/:roleID/:organisationID",auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnRole(), pinOwnOrganisation(), hrReportInputTab.hrAbstarctReportOtherOrg);
+router.get("/hrfourth-report-other-org/:roleID/:organisationID",auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnRole(), pinOwnOrganisation(), hrReportInputTab.hrFourthReportOtherOrg);
+router.get("/hrfifth-report-other-org/:roleID/:organisationID",auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnRole(), pinOwnOrganisation(), hrReportInputTab.hrFifthReportOtherOrg);
 
 // Capex report 
-router.get("/capex-report/:selectedYear", auth, requireModulePermission("CAPEX", "read"), capexReportTab.capexReportData);
-router.get("/capex-summary-report/:selectedYear", auth, requireModulePermission("CAPEX", "read"), capexReportTab.capexSummaryReportData);
-router.get("/capex-yoy-report", auth, requireModulePermission("CAPEX", "read"), capexReportTab.capexYoYReportData);
-router.get("/hrfirst-report/:orgCatDrop/:orgDrop/:financialDrop", hrReportTab.hrFirstReport);
-router.get("/hrsecond-report/:orgCatDrop/:orgDrop", hrReportTab.hrSecondReport);
-router.get("/hrfourth-report/:orgCatDrop/:orgDrop/:classDrop", hrReportTab.hrFourthReport);
-router.get("/hrfourth-detailed-report/:organisationId/:classId", hrReportTab.hrFourthDetailedReport);
-router.get("/hrfifth-report/:orgCatDrop/:orgDrop/:classDrop", hrReportTab.hrFifthReport);
-router.get("/hrfifth-detailed-report/:organisationId/:classId", hrReportTab.hrFifthDetailedReport);
-router.get("/hrsixth-report/:orgCatDrop/:orgDrop/:classDrop", hrReportTab.hrSixthReport);
-router.get("/hrsixth-detailed-report/:organisationId/:classId", hrReportTab.hrSixthDetailedReport);
-router.get("/hrseventh-report/:orgCatDrop/:orgDrop/:classDrop", hrReportTab.hrSeventhReport);
-router.get("/hrseventh-detailed-report/:organisationId/:classId", hrReportTab.hrSeventhDetailedReport);
-router.get("/hreighth-report/:orgCatDrop/:orgDrop/:classDrop", hrReportTab.hrEighthReport);
-router.get("/hreighth-detailed-report/:organisationId/:classId", hrReportTab.hrEighthDetailedReport);
-router.get("/hrnineth-report/:orgCatDrop/:orgDrop/:classDrop", hrReportTab.hrNinethReport);
-router.get("/hrnineth-detailed-report/:organisationId/:classId", hrReportTab.hrNinethDetailedReport);
+router.get("/capex-report/:selectedYear", auth, requireStrictModulePermission("CAPEX", "read"), capexReportTab.capexReportData);
+router.get("/capex-summary-report/:selectedYear", auth, requireStrictModulePermission("CAPEX", "read"), capexReportTab.capexSummaryReportData);
+router.get("/capex-yoy-report", auth, requireStrictModulePermission("CAPEX", "read"), capexReportTab.capexYoYReportData);
+router.get("/hrfourth-report/:orgCatDrop/:orgDrop/:classDrop", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportTab.hrFourthReport);
+router.get("/hrfourth-detailed-report/:organisationId/:classId", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation("organisationId"), hrReportTab.hrFourthDetailedReport);
+router.get("/hrfifth-report/:orgCatDrop/:orgDrop/:classDrop", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportTab.hrFifthReport);
+router.get("/hrfifth-detailed-report/:organisationId/:classId", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation("organisationId"), hrReportTab.hrFifthDetailedReport);
+router.get("/hrsixth-report/:orgCatDrop/:orgDrop/:classDrop", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportTab.hrSixthReport);
+router.get("/hrsixth-detailed-report/:organisationId/:classId", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation("organisationId"), hrReportTab.hrSixthDetailedReport);
+router.get("/hrseventh-report/:orgCatDrop/:orgDrop/:classDrop", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportTab.hrSeventhReport);
+router.get("/hrseventh-detailed-report/:organisationId/:classId", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation("organisationId"), hrReportTab.hrSeventhDetailedReport);
+router.get("/hreighth-report/:orgCatDrop/:orgDrop/:classDrop", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportTab.hrEighthReport);
+router.get("/hreighth-detailed-report/:organisationId/:classId", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation("organisationId"), hrReportTab.hrEighthDetailedReport);
+router.get("/hrnineth-report/:orgCatDrop/:orgDrop/:classDrop", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportTab.hrNinethReport);
+router.get("/hrnineth-detailed-report/:organisationId/:classId", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation("organisationId"), hrReportTab.hrNinethDetailedReport);
 
-router.get("/hrdrilled-dr-report/:organisationID/:classID/:postID", hrReportTab.hrDrilledDirectRecruitmentReport);
-router.get("/hrdrilled-p-report/:organisationID/:classID/:postID", hrReportTab.hrDrilledPromotionReport);
-router.get("/hrdrilled-d-report/:organisationID/:classID/:postID", hrReportTab.hrDrilledDeputationReport);
-router.get("/hrdrilled-cm-report/:organisationID/:classID/:postID", hrReportTab.hrDrilledCompositeMethodReport);
-router.get("/hrdrilled-transfer-report/:organisationID/:classID/:postID", hrReportTab.hrDrilledTransferReport);
+router.get("/hrdrilled-dr-report/:organisationID/:classID/:postID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrReportTab.hrDrilledDirectRecruitmentReport);
+router.get("/hrdrilled-p-report/:organisationID/:classID/:postID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrReportTab.hrDrilledPromotionReport);
+router.get("/hrdrilled-d-report/:organisationID/:classID/:postID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrReportTab.hrDrilledDeputationReport);
+router.get("/hrdrilled-cm-report/:organisationID/:classID/:postID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrReportTab.hrDrilledCompositeMethodReport);
+router.get("/hrdrilled-transfer-report/:organisationID/:classID/:postID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrReportTab.hrDrilledTransferReport);
 
-router.get("/hrdrilled-dr-complete-report/:organisationID/:classID/:postID/:type", hrDrilledReportTab.hrDrilledDirectRecruitmentCompleteReport);
-router.get("/hrdrilled-p-complete-report/:organisationID/:classID/:postID/:type", hrDrilledReportTab.hrDrilledPromotionCompleteReport);
+router.get("/hrdrilled-dr-complete-report/:organisationID/:classID/:postID/:type", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrDrilledReportTab.hrDrilledDirectRecruitmentCompleteReport);
+router.get("/hrdrilled-p-complete-report/:organisationID/:classID/:postID/:type", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrDrilledReportTab.hrDrilledPromotionCompleteReport);
 
-router.get("/hrdrilled-d-complete-report/:organisationID/:classID/:postID/:type", hrDrilledReportTab.hrDrilledDeputationCompleteReport);
-router.get("/hrdrilled-cm-complete-report/:organisationID/:classID/:postID/:type", hrDrilledReportTab.hrDrilledCompositeMethodCompleteReport);
-router.get("/hr-anticipated-report-data-by-org/:organisationID/:classID/:methodOfAppointment",hrReportTab.hrAnticipatedReportData);
-router.get("/hr-drilled-down-date-arise-report/:organisationID/:classID/:methodOfAppointment",hrDrilledReportTab.hrDrilledForMethodofAppDateAriseReport);
-router.get("/hr-drilled-down-date-risen-report/:organisationID/:classID/:methodOfAppointment",hrDrilledReportTab.hrDrilledForMethodofAppVacancyRisenReport);
-router.get("/hr-drilled-filling-up-vacancies-report/:organisationID/:classID/:postID",hrDrilledReportTab.hrDrilledFillingUpVacanciesReport);
-router.get("/hr-drilled-occurred-during-fy-report/:organisationID/:classID/:postID",hrDrilledReportTab.hrDrilledOccurredDuringFYReport);
-router.get("/hr-drilled-total-fill-up-vacancies-report/:organisationID/:classID/:postID",hrDrilledReportTab.hrdrilledTotalFillUpVacanciesReport);
-router.get("/hr-drilled-fill-up-vacancies-in-moa-wise-report/:organisationID/:classID/:methodOfAppointment",hrDrilledReportTab.drilledDownFillupVacanciesinMOAwise);
-router.get("/hr-drilled-balance-fill-to-be-in-moa-wise-report/:organisationID/:classID/:methodOfAppointment",hrDrilledReportTab.drilledDownBalanceToBeFillupMOAwise);
+router.get("/hrdrilled-d-complete-report/:organisationID/:classID/:postID/:type", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrDrilledReportTab.hrDrilledDeputationCompleteReport);
+router.get("/hrdrilled-cm-complete-report/:organisationID/:classID/:postID/:type", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrDrilledReportTab.hrDrilledCompositeMethodCompleteReport);
+router.get("/hr-anticipated-report-data-by-org/:organisationID/:classID/:methodOfAppointment",auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrReportTab.hrAnticipatedReportData);
+router.get("/hr-drilled-down-date-arise-report/:organisationID/:classID/:methodOfAppointment",auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrDrilledReportTab.hrDrilledForMethodofAppDateAriseReport);
+router.get("/hr-drilled-down-date-risen-report/:organisationID/:classID/:methodOfAppointment",auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrDrilledReportTab.hrDrilledForMethodofAppVacancyRisenReport);
+router.get("/hr-drilled-filling-up-vacancies-report/:organisationID/:classID/:postID",auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrDrilledReportTab.hrDrilledFillingUpVacanciesReport);
+router.get("/hr-drilled-occurred-during-fy-report/:organisationID/:classID/:postID",auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrDrilledReportTab.hrDrilledOccurredDuringFYReport);
+router.get("/hr-drilled-total-fill-up-vacancies-report/:organisationID/:classID/:postID",auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrDrilledReportTab.hrdrilledTotalFillUpVacanciesReport);
+router.get("/hr-drilled-fill-up-vacancies-in-moa-wise-report/:organisationID/:classID/:methodOfAppointment",auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrDrilledReportTab.drilledDownFillupVacanciesinMOAwise);
+router.get("/hr-drilled-balance-fill-to-be-in-moa-wise-report/:organisationID/:classID/:methodOfAppointment",auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrDrilledReportTab.drilledDownBalanceToBeFillupMOAwise);
 
 // ---------------------------------------------------------- Project Report --------------------------------------------------
 // Report 1.0
@@ -3319,87 +3281,27 @@ router.get('/get-gmis-mou-summits', auth, requireModulePermission("GMIS_IMW_MOU_
 router.get('/get-mou-category-names', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getMouCategory);
 router.post('/submit-gmis-mou-data', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "create"), gmisMouTab.submitGmisMouData);
 router.post("/gmisdocumentUploader", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "create"), gmisMouTab.upload.single('file'), gmisMouTab.addNewgmisFileupload);
-router.get('/get-gmis-mou-data/:roleId/:organisationId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouData);
-router.get('/get-gmis-mou-chart-data', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouChartData);
 router.put('/update-gmis-mou-data', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "update"), gmisMouTab.updateGmisMouData);
 router.get('/get-gmis-mou-data-by-id/:mouID', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouDataByID);
-router.get("/download-gmismou-pdf-document", gmisMouTab.gmisPdfFileDownload);
+router.get("/download-gmismou-pdf-document", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.gmisPdfFileDownload);
 router.delete("/delete-gmisfile", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "delete"), gmisMouTab.gmisfileDelete);
-router.get('/get-organisation-wise-count-amount', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getOrganisationWiseCountAmount);
-router.get('/get-status-wise-count', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getStatusWiseCountAmount);
-router.get('/get-org-wise-status-count/:organisationId/:financialYear/:greaterThan100Cr', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getOrganisationWiseStatusCount);
-router.get('/get-mou-data-by-organisation-and-status/:organisation/:status', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouDataByOrganisationAndStatus);
-router.get('/get-org-wise-status-count-orgview/:organisationID', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getOrganisationWiseStatusCountorgView);
 router.post("/add-revised-financial-progress-date", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "update"), gmisMouTab.addRevisedfinancialprogressdate);
 router.post("/add-revised-physical-progress-date", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "update"), gmisMouTab.addRevisedphysicalprogressdate);
 router.get("/get-revised-financial-progress-date/:mouID", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getRevisedfinancialprogressdate);
 router.get("/get-revised-physical-progress-date/:mouID", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getRevisedphysicalprogressdate);
 
-router.get("/get-mou-stage-details-org/:roleId/:organisationID", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouStageDetails_org);
-router.get("/get-mou-stage-details/:organisationId/:financialYear/:greaterThan100Cr", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouStageDetails);
-router.get('/get-yearwise-gmis-data', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getYearWisegmisData);
-router.get('/get-gmis-drilldown-data', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisDrilldownData);
-router.get('/get-gismou-second-party', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouSecondParty);
 router.get('/get-gismou-vibhas-navic-cell', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouVibhasNavicCell);
-router.get('/get-gismou-category-name', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouCategoryName);
-router.get('/get-gismou-present-status', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouPresentStatus);
-
-router.get('/get-organisation-wise-count-amount-status', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getOrganisationWiseCountAmountStatus);
-router.get('/get-mou-total-count-amount', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getMouTotalCountAmount);
-router.get('/get-mou-categories', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getMouCategories);
-router.get('/get-total-mou-amount', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getTotalMouAndAmountCategoryWise);
-router.get('/get-total-mou-amount-yearwise', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getTotalMouAndAmountyearWise);
-router.get('/get-mou-org-order', auth, requireModulePermission("GMIS_MOU", "read"), gmisMouTab.getOrgWiseMouOrder);
-router.get('/get-organisation-wise-count-amount-status-orgview/:organisationID', gmisMouTab.getOrganisationWiseCountAmountStatusorgView);
-router.get('/get-organisation-wise-count-amount-status-orgview_2021/:organisationID', gmisMouTab.getOrganisationWiseCountAmountStatusorgView_2021);
-router.get('/get-organisation-wise-count-amount-status-orgview_2023/:organisationID', gmisMouTab.getOrganisationWiseCountAmountStatusorgView_2023);
-router.get('/get-organisation-wise-count-amount-status-orgview_2025/:organisationID', gmisMouTab.getOrganisationWiseCountAmountStatusorgView_2025);
-router.get('/get-organisation-wise-count-amount-status-orgview_2025-category/:organisationID', gmisMouTab.getOrganisationWiseCountAmountStatusorgView_2025_category);
-router.get('/get-organisation-wise-count-amount-status-orgview-category/:organisationID', gmisMouTab.getOrganisationWiseCountAmountStatusorgView_category);
-router.get('/get-organisation-wise-count-amount-status-orgview_2021-category/:organisationID', gmisMouTab.getOrganisationWiseCountAmountStatusorgView_2021_category);
-router.get('/get-organisation-wise-count-amount-status-orgview_2023-category/:organisationID', gmisMouTab.getOrganisationWiseCountAmountStatusorgView_2023_category);
 
 
-router.get('/get-org-wise-status-count-orgview_2021/:organisationID', gmisMouTab.getOrganisationWiseStatusCountorgView_2021);
-router.get('/get-org-wise-status-count-orgview_2023/:organisationID', gmisMouTab.getOrganisationWiseStatusCountorgView_2023);
-router.get('/get-org-wise-status-count-orgview_2025/:organisationID', gmisMouTab.getOrganisationWiseStatusCountorgView_2025);
-router.get('/get-organisation-wise-count-amount-status_2021/:category/:organisationId', gmisMouTab.getOrganisationWiseCountAmountStatus_2021);
-router.get('/get-org-wise-status-count_2021/:organisationId', gmisMouTab.getOrganisationWiseStatusCount_2021);
-router.get('/get-organisation-wise-count-amount_2021/:organisationId', gmisMouTab.getOrganisationWiseCountAmount_2021);
-router.get('/get-mou-total-count-amount-2021', gmisMouTab.getMouTotalCountAmount_2021);
-// router.get('/get-mou-total-count-amount-2021/:roleId/:organisationID', gmisMouTab.getMouTotalCountAmount_2021);
-// router.get('/get-gmis-mou-amount-count-2021/:roleId/:organisationID', gmisMouTab.getMouTotalAmountAndCount_2021);
-router.get('/get-total-mou-amount-2021/:category/:organisationId', gmisMouTab.getTotalMouAndAmountCategoryWise_2021),
-router.get('/get-mou-stage-details-2021/:organisationId', gmisMouTab.getGmisMouStageDetails_2021);
-router.get('/get-mou-stage-details-2021-org/:roleId/:organisationID', gmisMouTab.getGmisMouStageDetails_2021_org);
-router.get('/get-status-wise-count-2021/:category/:organisationId', gmisMouTab.getStatusWiseCountAmount_2021);
-router.get('/get-organisation-wise-count-amount-status_2023/:category/:organisationId', gmisMouTab.getOrganisationWiseCountAmountStatus_2023);
-router.get('/get-org-wise-status-count_2023/:organisationId', gmisMouTab.getOrganisationWiseStatusCount_2023);
-router.get('/get-total-mou-amount-2023/:category/:organisationId', gmisMouTab.getTotalMouAndAmountCategoryWise_2023),
-router.get('/get-status-wise-count-2023/:category/:organisationId', gmisMouTab.getStatusWiseCountAmount_2023);
-router.get('/get-organisation-wise-count-amount_2023/:organisationId', gmisMouTab.getOrganisationWiseCountAmount_2023);
-// router.get('/get-gmis-mou-amount-count-2023/:roleId/:organisationID', gmisMouTab.getMouTotalAmountAndCount_2023);
-router.get('/get-mou-stage-details-2023/:organisationId', gmisMouTab.getGmisMouStageDetails_2023);
-router.get('/get-mou-stage-details-2023-org/:roleId/:organisationID', gmisMouTab.getGmisMouStageDetails_2023_org);
-router.get('/get-mou-total-count-amount-2023/:roleId/:organisationID', gmisMouTab.getMouTotalCountAmount_2023);
 
-router.get('/get-organisation-wise-count-amount_2025/:organisationId', gmisMouTab.getOrganisationWiseCountAmount_2025);
-// router.get('/get-mou-total-count-amount-2025/:roleId/:organisationID', gmisMouTab.getMouTotalCountAmount_2025);
-router.get('/get-mou-total-count-amount-2025', gmisMouTab.getMouTotalCountAmount_2025);
-// router.get('/get-gmis-mou-amount-count-2025/:roleId/:organisationID', gmisMouTab.getMouTotalAmountAndCount_2025);
-router.get('/get-mou-stage-details-2025-org/:roleId/:organisationID', gmisMouTab.getGmisMouStageDetails_2025_org);
-router.get('/get-mou-stage-details-2025/:organisationId', gmisMouTab.getGmisMouStageDetails_2025);
-router.get('/get-total-mou-amount-2025/:category/:organisationId', gmisMouTab.getTotalMouAndAmountCategoryWise_2025),
-router.get('/get-status-wise-count-2025/:category/:organisationId', gmisMouTab.getStatusWiseCountAmount_2025);
-router.get('/get-organisation-wise-count-amount-status_2025/:category/:organisationId', gmisMouTab.getOrganisationWiseCountAmountStatus_2025);
-router.get('/get-org-wise-status-count_2025/:organisationId', gmisMouTab.getOrganisationWiseStatusCount_2025);
+
 //GIMS report 
-router.get('/get-event-wise-summary/:userId', gmisMouTab.getEventWiseSummary);
-router.get('/get-org-wise-performance-ranking-report/:userId', gmisMouTab.getorgWisePerformanceRankingReport);
-router.get('/get-vibas-cell-wise-summary/:userId', gmisMouTab.getVibascellWiseSummary);
-router.get('/get-category-wise-summary/:userId', gmisMouTab.getCategoryWiseSummary);
-router.get('/get-physical-and-financial-progress-wise/:userId', gmisMouTab.getPhysicalAndFinancialProgressWise);
-router.get('/get-dropped-mous-report/:userId', gmisMouTab.getDroppedMousReport);
+router.get('/get-event-wise-summary/:userId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getEventWiseSummary);
+router.get('/get-org-wise-performance-ranking-report/:userId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getorgWisePerformanceRankingReport);
+router.get('/get-vibas-cell-wise-summary/:userId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getVibascellWiseSummary);
+router.get('/get-category-wise-summary/:userId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getCategoryWiseSummary);
+router.get('/get-physical-and-financial-progress-wise/:userId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getPhysicalAndFinancialProgressWise);
+router.get('/get-dropped-mous-report/:userId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getDroppedMousReport);
 
 //Marine Casualty
 router.post('/submit-marine-prev-data', marineTab.addMarinePrevIncident);
@@ -3468,24 +3370,24 @@ router.post('/update-module-permission', ModuleControllerTab.updateModulePermiss
 router.get("/organisation-modules/:organisationId", ModuleControllerTab.getModulesByOrganisationCategory);
 
 // rbac
-router.get('/rbac/usermatrix-categories', orgModulePermission.getUsermatrixCategories);
-router.get('/rbac/organisations', orgModulePermission.getOrganisationsByCategory);
-router.get('/rbac/modules', orgModulePermission.getActiveModules);
-router.get('/rbac/org-module-permissions', orgModulePermission.getOrgModulePermissions);
-router.put('/rbac/org-module-permissions', auth, orgModulePermission.saveOrgModulePermissions);
-router.get('/rbac/org-allowed-modules/:organisationId', orgModulePermission.getAllowedModulesForOrganisation);
-router.get('/rbac/matrix-users', userModuleCrud.getMatrixUsers);
-router.get('/rbac/user-module-crud', userModuleCrud.getUserModuleCrud);
-router.put('/rbac/user-module-crud', auth, userModuleCrud.saveUserModuleCrud);
-router.get('/rbac/org-module-permission-log', getOrgModulePermissionLog);
-router.get('/rbac/user-module-crud-log', getUserModuleCrudLog);
+router.get('/rbac/usermatrix-categories', auth, requireUserAdmin, orgModulePermission.getUsermatrixCategories);
+router.get('/rbac/organisations', auth, requireUserAdmin, orgModulePermission.getOrganisationsByCategory);
+router.get('/rbac/modules', auth, requireUserAdmin, orgModulePermission.getActiveModules);
+router.get('/rbac/org-module-permissions', auth, requireUserAdmin, orgModulePermission.getOrgModulePermissions);
+router.put('/rbac/org-module-permissions', auth, requireSuperAdmin, orgModulePermission.saveOrgModulePermissions);
+router.get('/rbac/org-allowed-modules/:organisationId', auth, guardOrganisation((req) => req.params.organisationId), orgModulePermission.getAllowedModulesForOrganisation);
+router.get('/rbac/matrix-users', auth, requireUserAdmin, ownOrganisationQuery, userModuleCrud.getMatrixUsers);
+router.get('/rbac/user-module-crud', auth, guardUserIdsQuery, userModuleCrud.getUserModuleCrud);
+router.put('/rbac/user-module-crud', auth, guardManagedUserList, userModuleCrud.saveUserModuleCrud);
+router.get('/rbac/org-module-permission-log', auth, requireSuperAdmin, getOrgModulePermissionLog);
+router.get('/rbac/user-module-crud-log', auth, requireSuperAdmin, getUserModuleCrudLog);
 
 // SagarBot AI Copilot Permissions (Super Admin CRUD)
-router.get('/rbac/sagarbot-permissions', sagarbotPermissionTab.getSagarbotPermissions);
-router.put('/rbac/sagarbot-permissions', auth, sagarbotPermissionTab.updateSagarbotPermissions);
-router.post('/rbac/sagarbot-permissions/reset', auth, sagarbotPermissionTab.resetSagarbotPermissions);
+router.get('/rbac/sagarbot-permissions', auth, sagarbotPermissionTab.getSagarbotPermissions);
+router.put('/rbac/sagarbot-permissions', auth, requireSuperAdmin, sagarbotPermissionTab.updateSagarbotPermissions);
+router.post('/rbac/sagarbot-permissions/reset', auth, requireSuperAdmin, sagarbotPermissionTab.resetSagarbotPermissions);
 router.get('/api/sagarbot-permissions', sagarbotPermissionTab.getSagarbotPermissions);
-router.put('/api/sagarbot-permissions', sagarbotPermissionTab.updateSagarbotPermissions);
+router.put('/api/sagarbot-permissions', auth, requireSuperAdmin, sagarbotPermissionTab.updateSagarbotPermissions);
 
 router.get("/project-proposal", getProjectProposal);
 router.get("/project-clearance", getProjectClearance);

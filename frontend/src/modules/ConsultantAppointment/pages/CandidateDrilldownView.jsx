@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { openBackendFile } from '../../../utils/openBackendFile';
 import {
   ArrowLeft,
   Download,
@@ -20,17 +21,7 @@ import {
 import Table from '../../../components/Table';
 import CopyButton from '../../../components/CopyButton';
 import ExportDropdown from '../../../components/ExportDropdown';
-import {
-  fetchCandidatesByConsultantAppointmentId,
-  fetchCandidateDetail,
-  fetchCandidateDocument,
-  addCandidateDetail,
-  updateCandidateDetail,
-  deleteCandidateDetail,
-  uploadCandidateDocument,
-  addConsultantID,
-  API_BASE
-} from '../api';
+import { fetchCandidatesByConsultantAppointmentId, fetchCandidateDetail, fetchCandidateDocument, addCandidateDetail, updateCandidateDetail, deleteCandidateDetail, uploadCandidateDocument, addConsultantID } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
 import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
 import { CA_TOASTS } from '../toastMessages';
@@ -356,14 +347,8 @@ export default function CandidateDrilldownView({
       notify(COMMON_TOASTS.noDocument());
       return;
     }
-    const downloadUrl = `${API_BASE}/ca-candidate-document-download/${encodeURIComponent(documentName)}`;
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = documentName;
-    link.target = '_blank';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    openBackendFile(`/ca-candidate-document-download/${encodeURIComponent(documentName)}`, { fileName: documentName, download: true })
+      .catch((err) => console.error('Candidate document could not be opened:', err));
 
     notify(CA_TOASTS.orderDownloading(documentName));
   };

@@ -1,3 +1,4 @@
+/* global describe, it, expect */
 /**
  * computeStageId: highest stage with a date wins.
  */

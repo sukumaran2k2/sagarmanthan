@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { calculateCapexTotal } from '../utils/capexUtils';
+import { COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { CAPEX_TOASTS } from '../toastMessages';
 
-const labelClass =
-  'block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider';
-const inputClass =
-  'w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-250 dark:border-slate-800 rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200 disabled:opacity-60 disabled:cursor-not-allowed';
-const selectClass = `${inputClass} cursor-pointer dark:[color-scheme:dark]`;
+const labelClass = 'module-form-label';
+const inputClass = 'module-form-input disabled:opacity-60 disabled:cursor-not-allowed';
+const selectClass = 'module-form-select cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed dark:[color-scheme:dark]';
 const sectionCardClass =
   'rounded-2xl border border-slate-200 bg-slate-50/50 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/40';
 
@@ -25,44 +25,37 @@ export default function CapexInputForm({
 
   const totalValue = calculateCapexTotal(gbsValue, iebrValue, pppValue);
 
-  useEffect(() => {
-    if (organisations.length > 0 && !organisationId) {
-      setOrganisationId(String(organisations[0].organisation_id || organisations[0].id || ''));
-    }
-  }, [organisations, organisationId]);
-
+  // No organisation is picked for the user, so a forgotten choice can't save against the first one
   const resetForm = () => {
     setFinancialYear('2026-2027');
+    setOrganisationId('');
     setGbsValue('');
     setIebrValue('');
     setPppValue('');
-    if (organisations.length > 0) {
-      setOrganisationId(String(organisations[0].organisation_id || organisations[0].id || ''));
-    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!financialYear) {
-      notify?.('Please select financial year.', 'error');
+      notify?.(COMMON_TOASTS.requiredSelect('Financial Year'));
       return;
     }
     if (!organisationId) {
-      notify?.('Please select organisation.', 'error');
+      notify?.(COMMON_TOASTS.requiredSelect('Organisation'));
       return;
     }
 
     if (gbsValue === '' || parseFloat(gbsValue) < 0) {
-      notify?.('Please enter valid non-negative GBS value.', 'error');
+      notify?.(CAPEX_TOASTS.invalidAmount('GBS'));
       return;
     }
     if (iebrValue === '' || parseFloat(iebrValue) < 0) {
-      notify?.('Please enter valid non-negative IR / IEBR value.', 'error');
+      notify?.(CAPEX_TOASTS.invalidAmount('IR / IEBR'));
       return;
     }
     if (pppValue === '' || parseFloat(pppValue) < 0) {
-      notify?.('Please enter valid non-negative PPP value.', 'error');
+      notify?.(CAPEX_TOASTS.invalidAmount('PPP'));
       return;
     }
 
@@ -77,23 +70,23 @@ export default function CapexInputForm({
         totalValue,
       });
       resetForm();
-      notify?.('Capex target submitted successfully.', 'success');
+      notify?.(CAPEX_TOASTS.targetCreated());
       onSuccess?.();
     } catch (err) {
-      notify?.(err.message || 'Failed to submit Capex target data.', 'error');
+      notify?.(CAPEX_TOASTS.saveFailed(false, getErrorMessage(err)));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in w-full">
-      <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
+    <div className="module-form-card overflow-hidden animate-fade-in w-full">
+      <div className="module-form-banner">
         <div>
-          <h3 className="text-sm font-black uppercase tracking-wider font-display">
+          <h3 className="module-form-banner-title">
             Add Capex Target
           </h3>
-          <p className="text-[10px] text-[#eadede] font-semibold tracking-wide mt-0.5">
+          <p className="module-form-banner-subtext">
             Ministry of Ports, Shipping and Waterways
           </p>
         </div>
@@ -102,7 +95,7 @@ export default function CapexInputForm({
       <form onSubmit={handleSubmit} className="p-6 space-y-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
           <div className={sectionCardClass}>
-            <h3 className="text-[13px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-wide border-b border-slate-200 dark:border-slate-800 pb-2 mb-4">
+            <h3 className="module-form-section-title border-b border-slate-200 dark:border-slate-800 pb-2 mb-4">
               Target Information
             </h3>
 
@@ -147,7 +140,7 @@ export default function CapexInputForm({
           </div>
 
           <div className={sectionCardClass}>
-            <h3 className="text-[13px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-wide border-b border-slate-200 dark:border-slate-800 pb-2 mb-4">
+            <h3 className="module-form-section-title border-b border-slate-200 dark:border-slate-800 pb-2 mb-4">
               Budget Allocation (In Crore)
             </h3>
 

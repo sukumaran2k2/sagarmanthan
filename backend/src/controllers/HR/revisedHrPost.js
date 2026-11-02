@@ -232,7 +232,8 @@ async function updateRevisedHrPostStrength(req, res) {
                 });
             }
             const postsToDelete = postCheckResult.recordset.slice(0, postsToRemove);
-            const postCodesToDelete = postsToDelete.map(post => `'${post.post_code}'`).join(",");
+            postsToDelete.forEach((post, i) => newRequest.input(`deleteCode${i}`, post.post_code));
+            const postCodesToDelete = postsToDelete.map((_, i) => `@deleteCode${i}`).join(",");
             try {
                 await newRequest.query(`
                     DELETE FROM tbl_hr_post_strength 
@@ -891,7 +892,6 @@ async function updatePostStrengthLog(req, res) {
     request.input("approvalByAuthorityDatePromotion", approvalByAuthorityDatePromotion);
     request.input("orderDatePromotion", orderDatePromotion);
     request.input("selectEmployeeId", selectEmployeeId);
-    request.input("currentDate", currentDate);
     request.input("selectDeputedEmployeeId", selectDeputedEmployeeId);
     request.input("selectDeputedEmployeeMasterId", selectDeputedEmployeeMasterId);
 
@@ -963,7 +963,7 @@ async function updatePostStrengthLog(req, res) {
                     approval_received_date = NULL,
                     order_issued_date = NULL,
                     discharge_reason = @dischargeReason,
-                    updated_date = @currentDate,
+                    updated_date = GETDATE(),
                     updated_by = @userID
                 WHERE post_code = @postCode
             `);
@@ -1016,7 +1016,7 @@ async function updatePostStrengthLog(req, res) {
                         result_declared_date = NULL,
                         appointment_letter_issued_date = NULL,
                         discharge_reason = @dischargeReason,
-                        updated_date = @currentDate,
+                        updated_date = GETDATE(),
                         updated_by = @userID
                     WHERE post_code = @postCode
                 `);
@@ -1072,7 +1072,7 @@ async function updatePostStrengthLog(req, res) {
                     SET
                         employee_id = @employeeIDPrev,
                         emp_master_id = @empMasterIDPrev,
-                        updated_date = @currentDate,
+                        updated_date = GETDATE(),
                         updated_by = @userID
                         WHERE post_code = @postCode`);
 
@@ -1081,7 +1081,7 @@ async function updatePostStrengthLog(req, res) {
                             SET method_of_discharge = @methodOfDischarge,
                                 emp_post_end_date = @postEndDate,
                                 activity_name = 'Promotion',
-                                updated_date = @currentDate,
+                                updated_date = GETDATE(),
                             updated_by = @userID
                             WHERE employee_id = @employeeIDPrev
                                 AND emp_master_id = @empMasterIDPrev
@@ -1107,7 +1107,7 @@ async function updatePostStrengthLog(req, res) {
                     employee_id, emp_master_id, emp_reference_id, emp_post_join_date, method_of_appointment, employee_joining_date, emp_department_id, emp_post_id,
                     emp_post_code, emp_post_name, emp_department_name, emp_working_org_id,  promotion_date, created_date, created_by)
                     VALUES (@employeeIDPrev, @empMasterIDPrev, @employeeRefIDPrev , @employeeJoinedDate, 'Promotion' , @employeeJoinedDate, @departmentId, @postID,
-                    @postCode, @postName, @departmentName, @empWorkingOrgIDPrev,  @promotionDate,  @currentDate, @userID)
+                    @postCode, @postName, @departmentName, @empWorkingOrgIDPrev,  @promotionDate,  GETDATE(), @userID)
                     `);
 
                 }
@@ -1173,7 +1173,7 @@ async function updatePostStrengthLog(req, res) {
                 dpc_conducted_date = NULL,
                 approval_by_ca_date = NULL,
                 promotion_order_issued_date = NULL,
-                updated_date = @currentDate,
+                updated_date = GETDATE(),
                 updated_by = @userID
                 WHERE post_code = @postCode`);
 
@@ -1202,7 +1202,7 @@ async function updatePostStrengthLog(req, res) {
                     emp_post_code = @postCode,
                     emp_post_name = @postName,
                     emp_department_name = @departmentName,
-                    updated_date = @currentDate,
+                    updated_date = GETDATE(),
                     updated_by = @userID
                     WHERE employee_id = @selectDeputedEmployeeId
                         AND emp_master_id = @selectDeputedEmployeeMasterId
@@ -1259,7 +1259,7 @@ async function updatePostStrengthLog(req, res) {
                         dpc_conducted_date = NULL,
                         approval_by_ca_date = NULL,
                         promotion_order_issued_date = NULL,
-                        updated_date = @currentDate,
+                        updated_date = GETDATE(),
                         updated_by = @userID
                     WHERE post_code = @postCode
                 `);
@@ -1321,7 +1321,7 @@ async function updatePostStrengthLog(req, res) {
                     SET
                         employee_id = @employeeIDPrev,
                         emp_master_id = @empMasterIDPrev,
-                        updated_date = @currentDate,
+                        updated_date = GETDATE(),
                         updated_by = @userID
                         WHERE post_code = @postCode`);
 
@@ -1330,7 +1330,7 @@ async function updatePostStrengthLog(req, res) {
                             UPDATE tbl_employee_transaction_details
                             SET method_of_discharge = @methodOfDischarge,
                                 emp_post_end_date = @postEndDate,
-                                updated_date = @currentDate,
+                                updated_date = GETDATE(),
                             updated_by = @userID
                             WHERE employee_id = @employeeIDPrev
                                 AND emp_master_id = @empMasterIDPrev
@@ -1343,7 +1343,7 @@ async function updatePostStrengthLog(req, res) {
                     employee_id, emp_master_id, emp_reference_id, emp_post_join_date, method_of_appointment, employee_joining_date, emp_department_id, emp_post_id,
                     emp_post_code, emp_post_name, emp_department_name, emp_working_org_id, created_date, created_by)
                     VALUES (@employeeIDPrev, @empMasterIDPrev, @employeeRefIDPrev , @employeeJoinedDate, 'Composite Method' , @employeeJoinedDate, @departmentId, @postID,
-                    @postCode, @postName, @departmentName, @empWorkingOrgIDPrev,  @currentDate, @userID)
+                    @postCode, @postName, @departmentName, @empWorkingOrgIDPrev,  GETDATE(), @userID)
                     `);
 
                 }
@@ -1386,7 +1386,7 @@ async function updatePostStrengthLog(req, res) {
                 employee_joined_date = @dateOfJoiningTransferIn,
                 discharge_reason = @dischargeReason,
                 vacancy_type = @vacancyType,
-                updated_date = @currentDate,
+                updated_date = GETDATE(),
                 updated_by = @userID
                 WHERE post_code = @postCode`);
                 const postResult = await request.query(`SELECT p.post_id , p.post_name, d.department_name , d.department_id  FROM mmt_hr_post p
@@ -1411,7 +1411,7 @@ async function updatePostStrengthLog(req, res) {
                 emp_post_name = @postName,
                 emp_department_name = @departmentName,
                 emp_working_org_id = @organisationID,
-                updated_date = @currentDate,
+                updated_date = GETDATE(),
                 updated_by = @userID,
                 employee_id = @newEmployeeID
                 WHERE employee_id = @transferEmpId
@@ -1524,7 +1524,7 @@ async function updatePostStrengthLog(req, res) {
                     review_application_by_comm          = NULL,
                     approval_received_date              = NULL,
                     discharge_reason                    = NULL,
-                    updated_date                        = @currentDate,   
+                    updated_date                        = GETDATE(),   
                     updated_by                          = @userID
                 WHERE post_code = @postCode
                 `);
@@ -1606,6 +1606,9 @@ async function updatePostStrengthLog(req, res) {
                 )
             `);
 
+            // Separation (Redeployment-out) set the employee inactive; joining this post brings them back
+            await request.query(`UPDATE tbl_employee_master SET emp_status = 1 WHERE emp_master_id = @chdCategoryEmpMasterId`);
+
             await transaction.commit();
             res.sendStatus(201);
             break;
@@ -1653,7 +1656,7 @@ async function updatePostStrengthLog(req, res) {
                         approval_received_date           = NULL,
                         order_issued_date                = NULL,
                         discharge_reason                 = NULL,
-                        updated_date                     = @currentDate,
+                        updated_date                     = GETDATE(),
                         updated_by                       = @userID
                     WHERE post_code = @postCode
                 `);
@@ -1709,6 +1712,9 @@ async function updatePostStrengthLog(req, res) {
                 )
         `);
 
+            // Separation (Redeployment-out) set the employee inactive; joining this post brings them back
+            await request.query(`UPDATE tbl_employee_master SET emp_status = 1 WHERE emp_master_id = @chdCategoryEmpMasterId`);
+
         await transaction.commit();
         res.sendStatus(201);
         break;
@@ -1759,7 +1765,7 @@ async function updatePostStrengthLog(req, res) {
                 review_application_by_comm          = NULL,
                 approval_received_date              = NULL,
                 discharge_reason                    = NULL,
-                updated_date                        = @currentDate,
+                updated_date                        = GETDATE(),
                 updated_by                          = @userID
             WHERE post_code = @postCode
         `);
@@ -1881,7 +1887,12 @@ async function getPostNamesByPostCode(req, res) {
     request.input("postCode", postCode);
 
     try {
-        let query = ` SELECT ps.post_code, ps.post_id  ,d.department_id , d.department_name , p.post_name
+        // Department and post of a post code, plus the vacancy it holds (method, date of arise,
+        // vacant/filled, organisation): the React Add Employee form reads these instead of
+        // trusting values carried in its URL. The date is yyyy-mm-dd (style 23) for date inputs.
+        let query = ` SELECT ps.post_code, ps.post_id  ,d.department_id , d.department_name , p.post_name,
+                ps.method_of_appointment, CONVERT(VARCHAR(10), ps.date_of_arise_in_vacancy, 23) AS date_of_arise_in_vacancy,
+                ps.vacant_or_filled, ps.organisation_id
             FROM tbl_hr_post_strength ps
            	LEFT JOIN mmt_hr_department d ON d.department_id = ps.department_id
             LEFT JOIN  mmt_hr_post p ON p.post_id = ps.post_id
@@ -1995,7 +2006,8 @@ async function getVaccancyLogDetailsByPostCode(req, res) {
 };
 
 async function revokeHRVacantPost(req, res) {
-    let { revokeReason, postCode, revisedDateOfVacancy, userID } = req.body;
+    let { revokeReason, postCode, revisedDateOfVacancy } = req.body;
+    const userID = req.user?.userId ?? null; // the logged-in user, not a value from the request
 
     if (!revokeReason || !revisedDateOfVacancy || !postCode || postCode == '') {
         return res.status(400).json({ error: "Post Code, Revoke reason and date of vacancy are required." });
@@ -2209,7 +2221,6 @@ async function updateHRPostActivitiy(req, res) {
     request.input("approvalByAuthorityDatePromotion", approvalByAuthorityDatePromotion);
     request.input("orderDatePromotion", orderDatePromotion);
     request.input("selectEmployeeId", selectEmployeeId);
-    request.input("currentDate", currentDate);
     request.input("selectDeputedEmployeeId", selectDeputedEmployeeId);
     request.input("selectDeputedEmployeeMasterId", selectDeputedEmployeeMasterId);
 
@@ -2270,7 +2281,7 @@ async function updateHRPostActivitiy(req, res) {
                     approval_received_date = NULL,
                     order_issued_date = NULL,
                     discharge_reason = @dischargeReason,
-                    updated_date = @currentDate,
+                    updated_date = GETDATE(),
                     updated_by = @userID
                 WHERE post_code = @postCode
             `);
@@ -2322,7 +2333,7 @@ async function updateHRPostActivitiy(req, res) {
                         result_declared_date = NULL,
                         appointment_letter_issued_date = NULL,
                         discharge_reason = @dischargeReason,
-                        updated_date = @currentDate,
+                        updated_date = GETDATE(),
                         updated_by = @userID
                     WHERE post_code = @postCode
                 `);
@@ -2378,7 +2389,7 @@ async function updateHRPostActivitiy(req, res) {
                     SET
                         employee_id = @employeeIDPrev,
                         emp_master_id = @empMasterIDPrev,
-                        updated_date = @currentDate,
+                        updated_date = GETDATE(),
                         updated_by = @userID
                         WHERE post_code = @postCode`);
 
@@ -2389,7 +2400,7 @@ async function updateHRPostActivitiy(req, res) {
                             SET method_of_discharge = @methodOfDischarge,
                                 emp_post_end_date = @postEndDate,
                                 activity_name = 'Promotion',
-                                updated_date = @currentDate,
+                                updated_date = GETDATE(),
                             updated_by = @userID
                             WHERE employee_id = @employeeIDPrev
                                 AND emp_master_id = @empMasterIDPrev
@@ -2415,7 +2426,7 @@ async function updateHRPostActivitiy(req, res) {
                     employee_id, emp_master_id, emp_reference_id, emp_post_join_date, method_of_appointment, employee_joining_date, emp_department_id, emp_post_id,
                     emp_post_code, emp_post_name, emp_department_name, emp_working_org_id,  promotion_date, created_date, created_by)
                     VALUES (@employeeIDPrev, @empMasterIDPrev, @employeeRefIDPrev , @employeeJoinedDate, 'Promotion' , @employeeJoinedDate, @departmentId, @postID,
-                    @postCode, @postName, @departmentName, @empWorkingOrgIDPrev,  @promotionDate,  @currentDate, @userID)
+                    @postCode, @postName, @departmentName, @empWorkingOrgIDPrev,  @promotionDate,  GETDATE(), @userID)
                     `);
 
                 }
@@ -2480,7 +2491,7 @@ async function updateHRPostActivitiy(req, res) {
                 dpc_conducted_date = NULL,
                 approval_by_ca_date = NULL,
                 promotion_order_issued_date = NULL,
-                updated_date = @currentDate,
+                updated_date = GETDATE(),
                 updated_by = @userID
                 WHERE post_code = @postCode`);
 
@@ -2509,7 +2520,7 @@ async function updateHRPostActivitiy(req, res) {
                     emp_post_code = @postCode,
                     emp_post_name = @postName,
                     emp_department_name = @departmentName,
-                    updated_date = @currentDate,
+                    updated_date = GETDATE(),
                     updated_by = @userID
                     WHERE employee_id = @selectDeputedEmployeeId
                         AND emp_master_id = @selectDeputedEmployeeMasterId
@@ -2565,7 +2576,7 @@ async function updateHRPostActivitiy(req, res) {
                         dpc_conducted_date = NULL,
                         approval_by_ca_date = NULL,
                         promotion_order_issued_date = NULL,
-                        updated_date = @currentDate,
+                        updated_date = GETDATE(),
                         updated_by = @userID
                     WHERE post_code = @postCode
                 `);
@@ -2627,7 +2638,7 @@ async function updateHRPostActivitiy(req, res) {
                     SET
                         employee_id = @employeeIDPrev,
                         emp_master_id = @empMasterIDPrev,
-                        updated_date = @currentDate,
+                        updated_date = GETDATE(),
                         updated_by = @userID
                         WHERE post_code = @postCode`);
 
@@ -2637,7 +2648,7 @@ async function updateHRPostActivitiy(req, res) {
                             UPDATE tbl_employee_transaction_details
                             SET method_of_discharge = @methodOfDischarge,
                                 emp_post_end_date = @postEndDate,
-                                updated_date = @currentDate,
+                                updated_date = GETDATE(),
                             updated_by = @userID
                             WHERE employee_id = @employeeIDPrev
                                 AND emp_master_id = @empMasterIDPrev
@@ -2650,7 +2661,7 @@ async function updateHRPostActivitiy(req, res) {
                     employee_id, emp_master_id, emp_reference_id, emp_post_join_date, method_of_appointment, employee_joining_date, emp_department_id, emp_post_id,
                     emp_post_code, emp_post_name, emp_department_name, emp_working_org_id, created_date, created_by)
                     VALUES (@employeeIDPrev, @empMasterIDPrev, @employeeRefIDPrev , @employeeJoinedDate, 'Composite Method' , @employeeJoinedDate, @departmentId, @postID,
-                    @postCode, @postName, @departmentName, @empWorkingOrgIDPrev,  @currentDate, @userID)
+                    @postCode, @postName, @departmentName, @empWorkingOrgIDPrev,  GETDATE(), @userID)
                     `);
 
                 }
@@ -2692,7 +2703,7 @@ async function updateHRPostActivitiy(req, res) {
                 employee_joined_date = @dateOfJoiningTransferIn,
                 discharge_reason = @dischargeReason,
                 vacancy_type = @vacancyType,
-                updated_date = @currentDate,
+                updated_date = GETDATE(),
                 updated_by = @userID
                 WHERE post_code = @postCode`);
                 const postResult = await request.query(`SELECT p.post_id , p.post_name, d.department_name , d.department_id  FROM mmt_hr_post p
@@ -2717,7 +2728,7 @@ async function updateHRPostActivitiy(req, res) {
                 emp_post_name = @postName,
                 emp_department_name = @departmentName,
                 emp_working_org_id = @organisationID,
-                updated_date = @currentDate,
+                updated_date = GETDATE(),
                 updated_by = @userID,
                 employee_id = @newEmployeeID
                 WHERE employee_id = @transferEmpId

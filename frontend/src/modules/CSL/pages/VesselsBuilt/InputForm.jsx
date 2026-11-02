@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Save } from 'lucide-react';
 import { createVesselsBuilt, updateVesselsBuilt } from '../../api';
 import { getCurrentUserId } from '../../../../utils/authSession';
+import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../../utils/notify';
+import { CSL_TOASTS } from '../../toastMessages';
 
 // Financial year range confirmed from the legacy site's actual dropdown
 // (2014-2015 through 2028-2029) -- a narrower range than DGLL's, generated
@@ -18,6 +20,7 @@ export default function VesselsBuiltInputForm({
   triggerNotification,
 }) {
   const isEdit = !!editData;
+  const notify = useNotifier(triggerNotification);
   const [submitting, setSubmitting] = useState(false);
 
   const [financialYear, setFinancialYear] = useState(editData?.financial_year || '');
@@ -41,12 +44,12 @@ export default function VesselsBuiltInputForm({
     setTouched(Object.fromEntries(FIELDS.map(([key]) => [key, true])));
 
     if (FIELDS.some(([, val]) => val === '' || val === null || val === undefined)) {
-      triggerNotification ? triggerNotification('Please fill in all required fields highlighted in red.', 'error') : alert('Please fill in all required fields highlighted in red.');
+      notify(COMMON_TOASTS.mandatoryFieldsMissing());
       return;
     }
     const numericValues = [vesselsBuilt, tonnageVessels, valueofVessels].map(Number);
     if (numericValues.some((n) => isNaN(n) || n < 0)) {
-      triggerNotification ? triggerNotification('Please enter valid, non-negative values.', 'error') : alert('Please enter valid, non-negative values.');
+      notify(CSL_TOASTS.invalidValues());
       return;
     }
 
@@ -61,7 +64,7 @@ export default function VesselsBuiltInputForm({
           VesselIdOrg: editData.csl_vessel_id,
           userID: getCurrentUserId(),
         });
-        triggerNotification && triggerNotification('Vessels Built entry updated successfully', 'success');
+        notify(CSL_TOASTS.updated('Vessels Built'));
       } else {
         const response = await createVesselsBuilt({
           financialYear,
@@ -71,35 +74,32 @@ export default function VesselsBuiltInputForm({
           userID: getCurrentUserId(),
         });
         if (response.status === 205) {
-          triggerNotification
-            ? triggerNotification('Data already exists for the selected financial year.', 'error')
-            : alert('Data already exists for the selected financial year.');
+          notify(CSL_TOASTS.duplicate('financial year'));
           setSubmitting(false);
           return;
         }
-        triggerNotification && triggerNotification('Vessels Built entry added successfully', 'success');
+        notify(CSL_TOASTS.added('Vessels Built'));
       }
       if (onSuccess) onSuccess();
     } catch (err) {
       console.error('Error saving Vessels Built entry:', err);
-      triggerNotification ? triggerNotification('Failed to save entry.', 'error') : alert('Failed to save entry.');
+      notify(CSL_TOASTS.saveFailed(isEdit, getErrorMessage(err)));
     } finally {
       setSubmitting(false);
     }
   };
 
-  const inputCls = (invalid) =>
-    `w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${invalid ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-800 dark:text-slate-100`;
-  const labelCls = 'block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider';
+  const inputCls = (invalid) => `module-form-input${invalid ? ' !border-red-500' : ''}`;
+  const labelCls = 'module-form-label';
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in">
-      <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
+    <div className="module-form-card overflow-hidden animate-fade-in">
+      <div className="module-form-banner">
         <div>
-          <h3 className="text-sm font-black uppercase tracking-wider">
+          <h3 className="module-form-banner-title">
             {isEdit ? 'Update Vessels Built Entry' : 'Add Vessels Built Entry'}
           </h3>
-          <p className="text-[10px] text-blue-200 font-semibold tracking-wide mt-0.5">CSL - Vessels Built</p>
+          <p className="module-form-banner-subtext">CSL - Vessels Built</p>
         </div>
       </div>
 
