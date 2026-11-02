@@ -10,6 +10,8 @@ export function useMediaOutreachPermissions() {
   const viewOnly = isViewOnlyAdmin();
   const sessionOrgId = getSessionOrganisationId();
   const isStandardView = (uiViewCode || 'STANDARD').toUpperCase() === 'STANDARD';
+  // The server limits ORGANISATION-scoped users to their own organisation
+  const isOrgScoped = dataScopeCode === 'ORGANISATION';
 
   return {
     moduleCode: MODULE_CODE,
@@ -22,6 +24,7 @@ export function useMediaOutreachPermissions() {
     dataScopeCode,
     isViewOnlyAdmin: viewOnly,
     isStandardView,
+    isOrgScoped,
     sessionOrgId,
   };
 }

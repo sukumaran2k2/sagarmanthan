@@ -5,12 +5,14 @@ import CopyButton from '../../../../components/CopyButton';
 import ExportDropdown from '../../../../components/ExportDropdown';
 import { fetchGemSummaryReport } from '../../api';
 import { getGemReportAsOnMeta } from '../../utils/gemUtils';
+import { COMMON_TOASTS } from '../../../../utils/notify';
+import { GEM_TOASTS } from '../../toastMessages';
 
 const FY_OPTIONS = ['2026-2027', '2025-2026', '2024-2025', '2023-2024', '2022-2023'];
 
 const fmt = (n) => (Number.isFinite(Number(n)) ? Number(n).toFixed(2) : '0.00');
 
-export default function GEMSummaryReport({ showToast, viewMode = 'ministry' }) {
+export default function GEMSummaryReport({ notify, viewMode = 'ministry' }) {
   const [selectedYear, setSelectedYear] = useState('2026-2027');
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -31,11 +33,11 @@ export default function GEMSummaryReport({ showToast, viewMode = 'ministry' }) {
     } catch (err) {
       console.error(err);
       setRows([]);
-      showToast?.('❌ Failed to load GeM summary report', '#EF4444');
+      notify?.(COMMON_TOASTS.loadFailed('The GeM summary report'));
     } finally {
       setLoading(false);
     }
-  }, [selectedYear, showToast]);
+  }, [selectedYear, notify]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -75,7 +77,7 @@ export default function GEMSummaryReport({ showToast, viewMode = 'ministry' }) {
       ),
     ];
     await navigator.clipboard.writeText(lines.join('\n'));
-    showToast?.('📋 GeM summary copied', '#4b2424');
+    notify?.(GEM_TOASTS.reportCopied('GeM summary report'));
   };
 
   const handleExportExcel = () => {

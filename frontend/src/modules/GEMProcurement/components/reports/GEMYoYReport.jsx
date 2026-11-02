@@ -5,10 +5,12 @@ import CopyButton from '../../../../components/CopyButton';
 import ExportDropdown from '../../../../components/ExportDropdown';
 import { fetchGemYoYReport } from '../../api';
 import { getCurrentFinancialYear, getGemReportAsOnMeta } from '../../utils/gemUtils';
+import { COMMON_TOASTS } from '../../../../utils/notify';
+import { GEM_TOASTS } from '../../toastMessages';
 
 const fmt = (n) => (Number.isFinite(Number(n)) ? Number(n).toFixed(2) : '0.00');
 
-export default function GEMYoYReport({ showToast }) {
+export default function GEMYoYReport({ notify }) {
   const [financialYears, setFinancialYears] = useState([]);
   const [rows, setRows] = useState([]);
   const [quickFilter, setQuickFilter] = useState('');
@@ -29,11 +31,11 @@ export default function GEMYoYReport({ showToast }) {
       console.error(err);
       setFinancialYears([]);
       setRows([]);
-      showToast?.('❌ Failed to load GeM year-on-year report', '#EF4444');
+      notify?.(COMMON_TOASTS.loadFailed('The GeM year-on-year report'));
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [notify]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -98,7 +100,7 @@ export default function GEMYoYReport({ showToast }) {
     ];
 
     await navigator.clipboard.writeText(lines.join('\n'));
-    showToast?.('📋 GeM YoY report copied', '#4b2424');
+    notify?.(GEM_TOASTS.reportCopied('GeM year-on-year report'));
   };
 
   const handleExportExcel = () => {

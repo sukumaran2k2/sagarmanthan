@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
+import { useGemStore } from '../store/useGemStore';
 import GEMReportView from '../components/GEMReportView';
 import GEMSummaryReport from '../components/reports/GEMSummaryReport';
 import GEMYoYReport from '../components/reports/GEMYoYReport';
@@ -14,8 +15,10 @@ const ORG_REPORT_TABS = [
   { id: 'detailed', label: '1.2 Detailed Report' },
 ];
 
-export default function GEMReports({ showToast, viewMode = 'ministry' }) {
-  const [activeReport, setActiveReport] = useState('detailed');
+export default function GEMReports({ notify, viewMode = 'ministry' }) {
+  // The selected report lives in the module store so it survives leaving the module
+  const activeReport = useGemStore((state) => state.activeReport);
+  const setActiveReport = useGemStore((state) => state.setActiveReport);
 
   const reportTabs = viewMode === 'org' ? ORG_REPORT_TABS : MINISTRY_REPORT_TABS;
   const effectiveActiveReport = reportTabs.some((r) => r.id === activeReport)
@@ -53,12 +56,12 @@ export default function GEMReports({ showToast, viewMode = 'ministry' }) {
 
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm p-4 sm:p-6">
         {effectiveActiveReport === 'summary' && (
-          <GEMSummaryReport showToast={showToast} viewMode={viewMode} />
+          <GEMSummaryReport notify={notify} viewMode={viewMode} />
         )}
         {effectiveActiveReport === 'detailed' && (
-          <GEMReportView showToast={showToast} viewMode={viewMode} />
+          <GEMReportView notify={notify} viewMode={viewMode} />
         )}
-        {effectiveActiveReport === 'yoy' && <GEMYoYReport showToast={showToast} viewMode={viewMode} />}
+        {effectiveActiveReport === 'yoy' && <GEMYoYReport notify={notify} viewMode={viewMode} />}
       </div>
     </div>
   );

@@ -55,21 +55,13 @@ api.interceptors.response.use(
   }
 );
 
-// Media Outreach API endpoints
-export function fetchSocialMediaData(userId = 1) {
-  return api.get(`/monthly-socialmedia-parameter/${userId}`);
+// The server reads the user from the token, so no user id is sent
+export function fetchSocialMediaData() {
+  return api.get('/monthly-socialmedia-parameter');
 }
 
 export function fetchOrganisations() {
   return api.get('/mmt-dropdown/mmt_organisation');
-}
-
-export function fetchDropdownAllValues(tableName = 'mmt_organisation') {
-  return api.get(`/allvalue-dropdown/${tableName}`);
-}
-
-export function fetchUpdateBroadcastMediaData(mediaOutreachId) {
-  return api.get(`/update-broadcastmediadata/${mediaOutreachId}`);
 }
 
 export function createSocialMedia(payload) {

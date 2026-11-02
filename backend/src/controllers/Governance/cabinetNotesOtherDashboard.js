@@ -1,13 +1,3 @@
-// ============================================================
-// FILE: backend/src/controllers/Governance/cabinetNotesOtherDashboard.js
-// ============================================================
-// Then add the following to backend/src/routes.js:
-//
-//   import cabinetNotesOtherDashboard from "./controllers/Governance/cabinetNotesOtherDashboard.js";
-//
-//   router.get("/cabinet-notes-other-dashboard", cabinetNotesOtherDashboard.getCabinetNotesOtherDashboard);
-// ============================================================
-
 import { pool } from "../../db.js";
 
 // Each stage's own "entered stage" date column, matching mmt_cabinet_ministry_stage.cab_ministry_stage_id
@@ -73,9 +63,7 @@ async function getCabinetNotesOtherDashboard(req, res) {
     }));
 
     // ── 3. Ministry-wise pending (active, non-completed) notes ────────────
-    // No wing column on this table — notes belong to other ministries, so we
-    // group by ministry instead, falling back to the free-text ministry_name
-    // column for notes whose ministry isn't in the mmt_ministry master list.
+    // Falls back to the stored ministry_name when the ministry isn't in mmt_ministry
     const ministryResult = await conn.query(`
       SELECT
         ISNULL(ministries.ministry_name, notes.ministry_name)           AS ministry_name,

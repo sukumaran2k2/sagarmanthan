@@ -24,6 +24,15 @@ const STAGE_MAP = {
   'Reply Furnished': '5',
 };
 
+// Wrapped text that stays vertically centred; not wrapText/mopsw-wrap-cell, which ReportTable's
+// shared CSS turns into top-aligned blocks that misalign the pinned Ministry column.
+const centredWrapCell = (justifyContent) => ({
+  autoHeight: true,
+  wrapText: false,
+  cellClass: 'flex items-center',
+  cellStyle: { display: 'flex', alignItems: 'center', justifyContent, whiteSpace: 'normal', lineHeight: '1.35' },
+});
+
 const cleanMinistryName = (name) => {
   if (!name) return '';
   const parts = String(name).split(',').map(s => s.trim()).filter(Boolean);
@@ -51,9 +60,8 @@ function formatReportMonth(date = new Date()) {
 }
 
 export default function Reports({ triggerNotification }) {
-  // Sub-tabs order: 1st Abstract & Detailed Report ('stagewise'), 2nd Pendency Report ('pendency').
-  // Report type, ministry filter, filter panel and drill-down path live in the store, so the
-  // report reopens where the user left it.
+  // Sub-tabs: Abstract & Detailed ('stagewise'), then Pendency ('pendency').
+  // Report state lives in the store, so the report reopens where the user left it.
   const {
     type: reportType,
     ministry: selectedMinistry,
@@ -277,20 +285,8 @@ export default function Reports({ triggerNotification }) {
             pinned: 'left',
             minWidth: col.minWidth || 280,
             flex: 2,
-            wrapText: true,
-            autoHeight: true,
+            ...centredWrapCell('flex-start'),
             headerClass: 'text-center font-bold',
-            cellClass: 'mopsw-wrap-cell text-left flex items-center justify-start',
-            cellStyle: {
-              textAlign: 'left',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'flex-start',
-              paddingLeft: '12px',
-              whiteSpace: 'normal',
-              wordBreak: 'break-word',
-              lineHeight: '1.35',
-            },
             cellRenderer: (p) => {
               if (p.node?.rowPinned === 'bottom' || p.value === 'Total' || p.value === 'TOTAL (C)' || String(p.value).toUpperCase().startsWith('TOTAL')) {
                 return <span className="font-black text-[#4b2424] dark:text-[#eadede] tracking-wider uppercase">TOTAL (C)</span>;
@@ -310,13 +306,26 @@ export default function Reports({ triggerNotification }) {
             ...baseCol,
             minWidth: 260,
             flex: 2,
-            wrapText: true,
-            autoHeight: true,
+            ...centredWrapCell('flex-start'),
             headerClass: 'text-center font-bold',
-            cellClass: 'mopsw-wrap-cell text-left',
-            cellStyle: { textAlign: 'left', whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.35' },
             cellRenderer: (p) => (
               <div className="w-full text-left font-bold text-slate-800 dark:text-slate-200 whitespace-normal break-words leading-snug py-1.5">
+                {p.value || '-'}
+              </div>
+            )
+          };
+        }
+
+        // Wing lists in the detail view can run long
+        if (field === 'Comments Received From' || field === 'Comments Pending From') {
+          return {
+            ...baseCol,
+            minWidth: 220,
+            flex: 1.5,
+            ...centredWrapCell('center'),
+            headerClass: 'text-center font-bold',
+            cellRenderer: (p) => (
+              <div className="w-full text-center text-slate-700 dark:text-slate-300 whitespace-normal break-words leading-snug py-1.5">
                 {p.value || '-'}
               </div>
             )
