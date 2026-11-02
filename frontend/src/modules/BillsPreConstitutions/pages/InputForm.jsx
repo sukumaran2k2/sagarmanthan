@@ -25,7 +25,7 @@ const STAGES_LIST = [
 const toDate = (v) => (v ? String(v).split('T')[0] : '');
 const SUBJECT_MAX = 256; // tbl_bill.subject
 const STAGE_REMARK_MAX = 250; // each stage's remark column
-const emptyStage = { done: false, date: '', remark: '' };
+const emptyStage = { date: '', remark: '' };
 
 // Today as YYYY-MM-DD in the user's time zone (toISOString would give the UTC date)
 const localToday = () => {
@@ -34,14 +34,12 @@ const localToday = () => {
 };
 
 // Field values for a bill (or an empty form); the shell keys the form per bill, so this runs once per open.
-// Each stage is done (Yes) / not done with an optional date, as in 2.0: bills from 2.0 often
-// have a stage done with no date, so the flag is loaded as well as the date.
+// A stage is reached when it has a date
 function initialValuesFor(editData) {
   const stages = {};
   STAGES_LIST.forEach((stage) => {
     stages[stage.id] = editData
       ? {
-        done: !!editData[`${stage.field}_done`] || !!editData[`${stage.field}_date`],
         date: toDate(editData[`${stage.field}_date`]),
         remark: editData[`${stage.field}_remarks`] || '',
       }
@@ -57,14 +55,11 @@ function initialValuesFor(editData) {
   };
 }
 
-// The first problem with the stages, or '' when they are fine: a stage newly marked Yes needs
-// its date (2.0 bills already done without one are kept as they are), and the dates must be
-// in stage order
-function stageProblem(stages, initialStages) {
+// The first problem with the stages, or '' when they are fine: the dates must be in stage order
+function stageProblem(stages) {
   let last = null;
   for (const stage of STAGES_LIST) {
     const st = stages[stage.id];
-    if (st.done && !st.date && !initialStages[stage.id].done) return `Enter the date for "${stage.label}".`;
     if (st.date) {
       if (last && st.date < last.date) return `"${stage.label}" is dated before "${last.label}". Dates must be in stage order.`;
       last = { date: st.date, label: stage.label };
@@ -113,7 +108,6 @@ export default function InputForm({
     if (remarks !== initialValues.remarks) return true;
 
     for (let i = 1; i <= 15; i++) {
-      if (stages[i]?.done !== initialValues.stages?.[i]?.done) return true;
       if (stages[i]?.date !== initialValues.stages?.[i]?.date) return true;
       if (stages[i]?.remark !== initialValues.stages?.[i]?.remark) return true;
     }
@@ -151,16 +145,16 @@ export default function InputForm({
     !errors.remarks
   ), [subject, wing, division, errors]);
 
-  // A date marks the stage done; marking it No clears its date. Nothing else changes, so
-  // clearing one date never wipes the later stages.
+  // Clearing one date never wipes the later stages
   const handleStageChange = (num, field, val) => {
-    setStages(prev => {
-      const next = { ...prev[num], [field]: val };
-      if (field === 'date' && val) next.done = true;
-      if (field === 'done' && !val) next.date = '';
-      return { ...prev, [num]: next };
-    });
+    setStages(prev => ({ ...prev, [num]: { ...prev[num], [field]: val } }));
   };
+
+  // A 2.0 bill can be at a stage that has no date; the server keeps that stage until a later
+  // stage gets a date
+  const savedStageId = Number(editData?.stage_id) || 0;
+  const savedStage = STAGES_LIST.find((s) => s.id === savedStageId);
+  const savedStageUndated = !!savedStage && !initialValues.stages[savedStageId].date;
 
   const handleBlur = (field) => {
     setTouched(prev => ({ ...prev, [field]: true }));
@@ -190,7 +184,7 @@ export default function InputForm({
       notify?.(BILLS_TOASTS.remarksTooLong());
       return;
     }
-    const problem = stageProblem(stages, initialValues.stages);
+    const problem = stageProblem(stages);
     if (problem) {
       notify?.(BILLS_TOASTS.stagesInvalid(problem));
       return;
@@ -198,7 +192,7 @@ export default function InputForm({
 
     setSubmitting(true);
 
-    // The server works out the current stage (the highest stage marked Yes)
+    // The server works out the current stage (the highest stage with a date)
     const payload = {
       subject: subject.trim(),
       wing: parseInt(wing, 10),
@@ -208,7 +202,6 @@ export default function InputForm({
     };
     STAGES_LIST.forEach((stage) => {
       const st = stages[stage.id];
-      payload[`${stage.param}Done`] = st.done;
       payload[`${stage.param}Date`] = st.date || '';
       payload[`${stage.param}Remark`] = st.remark.trim();
     });
@@ -340,20 +333,24 @@ export default function InputForm({
             <h4 className="text-xs font-black uppercase text-slate-800 dark:text-slate-200 tracking-wider pb-2 border-b border-slate-200 dark:border-slate-800">
               Stages Checklist & Dates
             </h4>
+            {savedStageUndated && (
+              <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2">
+                Current stage (from 2.0, no date): <span className="font-bold">{savedStage.label}</span>. It stays the current stage until a later stage gets a date.
+              </p>
+            )}
             <div className="space-y-3.5">
               {STAGES_LIST.map((stage, idx) => {
                 const stageNum = stage.id;
                 const stageVal = stages[stageNum] || emptyStage;
-                // When adding, stages are marked in order
-                const isStageDisabled = !isEdit && idx > 0 && !stages[STAGES_LIST[idx - 1].id]?.done;
-                const isRemarkFieldVisible = stageNum === focusedStage || stageVal.done;
-                const missingDate = stageVal.done && !stageVal.date;
+                // When adding, stages are dated in order
+                const isStageDisabled = !isEdit && idx > 0 && !stages[STAGES_LIST[idx - 1].id]?.date;
+                const isRemarkFieldVisible = stageNum === focusedStage || !!stageVal.date || !!stageVal.remark;
 
                 return (
                   <div
                     key={stage.id}
                     className={`flex flex-col gap-3 p-4 border rounded-xl transition ${
-                      stageVal.done
+                      stageVal.date
                         ? 'border-emerald-250 dark:border-emerald-800 bg-emerald-50/20 dark:bg-emerald-950/20'
                         : 'border-slate-150 dark:border-slate-800 bg-white dark:bg-slate-900'
                     } ${isStageDisabled ? 'opacity-40 pointer-events-none' : ''}`}
@@ -367,25 +364,6 @@ export default function InputForm({
                       </div>
 
                       <div className="w-full sm:w-auto flex items-center gap-2">
-                        {/* Done (Yes / No), as 2.0's radio buttons */}
-                        <div className="flex rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden text-[10px] font-black uppercase" role="group" aria-label={`${stage.label} done`}>
-                          {[[true, 'Yes'], [false, 'No']].map(([value, text]) => (
-                            <button
-                              key={text}
-                              type="button"
-                              disabled={readOnly || isStageDisabled}
-                              aria-pressed={stageVal.done === value}
-                              onClick={() => handleStageChange(stageNum, 'done', value)}
-                              className={`px-2.5 py-2 transition cursor-pointer disabled:cursor-not-allowed ${
-                                stageVal.done === value
-                                  ? (value ? 'bg-emerald-600 text-white' : 'bg-slate-500 text-white')
-                                  : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
-                              }`}
-                            >
-                              {text}
-                            </button>
-                          ))}
-                        </div>
                         <input
                           type="date"
                           value={stageVal.date}
@@ -396,14 +374,10 @@ export default function InputForm({
                           onBlur={() => setFocusedStage(null)}
                           disabled={readOnly || isStageDisabled}
                           aria-label={`${stage.label} date`}
-                          title={missingDate ? (initialValues.stages[stageNum].done ? 'Done in 2.0 without a date' : 'Enter the date') : undefined}
-                          className={`w-full sm:w-auto text-xs px-3 py-2 bg-white border ${missingDate && !initialValues.stages[stageNum].done ? 'border-amber-400' : 'border-slate-200'} rounded-lg focus:outline-none focus:border-[#0f417a] font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:[color-scheme:dark] ${isStageDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                          className={`w-full sm:w-auto text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#0f417a] font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:[color-scheme:dark] ${isStageDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                         />
                       </div>
                     </div>
-                    {missingDate && initialValues.stages[stageNum].done && (
-                      <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 -mt-1">Marked done without a date (from 2.0). Add the date if known.</p>
-                    )}
 
                     {/* Dynamically reveal Stage Remark field with transition animation */}
                     {!isStageDisabled && (

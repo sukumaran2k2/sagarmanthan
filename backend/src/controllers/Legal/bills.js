@@ -2,8 +2,8 @@ import { pool } from "../../db.js";
 
 // Bills are kept in 2.0's tbl_bill (3.0 had been writing to a separate copy of it).
 // The API and the form keep 3.0's field names; this maps each stage to tbl_bill's columns.
-// Each stage has a date, the done (Yes/No) flag 2.0 keeps beside it, and a remark column
-// added for 3.0. As in 2.0 a stage can be done without a date (many 2.0 bills are).
+// Each stage has a date and a remark column added for 3.0. A stage is reached when it has a
+// date (2.0's Yes/No flags were dropped, see sql/bills/04).
 const STAGES = [
     { field: 'draft_bill_prepared_date', column: 'pre_draft_bill_prepared', param: 'draftBillPrepared' },
     { field: 'dcn_draft_bill_approved_minister_date', column: 'pre_draft_bill_approved', param: 'dcnDraftBillApprovedMinister' },
@@ -20,7 +20,7 @@ const STAGES = [
     { field: 'bill_passed_date', column: 'bill_passed', param: 'billPassed' },
     { field: 'bill_notified_date', column: 'bill_notified', param: 'billNotified' },
     { field: 'completed_date', column: 'completed', param: 'completed' },
-].map((s) => ({ ...s, done: s.field.replace(/_date$/, '_done'), remark: s.field.replace(/_date$/, '_remarks') }));
+].map((s) => ({ ...s, remark: s.field.replace(/_date$/, '_remarks') }));
 
 // 2.0's older request names for some stages, still accepted
 const LEGACY_PARAMS = {
@@ -35,17 +35,16 @@ const REMARKS_MAX_WORDS = 250;
 
 // A bill as the API returns it: tbl_bill's columns under 3.0's field names
 const BILL_COLUMNS = `tbl_bill.bill_id, subject, wing, division, stage_id,
-            ${STAGES.map((s) => `${s.column}_date AS ${s.field}, CAST(ISNULL(${s.column}, 0) AS BIT) AS ${s.done}, ${s.remark}`).join(',\n            ')},
+            ${STAGES.map((s) => `${s.column}_date AS ${s.field}, ${s.remark}`).join(',\n            ')},
             remarks, tbl_bill.created_by, tbl_bill.updated_by, tbl_bill.created_date, tbl_bill.updated_date`;
 
 const blank = (v) => v === undefined || v === null || String(v).trim() === '';
-const isYes = (v) => v === true || v === 1 || v === '1' || v === 'true' || v === 'Yes';
 // Today in India, as YYYY-MM-DD (the server may run in UTC)
 const todayInIndia = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 
 // Reads a bill from the request body. Returns { bill } or { error } (a message for a 400).
-// A stage is done when its flag says so or it has a date; the current stage is the highest
-// done stage (0 = no status), as 2.0 sets it. The client's selectedBillStage is not trusted.
+// The current stage is the highest stage with a date (0 = no status). The client's
+// selectedBillStage is not trusted.
 async function readBill(body, conn) {
     const subject = blank(body.subject) ? '' : String(body.subject).trim();
     if (!subject) return { error: 'Subject is required.' };
@@ -73,7 +72,6 @@ async function readBill(body, conn) {
         const legacy = LEGACY_PARAMS[st.param];
         const rawDate = body[`${st.param}Date`] ?? (legacy && body[`${legacy}Date`]);
         const rawRemark = body[`${st.param}Remark`] ?? (legacy && body[`${legacy}Remark`]);
-        const rawDone = body[`${st.param}Done`];
         const label = `Stage ${i + 1}`;
 
         let date = null;
@@ -84,13 +82,11 @@ async function readBill(body, conn) {
             if (lastDate && date < lastDate) return { error: `${label}: the date is before an earlier stage's date. Dates must be in stage order.` };
             lastDate = date;
         }
-        // No flag sent (older clients): done when it has a date
-        const done = date !== null || (rawDone !== undefined ? isYes(rawDone) : false);
         const remark = blank(rawRemark) ? null : String(rawRemark).trim();
         if (remark && remark.length > STAGE_REMARK_MAX) return { error: `${label}: the remark can be at most ${STAGE_REMARK_MAX} characters.` };
 
-        if (done) stageId = i + 1;
-        stages.push({ ...st, date, done, remark });
+        if (date) stageId = i + 1;
+        stages.push({ ...st, date, remark });
     }
     return { bill: { subject, wing, division, remarks, stageId, stages } };
 }
@@ -104,7 +100,6 @@ function bindBill(request, bill) {
     request.input("stageId", bill.stageId);
     bill.stages.forEach((st) => {
         request.input(`${st.param}Date`, st.date);
-        request.input(`${st.param}Done`, st.done ? 1 : 0);
         request.input(`${st.param}Remark`, st.remark);
     });
 }
@@ -126,11 +121,11 @@ async function createBill(req, res) {
         request.input("userID", req.user.userId); // the signed-in user, not a form value
         const result = await request.query(`INSERT INTO tbl_bill (
             subject, wing, division,
-            ${STAGES.map((st) => `${st.column}_date, ${st.column}, ${st.remark}`).join(', ')},
+            ${STAGES.map((st) => `${st.column}_date, ${st.remark}`).join(', ')},
             remarks, stage_id, created_by, created_date, updated_by, updated_date
         ) OUTPUT INSERTED.bill_id VALUES (
             @subject, @wing, @division,
-            ${STAGES.map((st) => `@${st.param}Date, @${st.param}Done, @${st.param}Remark`).join(', ')},
+            ${STAGES.map((st) => `@${st.param}Date, @${st.param}Remark`).join(', ')},
             @remarks, @stageId, @userID, GETDATE(), @userID, GETDATE()
         )`);
         res.status(201).json({ billID: result.recordset[0]?.bill_id });
@@ -205,6 +200,12 @@ async function getUpdateBill(req, res) {
     }
 }
 
+// A 2.0 bill can be at a stage that has no date. Its stage is kept until a later stage gets a
+// date; otherwise the dates decide. In an UPDATE the columns read are the row's old values.
+const KEEP_UNDATED_STAGE = `CASE WHEN @stageId < ISNULL(stage_id, 0) AND CASE stage_id
+    ${STAGES.map((s, i) => `WHEN ${i + 1} THEN ${s.column}_date`).join('\n    ')}
+  END IS NULL THEN stage_id ELSE @stageId END`;
+
 async function updateBill(req, res) {
     const billID = toId(req.body.billID);
     if (!billID) return res.status(400).json({ message: 'Invalid bill id.' });
@@ -222,9 +223,9 @@ async function updateBill(req, res) {
             subject = @subject,
             wing = @wing,
             division = @division,
-            ${STAGES.map((st) => `${st.column}_date = @${st.param}Date, ${st.column} = @${st.param}Done, ${st.remark} = @${st.param}Remark`).join(',\n            ')},
+            ${STAGES.map((st) => `${st.column}_date = @${st.param}Date, ${st.remark} = @${st.param}Remark`).join(',\n            ')},
             remarks = @remarks,
-            stage_id = @stageId,
+            stage_id = ${KEEP_UNDATED_STAGE},
             updated_by = @userID,
             updated_date = GETDATE()
             WHERE bill_id = @billID AND ${scope}`);
