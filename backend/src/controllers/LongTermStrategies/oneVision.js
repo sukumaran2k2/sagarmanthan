@@ -1083,6 +1083,8 @@ async function createOVDL2Data(req, res) {
         const b2Code = B2Data.recordset[0].b2_code;
         const b2Id = B2Data.recordset[0].id;
 
+        const createdIds = [];
+
         if (actionB3 && actionB3.length > 0) {
 
             for (const row of actionB3) {
@@ -1150,11 +1152,14 @@ async function createOVDL2Data(req, res) {
                         @Remarks, @userID, 'No Update'
                     )
                 `);
+
+                const newOvod = await conn.query(`SELECT TOP 1 id FROM tbl_one_vision_doc ORDER BY id DESC`);
+                if (newOvod.recordset?.[0]?.id) createdIds.push(newOvod.recordset[0].id);
             }
-            
+
         }
 
-        res.sendStatus(201);
+        res.status(201).json({ ids: createdIds });
     } catch (err) {
         console.error(err);
         res.sendStatus(500);
@@ -1400,8 +1405,8 @@ async function updateOVDData(req, res) {
                 `);
             const existingLogs = existingLogsResult.recordset;
 
-            const incomingLogs = (ovodProgressLogData || []).filter(row => 
-                row.progressDate && row.physicalProgress !== '' && row.financialProgress !== ''
+            const incomingLogs = (ovodProgressLogData || []).filter(row =>
+                row.progressDate
             );
 
             let hasChanges = false;

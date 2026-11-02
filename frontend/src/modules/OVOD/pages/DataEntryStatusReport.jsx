@@ -18,80 +18,6 @@ import { useShallow } from 'zustand/react/shallow';
 import { useOvodStore } from '../store/useOvodStore';
 import { useNotifier, COMMON_TOASTS } from '../../../utils/notify';
 
-/* ============================================================
-   BASELINE DATASETS (Accurately matching screenshots & official baseline)
-   ============================================================ */
-const BASELINE_MINISTRY = [
-  { "Wings": "Administration", "Total A1": 1, "Updated A1": 1, "Total A2": 1, "Updated A2": 1, "Total A3": 5, "Updated A3": 5, "Total Cost A3 (In Cr)": 0, "Total Cost B3 (In Cr)": 0, "Overall Total Cost (In Cr)": 0 },
-  { "Wings": "ALHW & Media", "Total A1": 1, "Updated A1": 1, "Total A2": 1, "Updated A2": 1, "Total A3": 4, "Updated A3": 4, "Total Cost A3 (In Cr)": 0, "Total Cost B3 (In Cr)": 0, "Overall Total Cost (In Cr)": 0 },
-  { "Wings": "Coord-I", "Total A1": 2, "Updated A1": 2, "Total A2": 3, "Updated A2": 3, "Total A3": 9, "Updated A3": 9, "Total Cost A3 (In Cr)": 0, "Total Cost B3 (In Cr)": 0, "Overall Total Cost (In Cr)": 0 },
-  { "Wings": "Development", "Total A1": 1, "Updated A1": 0, "Total A2": 1, "Updated A2": 0, "Total A3": 5, "Updated A3": 0, "Total Cost A3 (In Cr)": 0, "Total Cost B3 (In Cr)": 0, "Overall Total Cost (In Cr)": 0 },
-  { "Wings": "DGLL, Parliament & TRW", "Total A1": 2, "Updated A1": 1, "Total A2": 2, "Updated A2": 1, "Total A3": 8, "Updated A3": 3, "Total Cost A3 (In Cr)": 0, "Total Cost B3 (In Cr)": 0, "Overall Total Cost (In Cr)": 0 },
-  { "Wings": "Information Technology", "Total A1": 5, "Updated A1": 5, "Total A2": 7, "Updated A2": 7, "Total A3": 55, "Updated A3": 55, "Total Cost A3 (In Cr)": 0, "Total Cost B3 (In Cr)": 0, "Overall Total Cost (In Cr)": 0 },
-  { "Wings": "IWT", "Total A1": 2, "Updated A1": 2, "Total A2": 2, "Updated A2": 2, "Total A3": 9, "Updated A3": 9, "Total Cost A3 (In Cr)": 0, "Total Cost B3 (In Cr)": 0, "Overall Total Cost (In Cr)": 0 },
-  { "Wings": "Office of Economic Advisor", "Total A1": 2, "Updated A1": 1, "Total A2": 3, "Updated A2": 1, "Total A3": 11, "Updated A3": 1, "Total Cost A3 (In Cr)": 0, "Total Cost B3 (In Cr)": 0, "Overall Total Cost (In Cr)": 0 },
-  { "Wings": "Ports", "Total A1": 16, "Updated A1": 5, "Total A2": 34, "Updated A2": 8, "Total A3": 140, "Updated A3": 32, "Total Cost A3 (In Cr)": 0, "Total Cost B3 (In Cr)": 0, "Overall Total Cost (In Cr)": 0 },
-  { "Wings": "Sagarmala", "Total A1": 3, "Updated A1": 3, "Total A2": 12, "Updated A2": 5, "Total A3": 70, "Updated A3": 32, "Total Cost A3 (In Cr)": 0, "Total Cost B3 (In Cr)": 0, "Overall Total Cost (In Cr)": 0 },
-  { "Wings": "Shipping", "Total A1": 25, "Updated A1": 11, "Total A2": 72, "Updated A2": 23, "Total A3": 215, "Updated A3": 60, "Total Cost A3 (In Cr)": 49119.04, "Total Cost B3 (In Cr)": 49119.04, "Overall Total Cost (In Cr)": 98238.08 }
-];
-
-const BASELINE_ORGANISATION = [
-  { "Organisation Name": "Chennai Port Authority", "Total B1": 110, "Updated B1": 110, "Total B2": 121, "Updated B2": 121, "Total B3": 598, "Updated B3": 598, "Total Cost (In Cr)": 6040.11 },
-  { "Organisation Name": "Cochin Port Authority", "Total B1": 99, "Updated B1": 99, "Total B2": 112, "Updated B2": 112, "Total B3": 539, "Updated B3": 539, "Total Cost (In Cr)": 3289.63 },
-  { "Organisation Name": "Kamarajar Port Limited", "Total B1": 106, "Updated B1": 106, "Total B2": 119, "Updated B2": 119, "Total B3": 579, "Updated B3": 579, "Total Cost (In Cr)": 6150.45 },
-  { "Organisation Name": "Syama Prasad Mookerjee Port", "Total B1": 1, "Updated B1": 0, "Total B2": 1, "Updated B2": 0, "Total B3": 1, "Updated B3": 0, "Total Cost (In Cr)": 0 },
-  { "Organisation Name": "Deendayal Port Authority", "Total B1": 95, "Updated B1": 95, "Total B2": 101, "Updated B2": 101, "Total B3": 470, "Updated B3": 470, "Total Cost (In Cr)": 5846.14 },
-  { "Organisation Name": "New Mangalore Port Authority", "Total B1": 95, "Updated B1": 95, "Total B2": 108, "Updated B2": 108, "Total B3": 514, "Updated B3": 514, "Total Cost (In Cr)": 7040 },
-  { "Organisation Name": "Mormugao Port Authority", "Total B1": 101, "Updated B1": 101, "Total B2": 114, "Updated B2": 114, "Total B3": 540, "Updated B3": 540, "Total Cost (In Cr)": 2297.21 },
-  { "Organisation Name": "Mumbai Port Authority", "Total B1": 83, "Updated B1": 83, "Total B2": 97, "Updated B2": 97, "Total B3": 387, "Updated B3": 387, "Total Cost (In Cr)": 4145.00 },
-  { "Organisation Name": "Jawaharlal Nehru Port Authority", "Total B1": 109, "Updated B1": 109, "Total B2": 119, "Updated B2": 119, "Total B3": 591, "Updated B3": 591, "Total Cost (In Cr)": 11696.11 },
-  { "Organisation Name": "Paradip Port Authority", "Total B1": 105, "Updated B1": 105, "Total B2": 126, "Updated B2": 126, "Total B3": 611, "Updated B3": 611, "Total Cost (In Cr)": 21419.15 },
-  { "Organisation Name": "V.O. Chidambaranar Port Authority", "Total B1": 104, "Updated B1": 104, "Total B2": 115, "Updated B2": 115, "Total B3": 541, "Updated B3": 541, "Total Cost (In Cr)": 101697.13 },
-  { "Organisation Name": "Visakhapatnam Port Authority", "Total B1": 98, "Updated B1": 98, "Total B2": 107, "Updated B2": 107, "Total B3": 478, "Updated B3": 478, "Total Cost (In Cr)": 15286.54 },
-  { "Organisation Name": "Ministry Of Ports, Shipping and Waterways", "Total B1": 2, "Updated B1": 1, "Total B2": 2, "Updated B2": 1, "Total B3": 6, "Updated B3": 5, "Total Cost (In Cr)": 49119.04 },
-  { "Organisation Name": "Inland Waterways Authority of India", "Total B1": 68, "Updated B1": 68, "Total B2": 102, "Updated B2": 102, "Total B3": 507, "Updated B3": 507, "Total Cost (In Cr)": 30272.32 },
-  { "Organisation Name": "Cochin Shipyard Limited", "Total B1": 30, "Updated B1": 30, "Total B2": 35, "Updated B2": 35, "Total B3": 141, "Updated B3": 141, "Total Cost (In Cr)": 2624.6 },
-  { "Organisation Name": "Directorate General of Lighthouses and Lightships", "Total B1": 10, "Updated B1": 10, "Total B2": 10, "Updated B2": 10, "Total B3": 48, "Updated B3": 48, "Total Cost (In Cr)": 173.52 },
-  { "Organisation Name": "Indian Port Rail & Ropeway Corporation Limited", "Total B1": 6, "Updated B1": 6, "Total B2": 6, "Updated B2": 6, "Total B3": 30, "Updated B3": 30, "Total Cost (In Cr)": 0 },
-  { "Organisation Name": "Director General of Shipping", "Total B1": 56, "Updated B1": 56, "Total B2": 70, "Updated B2": 70, "Total B3": 257, "Updated B3": 257, "Total Cost (In Cr)": 4946.95 },
-  { "Organisation Name": "Sagarmala Finance Corporation Limited", "Total B1": 14, "Updated B1": 14, "Total B2": 14, "Updated B2": 14, "Total B3": 70, "Updated B3": 70, "Total Cost (In Cr)": 5.36 },
-  { "Organisation Name": "Andaman, Lakshadweep Harbour Works", "Total B1": 5, "Updated B1": 5, "Total B2": 5, "Updated B2": 5, "Total B3": 25, "Updated B3": 25, "Total Cost (In Cr)": 3.04 },
-  { "Organisation Name": "Indian Maritime University", "Total B1": 25, "Updated B1": 25, "Total B2": 32, "Updated B2": 32, "Total B3": 160, "Updated B3": 160, "Total Cost (In Cr)": 0 },
-  { "Organisation Name": "Dredging Corporation of India", "Total B1": 15, "Updated B1": 15, "Total B2": 19, "Updated B2": 19, "Total B3": 96, "Updated B3": 96, "Total Cost (In Cr)": 7597.51 },
-  { "Organisation Name": "Gujarat Maritime Board", "Total B1": 4, "Updated B1": 0, "Total B2": 9, "Updated B2": 0, "Total B3": 51, "Updated B3": 0, "Total Cost (In Cr)": 0 },
-  { "Organisation Name": "IIT Chennai", "Total B1": 1, "Updated B1": 1, "Total B2": 2, "Updated B2": 2, "Total B3": 8, "Updated B3": 3, "Total Cost (In Cr)": 1 },
-  { "Organisation Name": "Centre of Excellence in Maritime and Shipbuilding", "Total B1": 12, "Updated B1": 10, "Total B2": 15, "Updated B2": 13, "Total B3": 62, "Updated B3": 55, "Total Cost (In Cr)": 0 },
-  { "Organisation Name": "India Ports Global Limited", "Total B1": 115, "Updated B1": 115, "Total B2": 115, "Updated B2": 115, "Total B3": 687, "Updated B3": 683, "Total Cost (In Cr)": 1068 },
-  { "Organisation Name": "SPV", "Total B1": 1, "Updated B1": 0, "Total B2": 1, "Updated B2": 0, "Total B3": 7, "Updated B3": 0, "Total Cost (In Cr)": 0 },
-  { "Organisation Name": "Krishnapatnam", "Total B1": 1, "Updated B1": 0, "Total B2": 1, "Updated B2": 0, "Total B3": 8, "Updated B3": 0, "Total Cost (In Cr)": 0 },
-  { "Organisation Name": "Kattupalli", "Total B1": 1, "Updated B1": 0, "Total B2": 1, "Updated B2": 0, "Total B3": 8, "Updated B3": 0, "Total Cost (In Cr)": 0 },
-  { "Organisation Name": "HDC - SMPK", "Total B1": 125, "Updated B1": 125, "Total B2": 134, "Updated B2": 134, "Total B3": 680, "Updated B3": 680, "Total Cost (In Cr)": 2554.79 },
-  { "Organisation Name": "KDS - SMPK", "Total B1": 125, "Updated B1": 125, "Total B2": 134, "Updated B2": 134, "Total B3": 680, "Updated B3": 680, "Total Cost (In Cr)": 1437.49 },
-  { "Organisation Name": "NTCPWC, IITM", "Total B1": 1, "Updated B1": 1, "Total B2": 1, "Updated B2": 1, "Total B3": 1, "Updated B3": 1, "Total Cost (In Cr)": 36.15 }
-];
-
-const BASELINE_VIBHAS = [
-  { "VIBHAS Cell": "Capacity building, outreach, Education", "Total A1": 5, "Updated A1": 5, "Total A2": 43, "Updated A2": 43, "Total A3": 45, "Updated A3": 25, "Total B1": 68, "Updated B1": 68, "Total B2": 83, "Updated B2": 83, "Total B3": 392, "Updated B3": 392, "Total Cost (In Cr)": 100.67 },
-  { "VIBHAS Cell": "Communication", "Total A1": 4, "Updated A1": 4, "Total A2": 8, "Updated A2": 8, "Total A3": 0, "Updated A3": 0, "Total B1": 19, "Updated B1": 19, "Total B2": 20, "Updated B2": 20, "Total B3": 92, "Updated B3": 92, "Total Cost (In Cr)": 262.17 },
-  { "VIBHAS Cell": "CSR & community outreach", "Total A1": 4, "Updated A1": 4, "Total A2": 9, "Updated A2": 9, "Total A3": 10, "Updated A3": 10, "Total B1": 7, "Updated B1": 7, "Total B2": 14, "Updated B2": 14, "Total B3": 64, "Updated B3": 64, "Total Cost (In Cr)": 868.48 },
-  { "VIBHAS Cell": "Data analytics, statistics, knowledge repo...", "Total A1": 6, "Updated A1": 6, "Total A2": 14, "Updated A2": 14, "Total A3": 9, "Updated A3": 3, "Total B1": 59, "Updated B1": 59, "Total B2": 99, "Updated B2": 99, "Total B3": 286, "Updated B3": 286, "Total Cost (In Cr)": 48.1 },
-  { "VIBHAS Cell": "Economic analysis, appraisal, policy meas...", "Total A1": 1, "Updated A1": 1, "Total A2": 5, "Updated A2": 5, "Total A3": 0, "Updated A3": 0, "Total B1": 15, "Updated B1": 15, "Total B2": 55, "Updated B2": 55, "Total B3": 150, "Updated B3": 150, "Total Cost (In Cr)": 0 },
-  { "VIBHAS Cell": "Green initiatives including pollution com...", "Total A1": 4, "Updated A1": 4, "Total A2": 55, "Updated A2": 45, "Total A3": 58, "Updated A3": 8, "Total B1": 47, "Updated B1": 47, "Total B2": 467, "Updated B2": 467, "Total B3": 1851, "Updated B3": 1851, "Total Cost (In Cr)": 8355.44 },
-  { "VIBHAS Cell": "Health, Safety, Security & Disaster Mana...", "Total A1": 7, "Updated A1": 7, "Total A2": 34, "Updated A2": 25, "Total A3": 44, "Updated A3": 0, "Total B1": 25, "Updated B1": 25, "Total B2": 207, "Updated B2": 207, "Total B3": 1589, "Updated B3": 1589, "Total Cost (In Cr)": 1027.25 },
-  { "VIBHAS Cell": "Inter ministerial issues", "Total A1": 1, "Updated A1": 1, "Total A2": 2, "Updated A2": 2, "Total A3": 4, "Updated A3": 4, "Total B1": 0, "Updated B1": 0, "Total B2": 0, "Updated B2": 0, "Total B3": 0, "Updated B3": 0, "Total Cost (In Cr)": 0 },
-  { "VIBHAS Cell": "International cooperation", "Total A1": 23, "Updated A1": 22, "Total A2": 60, "Updated A2": 44, "Total A3": 0, "Updated A3": 0, "Total B1": 60, "Updated B1": 60, "Total B2": 97, "Updated B2": 96, "Total B3": 954, "Updated B3": 929, "Total Cost (In Cr)": 1073.2 },
-  { "VIBHAS Cell": "IT/E-governance", "Total A1": 5, "Updated A1": 4, "Total A2": 45, "Updated A2": 38, "Total A3": 35, "Updated A3": 5, "Total B1": 145, "Updated B1": 144, "Total B2": 232, "Updated B2": 231, "Total B3": 1151, "Updated B3": 1146, "Total Cost (In Cr)": 1226.7 },
-  { "VIBHAS Cell": "Land, asset, port led industrialization", "Total A1": 2, "Updated A1": 2, "Total A2": 20, "Updated A2": 14, "Total A3": 45, "Updated A3": 15, "Total B1": 11, "Updated B1": 11, "Total B2": 142, "Updated B2": 142, "Total B3": 710, "Updated B3": 710, "Total Cost (In Cr)": 3182.21 },
-  { "VIBHAS Cell": "Legal (arbitration - shipping + Institution...", "Total A1": 4, "Updated A1": 4, "Total A2": 11, "Updated A2": 7, "Total A3": 54, "Updated A3": 35, "Total B1": 0, "Updated B1": 0, "Total B2": 0, "Updated B2": 0, "Total B3": 0, "Updated B3": 0, "Total Cost (In Cr)": 0 },
-  { "VIBHAS Cell": "Maritime Finance, Insurance, Leasing, Ownership and Registration", "Total A1": 6, "Updated A1": 6, "Total A2": 37, "Updated A2": 26, "Total A3": 52, "Updated A3": 2, "Total B1": 25, "Updated B1": 25, "Total B2": 37, "Updated B2": 36, "Total B3": 51, "Updated B3": 50, "Total Cost (In Cr)": 17.6 },
-  { "VIBHAS Cell": "Media and public outreach", "Total A1": 3, "Updated A1": 2, "Total A2": 8, "Updated A2": 2, "Total A3": 40, "Updated A3": 7, "Total B1": 1, "Updated B1": 1, "Total B2": 13, "Updated B2": 13, "Total B3": 65, "Updated B3": 65, "Total Cost (In Cr)": 0 },
-  { "VIBHAS Cell": "New Technology & Innovation/Research/Startups and Entrepreneurship", "Total A1": 3, "Updated A1": 3, "Total A2": 24, "Updated A2": 16, "Total A3": 44, "Updated A3": 2, "Total B1": 30, "Updated B1": 30, "Total B2": 31, "Updated B2": 31, "Total B3": 149, "Updated B3": 144, "Total Cost (In Cr)": 14.75 },
-  { "VIBHAS Cell": "Projects and schemes, PPP", "Total A1": 6, "Updated A1": 5, "Total A2": 18, "Updated A2": 15, "Total A3": 14, "Updated A3": 6, "Total B1": 14, "Updated B1": 14, "Total B2": 80, "Updated B2": 77, "Total B3": 635, "Updated B3": 612, "Total Cost (In Cr)": 91531.26 },
-  { "VIBHAS Cell": "Ship building, repair and recycling", "Total A1": 5, "Updated A1": 5, "Total A2": 41, "Updated A2": 23, "Total A3": 51, "Updated A3": 0, "Total B1": 25, "Updated B1": 23, "Total B2": 32, "Updated B2": 30, "Total B3": 106, "Updated B3": 87, "Total Cost (In Cr)": 7424.6 },
-  { "VIBHAS Cell": "States", "Total A1": 4, "Updated A1": 4, "Total A2": 4, "Updated A2": 4, "Total A3": 0, "Updated A3": 0, "Total B1": 4, "Updated B1": 4, "Total B2": 24, "Updated B2": 24, "Total B3": 120, "Updated B3": 120, "Total Cost (In Cr)": 0 },
-  { "VIBHAS Cell": "Tourism and ferries", "Total A1": 5, "Updated A1": 5, "Total A2": 9, "Updated A2": 8, "Total A3": 14, "Updated A3": 9, "Total B1": 5, "Updated B1": 5, "Total B2": 20, "Updated B2": 20, "Total B3": 83, "Updated B3": 83, "Total Cost (In Cr)": 1430.85 },
-  { "VIBHAS Cell": "Traffic, cargo operation", "Total A1": 6, "Updated A1": 6, "Total A2": 34, "Updated A2": 28, "Total A3": 30, "Updated A3": 0, "Total B1": 30, "Updated B1": 30, "Total B2": 245, "Updated B2": 238, "Total B3": 1222, "Updated B3": 1187, "Total Cost (In Cr)": 70247.41 }
-];
 
 /* ============================================================
    SUB-TABS CONFIGURATION
@@ -154,26 +80,17 @@ export default function DataEntryStatusReport({ triggerNotification }) {
     return SUB_TABS.find(t => t.id === activeTabId) || SUB_TABS[0];
   }, [activeTabId]);
 
-  /* ── Fetch Data with Baseline Fallback ──────────────────────── */
+  /* ── Fetch Data ─────────────────────────────────────────────── */
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetchOvdStatusReport(activeTabConfig.apiType);
       const rows = res?.rowData || res?.data || (Array.isArray(res) ? res : []);
-      if (rows && rows.length > 0) {
-        setData(rows);
-      } else {
-        // Fallback to baseline matching active tab
-        if (activeTabConfig.id === 'ministry') setData(BASELINE_MINISTRY);
-        else if (activeTabConfig.id === 'organization') setData(BASELINE_ORGANISATION);
-        else setData(BASELINE_VIBHAS);
-      }
+      setData(rows);
     } catch (err) {
-      console.warn('Could not fetch remote status data, falling back to baseline:', err);
+      console.error('Could not fetch status data:', err);
       notify(COMMON_TOASTS.loadFailed('The latest status data'));
-      if (activeTabConfig.id === 'ministry') setData(BASELINE_MINISTRY);
-      else if (activeTabConfig.id === 'organization') setData(BASELINE_ORGANISATION);
-      else setData(BASELINE_VIBHAS);
+      setData([]);
     } finally {
       setLoading(false);
     }

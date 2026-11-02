@@ -37,6 +37,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useOvodStore } from '../store/useOvodStore';
 import { useNotifier, COMMON_TOASTS } from '../../../utils/notify';
 import { OVOD_TOASTS } from '../toastMessages';
+import { isOrganisationUser } from '../../../utils/authSession';
 
 // Thrown when the API returns no rows, to fall through to the built-in sample hierarchy
 const FALLBACK_NOTICE = 'Using fallback hierarchical dataset';
@@ -82,6 +83,7 @@ function computeRollup(tree) {
 
 export default function InterventionList({ triggerNotification }) {
   const gridRef = useRef(null);
+  const isOrgUser = isOrganisationUser();
 
   const notify = useNotifier(triggerNotification);
 
@@ -164,21 +166,36 @@ export default function InterventionList({ triggerNotification }) {
       // /OVD-data-count returns a one-row array
       const t = Array.isArray(res) ? res[0] : res?.total?.[0];
       if (t) {
-        setCountsData({
-          goalsA1: t.goals ?? 0,
-          interventionsA2: t.intervention ?? 0,
-          actionItemsA3: t.action ?? 0,
-          goalsB1: t.goals_b1 ?? 0,
-          interventionsB2: t.interventions_b2 ?? 0,
-          actionItemsB3: t.actions_b3 ?? 0,
-          totalCostA: Number(t.total_cost_a ?? 0).toFixed(2),
-          totalCostB: Number(t.total_cost_b ?? t.total_cost ?? 0).toFixed(2)
-        });
+        // Org users: backend returns goals/intervention/action as B1/B2/B3
+        // Ministry users: goals/intervention/action = A1/A2/A3, goals_b1/interventions_b2/actions_b3 = B1/B2/B3
+        if (isOrgUser) {
+          setCountsData({
+            goalsA1: 0,
+            interventionsA2: 0,
+            actionItemsA3: 0,
+            goalsB1: t.goals ?? 0,
+            interventionsB2: t.intervention ?? 0,
+            actionItemsB3: t.action ?? 0,
+            totalCostA: '0.00',
+            totalCostB: Number(t.total_cost_b ?? t.total_cost ?? 0).toFixed(2)
+          });
+        } else {
+          setCountsData({
+            goalsA1: t.goals ?? 0,
+            interventionsA2: t.intervention ?? 0,
+            actionItemsA3: t.action ?? 0,
+            goalsB1: t.goals_b1 ?? 0,
+            interventionsB2: t.interventions_b2 ?? 0,
+            actionItemsB3: t.actions_b3 ?? 0,
+            totalCostA: Number(t.total_cost_a ?? 0).toFixed(2),
+            totalCostB: Number(t.total_cost_b ?? t.total_cost ?? 0).toFixed(2)
+          });
+        }
       }
     } catch (err) {
       console.warn("OVOD Counts error:", err);
     }
-  }, [selectedWing, selectedOrg, selectedVision, selectedPriority, selectedVibhas, selectedMivChapter, selectedMakvTheme]);
+  }, [selectedWing, selectedOrg, selectedVision, selectedPriority, selectedVibhas, selectedMivChapter, selectedMakvTheme, isOrgUser]);
 
   // Fetch Interventions Report & Build Deepdown Hierarchy Tree
   const tableRequestRef = useRef(0);
@@ -1772,19 +1789,17 @@ export default function InterventionList({ triggerNotification }) {
   return (
     <div className="space-y-4 animate-fade-in relative select-none text-slate-800 dark:text-slate-100">
       
-      {/* 8 Stat Cards in 2 Rows matching Image 1 */}
-      <div className="space-y-3.5">
-        
-        {/* ROW 1 */}
+      {/* Stat Cards — A row (ministry users only) */}
+      {!isOrgUser && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          
-          <div className="rounded-2xl p-4 bg-[#fbcfe8]/60 dark:bg-pink-950/40 border border-pink-200/80 dark:border-pink-900/50 shadow-xs flex flex-col items-center justify-center text-center relative">
+
+          <div className="rounded-2xl p-4 bg-violet-100/70 dark:bg-violet-950/40 border border-violet-200/80 dark:border-violet-900/50 shadow-xs flex flex-col items-center justify-center text-center">
             <div className="flex items-center space-x-1.5">
               <span className="text-2xl font-black text-slate-800 dark:text-slate-100 font-display">
                 {countsData.goalsA1}
               </span>
-              <div className="h-6 w-6 rounded-full bg-white/80 dark:bg-slate-800 flex items-center justify-center text-pink-500 shadow-xs">
-                <Star size={13} className="fill-pink-400 text-pink-500" />
+              <div className="h-6 w-6 rounded-full bg-white/80 dark:bg-slate-800 flex items-center justify-center text-violet-500 shadow-xs">
+                <Star size={13} className="fill-violet-400 text-violet-500" />
               </div>
             </div>
             <p className="text-[11px] font-extrabold text-slate-600 dark:text-slate-300 tracking-wide mt-1">
@@ -1792,12 +1807,12 @@ export default function InterventionList({ triggerNotification }) {
             </p>
           </div>
 
-          <div className="rounded-2xl p-4 bg-[#e9d5ff]/60 dark:bg-purple-950/40 border border-purple-200/80 dark:border-purple-900/50 shadow-xs flex flex-col items-center justify-center text-center relative">
+          <div className="rounded-2xl p-4 bg-blue-100/70 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-900/50 shadow-xs flex flex-col items-center justify-center text-center">
             <div className="flex items-center space-x-1.5">
               <span className="text-2xl font-black text-slate-800 dark:text-slate-100 font-display">
                 {countsData.interventionsA2}
               </span>
-              <div className="h-6 w-6 rounded-full bg-white/80 dark:bg-slate-800 flex items-center justify-center text-purple-600 shadow-xs">
+              <div className="h-6 w-6 rounded-full bg-white/80 dark:bg-slate-800 flex items-center justify-center text-blue-600 shadow-xs">
                 <Layers size={13} />
               </div>
             </div>
@@ -1806,12 +1821,12 @@ export default function InterventionList({ triggerNotification }) {
             </p>
           </div>
 
-          <div className="rounded-2xl p-4 bg-[#99f6e4]/60 dark:bg-teal-950/40 border border-teal-200/80 dark:border-teal-900/50 shadow-xs flex flex-col items-center justify-center text-center relative">
+          <div className="rounded-2xl p-4 bg-sky-100/70 dark:bg-sky-950/40 border border-sky-200/80 dark:border-sky-900/50 shadow-xs flex flex-col items-center justify-center text-center">
             <div className="flex items-center space-x-1.5">
               <span className="text-2xl font-black text-slate-800 dark:text-slate-100 font-display">
                 {countsData.actionItemsA3}
               </span>
-              <div className="h-6 w-6 rounded-full bg-white/80 dark:bg-slate-800 flex items-center justify-center text-teal-600 shadow-xs">
+              <div className="h-6 w-6 rounded-full bg-white/80 dark:bg-slate-800 flex items-center justify-center text-sky-600 shadow-xs">
                 <Users size={13} />
               </div>
             </div>
@@ -1820,13 +1835,13 @@ export default function InterventionList({ triggerNotification }) {
             </p>
           </div>
 
-          <div className="rounded-2xl p-4 bg-[#fed7aa]/70 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/50 shadow-xs flex flex-col items-center justify-center text-center relative">
+          <div className="rounded-2xl p-4 bg-emerald-100/70 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-900/50 shadow-xs flex flex-col items-center justify-center text-center">
             <div className="flex items-center space-x-1.5">
               <span className="text-2xl font-black text-slate-800 dark:text-slate-100 font-display">
                 {countsData.totalCostA}
               </span>
-              <div className="h-6 w-6 rounded-full bg-white/80 dark:bg-slate-800 flex items-center justify-center text-amber-600 shadow-xs">
-                <Pencil size={13} />
+              <div className="h-6 w-6 rounded-full bg-white/80 dark:bg-slate-800 flex items-center justify-center text-emerald-600 shadow-xs">
+                <DollarSign size={13} />
               </div>
             </div>
             <p className="text-[11px] font-extrabold text-slate-600 dark:text-slate-300 tracking-wide mt-1">
@@ -1835,8 +1850,11 @@ export default function InterventionList({ triggerNotification }) {
           </div>
 
         </div>
+      )}
 
-        {/* ROW 2 */}
+      {/* Stat Cards — B row */}
+      <div className="space-y-3.5">
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           
           <div className="rounded-2xl p-4 bg-[#fecdd3]/70 dark:bg-rose-950/40 border border-rose-200/80 dark:border-rose-900/50 shadow-xs flex flex-col items-center justify-center text-center relative">

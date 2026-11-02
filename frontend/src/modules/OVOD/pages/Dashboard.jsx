@@ -31,6 +31,7 @@ import {
   fetchOvdStatusCounts,
   getUserIdFromToken
 } from '../api';
+import { isOrganisationUser } from '../../../utils/authSession';
 import {
   OVOD_VISIONS,
   OVOD_PRIORITIES,
@@ -529,6 +530,7 @@ const EMPTY_LEVEL = shapeLevel(null);
 export default function Dashboard({ triggerNotification }) {
   const isDark = useIsDark();
   const theme = isDark ? THEME.dark : THEME.light;
+  const isOrgUser = isOrganisationUser();
 
   const notify = useNotifier(triggerNotification);
 
@@ -579,27 +581,30 @@ export default function Dashboard({ triggerNotification }) {
       makvThemeSelect: selectedMakvTheme
     };
 
-    const [a, b, s] = await Promise.allSettled([
-      fetchOvdMinistryChart(params),
+    const requests = [
       fetchOvdMinistryChartB2(params),
-      fetchOvdStatusCounts({ ...params, userID: getUserIdFromToken() })
-    ]);
+      fetchOvdStatusCounts({ ...params, userID: getUserIdFromToken() }),
+      ...(!isOrgUser ? [fetchOvdMinistryChart(params)] : [])
+    ];
+    const [b, s, a] = await Promise.allSettled(requests);
     if (requestId !== latestRequestRef.current) return;
 
-    setLevelA(a.status === 'fulfilled' ? shapeLevel(a.value) : EMPTY_LEVEL);
     setLevelB(b.status === 'fulfilled' ? shapeLevel(b.value) : EMPTY_LEVEL);
+    if (!isOrgUser && a) {
+      setLevelA(a.status === 'fulfilled' ? shapeLevel(a.value) : EMPTY_LEVEL);
+    }
     const sc = s.status === 'fulfilled' && Array.isArray(s.value) ? s.value[0] : null;
     setStatusCounts({
       notApplicable: Number(sc?.Not_Applicable_Count || 0),
       dropped: Number(sc?.Dropped_Count || 0)
     });
-    setFailed({ a: a.status === 'rejected', b: b.status === 'rejected' });
+    setFailed({ a: !isOrgUser && a?.status === 'rejected', b: b.status === 'rejected' });
 
-    if (a.status === 'rejected' && b.status === 'rejected') {
+    if (b.status === 'rejected' || (!isOrgUser && a?.status === 'rejected')) {
       notify(COMMON_TOASTS.loadFailed('The dashboard analytics'));
     }
     setLoading(false);
-  }, [selectedWing, selectedOrg, selectedVision, selectedPriority, selectedVibhas, selectedMivChapter, selectedMakvTheme, notify]);
+  }, [selectedWing, selectedOrg, selectedVision, selectedPriority, selectedVibhas, selectedMivChapter, selectedMakvTheme, notify, isOrgUser]);
 
   useEffect(() => {
     load();
@@ -699,20 +704,22 @@ export default function Dashboard({ triggerNotification }) {
         </div>
       )}
 
-      {/* Stat cards: A row then B row */}
-      <div className="space-y-3.5">
+      {/* Stat cards: A row — ministry users only */}
+      {!isOrgUser && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard loading={loading} value={fmtInt(levelA.totals.goals)} label="Total Goals [A1]" icon={Star} accent="border-l-rose-500" tint="bg-rose-50 dark:bg-rose-950/50" iconColor="text-rose-500" />
-          <StatCard loading={loading} value={fmtInt(levelA.totals.interventions)} label="Total Interventions [A2]" icon={Layers} accent="border-l-purple-500" tint="bg-purple-50 dark:bg-purple-950/50" iconColor="text-purple-500" />
-          <StatCard loading={loading} value={fmtInt(levelA.totals.actions)} label="Total Action Items [A3]" icon={Users} accent="border-l-emerald-500" tint="bg-emerald-50 dark:bg-emerald-950/50" iconColor="text-emerald-600" />
-          <StatCard loading={loading} value={`₹ ${fmtCost(levelA.totals.cost)}`} label="Total Cost [A] (In Cr.)" icon={DollarSign} accent="border-l-yellow-500" tint="bg-yellow-50 dark:bg-yellow-950/50" iconColor="text-yellow-600" />
+          <StatCard loading={loading} value={fmtInt(levelA.totals.goals)} label="Total Goals [A1]" icon={Star} accent="border-l-violet-500" tint="bg-violet-50 dark:bg-violet-950/50" iconColor="text-violet-500" />
+          <StatCard loading={loading} value={fmtInt(levelA.totals.interventions)} label="Total Interventions [A2]" icon={Layers} accent="border-l-blue-500" tint="bg-blue-50 dark:bg-blue-950/50" iconColor="text-blue-500" />
+          <StatCard loading={loading} value={fmtInt(levelA.totals.actions)} label="Total Action Items [A3]" icon={Users} accent="border-l-cyan-500" tint="bg-cyan-50 dark:bg-cyan-950/50" iconColor="text-cyan-600" />
+          <StatCard loading={loading} value={`₹ ${fmtCost(levelA.totals.cost)}`} label="Total Cost [A] (In Cr.)" icon={DollarSign} accent="border-l-emerald-500" tint="bg-emerald-50 dark:bg-emerald-950/50" iconColor="text-emerald-600" />
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard loading={loading} value={fmtInt(levelB.totals.goals)} label="Total Goals [B1]" icon={Star} accent="border-l-orange-500" tint="bg-orange-50 dark:bg-orange-950/50" iconColor="text-orange-500" />
-          <StatCard loading={loading} value={fmtInt(levelB.totals.interventions)} label="Total Interventions [B2]" icon={Layers} accent="border-l-indigo-500" tint="bg-indigo-50 dark:bg-indigo-950/50" iconColor="text-indigo-500" />
-          <StatCard loading={loading} value={fmtInt(levelB.totals.actions)} label="Total Action Items [B3]" icon={Users} accent="border-l-teal-500" tint="bg-teal-50 dark:bg-teal-950/50" iconColor="text-teal-600" />
-          <StatCard loading={loading} value={`₹ ${fmtCost(levelB.totals.cost)}`} label="Total Cost [B] (In Cr.)" icon={DollarSign} accent="border-l-yellow-500" tint="bg-yellow-50 dark:bg-yellow-950/50" iconColor="text-yellow-600" />
-        </div>
+      )}
+
+      {/* Stat cards: B row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard loading={loading} value={fmtInt(levelB.totals.goals)} label="Total Goals [B1]" icon={Star} accent="border-l-orange-500" tint="bg-orange-50 dark:bg-orange-950/50" iconColor="text-orange-500" />
+        <StatCard loading={loading} value={fmtInt(levelB.totals.interventions)} label="Total Interventions [B2]" icon={Layers} accent="border-l-indigo-500" tint="bg-indigo-50 dark:bg-indigo-950/50" iconColor="text-indigo-500" />
+        <StatCard loading={loading} value={fmtInt(levelB.totals.actions)} label="Total Action Items [B3]" icon={Users} accent="border-l-teal-500" tint="bg-teal-50 dark:bg-teal-950/50" iconColor="text-teal-600" />
+        <StatCard loading={loading} value={`₹ ${fmtCost(levelB.totals.cost)}`} label="Total Cost [B] (In Cr.)" icon={DollarSign} accent="border-l-yellow-500" tint="bg-yellow-50 dark:bg-yellow-950/50" iconColor="text-yellow-600" />
       </div>
 
       {/* Not Applicable / Dropped */}
@@ -732,10 +739,10 @@ export default function Dashboard({ triggerNotification }) {
         </div>
       </div>
 
-      {(failed.a || failed.b) && !loading && (
+      {failed.b && !loading && (
         <div className="flex items-center gap-2 rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 px-3.5 py-2 text-xs font-semibold text-amber-800 dark:text-amber-300">
           <AlertTriangle size={14} />
-          {failed.a && failed.b ? 'Analytics could not be loaded.' : `${failed.a ? 'A-level' : 'B-level'} analytics could not be loaded.`} Use Refresh to retry.
+          B-level analytics could not be loaded. Use Refresh to retry.
         </div>
       )}
 
@@ -743,16 +750,26 @@ export default function Dashboard({ triggerNotification }) {
         <span className="font-black text-rose-600">Note!</span> An intervention may fall into multiple categories, which may result in varying total counts.
       </p>
 
-      {/* Analytics */}
-      <LevelAnalytics
-        code="A2"
-        title="Ministry Interventions (A2)"
-        description="Distribution and delivery progress of Ministry-level interventions"
-        level={levelA}
-        loading={loading}
-        error={failed.a}
-        theme={theme}
-      />
+      {!isOrgUser && (
+        <>
+          {failed.a && !loading && (
+            <div className="flex items-center gap-2 rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 px-3.5 py-2 text-xs font-semibold text-amber-800 dark:text-amber-300">
+              <AlertTriangle size={14} />
+              A-level analytics could not be loaded. Use Refresh to retry.
+            </div>
+          )}
+          <LevelAnalytics
+            code="A2"
+            title="Ministry Interventions (A2)"
+            description="Distribution and delivery progress of ministry-level interventions"
+            level={levelA}
+            loading={loading}
+            error={failed.a}
+            theme={theme}
+          />
+        </>
+      )}
+
       <LevelAnalytics
         code="B2"
         title="Organisation Interventions (B2)"
