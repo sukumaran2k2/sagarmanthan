@@ -1451,9 +1451,17 @@ async function viewProjectData(req, res)
             ) AS source_of_funding_names,
             estimated_cost, sanctioned_cost, technical_sanction_cost, award_project_cost, closure_cost, last_updated,
 
-            target_completion_date, tbl_project.project_output_id, tbl_project.project_outcome_id,
+            target_completion_date, 
+            --tbl_project.project_output_id, tbl_project.project_outcome_id,
+            --mmt_output.project_output_name AS project_output_name,
+            --mmt_outcome.project_outcome_name AS project_outcome_name,
+
+           tbl_project.project_outcome_id AS project_outcome_id,
+            mmt_outcome.project_output_id AS project_output_id,
             mmt_output.project_output_name AS project_output_name,
             mmt_outcome.project_outcome_name AS project_outcome_name,
+
+
             tbl_project.gbs_components, tbl_project.iebr_components, 
             tbl_project.ppp_components, tbl_project.loans_components, tbl_project.multilateral_components, tbl_project.state_gov_fund_components,
             tbl_project.pmmsy_components, tbl_project.sagarmala_components, tbl_project.other_source_funding_comp,  
@@ -1484,8 +1492,10 @@ async function viewProjectData(req, res)
             LEFT JOIN mmt_organisation ON mmt_organisation.organisation_id = tbl_project.organisation_id
             LEFT JOIN tbl_project_stage ON tbl_project_stage.stage_id = tbl_project.current_project_stage_id 
             LEFT JOIN mmt_scheme ON mmt_scheme.scheme_id = tbl_project.scheme_id
-            LEFT JOIN mmt_output ON mmt_output.project_output_id = tbl_project.project_output_id
+            --LEFT JOIN mmt_output ON mmt_output.project_output_id = tbl_project.project_output_id
+            --LEFT JOIN mmt_outcome ON mmt_outcome.project_outcome_id = tbl_project.project_outcome_id
             LEFT JOIN mmt_outcome ON mmt_outcome.project_outcome_id = tbl_project.project_outcome_id
+            LEFT JOIN mmt_output ON mmt_output.project_output_id = mmt_outcome.project_output_id
 
             LEFT JOIN 
             (
@@ -1580,10 +1590,16 @@ async function viewProjectData(req, res)
                 JOIN mmt_source_of_funding AS msf ON TRY_CAST(ssf.value AS int) = msf.source_of_funding_id
             ) AS source_of_funding_names, 
 
-            sub_target_completion_date AS target_completion_date, sub_project_output_id AS project_output_id,
-            sub_project_outcome_id AS project_outcome_id,
+            sub_target_completion_date AS target_completion_date, 
+            --sub_project_output_id AS project_output_id, sub_project_outcome_id AS project_outcome_id,
+           -- mmt_output.project_output_name AS project_output_name,
+           -- mmt_outcome.project_outcome_name AS project_outcome_name,
+           
+            tbl_sub_project.sub_project_outcome_id AS project_outcome_id,
+            mmt_outcome.project_output_id AS project_output_id,
             mmt_output.project_output_name AS project_output_name,
             mmt_outcome.project_outcome_name AS project_outcome_name,
+
             sub_gbs_components AS gbs_components, sub_iebr_components AS iebr_components, 
             sub_ppp_components AS ppp_components, sub_loans_components AS loans_components, sub_multilateral_components AS multilateral_components, 
             sub_state_gov_fund_components AS state_gov_fund_components, sub_pmmsy_components AS pmmsy_components,
@@ -1617,8 +1633,11 @@ async function viewProjectData(req, res)
             LEFT JOIN mmt_organisation ON mmt_organisation.organisation_id = tbl_sub_project.sub_organisation_id
             LEFT JOIN tbl_project_stage ON tbl_project_stage.stage_id = tbl_sub_project.sub_current_project_stage_id           
             LEFT JOIN mmt_scheme ON mmt_scheme.scheme_id = tbl_sub_project.sub_scheme_id   
-            LEFT JOIN mmt_output ON mmt_output.project_output_id = tbl_sub_project.sub_project_output_id
+            -- LEFT JOIN mmt_output ON mmt_output.project_output_id = tbl_sub_project.sub_project_output_id
+            -- LEFT JOIN mmt_outcome ON mmt_outcome.project_outcome_id = tbl_sub_project.sub_project_outcome_id
             LEFT JOIN mmt_outcome ON mmt_outcome.project_outcome_id = tbl_sub_project.sub_project_outcome_id
+            LEFT JOIN mmt_output ON mmt_output.project_output_id = mmt_outcome.project_output_id
+
 
             LEFT JOIN 
             (
