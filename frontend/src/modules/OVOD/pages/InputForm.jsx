@@ -430,7 +430,20 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
       formData.current_status.toLowerCase().includes('under implementation') ||
       formData.current_status === 'Completed'
     );
-    const finalProgressRows = [...progressLogRows];
+
+    // Auto-add 100% physical progress row when Completed with no progress entered
+    let finalProgressRows = [...progressLogRows];
+    if (formData.current_status === 'Completed') {
+      const hasPhysicalProgress = finalProgressRows.some(
+        r => r.physicalProgress && String(r.physicalProgress).trim() !== '' && String(r.physicalProgress).trim() !== '0'
+      );
+      if (!hasPhysicalProgress) {
+        const now = new Date();
+        const autoMonth = MONTHS[now.getMonth()];
+        const autoYear = String(now.getFullYear());
+        finalProgressRows = [{ id: Date.now(), month: autoMonth, year: autoYear, physicalProgress: '100', financialProgress: '' }];
+      }
+    }
 
     setSubmitting(true);
     try {
