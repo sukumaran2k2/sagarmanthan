@@ -109,6 +109,33 @@ export const PORT_PERFORMANCE_TOASTS = {
     toastError('Delete Failed', withReason('The targets could not be deleted.', reason)),
   targetsLoadFailed: (reason) =>
     toastError('Could Not Load Targets', withReason('The saved targets could not be loaded. Refresh the page and try again.', reason)),
+
+  // Dwell time (Excel upload)
+  dwellFileRejected: (reason) =>
+    toastWarning('File Not Accepted', reason),
+  dwellChecked: (rows) =>
+    toastInfo('File Checked', `All ${rows} rows passed the checks. Review the values below, then save.`),
+  dwellProblems: (count) =>
+    toastWarning('Correct the File', `The file has ${count} problem${count === 1 ? '' : 's'}. Nothing was saved. See the list below the upload box.`),
+  dwellUploaded: (period, isReplace) =>
+    toastSuccess(isReplace ? 'Dwell Time Replaced' : 'Dwell Time Uploaded',
+      `Dwell time for ${periodLabel(period)} has been ${isReplace ? 'replaced' : 'saved'}. It now appears in reports and dashboards.`),
+  dwellUploadFailed: (reason) =>
+    toastError('Upload Failed', withReason('The dwell time sheet could not be uploaded.', reason)),
+  dwellTemplateFailed: (reason) =>
+    toastError('Download Failed', withReason('The template could not be downloaded.', reason)),
+  dwellSaved: (period) =>
+    toastSuccess('Dwell Time Updated', `Dwell time for ${periodLabel(period)} has been updated.`),
+  dwellSaveFailed: (reason) =>
+    toastError('Update Failed', withReason('The dwell time could not be saved. Please check the values and try again.', reason)),
+  dwellInvalid: () =>
+    toastWarning('Check the Values', 'Correct the cells highlighted in red: hours from 0 to 10,000, and Overall between Import and Export.'),
+  dwellDeleted: (period) =>
+    toastSuccess('Dwell Time Deleted', `Uploaded dwell time for ${periodLabel(period)} has been deleted.`),
+  dwellDeleteFailed: (reason) =>
+    toastError('Delete Failed', withReason('The uploaded dwell time could not be deleted.', reason)),
+  dwellLoadFailed: (reason) =>
+    toastError('Could Not Load Dwell Time', withReason('The uploaded dwell time could not be loaded. Refresh the page and try again.', reason)),
 };
 
 /** KPI Major Ports toast messages (Financial Parameters). */

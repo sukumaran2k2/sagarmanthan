@@ -65,8 +65,11 @@ export const PORT_PERFORMANCE_SECTIONS = [
         fields: fields([...byCargo("{cargo}_vessel_handled"), "total_sailed_vessel_handled", ...byCallSize("vessel_container_{size}")], "count"),
     },
     {
+        // Uploaded monthly by the Ministry as an Excel sheet (portPerformanceDwell.js). The step
+        // stays only to update the months entered through this form before the upload existed.
         id: "dwellTime",
         label: "Port Dwell Time (Container)",
+        legacyOnly: true,
         fields: fields(["export_dwell_time", "import_dwell_time"]),
     },
     {
@@ -106,6 +109,10 @@ export const PORT_PERFORMANCE_SECTIONS = [
 ];
 
 export const SECTION_BY_ID = new Map(PORT_PERFORMANCE_SECTIONS.map((s) => [s.id, s]));
+
+/** Steps a new period is entered with; legacy-only steps appear only on periods that have them. */
+export const ENTRY_SECTIONS = PORT_PERFORMANCE_SECTIONS.filter((s) => !s.legacyOnly);
+export const LEGACY_SECTIONS = PORT_PERFORMANCE_SECTIONS.filter((s) => s.legacyOnly);
 
 export const ALL_FIELDS = PORT_PERFORMANCE_SECTIONS.flatMap((s) => s.fields);
 export const ALL_COLUMNS = ALL_FIELDS.map((f) => f.column);

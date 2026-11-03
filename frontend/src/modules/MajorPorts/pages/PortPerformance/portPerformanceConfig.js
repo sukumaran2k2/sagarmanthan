@@ -1,7 +1,8 @@
 /**
  * KPI Major Ports — Port Performance fields.
  *
- * Mirrors backend/src/controllers/KPI/portPerformanceFields.js: the same 14 input steps and
+ * Mirrors backend/src/controllers/KPI/portPerformanceFields.js: the same 14 input steps (Dwell
+ * Time only for periods that still have it from the form, see stepsForPeriod) and
  * the same columns per step and per Actuals view. This file adds what the UI needs on top:
  * labels, units and the definitions the earlier portal showed in its info tooltips.
  *
@@ -155,9 +156,12 @@ export const PORT_PERFORMANCE_SECTIONS = [
     ],
   },
   {
+    // Uploaded monthly by the Ministry as an Excel sheet (DwellTimeUploads.jsx). The step only
+    // opens for periods that already have dwell time from this form (legacyOnly).
     id: 'dwellTime',
     label: 'Port Dwell Time (Container)',
     short: 'Dwell Time',
+    legacyOnly: true,
     definition: 'Time spent by a container inside the port before it is gated out (import) or loaded on a vessel (export).',
     groups: [
       group('Total dwell time', [
@@ -236,6 +240,15 @@ export const PORT_PERFORMANCE_SECTIONS = [
 ];
 
 export const SECTION_IDS = PORT_PERFORMANCE_SECTIONS.map((s) => s.id);
+
+/**
+ * Steps shown for a period: every regular step, plus the legacy-only steps the server lists
+ * as still editable for it (GET /kpi/port-performance/period → legacySections).
+ */
+export function stepsForPeriod(legacySectionIds = []) {
+  const legacy = new Set(legacySectionIds);
+  return PORT_PERFORMANCE_SECTIONS.filter((s) => !s.legacyOnly || legacy.has(s.id));
+}
 
 export const sectionFields = (section) => section.groups.flatMap((g) => g.fields);
 

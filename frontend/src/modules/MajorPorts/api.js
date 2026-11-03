@@ -200,6 +200,48 @@ export function revokePortPerformanceAccessGrant(accessId) {
   return afterWrite(api.patch(`/kpi/port-performance/access/${accessId}/revoke`));
 }
 
+// ---- Port Performance · Dwell Time (monthly Excel upload by the Ministry) ----
+
+/** Uploaded months, newest first: { data, pagination }. */
+export function fetchDwellTimePeriods(params = {}, config = {}) {
+  return api.get('/kpi/port-performance/dwell', { ...config, params });
+}
+
+/** Every major port's row of one month, for the edit form. */
+export function fetchDwellTimePeriod({ fiscalYear, month }) {
+  return api.get('/kpi/port-performance/dwell/period', { params: { fiscalYear, month } });
+}
+
+/**
+ * mode 'preview' checks the file and returns its rows (nothing is saved);
+ * mode 'save' checks it again and saves it (replace: true to overwrite an uploaded month).
+ * A file with problems is rejected with 400 { errors: [{ row, column, message }] }.
+ */
+export function uploadDwellTimeSheet({ file, fiscalYear, month, mode, replace = false }) {
+  const form = new FormData();
+  form.append('fiscalYear', fiscalYear);
+  form.append('month', String(month));
+  form.append('mode', mode);
+  if (replace) form.append('replace', 'true');
+  form.append('file', file);
+  const request = api.post('/kpi/port-performance/dwell/upload', form);
+  return mode === 'save' ? afterWrite(request) : request;
+}
+
+/** payload: { fiscalYear, month, rows: [{ rowKey, values }] } */
+export function saveDwellTimePeriod(payload) {
+  return afterWrite(api.put('/kpi/port-performance/dwell/period', payload));
+}
+
+export function deleteDwellTimePeriod({ fiscalYear, month }) {
+  return afterWrite(api.delete('/kpi/port-performance/dwell/period', { params: { fiscalYear, month } }));
+}
+
+/** Blank sheet for a month (Blob). */
+export function downloadDwellTimeTemplate({ fiscalYear, month }) {
+  return api.get('/kpi/port-performance/dwell/template', { params: { fiscalYear, month }, responseType: 'blob' });
+}
+
 // Same rules as Traffic: user and organisation come from the session token, GETs take
 // { signal }, and every write clears the response cache. There is no monthly entry window.
 

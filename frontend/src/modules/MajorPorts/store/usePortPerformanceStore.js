@@ -10,7 +10,7 @@ import { createListActions, listState } from './listSlice';
  * Keeps what must survive switching between the Port Performance tabs:
  *  - reference data (organisations, target KPI types), loaded once
  *  - filters, search, pagination and column visibility of each list
- *    (actuals = Actuals, targets = Targets, access = Entry Access)
+ *    (actuals = Actuals, targets = Targets, access = Entry Access, dwell = Dwell Time uploads)
  *
  * The period or target being edited is NOT kept here; it travels with the route
  * (location.state). Fetched rows stay in each page's local state.
@@ -23,6 +23,8 @@ const targetsFilterDefaults = () => ({ fiscalYear: '', organisationId: '' });
 
 const accessFilterDefaults = () => ({ fiscalYear: '', organisationId: '' });
 
+const dwellFilterDefaults = () => ({ fiscalYear: '' });
+
 const createInitialState = () => ({
   organisations: [],
   kpiTypes: [],
@@ -34,6 +36,7 @@ const createInitialState = () => ({
   // Last Updated is hidden until switched on, as in the Traffic targets list
   targets: { ...listState(targetsFilterDefaults()), visibleCols: { last_updated: false } },
   access: { ...listState(accessFilterDefaults()), status: 'ACTIVE' },
+  dwell: listState(dwellFilterDefaults()),
 });
 
 export const usePortPerformanceStore = create((set, get) => ({
@@ -46,6 +49,8 @@ export const usePortPerformanceStore = create((set, get) => ({
   },
 
   targetsActions: createListActions('targets', targetsFilterDefaults, set, get),
+
+  dwellActions: createListActions('dwell', dwellFilterDefaults, set, get),
 
   accessActions: {
     ...createListActions('access', accessFilterDefaults, set, get),

@@ -341,7 +341,7 @@ async function getKPITrafficDashboard(req, res) {
                               AND tcd.organisation_id NOT IN (7, 8)
                          THEN tcd.value ELSE 0 END) AS export_dwell_den
             FROM tbl_traffic_commodity_data tcd
-            LEFT JOIN tbl_kpi_time_performance ktp
+            LEFT JOIN vw_kpi_time_performance_dwell ktp
                 ON tcd.organisation_id = ktp.organisation_id
                 AND tcd.fiscal_year = ktp.fiscal_year
                 AND tcd.month = ktp.month
@@ -1079,7 +1079,7 @@ const targetSmpaJoin = (kpi === "total_traffic" || kpi === "traffic")
 
             FROM tbl_traffic_commodity_data tcd
 
-            INNER JOIN tbl_kpi_time_performance ktp
+            INNER JOIN vw_kpi_time_performance_dwell ktp
                 ON ktp.organisation_id = tcd.organisation_id
                 AND ktp.month = tcd.month
                 AND REPLACE(ktp.fiscal_year,' ','')
@@ -1216,7 +1216,7 @@ const targetSmpaJoin = (kpi === "total_traffic" || kpi === "traffic")
 
         FROM tbl_traffic_commodity_data tcd
 
-        INNER JOIN tbl_kpi_time_performance ktp
+        INNER JOIN vw_kpi_time_performance_dwell ktp
             ON ktp.organisation_id = tcd.organisation_id
             AND ktp.month = tcd.month
             AND REPLACE(ktp.fiscal_year,' ','')

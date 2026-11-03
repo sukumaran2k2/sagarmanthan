@@ -359,7 +359,7 @@ export default function PortPerformanceDataList({
         <p className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
           <Info className="h-3.5 w-3.5 text-[#0f417a] dark:text-blue-400 flex-shrink-0" aria-hidden="true" />
           <span>
-            Showing {VIEW_LABELS[activeView]} for {scopeCaption}. Steps Saved shows how many of the 14 input steps have values.
+            Showing {VIEW_LABELS[activeView]} for {scopeCaption}. Steps Saved shows how many input steps have values: 13, or 14 when the month still has Dwell Time entered through the form.
           </span>
         </p>
 

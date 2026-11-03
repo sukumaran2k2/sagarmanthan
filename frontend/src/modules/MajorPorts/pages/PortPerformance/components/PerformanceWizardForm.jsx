@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, CheckCircle2, Gauge, Info, Loader2, Lock, Save } from 'lucide-react';
 import ConfirmModal from '../../../../../components/ConfirmModal';
 import {
@@ -13,20 +13,21 @@ import { describePeriod } from '../../Traffic/trafficFormat';
 import { useLatestRef } from '../../Traffic/usePagedList';
 import { useEntryOptions } from '../../Traffic/useEntryOptions';
 import {
-  PORT_PERFORMANCE_SECTIONS,
   buildSectionPayload,
+  stepsForPeriod,
   toFormValues,
   validateSection,
 } from '../portPerformanceConfig';
 import StepFieldGroup from './StepFieldGroup';
 
-const STEPS = PORT_PERFORMANCE_SECTIONS;
 const EMPTY_VALUES = toFormValues();
 
 /**
  * Monthly port performance entry for the signed-in organisation: the earlier portal's
  * 14 tabs as steps. Each step is saved on its own and needs every value (enter 0 where
  * nothing applies); the server decides create vs update and checks the entry window.
+ * Dwell Time is uploaded by the Ministry, so its step shows only on periods that already
+ * have dwell time from this form (the server lists them in legacySections).
  *
  * editData: { fiscal_year, month } when opened from Actuals, else null.
  */
@@ -49,14 +50,16 @@ export default function PerformanceWizardForm({
   const [loadedPeriod, setLoadedPeriod] = useState({ key: null, failed: false, exists: false, entryOpen: false });
   const [stepIndex, setStepIndex] = useState(0);
   const [values, setValues] = useState(EMPTY_VALUES);
+  const [legacySections, setLegacySections] = useState([]);
   const [savedSteps, setSavedSteps] = useState(() => new Set());
   const [dirtySteps, setDirtySteps] = useState(() => new Set());
   const [fieldErrors, setFieldErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
 
-  const currentStep = STEPS[stepIndex];
-  const isLastStep = stepIndex === STEPS.length - 1;
+  const steps = useMemo(() => stepsForPeriod(legacySections), [legacySections]);
+  const currentStep = steps[Math.min(stepIndex, steps.length - 1)];
+  const isLastStep = stepIndex >= steps.length - 1;
   const periodInfo = describePeriod(fiscalYear, month);
   const periodKey = fiscalYear && month ? `${fiscalYear}|${month}` : null;
   const periodMatches = Boolean(periodKey) && loadedPeriod.key === periodKey;
@@ -103,6 +106,7 @@ export default function PerformanceWizardForm({
       .then(({ data }) => {
         if (cancelled) return;
         setValues(toFormValues(data.values));
+        setLegacySections(isUpdate ? data.legacySections || [] : []);
         setSavedSteps(isUpdate ? new Set(data.savedSections || []) : new Set());
         setDirtySteps(new Set());
         setFieldErrors({});
@@ -196,17 +200,17 @@ export default function PerformanceWizardForm({
       notify(PORT_PERFORMANCE_TOASTS.stepSaved(currentStep.label, periodInfo, action === 'update'));
     }
     setFieldErrors({});
-    setStepIndex((index) => Math.min(index + 1, STEPS.length - 1));
+    setStepIndex((index) => Math.min(index + 1, steps.length - 1));
     return undefined;
   };
 
   // Last step: saves every step with unsaved changes, then returns to the list
   const handleFinish = async () => {
-    const pending = STEPS.filter((s) => dirtySteps.has(s.id));
+    const pending = steps.filter((s) => dirtySteps.has(s.id));
     for (const step of pending) {
       const check = validateStep(step, { requireAll: true });
       if (!check.ok) {
-        setStepIndex(STEPS.indexOf(step));
+        setStepIndex(steps.indexOf(step));
         return notifyInvalid(step, check);
       }
     }
@@ -222,7 +226,7 @@ export default function PerformanceWizardForm({
     for (const step of pending) {
       const action = await saveStep(step);
       if (!action) {
-        setStepIndex(STEPS.indexOf(step));
+        setStepIndex(steps.indexOf(step));
         setSubmitting(false);
         return undefined;
       }
@@ -273,7 +277,7 @@ export default function PerformanceWizardForm({
 
       <nav aria-label="Port performance entry steps" className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/40 px-3 py-3 overflow-x-auto">
         <ol className="flex items-center gap-1 min-w-max">
-          {STEPS.map((step, index) => {
+          {steps.map((step, index) => {
             const active = index === stepIndex;
             const dirty = dirtySteps.has(step.id);
             const saved = savedSteps.has(step.id) && !dirty;
@@ -401,6 +405,13 @@ export default function PerformanceWizardForm({
           )}
         </div>
 
+        {canBrowse && !legacySections.length && (
+          <p className="flex items-start gap-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+            <Info className="h-3.5 w-3.5 mt-px text-[#0f417a] dark:text-blue-400 flex-shrink-0" aria-hidden="true" />
+            <span>Port Dwell Time is uploaded every month by the Ministry as an Excel sheet, so it is not entered here.</span>
+          </p>
+        )}
+
         <div className="space-y-5">
           <div>
             <h3 className="text-sm font-black uppercase tracking-wide text-slate-800 dark:text-slate-100">
@@ -425,11 +436,11 @@ export default function PerformanceWizardForm({
 
         <div className="flex flex-col gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
           <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold">
-            Step {stepIndex + 1} of {STEPS.length}
+            Step {stepIndex + 1} of {steps.length}
             {dirtySteps.has(currentStep.id)
               ? ' · This step has unsaved changes'
               : savedSteps.has(currentStep.id) ? ' · This step is saved' : ' · This step is not saved yet'}
-            {` · ${savedSteps.size} of ${STEPS.length} steps saved`}
+            {` · ${steps.filter((s) => savedSteps.has(s.id)).length} of ${steps.length} steps saved`}
             {dirtySteps.size ? ` · ${dirtySteps.size} step${dirtySteps.size === 1 ? '' : 's'} to save` : ''}
           </p>
           <div className="flex flex-wrap items-center gap-2 justify-between">

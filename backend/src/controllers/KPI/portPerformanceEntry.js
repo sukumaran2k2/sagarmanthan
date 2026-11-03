@@ -23,6 +23,8 @@ import {
 } from "./kpiEntryCommon.js";
 import {
     ALL_COLUMNS,
+    ENTRY_SECTIONS,
+    LEGACY_SECTIONS,
     LIST_VIEW_COLUMNS,
     PORT_PERFORMANCE_SECTIONS,
     SECTION_BY_ID,
@@ -39,6 +41,9 @@ import {
  *  - The entry window and unlock rules are shared with Traffic (kpiEntryCommon.js).
  *  - CRUD flags come from the user's KPI_MAJOR_PORTS permission (route middleware plus
  *    requirePermission for create-vs-update decided at runtime).
+ *  - Dwell time is uploaded monthly by the Ministry (portPerformanceDwell.js). Its step here is
+ *    legacy-only: it opens only for periods that already have dwell time from this form and
+ *    whose month has not been uploaded since (the upload takes priority).
  */
 
 const MODULE_CODE = "KPI_MAJOR_PORTS";
@@ -83,6 +88,14 @@ const sectionSavedSql = (section, alias) =>
 
 const SECTIONS_SAVED_SQL = (alias) => PORT_PERFORMANCE_SECTIONS.map((s) => sectionSavedSql(s, alias)).join(" + ");
 
+// A period counts a legacy-only step only when it has values for it
+const SECTIONS_TOTAL_SQL = (alias) =>
+    [String(ENTRY_SECTIONS.length), ...LEGACY_SECTIONS.map((s) => sectionSavedSql(s, alias))].join(" + ");
+
+// Dwell time columns of the Actuals list are read from the view, where uploaded values win
+const DWELL_COLUMNS = new Set(["import_dwell_time", "export_dwell_time"]);
+const listColumnSql = (column) => (DWELL_COLUMNS.has(column) ? `dw.${column} AS ${column}` : `p.${column}`);
+
 function savedSectionIds(row) {
     if (!row) return [];
     return PORT_PERFORMANCE_SECTIONS
@@ -92,6 +105,25 @@ function savedSectionIds(row) {
 
 function pickValues(row, columns) {
     return Object.fromEntries(columns.map((c) => [c, row?.[c] ?? null]));
+}
+
+/**
+ * Legacy-only steps this period may still update: saved through this form earlier and, for
+ * dwell time (the only legacy step), the organisation's month not uploaded since.
+ */
+async function loadEditableLegacySections(conn, organisationId, fiscalYear, month, row) {
+    const saved = savedSectionIds(row);
+    const legacy = LEGACY_SECTIONS.filter((s) => saved.includes(s.id)).map((s) => s.id);
+    if (!legacy.length) return [];
+    const request = conn.request();
+    request.input("organisationId", sql.Int, organisationId);
+    request.input("fiscalYear", sql.NVarChar(20), fiscalYear);
+    request.input("month", sql.Int, month);
+    const uploaded = await request.query(`
+        SELECT 1 AS uploaded FROM tbl_kpi_time_performance_dwell
+        WHERE organisation_id = @organisationId AND fiscal_year = @fiscalYear AND month = @month
+    `);
+    return uploaded.recordset.length ? [] : legacy;
 }
 
 // ---------------------------------------------------------------------------
@@ -199,6 +231,8 @@ async function getPortPerformanceActuals(req, res) {
     const fromSql = (where) => `
         FROM tbl_kpi_time_performance p
         INNER JOIN mmt_organisation org ON org.organisation_id = p.organisation_id
+        LEFT JOIN vw_kpi_time_performance_dwell dw
+            ON dw.organisation_id = p.organisation_id AND dw.fiscal_year = p.fiscal_year AND dw.month = p.month
         WHERE p.fiscal_year IS NOT NULL AND p.month BETWEEN 1 AND 12 ${where}
     `;
 
@@ -211,8 +245,9 @@ async function getPortPerformanceActuals(req, res) {
 
         const { recordset } = await dataRequest.query(`
             SELECT p.fiscal_year, p.month, p.organisation_id, org.organisation_name,
-                   ${viewColumns.map((c) => `p.${c}`).join(", ")},
+                   ${viewColumns.map(listColumnSql).join(", ")},
                    ${SECTIONS_SAVED_SQL("p")} AS sections_saved,
+                   ${SECTIONS_TOTAL_SQL("p")} AS sections_total,
                    COALESCE(p.updated_date, p.created_date) AS last_updated,
                    COUNT(*) OVER() AS total_count
             ${fromSql(dataWhere)}
@@ -227,10 +262,7 @@ async function getPortPerformanceActuals(req, res) {
             const countWhere = bind(countRequest);
             total = (await countRequest.query(`SELECT COUNT(*) AS total ${fromSql(countWhere)}`)).recordset[0]?.total;
         }
-        const rows = recordset.map(({ total_count: _count, ...row }) => ({
-            ...row,
-            sections_total: PORT_PERFORMANCE_SECTIONS.length,
-        }));
+        const rows = recordset.map(({ total_count: _count, ...row }) => row);
         return res.status(200).json({ data: rows, pagination: buildPagination(Number(total) || 0, page, limit) });
     } catch (error) {
         console.error(`Error fetching port performance actuals (${view}):`, error);
@@ -278,6 +310,7 @@ async function getPortPerformancePeriod(req, res) {
             exists: Boolean(row),
             values: pickValues(row, ALL_COLUMNS),
             savedSections: savedSectionIds(row),
+            legacySections: await loadEditableLegacySections(conn, read.organisationId, fiscalYear, month, row),
             entryAccess,
         });
     } catch (error) {
@@ -339,6 +372,13 @@ async function savePortPerformancePeriod(req, res) {
         if (!accessResult.open) return sendError(res, 403, lockedMessage(fiscalYear, month));
 
         const existing = await loadPeriodRow(conn, organisationId, fiscalYear, month);
+        if (section.legacyOnly) {
+            const editable = await loadEditableLegacySections(conn, organisationId, fiscalYear, month, existing);
+            if (!editable.includes(section.id)) {
+                return sendError(res, 400, `${section.label} is uploaded by the Ministry as an Excel sheet. `
+                    + "It can be changed here only for months entered through this form earlier.");
+            }
+        }
         const isUpdate = savedSectionIds(existing).includes(section.id);
         if (!requireAction(req, res, isUpdate ? "update" : "create")) return undefined;
 
