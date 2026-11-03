@@ -10,7 +10,7 @@ import { exportTableRows } from '../../../utils/exportTableRows';
 import { useAttendanceStore } from '../store/useAttendanceStore';
 import { ATTENDANCE_TOASTS } from '../toastMessages';
 import { kpisFromReport } from '../utils/attendanceKpis';
-import { MONTHS, formatTimeStr, secondsToTime } from '../utils/attendanceUtils';
+import { MONTHS, formatTimeStr, secondsToTime, toSeconds } from '../utils/attendanceUtils';
 
 const WEEKS = [1, 2, 3, 4, 5];
 const HIDDEN = new Set(['Year', 'Month', 'Week', 'WingID']);
@@ -27,13 +27,30 @@ const detailType = (column) => {
   return 'noOfEmp';
 };
 
-// Report cell text: the wing-wise Average Working Hours is a decimal number of hours
+const WORK_HOURS = 'Average Working Hours';
+const EIGHT_AND_HALF_HOURS = 8.5 * 3600;
+
+// Report cell text: Average Working Hours is a decimal number of hours wing-wise and a time
+// per employee; toSeconds reads both
 const cellText = (key, value) => {
   if (value === null || value === undefined || value === '') return '—';
-  if (key === 'Average Working Hours') return secondsToTime(Number(value) * 3600);
+  if (key === WORK_HOURS) return secondsToTime(toSeconds(value));
   if (typeof value === 'number') return value.toLocaleString('en-IN');
   return formatTimeStr(value);
 };
+
+// Average Working Hours: red below 8 1/2 hours, green from 8 1/2 hours (null when there is
+// none). The GMIS MoU reports' colours, in both themes: a light box with darker text.
+const workHoursTone = (value) => {
+  const seconds = toSeconds(value);
+  if (seconds === null) return null;
+  return seconds < EIGHT_AND_HALF_HOURS
+    ? { box: ' !bg-[#fee2e2]', text: ' !text-[#b91c1c]' }
+    : { box: ' !bg-[#dcfce7]', text: ' !text-[#15803d]' };
+};
+
+// A wing row opens its detail; the Total row does not
+const canDrill = (row) => !!row && row.Wing !== 'Total' && !!row.WingID;
 
 export default function ReportPage({ notify, years }) {
   const period = useAttendanceStore((state) => state.reportPeriod);
@@ -118,12 +135,23 @@ export default function ReportPage({ notify, years }) {
       wrapHeaderText: true,
       autoHeaderHeight: true,
       pinned: isWing ? 'left' : null,
-      cellClass: isWing
-        ? 'font-semibold text-[#0f417a] dark:text-blue-400 flex items-center'
-        : 'text-center font-bold flex items-center justify-center cursor-pointer hover:bg-amber-50/80 dark:hover:bg-amber-950/30',
+      // Cells that open the wing's detail are blue and underlined, so they read as links
+      // (! because the grid theme sets the cell text colour). Average Working Hours is red /
+      // green instead (box and text), on the Total row too.
+      cellClass: (p) => {
+        const drill = canDrill(p.data);
+        const tone = key === WORK_HOURS ? workHoursTone(p.value) : null;
+        const box = tone?.box || '';
+        // Average Working Hours keeps its red / green text, as a link too
+        const color = tone?.text || ' !text-blue-700 dark:!text-[#6b9bd1]';
+        const link = drill ? `${color} underline underline-offset-2 cursor-pointer` : (tone?.text || '');
+        return isWing
+          ? `font-semibold flex items-center${link}`
+          : `text-center font-bold flex items-center justify-center${box}${link}${!box && drill ? ' hover:bg-amber-50/80 dark:hover:bg-amber-950/30' : ''}`;
+      },
       valueFormatter: (p) => cellText(key, p.value),
       onCellClicked: (p) => {
-        if (!p.data || p.data.Wing === 'Total' || !p.data.WingID) return;
+        if (!canDrill(p.data)) return;
         setDetail({ wing: p.data.Wing, wingId: p.data.WingID, column: isWing ? 'Number Of Employees' : key });
       },
     };
@@ -137,7 +165,9 @@ export default function ReportPage({ notify, years }) {
       field: key,
       flex: /name/i.test(key) ? 2 : 1,
       minWidth: /name/i.test(key) ? 180 : 120,
-      cellClass: /name/i.test(key) ? 'font-semibold flex items-center' : 'text-center flex items-center justify-center',
+      cellClass: (p) => (/name/i.test(key)
+        ? 'font-semibold flex items-center'
+        : `text-center flex items-center justify-center${key === WORK_HOURS && workHoursTone(p.value) ? ` font-bold${workHoursTone(p.value).box}${workHoursTone(p.value).text}` : ''}`),
       valueFormatter: (p) => cellText(key, p.value),
     })),
   ], [detailKeys]);
