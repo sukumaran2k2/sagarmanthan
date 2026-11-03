@@ -179,52 +179,34 @@ export default function InputForm({
 
       // Load candidate details
       if (editData.id) {
+        const loadFromIds = (candIdsStr) => {
+          if (!candIdsStr) return;
+          const idList = candIdsStr.split(',').map(s => s.trim()).filter(Boolean);
+          Promise.all(
+            idList.map(async (cid) => {
+              try {
+                const cres = await fetchCandidateDetail(cid);
+                const docRes = await fetchCandidateDocument(cid).catch(() => ({ data: [] }));
+                const cdata = cres.data?.[0] || {};
+                const docName = docRes.data?.[0]?.appointment_order_document || '';
+                return { ...cdata, documentName: docName };
+              } catch {
+                return { candidate_id: cid };
+              }
+            })
+          ).then(loaded => setCandidates(loaded));
+        };
+
         fetchCandidatesByConsultantAppointmentId(editData.id)
           .then((res) => {
             if (res.data && res.data.length > 0) {
               setCandidates(res.data);
             } else {
-              const candIdsStr = editData.raw?.candidate_id || '';
-              if (candIdsStr) {
-                const idList = candIdsStr.split(',').map(s => s.trim()).filter(Boolean);
-                Promise.all(
-                  idList.map(async (cid) => {
-                    try {
-                      const cres = await fetchCandidateDetail(cid);
-                      const docRes = await fetchCandidateDocument(cid).catch(() => ({ data: [] }));
-                      const cdata = cres.data?.[0] || {};
-                      const docName = docRes.data?.[0]?.appointment_order_document || '';
-                      return { ...cdata, documentName: docName };
-                    } catch {
-                      return { candidate_id: cid };
-                    }
-                  })
-                ).then(loadedCandidates => {
-                  setCandidates(loadedCandidates);
-                });
-              }
+              loadFromIds(editData.raw?.candidate_id || '');
             }
           })
           .catch(() => {
-            const candIdsStr = editData.raw?.candidate_id || '';
-            if (candIdsStr) {
-              const idList = candIdsStr.split(',').map(s => s.trim()).filter(Boolean);
-              Promise.all(
-                idList.map(async (cid) => {
-                  try {
-                    const cres = await fetchCandidateDetail(cid);
-                    const docRes = await fetchCandidateDocument(cid).catch(() => ({ data: [] }));
-                    const cdata = cres.data?.[0] || {};
-                    const docName = docRes.data?.[0]?.appointment_order_document || '';
-                    return { ...cdata, documentName: docName };
-                  } catch {
-                    return { candidate_id: cid };
-                  }
-                })
-              ).then(loadedCandidates => {
-                setCandidates(loadedCandidates);
-              });
-            }
+            loadFromIds(editData.raw?.candidate_id || '');
           });
       }
     }

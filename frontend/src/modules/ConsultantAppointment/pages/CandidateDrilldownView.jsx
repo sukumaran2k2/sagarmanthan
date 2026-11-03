@@ -73,6 +73,7 @@ export default function CandidateDrilldownView({
 
   const fileInputRefs = useRef({});
   const inPlaceFileInputRef = useRef(null);
+  const visDropdownRef = useRef(null);
 
   const loadCandidates = async () => {
     if (!appointment?.id) return;
@@ -139,6 +140,16 @@ export default function CandidateDrilldownView({
       loadCandidates();
     }
   }, [appointment?.id]);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (visDropdownRef.current && !visDropdownRef.current.contains(e.target)) {
+        setDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const totalRequiredResources = Number(appointment.numResources) || 1;
 
@@ -1012,7 +1023,7 @@ export default function CandidateDrilldownView({
             </div>
 
             {/* Visibility Toggle */}
-            <div className="relative">
+            <div className="relative" ref={visDropdownRef}>
               <button
                 type="button"
                 onClick={() => setDropdownOpen(!dropdownOpen)}
