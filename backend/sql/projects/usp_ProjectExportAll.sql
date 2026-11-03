@@ -160,11 +160,8 @@ BEGIN
         LEFT JOIN mmt_district ON mmt_district.district_id = TRY_CAST(ISNULL(tbl_sub_project.sub_district_id, tbl_project.district_id) AS int)
         LEFT JOIN mmt_mp_constituency ON mmt_mp_constituency.mpc_id = TRY_CAST(ISNULL(tbl_sub_project.sub_mp_constituency_id, tbl_project.mp_constituency_id) AS int)
         LEFT JOIN tbl_project_stage AS tbl_project_stage ON tbl_project_stage.stage_id = ISNULL(tbl_sub_project.sub_current_project_stage_id, tbl_project.current_project_stage_id)
-       -- LEFT JOIN mmt_outcome AS mmt_outcome ON mmt_outcome.project_outcome_id = ISNULL(tbl_sub_project.sub_project_outcome_id, tbl_project.project_outcome_id)
-        -- LEFT JOIN mmt_output AS mmt_output ON mmt_output.project_output_id = ISNULL(tbl_sub_project.sub_project_output_id, tbl_project.project_output_id)
-        LEFT JOIN mmt_outcome ON mmt_outcome.project_outcome_id = ISNULL(tbl_sub_project.sub_project_outcome_id, tbl_project.project_outcome_id)
-        LEFT JOIN mmt_output ON mmt_output.project_output_id = mmt_outcome.project_output_id
-
+        LEFT JOIN mmt_outcome AS mmt_outcome ON mmt_outcome.project_outcome_id = ISNULL(tbl_sub_project.sub_project_outcome_id, tbl_project.project_outcome_id)
+        LEFT JOIN mmt_output AS mmt_output ON mmt_output.project_output_id = ISNULL(tbl_sub_project.sub_project_output_id, tbl_project.project_output_id)
     ),
 
     ProjectProgress AS

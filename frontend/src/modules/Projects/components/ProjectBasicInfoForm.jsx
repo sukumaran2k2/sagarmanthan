@@ -177,7 +177,7 @@ function toInputDate(...values) {
 function getInitialForm(initialData) {
   if (!initialData) return { ...EMPTY_FORM };
   const raw = initialData.raw || {};
-console.log(raw, "raw")
+
   const projectID = initialData.projectId || initialData.projectID || raw.project_id || '';
   const rawSubId =
     initialData.subProjectId ||
@@ -231,11 +231,9 @@ console.log(raw, "raw")
       initialData.targetCompletionDate
     ),
     revisedTargetCompletionDate: toInputDate(raw.latest_revised_target_completion_date),
-    // projectOutput: firstNumericId(raw.project_output_id, initialData.projectOutput),
-    projectOutput: String(raw.project_output_id ?? ""),
+    projectOutput: firstNumericId(raw.project_output_id, initialData.projectOutput),
     newProjectOutputUnits: initialData.newProjectOutputUnits || raw.project_output_units || '',
-    // projectOutcome: firstNumericId(raw.project_outcome_id, initialData.projectOutcome),
-    projectOutcome: String(raw.project_outcome_id ?? ""),
+    projectOutcome: firstNumericId(raw.project_outcome_id, initialData.projectOutcome),
     newProjectOutcomeUnits: initialData.newProjectOutcomeUnits || raw.project_outcome_units || '',
     capacityAddition: initialData.capacityAddition || raw.capacity_addition || '',
     sourceOfFunding,
@@ -765,20 +763,20 @@ export default function ProjectBasicInfoForm({
   const showOutputOthers = String(formData.projectOutput) === 'Others';
   const showOutcomeOthers = String(formData.projectOutcome) === 'Others';
 
-  
   const filteredOutcomeOptions = useMemo(() => {
-    const selectedOutputId = String(formData.projectOutput || "");
+  if (
+    !formData.projectOutput ||
+    String(formData.projectOutput) === 'Others'
+  ) {
+    return [];
+  }
 
-    if (!selectedOutputId || selectedOutputId === "Others") {
-      return [];
-    }
-
-    return outcomeOptions.filter(
-      (outcome) =>
-        String(outcome.project_output_id) === selectedOutputId
-    );
-  }, [outcomeOptions, formData.projectOutput]);
-
+  return outcomeOptions.filter(
+    (outcome) =>
+      String(outcome.project_output_id) ===
+      String(formData.projectOutput)
+  );
+}, [outcomeOptions, formData.projectOutput]);
 
   useEffect(() => {
     if (isEditMode) return;
@@ -792,34 +790,6 @@ export default function ProjectBasicInfoForm({
     if (!initialData) return;
     setFormData(getInitialForm(initialData));
   }, [initialData]);
-
-  
-  useEffect(() => {
-    if (!initialData || outcomeOptions.length === 0) return;
-
-    const raw = initialData.raw || {};
-    const outcomeId = String(raw.project_outcome_id ?? "");
-
-    if (!outcomeId) return;
-
-    const matchedOutcome = outcomeOptions.find(
-      (item) => String(item.project_outcome_id) === outcomeId
-    );
-
-    if (!matchedOutcome) return;
-
-    const mappedOutputId = String(matchedOutcome.project_output_id ?? "");
-
-    setFormData((prev) => {
-      if (prev.projectOutput === mappedOutputId) return prev;
-
-      return {
-        ...prev,
-        projectOutput: mappedOutputId,
-      };
-    });
-  }, [initialData, outcomeOptions]);
-
 
   useEffect(() => {
     let mounted = true;
@@ -1900,7 +1870,6 @@ export default function ProjectBasicInfoForm({
 
               <div>
                 <Label>Project Output</Label>
-                
                 <select
                   value={formData.projectOutput}
                   onChange={(e) => handleProjectOutputChange(e.target.value)}
