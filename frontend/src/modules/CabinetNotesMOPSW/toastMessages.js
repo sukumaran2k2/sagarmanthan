@@ -10,6 +10,9 @@ export const CABINET_NOTES_TOASTS = {
   saveFailed: (isEdit, reason) =>
     toastError(isEdit ? 'Update Failed' : 'Save Failed',
       withReason(`The cabinet note could not be ${isEdit ? 'updated' : 'saved'}. Please review the details and try again.`, reason)),
+  uploadFailed: (isEdit, reason) =>
+    toastWarning(isEdit ? 'Note Updated, Upload Failed' : 'Note Saved, Upload Failed',
+      withReason('The cabinet note was saved but the document could not be uploaded. Open the note and upload it again.', reason)),
   missingRequired: () =>
     toastWarning('Required Fields Missing', 'Select the wing and division and enter the subject, then save again.'),
   remarksTooLong: () =>

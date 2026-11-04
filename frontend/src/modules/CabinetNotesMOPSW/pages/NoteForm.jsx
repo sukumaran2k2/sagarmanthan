@@ -46,7 +46,11 @@ export default function NoteForm({
   const [loadingDocs, setLoadingDocs] = useState(!!noteId);
   const fileInputRef = useRef(null);
 
-  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  // Local date: toISOString() is UTC, which is still yesterday in India before 5:30 AM
+  const todayStr = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }, []);
 
   // Documents already uploaded for the note being edited
   useEffect(() => {
@@ -151,11 +155,20 @@ export default function NoteForm({
         notesId = res.data?.cabinet_notes_mopsw_id;
       }
 
+      // The note is saved by now: an upload failure must not read as a save failure, or a
+      // second Save would insert the same note again
       if (selectedFiles.length && notesId) {
         const fd = new FormData();
         selectedFiles.forEach((f) => fd.append('files[]', f));
         fd.append('cabinetNotesMopswID', notesId);
-        await uploadNoteDocuments(fd);
+        try {
+          await uploadNoteDocuments(fd);
+        } catch (uploadErr) {
+          console.error(uploadErr);
+          notify?.(CABINET_NOTES_TOASTS.uploadFailed(isEdit, getErrorMessage(uploadErr)));
+          onSuccess?.();
+          return;
+        }
       }
 
       notify?.(isEdit ? CABINET_NOTES_TOASTS.updated() : CABINET_NOTES_TOASTS.created());
@@ -382,7 +395,7 @@ export default function NoteForm({
 
         <div className="flex items-center justify-between space-x-3 pt-5 border-t border-slate-100 dark:border-slate-800">
           <span className="text-xs text-rose-500 font-bold italic">
-            * Asterisks marked with red are mandatory fields
+            Fields marked with a red asterisk (*) are mandatory
           </span>
           <div className="flex items-center space-x-3">
           <button
