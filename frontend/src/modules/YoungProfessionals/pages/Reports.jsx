@@ -425,7 +425,11 @@ export default function Reports({ triggerNotification }) {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', wordBreak: 'break-word', whiteSpace: 'normal' }}>
                 <a
                   href="#"
-                  onClick={(e) => { e.preventDefault(); openBackendFile('/download-yp-document', { params: { fileName } }).catch((err) => console.error('Document could not be opened:', err)); }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    const baseName = fileName.split('/').pop().split('\\').pop() || 'appointment_order.pdf';
+                    openBackendFile('/download-yp-document', { params: { fileName }, download: true, fileName: baseName }).catch((err) => console.error('Document could not be opened:', err));
+                  }}
                   style={{
                     fontWeight: 600,
                     fontSize: 13,

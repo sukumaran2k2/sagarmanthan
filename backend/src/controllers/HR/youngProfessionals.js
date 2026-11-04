@@ -1,8 +1,12 @@
 import { pool } from "../../db.js";
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import multer from 'multer';
 import { applyDataScope } from "../../middleware/dataScope.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // 1. Create Young Professional
 async function createYoungProfessional(req, res) {
@@ -422,7 +426,8 @@ async function relieveYoungProfessional(req, res) {
 }
 
 // 7. Multer Upload & Document File Download
-const uploadDestination = './demoFiles/yp_candidate_document';
+// Absolute path so download works regardless of process.cwd() (e.g. PM2, workspace scripts)
+const uploadDestination = path.join(__dirname, '../../../demoFiles/yp_candidate_document');
 if (!fs.existsSync(uploadDestination)) {
     fs.mkdirSync(uploadDestination, { recursive: true });
 }
@@ -504,19 +509,18 @@ async function uploadYPDocument(req, res) {
         try {
             const ypId = parseInt(req.params.candidateId);
             const fileName = req.uniqueFileName;
-            const relativePath = `${uploadDestination}/${fileName}`.replace(/\\/g, '/');
 
             const conn = await pool;
             const updateRequest = conn.request();
             updateRequest.input('ypId', ypId);
-            updateRequest.input('fileName', relativePath);
+            updateRequest.input('fileName', fileName);
             await updateRequest.query(`
                 UPDATE dbo.tbl_young_professionals
                 SET appointment_document = @fileName
                 WHERE yp_id = @ypId
             `);
 
-            res.status(201).json({ message: 'Document uploaded successfully', fileName: relativePath });
+            res.status(201).json({ message: 'Document uploaded successfully', fileName });
         } catch (error) {
             console.error("Error updating yp document in DB:", error);
             res.status(500).json({ error: 'Internal server error' });
@@ -530,22 +534,22 @@ async function ypFileDownload(req, res) {
         return res.status(400).send("Bad Request: fileName is required");
     }
 
-    let filePath;
-    if (fileName.includes('/') || fileName.includes('\\')) {
-        filePath = path.resolve(fileName);
-    } else {
-        filePath = path.join(uploadDestination, fileName);
+    // Extract only the basename so the absolute uploadDestination is always the base.
+    // This handles both old-format ("file.pdf") and new-format ("./demoFiles/.../file.pdf") DB values.
+    const baseFileName = path.basename(fileName.replace(/\\/g, '/'));
+    if (!baseFileName) {
+        return res.status(400).send("Bad Request: invalid fileName");
     }
 
-    const resolvedBase = path.basename(filePath);
+    const filePath = path.join(uploadDestination, baseFileName);
 
     fs.readFile(filePath, (err, data) => {
         if (err) {
-            console.error("Error reading file:", err);
-            res.status(550).send("File Not Found");
+            console.error("Error reading YP document:", err);
+            res.status(404).send("File Not Found");
         } else {
-            res.setHeader('Content-disposition', 'attachment; filename=' + encodeURIComponent(resolvedBase));
-            res.setHeader('Content-type', 'application/octet-stream');
+            res.setHeader('Content-Disposition', 'attachment; filename=' + encodeURIComponent(baseFileName));
+            res.setHeader('Content-Type', 'application/octet-stream');
             res.send(data);
         }
     });
