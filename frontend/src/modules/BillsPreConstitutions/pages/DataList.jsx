@@ -234,7 +234,6 @@ export default function DataList({
       headerName: 'Stage',
       flex: 1.2,
       minWidth: 180,
-      pinned: 'left',
       cellClass: 'font-bold text-center flex items-center justify-center',
       hide: !visibleCols.stage,
       cellRenderer: (params) => {
