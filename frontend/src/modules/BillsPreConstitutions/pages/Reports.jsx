@@ -22,6 +22,12 @@ const ABSTRACT_TITLE = 'Report No. 1.1 - Abstract ( Wing & Division Wise ) - Bil
 const TOTAL_FIELD = 'No of Bills/PreConstitutions Act';
 const NO_DIVISION = '(No division)';
 
+// The drill-down rows carry stage dates as ISO text; show them as dd Mon yyyy, as the Dashboard does
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}T/;
+const cellText = (value) => (typeof value === 'string' && ISO_DATE.test(value)
+  ? new Date(value).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' })
+  : value);
+
 // The abstract: one row per wing and division, wings without divisions included (a failure
 // shows as the report's load error, not as missing wings)
 async function fetchAbstract() {
@@ -145,7 +151,7 @@ export default function Reports({ notify, triggerNotification, wings = [] }) {
   }, [aggregatedData, isAbstractLevel]);
 
   const columns = useMemo(() => {
-    if (!isAbstractLevel) return columnDefs;
+    if (!isAbstractLevel) return columnDefs.map((c) => ({ ...c, valueFormatter: (p) => cellText(p.value) }));
 
     const cols = [];
     if (reportView === 'wing' || reportView === 'all') {
@@ -188,7 +194,7 @@ export default function Reports({ notify, triggerNotification, wings = [] }) {
   const handleCopy = () => {
     let tsv = columns.filter((c) => c.headerName).map((c) => c.headerName).join('\t') + '\n';
     aggregatedData.forEach((row) => {
-      tsv += columns.filter((c) => c.headerName).map((c) => row[c.field] ?? '').join('\t') + '\n';
+      tsv += columns.filter((c) => c.headerName).map((c) => cellText(row[c.field]) ?? '').join('\t') + '\n';
     });
     navigator.clipboard.writeText(tsv).then(
       () => notify?.(COMMON_TOASTS.copySuccess(aggregatedData.length)),

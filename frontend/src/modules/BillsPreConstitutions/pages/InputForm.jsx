@@ -342,8 +342,6 @@ export default function InputForm({
               {STAGES_LIST.map((stage, idx) => {
                 const stageNum = stage.id;
                 const stageVal = stages[stageNum] || emptyStage;
-                // When adding, stages are dated in order
-                const isStageDisabled = !isEdit && idx > 0 && !stages[STAGES_LIST[idx - 1].id]?.date;
                 const isRemarkFieldVisible = stageNum === focusedStage || !!stageVal.date || !!stageVal.remark;
 
                 return (
@@ -353,7 +351,7 @@ export default function InputForm({
                       stageVal.date
                         ? 'border-emerald-250 dark:border-emerald-800 bg-emerald-50/20 dark:bg-emerald-950/20'
                         : 'border-slate-150 dark:border-slate-800 bg-white dark:bg-slate-900'
-                    } ${isStageDisabled ? 'opacity-40 pointer-events-none' : ''}`}
+                    }`}
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>
@@ -370,38 +368,36 @@ export default function InputForm({
                           min={getDateLimits(idx).min}
                           max={getDateLimits(idx).max}
                           onChange={e => handleStageChange(stageNum, 'date', e.target.value)}
-                          onFocus={() => !isStageDisabled && !readOnly && setFocusedStage(stageNum)}
+                          onFocus={() => !readOnly && setFocusedStage(stageNum)}
                           onBlur={() => setFocusedStage(null)}
-                          disabled={readOnly || isStageDisabled}
+                          disabled={readOnly}
                           aria-label={`${stage.label} date`}
-                          className={`w-full sm:w-auto text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#0f417a] font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:[color-scheme:dark] ${isStageDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                          className={`w-full sm:w-auto text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#0f417a] font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:[color-scheme:dark] cursor-pointer`}
                         />
                       </div>
                     </div>
 
                     {/* Dynamically reveal Stage Remark field with transition animation */}
-                    {!isStageDisabled && (
-                      <div
-                        className={`transition-all duration-300 ease-in-out overflow-hidden origin-top ${isRemarkFieldVisible
-                          ? 'max-h-[50px] opacity-100 mt-1 scale-y-100'
-                          : 'max-h-0 opacity-0 scale-y-95 pointer-events-none'
-                          }`}
-                      >
-                        <div className="border-t border-slate-100 dark:border-slate-800 pt-2">
-                          <input
-                            type="text"
-                            placeholder="Add stage-specific remark (optional)"
-                            maxLength={STAGE_REMARK_MAX}
-                            value={stageVal.remark}
-                            onChange={e => handleStageChange(stageNum, 'remark', e.target.value)}
-                            onFocus={() => !readOnly && setFocusedStage(stageNum)}
-                            onBlur={() => setFocusedStage(null)}
-                            disabled={readOnly}
-                            className="w-full text-[11px] px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-medium text-slate-700 dark:text-slate-300 placeholder-slate-400 dark:placeholder-slate-600"
-                          />
-                        </div>
+                    <div
+                      className={`transition-all duration-300 ease-in-out overflow-hidden origin-top ${isRemarkFieldVisible
+                        ? 'max-h-[50px] opacity-100 mt-1 scale-y-100'
+                        : 'max-h-0 opacity-0 scale-y-95 pointer-events-none'
+                        }`}
+                    >
+                      <div className="border-t border-slate-100 dark:border-slate-800 pt-2">
+                        <input
+                          type="text"
+                          placeholder="Add stage-specific remark (optional)"
+                          maxLength={STAGE_REMARK_MAX}
+                          value={stageVal.remark}
+                          onChange={e => handleStageChange(stageNum, 'remark', e.target.value)}
+                          onFocus={() => !readOnly && setFocusedStage(stageNum)}
+                          onBlur={() => setFocusedStage(null)}
+                          disabled={readOnly}
+                          className="w-full text-[11px] px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-medium text-slate-700 dark:text-slate-300 placeholder-slate-400 dark:placeholder-slate-600"
+                        />
                       </div>
-                    )}
+                    </div>
                   </div>
                 );
               })}

@@ -77,7 +77,9 @@ async function readBill(body, conn) {
         let date = null;
         if (!blank(rawDate)) {
             date = String(rawDate).slice(0, 10);
-            if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(new Date(date).getTime())) return { error: `${label}: the date is not valid.` };
+            // A day that isn't on the calendar (e.g. 30 Feb) rolls over in new Date(), so it must read back the same
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(new Date(date).getTime())
+                || new Date(date).toISOString().slice(0, 10) !== date) return { error: `${label}: the date is not valid.` };
             if (date > today) return { error: `${label}: the date cannot be in the future.` };
             if (lastDate && date < lastDate) return { error: `${label}: the date is before an earlier stage's date. Dates must be in stage order.` };
             lastDate = date;

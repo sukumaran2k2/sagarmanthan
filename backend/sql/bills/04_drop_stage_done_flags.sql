@@ -1,6 +1,7 @@
 -- Bills: drop the per-stage Yes/No (done) columns from tbl_bill; each stage keeps its date and
 -- remark columns. A bill's current stage stays in tbl_bill.stage_id, so nothing is lost.
--- The chatbot view tbl_chatbot_bill selects these columns, so it is rebuilt without them.
+-- The chatbot view tbl_chatbot_bill selects these columns, so it is rebuilt without them, and
+-- without soft-deleted bills. Run 03 first (it adds is_deleted).
 -- Safe to run more than once. Take a backup first.
 
 -- 1. Drop each column with its default constraint (the constraint names can differ per database)
@@ -79,5 +80,7 @@ INNER JOIN [dbo].[mmt_division] AS md
 INNER JOIN [dbo].[mmt_wings] AS mw
     ON tb.wing = mw.wing_id
 INNER JOIN [dbo].[mmt_bill_stage] AS mbs
-    ON tb.stage_id = mbs.bill_stage_id;
+    ON tb.stage_id = mbs.bill_stage_id
+-- Soft-deleted bills (03) stay out of SagarBot's answers
+WHERE ISNULL(tb.is_deleted, 0) = 0;
 GO
