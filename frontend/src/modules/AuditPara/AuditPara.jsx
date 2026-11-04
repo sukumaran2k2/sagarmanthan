@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
+import ConfirmModal from '../../components/ConfirmModal';
 import DataList from './pages/DataList';
 import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
@@ -125,8 +126,15 @@ export default function AuditParaView({ triggerNotification }) {
     navigate(`${BASE}/input-form`, { state: { item: para } });
   }, [navigate]);
 
-  const handleDelete = useCallback((para) => {
-    if (!window.confirm(`Delete Audit Para "${para.paraNumber}"? This cannot be undone.`)) return;
+  // The para waiting for the user to confirm its delete
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = useCallback((para) => setPendingDelete(para), []);
+
+  const confirmDelete = useCallback(() => {
+    const para = pendingDelete;
+    setDeleting(true);
     deleteAuditPara(para.id, getCurrentUserId())
       .then(() => {
         notify(AUDIT_PARA_TOASTS.deleted(para.paraNumber));
@@ -135,8 +143,12 @@ export default function AuditParaView({ triggerNotification }) {
       .catch((err) => {
         console.error('Error deleting Audit Para:', err);
         notify(AUDIT_PARA_TOASTS.deleteFailed(getErrorMessage(err)));
+      })
+      .finally(() => {
+        setDeleting(false);
+        setPendingDelete(null);
       });
-  }, [notify, fetchData]);
+  }, [pendingDelete, notify, fetchData]);
 
   // Replace the form entry so browser Back can't reopen the pre-save snapshot
   const handleSuccess = useCallback(() => {
@@ -210,6 +222,15 @@ export default function AuditParaView({ triggerNotification }) {
           <Route path="*" element={<Navigate to={defaultTab} replace />} />
         </Routes>
       </div>
+
+      <ConfirmModal
+        isOpen={!!pendingDelete}
+        onClose={() => !deleting && setPendingDelete(null)}
+        onConfirm={confirmDelete}
+        loading={deleting}
+        title="Delete Audit Para"
+        message={pendingDelete ? `Audit Para "${pendingDelete.paraNumber}" will be deleted. This cannot be undone.` : ''}
+      />
     </div>
   );
 }

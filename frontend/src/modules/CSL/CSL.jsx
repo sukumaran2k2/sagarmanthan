@@ -3,6 +3,7 @@ import { useLocation, useSearchParams } from 'react-router-dom';
 import { Ship, Anchor, Truck, Gauge, Hammer, Wrench } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
+import ConfirmModal from '../../components/ConfirmModal';
 import VesselsBuiltDataList from './components/VesselsBuiltDataList';
 import ShipBuildingOrdersDataList from './components/ShipBuildingOrdersDataList';
 import ShipDeliveryPerformanceDataList from './components/ShipDeliveryPerformanceDataList';
@@ -150,10 +151,16 @@ export default function CSLView({ triggerNotification }) {
     go(sectionId, 'add', { section: sectionId, item: row });
   }, [go, sectionId]);
 
-  const handleDelete = useCallback((row) => {
-    const period = section.period(row);
-    if (!window.confirm(`Delete the ${section.name} entry for ${period}? This cannot be undone.`)) return;
-    section.remove(row[section.idField], getCurrentUserId())
+  // The row waiting for the user to confirm its delete
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = useCallback((row) => setPendingDelete(row), []);
+
+  const confirmDelete = useCallback(() => {
+    const period = section.period(pendingDelete);
+    setDeleting(true);
+    section.remove(pendingDelete[section.idField], getCurrentUserId())
       .then(() => {
         notify(CSL_TOASTS.deleted(section.name, period));
         setReloadKey((k) => k + 1);
@@ -161,8 +168,12 @@ export default function CSLView({ triggerNotification }) {
       .catch((err) => {
         console.error(`Error deleting CSL ${section.name} entry:`, err);
         notify(CSL_TOASTS.deleteFailed(getErrorMessage(err)));
+      })
+      .finally(() => {
+        setDeleting(false);
+        setPendingDelete(null);
       });
-  }, [section, notify]);
+  }, [section, pendingDelete, notify]);
 
   // Replace the form entry so browser Back can't reopen the pre-save snapshot
   const handleSuccess = useCallback(() => {
@@ -255,6 +266,15 @@ export default function CSLView({ triggerNotification }) {
           notify={notify}
         />
       )}
+
+      <ConfirmModal
+        isOpen={!!pendingDelete}
+        onClose={() => !deleting && setPendingDelete(null)}
+        onConfirm={confirmDelete}
+        loading={deleting}
+        title={`Delete ${section.name}`}
+        message={pendingDelete ? `The ${section.name} entry for ${section.period(pendingDelete)} will be deleted. This cannot be undone.` : ''}
+      />
     </div>
   );
 }

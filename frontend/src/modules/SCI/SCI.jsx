@@ -3,6 +3,7 @@ import { useLocation, useSearchParams } from 'react-router-dom';
 import { Ship, Anchor, MapPin, Landmark, Wrench, Recycle, Users2, Building } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
+import ConfirmModal from '../../components/ConfirmModal';
 import VesselAvailabilityOwnShipsDataList from './pages/VesselAvailabilityOwnShips/DataList';
 import VesselAvailabilityOwnShipsInputForm from './pages/VesselAvailabilityOwnShips/InputForm';
 import VesselAvailabilityOwnShipsReports from './pages/VesselAvailabilityOwnShips/Reports';
@@ -188,18 +189,29 @@ export default function SCIView({ activeTab: menuTab, triggerNotification }) {
     go(sectionId, 'add', { section: sectionId, item: row });
   }, [go, sectionId]);
 
-  const handleDelete = useCallback((row) => {
-    if (!window.confirm(`Delete the ${section.name} entry for ${row.financial_year}? This cannot be undone.`)) return;
-    section.remove(row[section.idField], getCurrentUserId())
+  // The row waiting for the user to confirm its delete
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = useCallback((row) => setPendingDelete(row), []);
+
+  const confirmDelete = useCallback(() => {
+    const year = pendingDelete.financial_year;
+    setDeleting(true);
+    section.remove(pendingDelete[section.idField], getCurrentUserId())
       .then(() => {
-        notify(SCI_TOASTS.deleted(section.name, row.financial_year));
+        notify(SCI_TOASTS.deleted(section.name, year));
         setReloadKey((k) => k + 1);
       })
       .catch((err) => {
         console.error(`Error deleting SCI ${section.name} entry:`, err);
         notify(SCI_TOASTS.deleteFailed(getErrorMessage(err)));
+      })
+      .finally(() => {
+        setDeleting(false);
+        setPendingDelete(null);
       });
-  }, [section, notify]);
+  }, [section, pendingDelete, notify]);
 
   // Replace the form entry so browser Back can't reopen the pre-save snapshot
   const handleSuccess = useCallback(() => {
@@ -293,6 +305,15 @@ export default function SCIView({ activeTab: menuTab, triggerNotification }) {
           notify={notify}
         />
       )}
+
+      <ConfirmModal
+        isOpen={!!pendingDelete}
+        onClose={() => !deleting && setPendingDelete(null)}
+        onConfirm={confirmDelete}
+        loading={deleting}
+        title={`Delete ${section.name}`}
+        message={pendingDelete ? `The ${section.name} entry for ${pendingDelete.financial_year} will be deleted. This cannot be undone.` : ''}
+      />
     </div>
   );
 }

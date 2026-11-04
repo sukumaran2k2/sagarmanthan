@@ -3,6 +3,7 @@ import { useLocation, useSearchParams } from 'react-router-dom';
 import { Lightbulb, Radio, Activity, Wifi, MapPin, IndianRupee } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
+import ConfirmModal from '../../components/ConfirmModal';
 import LightHouseMasterDataList from './components/LightHouseMasterDataList';
 import VTMSIntegrationDataList from './components/VTMSIntegrationDataList';
 import NAISUptimeDataList from './components/NAISUptimeDataList';
@@ -191,10 +192,16 @@ export default function KPIDGLLView({ activeTab: menuTab, triggerNotification })
     go(sectionId, 'add', { section: sectionId, list: listId, item: row });
   }, [go, sectionId, listId]);
 
-  const handleDelete = useCallback((row) => {
-    const period = list.period(row);
-    if (!window.confirm(`Delete the ${list.name} entry for ${period}? This cannot be undone.`)) return;
-    list.remove(row[list.idField], getCurrentUserId())
+  // The row waiting for the user to confirm its delete
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = useCallback((row) => setPendingDelete(row), []);
+
+  const confirmDelete = useCallback(() => {
+    const period = list.period(pendingDelete);
+    setDeleting(true);
+    list.remove(pendingDelete[list.idField], getCurrentUserId())
       .then(() => {
         notify(DGLL_TOASTS.deleted(list.name, period));
         setReloadKey((k) => k + 1);
@@ -202,8 +209,12 @@ export default function KPIDGLLView({ activeTab: menuTab, triggerNotification })
       .catch((err) => {
         console.error(`Error deleting DGLL ${list.name} entry:`, err);
         notify(DGLL_TOASTS.deleteFailed(getErrorMessage(err)));
+      })
+      .finally(() => {
+        setDeleting(false);
+        setPendingDelete(null);
       });
-  }, [list, notify]);
+  }, [list, pendingDelete, notify]);
 
   // Replace the form entry so browser Back can't reopen the pre-save snapshot
   const handleSuccess = useCallback(() => {
@@ -309,6 +320,15 @@ export default function KPIDGLLView({ activeTab: menuTab, triggerNotification })
           notify={notify}
         />
       )}
+
+      <ConfirmModal
+        isOpen={!!pendingDelete}
+        onClose={() => !deleting && setPendingDelete(null)}
+        onConfirm={confirmDelete}
+        loading={deleting}
+        title={`Delete ${list.name}`}
+        message={pendingDelete ? `The ${list.name} entry for ${list.period(pendingDelete)} will be deleted. This cannot be undone.` : ''}
+      />
     </div>
   );
 }
