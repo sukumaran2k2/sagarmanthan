@@ -59,24 +59,31 @@ export default function CopyButton({
       return;
     }
 
+    // Normalise headers: support both string[] and {label, key}[] formats
+    const headerLabels = headers.map(h => (typeof h === 'object' && h !== null ? h.label : h) ?? '');
+    const headerKeys   = headers.map(h => (typeof h === 'object' && h !== null ? h.key  : null));
+    const hasKeys      = headerKeys.some(k => k !== null);
+
+    const rowValues = (row) => {
+      if (Array.isArray(row)) return row;
+      if (typeof row !== 'object' || row === null) return [];
+      return hasKeys ? headerKeys.map(k => (k != null ? row[k] : '')) : Object.values(row);
+    };
+
     let tsv = '';
-    if (headers && headers.length > 0) {
-      tsv += `${headers.join('\t')}\n`;
+    if (headerLabels.length > 0) {
+      tsv += `${headerLabels.join('\t')}\n`;
     }
 
     rowList.forEach((row) => {
-      if (Array.isArray(row)) {
-        const line = row.map((cell) => {
-          let str = String(cell ?? '');
-          if (str.startsWith('"') && str.endsWith('"')) {
-            str = str.slice(1, -1).replace(/""/g, '"');
-          }
-          return str.replace(/\t/g, ' ').replace(/\n/g, ' ');
-        });
-        tsv += `${line.join('\t')}\n`;
-      } else if (typeof row === 'object' && row !== null) {
-        tsv += `${Object.values(row).join('\t')}\n`;
-      }
+      const line = rowValues(row).map((cell) => {
+        let str = String(cell ?? '');
+        if (str.startsWith('"') && str.endsWith('"')) {
+          str = str.slice(1, -1).replace(/""/g, '"');
+        }
+        return str.replace(/\t/g, ' ').replace(/\n/g, ' ');
+      });
+      tsv += `${line.join('\t')}\n`;
     });
 
     copyToClipboard(tsv)

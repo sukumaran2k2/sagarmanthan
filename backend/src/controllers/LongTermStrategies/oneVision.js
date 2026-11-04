@@ -5,6 +5,7 @@ import path from 'path';
 import sql from 'mssql';
 import { promisify } from 'util';
 import { fileURLToPath } from 'url';
+import { scanFile } from '../../utils/clamScan.js';
 
 const uploadDestination = './fileuploads/One_vision_one_doc';
 
@@ -375,31 +376,7 @@ async function getUpdateOVD(req, res) {
         const financeResult = await request.query(`SELECT * FROM tbl_ovod_finance WHERE tbl_ovod_finance.ovod_id = @ID;`);
         
         const progressLogResult = await request.query(`SELECT * FROM tbl_ovod_progress_log WHERE ovod_id = @ID ORDER BY id ASC;`);
-        let finalProgressLogs = progressLogResult.recordset;
-
-        if (finalProgressLogs.length === 0) {
-            const oldLogsResult = await request.query(`SELECT * FROM tbl_ovd_percentage_log WHERE ovd_id = @ID ORDER BY id ASC;`);
-            finalProgressLogs = oldLogsResult.recordset.map(log => {
-                let progressDate = "";
-                if (log.updated_date) {
-                    try {
-                        const dateObj = new Date(log.updated_date);
-                        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-                        const year = String(dateObj.getFullYear()).slice(-2);
-                        progressDate = `${month}-${year}`;
-                    } catch (e) {
-                        progressDate = "";
-                    }
-                }
-                return {
-                    id: log.id,
-                    ovod_id: log.ovd_id,
-                    physical_progress: log.completed_percentage,
-                    financial_progress: 0,
-                    progress_date: progressDate
-                };
-            });
-        }
+        const finalProgressLogs = progressLogResult.recordset;
 
         const combinedResult = {
             result: result.recordset,
@@ -1394,60 +1371,24 @@ async function updateOVDData(req, res) {
             
         }
 
-        if (ovodProgressLogData) {
-            const existingLogsResult = await conn.request()
+        if (Array.isArray(ovodProgressLogData)) {
+            const incomingLogs = ovodProgressLogData.filter(row => row.progressDate);
+
+            await conn.request()
                 .input("ID", ID)
-                .query(`
-                    SELECT progress_date, physical_progress, financial_progress 
-                    FROM [tbl_ovod_progress_log] 
-                    WHERE ovod_id = @ID 
-                    ORDER BY id ASC;
-                `);
-            const existingLogs = existingLogsResult.recordset;
+                .query(`DELETE FROM [tbl_ovod_progress_log] WHERE ovod_id = @ID;`);
 
-            const incomingLogs = (ovodProgressLogData || []).filter(row =>
-                row.progressDate
-            );
-
-            let hasChanges = false;
-            if (existingLogs.length !== incomingLogs.length) {
-                hasChanges = true;
-            } else {
-                for (let i = 0; i < existingLogs.length; i++) {
-                    const ext = existingLogs[i];
-                    const inc = incomingLogs[i];
-                    
-                    const extPhys = parseFloat(ext.physical_progress) || 0;
-                    const incPhys = parseFloat(inc.physicalProgress) || 0;
-                    const extFin = parseFloat(ext.financial_progress) || 0;
-                    const incFin = parseFloat(inc.financialProgress) || 0;
-                    
-                    if (ext.progress_date !== inc.progressDate || extPhys !== incPhys || extFin !== incFin) {
-                        hasChanges = true;
-                        break;
-                    }
-                }
-            }
-
-            if (hasChanges) {
+            for (const row of incomingLogs) {
                 await conn.request()
                     .input("ID", ID)
+                    .input("progressDate", row.progressDate)
+                    .input("physicalProgress", parseFloat(row.physicalProgress) || 0)
+                    .input("financialProgress", parseFloat(row.financialProgress) || 0)
                     .query(`
-                        DELETE FROM [tbl_ovod_progress_log] WHERE ovod_id = @ID;
+                        INSERT INTO [tbl_ovod_progress_log]
+                        ([ovod_id], [progress_date], [physical_progress], [financial_progress], [created_date])
+                        VALUES (@ID, @progressDate, @physicalProgress, @financialProgress, GETDATE());
                     `);
-
-                for (const row of incomingLogs) {
-                    await conn.request()
-                        .input("ID", ID)
-                        .input("progressDate", row.progressDate)
-                        .input("physicalProgress", parseFloat(row.physicalProgress) || 0)
-                        .input("financialProgress", parseFloat(row.financialProgress) || 0)
-                        .query(`
-                            INSERT INTO [tbl_ovod_progress_log] 
-                            ([ovod_id], [progress_date], [physical_progress], [financial_progress], [created_date])
-                            VALUES (@ID, @progressDate, @physicalProgress, @financialProgress, GETDATE());
-                        `);
-                }
             }
         }
 
@@ -1652,6 +1593,17 @@ async function ovdUploadDocument(req, res) {
             return res.status(400).json({ error: "No file uploaded" });
         }
 
+        // ClamAV security scan
+        try {
+            const scanResult = await scanFile(req.file.path);
+            if (!scanResult.clean) {
+                fs.unlinkSync(req.file.path);
+                return res.status(422).json({ error: 'File rejected: malware or threat detected.', threat: scanResult.threat });
+            }
+        } catch (scanErr) {
+            console.warn('[ClamAV] Scanner unavailable, skipping scan:', scanErr.message);
+        }
+
         let sqlQuery;
         if (ID === -1) {
             const lastRecord = await conn.query(`SELECT TOP 1 id
@@ -1841,8 +1793,19 @@ async function ovodFinanceDocument(req, res) {
             return res.status(400).json({ error: "No file uploaded" });
         }
 
+        // ClamAV security scan
+        try {
+            const scanResult = await scanFile(req.file.path);
+            if (!scanResult.clean) {
+                fs.unlinkSync(req.file.path);
+                return res.status(422).json({ error: 'File rejected: malware or threat detected.', threat: scanResult.threat });
+            }
+        } catch (scanErr) {
+            console.warn('[ClamAV] Scanner unavailable, skipping scan:', scanErr.message);
+        }
+
         let sqlQuery;
-   
+
         const checkRecord = await request.query(`
             SELECT COUNT(*) AS recordCount
             FROM tbl_ovod_finance_doc
@@ -1910,11 +1873,15 @@ async function getFinanceDocuments(req, res) {
 
 async function downloadFinanceDocument(req, res) {
     try {
-        const id = req.params.ID;
+        const id = parseInt(req.params.ID, 10);
+        if (isNaN(id)) return res.status(400).send({ message: "Invalid document ID" });
 
         const conn = await pool;
         const request = conn.request();
+        request.input("id", sql.Int, id);
         const result = await request.query(`SELECT file_name FROM tbl_ovod_finance_doc WHERE id = @id`);
+
+        if (!result.recordset.length) return res.status(404).send({ message: "Document record not found" });
 
         const fileName = result.recordset[0].file_name;
 

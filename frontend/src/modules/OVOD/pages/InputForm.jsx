@@ -3,9 +3,9 @@ import { openBackendFile } from '../../../utils/openBackendFile';
 import { isOrganisationUser, getSessionOrganisationId, getSessionOrganisationName } from '../../../utils/authSession';
 import { createPortal } from 'react-dom';
 import { 
-  Building2, 
-  FileText, 
-  Calendar, 
+  Building2,
+  FileText,
+  Calendar,
   CheckCircle,
   AlertCircle,
   Save,
@@ -22,7 +22,8 @@ import {
   Info,
   X,
   Upload,
-  Download
+  Download,
+  ChevronDown
 } from 'lucide-react';
 import { 
   fetchOvdDropDownData,
@@ -33,7 +34,9 @@ import {
   updateOvdFullItem,
   uploadOvdDocument,
   fetchOvdDocuments,
-  getUserIdFromToken 
+  uploadOvdFinanceDocument,
+  fetchOvdFinanceDocument,
+  getUserIdFromToken
 } from '../api';
 import { 
   CATEGORY_MAP,
@@ -43,7 +46,7 @@ import {
   OVOD_STATUSES
 } from '../utils/constants';
 import { useOvodStore } from '../store/useOvodStore';
-import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { useNotifier, COMMON_TOASTS, getErrorMessage, toastError } from '../../../utils/notify';
 import { OVOD_TOASTS } from '../toastMessages';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -174,16 +177,17 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
   });
 
   // Monthly Progress Log Rows State (shown only when Under Implementation)
-  const [progressLogRows, setProgressLogRows] = useState([
-    { id: 1, month: '', year: '', physicalProgress: '', financialProgress: '' }
-  ]);
+  const [progressLogRows, setProgressLogRows] = useState([]);
 
   // Fund Requirement Rows State
   const [financeRows, setFinanceRows] = useState([{
     id: 1, capExpenditure: '', sourceOfFund: '', fundSpend: '',
     oneYear: '', threeYear: '', threeFiveYear: '', greaterFive: '', detailedBreakUp: '',
-    annexureFile: null, annexureFileName: ''
+    annexureFile: null, annexureFileName: '', annexureDocId: null
   }]);
+  const [financeRowErrors, setFinanceRowErrors] = useState({});
+  const [formErrors, setFormErrors] = useState({});
+  const clearFormError = (field) => setFormErrors(prev => { const next = { ...prev }; delete next[field]; return next; });
 
   // Modal State for Edit (B2/B3)
   const [showB2B3SelectModal, setShowB2B3SelectModal] = useState(false);
@@ -202,6 +206,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
 
   // Document Upload State
   const [selectedFile, setSelectedFile] = useState(null);
+  const [fileScanState, setFileScanState] = useState('idle'); // 'idle' | 'scanning' | 'clean' | 'infected'
   const [showDocModal, setShowDocModal] = useState(false);
   const [uploadedDocs, setUploadedDocs] = useState([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
@@ -241,7 +246,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
 
         const financeData = res?.financeResult || [];
         if (Array.isArray(financeData) && financeData.length > 0) {
-          setFinanceRows(financeData.map((f, idx) => ({
+          const rows = financeData.map((f, idx) => ({
             id: idx + 1,
             capExpenditure: f.capital_expenditure != null ? String(f.capital_expenditure) : '',
             sourceOfFund: f.source_of_funding || '',
@@ -252,8 +257,24 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
             greaterFive: f.greater_five_year != null ? String(f.greater_five_year) : '',
             detailedBreakUp: f.detail_breakup || '',
             annexureFile: null,
-            annexureFileName: f.annexure_file || ''
-          })));
+            annexureFileName: '',
+            annexureDocId: null
+          }));
+          setFinanceRows(rows);
+          // Fetch existing annexure doc info for each row that has a source of fund
+          rows.forEach((r, idx) => {
+            if (r.sourceOfFund) {
+              fetchOvdFinanceDocument(editData.id, r.sourceOfFund)
+                .then(docs => {
+                  if (Array.isArray(docs) && docs.length > 0) {
+                    setFinanceRows(prev => prev.map((row, i) =>
+                      i === idx ? { ...row, annexureDocId: docs[0].id, annexureFileName: docs[0].file_name || '' } : row
+                    ));
+                  }
+                })
+                .catch(() => {});
+            }
+          });
         }
 
         const progressData = res?.progressLogResult || [];
@@ -415,15 +436,90 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
   const handleSubmitUpdate = async (e) => {
     e.preventDefault();
 
+    // === FIELD VALIDATION ===
+    const newFormErrors = {};
+
+    // Mandatory fields
+    if (!formData.current_status) newFormErrors.current_status = 'Current Status is required.';
+
+    // Completed-only mandatory fields
+    if (formData.current_status === 'Completed') {
+      if (formData.direct_employment === '' || formData.direct_employment === null || formData.direct_employment === undefined)
+        newFormErrors.direct_employment = 'Direct Employment Generated is required.';
+      else if (parseFloat(formData.direct_employment) < 0)
+        newFormErrors.direct_employment = 'Value cannot be negative.';
+
+      if (formData.indirect_employment === '' || formData.indirect_employment === null || formData.indirect_employment === undefined)
+        newFormErrors.indirect_employment = 'Indirect Employment Generated is required.';
+      else if (parseFloat(formData.indirect_employment) < 0)
+        newFormErrors.indirect_employment = 'Value cannot be negative.';
+
+      if (formData.direct_investment === '' || formData.direct_investment === null || formData.direct_investment === undefined)
+        newFormErrors.direct_investment = 'Direct Investment Created is required.';
+      else if (parseFloat(formData.direct_investment) < 0)
+        newFormErrors.direct_investment = 'Value cannot be negative.';
+
+      if (formData.indirect_investment === '' || formData.indirect_investment === null || formData.indirect_investment === undefined)
+        newFormErrors.indirect_investment = 'Indirect Investment Created is required.';
+      else if (parseFloat(formData.indirect_investment) < 0)
+        newFormErrors.indirect_investment = 'Value cannot be negative.';
+    }
+
+    // Non-negative numeric fields
+    if (formData.total_cost !== '' && formData.total_cost !== null && formData.total_cost !== undefined) {
+      if (parseFloat(formData.total_cost) < 0) newFormErrors.total_cost = 'Total Cost cannot be negative.';
+    }
+
+    // Finance rows — negative value check + source-of-fund completeness check
+    const newFinanceRowErrors = {};
+    const numFields = ['fundSpend', 'oneYear', 'threeYear', 'threeFiveYear', 'greaterFive', 'capExpenditure'];
+    const numFieldLabels = { fundSpend: 'Fund Spent', oneYear: '1 Year', threeYear: '3 Years', threeFiveYear: '>3-5 Years', greaterFive: '>5 Years', capExpenditure: 'Capital Expenditure' };
+    financeRows.forEach(r => {
+      // Negative value check (first offending field wins)
+      for (const field of numFields) {
+        if (r[field] !== '' && r[field] !== null && r[field] !== undefined && parseFloat(r[field]) < 0) {
+          newFinanceRowErrors[r.id] = `${numFieldLabels[field]} cannot be negative.`;
+          break;
+        }
+      }
+      // Source-of-fund completeness check (only if no negative error already)
+      if (!newFinanceRowErrors[r.id] && r.sourceOfFund) {
+        const hasNumeric = [r.fundSpend, r.oneYear, r.threeYear, r.threeFiveYear, r.greaterFive].some(
+          v => v !== undefined && v !== null && v !== '' && parseFloat(v) > 0
+        );
+        if (!hasNumeric) {
+          newFinanceRowErrors[r.id] = 'Please enter at least one value (Fund Spent, 1 Year, 3 Years, >3-5 Years, >5 Years) or remove this row.';
+        }
+      }
+    });
+
+    // Progress log — non-negative percentage check
+    progressLogRows.forEach((r, i) => {
+      if (r.physicalProgress !== '' && r.physicalProgress !== null && parseFloat(r.physicalProgress) < 0)
+        newFormErrors[`progress_physical_${r.id}`] = `Row ${i + 1}: Physical Progress cannot be negative.`;
+      if (r.financialProgress !== '' && r.financialProgress !== null && parseFloat(r.financialProgress) < 0)
+        newFormErrors[`progress_financial_${r.id}`] = `Row ${i + 1}: Financial Progress cannot be negative.`;
+    });
+
+    if (Object.keys(newFormErrors).length > 0 || Object.keys(newFinanceRowErrors).length > 0) {
+      setFormErrors(newFormErrors);
+      setFinanceRowErrors(prev => ({ ...prev, ...newFinanceRowErrors }));
+      notify(toastError('Validation Error', 'Please fix the highlighted fields before submitting.'));
+      return;
+    }
+    setFormErrors({});
+    setFinanceRowErrors({});
+
     // Validate fund requirement balance only when total_cost and finance rows are filled
     if (formData.total_cost && String(formData.total_cost).trim() !== '') {
       const { fundReq, fundSpent, capEx, totalCost } = financeTotals;
       const round2 = (n) => Math.round(n * 100) / 100;
       if (round2(capEx) !== round2(totalCost)) {
-        triggerNotification?.('error', 'Validation Error', `Capital Expenditure total (${round2(capEx)}) must equal Total Cost (${round2(totalCost)})`);
+        notify(toastError('Validation Error', `Capital Expenditure total (${round2(capEx)}) must equal Total Cost (${round2(totalCost)})`));
         return;
       }
     }
+
 
     // Monthly Progress Logs are shown for Under Implementation AND Completed
     const showProgressLog = formData.current_status && (
@@ -431,17 +527,17 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
       formData.current_status === 'Completed'
     );
 
-    // Auto-add 100% physical progress row when Completed with no progress entered
     let finalProgressRows = [...progressLogRows];
     if (formData.current_status === 'Completed') {
-      const hasPhysicalProgress = finalProgressRows.some(
-        r => r.physicalProgress && String(r.physicalProgress).trim() !== '' && String(r.physicalProgress).trim() !== '0'
+      const has100 = finalProgressRows.some(
+        r => r.physicalProgress !== '' && r.physicalProgress !== null && parseFloat(r.physicalProgress) >= 100
       );
-      if (!hasPhysicalProgress) {
+      if (!has100) {
         const now = new Date();
-        const autoMonth = MONTHS[now.getMonth()];
-        const autoYear = String(now.getFullYear());
-        finalProgressRows = [{ id: Date.now(), month: autoMonth, year: autoYear, physicalProgress: '100', financialProgress: '' }];
+        finalProgressRows = [
+          ...finalProgressRows,
+          { id: Date.now(), month: MONTHS[now.getMonth()], year: String(now.getFullYear()), physicalProgress: '100', financialProgress: '' }
+        ];
       }
     }
 
@@ -473,7 +569,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                 physicalProgress: r.physicalProgress || '0',
                 financialProgress: r.financialProgress || '0'
               }))
-          : [],
+          : null,
         ovodFinanceData: financeRows.filter(r =>
           r.capExpenditure || r.sourceOfFund || r.fundSpend ||
           r.oneYear || r.threeYear || r.threeFiveYear || r.greaterFive || r.detailedBreakUp
@@ -486,16 +582,46 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
       // The initiative is saved at this point; report an upload failure separately so the
       // user isn't told the whole update failed
       if (selectedFile) {
+        setFileScanState('scanning');
         const docFormData = new FormData();
         docFormData.append('file', selectedFile);
         docFormData.append('ID', editData.id);
         try {
           await uploadOvdDocument(docFormData);
+          setFileScanState('clean');
         } catch (uploadErr) {
+          const status = uploadErr?.response?.status;
+          if (status === 422) {
+            setFileScanState('infected');
+            notify(toastError('Security Scan Failed', 'The uploaded file was flagged as malware and was rejected.'));
+            if (onSuccess) onSuccess();
+            return;
+          }
+          setFileScanState('idle');
           console.error("Error uploading initiative document:", uploadErr);
           notify(OVOD_TOASTS.documentUploadFailed(getErrorMessage(uploadErr)));
           if (onSuccess) onSuccess();
           return;
+        }
+      }
+
+      // Upload annexure files for finance rows that have a new file selected
+      const annexureRows = financeRows.filter(r => r.annexureFile && r.sourceOfFund);
+      for (const r of annexureRows) {
+        const fd = new FormData();
+        fd.append('file', r.annexureFile);
+        fd.append('ID', editData.id);
+        fd.append('sourceOfFund', r.sourceOfFund);
+        try {
+          await uploadOvdFinanceDocument(fd);
+        } catch (annexErr) {
+          const status = annexErr?.response?.status;
+          if (status === 422) {
+            notify(toastError('Security Scan Failed', `Annexure for "${r.sourceOfFund}" was flagged as malware and was rejected.`));
+          } else {
+            console.error('Error uploading annexure for', r.sourceOfFund, annexErr);
+            notify(toastError('Annexure Upload Failed', `Could not upload annexure for "${r.sourceOfFund}". Please try again.`));
+          }
         }
       }
 
@@ -528,7 +654,6 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
           {/* ======================= SECTION 1: GENERAL DETAILS ====================== */}
           {/* ========================================================================= */}
           {(() => {
-            const roField = "w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none";
             return (
               <div className="space-y-4">
                 <div className="module-form-section-header">
@@ -562,11 +687,11 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="module-form-label">National Level Goal (A1)<span className="text-rose-500">*</span></label>
-                    <input type="text" value={formData.goal_a1_label} readOnly disabled className={roField} />
+                    <input type="text" value={formData.goal_a1_label} readOnly disabled className="module-form-input-readonly" />
                   </div>
                   <div>
                     <label className="module-form-label">National Level Intervention (A2)<span className="text-rose-500">*</span></label>
-                    <input type="text" value={formData.intervention_a2_label} readOnly disabled className={roField} />
+                    <input type="text" value={formData.intervention_a2_label} readOnly disabled className="module-form-input-readonly" />
                   </div>
                 </div>
 
@@ -574,22 +699,22 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                   /* A3 row */
                   <div>
                     <label className="module-form-label">Actionable Item (A3)<span className="text-rose-500">*</span></label>
-                    <input type="text" value={formData.action_a3_label} readOnly disabled className={roField} />
+                    <input type="text" value={formData.action_a3_label} readOnly disabled className="module-form-input-readonly" />
                   </div>
                 ) : (
                   /* B1, B2, B3 row */
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="module-form-label">Goal (B1)<span className="text-rose-500">*</span></label>
-                      <input type="text" value={formData.goal_b1_label} readOnly disabled className={roField} />
+                      <input type="text" value={formData.goal_b1_label} readOnly disabled className="module-form-input-readonly" />
                     </div>
                     <div>
                       <label className="module-form-label">Intervention (B2)<span className="text-rose-500">*</span></label>
-                      <input type="text" value={formData.intervention_b2_label} readOnly disabled className={roField} />
+                      <input type="text" value={formData.intervention_b2_label} readOnly disabled className="module-form-input-readonly" />
                     </div>
                     <div>
                       <label className="module-form-label">Actionable Item (B3)<span className="text-rose-500">*</span></label>
-                      <input type="text" value={formData.action_b3_label} readOnly disabled className={roField} />
+                      <input type="text" value={formData.action_b3_label} readOnly disabled className="module-form-input-readonly" />
                     </div>
                   </div>
                 )}
@@ -598,30 +723,31 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
                   <div>
                     <label className="module-form-label">Category<span className="text-rose-500">*</span></label>
-                    <input type="text" value={formData.category_label} readOnly disabled className={roField} />
+                    <input type="text" value={formData.category_label} readOnly disabled className="module-form-input-readonly" />
                   </div>
                   <div>
                     <label className="module-form-label">Total Cost (In. Cr)</label>
                     <div className="relative">
                       <input
-                        type="number" step="0.01" name="total_cost"
+                        type="number" step="0.01" min="0" name="total_cost"
                         value={formData.total_cost}
-                        onChange={(e) => setFormData(prev => ({ ...prev, total_cost: e.target.value }))}
+                        onChange={(e) => { setFormData(prev => ({ ...prev, total_cost: e.target.value })); clearFormError('total_cost'); }}
                         placeholder="Enter cost..."
-                        className="w-full text-xs px-3.5 py-2.5 pr-8 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 font-semibold focus:ring-1 focus:ring-blue-500"
+                        className={`module-form-input pr-8 ${formErrors.total_cost ? 'module-form-input--error' : ''}`}
                       />
                       <div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-amber-500" title="Cost in Crores">
                         <Info size={14} />
                       </div>
                     </div>
+                    {formErrors.total_cost && <p className="module-form-error-msg">{formErrors.total_cost}</p>}
                   </div>
                   <div>
                     <label className="module-form-label">Implementing Agency<span className="text-rose-500">*</span></label>
-                    <input type="text" value={formData.agency_label} readOnly disabled className={roField} />
+                    <input type="text" value={formData.agency_label} readOnly disabled className="module-form-input-readonly" />
                   </div>
                   <div>
                     <label className="module-form-label">Wing<span className="text-rose-500">*</span></label>
-                    <input type="text" value={formData.wing_label} readOnly disabled className={roField} />
+                    <input type="text" value={formData.wing_label} readOnly disabled className="module-form-input-readonly" />
                   </div>
                 </div>
 
@@ -629,11 +755,11 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="module-form-label">Priority<span className="text-rose-500">*</span></label>
-                    <input type="text" value={formData.priority_label} readOnly disabled className={roField} />
+                    <input type="text" value={formData.priority_label} readOnly disabled className="module-form-input-readonly" />
                   </div>
                   <div>
                     <label className="module-form-label">Vibhas/ Navic<span className="text-rose-500">*</span></label>
-                    <input type="text" value={formData.vibhas_label} readOnly disabled className={roField} />
+                    <input type="text" value={formData.vibhas_label} readOnly disabled className="module-form-input-readonly" />
                   </div>
                 </div>
               </div>
@@ -653,19 +779,21 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                 <select
                   name="current_status"
                   value={formData.current_status}
-                  onChange={(e) => setFormData(prev => ({ ...prev, current_status: e.target.value }))}
+                  onChange={(e) => { setFormData(prev => ({ ...prev, current_status: e.target.value })); clearFormError('current_status'); }}
                   required
-                  className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-emerald-500 dark:border-emerald-500 pr-10 font-semibold focus:ring-1 focus:ring-emerald-500"
+                  className={`module-form-select appearance-none pr-16 ${formErrors.current_status ? 'module-form-select--error' : ''}`}
                 >
                   <option value="">--Select Status--</option>
                   {OVOD_STATUSES.filter(s => s.id !== '0' && s.id !== 'No Update').map(s => (
                     <option key={s.id} value={s.id}>{s.label}</option>
                   ))}
                 </select>
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                  <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none flex items-center gap-1.5">
+                  {formData.current_status && <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
+                  <ChevronDown className="h-4 w-4 text-slate-400 dark:text-slate-500" />
                 </div>
               </div>
+              {formErrors.current_status && <p className="module-form-error-msg">{formErrors.current_status}</p>}
             </div>
           </div>
 
@@ -678,7 +806,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                 onChange={e => setFormData(prev => ({ ...prev, reasons_for_drop: e.target.value }))}
                 rows={4}
                 placeholder="Describe reasons for dropping this initiative..."
-                className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500 resize-none"
+                className="module-form-textarea"
               />
             </div>
           )}
@@ -695,7 +823,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                 maxLength={1400}
                 rows={4}
                 placeholder="Describe reasons for delay or current brief status..."
-                className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500 resize-none"
+                className="module-form-textarea"
               />
             </div>
           )}
@@ -710,69 +838,80 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                 <h2 className="module-form-section-heading">Monthly Progress Logs</h2>
                 <button
                   type="button"
-                  onClick={() => setProgressLogRows([{ id: Date.now(), month: '', year: '', physicalProgress: '', financialProgress: '' }])}
+                  onClick={() => setProgressLogRows([])}
                   className="px-3 py-1.5 text-xs font-semibold rounded bg-rose-600 hover:bg-rose-700 text-white transition"
                 >
                   Clear All Rows
                 </button>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-[11px] border-collapse">
-                  <thead>
-                    <tr className="bg-[#154b8a] text-white">
-                      <th className="px-3 py-2 font-semibold text-center border border-blue-900/40">Month &amp; Year (MM-YY)</th>
-                      <th className="px-3 py-2 font-semibold text-center border border-blue-900/40">Physical Progress</th>
-                      <th className="px-3 py-2 font-semibold text-center border border-blue-900/40">Financial Progress (%)</th>
-                      <th className="px-3 py-2 font-semibold text-center border border-blue-900/40">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {progressLogRows.map((row, idx) => {
-                      const updateLog = (field, val) =>
-                        setProgressLogRows(prev => prev.map((r, i) => i === idx ? { ...r, [field]: val } : r));
-                      return (
-                        <tr key={row.id} className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800">
-                          <td className="px-1 py-1 border border-slate-200 dark:border-slate-700">
-                            <div className="flex gap-1">
-                              <select
-                                value={row.month}
-                                onChange={e => updateLog('month', e.target.value)}
-                                className="flex-1 px-1.5 py-1 text-[11px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded text-slate-700 dark:text-slate-200"
-                              >
-                                <option value="">Month</option>
-                                {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
-                              </select>
-                              <select
-                                value={row.year}
-                                onChange={e => updateLog('year', e.target.value)}
-                                className="flex-1 px-1.5 py-1 text-[11px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded text-slate-700 dark:text-slate-200"
-                              >
-                                <option value="">Year</option>
-                                {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-                              </select>
-                            </div>
-                          </td>
-                          <td className="px-1 py-1 border border-slate-200 dark:border-slate-700">
-                            <input
-                              type="text"
-                              value={row.physicalProgress}
-                              onChange={e => updateLog('physicalProgress', e.target.value)}
-                              placeholder="Physical Progress %"
-                              className="w-full px-1.5 py-1 text-[11px] bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded text-slate-700 dark:text-slate-200"
-                            />
-                          </td>
-                          <td className="px-1 py-1 border border-slate-200 dark:border-slate-700">
-                            <input
-                              type="text"
-                              value={row.financialProgress}
-                              onChange={e => updateLog('financialProgress', e.target.value)}
-                              placeholder="Financial Progress %"
-                              className="w-full px-1.5 py-1 text-[11px] bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded text-slate-700 dark:text-slate-200"
-                            />
-                          </td>
-                          <td className="px-1 py-1 border border-slate-200 dark:border-slate-700 text-center">
-                            <div className="flex items-center justify-center gap-1">
-                              {progressLogRows.length > 1 && (
+              {progressLogRows.length === 0 ? (
+                <div className="flex items-center justify-center py-6 border border-dashed border-slate-300 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-800/30">
+                  <button
+                    type="button"
+                    onClick={() => setProgressLogRows([{ id: Date.now(), month: '', year: '', physicalProgress: '', financialProgress: '' }])}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded border border-blue-500 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition"
+                  >
+                    <Plus size={12} className="stroke-[2.5]" />
+                    Add Progress Row
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[11px] border-collapse">
+                    <thead>
+                      <tr className="bg-[#154b8a] text-white">
+                        <th className="px-3 py-2 font-semibold text-center border border-blue-900/40">Month &amp; Year (MM-YY)</th>
+                        <th className="px-3 py-2 font-semibold text-center border border-blue-900/40">Physical Progress</th>
+                        <th className="px-3 py-2 font-semibold text-center border border-blue-900/40">Financial Progress (%)</th>
+                        <th className="px-3 py-2 font-semibold text-center border border-blue-900/40">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {progressLogRows.map((row, idx) => {
+                        const updateLog = (field, val) =>
+                          setProgressLogRows(prev => prev.map((r, i) => i === idx ? { ...r, [field]: val } : r));
+                        return (
+                          <tr key={row.id} className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800">
+                            <td className="px-1 py-1 border border-slate-200 dark:border-slate-700">
+                              <div className="flex gap-1">
+                                <select
+                                  value={row.month}
+                                  onChange={e => updateLog('month', e.target.value)}
+                                  className="module-form-table-select flex-1 border border-slate-300 dark:border-slate-600"
+                                >
+                                  <option value="">Month</option>
+                                  {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
+                                </select>
+                                <select
+                                  value={row.year}
+                                  onChange={e => updateLog('year', e.target.value)}
+                                  className="module-form-table-select flex-1 border border-slate-300 dark:border-slate-600"
+                                >
+                                  <option value="">Year</option>
+                                  {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                                </select>
+                              </div>
+                            </td>
+                            <td className={`px-1 py-1 border ${formErrors[`progress_physical_${row.id}`] ? 'border-red-400 bg-red-50 dark:bg-red-900/20' : 'border-slate-200 dark:border-slate-700'}`}>
+                              <input
+                                type="number" min="0" step="0.01"
+                                value={row.physicalProgress}
+                                onChange={e => { updateLog('physicalProgress', e.target.value); clearFormError(`progress_physical_${row.id}`); }}
+                                placeholder="Physical %"
+                                className="module-form-table-input"
+                              />
+                            </td>
+                            <td className={`px-1 py-1 border ${formErrors[`progress_financial_${row.id}`] ? 'border-red-400 bg-red-50 dark:bg-red-900/20' : 'border-slate-200 dark:border-slate-700'}`}>
+                              <input
+                                type="number" min="0" step="0.01"
+                                value={row.financialProgress}
+                                onChange={e => { updateLog('financialProgress', e.target.value); clearFormError(`progress_financial_${row.id}`); }}
+                                placeholder="Financial %"
+                                className="module-form-table-input"
+                              />
+                            </td>
+                            <td className="px-1 py-1 border border-slate-200 dark:border-slate-700 text-center">
+                              <div className="flex items-center justify-center gap-1">
                                 <button
                                   type="button"
                                   onClick={() => setProgressLogRows(prev => prev.filter((_, i) => i !== idx))}
@@ -781,28 +920,28 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                                 >
                                   <Minus size={10} className="stroke-[2.5]" />
                                 </button>
-                              )}
-                              {idx === progressLogRows.length - 1 && (
-                                <button
-                                  type="button"
-                                  onClick={() => setProgressLogRows(prev => [
-                                    ...prev,
-                                    { id: Date.now(), month: '', year: '', physicalProgress: '', financialProgress: '' }
-                                  ])}
-                                  title="Add row"
-                                  className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-slate-500 text-slate-600 hover:text-blue-600 hover:border-blue-600 transition cursor-pointer"
-                                >
-                                  <Plus size={10} className="stroke-[2.5]" />
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                                {idx === progressLogRows.length - 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setProgressLogRows(prev => [
+                                      ...prev,
+                                      { id: Date.now(), month: '', year: '', physicalProgress: '', financialProgress: '' }
+                                    ])}
+                                    title="Add row"
+                                    className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-slate-500 text-slate-600 hover:text-blue-600 hover:border-blue-600 transition cursor-pointer"
+                                  >
+                                    <Plus size={10} className="stroke-[2.5]" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
 
@@ -820,40 +959,44 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                   <input
                     type="number" min="0"
                     value={formData.direct_employment}
-                    onChange={e => setFormData(prev => ({ ...prev, direct_employment: e.target.value }))}
-                    className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500"
+                    onChange={e => { setFormData(prev => ({ ...prev, direct_employment: e.target.value })); clearFormError('direct_employment'); }}
+                    className={`module-form-input ${formErrors.direct_employment ? 'module-form-input--error' : ''}`}
                     placeholder="0"
                   />
+                  {formErrors.direct_employment && <p className="module-form-error-msg">{formErrors.direct_employment}</p>}
                 </div>
                 <div>
                   <label className="module-form-label">Indirect Employment Generated (No. Of People)<span className="text-rose-500">*</span></label>
                   <input
                     type="number" min="0"
                     value={formData.indirect_employment}
-                    onChange={e => setFormData(prev => ({ ...prev, indirect_employment: e.target.value }))}
-                    className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500"
+                    onChange={e => { setFormData(prev => ({ ...prev, indirect_employment: e.target.value })); clearFormError('indirect_employment'); }}
+                    className={`module-form-input ${formErrors.indirect_employment ? 'module-form-input--error' : ''}`}
                     placeholder="0"
                   />
+                  {formErrors.indirect_employment && <p className="module-form-error-msg">{formErrors.indirect_employment}</p>}
                 </div>
                 <div>
                   <label className="module-form-label">Direct Investment Created (In Cr.)<span className="text-rose-500">*</span></label>
                   <input
                     type="number" min="0" step="0.01"
                     value={formData.direct_investment}
-                    onChange={e => setFormData(prev => ({ ...prev, direct_investment: e.target.value }))}
-                    className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500"
+                    onChange={e => { setFormData(prev => ({ ...prev, direct_investment: e.target.value })); clearFormError('direct_investment'); }}
+                    className={`module-form-input ${formErrors.direct_investment ? 'module-form-input--error' : ''}`}
                     placeholder="0.00"
                   />
+                  {formErrors.direct_investment && <p className="module-form-error-msg">{formErrors.direct_investment}</p>}
                 </div>
                 <div>
                   <label className="module-form-label">Indirect Investment Created (In Cr.)<span className="text-rose-500">*</span></label>
                   <input
                     type="number" min="0" step="0.01"
                     value={formData.indirect_investment}
-                    onChange={e => setFormData(prev => ({ ...prev, indirect_investment: e.target.value }))}
-                    className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500"
+                    onChange={e => { setFormData(prev => ({ ...prev, indirect_investment: e.target.value })); clearFormError('indirect_investment'); }}
+                    className={`module-form-input ${formErrors.indirect_investment ? 'module-form-input--error' : ''}`}
                     placeholder="0.00"
                   />
+                  {formErrors.indirect_investment && <p className="module-form-error-msg">{formErrors.indirect_investment}</p>}
                 </div>
               </div>
 
@@ -870,7 +1013,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                     value={formData.output_outcome_desc}
                     onChange={e => setFormData(prev => ({ ...prev, output_outcome_desc: e.target.value }))}
                     rows={4}
-                    className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500 resize-none"
+                    className="module-form-textarea"
                   />
                 </div>
                 <div>
@@ -879,7 +1022,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                     value={formData.output_outcome_remarks}
                     onChange={e => setFormData(prev => ({ ...prev, output_outcome_remarks: e.target.value }))}
                     rows={4}
-                    className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500 resize-none"
+                    className="module-form-textarea"
                   />
                 </div>
               </div>
@@ -907,7 +1050,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                   readOnly
                   disabled
                   placeholder="Auto populated"
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
+                  className="module-form-input-readonly"
                 />
               </div>
 
@@ -919,7 +1062,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                   type="date"
                   value={formData.expected_completion_date}
                   onChange={(e) => setFormData(prev => ({ ...prev, expected_completion_date: e.target.value }))}
-                  className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 font-semibold focus:ring-1 focus:ring-blue-500"
+                  className="module-form-input"
                 />
               </div>
             </div>
@@ -937,7 +1080,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                   onClick={() => setFinanceRows([{
                     id: Date.now(), capExpenditure: '', sourceOfFund: '', fundSpend: '',
                     oneYear: '', threeYear: '', threeFiveYear: '', greaterFive: '', detailedBreakUp: '',
-                    annexureFile: null, annexureFileName: ''
+                    annexureFile: null, annexureFileName: '', annexureDocId: null
                   }])}
                   className="bg-[#dc2626] hover:bg-rose-700 text-white px-4 py-1 text-xs font-bold rounded shadow-xs transition cursor-pointer"
                 >
@@ -966,19 +1109,25 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                   </thead>
                   <tbody>
                     {financeRows.map((row, idx) => {
-                      const updateRow = (field, val) =>
+                      const updateRow = (field, val) => {
                         setFinanceRows(prev => prev.map((r, i) => i === idx ? { ...r, [field]: val } : r));
-                      const numInput = (field) => (
-                        <td className="px-1 py-1 border border-slate-200 dark:border-slate-700">
-                          <input
-                            type="number" min="0" step="0.01"
-                            value={row[field]}
-                            onChange={e => updateRow(field, e.target.value)}
-                            className="w-full px-1.5 py-1 text-[11px] bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded text-slate-700 dark:text-slate-200"
-                            placeholder="0.00"
-                          />
-                        </td>
-                      );
+                        setFinanceRowErrors(prev => { const next = { ...prev }; delete next[row.id]; return next; });
+                      };
+                      const hasRowError = !!financeRowErrors[row.id];
+                      const numInput = (field) => {
+                        const isNeg = row[field] !== '' && row[field] !== null && parseFloat(row[field]) < 0;
+                        return (
+                          <td className={`px-1 py-1 border ${isNeg ? 'border-red-400 bg-red-50 dark:bg-red-900/20' : 'border-slate-200 dark:border-slate-700'}`}>
+                            <input
+                              type="number" min="0" step="0.01"
+                              value={row[field]}
+                              onChange={e => updateRow(field, e.target.value)}
+                              className="module-form-table-input"
+                              placeholder="0.00"
+                            />
+                          </td>
+                        );
+                      };
                       const autoCapEx = (
                         (parseFloat(row.fundSpend) || 0) +
                         (parseFloat(row.oneYear) || 0) +
@@ -987,12 +1136,13 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                         (parseFloat(row.greaterFive) || 0)
                       );
                       return (
-                        <tr key={row.id} className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800">
-                          <td className="px-1 py-1 border border-slate-200 dark:border-slate-700">
+                        <React.Fragment key={row.id}>
+                        <tr className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800">
+                          <td className={`px-1 py-1 border ${hasRowError ? 'border-red-400 bg-red-50 dark:bg-red-900/20' : 'border-slate-200 dark:border-slate-700'}`}>
                             <select
                               value={row.sourceOfFund}
                               onChange={e => updateRow('sourceOfFund', e.target.value)}
-                              className="w-full px-1.5 py-1 text-[11px] bg-white dark:bg-slate-900 border-0 focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded text-slate-700 dark:text-slate-200"
+                              className="module-form-table-select"
                             >
                               <option value="">Select Source of Fund</option>
                               <option value="GBS">GBS</option>
@@ -1007,13 +1157,13 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                           {numInput('threeYear')}
                           {numInput('threeFiveYear')}
                           {numInput('greaterFive')}
-                          <td className="px-1 py-1 border border-slate-200 dark:border-slate-700">
+                          <td className={`px-1 py-1 border ${row.capExpenditure !== '' && parseFloat(row.capExpenditure) < 0 ? 'border-red-400 bg-red-50 dark:bg-red-900/20' : 'border-slate-200 dark:border-slate-700'}`}>
                             <input
                               type="number" min="0" step="0.01"
                               value={row.capExpenditure !== '' ? row.capExpenditure : (autoCapEx > 0 ? autoCapEx.toFixed(2) : '')}
                               onChange={e => updateRow('capExpenditure', e.target.value)}
                               onFocus={() => { if (row.capExpenditure === '' && autoCapEx > 0) updateRow('capExpenditure', autoCapEx.toFixed(2)); }}
-                              className="w-full px-1.5 py-1 text-[11px] bg-[#fffbeb] dark:bg-slate-800 border-0 focus:outline-none focus:ring-1 focus:ring-amber-400 rounded text-slate-700 dark:text-slate-200 font-medium"
+                              className="module-form-table-input bg-amber-50 dark:bg-slate-800 font-medium"
                               placeholder="Auto"
                               title="Auto-calculated from Fund Requirement total. Editable."
                             />
@@ -1023,7 +1173,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                               type="text"
                               value={row.detailedBreakUp}
                               onChange={e => updateRow('detailedBreakUp', e.target.value)}
-                              className="w-full px-1.5 py-1 text-[11px] bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded text-slate-700 dark:text-slate-200"
+                              className="module-form-table-input"
                               placeholder="Details..."
                             />
                           </td>
@@ -1049,12 +1199,17 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                                 />
                               </label>
 
-                              {/* Download/view button — active only when a file exists */}
+                              {/* Download/view button — active only when a saved doc exists */}
                               <button
                                 type="button"
                                 title={row.annexureFileName ? `Download: ${row.annexureFileName}` : 'No file uploaded'}
-                                disabled={!row.annexureFileName}
-                                className={`inline-flex items-center justify-center w-6 h-6 rounded text-white transition ${row.annexureFileName ? 'bg-[#16a34a] hover:bg-emerald-700 cursor-pointer' : 'bg-slate-300 dark:bg-slate-700 cursor-not-allowed opacity-60'}`}
+                                disabled={!row.annexureDocId}
+                                onClick={() => {
+                                  if (!row.annexureDocId) return;
+                                  openBackendFile(`/download-ovod-finance-document/${row.annexureDocId}`, { download: true, fileName: row.annexureFileName || 'annexure' })
+                                    .catch(() => notify(toastError('Download Failed', 'Could not download the annexure file.')));
+                                }}
+                                className={`inline-flex items-center justify-center w-6 h-6 rounded text-white transition ${row.annexureDocId ? 'bg-[#16a34a] hover:bg-emerald-700 cursor-pointer' : 'bg-slate-300 dark:bg-slate-700 cursor-not-allowed opacity-60'}`}
                               >
                                 <Download size={12} />
                               </button>
@@ -1084,7 +1239,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                                   type="button"
                                   onClick={() => setFinanceRows(prev => [
                                     ...prev,
-                                    { id: Date.now(), capExpenditure: '', sourceOfFund: '', fundSpend: '', oneYear: '', threeYear: '', threeFiveYear: '', greaterFive: '', detailedBreakUp: '', annexureFile: null, annexureFileName: '' }
+                                    { id: Date.now(), capExpenditure: '', sourceOfFund: '', fundSpend: '', oneYear: '', threeYear: '', threeFiveYear: '', greaterFive: '', detailedBreakUp: '', annexureFile: null, annexureFileName: '', annexureDocId: null }
                                   ])}
                                   title="Add new row"
                                   className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-slate-500 text-slate-600 hover:text-blue-600 hover:border-blue-600 transition cursor-pointer"
@@ -1095,6 +1250,14 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                             </div>
                           </td>
                         </tr>
+                        {financeRowErrors[row.id] && (
+                          <tr>
+                            <td colSpan={10} className="px-2 py-1 bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700">
+                              <p className="text-[11px] text-red-600 dark:text-red-400 font-medium">{financeRowErrors[row.id]}</p>
+                            </td>
+                          </tr>
+                        )}
+                        </React.Fragment>
                       );
                     })}
                   </tbody>
@@ -1203,12 +1366,21 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
               </label>
               <input
                 type="file"
-                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                onChange={(e) => { setSelectedFile(e.target.files?.[0] || null); setFileScanState('idle'); }}
                 className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200"
               />
-              <span className="text-[10px] text-slate-400 mt-0.5 block">
-                (Maximum file size is 5MB)
-              </span>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-[10px] text-slate-400">(Maximum file size is 5MB)</span>
+                {fileScanState === 'scanning' && (
+                  <span className="text-[10px] font-semibold text-amber-500 animate-pulse">&#x1F50D; Scanning for threats...</span>
+                )}
+                {fileScanState === 'clean' && (
+                  <span className="text-[10px] font-semibold text-emerald-600">&#x2714; Security scan passed</span>
+                )}
+                {fileScanState === 'infected' && (
+                  <span className="text-[10px] font-semibold text-rose-600">&#x26A0; Threat detected — file rejected</span>
+                )}
+              </div>
             </div>
 
           </div>
@@ -1425,7 +1597,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                       </span>
                       <a
                         href="#"
-                        onClick={(e) => { e.preventDefault(); openBackendFile(`/download-intervention-document/${doc.id}`).catch((err) => console.error('Intervention document could not be opened:', err)); }}
+                        onClick={(e) => { e.preventDefault(); openBackendFile(`/download-intervention-document/${doc.id}`, { download: true, fileName: doc.doc_name || doc.file_name || 'document' }).catch((err) => notify(toastError('Download Failed', 'Could not download the document.'))); }}
                         className="px-2.5 py-1 text-xs font-bold bg-[#2563eb] hover:bg-blue-700 text-white rounded-lg flex items-center gap-1 transition"
                       >
                         <Download size={12} />
@@ -1478,7 +1650,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                 onChange={e => setA3NameInput(e.target.value)}
                 rows={3}
                 placeholder="Enter updated actionable item name..."
-                className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500 resize-none"
+                className="module-form-textarea"
               />
             </div>
             <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2 bg-slate-50/60 dark:bg-slate-950/40">
@@ -1968,7 +2140,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                     type="text"
                     readOnly
                     value={getSessionOrganisationName() || ''}
-                    className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 rounded border border-emerald-500 dark:border-emerald-500 pr-10 text-slate-700 dark:text-slate-300 cursor-not-allowed"
+                    className="module-form-input-readonly border-emerald-500 pr-10"
                   />
                 ) : (
                   <select
@@ -1976,12 +2148,12 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                     value={formData.organisation_id}
                     onChange={handleAgencyChange}
                     required
-                    className={`w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border transition-all cursor-pointer ${
+                    className={`module-form-select appearance-none transition-all cursor-pointer pr-16 ${
                       formData.organisation_id
-                        ? 'border-emerald-500 dark:border-emerald-500 pr-10'
+                        ? 'border-emerald-500'
                         : validated
-                        ? 'border-rose-400 dark:border-rose-500'
-                        : 'border-slate-300 dark:border-slate-700'
+                        ? 'module-form-select--error'
+                        : ''
                     }`}
                   >
                     <option value="">--Select Implementing Agency--</option>
@@ -1992,11 +2164,10 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                     ))}
                   </select>
                 )}
-                {formData.organisation_id && (
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                    <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                  </div>
-                )}
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none flex items-center gap-1.5">
+                  {formData.organisation_id && <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
+                  {!isOrganisationUser() && <ChevronDown className="h-4 w-4 text-slate-400 dark:text-slate-500" />}
+                </div>
               </div>
             </div>
 
@@ -2015,12 +2186,15 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                           onChange={handleA1Change}
                           disabled={!formData.organisation_id}
                           required
-                          className={`w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border transition-all cursor-pointer disabled:bg-slate-100 disabled:dark:bg-slate-800 disabled:cursor-not-allowed ${formData.goal_a1 ? 'border-emerald-500 dark:border-emerald-500 pr-10' : validated ? 'border-rose-400 dark:border-rose-500' : 'border-slate-300 dark:border-slate-700'}`}
+                          className={`module-form-select appearance-none transition-all cursor-pointer pr-16 ${formData.goal_a1 ? 'border-emerald-500 dark:border-emerald-500' : validated ? 'border-rose-400 dark:border-rose-500' : 'border-slate-300 dark:border-slate-700'}`}
                         >
                           <option value="">--Select Goal (A1)--</option>
                           {a1List.map(a => <option key={a.id} value={a.id}>{a.goal_a1}</option>)}
                         </select>
-                        {formData.goal_a1 && <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"><CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /></div>}
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none flex items-center gap-1.5">
+                          {formData.goal_a1 && <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
+                          <ChevronDown className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+                        </div>
                       </div>
                     </div>
                     <div>
@@ -2032,12 +2206,15 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                           onChange={handleA2Change}
                           disabled={!formData.goal_a1}
                           required
-                          className={`w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border transition-all cursor-pointer disabled:bg-slate-100 disabled:dark:bg-slate-800 disabled:cursor-not-allowed ${formData.intervention_a2 ? 'border-emerald-500 dark:border-emerald-500 pr-10' : validated ? 'border-rose-400 dark:border-rose-500' : 'border-slate-300 dark:border-slate-700'}`}
+                          className={`module-form-select appearance-none transition-all cursor-pointer pr-16 ${formData.intervention_a2 ? 'border-emerald-500 dark:border-emerald-500' : validated ? 'border-rose-400 dark:border-rose-500' : 'border-slate-300 dark:border-slate-700'}`}
                         >
                           <option value="">--Select Intervention (A2)--</option>
                           {filteredA2List.map(a => <option key={a.id} value={a.id}>{a.intervention}</option>)}
                         </select>
-                        {formData.intervention_a2 && <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"><CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /></div>}
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none flex items-center gap-1.5">
+                          {formData.intervention_a2 && <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
+                          <ChevronDown className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -2054,12 +2231,15 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                         onChange={handleB1Change}
                         disabled={isOrganisationUser() ? !formData.organisation_id : !formData.intervention_a2}
                         required
-                        className={`w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border transition-all cursor-pointer disabled:bg-slate-100 disabled:dark:bg-slate-800 disabled:cursor-not-allowed ${formData.goal_b1 ? 'border-emerald-500 dark:border-emerald-500 pr-10' : validated ? 'border-rose-400 dark:border-rose-500' : 'border-slate-300 dark:border-slate-700'}`}
+                        className={`module-form-select appearance-none transition-all cursor-pointer pr-16 ${formData.goal_b1 ? 'border-emerald-500 dark:border-emerald-500' : validated ? 'border-rose-400 dark:border-rose-500' : 'border-slate-300 dark:border-slate-700'}`}
                       >
                         <option value="">--Select Goal (B1)--</option>
                         {filteredB1List.map(b => <option key={b.id} value={b.id}>{b.b1_goals}</option>)}
                       </select>
-                      {formData.goal_b1 && <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"><CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /></div>}
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none flex items-center gap-1.5">
+                        {formData.goal_b1 && <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
+                        <ChevronDown className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+                      </div>
                     </div>
                   </div>
                   <div>
@@ -2073,7 +2253,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                         disabled={!formData.goal_b1}
                         placeholder="Enter Intervention (B2)..."
                         required
-                        className={`w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border transition-all disabled:bg-slate-100 disabled:dark:bg-slate-800 disabled:cursor-not-allowed ${formData.intervention_b2.trim() ? 'border-emerald-500 dark:border-emerald-500 pr-10' : validated ? 'border-rose-500 dark:border-rose-500' : 'border-slate-300 dark:border-slate-700'}`}
+                        className={`module-form-input transition-all ${formData.intervention_b2.trim() ? 'border-emerald-500 dark:border-emerald-500 pr-10' : validated ? 'border-rose-500 dark:border-rose-500' : 'border-slate-300 dark:border-slate-700'}`}
                       />
                       {formData.intervention_b2.trim() && <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"><CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /></div>}
                     </div>
@@ -2086,7 +2266,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                       readOnly
                       disabled
                       placeholder="Auto-generated"
-                      className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
+                      className="module-form-input-readonly font-bold"
                     />
                   </div>
                 </div>
@@ -2106,12 +2286,15 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                           onChange={handleA1Change}
                           disabled={!formData.organisation_id}
                           required
-                          className={`w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border transition-all cursor-pointer disabled:bg-slate-100 disabled:dark:bg-slate-800 disabled:cursor-not-allowed ${formData.goal_a1 ? 'border-emerald-500 dark:border-emerald-500 pr-10' : validated ? 'border-rose-400 dark:border-rose-500' : 'border-slate-300 dark:border-slate-700'}`}
+                          className={`module-form-select appearance-none transition-all cursor-pointer pr-16 ${formData.goal_a1 ? 'border-emerald-500 dark:border-emerald-500' : validated ? 'border-rose-400 dark:border-rose-500' : 'border-slate-300 dark:border-slate-700'}`}
                         >
                           <option value="">--Select Goal (A1)--</option>
                           {a1List.map(a => <option key={a.id} value={a.id}>{a.goal_a1}</option>)}
                         </select>
-                        {formData.goal_a1 && <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"><CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /></div>}
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none flex items-center gap-1.5">
+                          {formData.goal_a1 && <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
+                          <ChevronDown className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+                        </div>
                       </div>
                     </div>
                     <div>
@@ -2123,12 +2306,15 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                           onChange={handleA2Change}
                           disabled={!formData.goal_a1}
                           required
-                          className={`w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border transition-all cursor-pointer disabled:bg-slate-100 disabled:dark:bg-slate-800 disabled:cursor-not-allowed ${formData.intervention_a2 ? 'border-emerald-500 dark:border-emerald-500 pr-10' : validated ? 'border-rose-400 dark:border-rose-500' : 'border-slate-300 dark:border-slate-700'}`}
+                          className={`module-form-select appearance-none transition-all cursor-pointer pr-16 ${formData.intervention_a2 ? 'border-emerald-500 dark:border-emerald-500' : validated ? 'border-rose-400 dark:border-rose-500' : 'border-slate-300 dark:border-slate-700'}`}
                         >
                           <option value="">--Select Goal (A2)--</option>
                           {filteredA2List.map(a => <option key={a.id} value={a.id}>{a.intervention}</option>)}
                         </select>
-                        {formData.intervention_a2 && <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"><CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /></div>}
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none flex items-center gap-1.5">
+                          {formData.intervention_a2 && <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
+                          <ChevronDown className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -2145,12 +2331,15 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                         onChange={handleB1Change}
                         disabled={isOrganisationUser() ? !formData.organisation_id : !formData.intervention_a2}
                         required
-                        className={`w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border transition-all cursor-pointer disabled:bg-slate-100 disabled:dark:bg-slate-800 disabled:cursor-not-allowed ${formData.goal_b1 ? 'border-emerald-500 dark:border-emerald-500 pr-10' : validated ? 'border-rose-400 dark:border-rose-500' : 'border-slate-300 dark:border-slate-700'}`}
+                        className={`module-form-select appearance-none transition-all cursor-pointer pr-16 ${formData.goal_b1 ? 'border-emerald-500 dark:border-emerald-500' : validated ? 'border-rose-400 dark:border-rose-500' : 'border-slate-300 dark:border-slate-700'}`}
                       >
                         <option value="">--Select Goal (B1)--</option>
                         {filteredB1List.map(b => <option key={b.id} value={b.id}>{b.b1_goals}</option>)}
                       </select>
-                      {formData.goal_b1 && <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"><CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /></div>}
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none flex items-center gap-1.5">
+                        {formData.goal_b1 && <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
+                        <ChevronDown className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+                      </div>
                     </div>
                   </div>
                   <div>
@@ -2161,14 +2350,17 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                         onChange={handleB2Change}
                         disabled={!formData.goal_b1}
                         required
-                        className={`w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border transition-all cursor-pointer disabled:bg-slate-100 disabled:dark:bg-slate-800 disabled:cursor-not-allowed ${formData.intervention_b2_id ? 'border-emerald-500 dark:border-emerald-500 pr-10' : validated ? 'border-rose-400 dark:border-rose-500' : 'border-slate-300 dark:border-slate-700'}`}
+                        className={`module-form-select appearance-none transition-all cursor-pointer pr-16 ${formData.intervention_b2_id ? 'border-emerald-500 dark:border-emerald-500' : validated ? 'border-rose-400 dark:border-rose-500' : 'border-slate-300 dark:border-slate-700'}`}
                       >
                         <option value="">--Select Intervention (B2)--</option>
                         {filteredB2List.map(b => (
                           <option key={b.id} value={b.id}>{b.b2_code ? `${b.b2_code} : ${b.intervention}` : b.intervention}</option>
                         ))}
                       </select>
-                      {formData.intervention_b2_id && <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"><CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /></div>}
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none flex items-center gap-1.5">
+                        {formData.intervention_b2_id && <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
+                        <ChevronDown className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2186,7 +2378,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                         disabled={!formData.intervention_b2_id}
                         placeholder="Enter Actionable Item Description..."
                         required
-                        className={`w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border transition-all disabled:bg-slate-100 disabled:dark:bg-slate-800 disabled:cursor-not-allowed ${formData.action_b3.trim() ? 'border-emerald-500 dark:border-emerald-500 pr-10' : validated ? 'border-rose-500 dark:border-rose-500' : 'border-slate-300 dark:border-slate-700'}`}
+                        className={`module-form-input transition-all ${formData.action_b3.trim() ? 'border-emerald-500 dark:border-emerald-500 pr-10' : validated ? 'border-rose-500 dark:border-rose-500' : 'border-slate-300 dark:border-slate-700'}`}
                       />
                       {formData.action_b3.trim() && <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"><CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /></div>}
                     </div>
@@ -2199,7 +2391,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                       readOnly
                       disabled
                       placeholder="Auto-generated"
-                      className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
+                      className="module-form-input-readonly font-bold"
                     />
                   </div>
                 </div>
@@ -2218,7 +2410,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                   readOnly
                   disabled
                   placeholder="Auto populated"
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed"
+                  className="module-form-input-readonly"
                 />
               </div>
 
@@ -2232,7 +2424,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                   readOnly
                   disabled
                   placeholder="Auto populated"
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed"
+                  className="module-form-input-readonly"
                 />
               </div>
 
@@ -2246,7 +2438,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                   readOnly
                   disabled
                   placeholder="Auto populated"
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed"
+                  className="module-form-input-readonly"
                 />
               </div>
 
@@ -2260,7 +2452,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                   readOnly
                   disabled
                   placeholder="Auto populated"
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed"
+                  className="module-form-input-readonly"
                 />
               </div>
             </div>
@@ -2305,7 +2497,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                             readOnly
                             disabled
                             placeholder="Auto-generated"
-                            className="w-full text-xs px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold rounded border border-slate-200 dark:border-slate-700 cursor-not-allowed select-none"
+                            className="module-form-input-readonly font-semibold"
                           />
                         </td>
                         <td className="py-2 px-3 border-r border-slate-200 dark:border-slate-800">
@@ -2403,7 +2595,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                   readOnly
                   disabled
                   placeholder="Auto populated"
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed"
+                  className="module-form-input-readonly"
                 />
               </div>
             </div>
@@ -2452,7 +2644,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                   readOnly
                   disabled
                   placeholder="Auto populated"
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed"
+                  className="module-form-input-readonly"
                 />
               </div>
             </div>
@@ -2568,7 +2760,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                   readOnly
                   disabled
                   placeholder="Auto populated"
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed"
+                  className="module-form-input-readonly"
                 />
               </div>
 
@@ -2582,7 +2774,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                   readOnly
                   disabled
                   placeholder="Auto populated"
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed"
+                  className="module-form-input-readonly"
                 />
               </div>
 
@@ -2596,7 +2788,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                   readOnly
                   disabled
                   placeholder="Auto populated"
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed"
+                  className="module-form-input-readonly"
                 />
               </div>
             </div>
@@ -2625,7 +2817,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                     readOnly
                     disabled
                     placeholder="Auto populated"
-                    className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
+                    className="module-form-input-readonly"
                   />
                 ) : (
                   <input
@@ -2633,7 +2825,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                     name="timeline_vision"
                     value={formData.timeline_vision}
                     onChange={handleChange}
-                    className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 font-medium focus:ring-1 focus:ring-blue-500"
+                    className="module-form-input"
                   />
                 )}
               </div>
@@ -2647,7 +2839,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                   name="expected_completion_date"
                   value={formData.expected_completion_date}
                   onChange={handleChange}
-                  className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 font-semibold focus:ring-1 focus:ring-blue-500"
+                  className="module-form-input"
                 />
               </div>
             </div>
