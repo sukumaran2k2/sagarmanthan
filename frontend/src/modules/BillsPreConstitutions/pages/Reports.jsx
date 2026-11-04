@@ -3,6 +3,7 @@ import { ChevronLeft, Search, RefreshCw, X, TrendingUp, Building2 } from 'lucide
 import { fetchBillAbstractReport, fetchBillWingWiseDetail, fetchBillDivisionWiseDetail } from '../api';
 import { useBillsStore } from '../store/useBillsStore';
 import { COMMON_TOASTS } from '../../../utils/notify';
+import { exportReportToPdf } from '../../../utils/exportReportPdf';
 import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
@@ -21,6 +22,12 @@ const ABSTRACT_TITLE = 'Report No. 1.1 - Abstract ( Wing & Division Wise ) - Bil
 
 const TOTAL_FIELD = 'No of Bills/PreConstitutions Act';
 const NO_DIVISION = '(No division)';
+
+// The drill-down rows carry stage dates as ISO text; show them as dd Mon yyyy, as the Dashboard does
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}T/;
+const cellText = (value) => (typeof value === 'string' && ISO_DATE.test(value)
+  ? new Date(value).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' })
+  : value);
 
 // The abstract: one row per wing and division, wings without divisions included (a failure
 // shows as the report's load error, not as missing wings)
@@ -145,7 +152,7 @@ export default function Reports({ notify, triggerNotification, wings = [] }) {
   }, [aggregatedData, isAbstractLevel]);
 
   const columns = useMemo(() => {
-    if (!isAbstractLevel) return columnDefs;
+    if (!isAbstractLevel) return columnDefs.map((c) => ({ ...c, valueFormatter: (p) => cellText(p.value) }));
 
     const cols = [];
     if (reportView === 'wing' || reportView === 'all') {
@@ -171,7 +178,7 @@ export default function Reports({ notify, triggerNotification, wings = [] }) {
     Object.keys(COLUMN_STAGE_MAP).forEach((field) => {
       const stageId = COLUMN_STAGE_MAP[field];
       cols.push({
-        field, headerName: field, minWidth: 150,
+        field, headerName: field, width: 150, minWidth: 130,
         cellRenderer: reportView === 'all' ? stageCellRenderer(stageId, (row) => row.division_id) : (p) => (p.value || 0) > 0
           ? <span style={{ fontWeight: p.data?.isTotalRow ? 850 : 700 }}>{p.value}</span>
           : <span style={{ color: '#94a3b8', fontWeight: 600 }}>—</span>
@@ -180,15 +187,16 @@ export default function Reports({ notify, triggerNotification, wings = [] }) {
     return cols;
   }, [isAbstractLevel, columnDefs, reportView]);
 
+  // Long stage names wrap onto several header lines (headerHeight 72 fits four) instead of being cut off
   const defaultColDef = useMemo(() => ({
-    sortable: true, filter: true, resizable: true,
+    sortable: true, filter: true, resizable: true, wrapHeaderText: true,
     cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' }
   }), []);
 
   const handleCopy = () => {
     let tsv = columns.filter((c) => c.headerName).map((c) => c.headerName).join('\t') + '\n';
     aggregatedData.forEach((row) => {
-      tsv += columns.filter((c) => c.headerName).map((c) => row[c.field] ?? '').join('\t') + '\n';
+      tsv += columns.filter((c) => c.headerName).map((c) => cellText(row[c.field]) ?? '').join('\t') + '\n';
     });
     navigator.clipboard.writeText(tsv).then(
       () => notify?.(COMMON_TOASTS.copySuccess(aggregatedData.length)),
@@ -205,7 +213,14 @@ export default function Reports({ notify, triggerNotification, wings = [] }) {
       gridRef.current.api.exportDataAsCsv({ fileName: `bills_report_export.csv` });
       notify?.(COMMON_TOASTS.excelExported('bills_report_export.csv'));
     } else if (type === 'PDF') {
-      window.print();
+      // The table only, with its Total row (window.print() printed the whole page)
+      exportReportToPdf({
+        title: ABSTRACT_TITLE,
+        columnDefs: columns.filter((c) => c.headerName),
+        rowData: [...aggregatedData, ...(pinnedBottomRowData || [])],
+        fileName: 'bills_report',
+      });
+      notify?.(COMMON_TOASTS.downloadStarted('bills_report.pdf'));
     }
   };
 
@@ -296,8 +311,8 @@ export default function Reports({ notify, triggerNotification, wings = [] }) {
               suppressColumnVirtualisation={true}
               quickFilterText={quickFilter}
               animateRows={true}
-              headerHeight={46}
-              autoSizeStrategy={{ type: 'fitCellContents', skipHeader: false, scaleUpToFitGridWidth: true }}
+              headerHeight={72}
+              autoSizeStrategy={{ type: 'fitCellContents', skipHeader: true, scaleUpToFitGridWidth: true }}
               pinnedBottomRowData={pinnedBottomRowData}
               enableExport={false}
               color="#4b2424"

@@ -5,6 +5,7 @@ import { Search, X, Edit, Trash2, ChevronDown, Filter } from 'lucide-react';
 import { deleteBill } from '../api';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
+import ConfirmModal from '../../../components/ConfirmModal';
 import { exportDataListToCsv } from '../../../utils/exportDataListCsv';
 import { COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
 import { useBillsStore } from '../store/useBillsStore';
@@ -121,7 +122,7 @@ export default function DataList({
   // Every stage of the tab (active: up to Introduced in Parliament; disposed: Passed onwards)
   const stageOptions = useMemo(() => Object.entries(STAGES)
     .filter(([id]) => (activeCategory === 'disposed') === (Number(id) >= DISPOSED_FROM_STAGE))
-    .map(([id, label]) => ({ value: id, label: `${Number(id) ? `${id}. ` : ''}${label}` })), [activeCategory]);
+    .map(([id, label]) => ({ value: id, label })), [activeCategory]);
 
   const filteredData = useMemo(() => {
     return rowData.filter(item => {
@@ -163,8 +164,15 @@ export default function DataList({
 
   // Every filtered row goes to the grid, which pages it, so a column sort covers the whole list
 
-  const handleDelete = useCallback(async (bill) => {
-    if (!window.confirm("Are you sure you want to delete this Bill?")) return;
+  // The bill waiting for the user to confirm its delete
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = useCallback((bill) => setPendingDelete(bill), []);
+
+  const confirmDelete = async () => {
+    const bill = pendingDelete;
+    setDeleting(true);
     try {
       await deleteBill(bill.id || bill.bill_id);
       notify?.(BILLS_TOASTS.deleted(bill.subject));
@@ -172,8 +180,11 @@ export default function DataList({
     } catch (err) {
       console.error("Error deleting bill:", err);
       notify?.(BILLS_TOASTS.deleteFailed(getErrorMessage(err)));
+    } finally {
+      setDeleting(false);
+      setPendingDelete(null);
     }
-  }, [notify, onDeleted]);
+  };
 
   // Rows as exported: the stage is computed, not a field
   const exportRows = () => filteredData.map((row) => ({ ...row, stage: getBillStageText(row) }));
@@ -573,6 +584,15 @@ export default function DataList({
         </div>
 
       </div>
+
+      <ConfirmModal
+        isOpen={!!pendingDelete}
+        onClose={() => !deleting && setPendingDelete(null)}
+        onConfirm={confirmDelete}
+        loading={deleting}
+        title="Delete Bill"
+        message={pendingDelete ? `The bill "${pendingDelete.subject}" will be deleted. This cannot be undone.` : ''}
+      />
     </div>
   );
 }

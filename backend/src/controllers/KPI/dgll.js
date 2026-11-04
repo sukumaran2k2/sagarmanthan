@@ -79,6 +79,7 @@ async function getLightHouseMaster(req, res) {
             pageRequest.query(`
                 SELECT tbl_light_house_master.lights_house_id, tbl_light_house_master.alol, tbl_light_house_master.light_house_name,
                        tbl_light_house_master.light_status, tbl_light_house_master.commisioned_date,
+                       tbl_light_house_master.state_id, tbl_light_house_master.district_id,
                        mmt_state.state_name, mmt_district.district_name,
                        tbl_light_house_master.latitude, tbl_light_house_master.longitude,
                        tbl_light_house_master.created_by, tbl_light_house_master.updated_date

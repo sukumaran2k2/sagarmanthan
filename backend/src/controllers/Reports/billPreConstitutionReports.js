@@ -1,5 +1,5 @@
 import { pool } from "../../db.js";
-import { billScope } from "../Legal/bills.js";
+import { billScope, BILL_WING } from "../Legal/bills.js";
 
 // Bills by current stage (tbl_bill.stage_id), one column per stage, named as 2.0's reports.
 // Every report counts only the bills the user can see (billScope: the same rule as the Data
@@ -57,7 +57,7 @@ async function billWingWiseData (req, res) {
             mmt_wings.wing_name AS Wing,
             ${STAGE_COUNTS}
         FROM mmt_wings
-        LEFT JOIN tbl_bill ON tbl_bill.wing = mmt_wings.wing_id AND ${scope}
+        LEFT JOIN tbl_bill ON ${BILL_WING} = mmt_wings.wing_id AND ${scope}
         GROUP BY mmt_wings.wing_id, mmt_wings.wing_name
         ORDER BY wing_id;`);
         sendGrid(res, result.recordset, ['wing_id', 'Wing', TOTAL_COLUMN, ...STAGE_COLUMNS]);
@@ -106,9 +106,7 @@ async function billAbstractData (req, res) {
             ${STAGE_COUNTS}
         FROM mmt_wings
         LEFT JOIN mmt_division ON mmt_division.wing_id = mmt_wings.wing_id
-        LEFT JOIN tbl_bill ON tbl_bill.wing = mmt_wings.wing_id
-            AND (mmt_division.division_id IS NULL OR tbl_bill.division = mmt_division.division_id)
-            AND ${scope}
+        LEFT JOIN tbl_bill ON tbl_bill.division = mmt_division.division_id AND ${scope}
         GROUP BY mmt_wings.wing_id, mmt_wings.wing_name, mmt_division.division_id, mmt_division.division_name
         ORDER BY mmt_wings.wing_name, mmt_division.division_name;`);
         sendGrid(res, result.recordset, ['wing_id', 'Wing', 'division_id', 'Division', TOTAL_COLUMN, ...STAGE_COLUMNS]);
@@ -130,7 +128,7 @@ async function getDetailBillWingWise (req, res) {
         const scope = await billScope(request, req.user.userId);
         const result = await request.query(`SELECT ${DETAIL_COLUMNS}
             FROM tbl_bill
-            WHERE wing = @wingID AND tbl_bill.stage_id = @billStage AND ${scope}
+            WHERE ${BILL_WING} = @wingID AND tbl_bill.stage_id = @billStage AND ${scope}
             ORDER BY subject;`);
         sendGrid(res, result.recordset, DETAIL_FIELDS);
     } catch (err) {
