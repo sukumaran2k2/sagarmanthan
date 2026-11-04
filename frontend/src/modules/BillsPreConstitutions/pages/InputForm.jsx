@@ -270,8 +270,8 @@ export default function InputForm({
                 value={wing}
                 onChange={e => { setWing(e.target.value); setDivision(''); }}
                 onBlur={() => handleBlur('wing')}
-                disabled={readOnly}
-                className={`module-form-input cursor-pointer${isFieldInvalid('wing', wing) ? ' !border-red-500' : ''}`}
+                disabled={readOnly || isEdit}
+                className={`module-form-input ${isEdit ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}${isFieldInvalid('wing', wing) ? ' !border-red-500' : ''}`}
               >
                 <option value="">--Select Wing--</option>
                 {wings.map(w => (
@@ -290,8 +290,8 @@ export default function InputForm({
                 value={division}
                 onChange={e => setDivision(e.target.value)}
                 onBlur={() => handleBlur('division')}
-                disabled={readOnly}
-                className={`module-form-input cursor-pointer${isFieldInvalid('division', division) ? ' !border-red-500' : ''}`}
+                disabled={readOnly || isEdit}
+                className={`module-form-input ${isEdit ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}${isFieldInvalid('division', division) ? ' !border-red-500' : ''}`}
               >
                 <option value="">{wing ? '--Select Division--' : '--Select Wing first--'}</option>
                 {wingDivisions.map(d => (
@@ -300,6 +300,9 @@ export default function InputForm({
               </select>
               {isFieldInvalid('division', division) && (
                 <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>
+              )}
+              {isEdit && !readOnly && (
+                <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 mt-1">Wing and Division can't be changed after the bill is added.</p>
               )}
             </div>
 

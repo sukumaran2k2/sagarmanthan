@@ -87,10 +87,11 @@ async function getDashboardDataEntryStatus(req,res){
             FROM tbl_audit_para 
             GROUP BY wing) ap ON mmt_wings.wing_id = ap.wing
         LEFT JOIN 
-            (SELECT wing, COUNT(*) AS [total_bills]
-            FROM tbl_bill
-            WHERE ISNULL(is_deleted, 0) = 0
-            GROUP BY wing) bp ON mmt_wings.wing_id = bp.wing
+            (SELECT d.wing_id AS wing, COUNT(*) AS [total_bills]
+            FROM tbl_bill b
+            JOIN mmt_division d ON d.division_id = b.division
+            WHERE ISNULL(b.is_deleted, 0) = 0
+            GROUP BY d.wing_id) bp ON mmt_wings.wing_id = bp.wing
         LEFT JOIN 
             (SELECT wing, COUNT(*) AS [total_parliamentary_issue]
             FROM tbl_parliamentary_issue
@@ -939,7 +940,8 @@ const moduleConfig = {
   },
   "Bills/PreConstitutions Act": {
     table: "tbl_bill",
-    wingColumn: "wing",
+    // tbl_bill keeps only the division; the wing is the division's
+    wingJoin: "wing.wing_id = (SELECT d.wing_id FROM mmt_division d WHERE d.division_id = bpa.division)",
     dateExpression: `
       CASE 
         WHEN bpa.created_date > bpa.updated_date 

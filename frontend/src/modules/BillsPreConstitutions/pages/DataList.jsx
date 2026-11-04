@@ -122,7 +122,7 @@ export default function DataList({
   // Every stage of the tab (active: up to Introduced in Parliament; disposed: Passed onwards)
   const stageOptions = useMemo(() => Object.entries(STAGES)
     .filter(([id]) => (activeCategory === 'disposed') === (Number(id) >= DISPOSED_FROM_STAGE))
-    .map(([id, label]) => ({ value: id, label: `${Number(id) ? `${id}. ` : ''}${label}` })), [activeCategory]);
+    .map(([id, label]) => ({ value: id, label })), [activeCategory]);
 
   const filteredData = useMemo(() => {
     return rowData.filter(item => {

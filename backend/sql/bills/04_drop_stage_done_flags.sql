@@ -78,7 +78,7 @@ FROM [dbo].[tbl_bill] AS tb
 INNER JOIN [dbo].[mmt_division] AS md
     ON tb.division = md.division_id
 INNER JOIN [dbo].[mmt_wings] AS mw
-    ON tb.wing = mw.wing_id
+    ON md.wing_id = mw.wing_id
 INNER JOIN [dbo].[mmt_bill_stage] AS mbs
     ON tb.stage_id = mbs.bill_stage_id
 -- Soft-deleted bills (03) stay out of SagarBot's answers

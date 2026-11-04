@@ -3,6 +3,7 @@ import { ChevronLeft, Search, RefreshCw, X, TrendingUp, Building2 } from 'lucide
 import { fetchBillAbstractReport, fetchBillWingWiseDetail, fetchBillDivisionWiseDetail } from '../api';
 import { useBillsStore } from '../store/useBillsStore';
 import { COMMON_TOASTS } from '../../../utils/notify';
+import { exportReportToPdf } from '../../../utils/exportReportPdf';
 import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
@@ -177,7 +178,7 @@ export default function Reports({ notify, triggerNotification, wings = [] }) {
     Object.keys(COLUMN_STAGE_MAP).forEach((field) => {
       const stageId = COLUMN_STAGE_MAP[field];
       cols.push({
-        field, headerName: field, minWidth: 150,
+        field, headerName: field, width: 150, minWidth: 130,
         cellRenderer: reportView === 'all' ? stageCellRenderer(stageId, (row) => row.division_id) : (p) => (p.value || 0) > 0
           ? <span style={{ fontWeight: p.data?.isTotalRow ? 850 : 700 }}>{p.value}</span>
           : <span style={{ color: '#94a3b8', fontWeight: 600 }}>—</span>
@@ -186,8 +187,9 @@ export default function Reports({ notify, triggerNotification, wings = [] }) {
     return cols;
   }, [isAbstractLevel, columnDefs, reportView]);
 
+  // Long stage names wrap onto several header lines (headerHeight 72 fits four) instead of being cut off
   const defaultColDef = useMemo(() => ({
-    sortable: true, filter: true, resizable: true,
+    sortable: true, filter: true, resizable: true, wrapHeaderText: true,
     cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' }
   }), []);
 
@@ -211,7 +213,14 @@ export default function Reports({ notify, triggerNotification, wings = [] }) {
       gridRef.current.api.exportDataAsCsv({ fileName: `bills_report_export.csv` });
       notify?.(COMMON_TOASTS.excelExported('bills_report_export.csv'));
     } else if (type === 'PDF') {
-      window.print();
+      // The table only, with its Total row (window.print() printed the whole page)
+      exportReportToPdf({
+        title: ABSTRACT_TITLE,
+        columnDefs: columns.filter((c) => c.headerName),
+        rowData: [...aggregatedData, ...(pinnedBottomRowData || [])],
+        fileName: 'bills_report',
+      });
+      notify?.(COMMON_TOASTS.downloadStarted('bills_report.pdf'));
     }
   };
 
@@ -302,8 +311,8 @@ export default function Reports({ notify, triggerNotification, wings = [] }) {
               suppressColumnVirtualisation={true}
               quickFilterText={quickFilter}
               animateRows={true}
-              headerHeight={46}
-              autoSizeStrategy={{ type: 'fitCellContents', skipHeader: false, scaleUpToFitGridWidth: true }}
+              headerHeight={72}
+              autoSizeStrategy={{ type: 'fitCellContents', skipHeader: true, scaleUpToFitGridWidth: true }}
               pinnedBottomRowData={pinnedBottomRowData}
               enableExport={false}
               color="#4b2424"
