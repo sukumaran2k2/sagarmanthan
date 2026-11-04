@@ -61,7 +61,6 @@ import reviewItemsTab from "./controllers/Governance/reviewItems.js"
 
 //HR
 import youngProfessionalsTab from "./controllers/HR/youngProfessionals.js";
-import candidateDocumentTab from "./controllers/HR/appointmentOrderUploader.js";
 import consultantAppointmentTab from "./controllers/HR/consultantAppointment.js";
 import consultantAppointmentDashboard from "./controllers/HR/consultantAppointmentDashboard.js";
 import candidateCaDocumentTab from "./controllers/HR/caAppointmentOrderUploader.js";
@@ -1106,8 +1105,6 @@ router.post("/candidate-detail", auth, requireModulePermission("YOUNG_PROFESSION
 router.put("/candidate-detail", auth, requireModulePermission("YOUNG_PROFESSIONAL", "update"), youngProfessionalsTab.updateCandidateDetail);
 router.delete("/yp-candidate-all-data/:youngProfessionalId/:userID", auth, requireModulePermission("YOUNG_PROFESSIONAL", "delete"), youngProfessionalsTab.deleteYpCandidateData);
 
-router.put("/candidate-uploader", auth, requireAnyModulePermission("YOUNG_PROFESSIONAL", ["create", "update"]), candidateDocumentTab.upload.single('file'), candidateDocumentTab.candidateDocumentUpdater);
-router.post("/candidate-uploader", auth, requireAnyModulePermission("YOUNG_PROFESSIONAL", ["create", "update"]), candidateDocumentTab.upload.single('file'), candidateDocumentTab.candidateDocumentUploader);
 router.get("/candidate-detail/:youngProfessionalId", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), youngProfessionalsTab.getCandidateDetail);
 router.get("/candidate-detail-document/:candidate_id", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), youngProfessionalsTab.getCandidateDetailDocument);
 

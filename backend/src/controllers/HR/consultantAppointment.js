@@ -575,20 +575,19 @@ async function createConsultantAppointmentStage(req, res) {
     `);
 
         if (checkResult.recordset[0].recordCount > 0) {
-
-            const updateResult = await request.query(`
+            await request.query(`
             UPDATE tbl_consultant_appointment_stage
             SET stage_name = @stage
             WHERE consultant_appointment_id = @consultantAppointmentID
         `);
+            res.sendStatus(200);
         } else {
-
-            const insertResult = await request.query(`
+            await request.query(`
             INSERT INTO tbl_consultant_appointment_stage (consultant_appointment_id, stage_name)
             VALUES (@consultantAppointmentID, @stage);
         `);
+            res.sendStatus(201);
         }
-        res.sendStatus(201);
     }
 
     catch (err) {
@@ -680,170 +679,132 @@ async function addConsultantID(req, res) {
     }
 }
 
-async function deleteCACandidateData(req, res) 
-{    
+async function deleteCACandidateData(req, res) {
     try {
         const consultantAppointmentID = req.params.consultant_appointment_id;
         const userID = req.params.userID;
 
         const now = new Date();
-        const datePart = now.toISOString().slice(0, 10).replace(/-/g, ''); 
-        const hourPart = String(now.getHours()).padStart(2, '0'); 
-        const minutePart = String(now.getMinutes()).padStart(2, '0'); 
-        const secondPart = String(now.getSeconds()).padStart(2, '0'); 
+        const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
+        const hourPart = String(now.getHours()).padStart(2, '0');
+        const minutePart = String(now.getMinutes()).padStart(2, '0');
+        const secondPart = String(now.getSeconds()).padStart(2, '0');
         const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
         const logFolder = `./delete_log/Consultant_Appointment`;
         const logFileName = `${logFolder}/deleted_Ca_log_${timestamp}.txt`;
 
+        if (!fs.existsSync(logFolder)) {
+            fs.mkdirSync(logFolder, { recursive: true });
+        }
+
         const conn = await pool;
-        const request = conn.request();        
-        request.input('consultantAppointmentID', consultantAppointmentID );
+        const request = conn.request();
+        request.input('consultantAppointmentID', consultantAppointmentID);
 
         const result = await request.query(
             `SELECT * FROM tbl_consultant_appointment WHERE consultant_appointment_id = @consultantAppointmentID`
         );
-        
-        // console.log("result",result);
+
         const existingCaID = result.recordset[0].consultant_appointment_id;
 
-        //delete query for tbl_ca_candidate
-        
-        request.input('existingCaID', existingCaID);
-        const candidateResult = await request.query(`SELECT * FROM tbl_ca_candidate WHERE consultant_appointment_id = @existingCaID`);
-        // console.log("candidateResult",candidateResult);
-        const candidateResultarray = candidateResult.recordset.length > 0 ? candidateResult.recordset.map(record => record.candidate_id) : [];
-        // console.log("candidate Result array", candidateResultarray);
-
-        //Fetching the document name based on candidate id from candidate_table and deletin the document from DB and local storage
-        let DocFileResult;
-        if (candidateResultarray.length > 0) {
-            DocFileResult = await conn.query(`SELECT * FROM tbl_ca_candidate_document WHERE candidate_id IN (${candidateResultarray.join(', ')})`);
-        } else {
-            DocFileResult = []; 
-        }   
-
-        let DocfileNamearray = [];
-        if (DocFileResult && DocFileResult.recordset) {
-            DocfileNamearray = DocFileResult.recordset.map(record => record.appointment_order_document);
-        } else {
-            // Handle the case where DocFileResult is undefined or doesn't contain recordset
-            console.error('DocFileResult is undefined or does not contain recordset.');
+        // Fetch candidates — try column-based lookup first, then supplement with the
+        // comma-separated IDs stored on the CA record (handles both schema variants).
+        let candidateResultarray = [];
+        try {
+            const candFetchReq = conn.request();
+            candFetchReq.input('existingCaID', existingCaID);
+            const candidateResult = await candFetchReq.query(
+                `SELECT * FROM tbl_ca_candidate WHERE consultant_appointment_id = @existingCaID`
+            );
+            candidateResultarray = candidateResult.recordset.map(r => r.candidate_id);
+        } catch {
+            // consultant_appointment_id column may not exist in this DB schema version
         }
-        // console.log("Document file Name array",DocfileNamearray);
-        
+        const candIdsFromField = String(result.recordset[0]?.candidate_id || '')
+            .split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n) && n > 0);
+        for (const id of candIdsFromField) {
+            if (!candidateResultarray.includes(id)) candidateResultarray.push(id);
+        }
+
+        // Fetch document filenames for these candidates
+        let DocfileNamearray = [];
+        if (candidateResultarray.length > 0) {
+            const docFetchReq = conn.request();
+            const DocFileResult = await docFetchReq.query(
+                `SELECT * FROM tbl_ca_candidate_document WHERE candidate_id IN (${candidateResultarray.join(', ')})`
+            );
+            DocfileNamearray = DocFileResult.recordset.map(r => r.appointment_order_document);
+        }
+
         let dbDeletions = 0;
         let dbDocDeletions = 0;
         let dbCandidateDetailsDeletions = 0;
         let fileSystemDeletions = 0;
 
         for (const fileName of DocfileNamearray) {
-
-            const logMessage = `Deleted document '${fileName}' from tbl_ca_candidate_document. Deleted by userID -'${userID}'...\n`;
-            fs.appendFile(logFileName, logMessage, (err) => {
-                if (err) {
-                    console.error('Error writing to delete_logs.txt:', err);
-                }
-            });
-
-            request.input('fileName', fileName);
-            const docDeleteQuery = `DELETE FROM tbl_ca_candidate_document WHERE appointment_order_document = @fileName`;
-            
-            try{
-                const result = await request.query(docDeleteQuery);
-                // console.log(`Record with fileName '${fileName}' deleted from the database successfully.`);
+            fs.appendFileSync(logFileName,
+                `Deleted document '${fileName}' from tbl_ca_candidate_document. Deleted by userID -'${userID}'...\n`
+            );
+            try {
+                const docDelReq = conn.request();
+                docDelReq.input('fileName', fileName);
+                await docDelReq.query(
+                    `DELETE FROM tbl_ca_candidate_document WHERE appointment_order_document = @fileName`
+                );
                 dbDocDeletions++;
 
                 const filePath = `./fileuploads/Consultant_Appointment/${fileName}`;
-                
                 if (fs.existsSync(filePath)) {
-                    fs.unlink(filePath, (err) => {
-                        if (err) {
-
-                            console.error("Error deleting file:", err);
-                        } else {
-                            console.log(`File '${fileName}' deleted from the file system successfully.`);
-                            fileSystemDeletions++;
-                        }
-                    });
-                } else {
-                    // console.log(`File '${fileName}' does not exist, no deletion needed.`);
+                    try {
+                        fs.unlinkSync(filePath);
+                        fileSystemDeletions++;
+                    } catch (err) {
+                        console.error('Error deleting file:', err);
+                    }
                 }
-
-            }catch (error) {
+            } catch (error) {
                 console.error(`Error deleting record with fileName '${fileName}' from the database:`, error);
             }
         }
 
-        const candidateResultData = candidateResult.recordset[0];
-        for (const candidates of candidateResultarray) {
-
-            const logMessage = `Deleted candidate details '${JSON.stringify(candidateResultData)}' from tbl_ca_candidate. Deleted by userID -'${userID}'..\n`;
-            fs.appendFile(logFileName, logMessage, (err) => {
-                if (err) {
-                    console.error('Error writing to delete_logs.txt:', err);
-                }
-            });
-            request.input('candidates',candidates);
-            const candidateDeleteQuery = `DELETE FROM tbl_ca_candidate WHERE candidate_id = @candidates`;
-            
-            try{
-                
-                const result = await request.query(candidateDeleteQuery);
-                console.log(`Record with candidate_id candidate '${candidates}' deleted from the database successfully.`);
+        for (const candidateId of candidateResultarray) {
+            fs.appendFileSync(logFileName,
+                `Deleted candidate '${candidateId}' from tbl_ca_candidate. Deleted by userID -'${userID}'..\n`
+            );
+            try {
+                const candDelReq = conn.request();
+                candDelReq.input('candidates', candidateId);
+                await candDelReq.query(
+                    `DELETE FROM tbl_ca_candidate WHERE candidate_id = @candidates`
+                );
+                console.log(`Record with candidate_id '${candidateId}' deleted from the database successfully.`);
                 dbCandidateDetailsDeletions++;
-
-            }catch (error) {
-                console.error(`Error deleting record with candidates '${candidates}' from the database:`, error);
+            } catch (error) {
+                console.error(`Error deleting record with candidates '${candidateId}' from the database:`, error);
             }
         }
 
         const resultData = result.recordset[0];
-        const logMessage = `Deleted document '${JSON.stringify(resultData)}' from tbl_consultant_appointment. Deleted by userID -'${userID}'..\n`;
-        fs.appendFile(logFileName, logMessage, (err) => {
-            if (err) {
-                console.error('Error writing to delete_logs.txt:', err);
-            }
-        });
+        fs.appendFileSync(logFileName,
+            `Deleted record '${JSON.stringify(resultData)}' from tbl_consultant_appointment. Deleted by userID -'${userID}'..\n`
+        );
 
-        //delete ca record from db
-       
-        const deleteExisCaID = await request.query(
+        const deleteReq = conn.request();
+        deleteReq.input('consultantAppointmentID', consultantAppointmentID);
+        await deleteReq.query(
             `DELETE FROM tbl_consultant_appointment WHERE consultant_appointment_id = @consultantAppointmentID`
         );
-        // console.log('deleteExisCaID', deleteExisCaID);
         dbDeletions++;
 
-        // console.log("Record Details deleted successfully.");
-        // console.log('db record Deletions are ', dbDeletions, 'db Documents Deletions are ', dbDocDeletions, 'file System Deletions are ', fileSystemDeletions);
-
-
-        //sending status accordingly
         if (dbDeletions > 0 && dbDocDeletions > 0 && fileSystemDeletions > 0 && dbCandidateDetailsDeletions > 0) {
-
-            // console.log(`${fileSystemDeletions} Document deleted from the file system.`);
             return res.status(201).send(`${dbDeletions} records deleted from the database and ${dbCandidateDetailsDeletions} candidate deleted from database and ${dbDocDeletions} Document deleted from the database.`);
-
         } else if (dbDeletions > 0) {
-
             let successMessage = `${dbDeletions} records deleted from the database.`;
-
-            if (dbDocDeletions > 0) {
-                successMessage += ` ${dbDocDeletions} documents deleted from the database.`;
-            }
-
-            if (dbCandidateDetailsDeletions > 0) {
-                successMessage += ` ${dbCandidateDetailsDeletions} candidates deleted from the database.`;
-            }
-
-            if (fileSystemDeletions > 0) {
-                // console.log(`${fileSystemDeletions} Document deleted from the file system.`);
-            }
-
+            if (dbDocDeletions > 0) successMessage += ` ${dbDocDeletions} documents deleted from the database.`;
+            if (dbCandidateDetailsDeletions > 0) successMessage += ` ${dbCandidateDetailsDeletions} candidates deleted from the database.`;
             return res.status(201).send(successMessage);
         } else {
-
             return res.status(404).send("No data found for deletion. Please Contact Administration");
-
         }
 
     } catch (err) {
@@ -902,10 +863,12 @@ async function deleteCACandidateSingle(req, res) {
         await request.query(`DELETE FROM tbl_ca_candidate WHERE candidate_id = @candidateID`);
 
         // 4. Clean up candidate_id in tbl_consultant_appointment if present
-        const caList = await conn.request().query(`
-            SELECT consultant_appointment_id, candidate_id 
-            FROM tbl_consultant_appointment 
-            WHERE candidate_id LIKE '%${candidateID}%'
+        const caSearchReq = conn.request();
+        caSearchReq.input('caSearchPattern', `%${candidateID}%`);
+        const caList = await caSearchReq.query(`
+            SELECT consultant_appointment_id, candidate_id
+            FROM tbl_consultant_appointment
+            WHERE candidate_id LIKE @caSearchPattern
         `);
         for (const ca of caList.recordset) {
             const ids = (ca.candidate_id || '')

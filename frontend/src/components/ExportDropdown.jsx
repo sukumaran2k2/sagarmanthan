@@ -1,18 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { FileSpreadsheet, Download, ChevronDown } from 'lucide-react';
-
-const escapeHtml = (value) => String(value ?? '')
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;');
-
-// Quote a CSV cell; text starting with = + - @ gets a leading ' so Excel does not run it as a formula
-const csvCell = (value) => {
-  let str = String(value ?? '');
-  if (typeof value === 'string' && /^[=+\-@\t\r]/.test(str)) str = `'${str}`;
-  return `"${str.replace(/"/g, '""')}"`;
-};
+import { FileSpreadsheet, FileText, ChevronDown } from 'lucide-react';
 
 export default function ExportDropdown({
   onExportExcel,
@@ -26,10 +13,8 @@ export default function ExportDropdown({
   color = '#0f417a',
   hoverColor = '#1e3a8a',
   className = '',
-  // Optional: hide the Print / PDF option, and relabel the Excel option (e.g. for real .xlsx).
   showPdf = true,
-  excelLabel = 'CSV (Excel)',
-  // Optional: a chevron icon (as on Visibility menus) instead of the ▼ character.
+  excelLabel = 'Excel (.xlsx)',
   chevron = false
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -45,18 +30,25 @@ export default function ExportDropdown({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // rows may be a function so callers can build export rows only when needed
   const getEffectiveRows = () => {
     if (data && data.length > 0) return data;
     return typeof rows === 'function' ? rows() : rows;
   };
 
-  const handleExcel = () => {
+  // Normalise headers: support both string[] and {label, key}[] formats
+  const headerLabels = headers.map(h => (typeof h === 'object' && h !== null ? h.label : h) ?? '');
+  const headerKeys   = headers.map(h => (typeof h === 'object' && h !== null ? h.key  : null));
+  const hasKeys      = headerKeys.some(k => k !== null);
+
+  const rowValues = (row) => {
+    if (Array.isArray(row)) return row;
+    if (typeof row !== 'object' || row === null) return [];
+    return hasKeys ? headerKeys.map(k => (k != null ? row[k] : '')) : Object.values(row);
+  };
+
+  const handleExcel = async () => {
     setIsOpen(false);
-    if (typeof onExportExcel === 'function') {
-      onExportExcel();
-      return;
-    }
+    if (typeof onExportExcel === 'function') { onExportExcel(); return; }
 
     const rowList = getEffectiveRows();
     if (!rowList || rowList.length === 0) {
@@ -64,118 +56,101 @@ export default function ExportDropdown({
       return;
     }
 
-    let csvContent = '\uFEFF'; // UTF-8 BOM for Excel
-    if (headers && headers.length > 0) {
-      csvContent += headers.map(csvCell).join(',') + '\r\n';
+    try {
+      const XLSX = await import('xlsx');
+      const sheetData = [
+        headerLabels,
+        ...rowList.map(row => rowValues(row).map(v => String(v ?? '')))
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(sheetData);
+
+      // Auto column width based on max content length (capped at 60)
+      const colWidths = headerLabels.map((label, ci) => {
+        const maxLen = rowList.reduce((max, row) => {
+          const val = String(rowValues(row)[ci] ?? '');
+          return Math.max(max, val.length);
+        }, label.length);
+        return { wch: Math.min(maxLen + 2, 60) };
+      });
+      ws['!cols'] = colWidths;
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Report');
+      XLSX.writeFile(wb, `${fileName.replace(/\s+/g, '_')}.xlsx`);
+      triggerNotification?.('Exported to Excel successfully!', 'success');
+    } catch (err) {
+      console.error('Excel export error:', err);
+      triggerNotification?.('Export failed. Please try again.', 'error');
     }
-
-    rowList.forEach(row => {
-      if (Array.isArray(row)) {
-        const line = row.map(cell => {
-          if (typeof cell !== 'string') return csvCell(cell);
-          const str = cell.startsWith('"') && cell.endsWith('"') ? cell.slice(1, -1).replace(/""/g, '"') : cell;
-          return csvCell(str);
-        });
-        csvContent += line.join(',') + '\r\n';
-      } else if (typeof row === 'object' && row !== null) {
-        csvContent += Object.values(row).map(csvCell).join(',') + '\r\n';
-      }
-    });
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `${fileName.replace(/\s+/g, '_')}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-    triggerNotification?.('Report exported to Excel (CSV) successfully!', 'success');
   };
 
-  const handlePdf = () => {
+  const handlePdf = async () => {
     setIsOpen(false);
-    if (typeof onExportPdf === 'function') {
-      onExportPdf();
-      return;
-    }
+    if (typeof onExportPdf === 'function') { onExportPdf(); return; }
 
     const rowList = getEffectiveRows();
     if (!rowList || rowList.length === 0) {
-      triggerNotification?.('No data available to print.', 'warning');
+      triggerNotification?.('No data available to export.', 'warning');
       return;
     }
 
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      triggerNotification?.('Please allow pop-ups to print or save as PDF.', 'warning');
-      return;
-    }
-    triggerNotification?.('Preparing PDF document...', 'info');
+    triggerNotification?.('Generating PDF…', 'info');
+    try {
+      const { default: jsPDF } = await import('jspdf');
+      const { default: autoTable } = await import('jspdf-autotable');
 
-    let headersHtml = '';
-    if (headers && headers.length > 0) {
-      headers.forEach(h => {
-        headersHtml += `<th style="border:1px solid #cbd5e1;padding:8px 10px;text-align:left;background:#0f417a;color:#fff;font-size:11px;font-weight:bold;text-transform:uppercase;">${escapeHtml(h)}</th>`;
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a3' });
+
+      const dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+      doc.setFontSize(13);
+      doc.setTextColor(15, 65, 122);
+      doc.setFont(undefined, 'bold');
+      doc.text(title.toUpperCase(), 28, 32);
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+      doc.setFont(undefined, 'normal');
+      doc.text(`Ministry of Ports, Shipping and Waterways  |  Generated on: ${dateStr}`, 28, 44);
+
+      autoTable(doc, {
+        startY: 54,
+        head: [headerLabels],
+        body: rowList.map(row => rowValues(row).map(v => String(v ?? ''))),
+        styles: {
+          fontSize: 6.5,
+          cellPadding: 3,
+          overflow: 'linebreak',
+          font: 'helvetica',
+        },
+        headStyles: {
+          fillColor: [15, 65, 122],
+          textColor: 255,
+          fontStyle: 'bold',
+          fontSize: 6.5,
+          halign: 'left',
+        },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        tableLineColor: [226, 232, 240],
+        tableLineWidth: 0.3,
+        margin: { left: 28, right: 28 },
       });
-    }
 
-    let rowsHtml = '';
-    rowList.forEach((row, idx) => {
-      const bg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
-      rowsHtml += `<tr style="background:${bg};">`;
-      if (Array.isArray(row)) {
-        row.forEach(cell => {
-          let str = String(cell ?? '');
-          if (str.startsWith('"') && str.endsWith('"')) {
-            str = str.slice(1, -1).replace(/""/g, '"');
-          }
-          rowsHtml += `<td style="border:1px solid #e2e8f0;padding:6px 8px;font-size:11px;">${escapeHtml(str)}</td>`;
-        });
-      } else if (typeof row === 'object' && row !== null) {
-        Object.values(row).forEach(v => {
-          rowsHtml += `<td style="border:1px solid #e2e8f0;padding:6px 8px;font-size:11px;">${escapeHtml(v)}</td>`;
-        });
+      // Add page numbers after the table is fully rendered
+      const totalPages = doc.internal.getNumberOfPages();
+      const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(7);
+        doc.setTextColor(150, 150, 150);
+        doc.text(`Page ${i} of ${totalPages}`, pageW - 60, pageH - 12);
       }
-      rowsHtml += '</tr>';
-    });
 
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>${escapeHtml(title)}</title>
-        <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #1e293b; padding: 24px; }
-          h1 { font-size: 16px; color: #0f417a; margin-bottom: 4px; font-weight: 800; text-transform: uppercase; }
-          p { font-size: 11px; color: #64748b; margin-top: 0; margin-bottom: 16px; }
-          table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-          @media print {
-            body { padding: 0; }
-            button { display: none; }
-          }
-        </style>
-      </head>
-      <body>
-        <h1>${escapeHtml(title)}</h1>
-        <p>Ministry of Ports, Shipping and Waterways | Generated on: ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
-        <table>
-          ${headersHtml ? `<thead><tr>${headersHtml}</tr></thead>` : ''}
-          <tbody>${rowsHtml}</tbody>
-        </table>
-        <script>
-          window.onload = function() {
-            setTimeout(function() {
-              window.print();
-            }, 300);
-          }
-        </script>
-      </body>
-      </html>
-    `);
-    printWindow.document.close();
+      doc.save(`${fileName.replace(/\s+/g, '_')}.pdf`);
+      triggerNotification?.('PDF exported successfully!', 'success');
+    } catch (err) {
+      console.error('PDF export error:', err);
+      triggerNotification?.('PDF generation failed. Please try again.', 'error');
+    }
   };
 
   return (
@@ -183,16 +158,9 @@ export default function ExportDropdown({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        style={{
-          backgroundColor: color,
-          transition: 'background-color 0.15s ease'
-        }}
-        onMouseEnter={(e) => {
-          if (hoverColor) e.currentTarget.style.backgroundColor = hoverColor;
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = color;
-        }}
+        style={{ backgroundColor: color, transition: 'background-color 0.15s ease' }}
+        onMouseEnter={(e) => { if (hoverColor) e.currentTarget.style.backgroundColor = hoverColor; }}
+        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = color; }}
         className="flex items-center gap-1.5 px-3.5 py-1.5 text-white rounded-xl text-xs font-bold cursor-pointer shadow-sm"
         title="Export options"
       >
@@ -213,14 +181,14 @@ export default function ExportDropdown({
             <span className="text-slate-800 dark:text-white">{excelLabel}</span>
           </button>
           {showPdf && (
-          <button
-            type="button"
-            onClick={handlePdf}
-            className="flex items-center gap-2.5 w-full px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer border-none bg-none text-left transition"
-          >
-            <Download className="h-4 w-4 text-rose-600 dark:text-rose-400" />
-            <span className="text-slate-800 dark:text-white">Print / PDF</span>
-          </button>
+            <button
+              type="button"
+              onClick={handlePdf}
+              className="flex items-center gap-2.5 w-full px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer border-none bg-none text-left transition"
+            >
+              <FileText className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+              <span className="text-slate-800 dark:text-white">Export PDF</span>
+            </button>
           )}
         </div>
       )}

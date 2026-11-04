@@ -367,7 +367,7 @@ export default function DataList({
       {
         field: 'name',
         headerName: 'Name',
-        flex: 1.5,
+        width: 200,
         minWidth: 160,
         pinned: 'left',
         hide: !visibleCols.name,

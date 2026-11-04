@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { openBackendFile } from '../../../utils/openBackendFile';
 import { Upload, X, ArrowLeft, Plus, FileText } from 'lucide-react';
-import { createYoungProfessional, updateYoungProfessional, uploadYPDocument } from '../api';
+import { API_BASE, createYoungProfessional, updateYoungProfessional, uploadYPDocument } from '../api';
 import { useYpStore } from '../store/useYpStore';
 import { getCurrentUserId } from '../../../utils/authSession';
 import { useNotifier, COMMON_TOASTS, getErrorMessage, toastError } from '../../../utils/notify';
@@ -662,8 +662,9 @@ export default function InputForm({
           {isEdit && editData.appointment_document && (
             <div className="mt-2 text-xs max-w-full">
               <a
-                href="#"
-                onClick={(e) => { e.preventDefault(); openBackendFile('/download-yp-document', { params: { fileName: editData.appointment_document } }).catch((err) => console.error('Document could not be opened:', err)); }}
+                href={`${API_BASE}/download-yp-document?fileName=${encodeURIComponent(editData.appointment_document)}`}
+                target="_blank"
+                rel="noreferrer"
                 className="inline-flex flex-wrap items-center gap-1 font-bold text-[#0f417a] dark:text-blue-400 hover:underline max-w-full"
               >
                 <span className="shrink-0">View current document:</span>

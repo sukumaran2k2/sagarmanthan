@@ -30,6 +30,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useOvodStore } from '../store/useOvodStore';
 import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
 import { OVOD_TOASTS } from '../toastMessages';
+import { isOrganisationUser } from '../../../utils/authSession';
 
 const COLUMN_LIST = [
   { key: 'sno', label: 'S.No' },
@@ -142,7 +143,7 @@ export default function DataList({
         organisation_name: item.ia_name || item.organisation_name || 'Indian Maritime University',
         goal_a1: item['Goal (A1)'] || item.goal_a1 || '-',
         intervention_a2: item['Intervention (A2)'] || item.intervention_a2 || '-',
-        action_a3: item['Action (A3)'] || item.action_a3 || '-',
+        action_a3: item['Action (A3)'] || item.action_a3 || null,
         goal_b1: item['Goal (B1)'] || item.goal_b1 || '-',
         intervention_b2: item['Intervention (B2)'] || item.intervention_b2 || '-',
         action_b3: item['Action (B3)'] || item.action_b3 || '-',
@@ -330,12 +331,13 @@ export default function DataList({
       notify(COMMON_TOASTS.nothingToExport());
       return;
     }
+    const orgUser = isOrganisationUser();
     const exportRows = filteredData.map((r, i) => ({
       'S.No': i + 1,
       'Organisation': r.organisation_name,
-      'Goal (A1)': r.goal_a1,
-      'Intervention (A2)': r.intervention_a2,
-      'Action (A3)': r.action_a3,
+      ...(!orgUser && { 'Goal (A1)': r.goal_a1 }),
+      ...(!orgUser && { 'Intervention (A2)': r.intervention_a2 }),
+      ...(!orgUser && { 'Action (A3)': r.action_a3 }),
       'Goal (B1)': r.goal_b1,
       'Intervention (B2)': r.intervention_b2,
       'Action (B3)': r.action_b3,
@@ -465,7 +467,7 @@ export default function DataList({
       minWidth: 200,
       wrapText: true,
       autoHeight: true,
-      hide: !colVisibility.a1,
+      hide: !colVisibility.a1 || isOrganisationUser(),
       cellRenderer: (params) => (
         <span className="text-xs text-slate-700 dark:text-slate-300 break-words whitespace-normal leading-snug py-1 block font-medium">
           {params.value || '-'}
@@ -479,7 +481,7 @@ export default function DataList({
       minWidth: 200,
       wrapText: true,
       autoHeight: true,
-      hide: !colVisibility.a2,
+      hide: !colVisibility.a2 || isOrganisationUser(),
       cellRenderer: (params) => (
         <span className="text-xs text-slate-700 dark:text-slate-300 break-words whitespace-normal leading-snug py-1 block">
           {params.value || '-'}
@@ -493,7 +495,7 @@ export default function DataList({
       minWidth: 160,
       wrapText: true,
       autoHeight: true,
-      hide: !colVisibility.a3,
+      hide: !colVisibility.a3 || isOrganisationUser(),
       cellRenderer: (params) => (
         <span className="text-xs text-slate-700 dark:text-slate-300 break-words whitespace-normal leading-snug py-1 block">
           {params.value || '-'}

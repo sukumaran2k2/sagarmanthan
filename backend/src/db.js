@@ -14,7 +14,8 @@ const connection = new mssql.ConnectionPool({
     },
     options: {
         trustServerCertificate: true,
-        requestTimeout: 1000 * 60
+        requestTimeout: 1000 * 60,
+        enableArithAbort: true,
     },
     connectionTimeout: 1000 * 60,
     requestTimeout: 1000 * 60

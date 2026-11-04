@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { openBackendFile } from '../../../utils/openBackendFile';
 import { Building2 } from 'lucide-react';
-import { fetchYpReport, fetchYpWingCandidates, fetchYPDivisionWiseCandidates, fetchYoungProfessionals } from '../api';
+import { API_BASE, fetchYpReport, fetchYpWingCandidates, fetchYPDivisionWiseCandidates, fetchYoungProfessionals } from '../api';
 import { useNotifier, getErrorMessage, toastError } from '../../../utils/notify';
 import ReportTable from '../../../components/ReportTable';
 import { useAICopilot } from '../../../context/AICopilotContext';
@@ -425,7 +425,11 @@ export default function Reports({ triggerNotification }) {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', wordBreak: 'break-word', whiteSpace: 'normal' }}>
                 <a
                   href="#"
-                  onClick={(e) => { e.preventDefault(); openBackendFile('/download-yp-document', { params: { fileName } }).catch((err) => console.error('Document could not be opened:', err)); }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    const baseName = fileName.split('/').pop().split('\\').pop() || 'appointment_order.pdf';
+                    openBackendFile('/download-yp-document', { params: { fileName }, download: true, fileName: baseName }).catch((err) => console.error('Document could not be opened:', err));
+                  }}
                   style={{
                     fontWeight: 600,
                     fontSize: 13,

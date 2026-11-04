@@ -34,6 +34,12 @@ app.use(cookieParser());
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true, parameterLimit: 50000 }));
 
+// Credentials: true is required so the browser sends the httpOnly refreshToken cookie.
+// ALLOWED_ORIGIN must not be "*" when credentials are enabled.
+const ALLOWED_ORIGIN = process.env.FRONTEND_URL || 'http://localhost:5173';
+app.use(cors({ origin: ALLOWED_ORIGIN, credentials: true }));
+app.use(cookieParser());
+
 // cron.schedule('0 9 * * *', async () => {
 //   const today = new Date();
 //   const day = today.getDate();

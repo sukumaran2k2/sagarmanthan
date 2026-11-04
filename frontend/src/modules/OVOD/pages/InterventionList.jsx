@@ -1741,50 +1741,206 @@ export default function InterventionList({ triggerNotification }) {
 
   // Export headers
   const exportHeaders = useMemo(() => [
-    { label: 'Intervention List', key: 'interventionList' },
+    { label: 'National Level Goal (A1)', key: 'goalA1' },
+    { label: 'National Level Intervention (A2)', key: 'interventionA2' },
+    { label: 'Goal (B1)', key: 'goalB1' },
+    { label: 'Intervention (B2)', key: 'interventionB2' },
+    { label: 'Action Item (B3)', key: 'actionB3' },
     { label: 'Implementing Agency', key: 'orgCode' },
-    { label: 'Progress (in %)', key: 'progress' },
-    { label: 'Total Cost (in Cr.)', key: 'totalCost' },
+    { label: 'Current Status', key: 'currentStatus' },
+    { label: 'Progress (%)', key: 'progress' },
+    { label: 'Total Cost (₹ Cr.)', key: 'totalCost' },
+    { label: 'Target Date', key: 'targetDate' },
     { label: 'Category', key: 'jobTitle' },
     { label: 'Wing', key: 'wing' },
-    { label: 'Priority', key: 'employmentType' },
-    { label: 'Vibhas', key: 'Vibhas' },
-    { label: 'Target Date', key: 'TargetDate' },
-    { label: 'Capital Expenditure', key: 'capitalExpenditure' },
+    { label: 'Priority', key: 'priority' },
+    { label: 'Vibhas', key: 'vibhas' },
+    { label: 'Capital Expenditure (₹ Cr.)', key: 'capitalExpenditure' },
     { label: 'Source of Funding', key: 'sourceOfFunding' },
-    { label: 'Fund Spent', key: 'fundSpend' },
-    { label: 'Current Status', key: 'currentStatus' },
-    { label: '1 Year (in Cr)', key: 'fundReq1Yr' },
-    { label: '3 Years (in Cr)', key: 'fundReq2Yrs' },
-    { label: '>3 Upto 5 Years (in Cr)', key: 'fundReq2to5Yrs' },
-    { label: '> 5 Years (in Cr)', key: 'fundReqGt5Yrs' },
+    { label: 'Fund Spent (₹ Cr.)', key: 'fundSpend' },
+    { label: 'Fund Req. ≤1 Year (₹ Cr.)', key: 'fundReq1Yr' },
+    { label: 'Fund Req. ≤3 Years (₹ Cr.)', key: 'fundReq2Yrs' },
+    { label: 'Fund Req. 3–5 Years (₹ Cr.)', key: 'fundReq2to5Yrs' },
+    { label: 'Fund Req. >5 Years (₹ Cr.)', key: 'fundReqGt5Yrs' },
     { label: 'Remarks', key: 'remarks' }
   ], []);
 
   const exportData = useMemo(() => {
     const safeFixed = (v) => { const n = Number(v); return (v == null || v === '-' || isNaN(n)) ? '0.00' : n.toFixed(2); };
     const safeNum   = (v) => { const n = Number(v); return (v == null || v === '-' || isNaN(n)) ? 0 : n; };
-    return filteredData.map((r) => ({
-    interventionList: r.interventionList,
-    orgCode: r.orgCode,
-    progress: r.progress != null ? `${r.progress}%` : '0%',
-    totalCost: safeFixed(r.totalCost),
-    jobTitle: r.jobTitle,
-    wing: r.wing,
-    employmentType: r.employmentType,
-    Vibhas: r.Vibhas,
-    TargetDate: r.TargetDate,
-    capitalExpenditure: safeFixed(r.capitalExpenditure),
-    sourceOfFunding: r.sourceOfFunding,
-    fundSpend: safeFixed(r.fundSpend),
-    currentStatus: r.currentStatus || 'In Progress',
-    fundReq1Yr: safeNum(r.fundReq1Yr),
-    fundReq2Yrs: safeNum(r.fundReq2Yrs),
-    fundReq2to5Yrs: safeNum(r.fundReq2to5Yrs),
-    fundReqGt5Yrs: safeNum(r.fundReqGt5Yrs),
-    remarks: r.remarks || ''
-  }));
-  }, [filteredData]);
+
+    // Build a full lookup from rawData so parent nodes can be found even when collapsed/filtered
+    const nodeMap = new Map(rawData.map(n => [n.id, n]));
+
+    const ancestorAt = (node, targetLevel) => {
+      let cur = node;
+      while (cur) {
+        if (cur.level === targetLevel) return cur.interventionList || '-';
+        if (cur.level < targetLevel) return '-';
+        cur = cur.parentId ? nodeMap.get(cur.parentId) : null;
+      }
+      return '-';
+    };
+
+    // Export only leaf nodes (action items) — parent rows just repeat data already in ancestor columns
+    const leaves = rawData.filter(r => !r.hasChildren);
+
+    return leaves.map((r) => ({
+      goalA1:          ancestorAt(r, 0),
+      interventionA2:  ancestorAt(r, 1),
+      goalB1:          ancestorAt(r, 2),
+      interventionB2:  ancestorAt(r, 3),
+      actionB3:        r.interventionList || '-',
+      orgCode:         r.orgCode || '-',
+      currentStatus:   r.currentStatus || '-',
+      progress:        r.progress != null ? `${r.progress}%` : '0%',
+      totalCost:       safeFixed(r.totalCost),
+      targetDate:      r.TargetDate || '-',
+      jobTitle:        r.jobTitle || '-',
+      wing:            r.wing || '-',
+      priority:        r.employmentType || '-',
+      vibhas:          r.Vibhas || '-',
+      capitalExpenditure: safeFixed(r.capitalExpenditure),
+      sourceOfFunding: r.sourceOfFunding || '-',
+      fundSpend:       safeFixed(r.fundSpend),
+      fundReq1Yr:      safeNum(r.fundReq1Yr),
+      fundReq2Yrs:     safeNum(r.fundReq2Yrs),
+      fundReq2to5Yrs:  safeNum(r.fundReq2to5Yrs),
+      fundReqGt5Yrs:   safeNum(r.fundReqGt5Yrs),
+      remarks:         r.remarks || ''
+    }));
+  }, [rawData]);
+
+  // Level metadata
+  const LEVEL_LABEL  = ['A1', 'A2', 'B1', 'B2', 'B3'];
+  // Per-level colours [r, g, b] for PDF rows
+  const LEVEL_FILL   = [
+    [15,  65,  122],  // A1 — navy
+    [30,  100, 170],  // A2 — medium blue
+    [22,  101,  52],  // B1 — dark green
+    [21,  128,  61],  // B2 — mid green
+    [255, 255, 255],  // B3 — white
+  ];
+  const LEVEL_TEXT   = [[255,255,255],[255,255,255],[255,255,255],[255,255,255],[30,41,59]];
+
+  const handleTreeExcelExport = async () => {
+    if (!rawData.length) { triggerNotification?.('No data to export.', 'warning'); return; }
+    try {
+      const XLSX = await import('xlsx');
+      const safeFixed = (v) => { const n = Number(v); return (v == null || v === '-' || isNaN(n)) ? '' : n.toFixed(2).replace(/\.00$/, ''); };
+      const safeNum   = (v) => { const n = Number(v); return (v == null || v === '-' || isNaN(n)) ? '' : n; };
+
+      const headers = ['Level','Name','Implementing Agency','Current Status','Progress (%)','Total Cost (₹ Cr.)','Target Date','Category','Wing','Priority','Vibhas','Capital Exp. (₹ Cr.)','Source of Funding','Fund Spent (₹ Cr.)','Fund Req. ≤1 Yr','Fund Req. ≤3 Yr','Fund Req. 3-5 Yr','Fund Req. >5 Yr','Remarks'];
+      const sheetRows = [headers];
+
+      rawData.forEach(r => {
+        const prefix = '    '.repeat(r.level); // non-breaking spaces for indent
+        sheetRows.push([
+          LEVEL_LABEL[r.level] || `L${r.level}`,
+          prefix + (r.interventionList || '-'),
+          r.orgCode || '-',
+          r.currentStatus || '-',
+          r.progress != null ? `${r.progress}%` : '0%',
+          safeFixed(r.totalCost),
+          r.TargetDate || '-',
+          r.jobTitle || '-',
+          r.wing || '-',
+          r.employmentType || '-',
+          r.Vibhas || '-',
+          safeFixed(r.capitalExpenditure),
+          r.sourceOfFunding || '-',
+          safeFixed(r.fundSpend),
+          safeNum(r.fundReq1Yr),
+          safeNum(r.fundReq2Yrs),
+          safeNum(r.fundReq2to5Yrs),
+          safeNum(r.fundReqGt5Yrs),
+          r.remarks || '',
+        ]);
+      });
+
+      const ws = XLSX.utils.aoa_to_sheet(sheetRows);
+      ws['!cols'] = headers.map((h, i) => ({ wch: i === 1 ? 70 : Math.min(h.length + 4, 30) }));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Intervention List');
+      XLSX.writeFile(wb, 'OVOD_Intervention_List.xlsx');
+      triggerNotification?.('Exported to Excel successfully!', 'success');
+    } catch (err) {
+      console.error('Excel export error:', err);
+      triggerNotification?.('Export failed. Please try again.', 'error');
+    }
+  };
+
+  const handleTreePdfExport = async () => {
+    if (!rawData.length) { triggerNotification?.('No data to export.', 'warning'); return; }
+    triggerNotification?.('Generating PDF…', 'info');
+    try {
+      const { default: jsPDF } = await import('jspdf');
+      const { default: autoTable } = await import('jspdf-autotable');
+      const safeFixed = (v) => { const n = Number(v); return (v == null || v === '-' || isNaN(n)) ? '-' : n.toFixed(2).replace(/\.00$/, ''); };
+      const safeNum   = (v) => { const n = Number(v); return (v == null || v === '-' || isNaN(n)) ? '-' : n; };
+
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a3' });
+      const dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+      doc.setFontSize(13); doc.setTextColor(15, 65, 122); doc.setFont(undefined, 'bold');
+      doc.text('OVOD INTERVENTION LIST', 28, 32);
+      doc.setFontSize(8); doc.setTextColor(100, 116, 139); doc.setFont(undefined, 'normal');
+      doc.text(`Ministry of Ports, Shipping and Waterways  |  Generated on: ${dateStr}`, 28, 44);
+
+      const colHeaders = ['Level','Intervention / Goal / Action','Implementing Agency','Status','Progress','Total Cost (₹ Cr.)','Target Date','Fund Spent','Remarks'];
+
+      const body = rawData.map(r => {
+        const leftPad = 4 + r.level * 10;
+        return [
+          { content: LEVEL_LABEL[r.level] || `L${r.level}`, styles: { fontStyle: 'bold', halign: 'center' } },
+          { content: r.interventionList || '-', styles: { cellPadding: { left: leftPad, top: 3, right: 3, bottom: 3 } } },
+          r.orgCode || '-',
+          r.currentStatus || '-',
+          r.progress != null ? `${r.progress}%` : '0%',
+          safeFixed(r.totalCost),
+          r.TargetDate || '-',
+          safeFixed(r.fundSpend),
+          r.remarks || '-',
+        ];
+      });
+
+      autoTable(doc, {
+        startY: 54,
+        head: [colHeaders],
+        body,
+        headStyles: { fillColor: [15, 65, 122], textColor: 255, fontStyle: 'bold', fontSize: 7 },
+        styles: { fontSize: 6.5, cellPadding: 3, overflow: 'linebreak', font: 'helvetica' },
+        columnStyles: { 1: { cellWidth: 180 } },
+        margin: { left: 28, right: 28 },
+        tableLineColor: [226, 232, 240],
+        tableLineWidth: 0.3,
+        // Colour each row by its hierarchy level
+        willDrawCell: (data) => {
+          if (data.section !== 'body') return;
+          const r = rawData[data.row.index];
+          if (!r) return;
+          const fill = LEVEL_FILL[r.level] || [255, 255, 255];
+          const text = LEVEL_TEXT[r.level] || [30, 41, 59];
+          data.cell.styles.fillColor = fill;
+          data.cell.styles.textColor = text;
+        },
+      });
+
+      const totalPages = doc.internal.getNumberOfPages();
+      const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(7); doc.setTextColor(150, 150, 150);
+        doc.text(`Page ${i} of ${totalPages}`, pageW - 60, pageH - 12);
+      }
+
+      doc.save('OVOD_Intervention_List.pdf');
+      triggerNotification?.('PDF exported successfully!', 'success');
+    } catch (err) {
+      console.error('PDF export error:', err);
+      triggerNotification?.('PDF generation failed. Please try again.', 'error');
+    }
+  };
 
   return (
     <div className="space-y-4 animate-fade-in relative select-none text-slate-800 dark:text-slate-100">
@@ -2019,8 +2175,8 @@ export default function InterventionList({ triggerNotification }) {
             />
 
             <ExportDropdown
-              headers={exportHeaders}
-              data={exportData}
+              onExportExcel={handleTreeExcelExport}
+              onExportPdf={handleTreePdfExport}
               title="OVOD Intervention List"
               triggerNotification={triggerNotification}
             />

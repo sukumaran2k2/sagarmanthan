@@ -247,3 +247,41 @@ export const fetchOvdDocuments = async (id) => {
   return response.data;
 };
 
+/**
+ * Upload Finance Row Annexure Document
+ * POST /ovod-finance-document — keyed by ovod_id + sourceOfFund
+ */
+export const uploadOvdFinanceDocument = async (formData) => {
+  const url = `${API_BASE_URL}/ovod-finance-document`;
+  const token = localStorage.getItem('token') || localStorage.getItem('accessToken');
+  const response = await axios.post(url, formData, {
+    headers: {
+      Authorization: token ? `Bearer ${token}` : '',
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return response.data;
+};
+
+/**
+ * Fetch Finance Row Annexure Doc Info (returns [{id, file_name, ...}])
+ */
+export const fetchOvdFinanceDocument = async (ovdId, sourceOfFund) => {
+  const url = `${API_BASE_URL}/get-ovod-finance-documents/${ovdId}/${encodeURIComponent(sourceOfFund)}`;
+  const response = await axios.get(url, getAuthHeaders());
+  return response.data;
+};
+
+/**
+ * Download Finance Row Annexure — returns blob response
+ */
+export const downloadOvdFinanceDocument = async (docId) => {
+  const url = `${API_BASE_URL}/download-ovod-finance-document/${docId}`;
+  const token = localStorage.getItem('token') || localStorage.getItem('accessToken');
+  const response = await axios.get(url, {
+    headers: { Authorization: token ? `Bearer ${token}` : '' },
+    responseType: 'blob',
+  });
+  return response;
+};
+

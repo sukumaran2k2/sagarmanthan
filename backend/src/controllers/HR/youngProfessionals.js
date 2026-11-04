@@ -1,6 +1,7 @@
 import { pool } from "../../db.js";
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import multer from 'multer';
 import { applyDataScope } from "../../middleware/dataScope.js";
 import { getClam } from '../../utils/clamav.js';
