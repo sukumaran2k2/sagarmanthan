@@ -35,6 +35,11 @@ const VACANT_DEPUTATION = {
 
 jest.mock('../../api', () => ({
   fetchPostByPostCode: jest.fn(),
+  // Lists the form loads on its own (empty here, as the old axios mock returned)
+  fetchHrDepartments: jest.fn(() => Promise.resolve({ data: [] })),
+  fetchHrPostsByDepartment: jest.fn(() => Promise.resolve({ data: [] })),
+  fetchPostCodesByPost: jest.fn(() => Promise.resolve({ data: [] })),
+  addNewEmployee: jest.fn(() => Promise.resolve({ status: 201, data: {} })),
   fetchMmtDropdown: jest.fn((table) =>
     Promise.resolve({
       data: {
@@ -45,14 +50,13 @@ jest.mock('../../api', () => ({
   ),
 }));
 
-const http = require('../../../../api').axiosInstance;
 const hrApi = require('../../api');
 
 // Loaded after the TextEncoder polyfill above (require is not hoisted like import)
 const React = require('react');
 const { render, screen, fireEvent, waitFor } = require('@testing-library/react');
 const { MemoryRouter, Routes, Route } = require('react-router-dom');
-const EmployeeDataForm = require('../../components/EmployeeDataForm').default;
+const EmployeeDataForm = require('../../pages/EmployeeDatabase/InputForm').default;
 const { buildAddEmployeeUrl, vacancyDetailsPath } = require('../../utils/addEmployeeHandoff');
 
 const h = (...args) => React.createElement(...args);
@@ -88,7 +92,7 @@ async function goToDesignation(container) {
 
 describe('Add Employee hand-off from Vacant Details', () => {
   beforeEach(() => {
-    http.post.mockClear();
+    hrApi.addNewEmployee.mockClear();
     hrApi.fetchPostByPostCode.mockReset();
     hrApi.fetchPostByPostCode.mockResolvedValue({ data: [VACANT_DEPUTATION] });
   });
@@ -118,13 +122,13 @@ describe('Add Employee hand-off from Vacant Details', () => {
     // The other organisation's name is mandatory
     fireEvent.click(screen.getByText('Submit Employee Data'));
     expect(await screen.findByText('Name of the organisation is required')).toBeInTheDocument();
-    expect(http.post).not.toHaveBeenCalled();
+    expect(hrApi.addNewEmployee).not.toHaveBeenCalled();
 
     change(screen.getByPlaceholderText('Enter other organisation name'), 'Cochin Shipyard');
     fireEvent.click(screen.getByText('Submit Employee Data'));
 
-    await waitFor(() => expect(http.post).toHaveBeenCalledTimes(1));
-    expect(http.post.mock.calls[0][1]).toMatchObject({
+    await waitFor(() => expect(hrApi.addNewEmployee).toHaveBeenCalledTimes(1));
+    expect(hrApi.addNewEmployee.mock.calls[0][0]).toMatchObject({
       postCode: 'P1',
       appoinmentMethod: 'Deputation In',
       vacancyAriseDate: '2024-03-05',

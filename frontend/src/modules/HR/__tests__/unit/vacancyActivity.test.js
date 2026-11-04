@@ -1,5 +1,5 @@
 /* global describe, it, expect */
-import { getChain, getNormalizedMode, isStageDisabled } from '../../vacancyActivity/config';
+import { getChain, getNormalizedMode, isStageDisabled } from '../../pages/VacancyManagement/vacancyActivityConfig';
 import {
   EMPTY_FORM,
   buildFormFromLog,
@@ -7,7 +7,7 @@ import {
   initialForm,
   toInputDate,
   validateActivity,
-} from '../../vacancyActivity/form';
+} from '../../pages/VacancyManagement/vacancyActivityForm';
 
 const ctx = { organisationID: 7, userID: 3, postId: 'P1', postCode: 'C-1' };
 const form = (patch) => ({ ...EMPTY_FORM, ...patch });

@@ -48,6 +48,8 @@ import { OVOD_TOASTS } from '../toastMessages';
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const YEARS = ['2020', '2021', '2022', '2023', '2024', '2025', '2026', '2027', '2028', '2029', '2030'];
 
+// MONTHS and YEARS still used by AddInitiativeView progress log rows (do not remove)
+
 const DEFAULT_AGENCIES = [
   { ia_id: 1, ia_name: "Chennai Port Authority" },
   { ia_id: 2, ia_name: "Cochin Port Authority" },
@@ -104,12 +106,8 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
     id: editData.id,
     goal_a1_label: editData['Goal (A1)'] || editData.goal_a1 || '',
     intervention_a2_label: editData['Intervention (A2)'] || editData.intervention_a2 || '',
-    goal_b1_label: editData['Goal (B1)'] || editData.goal_b1 || '',
-    intervention_b2_label: editData['Intervention (B2)'] || editData.intervention_b2 || '',
-    action_b3_label: editData['Action (B3)'] || editData.action_b3 || '',
-    
-    b2_id: editData.intervention_b2_id || editData.intervention_b2 || null,
-    b3_id: editData.action_b3_id || editData.action_b3 || null,
+    action_a3_label: editData['Action (A3)'] || editData.action_a3 || '',
+    a3_id: editData.action_a3_id || null,
 
     category_label: editData.Category || editData.category || '',
     agency_label: editData.ia_name || editData.organisation_name || '',
@@ -118,15 +116,17 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
     vibhas_label: editData.Vibhas || editData.vibhas || '',
 
     total_cost: editData.total_cost != null ? String(editData.total_cost) : '',
-    current_status: editData.current_status || 'Under Implementation - On Time',
+    current_status: editData.current_status || 'No Update',
+    reasons_for_delay: '',
+    reasons_for_drop: '',
 
-    // Output / Outcome
-    direct_emp_gen: '0',
-    indirect_emp_gen: '0',
-    direct_inv_created: '0',
-    indirect_inv_created: '0',
-    outcomes: '',
-    outcomes_remarks: '',
+    // Output / Outcome (shown when Completed)
+    direct_employment: '',
+    indirect_employment: '',
+    direct_investment: '',
+    indirect_investment: '',
+    output_outcome_desc: '',
+    output_outcome_remarks: '',
 
     // Timelines
     timeline_vision: '',
@@ -137,14 +137,19 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
     response_org: ''
   });
 
-  // Monthly Progress Logs State
-  const [progressLogs, setProgressLogs] = useState([
-    { id: 1, month: 'Mar', year: '2026', physical_progress: '100', financial_progress: '100' }
+  // Monthly Progress Log Rows State (shown only when Under Implementation)
+  const [progressLogRows, setProgressLogRows] = useState([
+    { id: 1, month: '', year: '', physicalProgress: '', financialProgress: '' }
   ]);
 
-  // Modal State for Edit (B2/B3)
-  const [showEditChoiceModal, setShowEditChoiceModal] = useState(false);
-  const [editTargetType, setEditTargetType] = useState('B3'); // 'B2' or 'B3'
+  // Fund Requirement Rows State
+  const [financeRows, setFinanceRows] = useState([{
+    id: 1, capExpenditure: '', sourceOfFund: '', fundSpend: '',
+    oneYear: '', threeYear: '', threeFiveYear: '', greaterFive: '', detailedBreakUp: '',
+    annexureFile: null, annexureFileName: ''
+  }]);
+
+  // Modal State for Edit (A3)
   const [showEditNameModal, setShowEditNameModal] = useState(false);
   const [actionNameInput, setActionNameInput] = useState('');
   const [updatingName, setUpdatingName] = useState(false);
@@ -163,53 +168,52 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
     fetchOvdItemDetails(editData.id)
       .then(res => {
         const row = res?.result?.[0] || {};
-        const logs = res?.progressLogResult || [];
 
         setFormData(prev => ({
           ...prev,
-          b2_id: row.intervention_b2 || prev.b2_id,
-          b3_id: row.action_b3 || prev.b3_id,
           total_cost: row.total_cost != null ? String(row.total_cost) : prev.total_cost,
           current_status: row.current_status || prev.current_status,
-          direct_emp_gen: row.direct_Emp_Gen != null ? String(row.direct_Emp_Gen) : '0',
-          indirect_emp_gen: row.inDirect_Emp_Gen != null ? String(row.inDirect_Emp_Gen) : '0',
-          direct_inv_created: row.direct_Inv_Created != null ? String(row.direct_Inv_Created) : '0',
-          indirect_inv_created: row.inDirect_Inv_Created != null ? String(row.inDirect_Inv_Created) : '0',
-          outcomes: row.outcomes || '',
-          outcomes_remarks: row.Outcomes_Remarks || '',
+          // Auto-populate from lookup maps (DB stores numeric IDs)
+          category_label: row.category != null ? (CATEGORY_MAP[row.category] || String(row.category)) : prev.category_label,
+          wing_label: row.wings != null ? (WINGS_MAP[row.wings] || String(row.wings)) : prev.wing_label,
+          priority_label: row.priority != null ? (PRIORITY_MAP[row.priority] || String(row.priority)) : prev.priority_label,
+          vibhas_label: row.vibhas != null ? (VIBHAS_MAP[row.vibhas] || String(row.vibhas)) : prev.vibhas_label,
           feedback_ministry: row.Feedback || '',
           response_org: row.Response || '',
           timeline_vision: row.target_date ? String(row.target_date).slice(0, 10) : '',
           expected_completion_date: row.expected_date ? String(row.expected_date).slice(0, 10) : ''
         }));
 
-        if (Array.isArray(logs) && logs.length > 0) {
-          const formattedLogs = logs.map((log, idx) => {
-            let m = 'Jan';
-            let y = '2026';
-            if (log.progress_date) {
-              const parts = String(log.progress_date).split('-');
-              if (parts.length >= 2) {
-                // If numeric month like 03-26 or name like Mar-2026
-                const monthNum = parseInt(parts[0], 10);
-                if (!isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
-                  m = MONTHS[monthNum - 1];
-                } else if (MONTHS.includes(parts[0])) {
-                  m = parts[0];
-                }
-                const yr = parts[1].length === 2 ? `20${parts[1]}` : parts[1];
-                if (YEARS.includes(yr)) y = yr;
-              }
-            }
+        const financeData = res?.financeResult || [];
+        if (Array.isArray(financeData) && financeData.length > 0) {
+          setFinanceRows(financeData.map((f, idx) => ({
+            id: idx + 1,
+            capExpenditure: f.capital_expenditure != null ? String(f.capital_expenditure) : '',
+            sourceOfFund: f.source_of_funding || '',
+            fundSpend: f.fund_spend != null ? String(f.fund_spend) : '',
+            oneYear: f.one_year != null ? String(f.one_year) : '',
+            threeYear: f.three_year != null ? String(f.three_year) : '',
+            threeFiveYear: f.three_five_year != null ? String(f.three_five_year) : '',
+            greaterFive: f.greater_five_year != null ? String(f.greater_five_year) : '',
+            detailedBreakUp: f.detail_breakup || '',
+            annexureFile: null,
+            annexureFileName: f.annexure_file || ''
+          })));
+        }
+
+        const progressData = res?.progressLogResult || [];
+        if (Array.isArray(progressData) && progressData.length > 0) {
+          setProgressLogRows(progressData.map((p, idx) => {
+            // progress_date stored as "Oct-2026" → split back to month + year
+            const parts = p.progress_date ? String(p.progress_date).split('-') : [];
             return {
-              id: log.id || idx + 1,
-              month: m,
-              year: y,
-              physical_progress: log.physical_progress != null ? String(log.physical_progress) : '0',
-              financial_progress: log.financial_progress != null ? String(log.financial_progress) : '0'
+              id: idx + 1,
+              month: parts[0] || '',
+              year: parts[1] || '',
+              physicalProgress: p.physical_progress != null ? String(p.physical_progress) : '',
+              financialProgress: p.financial_progress != null ? String(p.financial_progress) : ''
             };
-          });
-          setProgressLogs(formattedLogs);
+          }));
         }
       })
       .catch(err => {
@@ -218,90 +222,38 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
       .finally(() => setLoading(false));
   }, [editData]);
 
-  // Handle Progress Log Row Add
-  const handleAddLogRow = () => {
-    setProgressLogs(prev => [
-      ...prev,
-      { id: Date.now(), month: 'Jan', year: '2026', physical_progress: '0', financial_progress: '0' }
-    ]);
-  };
-
-  // Handle Progress Log Row Remove
-  const handleRemoveLogRow = (index) => {
-    if (progressLogs.length <= 1) return;
-    setProgressLogs(prev => prev.filter((_, idx) => idx !== index));
-  };
-
-  // Handle Progress Log Row Change
-  const handleLogRowChange = (index, field, value) => {
-    setProgressLogs(prev => {
-      const copy = [...prev];
-      copy[index] = { ...copy[index], [field]: value };
-      return copy;
-    });
-  };
-
-  // Clear All Log Rows
-  const handleClearAllLogs = () => {
-    setProgressLogs([
-      { id: Date.now(), month: 'Jan', year: '2026', physical_progress: '0', financial_progress: '0' }
-    ]);
-  };
-
-  // Open Edit Name Modal
+  // Open Edit A3 Name Modal directly
   const handleOpenEditChoice = () => {
-    setShowEditChoiceModal(true);
-  };
-
-  const handleConfirmEditChoice = () => {
-    setShowEditChoiceModal(false);
-    if (editTargetType === 'B2') {
-      const currentB2 = formData.intervention_b2_label;
-      const cleanName = currentB2.includes(':') ? currentB2.split(':').slice(1).join(':').trim() : currentB2;
-      setActionNameInput(cleanName);
-    } else {
-      const currentB3 = formData.action_b3_label;
-      const cleanName = currentB3.includes(':') ? currentB3.split(':').slice(1).join(':').trim() : currentB3;
-      setActionNameInput(cleanName);
-    }
+    const currentA3 = formData.action_a3_label;
+    const cleanName = currentA3.includes(':') ? currentA3.split(':').slice(1).join(':').trim() : currentA3;
+    setActionNameInput(cleanName);
     setShowEditNameModal(true);
   };
 
-  // Submit Updated B2 or B3 Name
+  // Submit Updated A3 Name
   const handleSaveActionName = async () => {
     if (!actionNameInput.trim()) return;
     setUpdatingName(true);
     try {
       const payload = {
-        bType: editTargetType,
+        bType: 'B3',
         actionInput: actionNameInput.trim(),
-        b2Intervention: editTargetType === 'B2' ? formData.b2_id : undefined,
-        b3Actions: editTargetType === 'B3' ? formData.b3_id : undefined
+        b3Actions: formData.a3_id
       };
       await updateOvdAction(payload);
-      notify(OVOD_TOASTS.nameUpdated(editTargetType));
+      notify(OVOD_TOASTS.nameUpdated('A3'));
 
-      if (editTargetType === 'B2') {
-        const prefix = formData.intervention_b2_label.includes(':') 
-          ? formData.intervention_b2_label.split(':')[0].trim() 
-          : 'B2';
-        setFormData(prev => ({
-          ...prev,
-          intervention_b2_label: `${prefix} : ${actionNameInput.trim()}`
-        }));
-      } else {
-        const prefix = formData.action_b3_label.includes(':') 
-          ? formData.action_b3_label.split(':')[0].trim() 
-          : 'B3';
-        setFormData(prev => ({
-          ...prev,
-          action_b3_label: `${prefix} : ${actionNameInput.trim()}`
-        }));
-      }
+      const prefix = formData.action_a3_label.includes(':')
+        ? formData.action_a3_label.split(':')[0].trim()
+        : 'A3';
+      setFormData(prev => ({
+        ...prev,
+        action_a3_label: `${prefix} : ${actionNameInput.trim()}`
+      }));
       setShowEditNameModal(false);
     } catch (err) {
       console.error("Error updating action name:", err);
-      notify(OVOD_TOASTS.nameUpdateFailed(editTargetType, getErrorMessage(err)));
+      notify(OVOD_TOASTS.nameUpdateFailed('A3', getErrorMessage(err)));
     } finally {
       setUpdatingName(false);
     }
@@ -321,41 +273,77 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
     }
   };
 
+  // Fund requirement totals (derived from financeRows)
+  const financeTotals = useMemo(() => {
+    const rowCapEx = (r) => {
+      // Use stored value if the user has typed one; otherwise fall back to auto-formula
+      if (r.capExpenditure !== '') return parseFloat(r.capExpenditure) || 0;
+      return (parseFloat(r.fundSpend) || 0) +
+        (parseFloat(r.oneYear) || 0) + (parseFloat(r.threeYear) || 0) +
+        (parseFloat(r.threeFiveYear) || 0) + (parseFloat(r.greaterFive) || 0);
+    };
+    const fundReq = financeRows.reduce((acc, r) =>
+      acc + (parseFloat(r.oneYear) || 0) + (parseFloat(r.threeYear) || 0) +
+      (parseFloat(r.threeFiveYear) || 0) + (parseFloat(r.greaterFive) || 0), 0);
+    const fundSpent = financeRows.reduce((acc, r) => acc + (parseFloat(r.fundSpend) || 0), 0);
+    const capEx = financeRows.reduce((acc, r) => acc + rowCapEx(r), 0);
+    return { fundReq, fundSpent, capEx, totalCost: parseFloat(formData.total_cost) || 0 };
+  }, [financeRows, formData.total_cost]);
+
   // Submit Update Initiative Form
   const handleSubmitUpdate = async (e) => {
     e.preventDefault();
+
+    // Validate fund requirement balance only when total_cost and finance rows are filled
+    if (formData.total_cost && String(formData.total_cost).trim() !== '') {
+      const { fundReq, fundSpent, capEx, totalCost } = financeTotals;
+      const round2 = (n) => Math.round(n * 100) / 100;
+      if (round2(capEx) !== round2(totalCost)) {
+        triggerNotification?.('error', 'Validation Error', `Capital Expenditure total (${round2(capEx)}) must equal Total Cost (${round2(totalCost)})`);
+        return;
+      }
+    }
+
+    // Monthly Progress Logs are shown for Under Implementation AND Completed
+    const showProgressLog = formData.current_status && (
+      formData.current_status.toLowerCase().includes('under implementation') ||
+      formData.current_status === 'Completed'
+    );
+    const finalProgressRows = [...progressLogRows];
+
     setSubmitting(true);
     try {
       const userId = getUserIdFromToken();
-      const latestLog = progressLogs[progressLogs.length - 1] || {};
 
       const payload = {
         ID: editData.id,
-        completedPercentage: parseInt(latestLog.physical_progress || 0, 10),
-        financialProgress: parseInt(latestLog.financial_progress || 0, 10),
-        directEmpGen: parseInt(formData.direct_emp_gen || 0, 10),
-        inDirectEmpGen: parseInt(formData.indirect_emp_gen || 0, 10),
-        directInvCreated: parseFloat(formData.direct_inv_created || 0),
-        inDirectInvCreated: parseFloat(formData.indirect_inv_created || 0),
         totalCost: formData.total_cost ? parseFloat(formData.total_cost) : null,
         statusCurrent: formData.current_status,
-        outcomes: formData.outcomes,
-        OutcomesRemarks: formData.outcomes_remarks,
         Response: formData.response_org,
         Feedback: formData.feedback_ministry,
         completionDate: formData.timeline_vision || null,
         actualDate: formData.expected_completion_date || null,
-        Delay: null,
-        reasonsForDrop: null,
-        ovodFinanceData: [],
-        ovodProgressLogData: progressLogs.map(log => ({
-          progressDate: `${log.month}-${log.year}`,
-          physicalProgress: log.physical_progress != null ? String(log.physical_progress) : '0',
-          financialProgress: log.financial_progress != null ? String(log.financial_progress) : '0',
-          progress_date: `${log.month}-${log.year}`,
-          physical_progress: parseInt(log.physical_progress || 0, 10),
-          financial_progress: parseInt(log.financial_progress || 0, 10)
-        })),
+        Delay: formData.reasons_for_delay || null,
+        reasonsForDrop: formData.reasons_for_drop || null,
+        directEmployment: formData.direct_employment ? parseFloat(formData.direct_employment) : null,
+        indirectEmployment: formData.indirect_employment ? parseFloat(formData.indirect_employment) : null,
+        directInvestment: formData.direct_investment ? parseFloat(formData.direct_investment) : null,
+        indirectInvestment: formData.indirect_investment ? parseFloat(formData.indirect_investment) : null,
+        outputOutcomeDesc: formData.output_outcome_desc || null,
+        outputOutcomeRemarks: formData.output_outcome_remarks || null,
+        ovodProgressLogData: showProgressLog
+          ? finalProgressRows
+              .filter(r => r.month && r.year)
+              .map(r => ({
+                progressDate: `${r.month}-${r.year}`,
+                physicalProgress: r.physicalProgress || '0',
+                financialProgress: r.financialProgress || '0'
+              }))
+          : [],
+        ovodFinanceData: financeRows.filter(r =>
+          r.capExpenditure || r.sourceOfFund || r.fundSpend ||
+          r.oneYear || r.threeYear || r.threeFiveYear || r.greaterFive || r.detailedBreakUp
+        ),
         userID: userId
       };
 
@@ -407,117 +395,50 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
           {/* ========================================================================= */}
           <div className="space-y-4">
             <div className="module-form-section-header">
-              <h2 className="module-form-section-heading">
-                General Details
-              </h2>
-              
-              {/* Edit (B2/B3) Button */}
+              <h2 className="module-form-section-heading">General Details</h2>
               <button
                 type="button"
                 onClick={handleOpenEditChoice}
                 className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#2563eb] hover:bg-blue-700 text-white text-xs font-bold rounded shadow-xs transition cursor-pointer"
               >
                 <Edit2 size={12} />
-                <span>Edit (B2/B3)</span>
+                <span>Edit (A3)</span>
               </button>
             </div>
 
-            {/* Row 1: National Level Goal A1 & Intervention A2 */}
+            {/* Row 1: A1 & A2 */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="module-form-label">
-                  National Level Goal (A1)<span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.goal_a1_label}
-                  readOnly
-                  disabled
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
-                />
+                <label className="module-form-label">National Level Goal (A1)<span className="text-rose-500">*</span></label>
+                <input type="text" value={formData.goal_a1_label} readOnly disabled
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none" />
               </div>
-
               <div>
-                <label className="module-form-label">
-                  National Level Intervention (A2)<span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.intervention_a2_label}
-                  readOnly
-                  disabled
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
-                />
+                <label className="module-form-label">National Level Intervention (A2)<span className="text-rose-500">*</span></label>
+                <input type="text" value={formData.intervention_a2_label} readOnly disabled
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none" />
               </div>
             </div>
 
-            {/* Row 2: Goal B1 & Intervention B2 */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="module-form-label">
-                  Goal (B1)<span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.goal_b1_label}
-                  readOnly
-                  disabled
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
-                />
-              </div>
-
-              <div>
-                <label className="module-form-label">
-                  Intervention (B2)<span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.intervention_b2_label}
-                  readOnly
-                  disabled
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
-                />
-              </div>
-            </div>
-
-            {/* Row 3: Actionable Item (B3) */}
+            {/* Row 2: A3 */}
             <div>
-              <label className="module-form-label">
-                Actionable Item (B3)<span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={formData.action_b3_label}
-                readOnly
-                disabled
-                className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
-              />
+              <label className="module-form-label">Actionable Item (A3)<span className="text-rose-500">*</span></label>
+              <input type="text" value={formData.action_a3_label} readOnly disabled
+                className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none" />
             </div>
 
-            {/* Row 4: Category, Total Cost, Implementing Agency, Wing */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-center">
+            {/* Row 3: Category | Total Cost | Implementing Agency | Wing */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
               <div>
-                <label className="module-form-label">
-                  Category<span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.category_label}
-                  readOnly
-                  disabled
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
-                />
+                <label className="module-form-label">Category<span className="text-rose-500">*</span></label>
+                <input type="text" value={formData.category_label} readOnly disabled
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none" />
               </div>
-
               <div>
-                <label className="module-form-label">
-                  Total Cost (In. Cr)
-                </label>
+                <label className="module-form-label">Total Cost (In. Cr)</label>
                 <div className="relative">
                   <input
-                    type="number"
-                    step="0.01"
-                    name="total_cost"
+                    type="number" step="0.01" name="total_cost"
                     value={formData.total_cost}
                     onChange={(e) => setFormData(prev => ({ ...prev, total_cost: e.target.value }))}
                     placeholder="Enter cost..."
@@ -528,63 +449,31 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                   </div>
                 </div>
               </div>
-
               <div>
-                <label className="module-form-label">
-                  Implementing Agency<span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.agency_label}
-                  readOnly
-                  disabled
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
-                />
+                <label className="module-form-label">Implementing Agency<span className="text-rose-500">*</span></label>
+                <input type="text" value={formData.agency_label} readOnly disabled
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none" />
               </div>
-
               <div>
-                <label className="module-form-label">
-                  Wing<span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.wing_label}
-                  readOnly
-                  disabled
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
-                />
+                <label className="module-form-label">Wing<span className="text-rose-500">*</span></label>
+                <input type="text" value={formData.wing_label} readOnly disabled
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none" />
               </div>
             </div>
 
-            {/* Row 5: Priority & Vibhas */}
+            {/* Row 4: Priority & Vibhas */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="module-form-label">
-                  Priority<span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.priority_label}
-                  readOnly
-                  disabled
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
-                />
+                <label className="module-form-label">Priority<span className="text-rose-500">*</span></label>
+                <input type="text" value={formData.priority_label} readOnly disabled
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none" />
               </div>
-
               <div>
-                <label className="module-form-label">
-                  Vibhas/ Navic<span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.vibhas_label}
-                  readOnly
-                  disabled
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
-                />
+                <label className="module-form-label">Vibhas/ Navic<span className="text-rose-500">*</span></label>
+                <input type="text" value={formData.vibhas_label} readOnly disabled
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none" />
               </div>
             </div>
-
           </div>
 
           {/* ========================================================================= */}
@@ -592,15 +481,10 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
           {/* ========================================================================= */}
           <div className="space-y-4">
             <div className="module-form-section-header">
-              <h2 className="module-form-section-heading">
-                Status
-              </h2>
+              <h2 className="module-form-section-heading">Status</h2>
             </div>
-
             <div>
-              <label className="module-form-label">
-                Current Status<span className="text-rose-500">*</span>
-              </label>
+              <label className="module-form-label">Current Status<span className="text-rose-500">*</span></label>
               <div className="relative">
                 <select
                   name="current_status"
@@ -610,7 +494,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                   className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-emerald-500 dark:border-emerald-500 pr-10 font-semibold focus:ring-1 focus:ring-emerald-500"
                 >
                   <option value="">--Select Status--</option>
-                  {OVOD_STATUSES.filter(s => s.id !== '0').map(s => (
+                  {OVOD_STATUSES.filter(s => s.id !== '0' && s.id !== 'No Update').map(s => (
                     <option key={s.id} value={s.id}>{s.label}</option>
                   ))}
                 </select>
@@ -621,248 +505,222 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
             </div>
           </div>
 
-          {/* ========================================================================= */}
-          {/* ==================== SECTION 3: MONTHLY PROGRESS LOGS =================== */}
-          {/* ========================================================================= */}
-          <div className="space-y-3">
-            <div className="module-form-section-header">
-              <h2 className="module-form-section-heading">
-                Monthly Progress Logs
-              </h2>
-              <button
-                type="button"
-                onClick={handleClearAllLogs}
-                className="bg-[#dc2626] hover:bg-rose-700 text-white px-4 py-1 text-xs font-bold rounded shadow-xs transition-colors cursor-pointer"
-              >
-                Clear All Rows
-              </button>
+          {/* Reasons for Dropped — shown only when Dropped */}
+          {formData.current_status === 'Dropped' && (
+            <div>
+              <label className="module-form-label">Reasons For Dropped</label>
+              <textarea
+                value={formData.reasons_for_drop}
+                onChange={e => setFormData(prev => ({ ...prev, reasons_for_drop: e.target.value }))}
+                rows={4}
+                placeholder="Describe reasons for dropping this initiative..."
+                className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500 resize-none"
+              />
             </div>
+          )}
 
-            <div className="border border-slate-200 dark:border-slate-800 rounded overflow-hidden shadow-xs">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead className="bg-[#154b8a] text-white">
-                  <tr>
-                    <th className="py-2.5 px-4 text-center font-bold border-r border-blue-900/40 w-1/3">Month & Year (MM-YY)</th>
-                    <th className="py-2.5 px-4 text-center font-bold border-r border-blue-900/40 w-1/3">Physical Progress</th>
-                    <th className="py-2.5 px-4 text-center font-bold border-r border-blue-900/40 w-1/4">Financial Progress (%)</th>
-                    <th className="py-2.5 px-3 text-center font-bold w-20">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
-                  {progressLogs.map((log, index) => (
-                    <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                      
-                      {/* Month & Year */}
-                      <td className="py-2 px-3 border-r border-slate-200 dark:border-slate-800">
-                        <div className="flex items-center gap-2">
-                          <div className="relative flex-1">
-                            <select
-                              value={log.month}
-                              onChange={(e) => handleLogRowChange(index, 'month', e.target.value)}
-                              className="w-full text-xs px-2.5 py-1.5 bg-white dark:bg-slate-950 rounded border border-emerald-500 pr-7 font-semibold"
-                            >
-                              {MONTHS.map(m => (
-                                <option key={m} value={m}>{m}</option>
-                              ))}
-                            </select>
-                            <CheckCircle className="h-3.5 w-3.5 text-emerald-600 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-                          </div>
-
-                          <div className="relative flex-1">
-                            <select
-                              value={log.year}
-                              onChange={(e) => handleLogRowChange(index, 'year', e.target.value)}
-                              className="w-full text-xs px-2.5 py-1.5 bg-white dark:bg-slate-950 rounded border border-emerald-500 pr-7 font-semibold"
-                            >
-                              {YEARS.map(y => (
-                                <option key={y} value={y}>{y}</option>
-                              ))}
-                            </select>
-                            <CheckCircle className="h-3.5 w-3.5 text-emerald-600 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Physical Progress */}
-                      <td className="py-2 px-3 border-r border-slate-200 dark:border-slate-800">
-                        <div className="relative">
-                          <input
-                            type="number"
-                            min="0"
-                            max="100"
-                            value={log.physical_progress}
-                            onChange={(e) => handleLogRowChange(index, 'physical_progress', e.target.value)}
-                            className="w-full text-xs px-3 py-1.5 bg-white dark:bg-slate-950 rounded border border-emerald-500 pr-8 font-semibold text-center"
-                          />
-                          <CheckCircle className="h-3.5 w-3.5 text-emerald-600 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-                        </div>
-                      </td>
-
-                      {/* Financial Progress */}
-                      <td className="py-2 px-3 border-r border-slate-200 dark:border-slate-800">
-                        <div className="relative">
-                          <input
-                            type="number"
-                            min="0"
-                            max="100"
-                            value={log.financial_progress}
-                            onChange={(e) => handleLogRowChange(index, 'financial_progress', e.target.value)}
-                            className="w-full text-xs px-3 py-1.5 bg-white dark:bg-slate-950 rounded border border-emerald-500 pr-8 font-semibold text-center"
-                          />
-                          <CheckCircle className="h-3.5 w-3.5 text-emerald-600 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-                        </div>
-                      </td>
-
-                      {/* Actions */}
-                      <td className="py-2 px-3 text-center">
-                        <div className="flex items-center justify-center space-x-2">
-                          {progressLogs.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveLogRow(index)}
-                              title="Delete row"
-                              className="text-rose-500 hover:text-rose-700 transition cursor-pointer p-0.5"
-                            >
-                              <div className="w-5 h-5 rounded-full border border-rose-500 flex items-center justify-center">
-                                <Minus size={12} className="stroke-[2.5]" />
-                              </div>
-                            </button>
-                          )}
-
-                          {index === progressLogs.length - 1 && (
-                            <button
-                              type="button"
-                              onClick={handleAddLogRow}
-                              title="Add new progress log row"
-                              className="text-slate-600 hover:text-blue-600 transition cursor-pointer p-0.5"
-                            >
-                              <div className="w-5 h-5 rounded-full border border-slate-500 flex items-center justify-center">
-                                <Plus size={12} className="stroke-[2.5]" />
-                              </div>
-                            </button>
-                          )}
-                        </div>
-                      </td>
-
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          {/* Reasons for Delay — shown only when Delayed */}
+          {formData.current_status && formData.current_status.toLowerCase().includes('delayed') && (
+            <div>
+              <label className="module-form-label">
+                Reasons For Delay (if Any) / Brief Status <span className="font-normal text-slate-400">(Not More Than 200 Words)</span>
+              </label>
+              <textarea
+                value={formData.reasons_for_delay}
+                onChange={e => setFormData(prev => ({ ...prev, reasons_for_delay: e.target.value }))}
+                maxLength={1400}
+                rows={4}
+                placeholder="Describe reasons for delay or current brief status..."
+                className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500 resize-none"
+              />
             </div>
-          </div>
+          )}
 
           {/* ========================================================================= */}
-          {/* ======================= SECTION 4: OUTPUT / OUTCOME ===================== */}
+          {/* ================= SECTION 2.5: MONTHLY PROGRESS LOGS =================== */}
+          {/* Shown only when status is Under Implementation                           */}
           {/* ========================================================================= */}
-          <div className="space-y-4">
-            <div className="module-form-section-header">
-              <h2 className="module-form-section-heading">
-                Output / Outcome
-              </h2>
-            </div>
-
-            {/* Row 1: Direct & Indirect Employment Generated */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="module-form-label">
-                  Direct Employment Generated (No. Of People)<span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    min="0"
-                    value={formData.direct_emp_gen}
-                    onChange={(e) => setFormData(prev => ({ ...prev, direct_emp_gen: e.target.value }))}
-                    className="w-full text-xs px-3.5 py-2 bg-white dark:bg-slate-950 rounded border border-emerald-500 pr-8 font-semibold"
-                  />
-                  <CheckCircle className="h-4 w-4 text-emerald-600 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                </div>
-              </div>
-
-              <div>
-                <label className="module-form-label">
-                  Indirect Employment Generated (No. Of People)<span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    min="0"
-                    value={formData.indirect_emp_gen}
-                    onChange={(e) => setFormData(prev => ({ ...prev, indirect_emp_gen: e.target.value }))}
-                    className="w-full text-xs px-3.5 py-2 bg-white dark:bg-slate-950 rounded border border-emerald-500 pr-8 font-semibold"
-                  />
-                  <CheckCircle className="h-4 w-4 text-emerald-600 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                </div>
-              </div>
-            </div>
-
-            {/* Row 2: Direct & Indirect Investment Created */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="module-form-label">
-                  Direct Investment Created (In Cr.)<span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.direct_inv_created}
-                    onChange={(e) => setFormData(prev => ({ ...prev, direct_inv_created: e.target.value }))}
-                    className="w-full text-xs px-3.5 py-2 bg-white dark:bg-slate-950 rounded border border-emerald-500 pr-8 font-semibold"
-                  />
-                  <CheckCircle className="h-4 w-4 text-emerald-600 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                </div>
-              </div>
-
-              <div>
-                <label className="module-form-label">
-                  Indirect Investment Created (In Cr.)<span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.indirect_inv_created}
-                    onChange={(e) => setFormData(prev => ({ ...prev, indirect_inv_created: e.target.value }))}
-                    className="w-full text-xs px-3.5 py-2 bg-white dark:bg-slate-950 rounded border border-emerald-500 pr-8 font-semibold"
-                  />
-                  <CheckCircle className="h-4 w-4 text-emerald-600 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                </div>
-              </div>
-            </div>
-
-            {/* Row 3: Output / Outcome Textareas */}
+          {formData.current_status && (formData.current_status.toLowerCase().includes('under implementation') || formData.current_status === 'Completed') && (
             <div className="space-y-3">
-              <div>
-                <label className="module-form-label leading-snug">
-                  Output / Outcome Of The Completed Initiative (Example : Reduction in turn-around time (hours), capacity created (MTPA), beneficiaries impacted (Number), Infrastructure Developed (road / rail with length in kilometres), etc.)
-                </label>
-                <textarea
-                  rows={3}
-                  value={formData.outcomes}
-                  onChange={(e) => setFormData(prev => ({ ...prev, outcomes: e.target.value }))}
-                  placeholder="Enter outcome description..."
-                  className="w-full text-xs p-3 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500"
-                />
+              <div className="module-form-section-header">
+                <h2 className="module-form-section-heading">Monthly Progress Logs</h2>
+                <button
+                  type="button"
+                  onClick={() => setProgressLogRows([{ id: Date.now(), month: '', year: '', physicalProgress: '', financialProgress: '' }])}
+                  className="px-3 py-1.5 text-xs font-semibold rounded bg-rose-600 hover:bg-rose-700 text-white transition"
+                >
+                  Clear All Rows
+                </button>
               </div>
-
-              <div>
-                <label className="module-form-label">
-                  Output/Outcomes (Remarks)
-                </label>
-                <textarea
-                  rows={3}
-                  value={formData.outcomes_remarks}
-                  onChange={(e) => setFormData(prev => ({ ...prev, outcomes_remarks: e.target.value }))}
-                  placeholder="Enter remarks..."
-                  className="w-full text-xs p-3 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500"
-                />
+              <div className="overflow-x-auto">
+                <table className="w-full text-[11px] border-collapse">
+                  <thead>
+                    <tr className="bg-[#154b8a] text-white">
+                      <th className="px-3 py-2 font-semibold text-center border border-blue-900/40">Month &amp; Year (MM-YY)</th>
+                      <th className="px-3 py-2 font-semibold text-center border border-blue-900/40">Physical Progress</th>
+                      <th className="px-3 py-2 font-semibold text-center border border-blue-900/40">Financial Progress (%)</th>
+                      <th className="px-3 py-2 font-semibold text-center border border-blue-900/40">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {progressLogRows.map((row, idx) => {
+                      const updateLog = (field, val) =>
+                        setProgressLogRows(prev => prev.map((r, i) => i === idx ? { ...r, [field]: val } : r));
+                      return (
+                        <tr key={row.id} className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800">
+                          <td className="px-1 py-1 border border-slate-200 dark:border-slate-700">
+                            <div className="flex gap-1">
+                              <select
+                                value={row.month}
+                                onChange={e => updateLog('month', e.target.value)}
+                                className="flex-1 px-1.5 py-1 text-[11px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded text-slate-700 dark:text-slate-200"
+                              >
+                                <option value="">Month</option>
+                                {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
+                              </select>
+                              <select
+                                value={row.year}
+                                onChange={e => updateLog('year', e.target.value)}
+                                className="flex-1 px-1.5 py-1 text-[11px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded text-slate-700 dark:text-slate-200"
+                              >
+                                <option value="">Year</option>
+                                {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                              </select>
+                            </div>
+                          </td>
+                          <td className="px-1 py-1 border border-slate-200 dark:border-slate-700">
+                            <input
+                              type="text"
+                              value={row.physicalProgress}
+                              onChange={e => updateLog('physicalProgress', e.target.value)}
+                              placeholder="Physical Progress %"
+                              className="w-full px-1.5 py-1 text-[11px] bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded text-slate-700 dark:text-slate-200"
+                            />
+                          </td>
+                          <td className="px-1 py-1 border border-slate-200 dark:border-slate-700">
+                            <input
+                              type="text"
+                              value={row.financialProgress}
+                              onChange={e => updateLog('financialProgress', e.target.value)}
+                              placeholder="Financial Progress %"
+                              className="w-full px-1.5 py-1 text-[11px] bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded text-slate-700 dark:text-slate-200"
+                            />
+                          </td>
+                          <td className="px-1 py-1 border border-slate-200 dark:border-slate-700 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              {progressLogRows.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setProgressLogRows(prev => prev.filter((_, i) => i !== idx))}
+                                  title="Delete row"
+                                  className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-rose-500 text-rose-500 hover:text-rose-700 hover:border-rose-700 transition cursor-pointer"
+                                >
+                                  <Minus size={10} className="stroke-[2.5]" />
+                                </button>
+                              )}
+                              {idx === progressLogRows.length - 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setProgressLogRows(prev => [
+                                    ...prev,
+                                    { id: Date.now(), month: '', year: '', physicalProgress: '', financialProgress: '' }
+                                  ])}
+                                  title="Add row"
+                                  className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-slate-500 text-slate-600 hover:text-blue-600 hover:border-blue-600 transition cursor-pointer"
+                                >
+                                  <Plus size={10} className="stroke-[2.5]" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
+          )}
 
-          </div>
+          {/* Output / Outcome — shown only when Completed */}
+          {formData.current_status === 'Completed' && (
+            <div className="space-y-4">
+              <div className="module-form-section-header">
+                <h2 className="module-form-section-heading">Output / Outcome</h2>
+              </div>
+
+              {/* Employment & Investment grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="module-form-label">Direct Employment Generated (No. Of People)<span className="text-rose-500">*</span></label>
+                  <input
+                    type="number" min="0"
+                    value={formData.direct_employment}
+                    onChange={e => setFormData(prev => ({ ...prev, direct_employment: e.target.value }))}
+                    className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500"
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className="module-form-label">Indirect Employment Generated (No. Of People)<span className="text-rose-500">*</span></label>
+                  <input
+                    type="number" min="0"
+                    value={formData.indirect_employment}
+                    onChange={e => setFormData(prev => ({ ...prev, indirect_employment: e.target.value }))}
+                    className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500"
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className="module-form-label">Direct Investment Created (In Cr.)<span className="text-rose-500">*</span></label>
+                  <input
+                    type="number" min="0" step="0.01"
+                    value={formData.direct_investment}
+                    onChange={e => setFormData(prev => ({ ...prev, direct_investment: e.target.value }))}
+                    className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500"
+                    placeholder="0.00"
+                  />
+                </div>
+                <div>
+                  <label className="module-form-label">Indirect Investment Created (In Cr.)<span className="text-rose-500">*</span></label>
+                  <input
+                    type="number" min="0" step="0.01"
+                    value={formData.indirect_investment}
+                    onChange={e => setFormData(prev => ({ ...prev, indirect_investment: e.target.value }))}
+                    className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500"
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+
+              {/* Description + Remarks side by side */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="module-form-label text-[11px] leading-tight">
+                    Output / Outcome Of The Completed Initiative{' '}
+                    <span className="font-normal text-slate-400 italic">
+                      (Example: Reduction in turn-around time (hours) capacity created (MTPA), beneficiaries impacted (Number), Infrastructure Developed (road/rail with length in kilometres), etc)
+                    </span>
+                  </label>
+                  <textarea
+                    value={formData.output_outcome_desc}
+                    onChange={e => setFormData(prev => ({ ...prev, output_outcome_desc: e.target.value }))}
+                    rows={4}
+                    className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500 resize-none"
+                  />
+                </div>
+                <div>
+                  <label className="module-form-label">Output/Outcomes<br />(Remarks)</label>
+                  <textarea
+                    value={formData.output_outcome_remarks}
+                    onChange={e => setFormData(prev => ({ ...prev, output_outcome_remarks: e.target.value }))}
+                    rows={4}
+                    className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500 resize-none"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ========================================================================= */}
           {/* ========================== SECTION 5: TIMELINES ========================= */}
@@ -902,6 +760,229 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
               </div>
             </div>
           </div>
+
+          {/* ========================================================================= */}
+          {/* ====================== SECTION 5.5: FUND REQUIREMENT ==================== */}
+          {/* ========================================================================= */}
+          {formData.total_cost && String(formData.total_cost).trim() !== '' && (
+            <div className="space-y-3">
+              <div className="module-form-section-header">
+                <h2 className="module-form-section-heading">Fund Requirement</h2>
+                <button
+                  type="button"
+                  onClick={() => setFinanceRows([{
+                    id: Date.now(), capExpenditure: '', sourceOfFund: '', fundSpend: '',
+                    oneYear: '', threeYear: '', threeFiveYear: '', greaterFive: '', detailedBreakUp: '',
+                    annexureFile: null, annexureFileName: ''
+                  }])}
+                  className="bg-[#dc2626] hover:bg-rose-700 text-white px-4 py-1 text-xs font-bold rounded shadow-xs transition cursor-pointer"
+                >
+                  Clear
+                </button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-[11px] border-collapse">
+                  <thead>
+                    <tr className="bg-[#154b8a] text-white">
+                      <th className="px-2 py-2 font-semibold text-center border border-blue-900/40" rowSpan={2}>Source of Funding</th>
+                      <th className="px-2 py-2 font-semibold text-center border border-blue-900/40" rowSpan={2}>Fund Spent<br />(In. Cr)</th>
+                      <th className="px-2 py-2 font-semibold text-center border border-blue-900/40" colSpan={4}>Fund Requirement (In. Cr)</th>
+                      <th className="px-2 py-2 font-semibold text-center border border-blue-900/40" rowSpan={2}>Capital Expenditure<br />(INR Crore)</th>
+                      <th className="px-2 py-2 font-semibold text-center border border-blue-900/40" rowSpan={2}>Detailed Break up<br />of the Requirement</th>
+                      <th className="px-2 py-2 font-semibold text-center border border-blue-900/40" rowSpan={2}>Annexure &amp; Concept Note</th>
+                      <th className="px-2 py-2 font-semibold text-center border border-blue-900/40" rowSpan={2}>Actions</th>
+                    </tr>
+                    <tr className="bg-[#1e5fa3] text-white">
+                      <th className="px-2 py-1 font-semibold text-center border border-blue-900/40">1 YEAR</th>
+                      <th className="px-2 py-1 font-semibold text-center border border-blue-900/40">3 YEARS</th>
+                      <th className="px-2 py-1 font-semibold text-center border border-blue-900/40">&gt;3 years up to 5 years</th>
+                      <th className="px-2 py-1 font-semibold text-center border border-blue-900/40">&gt; 5 years</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {financeRows.map((row, idx) => {
+                      const updateRow = (field, val) =>
+                        setFinanceRows(prev => prev.map((r, i) => i === idx ? { ...r, [field]: val } : r));
+                      const numInput = (field) => (
+                        <td className="px-1 py-1 border border-slate-200 dark:border-slate-700">
+                          <input
+                            type="number" min="0" step="0.01"
+                            value={row[field]}
+                            onChange={e => updateRow(field, e.target.value)}
+                            className="w-full px-1.5 py-1 text-[11px] bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded text-slate-700 dark:text-slate-200"
+                            placeholder="0.00"
+                          />
+                        </td>
+                      );
+                      const autoCapEx = (
+                        (parseFloat(row.fundSpend) || 0) +
+                        (parseFloat(row.oneYear) || 0) +
+                        (parseFloat(row.threeYear) || 0) +
+                        (parseFloat(row.threeFiveYear) || 0) +
+                        (parseFloat(row.greaterFive) || 0)
+                      );
+                      return (
+                        <tr key={row.id} className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800">
+                          <td className="px-1 py-1 border border-slate-200 dark:border-slate-700">
+                            <select
+                              value={row.sourceOfFund}
+                              onChange={e => updateRow('sourceOfFund', e.target.value)}
+                              className="w-full px-1.5 py-1 text-[11px] bg-white dark:bg-slate-900 border-0 focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded text-slate-700 dark:text-slate-200"
+                            >
+                              <option value="">Select Source of Fund</option>
+                              <option value="GBS">GBS</option>
+                              <option value="IEBR">IEBR</option>
+                              <option value="PPP/SPV">PPP/SPV</option>
+                              <option value="Debt">Debt</option>
+                              <option value="Other (Angel investment, VC fund, etc.)">Other (Angel investment, VC fund, etc.)</option>
+                            </select>
+                          </td>
+                          {numInput('fundSpend')}
+                          {numInput('oneYear')}
+                          {numInput('threeYear')}
+                          {numInput('threeFiveYear')}
+                          {numInput('greaterFive')}
+                          <td className="px-1 py-1 border border-slate-200 dark:border-slate-700">
+                            <input
+                              type="number" min="0" step="0.01"
+                              value={row.capExpenditure !== '' ? row.capExpenditure : (autoCapEx > 0 ? autoCapEx.toFixed(2) : '')}
+                              onChange={e => updateRow('capExpenditure', e.target.value)}
+                              onFocus={() => { if (row.capExpenditure === '' && autoCapEx > 0) updateRow('capExpenditure', autoCapEx.toFixed(2)); }}
+                              className="w-full px-1.5 py-1 text-[11px] bg-[#fffbeb] dark:bg-slate-800 border-0 focus:outline-none focus:ring-1 focus:ring-amber-400 rounded text-slate-700 dark:text-slate-200 font-medium"
+                              placeholder="Auto"
+                              title="Auto-calculated from Fund Requirement total. Editable."
+                            />
+                          </td>
+                          <td className="px-1 py-1 border border-slate-200 dark:border-slate-700">
+                            <input
+                              type="text"
+                              value={row.detailedBreakUp}
+                              onChange={e => updateRow('detailedBreakUp', e.target.value)}
+                              className="w-full px-1.5 py-1 text-[11px] bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded text-slate-700 dark:text-slate-200"
+                              placeholder="Details..."
+                            />
+                          </td>
+
+                          {/* Annexure & Concept Note column */}
+                          <td className="px-1 py-1 border border-slate-200 dark:border-slate-700 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              {/* Upload button */}
+                              <label
+                                title="Upload annexure"
+                                className="inline-flex items-center justify-center w-6 h-6 rounded bg-[#f59e0b] hover:bg-amber-600 text-white cursor-pointer transition"
+                              >
+                                <Upload size={12} />
+                                <input
+                                  type="file"
+                                  className="hidden"
+                                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                                  onChange={e => {
+                                    const file = e.target.files?.[0] || null;
+                                    updateRow('annexureFile', file);
+                                    updateRow('annexureFileName', file ? file.name : '');
+                                  }}
+                                />
+                              </label>
+
+                              {/* Download/view button — active only when a file exists */}
+                              <button
+                                type="button"
+                                title={row.annexureFileName ? `Download: ${row.annexureFileName}` : 'No file uploaded'}
+                                disabled={!row.annexureFileName}
+                                className={`inline-flex items-center justify-center w-6 h-6 rounded text-white transition ${row.annexureFileName ? 'bg-[#16a34a] hover:bg-emerald-700 cursor-pointer' : 'bg-slate-300 dark:bg-slate-700 cursor-not-allowed opacity-60'}`}
+                              >
+                                <Download size={12} />
+                              </button>
+                            </div>
+                            {row.annexureFileName && (
+                              <p className="text-[9px] text-slate-500 truncate max-w-[80px] mt-0.5" title={row.annexureFileName}>
+                                {row.annexureFileName}
+                              </p>
+                            )}
+                          </td>
+
+                          {/* Actions column */}
+                          <td className="px-1 py-1 border border-slate-200 dark:border-slate-700 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              {financeRows.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setFinanceRows(prev => prev.filter((_, i) => i !== idx))}
+                                  title="Delete row"
+                                  className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-rose-500 text-rose-500 hover:text-rose-700 hover:border-rose-700 transition cursor-pointer"
+                                >
+                                  <Minus size={10} className="stroke-[2.5]" />
+                                </button>
+                              )}
+                              {idx === financeRows.length - 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setFinanceRows(prev => [
+                                    ...prev,
+                                    { id: Date.now(), capExpenditure: '', sourceOfFund: '', fundSpend: '', oneYear: '', threeYear: '', threeFiveYear: '', greaterFive: '', detailedBreakUp: '', annexureFile: null, annexureFileName: '' }
+                                  ])}
+                                  title="Add new row"
+                                  className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-slate-500 text-slate-600 hover:text-blue-600 hover:border-blue-600 transition cursor-pointer"
+                                >
+                                  <Plus size={10} className="stroke-[2.5]" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  {/* Totals footer row */}
+                  <tfoot>
+                    <tr className="bg-[#0f2f5c] text-white text-[11px] font-bold">
+                      <td className="px-2 py-1.5 border border-blue-900/60 text-center text-[10px] uppercase tracking-wide">Total</td>
+                      <td className="px-2 py-1.5 border border-blue-900/60 text-center tabular-nums">
+                        {financeTotals.fundSpent.toFixed(2)}
+                      </td>
+                      {/* 1Y */}
+                      <td className="px-2 py-1.5 border border-blue-900/60 text-center tabular-nums">
+                        {financeRows.reduce((s, r) => s + (parseFloat(r.oneYear) || 0), 0).toFixed(2)}
+                      </td>
+                      {/* 3Y */}
+                      <td className="px-2 py-1.5 border border-blue-900/60 text-center tabular-nums">
+                        {financeRows.reduce((s, r) => s + (parseFloat(r.threeYear) || 0), 0).toFixed(2)}
+                      </td>
+                      {/* 3-5Y */}
+                      <td className="px-2 py-1.5 border border-blue-900/60 text-center tabular-nums">
+                        {financeRows.reduce((s, r) => s + (parseFloat(r.threeFiveYear) || 0), 0).toFixed(2)}
+                      </td>
+                      {/* >5Y */}
+                      <td className="px-2 py-1.5 border border-blue-900/60 text-center tabular-nums">
+                        {financeRows.reduce((s, r) => s + (parseFloat(r.greaterFive) || 0), 0).toFixed(2)}
+                      </td>
+                      {/* Cap Ex total */}
+                      <td className="px-2 py-1.5 border border-blue-900/60 text-center tabular-nums bg-amber-800/60">
+                        {financeTotals.capEx.toFixed(2)}
+                      </td>
+                      <td className="border border-blue-900/60" colSpan={3} />
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              {/* Balance validation bar */}
+              {formData.total_cost && String(formData.total_cost).trim() !== '' && (() => {
+                const round2 = (n) => Math.round(n * 100) / 100;
+                const { fundReq, fundSpent, capEx, totalCost } = financeTotals;
+                const ok = round2(capEx) === round2(totalCost);
+                return (
+                  <div className={`mt-2 rounded-xl border px-4 py-3 text-[11px] flex items-center justify-between gap-2 font-semibold ${ok ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400' : 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400'}`}>
+                    <span>{ok ? '✓' : '✗'} Fund Spent + Fund Requirement = Capital Expenditure = Total Cost</span>
+                    <span className="tabular-nums">
+                      {fundSpent.toFixed(2)} + {fundReq.toFixed(2)} = {capEx.toFixed(2)} {ok ? '=' : '≠'} {parseFloat(totalCost).toFixed(2)}
+                    </span>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
 
           {/* ========================================================================= */}
           {/* ============================ SECTION 6: OTHERS ========================== */}
@@ -997,107 +1078,23 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
       </div>
 
       {/* ========================================================================= */}
-      {/* ================= MODAL 1: SELECT B2 OR B3 TO EDIT ======================= */}
-      {/* ========================================================================= */}
-      {showEditChoiceModal && createPortal(
-        <div 
-          className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 animate-fade-in"
-          onClick={() => setShowEditChoiceModal(false)}
-        >
-          <div 
-            className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl animate-scale-up overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-black text-slate-800 dark:text-slate-100">
-                  Select Intervention(B2) / Actionable Item(B3) To Edit
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Choose which level you want to modify
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowEditChoiceModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            {/* Radio Selection */}
-            <div className="px-5 py-6">
-              <div className="flex items-center justify-center space-x-12">
-                <label className="inline-flex items-center space-x-2.5 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="editTarget"
-                    value="B2"
-                    checked={editTargetType === 'B2'}
-                    onChange={() => setEditTargetType('B2')}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                  />
-                  <span className="text-sm font-bold text-slate-800 dark:text-slate-200">Intervention (B2)</span>
-                </label>
-
-                <label className="inline-flex items-center space-x-2.5 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="editTarget"
-                    value="B3"
-                    checked={editTargetType === 'B3'}
-                    onChange={() => setEditTargetType('B3')}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                  />
-                  <span className="text-sm font-bold text-slate-800 dark:text-slate-200">Actionable Item (B3)</span>
-                </label>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2 bg-slate-50/60 dark:bg-slate-950/40">
-              <button
-                type="button"
-                onClick={() => setShowEditChoiceModal(false)}
-                className="px-3.5 py-2 text-xs font-bold rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmEditChoice}
-                className="px-4 py-2 text-xs font-bold rounded-lg bg-[#2563eb] hover:bg-blue-700 text-white shadow-xs transition cursor-pointer"
-              >
-                Submit
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {/* ========================================================================= */}
-      {/* ================= MODAL 2: UPDATE ACTION NAME (B2 / B3) ================= */}
+      {/* ================== MODAL: UPDATE ACTIONABLE ITEM (A3) NAME ============== */}
       {/* ========================================================================= */}
       {showEditNameModal && createPortal(
-        <div 
+        <div
           className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 animate-fade-in"
           onClick={() => !updatingName && setShowEditNameModal(false)}
         >
-          <div 
+          <div
             className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl animate-scale-up overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
             <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-black text-slate-800 dark:text-slate-100">
-                  Update Action Name
-                </h3>
+                <h3 className="text-sm font-black text-slate-800 dark:text-slate-100">Update Action Name</h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Enter new name for {editTargetType === 'B2' ? 'Intervention (B2)' : 'Actionable Item (B3)'}
+                  Enter new name for Actionable Item (A3)
                 </p>
               </div>
               <button
@@ -1113,14 +1110,14 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
             {/* Input Form Body */}
             <div className="px-5 py-4 space-y-3">
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                {editTargetType === 'B2' ? 'Enter Intervention Name (B2)' : 'Enter Action Name (B3)'}
+                Enter Actionable Item Name (A3)
               </label>
               <div className="relative">
                 <textarea
                   rows={3}
                   value={actionNameInput}
                   onChange={(e) => setActionNameInput(e.target.value)}
-                  placeholder={`Enter ${editTargetType} name...`}
+                  placeholder="Enter A3 name..."
                   disabled={updatingName}
                   className="w-full text-xs p-3 bg-white dark:bg-slate-950 rounded-xl border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium resize-none"
                 />
@@ -1254,15 +1251,21 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
   const [allB1List, setAllB1List] = useState([]);
   const [allB2List, setAllB2List] = useState([]);
 
+  // B3 rows for B2 mode (add multiple B3s along with a new B2)
+  const [b3Rows, setB3Rows] = useState([{ id: 1, actionCode: '', actionDes: '' }]);
+
   // Form State
   const [formData, setFormData] = useState({
     organisation_id: '',
     goal_a1: '',
     intervention_a2: '',
     goal_b1: '',
+    intervention_b2_id: '',
     intervention_b2: '',
     intervention_code_b2: '',
-    
+    action_b3: '',
+    action_code_b3: '',
+
     // Auto-filled Metadata
     category: '',
     rawCategory: 7,
@@ -1272,8 +1275,10 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
     rawPriority: 2,
     vibhas: '',
     rawVibhas: 14,
+    party1: '',
+    party2: '',
 
-    // Source Document & Status
+    // Source Document
     is_miv_2030: 'No',
     miv_chapter: '',
     is_makv_2047: 'No',
@@ -1285,18 +1290,8 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
 
     // Timelines
     timeline_vision: '',
-    expected_completion_date: '',
-    current_status: 'Implementation - On time',
-
-    // B3 specific
-    action_b3: '',
-    action_code_b3: ''
+    expected_completion_date: ''
   });
-
-  // Dynamic Actionable Items (B3) Table rows for B2 Initiative
-  const [b3Rows, setB3Rows] = useState([
-    { id: 1, actionCode: '', actionDes: '' }
-  ]);
 
   // Load Implementing Agencies on mount
   useEffect(() => {
@@ -1332,7 +1327,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
 
   }, [formData.organisation_id]);
 
-  // Filter A2 based on selected A1
+  // A2 filtered by selected A1 (for B2 mode)
   const filteredA2List = useMemo(() => {
     if (!formData.goal_a1 || !a1List.length) return [];
     const selectedA1 = a1List.find(item => String(item.id) === String(formData.goal_a1));
@@ -1340,13 +1335,16 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
     return allA2List.filter(item => item.a1_code === selectedA1.a1_code);
   }, [formData.goal_a1, a1List, allA2List]);
 
-  // Filter B1 based on selected A2
+  // B1 list: in B2 mode filtered by selected A2, in B3 mode show all
   const filteredB1List = useMemo(() => {
-    if (!formData.intervention_a2 || !filteredA2List.length) return [];
-    const selectedA2 = filteredA2List.find(item => String(item.id) === String(formData.intervention_a2));
-    if (!selectedA2) return [];
-    return allB1List.filter(item => item.a2_code === selectedA2.a2_code);
-  }, [formData.intervention_a2, filteredA2List, allB1List]);
+    if (level === 'B2') {
+      if (!formData.intervention_a2 || !filteredA2List.length) return [];
+      const selectedA2 = filteredA2List.find(item => String(item.id) === String(formData.intervention_a2));
+      if (!selectedA2) return [];
+      return allB1List.filter(item => item.a2_code === selectedA2.a2_code);
+    }
+    return allB1List;
+  }, [level, formData.intervention_a2, filteredA2List, allB1List]);
 
   // Filter B2 based on selected B1 (for B3 mode)
   const filteredB2List = useMemo(() => {
@@ -1356,154 +1354,86 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
     return allB2List.filter(item => item.b1_code === selectedB1.b1_code);
   }, [formData.goal_b1, filteredB1List, allB2List]);
 
+  const RESET_DOWNSTREAM = {
+    goal_b1: '', intervention_b2_id: '', intervention_b2: '', intervention_code_b2: '',
+    action_b3: '', action_code_b3: '',
+    category: '', wings: '', priority: '', vibhas: '',
+    party1: '', party2: '',
+    is_miv_2030: 'No', miv_chapter: '', is_makv_2047: 'No', makv_theme: '',
+    is_sgos_2: 'No', is_additional_items: 'No', is_gmis: 'No',
+    remarks: '', timeline_vision: '', expected_completion_date: ''
+  };
+
   // Handle Agency change
   const handleAgencyChange = (e) => {
-    const orgId = e.target.value;
-    setFormData(prev => ({
-      ...prev,
-      organisation_id: orgId,
-      goal_a1: '',
-      intervention_a2: '',
-      goal_b1: '',
-      intervention_b2: '',
-      intervention_code_b2: '',
-      category: '',
-      wings: '',
-      priority: '',
-      vibhas: '',
-      is_miv_2030: 'No',
-      miv_chapter: '',
-      is_makv_2047: 'No',
-      makv_theme: '',
-      is_sgos_2: 'No',
-      is_additional_items: 'No',
-      is_gmis: 'No',
-      remarks: '',
-      timeline_vision: '',
-      expected_completion_date: '',
-      action_b3: '',
-      action_code_b3: ''
-    }));
+    setFormData(prev => ({ ...prev, organisation_id: e.target.value, goal_a1: '', intervention_a2: '', ...RESET_DOWNSTREAM }));
     setB3Rows([{ id: 1, actionCode: '', actionDes: '' }]);
   };
 
-  // Handle Goal A1 change
+  // Handle A1 change (B2 mode)
   const handleA1Change = (e) => {
-    const a1Id = e.target.value;
-    setFormData(prev => ({
-      ...prev,
-      goal_a1: a1Id,
-      intervention_a2: '',
-      goal_b1: '',
-      intervention_b2: '',
-      intervention_code_b2: '',
-      category: '',
-      wings: '',
-      priority: '',
-      vibhas: '',
-      is_miv_2030: 'No',
-      miv_chapter: '',
-      is_makv_2047: 'No',
-      makv_theme: '',
-      is_sgos_2: 'No',
-      is_additional_items: 'No',
-      is_gmis: 'No',
-      remarks: '',
-      timeline_vision: '',
-      expected_completion_date: '',
-      action_b3: '',
-      action_code_b3: ''
-    }));
+    setFormData(prev => ({ ...prev, goal_a1: e.target.value, intervention_a2: '', ...RESET_DOWNSTREAM }));
     setB3Rows([{ id: 1, actionCode: '', actionDes: '' }]);
   };
 
-  // Handle Intervention A2 change
+  // Handle A2 change (B2 mode)
   const handleA2Change = (e) => {
-    const a2Id = e.target.value;
-    setFormData(prev => ({
-      ...prev,
-      intervention_a2: a2Id,
-      goal_b1: '',
-      intervention_b2: '',
-      intervention_code_b2: '',
-      category: '',
-      wings: '',
-      priority: '',
-      vibhas: '',
-      is_miv_2030: 'No',
-      miv_chapter: '',
-      is_makv_2047: 'No',
-      makv_theme: '',
-      is_sgos_2: 'No',
-      is_additional_items: 'No',
-      is_gmis: 'No',
-      remarks: '',
-      timeline_vision: '',
-      expected_completion_date: '',
-      action_b3: '',
-      action_code_b3: ''
-    }));
+    setFormData(prev => ({ ...prev, intervention_a2: e.target.value, ...RESET_DOWNSTREAM }));
     setB3Rows([{ id: 1, actionCode: '', actionDes: '' }]);
   };
 
-  // Handle Goal B1 change -> Auto fetch B2 Code & Metadata
+  // Handle B1 change: in B2 mode → API call to generate B2 code + metadata;
+  //                   in B3 mode → auto-derive A1/A2 from B1, then show B2 dropdown
   const handleB1Change = async (e) => {
     const b1Id = e.target.value;
     if (!b1Id) {
-      setFormData(prev => ({
-        ...prev,
-        goal_b1: '',
-        intervention_code_b2: '',
-        category: '',
-        wings: '',
-        priority: '',
-        vibhas: '',
-        is_miv_2030: 'No',
-        miv_chapter: '',
-        is_makv_2047: 'No',
-        makv_theme: '',
-        is_sgos_2: 'No',
-        is_additional_items: 'No',
-        is_gmis: 'No',
-        remarks: '',
-        timeline_vision: '',
-        expected_completion_date: ''
-      }));
+      setFormData(prev => ({ ...prev, ...RESET_DOWNSTREAM, goal_b1: '' }));
       setB3Rows([{ id: 1, actionCode: '', actionDes: '' }]);
       return;
     }
 
-    setFormData(prev => ({ ...prev, goal_b1: b1Id }));
-
-    try {
-      const res = await fetchOvdAddData(
-        formData.goal_a1, 
-        formData.intervention_a2, 
-        b1Id, 
-        0, 
-        'B2', 
-        formData.organisation_id
-      );
-
-      const generatedB2Code = res?.newCode?.[0]?.B2Code || '';
-      const meta = res?.result?.[0] || {};
-
-      const catLabel = CATEGORY_MAP[meta.category] || meta.category || '';
-      const wingLabel = WINGS_MAP[meta.wings] || meta.wings || '';
-      const prioLabel = PRIORITY_MAP[meta.priority] || meta.priority || '';
-      const vibhasLabel = VIBHAS_MAP[meta.vibhas] || meta.vibhas || '';
-
+    if (level === 'B3') {
+      // B3 mode: auto-derive A1/A2 from selected B1
+      const selectedB1 = allB1List.find(item => String(item.id) === String(b1Id));
+      const matchingA2 = selectedB1 ? allA2List.find(a => a.a2_code === selectedB1.a2_code) : null;
+      const matchingA1 = matchingA2 ? a1List.find(a => a.a1_code === matchingA2.a1_code) : null;
       setFormData(prev => ({
         ...prev,
+        goal_b1: b1Id,
+        goal_a1: String(matchingA1?.id || ''),
+        intervention_a2: String(matchingA2?.id || ''),
+        intervention_b2_id: '', intervention_b2: '', intervention_code_b2: '',
+        action_b3: '', action_code_b3: '',
+        category: '', wings: '', priority: '', vibhas: '', party1: '', party2: '',
+        is_miv_2030: 'No', miv_chapter: '', is_makv_2047: 'No', makv_theme: '',
+        is_sgos_2: 'No', is_additional_items: 'No', is_gmis: 'No',
+        remarks: '', timeline_vision: '', expected_completion_date: ''
+      }));
+      return;
+    }
+
+    // B2 mode: fetch generated B2 code + metadata
+    setFormData(prev => ({ ...prev, goal_b1: b1Id }));
+    try {
+      const res = await fetchOvdAddData(
+        formData.goal_a1, formData.intervention_a2, b1Id, 0, 'B2', formData.organisation_id
+      );
+      const generatedB2Code = res?.newCode?.[0]?.B2Code || '';
+      const meta = res?.result?.[0] || {};
+      setFormData(prev => ({
+        ...prev,
+        intervention_b2: '', intervention_b2_id: '',
         intervention_code_b2: generatedB2Code,
-        category: catLabel,
+        category: CATEGORY_MAP[meta.category] || meta.category || '',
         rawCategory: meta.category || 7,
-        wings: wingLabel,
+        wings: WINGS_MAP[meta.wings] || meta.wings || '',
         rawWings: meta.wings || 3,
-        priority: prioLabel,
+        priority: PRIORITY_MAP[meta.priority] || meta.priority || '',
         rawPriority: meta.priority || 2,
-        vibhas: vibhasLabel,
+        vibhas: VIBHAS_MAP[meta.vibhas] || meta.vibhas || '',
         rawVibhas: meta.vibhas || 14,
+        party1: meta.party_1 || meta.party1 || '',
+        party2: meta.party_2 || meta.party2 || '',
         is_miv_2030: meta.is_miv ? 'Yes' : 'No',
         miv_chapter: meta.miv_chapter || '',
         is_makv_2047: meta.is_makv ? 'Yes' : 'No',
@@ -1515,57 +1445,119 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
         timeline_vision: meta.target_date ? String(meta.target_date).slice(0, 10) : '',
         expected_completion_date: meta.expected_date ? String(meta.expected_date).slice(0, 10) : ''
       }));
-
-      // Initialize first Actionable Item row with auto-generated code
       if (generatedB2Code) {
-        setB3Rows([
-          { id: 1, actionCode: `${generatedB2Code}.1`, actionDes: '' }
-        ]);
+        setB3Rows([{ id: 1, actionCode: `${generatedB2Code}.1`, actionDes: '' }]);
       }
     } catch (err) {
-      console.error('Error fetching OVD add data for B1:', err);
+      console.error('Error fetching OVD add data for B1 (B2 mode):', err);
     }
   };
 
-  // Add B3 Row in Table
+  // B3 row handlers (for B2 mode)
   const handleAddB3Row = () => {
     const b2Code = formData.intervention_code_b2;
-    const nextIndex = b3Rows.length + 1;
-    const nextCode = b2Code ? `${b2Code}.${nextIndex}` : '';
-    setB3Rows(prev => [
-      ...prev,
-      { id: Date.now(), actionCode: nextCode, actionDes: '' }
-    ]);
+    const nextCode = b2Code ? `${b2Code}.${b3Rows.length + 1}` : '';
+    setB3Rows(prev => [...prev, { id: Date.now(), actionCode: nextCode, actionDes: '' }]);
   };
 
-  // Remove B3 Row from Table
-  const handleRemoveB3Row = (indexToRemove) => {
+  const handleRemoveB3Row = (idx) => {
     if (b3Rows.length <= 1) return;
     const b2Code = formData.intervention_code_b2;
-    const updated = b3Rows
-      .filter((_, idx) => idx !== indexToRemove)
-      .map((row, idx) => ({
-        ...row,
-        actionCode: b2Code ? `${b2Code}.${idx + 1}` : ''
-      }));
-    setB3Rows(updated);
+    setB3Rows(prev =>
+      prev.filter((_, i) => i !== idx).map((r, i) => ({ ...r, actionCode: b2Code ? `${b2Code}.${i + 1}` : '' }))
+    );
   };
 
-  // Update B3 Row description
-  const handleB3DesChange = (index, value) => {
-    setB3Rows(prev => {
-      const copy = [...prev];
-      copy[index] = { ...copy[index], actionDes: value };
-      return copy;
-    });
+  const handleB3DesChange = (idx, value) => {
+    setB3Rows(prev => prev.map((r, i) => i === idx ? { ...r, actionDes: value } : r));
   };
 
-  // Clear B3 Rows
   const handleClearB3 = () => {
     const b2Code = formData.intervention_code_b2;
-    setB3Rows([
-      { id: 1, actionCode: b2Code ? `${b2Code}.1` : '', actionDes: '' }
-    ]);
+    setB3Rows([{ id: 1, actionCode: b2Code ? `${b2Code}.1` : '', actionDes: '' }]);
+  };
+
+  // Handle Intervention B2 change -> load B3 code and metadata from API
+  const handleB2Change = async (e) => {
+    const b2Id = e.target.value;
+    if (!b2Id) {
+      setFormData(prev => ({
+        ...prev,
+        intervention_b2_id: '',
+        intervention_b2: '',
+        intervention_code_b2: '',
+        action_b3: '',
+        action_code_b3: '',
+        category: '',
+        wings: '',
+        priority: '',
+        vibhas: '',
+        party1: '',
+        party2: '',
+        is_miv_2030: 'No',
+        miv_chapter: '',
+        is_makv_2047: 'No',
+        makv_theme: '',
+        is_sgos_2: 'No',
+        is_additional_items: 'No',
+        is_gmis: 'No',
+        remarks: '',
+        timeline_vision: '',
+        expected_completion_date: ''
+      }));
+      return;
+    }
+
+    const selectedB2 = filteredB2List.find(item => String(item.id) === String(b2Id));
+    setFormData(prev => ({
+      ...prev,
+      intervention_b2_id: b2Id,
+      intervention_b2: selectedB2?.intervention || '',
+      intervention_code_b2: selectedB2?.b2_code || '',
+      action_b3: '',
+      action_code_b3: ''
+    }));
+
+    try {
+      const res = await fetchOvdAddData(
+        formData.goal_a1,
+        formData.intervention_a2,
+        formData.goal_b1,
+        b2Id,
+        'B3',
+        formData.organisation_id
+      );
+
+      const generatedB3Code = res?.newCode?.[0]?.new_code || res?.newCode?.[0]?.B3Code || '';
+      const meta = res?.result?.[0] || {};
+
+      setFormData(prev => ({
+        ...prev,
+        action_code_b3: generatedB3Code,
+        category: CATEGORY_MAP[meta.category] || meta.category || '',
+        rawCategory: meta.category || 7,
+        wings: WINGS_MAP[meta.wings] || meta.wings || '',
+        rawWings: meta.wings || 3,
+        priority: PRIORITY_MAP[meta.priority] || meta.priority || '',
+        rawPriority: meta.priority || 2,
+        vibhas: VIBHAS_MAP[meta.vibhas] || meta.vibhas || '',
+        rawVibhas: meta.vibhas || 14,
+        party1: meta.party_1 || meta.party1 || '',
+        party2: meta.party_2 || meta.party2 || '',
+        is_miv_2030: meta.is_miv ? 'Yes' : 'No',
+        miv_chapter: meta.miv_chapter || '',
+        is_makv_2047: meta.is_makv ? 'Yes' : 'No',
+        makv_theme: meta.makv_theme || '',
+        is_sgos_2: meta.is_sgos ? 'Yes' : 'No',
+        is_additional_items: meta.is_additional_item ? 'Yes' : 'No',
+        is_gmis: meta.is_gmis ? 'Yes' : 'No',
+        remarks: meta.Response || meta.remarks || meta.comments || meta.Outcomes_Remarks || '',
+        timeline_vision: meta.target_date ? String(meta.target_date).slice(0, 10) : '',
+        expected_completion_date: meta.expected_date ? String(meta.expected_date).slice(0, 10) : ''
+      }));
+    } catch (err) {
+      console.error('Error fetching OVD add data for B2:', err);
+    }
   };
 
   const handleChange = (e) => {
@@ -1573,62 +1565,39 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  // Submit Handler for Add Initiative
+  // Submit Handler for Add Initiative (B2 or B3 mode)
   const handleSubmitAdd = async (e) => {
     e.preventDefault();
     setValidated(true);
 
-    if (!formData.organisation_id) {
-      notify(COMMON_TOASTS.requiredSelect('Implementing Agency'));
-      return;
-    }
-    if (!formData.goal_a1) {
-      notify(COMMON_TOASTS.requiredSelect('National Level Goal (A1)'));
-      return;
-    }
-    if (!formData.intervention_a2) {
-      notify(COMMON_TOASTS.requiredSelect('National Level Intervention (A2)'));
-      return;
-    }
-    if (!formData.goal_b1) {
-      notify(COMMON_TOASTS.requiredSelect('Goal (B1)'));
-      return;
-    }
+    if (!formData.organisation_id) { notify(COMMON_TOASTS.requiredSelect('Implementing Agency')); return; }
+
     if (level === 'B2') {
-      if (!formData.intervention_b2.trim()) {
-        notify(COMMON_TOASTS.requiredInput('Intervention (B2)'));
-        return;
-      }
+      if (!formData.goal_a1) { notify(COMMON_TOASTS.requiredSelect('National Level Goal (A1)')); return; }
+      if (!formData.intervention_a2) { notify(COMMON_TOASTS.requiredSelect('National Level Intervention (A2)')); return; }
+      if (!formData.goal_b1) { notify(COMMON_TOASTS.requiredSelect('Goal (B1)')); return; }
+      if (!formData.intervention_b2.trim()) { notify(COMMON_TOASTS.requiredInput('Intervention (B2)')); return; }
       const hasB3 = b3Rows.some(r => r.actionDes && r.actionDes.trim().length > 0);
-      if (!hasB3) {
-        notify(OVOD_TOASTS.actionableItemRequired());
-        return;
-      }
+      if (!hasB3) { notify(OVOD_TOASTS.actionableItemRequired()); return; }
     } else {
-      if (!formData.action_b3.trim()) {
-        notify(COMMON_TOASTS.requiredInput('Actionable Item (B3)'));
-        return;
-      }
+      if (!formData.goal_b1) { notify(COMMON_TOASTS.requiredSelect('Goal (B1)')); return; }
+      if (!formData.intervention_b2_id) { notify(COMMON_TOASTS.requiredSelect('Intervention (B2)')); return; }
+      if (!formData.action_b3.trim()) { notify(COMMON_TOASTS.requiredInput('Actionable Item (B3)')); return; }
     }
 
     setSubmitting(true);
     try {
       const userId = getUserIdFromToken();
       const validB3Rows = b3Rows.filter(r => r.actionDes && r.actionDes.trim().length > 0);
-
       const payload = {
-        goalA1: parseInt(formData.goal_a1, 10),
-        a2Intervention: parseInt(formData.intervention_a2, 10),
+        goalA1: parseInt(formData.goal_a1, 10) || 0,
+        a2Intervention: parseInt(formData.intervention_a2, 10) || 0,
         goalB1: parseInt(formData.goal_b1, 10),
         interventionB2: formData.intervention_b2,
         interventionB2Code: formData.intervention_code_b2,
-        actionB3: level === 'B2' ? validB3Rows.map(r => ({
-          actionCode: r.actionCode,
-          actionDes: r.actionDes
-        })) : [{
-          actionCode: formData.action_code_b3,
-          actionDes: formData.action_b3
-        }],
+        actionB3: level === 'B2'
+          ? validB3Rows.map(r => ({ actionCode: r.actionCode, actionDes: r.actionDes }))
+          : [{ actionCode: formData.action_code_b3, actionDes: formData.action_b3 }],
         category: formData.rawCategory || 7,
         implementingAgency: parseInt(formData.organisation_id, 10),
         wings: formData.rawWings || 3,
@@ -1639,8 +1608,8 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
         partOfSGoS2: formData.is_sgos_2 === 'Yes' ? 1 : 0,
         partOfGMIS: formData.is_gmis === 'Yes' ? 1 : 0,
         partOfAddItem: formData.is_additional_items === 'Yes' ? 1 : 0,
-        party1: null,
-        party2: null,
+        party1: formData.party1 || null,
+        party2: formData.party2 || null,
         mivChapterSelect: formData.miv_chapter || null,
         makvThemeSelect: formData.makv_theme || null,
         Remarks: formData.remarks || null,
@@ -1648,7 +1617,6 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
         completionDate: formData.timeline_vision || null,
         userID: userId
       };
-
       await saveOvdB2B3Action(payload);
       notify(OVOD_TOASTS.added(level));
       if (onSuccess) onSuccess();
@@ -1673,20 +1641,18 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
           </div>
         </div>
 
-        {/* Level row: add an Intervention (B2) or an Actionable Item (B3) */}
+        {/* Level Selector */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 mx-6 md:mx-8 mt-6 md:mt-8 pb-4 border-b border-slate-200 dark:border-slate-800">
-
           <div className="flex items-center gap-4">
-            {/* Level Selector */}
             <div className="inline-flex items-center space-x-3 bg-slate-100 dark:bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
               <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Level:</span>
               <label className="inline-flex items-center space-x-1.5 cursor-pointer">
                 <input
                   type="radio"
-                  name="level"
+                  name="add_level"
                   value="B2"
                   checked={level === 'B2'}
-                  onChange={() => setLevel('B2')}
+                  onChange={() => { setLevel('B2'); setFormData(prev => ({ ...prev, goal_a1: '', intervention_a2: '', ...RESET_DOWNSTREAM })); setB3Rows([{ id: 1, actionCode: '', actionDes: '' }]); }}
                   className="text-amber-600 focus:ring-amber-500 cursor-pointer"
                 />
                 <span className={`text-xs ${level === 'B2' ? 'font-black text-amber-700 dark:text-amber-400' : 'font-medium text-slate-600 dark:text-slate-400'}`}>
@@ -1696,10 +1662,10 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
               <label className="inline-flex items-center space-x-1.5 cursor-pointer">
                 <input
                   type="radio"
-                  name="level"
+                  name="add_level"
                   value="B3"
                   checked={level === 'B3'}
-                  onChange={() => setLevel('B3')}
+                  onChange={() => { setLevel('B3'); setFormData(prev => ({ ...prev, goal_a1: '', intervention_a2: '', ...RESET_DOWNSTREAM })); setB3Rows([{ id: 1, actionCode: '', actionDes: '' }]); }}
                   className="text-amber-600 focus:ring-amber-500 cursor-pointer"
                 />
                 <span className={`text-xs ${level === 'B3' ? 'font-black text-amber-700 dark:text-amber-400' : 'font-medium text-slate-600 dark:text-slate-400'}`}>
@@ -1707,7 +1673,6 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                 </span>
               </label>
             </div>
-
             <span className="text-[11px] text-slate-500 dark:text-slate-400 italic hidden lg:inline-block">
               *Note: While adding a new B2, you also need to enter at least one B3 along with it.
             </span>
@@ -1760,183 +1725,169 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
               </div>
             </div>
 
-            {/* National Level Goal (A1) & National Level Intervention (A2) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* National Level Goal (A1) */}
-              <div>
-                <label className="module-form-label">
-                  National Level Goal (A1)<span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <select
-                    name="goal_a1"
-                    value={formData.goal_a1}
-                    onChange={handleA1Change}
-                    disabled={!formData.organisation_id}
-                    required
-                    className={`w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border transition-all cursor-pointer disabled:bg-slate-100 disabled:dark:bg-slate-800 disabled:cursor-not-allowed ${
-                      formData.goal_a1 
-                        ? 'border-emerald-500 dark:border-emerald-500 pr-10' 
-                        : validated 
-                        ? 'border-rose-400 dark:border-rose-500' 
-                        : 'border-slate-300 dark:border-slate-700'
-                    }`}
-                  >
-                    <option value="">--Select Goal (A1)--</option>
-                    {a1List.map(a => (
-                      <option key={a.id} value={a.id}>
-                        {a.goal_a1}
-                      </option>
-                    ))}
-                  </select>
-                  {formData.goal_a1 && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                      <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            {level === 'B2' ? (
+              /* ---- B2 MODE: A1 → A2 → B1 → B2 text input + B2 code ---- */
+              <>
+                {/* A1 & A2 */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="module-form-label">National Level Goal (A1)<span className="text-rose-500">*</span></label>
+                    <div className="relative">
+                      <select
+                        name="goal_a1"
+                        value={formData.goal_a1}
+                        onChange={handleA1Change}
+                        disabled={!formData.organisation_id}
+                        required
+                        className={`w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border transition-all cursor-pointer disabled:bg-slate-100 disabled:dark:bg-slate-800 disabled:cursor-not-allowed ${formData.goal_a1 ? 'border-emerald-500 dark:border-emerald-500 pr-10' : validated ? 'border-rose-400 dark:border-rose-500' : 'border-slate-300 dark:border-slate-700'}`}
+                      >
+                        <option value="">--Select Goal (A1)--</option>
+                        {a1List.map(a => <option key={a.id} value={a.id}>{a.goal_a1}</option>)}
+                      </select>
+                      {formData.goal_a1 && <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"><CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /></div>}
                     </div>
-                  )}
-                </div>
-              </div>
-
-              {/* National Level Intervention (A2) */}
-              <div>
-                <label className="module-form-label">
-                  National Level Intervention (A2)<span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <select
-                    name="intervention_a2"
-                    value={formData.intervention_a2}
-                    onChange={handleA2Change}
-                    disabled={!formData.goal_a1}
-                    required
-                    className={`w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border transition-all cursor-pointer disabled:bg-slate-100 disabled:dark:bg-slate-800 disabled:cursor-not-allowed ${
-                      formData.intervention_a2 
-                        ? 'border-emerald-500 dark:border-emerald-500 pr-10' 
-                        : validated 
-                        ? 'border-rose-400 dark:border-rose-500' 
-                        : 'border-slate-300 dark:border-slate-700'
-                    }`}
-                  >
-                    <option value="">--Select Intervention (A2)--</option>
-                    {filteredA2List.map(a => (
-                      <option key={a.id} value={a.id}>
-                        {a.intervention}
-                      </option>
-                    ))}
-                  </select>
-                  {formData.intervention_a2 && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                      <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                  <div>
+                    <label className="module-form-label">National Level Intervention (A2)<span className="text-rose-500">*</span></label>
+                    <div className="relative">
+                      <select
+                        name="intervention_a2"
+                        value={formData.intervention_a2}
+                        onChange={handleA2Change}
+                        disabled={!formData.goal_a1}
+                        required
+                        className={`w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border transition-all cursor-pointer disabled:bg-slate-100 disabled:dark:bg-slate-800 disabled:cursor-not-allowed ${formData.intervention_a2 ? 'border-emerald-500 dark:border-emerald-500 pr-10' : validated ? 'border-rose-400 dark:border-rose-500' : 'border-slate-300 dark:border-slate-700'}`}
+                      >
+                        <option value="">--Select Intervention (A2)--</option>
+                        {filteredA2List.map(a => <option key={a.id} value={a.id}>{a.intervention}</option>)}
+                      </select>
+                      {formData.intervention_a2 && <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"><CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /></div>}
                     </div>
-                  )}
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            {/* Goal (B1), Intervention (B2), Intervention Code (B2) */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Goal (B1) */}
-              <div>
-                <label className="module-form-label">
-                  Goal (B1)<span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <select
-                    name="goal_b1"
-                    value={formData.goal_b1}
-                    onChange={handleB1Change}
-                    disabled={!formData.intervention_a2}
-                    required
-                    className={`w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border transition-all cursor-pointer disabled:bg-slate-100 disabled:dark:bg-slate-800 disabled:cursor-not-allowed ${
-                      formData.goal_b1 
-                        ? 'border-emerald-500 dark:border-emerald-500 pr-10' 
-                        : validated 
-                        ? 'border-rose-400 dark:border-rose-500' 
-                        : 'border-slate-300 dark:border-slate-700'
-                    }`}
-                  >
-                    <option value="">--Select Goal (B1)--</option>
-                    {filteredB1List.map(b => (
-                      <option key={b.id} value={b.id}>
-                        {b.b1_goals}
-                      </option>
-                    ))}
-                  </select>
-                  {formData.goal_b1 && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                      <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                {/* B1, B2 text input, B2 code */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="module-form-label">Goal (B1)<span className="text-rose-500">*</span></label>
+                    <div className="relative">
+                      <select
+                        name="goal_b1"
+                        value={formData.goal_b1}
+                        onChange={handleB1Change}
+                        disabled={!formData.intervention_a2}
+                        required
+                        className={`w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border transition-all cursor-pointer disabled:bg-slate-100 disabled:dark:bg-slate-800 disabled:cursor-not-allowed ${formData.goal_b1 ? 'border-emerald-500 dark:border-emerald-500 pr-10' : validated ? 'border-rose-400 dark:border-rose-500' : 'border-slate-300 dark:border-slate-700'}`}
+                      >
+                        <option value="">--Select Goal (B1)--</option>
+                        {filteredB1List.map(b => <option key={b.id} value={b.id}>{b.b1_goals}</option>)}
+                      </select>
+                      {formData.goal_b1 && <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"><CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /></div>}
                     </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Intervention (B2) */}
-              <div>
-                <label className="module-form-label">
-                  Intervention (B2)<span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  {level === 'B2' ? (
+                  </div>
+                  <div>
+                    <label className="module-form-label">Intervention (B2)<span className="text-rose-500">*</span></label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        name="intervention_b2"
+                        value={formData.intervention_b2}
+                        onChange={handleChange}
+                        disabled={!formData.goal_b1}
+                        placeholder="Enter Intervention (B2)..."
+                        required
+                        className={`w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border transition-all disabled:bg-slate-100 disabled:dark:bg-slate-800 disabled:cursor-not-allowed ${formData.intervention_b2.trim() ? 'border-emerald-500 dark:border-emerald-500 pr-10' : validated ? 'border-rose-500 dark:border-rose-500' : 'border-slate-300 dark:border-slate-700'}`}
+                      />
+                      {formData.intervention_b2.trim() && <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"><CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /></div>}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="module-form-label">Intervention Code (B2)</label>
                     <input
                       type="text"
-                      name="intervention_b2"
-                      value={formData.intervention_b2}
-                      onChange={handleChange}
-                      placeholder="Enter Intervention (B2)..."
-                      required
-                      className={`w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border transition-all ${
-                        formData.intervention_b2.trim()
-                          ? 'border-emerald-500 dark:border-emerald-500 pr-10'
-                          : validated
-                          ? 'border-rose-500 dark:border-rose-500 ring-1 ring-rose-500/30'
-                          : 'border-slate-300 dark:border-slate-700'
-                      }`}
+                      value={formData.intervention_code_b2}
+                      readOnly
+                      disabled
+                      placeholder="Auto-generated"
+                      className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
                     />
-                  ) : (
-                    <select
-                      name="intervention_b2"
-                      value={formData.intervention_b2}
-                      onChange={handleChange}
-                      required
-                      className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700"
-                    >
-                      <option value="">--Select Intervention (B2)--</option>
-                      {filteredB2List.map(b => (
-                        <option key={b.id} value={b.id}>
-                          {b.intervention}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                  {level === 'B2' && formData.intervention_b2.trim() && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                      <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                    </div>
-                  )}
-                  {level === 'B2' && validated && !formData.intervention_b2.trim() && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                      <AlertCircle className="h-4 w-4 text-rose-500" />
-                    </div>
-                  )}
+                  </div>
                 </div>
-              </div>
+              </>
+            ) : (
+              /* ---- B3 MODE: B1 dropdown → B2 select → B3 text input + code ---- */
+              <>
+                {/* B1 & B2 select */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="module-form-label">Goal (B1)<span className="text-rose-500">*</span></label>
+                    <div className="relative">
+                      <select
+                        name="goal_b1"
+                        value={formData.goal_b1}
+                        onChange={handleB1Change}
+                        disabled={!formData.organisation_id}
+                        required
+                        className={`w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border transition-all cursor-pointer disabled:bg-slate-100 disabled:dark:bg-slate-800 disabled:cursor-not-allowed ${formData.goal_b1 ? 'border-emerald-500 dark:border-emerald-500 pr-10' : validated ? 'border-rose-400 dark:border-rose-500' : 'border-slate-300 dark:border-slate-700'}`}
+                      >
+                        <option value="">--Select Goal (B1)--</option>
+                        {filteredB1List.map(b => <option key={b.id} value={b.id}>{b.b1_goals}</option>)}
+                      </select>
+                      {formData.goal_b1 && <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"><CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /></div>}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="module-form-label">Intervention (B2)<span className="text-rose-500">*</span></label>
+                    <div className="relative">
+                      <select
+                        value={formData.intervention_b2_id}
+                        onChange={handleB2Change}
+                        disabled={!formData.goal_b1}
+                        required
+                        className={`w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border transition-all cursor-pointer disabled:bg-slate-100 disabled:dark:bg-slate-800 disabled:cursor-not-allowed ${formData.intervention_b2_id ? 'border-emerald-500 dark:border-emerald-500 pr-10' : validated ? 'border-rose-400 dark:border-rose-500' : 'border-slate-300 dark:border-slate-700'}`}
+                      >
+                        <option value="">--Select Intervention (B2)--</option>
+                        {filteredB2List.map(b => (
+                          <option key={b.id} value={b.id}>{b.b2_code ? `${b.b2_code} : ${b.intervention}` : b.intervention}</option>
+                        ))}
+                      </select>
+                      {formData.intervention_b2_id && <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"><CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /></div>}
+                    </div>
+                  </div>
+                </div>
 
-              {/* Intervention Code (B2) - Read Only */}
-              <div>
-                <label className="module-form-label">
-                  Intervention Code (B2)<span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  name="intervention_code_b2"
-                  value={formData.intervention_code_b2}
-                  readOnly
-                  disabled
-                  placeholder="Auto-generated (e.g. E-CB-23.2)"
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
-                />
-              </div>
-            </div>
+                {/* B3 text input & code */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="module-form-label">Actionable Items (B3)<span className="text-rose-500">*</span></label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        name="action_b3"
+                        value={formData.action_b3}
+                        onChange={handleChange}
+                        disabled={!formData.intervention_b2_id}
+                        placeholder="Enter Actionable Item Description..."
+                        required
+                        className={`w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border transition-all disabled:bg-slate-100 disabled:dark:bg-slate-800 disabled:cursor-not-allowed ${formData.action_b3.trim() ? 'border-emerald-500 dark:border-emerald-500 pr-10' : validated ? 'border-rose-500 dark:border-rose-500' : 'border-slate-300 dark:border-slate-700'}`}
+                      />
+                      {formData.action_b3.trim() && <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"><CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /></div>}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="module-form-label">Actionable Items Code (B3)</label>
+                    <input
+                      type="text"
+                      value={formData.action_code_b3}
+                      readOnly
+                      disabled
+                      placeholder="Auto-generated"
+                      className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
 
             {/* Category, Wings, Priority, Vibhas/Navic - Read Only Auto populated */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1997,17 +1948,17 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
               </div>
             </div>
 
+
           </div>
 
+
           {/* ========================================================================= */}
-          {/* ======================= SECTION 2: ACTIONABLE ITEM ====================== */}
+          {/* ======================= SECTION 2: ACTIONABLE ITEM (B2 mode only) ====== */}
           {/* ========================================================================= */}
-          {level === 'B2' ? (
+          {level === 'B2' && (
             <div className="space-y-3">
               <div className="module-form-section-header">
-                <h2 className="module-form-section-heading">
-                  Actionable Item
-                </h2>
+                <h2 className="module-form-section-heading">Actionable Item</h2>
                 <button
                   type="button"
                   onClick={handleClearB3}
@@ -2016,8 +1967,6 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                   Clear
                 </button>
               </div>
-
-              {/* Actionable Item Table */}
               <div className="border border-slate-200 dark:border-slate-800 rounded overflow-hidden shadow-xs">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead className="bg-[#154b8a] text-white">
@@ -2031,12 +1980,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                   <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
                     {b3Rows.map((row, index) => (
                       <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                        {/* S.No */}
-                        <td className="py-2.5 px-3 text-center border-r border-slate-200 dark:border-slate-800 font-semibold text-slate-700 dark:text-slate-300">
-                          {index + 1}
-                        </td>
-
-                        {/* Actionable Item Code (B3) */}
+                        <td className="py-2.5 px-3 text-center border-r border-slate-200 dark:border-slate-800 font-semibold text-slate-700 dark:text-slate-300">{index + 1}</td>
                         <td className="py-2 px-3 border-r border-slate-200 dark:border-slate-800">
                           <input
                             type="text"
@@ -2047,8 +1991,6 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                             className="w-full text-xs px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold rounded border border-slate-200 dark:border-slate-700 cursor-not-allowed select-none"
                           />
                         </td>
-
-                        {/* Actionable Item Description (B3) */}
                         <td className="py-2 px-3 border-r border-slate-200 dark:border-slate-800">
                           <input
                             type="text"
@@ -2058,8 +2000,6 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                             className="w-full text-xs px-3 py-1.5 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-100 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                           />
                         </td>
-
-                        {/* Action buttons (+ and trash) */}
                         <td className="py-2 px-3 text-center">
                           <div className="flex items-center justify-center space-x-2">
                             <button
@@ -2072,7 +2012,6 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                                 <Plus size={13} className="stroke-[2.5]" />
                               </div>
                             </button>
-
                             {b3Rows.length > 1 && (
                               <button
                                 type="button"
@@ -2089,44 +2028,6 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                     ))}
                   </tbody>
                 </table>
-              </div>
-            </div>
-          ) : (
-            /* Single B3 Entry Mode */
-            <div className="space-y-4">
-              <div className="module-form-section-header">
-                <h2 className="module-form-section-heading">
-                  Actionable Item (B3) Details
-                </h2>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="md:col-span-2">
-                  <label className="module-form-label">
-                    Actionable Item (B3) Description<span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    name="action_b3"
-                    value={formData.action_b3}
-                    onChange={handleChange}
-                    placeholder="Enter Actionable Item Description..."
-                    required
-                    className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 focus:ring-1 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="module-form-label">
-                    Actionable Item Code (B3)
-                  </label>
-                  <input
-                    type="text"
-                    name="action_code_b3"
-                    value={formData.action_code_b3}
-                    onChange={handleChange}
-                    placeholder="e.g. E-CB-23.2.1"
-                    className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700"
-                  />
-                </div>
               </div>
             </div>
           )}
@@ -2306,13 +2207,13 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
               </div>
             </div>
 
-            {/* Row 4: GMIS & Remarks */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+            {/* Row 4: GMIS, 1st Party, 2nd Party & Remarks */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
               <div>
                 <label className="module-form-label">
                   Is it part of GMIS? (Y/N)
                 </label>
-                <div className="flex items-center space-x-6">
+                <div className="flex items-center space-x-6 mt-1">
                   <label className="inline-flex items-center space-x-1.5 text-xs text-slate-700 dark:text-slate-300 cursor-not-allowed">
                     <input
                       type="radio"
@@ -2342,16 +2243,43 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
 
               <div>
                 <label className="module-form-label">
+                  1st Party (in case of GMIS MoU)
+                </label>
+                <input
+                  type="text"
+                  value={formData.party1}
+                  readOnly
+                  disabled
+                  placeholder="Auto populated"
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed"
+                />
+              </div>
+
+              <div>
+                <label className="module-form-label">
+                  2nd Party (in case of GMIS MoU)
+                </label>
+                <input
+                  type="text"
+                  value={formData.party2}
+                  readOnly
+                  disabled
+                  placeholder="Auto populated"
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed"
+                />
+              </div>
+
+              <div>
+                <label className="module-form-label">
                   Remarks
                 </label>
                 <input
                   type="text"
-                  name="remarks"
                   value={formData.remarks}
                   readOnly
                   disabled
                   placeholder="Auto populated"
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed"
                 />
               </div>
             </div>
@@ -2374,13 +2302,11 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                   Timeline As Per Vision Document
                 </label>
                 <input
-                  type="text"
+                  type="date"
                   name="timeline_vision"
                   value={formData.timeline_vision}
-                  readOnly
-                  disabled
-                  placeholder="Auto populated"
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium rounded border border-slate-300 dark:border-slate-700 cursor-not-allowed select-none"
+                  onChange={handleChange}
+                  className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-950 rounded border border-slate-300 dark:border-slate-700 font-medium focus:ring-1 focus:ring-blue-500"
                 />
               </div>
 

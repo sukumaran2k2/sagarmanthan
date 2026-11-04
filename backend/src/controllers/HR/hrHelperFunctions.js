@@ -289,3 +289,15 @@ export function pinOwnOrganisation(paramName = "organisationID") {
         return next();
     };
 }
+
+// For routes whose SQL branches on a :roleID in the URL: use the signed-in user's role instead.
+export function pinOwnRole(paramName = "roleID") {
+    return (req, res, next) => {
+        const roleId = Number(req.user?.roleId);
+        if (!(Number.isFinite(roleId) && roleId > 0)) {
+            return res.status(403).json({ message: "Your account has no role." });
+        }
+        req.params[paramName] = String(roleId);
+        return next();
+    };
+}

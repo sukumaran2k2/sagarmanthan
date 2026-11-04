@@ -37,12 +37,53 @@ import { useShallow } from 'zustand/react/shallow';
 import { useOvodStore } from '../store/useOvodStore';
 import { useNotifier, COMMON_TOASTS } from '../../../utils/notify';
 import { OVOD_TOASTS } from '../toastMessages';
+import { isOrganisationUser } from '../../../utils/authSession';
 
 // Thrown when the API returns no rows, to fall through to the built-in sample hierarchy
 const FALLBACK_NOTICE = 'Using fallback hierarchical dataset';
 
+const COST_FIELDS = ['totalCost', 'capitalExpenditure', 'fundSpend', 'fundReq1Yr', 'fundReq2Yrs', 'fundReq2to5Yrs', 'fundReqGt5Yrs'];
+
+// Rolls up progress (avg) and cost columns (sum) bottom-up through the full hierarchy
+function computeRollup(tree) {
+  const childrenMap = new Map();
+  tree.forEach(node => {
+    if (node.parentId) {
+      if (!childrenMap.has(node.parentId)) childrenMap.set(node.parentId, []);
+      childrenMap.get(node.parentId).push(node.id);
+    }
+  });
+  const nodeMap = new Map(tree.map(n => [n.id, { ...n }]));
+
+  const maxLevel = Math.max(...tree.map(n => n.level ?? 0));
+  for (let lvl = maxLevel - 1; lvl >= 0; lvl--) {
+    nodeMap.forEach(node => {
+      if ((node.level ?? 0) !== lvl) return;
+      const childIds = childrenMap.get(node.id) || [];
+      if (childIds.length === 0) return;
+      const children = childIds.map(cid => nodeMap.get(cid));
+
+      // Progress: average of children
+      const progressSum = children.reduce((acc, c) => acc + (Number(c?.progress) || 0), 0);
+      node.progress = Math.round(progressSum / children.length);
+
+      // Cost columns: sum of children (skip '-' / non-numeric leaves)
+      COST_FIELDS.forEach(field => {
+        const total = children.reduce((acc, c) => {
+          const v = c?.[field];
+          return acc + (v != null && v !== '-' && !isNaN(Number(v)) ? Number(v) : 0);
+        }, 0);
+        node[field] = parseFloat(total.toFixed(2));
+      });
+    });
+  }
+
+  return tree.map(n => nodeMap.get(n.id));
+}
+
 export default function InterventionList({ triggerNotification }) {
   const gridRef = useRef(null);
+  const isOrgUser = isOrganisationUser();
 
   const notify = useNotifier(triggerNotification);
 
@@ -125,21 +166,36 @@ export default function InterventionList({ triggerNotification }) {
       // /OVD-data-count returns a one-row array
       const t = Array.isArray(res) ? res[0] : res?.total?.[0];
       if (t) {
-        setCountsData({
-          goalsA1: t.goals ?? 0,
-          interventionsA2: t.intervention ?? 0,
-          actionItemsA3: t.action ?? 0,
-          goalsB1: t.goals_b1 ?? 0,
-          interventionsB2: t.interventions_b2 ?? 0,
-          actionItemsB3: t.actions_b3 ?? 0,
-          totalCostA: Number(t.total_cost_a ?? 0).toFixed(2),
-          totalCostB: Number(t.total_cost_b ?? t.total_cost ?? 0).toFixed(2)
-        });
+        // Org users: backend returns goals/intervention/action as B1/B2/B3
+        // Ministry users: goals/intervention/action = A1/A2/A3, goals_b1/interventions_b2/actions_b3 = B1/B2/B3
+        if (isOrgUser) {
+          setCountsData({
+            goalsA1: 0,
+            interventionsA2: 0,
+            actionItemsA3: 0,
+            goalsB1: t.goals ?? 0,
+            interventionsB2: t.intervention ?? 0,
+            actionItemsB3: t.action ?? 0,
+            totalCostA: '0.00',
+            totalCostB: Number(t.total_cost_b ?? t.total_cost ?? 0).toFixed(2)
+          });
+        } else {
+          setCountsData({
+            goalsA1: t.goals ?? 0,
+            interventionsA2: t.intervention ?? 0,
+            actionItemsA3: t.action ?? 0,
+            goalsB1: t.goals_b1 ?? 0,
+            interventionsB2: t.interventions_b2 ?? 0,
+            actionItemsB3: t.actions_b3 ?? 0,
+            totalCostA: Number(t.total_cost_a ?? 0).toFixed(2),
+            totalCostB: Number(t.total_cost_b ?? t.total_cost ?? 0).toFixed(2)
+          });
+        }
       }
     } catch (err) {
       console.warn("OVOD Counts error:", err);
     }
-  }, [selectedWing, selectedOrg, selectedVision, selectedPriority, selectedVibhas, selectedMivChapter, selectedMakvTheme]);
+  }, [selectedWing, selectedOrg, selectedVision, selectedPriority, selectedVibhas, selectedMivChapter, selectedMakvTheme, isOrgUser]);
 
   // Fetch Interventions Report & Build Deepdown Hierarchy Tree
   const tableRequestRef = useRef(0);
@@ -186,6 +242,14 @@ export default function InterventionList({ triggerNotification }) {
           }
         };
 
+        // Accumulate unique implementing agencies per node across all rows
+        const nodeOrgCodes = new Map();
+        const addOrgCode = (nodeId, code) => {
+          if (!nodeId || !code || code === '-') return;
+          if (!nodeOrgCodes.has(nodeId)) nodeOrgCodes.set(nodeId, new Set());
+          String(code).split(',').forEach(c => { const t = c.trim(); if (t) nodeOrgCodes.get(nodeId).add(t); });
+        };
+
         rawRows.forEach((item, idx) => {
           let a1, a2, a3, b1, b2, b3;
           if (Array.isArray(item.orgHierarchy)) {
@@ -212,16 +276,16 @@ export default function InterventionList({ triggerNotification }) {
 
           const orgCode = item.orgCode || item.mImpCode || item.ia_name || 'IWAI';
           const progress = item.progress != null ? item.progress : (item.Progress != null ? item.Progress : 0);
-          const totalCost = item.totalCost != null ? item.totalCost : (item['Total Cost'] != null ? item['Total Cost'] : 0);
-          const jobTitle = (item.jobTitle || item.Category || 'Process').trim();
-          const wing = item.wing || item.Wing || 'Shipping';
-          const employmentType = item.employmentType || item.Priority || 'II';
-          const Vibhas = item.Vibhas || 'States';
-          const TargetDate = formatDate(item.TargetDate || item['Target Date']);
+          const totalCost = item.total_cost != null ? item.total_cost : (item.totalCost != null ? item.totalCost : (item['Total Cost'] != null ? item['Total Cost'] : 0));
+          const jobTitle = (item.jobTitle || item.category || item.Category || 'Process').trim();
+          const wing = item.wing || item.wings || item.Wing || 'Shipping';
+          const employmentType = item.employmentType || item.priority || item.Priority || 'II';
+          const Vibhas = item.Vibhas || item.vibhas || 'States';
+          const TargetDate = formatDate(item.TargetDate || item.target_date || item['Target Date']);
           const capitalExpenditure = item.capitalExpenditure != null ? item.capitalExpenditure : (item['Capital Expenditure'] != null ? item['Capital Expenditure'] : 0);
           const sourceOfFunding = item.sourceOfFunding || item['Source of Funding'] || '-';
           const fundSpend = item.fundSpend != null ? item.fundSpend : (item['Fund Spend'] != null ? item['Fund Spend'] : 0);
-          const currentStatus = item.currentStatus || item['Current Status'] || 'In Progress';
+          const currentStatus = item.currentStatus || item.current_status || item['Current Status'] || 'In Progress';
           const fundReq1Yr = item.oneYear != null ? item.oneYear : (item['One Year'] != null ? item['One Year'] : 0);
           const fundReq2Yrs = item.threeYears != null ? item.threeYears : (item['Three Years'] != null ? item['Three Years'] : 0);
           const fundReq2to5Yrs = item.bet35Year != null ? item.bet35Year : (item['Three - Five Years'] != null ? item['Three - Five Years'] : 0);
@@ -233,6 +297,9 @@ export default function InterventionList({ triggerNotification }) {
           const b1Key = b1 ? `${a2Key || 'top'}-b1-${b1}` : null;
           const b2Key = b2 ? `${b1Key}-b2-${b2}` : null;
           const b3Key = b3 ? `${b2Key}-b3-${b3}-${idx}` : null;
+
+          // Accumulate orgCode for every ancestor node this row belongs to
+          [a1Key, a2Key, b1Key, b2Key, b3Key].forEach(key => addOrgCode(key, orgCode));
 
           if (a1Key && !seenA1.has(a1Key)) {
             seenA1.add(a1Key);
@@ -297,9 +364,9 @@ export default function InterventionList({ triggerNotification }) {
               level: 4,
               hasChildren: false,
               interventionList: b3,
-              orgCode, progress, totalCost: '-', jobTitle, wing, employmentType, Vibhas, TargetDate,
-              capitalExpenditure: '-', sourceOfFunding: '-', fundSpend: '-', currentStatus,
-              fundReq1Yr: '-', fundReq2Yrs: '-', fundReq2to5Yrs: '-', fundReqGt5Yrs: '-', remarks
+              orgCode, progress, totalCost, jobTitle, wing, employmentType, Vibhas, TargetDate,
+              capitalExpenditure, sourceOfFunding, fundSpend, currentStatus,
+              fundReq1Yr, fundReq2Yrs, fundReq2to5Yrs, fundReqGt5Yrs, remarks
             });
           }
         });
@@ -308,8 +375,11 @@ export default function InterventionList({ triggerNotification }) {
           const parentIds = new Set(tree.map(n => n.parentId).filter(Boolean));
           tree.forEach(n => {
             n.hasChildren = parentIds.has(n.id);
+            // Replace orgCode with the full de-duplicated set collected across all rows
+            const codes = nodeOrgCodes.get(n.id);
+            if (codes && codes.size > 0) n.orgCode = Array.from(codes).join(', ');
           });
-          setRawData(tree);
+          setRawData(computeRollup(tree));
           return;
         }
       }
@@ -321,7 +391,7 @@ export default function InterventionList({ triggerNotification }) {
       // The deliberate fallback (no rows returned) is not an error; a failed request is
       if (err.message !== FALLBACK_NOTICE) notify(COMMON_TOASTS.loadFailed('The intervention list'));
       // Full 5-Level Deepdown Hierarchy matching both user screenshots!
-      setRawData([
+      setRawData(computeRollup([
         {
           id: 'a1-ncb1',
           parentId: null,
@@ -1172,7 +1242,7 @@ export default function InterventionList({ triggerNotification }) {
           fundReqGt5Yrs: 0,
           remarks: "Centralized maritime BI dashboards deployed."
         }
-      ]);
+      ]));
     } finally {
       if (!isStale()) setLoading(false);
     }
@@ -1340,11 +1410,26 @@ export default function InterventionList({ triggerNotification }) {
       wrapText: true,
       autoHeight: true,
       wrapHeaderText: true,
-      cellRenderer: (params) => (
-        <span className="font-semibold text-slate-700 dark:text-slate-200 break-words whitespace-normal leading-snug py-1 block">
-          {params.value || 'IMU, CEMS'}
-        </span>
-      )
+      cellRenderer: (params) => {
+        const agencies = String(params.value || '').split(',').map(a => a.trim()).filter(Boolean);
+        if (agencies.length === 0) return null;
+        if (agencies.length === 1) {
+          return (
+            <span className="font-semibold text-slate-700 dark:text-slate-200 break-words whitespace-normal leading-snug py-1 block">
+              {agencies[0]}
+            </span>
+          );
+        }
+        return (
+          <div className="flex flex-wrap gap-1 py-1.5">
+            {agencies.map((agency, i) => (
+              <span key={i} className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-semibold bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 leading-tight border border-slate-200 dark:border-slate-600">
+                {agency}
+              </span>
+            ))}
+          </div>
+        );
+      }
     },
     {
       headerName: "Progress (in %)",
@@ -1567,7 +1652,7 @@ export default function InterventionList({ triggerNotification }) {
           }
         },
         {
-          headerName: "2 Years",
+          headerName: "3 Years",
           field: "fundReq2Yrs",
           width: 120,
           minWidth: 110,
@@ -1588,7 +1673,7 @@ export default function InterventionList({ triggerNotification }) {
           }
         },
         {
-          headerName: ">2 Upto 5 Years",
+          headerName: ">3 Upto 5 Years",
           field: "fundReq2to5Yrs",
           width: 150,
           minWidth: 135,
@@ -1670,49 +1755,51 @@ export default function InterventionList({ triggerNotification }) {
     { label: 'Fund Spent', key: 'fundSpend' },
     { label: 'Current Status', key: 'currentStatus' },
     { label: '1 Year (in Cr)', key: 'fundReq1Yr' },
-    { label: '2 Years (in Cr)', key: 'fundReq2Yrs' },
-    { label: '>2 Upto 5 Years (in Cr)', key: 'fundReq2to5Yrs' },
+    { label: '3 Years (in Cr)', key: 'fundReq2Yrs' },
+    { label: '>3 Upto 5 Years (in Cr)', key: 'fundReq2to5Yrs' },
     { label: '> 5 Years (in Cr)', key: 'fundReqGt5Yrs' },
     { label: 'Remarks', key: 'remarks' }
   ], []);
 
-  const exportData = useMemo(() => filteredData.map((r) => ({
+  const exportData = useMemo(() => {
+    const safeFixed = (v) => { const n = Number(v); return (v == null || v === '-' || isNaN(n)) ? '0.00' : n.toFixed(2); };
+    const safeNum   = (v) => { const n = Number(v); return (v == null || v === '-' || isNaN(n)) ? 0 : n; };
+    return filteredData.map((r) => ({
     interventionList: r.interventionList,
     orgCode: r.orgCode,
     progress: r.progress != null ? `${r.progress}%` : '0%',
-    totalCost: r.totalCost != null ? Number(r.totalCost).toFixed(2) : '0.00',
+    totalCost: safeFixed(r.totalCost),
     jobTitle: r.jobTitle,
     wing: r.wing,
     employmentType: r.employmentType,
     Vibhas: r.Vibhas,
     TargetDate: r.TargetDate,
-    capitalExpenditure: r.capitalExpenditure != null ? Number(r.capitalExpenditure).toFixed(2) : '0.00',
+    capitalExpenditure: safeFixed(r.capitalExpenditure),
     sourceOfFunding: r.sourceOfFunding,
-    fundSpend: r.fundSpend != null ? Number(r.fundSpend).toFixed(2) : '0.00',
+    fundSpend: safeFixed(r.fundSpend),
     currentStatus: r.currentStatus || 'In Progress',
-    fundReq1Yr: r.fundReq1Yr != null ? r.fundReq1Yr : 0,
-    fundReq2Yrs: r.fundReq2Yrs != null ? r.fundReq2Yrs : 0,
-    fundReq2to5Yrs: r.fundReq2to5Yrs != null ? r.fundReq2to5Yrs : 0,
-    fundReqGt5Yrs: r.fundReqGt5Yrs != null ? r.fundReqGt5Yrs : 0,
+    fundReq1Yr: safeNum(r.fundReq1Yr),
+    fundReq2Yrs: safeNum(r.fundReq2Yrs),
+    fundReq2to5Yrs: safeNum(r.fundReq2to5Yrs),
+    fundReqGt5Yrs: safeNum(r.fundReqGt5Yrs),
     remarks: r.remarks || ''
-  })), [filteredData]);
+  }));
+  }, [filteredData]);
 
   return (
     <div className="space-y-4 animate-fade-in relative select-none text-slate-800 dark:text-slate-100">
       
-      {/* 8 Stat Cards in 2 Rows matching Image 1 */}
-      <div className="space-y-3.5">
-        
-        {/* ROW 1 */}
+      {/* Stat Cards — A row (ministry users only) */}
+      {!isOrgUser && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          
-          <div className="rounded-2xl p-4 bg-[#fbcfe8]/60 dark:bg-pink-950/40 border border-pink-200/80 dark:border-pink-900/50 shadow-xs flex flex-col items-center justify-center text-center relative">
+
+          <div className="rounded-2xl p-4 bg-violet-100/70 dark:bg-violet-950/40 border border-violet-200/80 dark:border-violet-900/50 shadow-xs flex flex-col items-center justify-center text-center">
             <div className="flex items-center space-x-1.5">
               <span className="text-2xl font-black text-slate-800 dark:text-slate-100 font-display">
                 {countsData.goalsA1}
               </span>
-              <div className="h-6 w-6 rounded-full bg-white/80 dark:bg-slate-800 flex items-center justify-center text-pink-500 shadow-xs">
-                <Star size={13} className="fill-pink-400 text-pink-500" />
+              <div className="h-6 w-6 rounded-full bg-white/80 dark:bg-slate-800 flex items-center justify-center text-violet-500 shadow-xs">
+                <Star size={13} className="fill-violet-400 text-violet-500" />
               </div>
             </div>
             <p className="text-[11px] font-extrabold text-slate-600 dark:text-slate-300 tracking-wide mt-1">
@@ -1720,12 +1807,12 @@ export default function InterventionList({ triggerNotification }) {
             </p>
           </div>
 
-          <div className="rounded-2xl p-4 bg-[#e9d5ff]/60 dark:bg-purple-950/40 border border-purple-200/80 dark:border-purple-900/50 shadow-xs flex flex-col items-center justify-center text-center relative">
+          <div className="rounded-2xl p-4 bg-blue-100/70 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-900/50 shadow-xs flex flex-col items-center justify-center text-center">
             <div className="flex items-center space-x-1.5">
               <span className="text-2xl font-black text-slate-800 dark:text-slate-100 font-display">
                 {countsData.interventionsA2}
               </span>
-              <div className="h-6 w-6 rounded-full bg-white/80 dark:bg-slate-800 flex items-center justify-center text-purple-600 shadow-xs">
+              <div className="h-6 w-6 rounded-full bg-white/80 dark:bg-slate-800 flex items-center justify-center text-blue-600 shadow-xs">
                 <Layers size={13} />
               </div>
             </div>
@@ -1734,12 +1821,12 @@ export default function InterventionList({ triggerNotification }) {
             </p>
           </div>
 
-          <div className="rounded-2xl p-4 bg-[#99f6e4]/60 dark:bg-teal-950/40 border border-teal-200/80 dark:border-teal-900/50 shadow-xs flex flex-col items-center justify-center text-center relative">
+          <div className="rounded-2xl p-4 bg-sky-100/70 dark:bg-sky-950/40 border border-sky-200/80 dark:border-sky-900/50 shadow-xs flex flex-col items-center justify-center text-center">
             <div className="flex items-center space-x-1.5">
               <span className="text-2xl font-black text-slate-800 dark:text-slate-100 font-display">
                 {countsData.actionItemsA3}
               </span>
-              <div className="h-6 w-6 rounded-full bg-white/80 dark:bg-slate-800 flex items-center justify-center text-teal-600 shadow-xs">
+              <div className="h-6 w-6 rounded-full bg-white/80 dark:bg-slate-800 flex items-center justify-center text-sky-600 shadow-xs">
                 <Users size={13} />
               </div>
             </div>
@@ -1748,13 +1835,13 @@ export default function InterventionList({ triggerNotification }) {
             </p>
           </div>
 
-          <div className="rounded-2xl p-4 bg-[#fed7aa]/70 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/50 shadow-xs flex flex-col items-center justify-center text-center relative">
+          <div className="rounded-2xl p-4 bg-emerald-100/70 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-900/50 shadow-xs flex flex-col items-center justify-center text-center">
             <div className="flex items-center space-x-1.5">
               <span className="text-2xl font-black text-slate-800 dark:text-slate-100 font-display">
                 {countsData.totalCostA}
               </span>
-              <div className="h-6 w-6 rounded-full bg-white/80 dark:bg-slate-800 flex items-center justify-center text-amber-600 shadow-xs">
-                <Pencil size={13} />
+              <div className="h-6 w-6 rounded-full bg-white/80 dark:bg-slate-800 flex items-center justify-center text-emerald-600 shadow-xs">
+                <DollarSign size={13} />
               </div>
             </div>
             <p className="text-[11px] font-extrabold text-slate-600 dark:text-slate-300 tracking-wide mt-1">
@@ -1763,8 +1850,11 @@ export default function InterventionList({ triggerNotification }) {
           </div>
 
         </div>
+      )}
 
-        {/* ROW 2 */}
+      {/* Stat Cards — B row */}
+      <div className="space-y-3.5">
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           
           <div className="rounded-2xl p-4 bg-[#fecdd3]/70 dark:bg-rose-950/40 border border-rose-200/80 dark:border-rose-900/50 shadow-xs flex flex-col items-center justify-center text-center relative">

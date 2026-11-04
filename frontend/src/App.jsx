@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import MainLayout, { ROUTE_MAP, getTabFromSlug } from './layouts/MainLayout';
 import LoginView from './modules/Login/Login';
+import WelcomeView from './modules/Welcome/Welcome';
 import Loader from './components/Loader';
 import { Activity, Sparkles } from 'lucide-react';
 import { TAB_USER_MODULE_PERMISSION, TAB_USER_MASTER_MANAGEMENT, TAB_USER_LIST, normalizeTab } from './utils/moduleAccess';
@@ -9,7 +10,6 @@ import { resetAllStores } from './stores/resetRegistry';
 
 // Lazy-loaded feature modules for code splitting and instant initial page load
 const LandingView = lazy(() => import('./modules/Landing/Landing'));
-const DashboardView = lazy(() => import('./modules/Dashboard/Dashboard'));
 const Projects = lazy(() => import('./modules/Projects/Projects'));
 const CSRProjectsView = lazy(() => import('./modules/CSRProjects/CSRProjects'));
 const GMISMOUView = lazy(() => import('./modules/GMISMOU/GMISMOU'));
@@ -160,6 +160,10 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     return !!localStorage.getItem('accessToken');
   });
+  const [showWelcome, setShowWelcome] = useState(() => {
+    // Show welcome page each session (cleared on tab close)
+    return !sessionStorage.getItem('welcomeSeen');
+  });
   const [showNetworkCheck, setShowNetworkCheck] = useState(false);
   const [isManualNetworkCheck, setIsManualNetworkCheck] = useState(false);
 
@@ -210,6 +214,16 @@ export default function App() {
   };
 
   if (!isLoggedIn) {
+    if (showWelcome) {
+      return (
+        <WelcomeView
+          onContinue={() => {
+            sessionStorage.setItem('welcomeSeen', '1');
+            setShowWelcome(false);
+          }}
+        />
+      );
+    }
     return <LoginView onLogin={handleLoginSuccess} />;
   }
 
@@ -257,10 +271,15 @@ export default function App() {
             {/* Projects Routes */}
             <Route path="projects" element={<Navigate to="/projects/project/project-list" replace />} />
             <Route path="projects/project" element={<Navigate to="/projects/project/project-list" replace />} />
-            <Route path="projects/project/project-dashboard" element={<DashboardView projects={projects} />} />
-            <Route path="projects/project/dashboard" element={<DashboardView projects={projects} />} />
-            <Route path="projects/project-dashboard" element={<DashboardView projects={projects} />} />
-            <Route path="projects/dashboard" element={<DashboardView projects={projects} />} />
+            <Route path="projects/project/project-dashboard" element={
+              <Projects
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
+            <Route path="projects/project/dashboard" element={<Navigate to="/projects/project/project-dashboard" replace />} />
+            <Route path="projects/project-dashboard" element={<Navigate to="/projects/project/project-dashboard" replace />} />
+            <Route path="projects/dashboard" element={<Navigate to="/projects/project/project-dashboard" replace />} />
 
             <Route path="projects/project/project-list" element={
               <Projects

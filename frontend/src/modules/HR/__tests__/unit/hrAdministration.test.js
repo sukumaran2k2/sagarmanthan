@@ -8,7 +8,7 @@ import {
   filterEmployees,
   separationConfirmMessage,
   validateActivityForm,
-} from '../../utils/hrAdministration';
+} from '../../pages/Administration/administrationConfig';
 
 const ids = { employeeId: 11, empMasterId: 22, organisationID: 7, userID: 3 };
 const form = (patch) => ({ ...emptyActivityForm(), ...patch });

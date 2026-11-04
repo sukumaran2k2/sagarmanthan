@@ -1,5 +1,5 @@
 import { ChevronDown } from 'lucide-react';
-import { CLASS_OPTIONS } from '../utils/hrAdministration';
+import { CLASS_OPTIONS } from '../constants';
 
 // Filter panel shared by the HR list pages (the Vacancy Management design)
 

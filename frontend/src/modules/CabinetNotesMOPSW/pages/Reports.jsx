@@ -23,11 +23,34 @@ function linkButton(label, onClick) {
     <button
       type="button"
       onClick={onClick}
-      className="bg-transparent border-0 text-[#4b2424] dark:text-[#eadede] font-extrabold underline cursor-pointer text-[13px] p-0"
+      className="bg-transparent border-0 text-[#4b2424] dark:text-[#eadede] font-extrabold underline cursor-pointer text-[13px] p-0 hover:opacity-80"
     >
       {label}
     </button>
   );
+}
+
+// Cell styling shared with the Cabinet Notes Other reports
+const CENTRED_CELL_STYLE = { textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center' };
+
+// Wrapped text that stays vertically centred (same as Cabinet Notes Other)
+const centredWrapCell = (justifyContent) => ({
+  autoHeight: true,
+  wrapText: false,
+  cellClass: 'flex items-center',
+  cellStyle: { display: 'flex', alignItems: 'center', justifyContent, whiteSpace: 'normal', lineHeight: '1.35' },
+});
+
+function wrappedText(value, align = 'left') {
+  return (
+    <div className={`w-full text-${align} font-bold text-slate-800 dark:text-slate-200 whitespace-normal break-words leading-snug py-1.5`}>
+      {value || '-'}
+    </div>
+  );
+}
+
+function totalLabel() {
+  return <span className="font-black text-[#4b2424] dark:text-[#eadede] tracking-wider uppercase">Total</span>;
 }
 
 function formatAsOnDate(date = new Date()) {
@@ -94,6 +117,18 @@ function aggregateBy(rows, idGetter, seedRow) {
 function flattenColumns(cols = []) {
   return cols.flatMap((col) => (col.children ? flattenColumns(col.children) : [col]));
 }
+
+function isNumericValue(val) {
+  return typeof val === 'number' || (typeof val === 'string' && val.trim() !== '' && !isNaN(Number(val)));
+}
+
+const DEFAULT_COL_DEF = {
+  sortable: true,
+  filter: true,
+  resizable: true,
+  wrapHeaderText: true,
+  autoHeaderHeight: true,
+};
 
 export default function CabinetNotesReports({ notify }) {
   // Stages come from the module store (loaded once by the shell); the view choice is kept there too
@@ -173,6 +208,12 @@ export default function CabinetNotesReports({ notify }) {
 
         const field = col.field || '';
         const header = col.headerName || '';
+        const baseCol = {
+          ...col,
+          minWidth: col.minWidth || Math.max(130, header.length * 9 + 40),
+          headerClass: 'text-center font-bold',
+          cellStyle: CENTRED_CELL_STYLE,
+        };
 
         if (
           field === 'S No' ||
@@ -181,26 +222,25 @@ export default function CabinetNotesReports({ notify }) {
           header === 'S.No'
         ) {
           return {
-            ...col,
+            ...baseCol,
             pinned: 'left',
             lockPinned: true,
             suppressMovable: true,
             width: col.width || 70,
             minWidth: 60,
-            cellRenderer: (p) => (
-              <span
-                style={{
-                  fontWeight: 800,
-                  fontSize: 11,
-                  fontFamily: 'monospace',
-                  color: '#4b2424',
-                }}
-              >
-                {p.value}
-              </span>
-            ),
+            cellClass: 'text-center flex items-center justify-center',
+            cellRenderer: (p) => {
+              if (p.node?.rowPinned) return '';
+              return (
+                <div className="w-full flex items-center justify-center text-center font-extrabold text-xs font-mono text-[#4b2424] dark:text-[#eadede]">
+                  {p.value}
+                </div>
+              );
+            },
           };
         }
+
+        const isNameCol = WING_FIELDS.has(field) || DIVISION_FIELDS.has(field);
 
         if (
           (field === 'Wing Name' || field === 'Wing') &&
@@ -208,12 +248,15 @@ export default function CabinetNotesReports({ notify }) {
           reportView === 'wing'
         ) {
           return {
-            ...col,
+            ...baseCol,
+            minWidth: col.minWidth || 220,
+            ...centredWrapCell('flex-start'),
             pinned: 'left',
             cellRenderer: (p) => {
               const wingId = wingIdOf(p.data);
               const wingName = p.value;
-              if (!wingId || wingName === 'Total') return p.value;
+              if (p.node?.rowPinned || wingName === 'Total') return totalLabel();
+              if (!wingId) return wrappedText(wingName);
               return linkButton(wingName, () => {
                 setDrillDownPath((prev) => [
                   ...prev,
@@ -230,15 +273,51 @@ export default function CabinetNotesReports({ notify }) {
           };
         }
 
-        if (currentView?.type === 'detail') return col;
+        if (isNameCol) {
+          return {
+            ...baseCol,
+            minWidth: col.minWidth || 220,
+            ...centredWrapCell('flex-start'),
+            cellRenderer: (p) => (p.node?.rowPinned || p.value === 'Total' ? totalLabel() : wrappedText(p.value)),
+          };
+        }
+
+        if (field === 'Subject' || header === 'Subject' || field === 'subject') {
+          return {
+            ...baseCol,
+            minWidth: 260,
+            flex: 2,
+            ...centredWrapCell('flex-start'),
+            cellRenderer: (p) => wrappedText(p.value),
+          };
+        }
+
+        if (currentView?.type === 'detail') {
+          return { ...baseCol, ...centredWrapCell('center') };
+        }
 
         const stageId = lookupStageDrilldownId(stageMap, field, header);
-        if (stageId == null) return col;
+        if (stageId == null) {
+          return {
+            ...baseCol,
+            cellRenderer: (p) => (p.node?.rowPinned
+              ? <span className="font-black text-[#4b2424] dark:text-[#eadede]">{p.value ?? 0}</span>
+              : p.value),
+          };
+        }
 
         return {
-          ...col,
+          ...baseCol,
           cellRenderer: (p) => {
             const countVal = Number(p.value);
+            // The Total row has no wing / division to drill into
+            if (p.node?.rowPinned) {
+              return (
+                <span className="font-black text-[#4b2424] dark:text-[#eadede]">
+                  {Number.isFinite(countVal) ? countVal : 0}
+                </span>
+              );
+            }
             if (!Number.isFinite(countVal) || countVal <= 0) {
               return <span className="text-slate-400 dark:text-slate-500">-</span>;
             }
@@ -310,6 +389,25 @@ export default function CabinetNotesReports({ notify }) {
     const rest = visible.filter((col) => !isSerial(col));
     return [...serial, ...rest];
   }, [currentView, stageMap, reportCols, isSummary, reportView]);
+
+  // Old portal pinned a Total row under the wing / division abstracts (not the note-level detail)
+  const pinnedBottomRowData = useMemo(() => {
+    if (currentView?.type === 'detail' || viewData.length === 0) return undefined;
+    const labelField = columns
+      .map((col) => col.field)
+      .find((field) => WING_FIELDS.has(field) || DIVISION_FIELDS.has(field));
+    const totalRow = {};
+    Object.keys(viewData[0]).forEach((key) => {
+      if (!isNumericKey(key)) {
+        totalRow[key] = '';
+        return;
+      }
+      if (!viewData.some((row) => isNumericValue(row[key]))) return;
+      totalRow[key] = viewData.reduce((sum, row) => sum + (Number(row[key]) || 0), 0);
+    });
+    if (labelField) totalRow[labelField] = 'Total';
+    return [totalRow];
+  }, [currentView, viewData, columns]);
 
   const reportTitle = isSummary
     ? form11Title(abstractLevel(reportView))
@@ -404,7 +502,10 @@ export default function CabinetNotesReports({ notify }) {
           onBack={() => setDrillDownPath((prev) => prev.slice(0, -1))}
           rawData={viewData}
           viewData={viewData}
+          pinnedBottomRowData={pinnedBottomRowData}
           columns={columns}
+          defaultColDef={DEFAULT_COL_DEF}
+          autoHeaderHeight
           loading={loading}
           onRefresh={() => setReloadKey((k) => k + 1)}
           pagination

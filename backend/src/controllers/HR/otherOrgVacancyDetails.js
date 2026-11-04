@@ -814,17 +814,25 @@ async function fileUploadVacancyDetails(req, res) {
         const uniqueFileName = req.uniqueFileName;
  
         // Check if data already exists
-        const checkResult = await transaction.request().query(`
+        const checkResult = await transaction.request()
+            .input("month", String(month))
+            .input("financialYear", financialYear)
+            .input("organisationID", organisationID)
+            .query(`
             SELECT COUNT(*) AS count
             FROM tbl_hr_other_org_vacancy_details
-            WHERE Uploaded_month = '${month}' AND Uploaded_year = ${financialYear} AND organisation_id = ${organisationID};
+            WHERE Uploaded_month = @month AND Uploaded_year = @financialYear AND organisation_id = @organisationID;
         `);
  
         if (checkResult.recordset[0].count > 0) {
-            const storedFileID = await transaction.request().query(`
+            const storedFileID = await transaction.request()
+                .input("month", String(month))
+                .input("financialYear", financialYear)
+                .input("organisationID", organisationID)
+                .query(`
                 SELECT MAX(Entry_id) AS File_Id
                 FROM tbl_hr_other_org_vacancy_details
-                WHERE Uploaded_month = '${month}' AND Uploaded_year = ${financialYear} AND organisation_id = ${organisationID};
+                WHERE Uploaded_month = @month AND Uploaded_year = @financialYear AND organisation_id = @organisationID;
             `);
             const replaceFileID = storedFileID.recordset[0].File_Id;
  
@@ -864,14 +872,22 @@ async function fileUploadVacancyDetails(req, res) {
         }
  
         // Insert into file metadata table
-        await transaction.request().query(`
+        await transaction.request()
+            .input("financialYear", String(financialYear))
+            .input("month", String(month))
+            .input("fileName", uniqueFileName)
+            .input("userID", userID)
+            .input("organisationID", String(organisationID))
+            .query(`
             INSERT INTO tbl_hr_other_org_vacancy_file_details (Uploaded_year,uploaded_month,file_name, uploaded_by, uploaded_date,organisation_id)
-            VALUES ('${financialYear}','${month}','${uniqueFileName}', ${userID}, GETDATE(),'${organisationID}')
+            VALUES (@financialYear, @month, @fileName, @userID, GETDATE(), @organisationID)
         `);
  
-        const fileIdResult = await transaction.request().query(`
+        const fileIdResult = await transaction.request()
+            .input("fileName", uniqueFileName)
+            .query(`
             SELECT TOP 1 Uploaded_File_id FROM tbl_hr_other_org_vacancy_file_details
-            WHERE file_name = '${uniqueFileName}' ORDER BY Uploaded_File_id DESC
+            WHERE file_name = @fileName ORDER BY Uploaded_File_id DESC
         `);
  
         const fileId = fileIdResult.recordset[0].Uploaded_File_id;

@@ -91,8 +91,6 @@ export const HR_TOASTS = {
     toastError('Delete Failed', withReason('The post could not be deleted. Please try again.', reason)),
 
   // Employee database
-  employeesExported: (count) =>
-    toastSuccess('Export Complete', `${count} employee ${count === 1 ? 'record was' : 'records were'} exported.`),
   employeeAdded: (name, id) =>
     toastSuccess('Employee Added', `${quoted(name, 'The employee')}${id ? ` (${id})` : ''} has been added to the employee database.`),
   // Add Employee from a vacant post (the form checks the vacancy before submitting)

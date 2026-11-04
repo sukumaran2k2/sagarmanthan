@@ -98,8 +98,8 @@ export const useYpStore = create((set, get) => ({
     failed.forEach(r => console.error("Failed to load YP wings & divisions:", r.reason));
 
     set({
-      wings: wRes.status === 'fulfilled' ? (wRes.value.data || []) : [],
-      divisions: dRes.status === 'fulfilled' ? (dRes.value.data || []) : [],
+      wings: wRes.status === 'fulfilled' ? (wRes.value.data || []) : wings,
+      divisions: dRes.status === 'fulfilled' ? (dRes.value.data || []) : divisions,
       loadingMetadata: false,
       metadataError: failed.length > 0 ? 'Failed to load wings and divisions.' : null
     });

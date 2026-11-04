@@ -1,18 +1,19 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { 
-  Building2, 
-  Anchor, 
-  Layers, 
-  TrendingUp, 
-  Coins, 
-  CheckCircle2, 
-  Clock, 
-  AlertTriangle, 
-  Filter, 
-  ChevronDown, 
-  RotateCcw, 
-  X, 
-  Tag 
+import {
+  Building2,
+  Anchor,
+  Network,
+  Layers,
+  TrendingUp,
+  Coins,
+  CheckCircle2,
+  Clock,
+  AlertTriangle,
+  Filter,
+  ChevronDown,
+  RotateCcw,
+  X,
+  Tag
 } from 'lucide-react';
 import ReportTable from '../../../components/ReportTable';
 import { useAICopilot } from '../../../context/AICopilotContext';
@@ -43,10 +44,10 @@ const REPORTS = [
   {
     id: 'org',
     code: 'Report 1.3',
-    label: 'Other Organization',
-    fullTitle: 'Report No. 1.3 - Other Organization Performance Ranking Report - Drishti Portal (OVOD)',
-    icon: Layers
-  }
+    label: 'Other Organisations',
+    fullTitle: 'Report No. 1.3 - Other Organisations Performance Ranking Report - Drishti Portal (OVOD)',
+    icon: Network
+  },
 ];
 
 // Baseline data matching the official Ministry baseline dataset
@@ -440,6 +441,7 @@ export default function Reports({ triggerNotification }) {
       });
     }
 
+    if (activeTab !== 'org') return [];
     return OTHER_ORGS_NAMES.map((orgName, idx) => {
       const matched = allRows.filter((r) => {
         const org = String(r.ia_name || r.organisation_name || '').toLowerCase();
@@ -1052,7 +1054,7 @@ export default function Reports({ triggerNotification }) {
         )
       },
       {
-        headerName: activeTab === 'wing' ? "Wing" : "Organisation",
+        headerName: activeTab === 'wing' ? "Wing" : activeTab === 'port' ? "Major Port" : "Organisation",
         field: "ia_name",
         minWidth: 190,
         flex: 1.3,

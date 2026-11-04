@@ -187,10 +187,10 @@ async function deleteHrPost(req, res) {
     
     try {
         const firstDelete = await request.query(`
-            DELETE tbl_hr_post WHERE post_id = ${postId}
+            DELETE tbl_hr_post WHERE post_id = @postId
         `);
         const secondDelete = await request.query(`
-            DELETE tbl_hr_post_strength WHERE post_id = ${postId}
+            DELETE tbl_hr_post_strength WHERE post_id = @postId
         `);
         return res.sendStatus(201);
     } catch (err) {
@@ -300,7 +300,7 @@ async function getOrganisationStructurePosts(req, res) {
 }
 
 async function addOrganisationStructurePost(req, res) {
-    const {
+    let {
         organisationId,
         departmentId,
         classId,
@@ -308,6 +308,17 @@ async function addOrganisationStructurePost(req, res) {
         sanctionedStrength,
         payscaleRange
     } = req.body;
+
+    // Organisation users add posts to their own organisation only (from the token, not the form)
+    const { isWide, isOrganisation, organisationId: ownOrg } = getDataScope(req.user);
+    if (isOrganisation) {
+        if (!(Number.isFinite(ownOrg) && ownOrg > 0)) {
+            return res.status(403).json({ message: "Your account is not linked to an organisation." });
+        }
+        organisationId = ownOrg;
+    } else if (!isWide) {
+        return res.status(403).json({ message: "You may not add posts." });
+    }
 
     if (!organisationId || !departmentId || !classId || !postName) {
         return res.status(400).json({ message: "Missing required fields: organisationId, departmentId, classId, and postName are required" });

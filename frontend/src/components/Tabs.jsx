@@ -161,6 +161,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           title: 'Project',
           icon: FolderOpen,
           items: [
+            m('PROJECTS', { label: 'Project Dashboard', tab: 'projects-dashboard', icon: LayoutDashboard }),
             m('PROJECTS', { label: 'Project List', tab: 'projects-list', icon: ListTodo }),
             m('PROJECTS', { label: 'Projects Less Than 5 Cr', tab: 'projects-less5cr', icon: Coins }),
             m('PROJECTS', { label: 'Lumpsum - IWAI', tab: 'projects-lumpsum', icon: TrendingUp }),
