@@ -3,6 +3,8 @@ import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
 import { applyDataScope } from "../../middleware/dataScope.js";
+import { getClam } from '../../utils/clamav.js';
+import { Readable } from 'stream';
 
 // 1. Create Young Professional
 async function createYoungProfessional(req, res) {
@@ -422,15 +424,18 @@ async function relieveYoungProfessional(req, res) {
 }
 
 // 7. Multer Upload & Document File Download
-const uploadDestination = './demoFiles/yp_candidate_document';
-if (!fs.existsSync(uploadDestination)) {
-    fs.mkdirSync(uploadDestination, { recursive: true });
+const uploadDestination = './fileuploads/Young_Professionals/yp_candidate_document';
+const quarantineDestination = './fileuploads/Young_Professionals/yp_quarantine';
+
+for (const dir of [uploadDestination, quarantineDestination]) {
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
 const storage = multer.diskStorage({
-    destination: (req, file, callback) => callback(null, uploadDestination),
+    destination: (req, file, callback) => callback(null, quarantineDestination),
     filename: (req, file, callback) => {
-        const uniqueFileName = `${Date.now()}_${file.originalname}`;
+        const safeOriginal = path.basename(file.originalname).replace(/[^a-zA-Z0-9._-]/g, '_');
+        const uniqueFileName = `${Date.now()}_${safeOriginal}`;
         req.uniqueFileName = uniqueFileName;
         callback(null, uniqueFileName);
     }
@@ -438,87 +443,127 @@ const storage = multer.diskStorage({
 
 const upload = multer({
     storage,
-    limits: { fileSize: 10 * 1024 * 1024 } // 10 MB
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+    fileFilter: (req, file, callback) => {
+        const isPdf =
+            file.mimetype === 'application/pdf' ||
+            file.originalname.toLowerCase().endsWith('.pdf');
+        if (!isPdf) return callback(new Error('ONLY_PDF'));
+        callback(null, true);
+    }
 }).single('file');
 
-/*
-async function uploadYPDocument(req, res) {
-    upload(req, res, async function (err) {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ error: 'Error uploading file' });
-        }
-        if (!req.file) {
-            return res.status(400).json({ error: 'No file uploaded' });
-        }
+const removeFile = (p) => fs.promises.unlink(p).catch(() => {});
 
-        try {
-            const ypId = parseInt(req.params.candidateId); // Route has candidateId
-            const fileName = req.uniqueFileName;
-
-            const conn = await pool;
-            const updateRequest = conn.request();
-            updateRequest.input('ypId', ypId);
-            updateRequest.input('fileName', fileName);
-            await updateRequest.query(`
-                UPDATE dbo.tbl_young_professionals
-                SET appointment_document = @fileName
-                WHERE yp_id = @ypId
-            `);
-
-            res.status(201).json({ message: 'Document uploaded successfully', fileName });
-        } catch (error) {
-            console.error("Error updating yp document in DB:", error);
-            res.status(500).json({ error: 'Internal server error' });
-        }
-    });
+async function isRealPdf(filePath) {
+    const fh = await fs.promises.open(filePath, 'r');
+    try {
+        const buf = Buffer.alloc(5);
+        await fh.read(buf, 0, 5, 0);
+        return buf.toString() === '%PDF-';
+    } finally {
+        await fh.close();
+    }
 }
-
-async function ypFileDownload(req, res) {
-    const { fileName } = req.query;
-    const filePath = path.join(uploadDestination, fileName);
-
-    fs.readFile(filePath, (err, data) => {
-        if (err) {
-            console.error("Error reading file:", err);
-            res.status(555).send("Internal Server Error");
-        } else {
-            res.setHeader('Content-disposition', 'attachment; filename=' + fileName);
-            res.setHeader('Content-type', 'application/pdf');
-            res.send(data);
-        }
-    });
+async function moveFile(from, to) {
+    try {
+        await fs.promises.rename(from, to);
+    } catch (e) {
+        await fs.promises.copyFile(from, to);
+        await removeFile(from);
+    }
 }
-*/
 
 async function uploadYPDocument(req, res) {
     upload(req, res, async function (err) {
         if (err) {
             console.error(err);
-            return res.status(550).json({ error: 'Error uploading file' });
+            if (err.code === 'LIMIT_FILE_SIZE') {
+                return res.status(413).json({ error: 'File too large. Maximum size is 10 MB.' });
+            }
+            if (err.message === 'ONLY_PDF') {
+                return res.status(400).json({ error: 'Only PDF files are allowed.' });
+            }
+            return res.status(400).json({ error: 'Error uploading file' });
         }
         if (!req.file) {
             return res.status(400).json({ error: 'No file uploaded' });
         }
 
+        const quarantinePath = req.file.path;
+
+        const ypId = parseInt(
+            req.params.candidateId ?? req.params.youngProfessionalId ?? req.params.ypId,
+            10
+        );
+        if (Number.isNaN(ypId)) {
+            await removeFile(quarantinePath);
+            return res.status(400).json({ error: 'Invalid young professional id' });
+        }
+
+        // ---- 1. Validate content and scan for viruses BEFORE touching the DB ----
         try {
-            const ypId = parseInt(req.params.candidateId);
-            const fileName = req.uniqueFileName;
+            if (!(await isRealPdf(quarantinePath))) {
+                await removeFile(quarantinePath);
+                return res.status(400).json({ error: 'Invalid file. Only genuine PDF files are allowed.' });
+            }
+
+            const clam = await getClam();
+            // scanStream sends the bytes over TCP, so it works with ClamAV in Docker
+            const { isInfected, viruses } = await clam.scanStream(fs.createReadStream(quarantinePath));
+
+            if (isInfected === true) {
+                await removeFile(quarantinePath);
+                console.warn('Infected upload rejected:', req.file.originalname, viruses);
+                return res.status(422).json({
+                    error: 'The uploaded file was rejected because a virus was detected.'
+                });
+            }
+
+            // isInfected can be null when the scan could not complete -> fail closed
+            if (isInfected !== false) {
+                await removeFile(quarantinePath);
+                return res.status(503).json({
+                    error: 'File scanning could not be completed. Please try again later.'
+                });
+            }
+        } catch (scanErr) {
+            console.error('ClamAV scan error:', scanErr);
+            await removeFile(quarantinePath); // fail closed: never keep an unscanned file
+            return res.status(503).json({
+                error: 'File scanning service is unavailable. Please try again later.'
+            });
+        }
+
+        // ---- 2. File is clean: move to final folder, then update the DB ----
+        const fileName = req.uniqueFileName;
+        const finalPath = path.join(uploadDestination, fileName);
+
+        try {
+            await moveFile(quarantinePath, finalPath);
+
             const relativePath = `${uploadDestination}/${fileName}`.replace(/\\/g, '/');
 
             const conn = await pool;
             const updateRequest = conn.request();
             updateRequest.input('ypId', ypId);
             updateRequest.input('fileName', relativePath);
-            await updateRequest.query(`
+            const result = await updateRequest.query(`
                 UPDATE dbo.tbl_young_professionals
                 SET appointment_document = @fileName
                 WHERE yp_id = @ypId
             `);
 
+            if (!result.rowsAffected || result.rowsAffected[0] === 0) {
+                await removeFile(finalPath);
+                return res.status(404).json({ error: 'Young professional not found' });
+            }
+
             res.status(201).json({ message: 'Document uploaded successfully', fileName: relativePath });
         } catch (error) {
-            console.error("Error updating yp document in DB:", error);
+            console.error("Error saving yp document:", error);
+            await removeFile(finalPath);
+            await removeFile(quarantinePath);
             res.status(500).json({ error: 'Internal server error' });
         }
     });
@@ -526,28 +571,23 @@ async function uploadYPDocument(req, res) {
 
 async function ypFileDownload(req, res) {
     const { fileName } = req.query;
-    if (!fileName) {
+    if (!fileName || typeof fileName !== 'string') {
         return res.status(400).send("Bad Request: fileName is required");
     }
 
-    let filePath;
-    if (fileName.includes('/') || fileName.includes('\\')) {
-        filePath = path.resolve(fileName);
-    } else {
-        filePath = path.join(uploadDestination, fileName);
-    }
-
-    const resolvedBase = path.basename(filePath);
+    // Security: only use the base name and always read from the upload folder.
+    // The old code allowed any path (e.g. ../../.env) to be downloaded.
+    const safeName = path.basename(fileName.replace(/\\/g, '/'));
+    const filePath = path.join(uploadDestination, safeName);
 
     fs.readFile(filePath, (err, data) => {
         if (err) {
             console.error("Error reading file:", err);
-            res.status(550).send("File Not Found");
-        } else {
-            res.setHeader('Content-disposition', 'attachment; filename=' + encodeURIComponent(resolvedBase));
-            res.setHeader('Content-type', 'application/octet-stream');
-            res.send(data);
+            return res.status(404).send("File Not Found");
         }
+        res.setHeader('Content-Disposition', 'attachment; filename=' + encodeURIComponent(safeName));
+        res.setHeader('Content-Type', 'application/pdf');
+        res.send(data);
     });
 }
 
