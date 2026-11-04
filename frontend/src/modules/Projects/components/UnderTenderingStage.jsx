@@ -77,7 +77,8 @@ export default function UnderTenderingStage({
   }, [projectIDProp, subProjectIDProp, initialData]);
 
   const { projectID, subProjectID } = identity;
-  const [onNominationBasisAwarded, setOnNominationBasisAwarded] = useState('0');
+  const [onNominationBasisAwarded, setOnNominationBasisAwarded] = useState('');
+  const [nominationBasisLocked, setNominationBasisLocked] = useState(false);
   const [numberOfTenderCalls, setNumberOfTenderCalls] = useState('');
   const [rows, setRows] = useState(buildDefaultTenderRows);
   const [foundationLaid, setFoundationLaid] = useState('');
@@ -173,7 +174,25 @@ export default function UnderTenderingStage({
           )
         );
         const meta = mapTenderMetaFromCostApi(costRow);
+
         setOnNominationBasisAwarded(meta.onNominationBasisAwarded);
+
+        // const nominationBasisDbValue = costRow?.on_nomination_basis;
+
+        // setNominationBasisLocked(
+        //   nominationBasisDbValue !== null &&
+        //   nominationBasisDbValue !== undefined
+        // );
+        const nominationValue = costRow?.on_nomination_basis;
+        setOnNominationBasisAwarded(
+          nominationValue === null || nominationValue === undefined
+            ? ''
+            : String(nominationValue)
+        );
+
+        setNominationBasisLocked(
+          nominationValue !== null && nominationValue !== undefined
+        );
         setNumberOfTenderCalls(meta.numberOfTenderCalls);
         setFoundationLaid(meta.foundationLaid);
         setFoundationLaidDate(meta.foundationLaidDate);
@@ -703,7 +722,7 @@ export default function UnderTenderingStage({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="border border-amber-200 bg-amber-50 rounded-xl p-4 space-y-2">
+        {/* <div className="border border-amber-200 bg-amber-50 rounded-xl p-4 space-y-2">
           <p className="text-xs font-bold text-slate-800">Is the project awarded on nomination basis?</p>
           <div className="flex items-center gap-6 text-xs font-semibold text-slate-700">
             <label className="inline-flex items-center gap-2">
@@ -713,7 +732,37 @@ export default function UnderTenderingStage({
               <input type="radio" value="0" checked={onNominationBasisAwarded === '0'} disabled={disabled} onChange={(e) => setOnNominationBasisAwarded(e.target.value)} /> No
             </label>
           </div>
-        </div>
+        </div> */}
+
+        <div className="border border-amber-200 bg-amber-50 rounded-xl p-4 space-y-2">
+  <p className="text-xs font-bold text-slate-800">
+    Is the project awarded on nomination basis?
+  </p>
+
+  <div className="flex items-center gap-6 text-xs font-semibold text-slate-700">
+    <label className="inline-flex items-center gap-2">
+      <input
+        type="radio"
+        value="1"
+        checked={onNominationBasisAwarded === '1'}
+        disabled={disabled || nominationBasisLocked}
+        onChange={(e) => setOnNominationBasisAwarded(e.target.value)}
+      />
+      Yes
+    </label>
+
+    <label className="inline-flex items-center gap-2">
+      <input
+        type="radio"
+        value="0"
+        checked={onNominationBasisAwarded === '0'}
+        disabled={disabled || nominationBasisLocked}
+        onChange={(e) => setOnNominationBasisAwarded(e.target.value)}
+      />
+      No
+    </label>
+  </div>
+</div>
 
         <div className="border border-amber-200 bg-amber-50 rounded-xl p-4">
           <label className="block text-xs font-bold text-slate-800 mb-2">Number of Tender Calls till Date</label>
