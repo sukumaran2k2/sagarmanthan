@@ -59,22 +59,12 @@ export function fetchYoungProfessionals(params = {}) {
   return api.get('/young-professional', { params });
 }
 
-export function fetchYoungProfessionalById(id) {
-  return api.get('/young-professional', { params: { search: id } });
-}
-
 export function createYoungProfessional(payload) {
   return api.post('/young-professional', payload);
 }
 
 export function updateYoungProfessional(id, payload) {
   return api.put(`/young-professional/${id}`, payload);
-}
-
-// Hard-delete endpoint — backend wired, but no UI confirmation modal yet.
-// Wire to a dedicated "Delete" action (separate from Relieve) before exposing to users.
-export function deleteYoungProfessional(id) {
-  return api.delete(`/delete-young-professional/${id}`);
 }
 
 export function fetchYpWingCandidates(wingId) {

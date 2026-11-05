@@ -514,8 +514,7 @@ async function uploadYPDocument(req, res) {
             }
 
             const clam = await getClam();
-            // scanStream sends the bytes over TCP, so it works with ClamAV in Docker
-            const { isInfected, viruses } = await clam.scanStream(fs.createReadStream(quarantinePath));
+            const { isInfected, viruses } = await clam.isInfected(quarantinePath);
 
             if (isInfected === true) {
                 await removeFile(quarantinePath);

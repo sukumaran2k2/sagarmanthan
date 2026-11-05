@@ -2,16 +2,15 @@ import NodeClam from 'clamscan';
 import fs from 'fs';
 
 let clamAV = null;
-let initError = null;
 
 /**
  * Lazily initialises the clamscan instance once.
  * Prefers TCP socket to ClamAV daemon (for Docker sidecar);
  * falls back to local CLI (clamscan / clamdscan) for bare-metal / dev.
+ * Resets on failure so the next call retries (handles slow ClamAV startup).
  */
 async function getClamAV() {
     if (clamAV) return clamAV;
-    if (initError) throw initError;
 
     const host = process.env.CLAMAV_HOST || '127.0.0.1';
     const port = parseInt(process.env.CLAMAV_PORT || '3310', 10);
@@ -38,7 +37,7 @@ async function getClamAV() {
         clamAV = await new NodeClam().init(options);
         return clamAV;
     } catch (err) {
-        initError = err;
+        clamAV = null; // allow retry on next call
         throw err;
     }
 }
