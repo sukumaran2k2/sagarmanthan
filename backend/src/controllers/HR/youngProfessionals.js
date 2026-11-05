@@ -7,6 +7,9 @@ import { applyDataScope } from "../../middleware/dataScope.js";
 import { getClam } from '../../utils/clamav.js';
 import { Readable } from 'stream';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 // 1. Create Young Professional
 async function createYoungProfessional(req, res) {
     const {
@@ -425,8 +428,9 @@ async function relieveYoungProfessional(req, res) {
 }
 
 // 7. Multer Upload & Document File Download
-const uploadDestination = './fileuploads/Young_Professionals/yp_candidate_document';
-const quarantineDestination = './fileuploads/Young_Professionals/yp_quarantine';
+// Absolute paths so the server works regardless of process.cwd() (e.g. PM2, workspace scripts)
+const uploadDestination = path.join(__dirname, '../../../fileuploads/Young_Professionals/yp_candidate_document');
+const quarantineDestination = path.join(__dirname, '../../../fileuploads/Young_Professionals/yp_quarantine');
 
 for (const dir of [uploadDestination, quarantineDestination]) {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -543,12 +547,11 @@ async function uploadYPDocument(req, res) {
         try {
             await moveFile(quarantinePath, finalPath);
 
-            const relativePath = `${uploadDestination}/${fileName}`.replace(/\\/g, '/');
-
             const conn = await pool;
             const updateRequest = conn.request();
             updateRequest.input('ypId', ypId);
-            updateRequest.input('fileName', relativePath);
+            // Store only the bare filename; the download handler joins it with uploadDestination
+            updateRequest.input('fileName', fileName);
             const result = await updateRequest.query(`
                 UPDATE dbo.tbl_young_professionals
                 SET appointment_document = @fileName
@@ -560,7 +563,7 @@ async function uploadYPDocument(req, res) {
                 return res.status(404).json({ error: 'Young professional not found' });
             }
 
-            res.status(201).json({ message: 'Document uploaded successfully', fileName: relativePath });
+            res.status(201).json({ message: 'Document uploaded successfully', fileName });
         } catch (error) {
             console.error("Error saving yp document:", error);
             await removeFile(finalPath);
