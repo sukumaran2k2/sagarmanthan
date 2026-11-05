@@ -996,47 +996,51 @@ export default function ProjectBasicInfoForm({
       if (!getMultiValue(formData.state).length) {
         nextErrors.state = 'State is required';
       }
+
       if (!getMultiValue(formData.district).length) {
         nextErrors.district = 'District is required';
       }
+
       if (!getMultiValue(formData.mpConstituency).length) {
         nextErrors.mpConstituency = 'MP constituency is required';
       }
 
-      if (formData.onLandAcquistion !== 0 && formData.onLandAcquistion !== 1) {
-        nextErrors.onLandAcquistion = 'Please select whether land acquisition is needed';
+      // Land Acquisition Needed validation
+      if (formData.onLandAcquistion !== 0 &&  formData.onLandAcquistion !== 1) {
+        nextErrors.onLandAcquistion ='Please select whether land acquisition is needed';
       }
 
+      // Land Acquisition = Yes
       if (formData.onLandAcquistion === 1) {
-        const area = Number(formData.landAreaReq);
-        if (
-          !String(formData.landAreaReq || '').trim() ||
-          String(formData.landAreaReq).includes('-') ||
-          Number.isNaN(area) ||
-          area <= 0
-        ) {
-          nextErrors.landAreaReq = 'Enter a valid land area required (greater than 0, no negative values)';
+        const rawArea = String(formData.landAreaReq ?? '').trim();
+        const area = Number(rawArea);
+
+        if (rawArea === '' || rawArea.includes('-') || Number.isNaN(area) || area <= 0) {
+          nextErrors.landAreaReq ='Enter a valid land area required (greater than 0, no negative values)';
         }
 
         if (formData.onAcquisitionCompleted !== 0 && formData.onAcquisitionCompleted !== 1) {
-          nextErrors.onAcquisitionCompleted = 'Please select whether acquisition is completed';
+          nextErrors.onAcquisitionCompleted ='Please select whether acquisition is completed';
         }
+      }
 
-        if (formData.onAcquisitionCompleted === 0) {
-          const pct = Number(formData.percentLandAcquired);
-          if (
-            formData.percentLandAcquired === '' ||
-            formData.percentLandAcquired == null ||
-            String(formData.percentLandAcquired).includes('-') ||
-            Number.isNaN(pct) ||
-            pct < 0 ||
-            pct > 100
-          ) {
-            nextErrors.percentLandAcquired = 'Enter land acquired percentage between 0 and 100 (no negative values)';
-          }
+      // % Land Acquired validation
+      // Required when Land Acquisition = No
+      // OR Land Acquisition = Yes and Acquisition Completed = No
+
+      const isPercentLandAcquiredRequired = formData.onLandAcquistion === 0 ||(formData.onLandAcquistion === 1 && formData.onAcquisitionCompleted === 0);
+
+      if (isPercentLandAcquiredRequired) {
+        const rawPct = String(formData.percentLandAcquired ?? '').trim();
+
+        const pct = Number(rawPct);
+
+        if (rawPct === '' || rawPct.includes('-') || Number.isNaN(pct) || pct < 0 || pct > 100) {
+          nextErrors.percentLandAcquired ='Enter land acquired percentage between 0 and 100 (no negative values)';
         }
       }
     }
+
 
     // Timeline fields are rendered in the General Details tab, so 'basic' must check them too.
     if (sectionId === 'timeline' || sectionId === 'basic') {
@@ -2575,6 +2579,7 @@ export default function ProjectBasicInfoForm({
                   <FieldError error={errors.onLandAcquistion} />
                 </div>
 
+              
                 {formData.onLandAcquistion === 1 && (
                   <>
                     <div>
@@ -2583,7 +2588,9 @@ export default function ProjectBasicInfoForm({
                         type="number"
                         step="0.01"
                         value={formData.landAreaReq}
-                        onChange={(e) => handleInputChange('landAreaReq', e.target.value)}
+                        onChange={(e) =>
+                          handleInputChange('landAreaReq', e.target.value)
+                        }
                         placeholder="Area in Acres"
                         disabled={!canInteract}
                         className={getInputClass('landAreaReq')}
@@ -2605,18 +2612,23 @@ export default function ProjectBasicInfoForm({
                             type="radio"
                             name="onAcquisitionCompleted"
                             checked={formData.onAcquisitionCompleted === 1}
-                            onChange={() => handleInputChange('onAcquisitionCompleted', 1)}
+                            onChange={() =>
+                              handleInputChange('onAcquisitionCompleted', 1)
+                            }
                             disabled={!canInteract}
                             className="text-blue-600"
                           />
                           <span>Yes</span>
                         </label>
+
                         <label className="flex items-center space-x-1.5 cursor-pointer">
                           <input
                             type="radio"
                             name="onAcquisitionCompleted"
                             checked={formData.onAcquisitionCompleted === 0}
-                            onChange={() => handleInputChange('onAcquisitionCompleted', 0)}
+                            onChange={() =>
+                              handleInputChange('onAcquisitionCompleted', 0)
+                            }
                             disabled={!canInteract}
                             className="text-blue-600"
                           />
@@ -2625,25 +2637,30 @@ export default function ProjectBasicInfoForm({
                       </div>
                       <FieldError error={errors.onAcquisitionCompleted} />
                     </div>
-
-                    {formData.onAcquisitionCompleted === 0 && (
-                      <div>
-                        <Label required>% Land Acquired</Label>
-                        <input
-                          type="number"
-                          step="0.1"
-                          max="100"
-                          value={formData.percentLandAcquired}
-                          onChange={(e) => handleInputChange('percentLandAcquired', e.target.value)}
-                          placeholder="e.g. 75"
-                          disabled={!canInteract}
-                          className={getInputClass('percentLandAcquired')}
-                        />
-                        <FieldError error={errors.percentLandAcquired} />
-                      </div>
-                    )}
                   </>
                 )}
+
+                {(formData.onLandAcquistion === 0 ||
+                  (formData.onLandAcquistion === 1 &&
+                    formData.onAcquisitionCompleted === 0)) && (
+                  <div>
+                    <Label required>% Land Acquired</Label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      max="100"
+                      value={formData.percentLandAcquired}
+                      onChange={(e) =>
+                        handleInputChange('percentLandAcquired', e.target.value)
+                      }
+                      placeholder="e.g. 75"
+                      disabled={!canInteract}
+                      className={getInputClass('percentLandAcquired')}
+                    />
+                    <FieldError error={errors.percentLandAcquired} />
+                  </div>
+                )}
+
               </div>
             </div>
 
