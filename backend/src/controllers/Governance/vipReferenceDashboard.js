@@ -38,7 +38,7 @@ async function getVipReferenceDashboard(req, res) {
           END)
         AS INT)                                                         AS avg_age_active_days,
         MAX(notes.updated_date)                                         AS last_data_update
-      FROM tbl_vip_reference_change AS notes
+      FROM tbl_vip_reference AS notes
     `);
 
     const kpi = kpiResult.recordset[0] || {};
@@ -58,7 +58,7 @@ async function getVipReferenceDashboard(req, res) {
           GETDATE()
         ))                                                               AS max_days
       FROM mmt_vip_stage AS stage
-      LEFT JOIN tbl_vip_reference_change AS notes
+      LEFT JOIN tbl_vip_reference AS notes
         ON notes.stage_id = stage.vip_stage_id
         AND notes.stage_id != 6
       GROUP BY stage.vip_stage_id, stage.vip_stage_name
@@ -80,7 +80,7 @@ async function getVipReferenceDashboard(req, res) {
         wings.wing_name,
         COUNT(notes.vip_reference_id)                                   AS pending_count
       FROM mmt_wings AS wings
-      LEFT JOIN tbl_vip_reference_change AS notes
+      LEFT JOIN tbl_vip_reference AS notes
         ON notes.wing = wings.wing_id
         AND notes.stage_id != 6
       GROUP BY wings.wing_id, wings.wing_name
@@ -100,7 +100,7 @@ async function getVipReferenceDashboard(req, res) {
           COALESCE(${STAGE_DATE_CASE}, notes.created_date),
           GETDATE()
         )                                                                AS pending_days
-      FROM tbl_vip_reference_change AS notes
+      FROM tbl_vip_reference AS notes
       INNER JOIN mmt_vip_stage AS stage
         ON stage.vip_stage_id = notes.stage_id
       INNER JOIN mmt_wings AS wings

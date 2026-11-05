@@ -8,6 +8,7 @@ import { exportGridToExcel, exportGridToPdf } from '../utils/exportGridReport';
 export default function ReportTable({
   title,
   subtitle,
+  exportSubtitle,
   eyebrow,
   onBack,
   showBackButton = false,
@@ -187,10 +188,18 @@ export default function ReportTable({
   const isSerialCol = (col) => ['S No', 'S.No'].includes(col.field) || ['S No', 'S.No'].includes(col.headerName);
   const cellText = (col, row) => {
     let val;
-    if (col.valueFormatter && typeof col.valueFormatter === 'function') {
-      try { val = col.valueFormatter({ value: row[col.field], data: row }); } catch { val = row[col.field]; }
-    } else {
+    if (col.valueGetter && typeof col.valueGetter === 'function') {
+      try { val = col.valueGetter({ data: row }); } catch { val = undefined; }
+    } else if (col.field) {
       val = row[col.field];
+      if ((val === null || val === undefined) && col.headerName && col.headerName !== col.field) {
+        val = row[col.headerName];
+      }
+    } else if (col.headerName) {
+      val = row[col.headerName];
+    }
+    if (col.valueFormatter && typeof col.valueFormatter === 'function') {
+      try { val = col.valueFormatter({ value: val, data: row }); } catch { /* keep val */ }
     }
     return val === undefined || val === null || typeof val === 'object' ? '' : val;
   };
@@ -205,11 +214,13 @@ export default function ReportTable({
   };
 
   const handleReportExport = (type) => {
+    const resolvedSubtitle = exportSubtitle
+      || (typeof subtitle === 'string' ? subtitle : undefined);
     const options = {
       title: title || 'Report',
-      subtitle: typeof subtitle === 'string' ? subtitle : undefined,
+      subtitle: resolvedSubtitle,
       columns: effectiveColumns,
-      rows: displayedRows(),
+      rows: effectiveData,
       pinnedRows: pinnedBottomRowData || [],
     };
     const fileName = type === 'Excel'
@@ -244,9 +255,7 @@ export default function ReportTable({
       }).join('\t');
       tsv += rowTsv + '\n';
     };
-    gridRef.current.api.forEachNodeAfterFilterAndSort((node) => {
-      if (node.data) addRow(node.data, false);
-    });
+    effectiveData.forEach((row) => addRow(row, false));
     (pinnedBottomRowData || []).forEach((row) => addRow(row, true));
 
     navigator.clipboard.writeText(tsv)
