@@ -149,7 +149,6 @@ export default function ConsultantAppointmentView({ triggerNotification }) {
 
           <Route path="reports" element={
             <Reports
-              wings={wings}
               triggerNotification={triggerNotification}
             />
           } />

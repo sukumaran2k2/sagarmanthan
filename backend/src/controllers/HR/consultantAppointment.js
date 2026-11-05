@@ -15,7 +15,6 @@ function toBit(value) {
 
 async function createConsultantAppointment(req, res) {
     try {
-        console.log("createConsultantAppointment payload:", req.body);
         const wing = req.body.wing;
         const division = req.body.division;
         const numberOfResources = req.body.resourceNumber || req.body.numberOfResources || 1;

@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-export const API_BASE = import.meta.env.VITE_API_BASE_URL;
+const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 const api = axios.create({ baseURL: API_BASE });
 
@@ -58,10 +58,6 @@ export function fetchConsultantAppointmentDashboard() {
 
 export function fetchConsultantAppointments(params = {}) {
   return api.get('/consultant-appointment', { params });
-}
-
-export function fetchConsultantAppointmentById(id) {
-  return api.get(`/edit-consultant-appointment/${id}`);
 }
 
 export function createConsultantAppointment(payload) {

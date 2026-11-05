@@ -258,30 +258,9 @@ export default function DataList({
           setCompletedCount(payload.pagination.completedCount || 0);
         }
       } else {
-        const list = Array.isArray(payload) ? payload : [];
-        const parsed = list.map((item, idx) => ({
-          ...parseAppointmentRow(item),
-          sNo: idx + 1
-        }));
-        const total = parsed.length;
-        const comp = parsed.filter(item => item.status === 'Contract Signed').length;
-        const pend = total - comp;
-        setAllCount(total);
-        setCompletedCount(comp);
-        setPendingCount(pend);
-
-        let filtered = parsed;
-        if (activeTab === 'pending') {
-          filtered = filtered.filter(item => item.status !== 'Contract Signed');
-        } else if (activeTab === 'completed') {
-          filtered = filtered.filter(item => item.status === 'Contract Signed');
-        }
-        if (selectedStage && selectedStage !== 'All Stages') {
-          filtered = filtered.filter(item => item.status === selectedStage);
-        }
-        setData(filtered);
-        setTotalCount(filtered.length);
-        setTotalPages(Math.ceil(filtered.length / pageSize) || 1);
+        setData([]);
+        setTotalCount(0);
+        setTotalPages(1);
       }
     } catch (err) {
       if (isStale()) return;

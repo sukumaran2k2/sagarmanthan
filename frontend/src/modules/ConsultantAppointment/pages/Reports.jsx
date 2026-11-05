@@ -1,20 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { fetchConsultantReport, fetchConsultantDivisionReport, fetchCaWingWiseCandidates, fetchCaDivisionWiseCandidates, fetchWings } from '../api';
+import { fetchConsultantReport, fetchConsultantDivisionReport, fetchCaWingWiseCandidates, fetchCaDivisionWiseCandidates } from '../api';
 import ReportTable from '../../../components/ReportTable';
 
-export default function Reports({ wings = [], triggerNotification }) {
-  const [localWings, setLocalWings] = useState(wings);
-
-  useEffect(() => {
-    if (wings && wings.length > 0) {
-      setLocalWings(wings);
-    } else {
-      fetchWings()
-        .then(res => setLocalWings(res.data || []))
-        .catch(err => console.error("Error loading wings in report:", err));
-    }
-  }, [wings]);
-
+export default function Reports({ triggerNotification }) {
   const [drillDownPath, setDrillDownPath] = useState([
     { type: 'abstract', title: 'Report No.: 2.3A - Abstract ( Wing Wise ) - Consultant Appointment' }
   ]);
@@ -63,7 +51,7 @@ export default function Reports({ wings = [], triggerNotification }) {
             // 1. Click Wing Name -> go to Division Report
             if (isWingName && currentView.type === 'abstract') {
               if (params.node && params.node.rowPinned) {
-                return <strong style={{ fontWeight: 800, color: '#4b2424' }}>{params.value}</strong>;
+                return <strong className="font-extrabold text-[#4b2424]">{params.value}</strong>;
               }
               return (
                 <button
@@ -75,17 +63,7 @@ export default function Reports({ wings = [], triggerNotification }) {
                       title: `Division Wise Report - ${params.value}`
                     }]);
                   }}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#4b2424',
-                    fontWeight: 800,
-                    textDecoration: 'underline',
-                    cursor: 'pointer',
-                    fontSize: '13px'
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.opacity = '0.7'; }}
-                  onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
+                  className="bg-transparent border-none text-[#4b2424] font-extrabold underline cursor-pointer text-[13px] hover:opacity-70 transition-opacity"
                 >
                   {params.value}
                 </button>
@@ -93,7 +71,7 @@ export default function Reports({ wings = [], triggerNotification }) {
             }
 
             if (params.node && params.node.rowPinned) {
-              return <strong style={{ fontWeight: 800, color: '#4b2424' }}>{params.value}</strong>;
+              return <strong className="font-extrabold text-[#4b2424]">{params.value}</strong>;
             }
 
             return params.value;
@@ -231,9 +209,9 @@ export default function Reports({ wings = [], triggerNotification }) {
     const monthStr = now.toLocaleString('en-IN', { month: 'long', year: 'numeric' });
     return (
       <>
-        <span>As on date: <strong style={{ color: '#4b2424' }}>{dateStr}</strong></span>
-        <span style={{ color: '#eadede' }}>•</span>
-        <span>Report for the month — <strong style={{ color: '#4b2424' }}>{monthStr}</strong></span>
+        <span>As on date: <strong className="text-[#4b2424]">{dateStr}</strong></span>
+        <span className="text-[#eadede]">•</span>
+        <span>Report for the month — <strong className="text-[#4b2424]">{monthStr}</strong></span>
       </>
     );
   }, []);

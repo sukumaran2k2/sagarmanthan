@@ -140,9 +140,7 @@ export default function InputForm({
 
   const isFieldInvalid = (field, val) => {
     if (errors[field]) return true;
-    if (field.endsWith('Date')) {
-      return !!errors[field];
-    }
+    if (field.endsWith('Date')) return false;
     if (touched[field]) {
       return !val || (typeof val === 'string' && !val.trim());
     }
@@ -354,7 +352,6 @@ export default function InputForm({
       workOrderIssuedRemarks: remarks.workOrderIssued || null,
       contractSignedDate: dates.contractSignedDate || null,
       contractSignedRemarks: remarks.contractSigned || null,
-      remarks: remarks,
       consultingFirmName: consultingFirmName || '',
       candidateIDs: candidateIDs,
       stageID: selectedStage,
@@ -473,7 +470,7 @@ export default function InputForm({
         finalDocName = uploadRes.data?.fileName || cFile.name;
       }
 
-      if (editData?.id && candidateId) {
+      if (editData?.id && candidateId && !existingCand) {
         try {
           await addConsultantID({
             candidateID: candidateId,
@@ -555,7 +552,7 @@ export default function InputForm({
                     handleBlur('wing');
                   }}
                   onBlur={() => handleBlur('wing')}
-                  className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border ${isFieldInvalid('wing', wing) ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'} rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-semibold text-slate-700 dark:text-slate-200`}
+                  className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border ${isFieldInvalid('wing', wing) ? 'border-red-500' : 'border-slate-200 dark:border-slate-800'} rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-semibold text-slate-700 dark:text-slate-200`}
                 >
                   <option value="">Select Wing</option>
                   {wings.map((w) => (
@@ -576,7 +573,7 @@ export default function InputForm({
                   }}
                   onBlur={() => handleBlur('division')}
                   disabled={!wing}
-                  className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border ${isFieldInvalid('division', division) ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'} rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-semibold text-slate-700 dark:text-slate-200 ${!wing ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border ${isFieldInvalid('division', division) ? 'border-red-500' : 'border-slate-200 dark:border-slate-800'} rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-semibold text-slate-700 dark:text-slate-200 ${!wing ? 'opacity-60 cursor-not-allowed' : ''}`}
                 >
                   <option value="">{!wing ? 'Select Wing First' : 'Select Division'}</option>
                   {filteredDivisions.map((d) => (
@@ -599,7 +596,7 @@ export default function InputForm({
                     validateField('numResources', val);
                   }}
                   onBlur={() => handleBlur('numResources')}
-                  className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border ${isFieldInvalid('numResources', numResources) ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'} rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-semibold text-slate-700 dark:text-slate-200`}
+                  className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border ${isFieldInvalid('numResources', numResources) ? 'border-red-500' : 'border-slate-200 dark:border-slate-800'} rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-semibold text-slate-700 dark:text-slate-200`}
                   placeholder="1"
                 />
                 {errors.numResources && (
@@ -612,7 +609,7 @@ export default function InputForm({
                 <select
                   value={appointmentType}
                   onChange={(e) => setAppointmentType(e.target.value)}
-                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-semibold text-slate-700 dark:text-slate-200"
+                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-semibold text-slate-700 dark:text-slate-200"
                 >
                   <option value="Full Time">Full Time</option>
                   <option value="Part Time">Part Time</option>
@@ -754,7 +751,7 @@ export default function InputForm({
                                     value={cName}
                                     onChange={(e) => setCName(e.target.value)}
                                     placeholder="Full name"
-                                    className={`w-full text-xs p-2 bg-slate-50 dark:bg-slate-950 border ${cErrors.name ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'} rounded-lg font-semibold text-slate-800 dark:text-slate-100`}
+                                    className={`w-full text-xs p-2 bg-slate-50 dark:bg-slate-950 border ${cErrors.name ? 'border-red-500' : 'border-slate-200 dark:border-slate-800'} rounded-lg font-semibold text-slate-800 dark:text-slate-100`}
                                   />
                                 </div>
 
@@ -765,7 +762,7 @@ export default function InputForm({
                                     value={cQualification}
                                     onChange={(e) => setCQualification(e.target.value)}
                                     placeholder="e.g. B.Tech / MBA"
-                                    className={`w-full text-xs p-2 bg-slate-50 dark:bg-slate-950 border ${cErrors.qualification ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'} rounded-lg font-semibold text-slate-800 dark:text-slate-100`}
+                                    className={`w-full text-xs p-2 bg-slate-50 dark:bg-slate-950 border ${cErrors.qualification ? 'border-red-500' : 'border-slate-200 dark:border-slate-800'} rounded-lg font-semibold text-slate-800 dark:text-slate-100`}
                                   />
                                 </div>
 
@@ -778,7 +775,7 @@ export default function InputForm({
                                     value={cWorkExperience}
                                     onChange={(e) => setCWorkExperience(e.target.value)}
                                     placeholder="e.g. 5"
-                                    className={`w-full text-xs p-2 bg-slate-50 dark:bg-slate-950 border ${cErrors.workExperience ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'} rounded-lg font-semibold text-slate-800 dark:text-slate-100`}
+                                    className={`w-full text-xs p-2 bg-slate-50 dark:bg-slate-950 border ${cErrors.workExperience ? 'border-red-500' : 'border-slate-200 dark:border-slate-800'} rounded-lg font-semibold text-slate-800 dark:text-slate-100`}
                                   />
                                 </div>
 
@@ -791,7 +788,7 @@ export default function InputForm({
                                     value={cSalary}
                                     onChange={(e) => setCSalary(e.target.value)}
                                     placeholder="e.g. 12"
-                                    className={`w-full text-xs p-2 bg-slate-50 dark:bg-slate-950 border ${cErrors.salary ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'} rounded-lg font-semibold text-slate-800 dark:text-slate-100`}
+                                    className={`w-full text-xs p-2 bg-slate-50 dark:bg-slate-950 border ${cErrors.salary ? 'border-red-500' : 'border-slate-200 dark:border-slate-800'} rounded-lg font-semibold text-slate-800 dark:text-slate-100`}
                                   />
                                 </div>
                               </div>
@@ -829,7 +826,7 @@ export default function InputForm({
                                     type="date"
                                     value={cAppointmentDate}
                                     onChange={(e) => setCAppointmentDate(e.target.value)}
-                                    className={`w-full text-xs p-2 bg-slate-50 dark:bg-slate-950 border ${cErrors.appointmentDate ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'} rounded-lg font-semibold text-slate-800 dark:text-slate-100`}
+                                    className={`w-full text-xs p-2 bg-slate-50 dark:bg-slate-950 border ${cErrors.appointmentDate ? 'border-red-500' : 'border-slate-200 dark:border-slate-800'} rounded-lg font-semibold text-slate-800 dark:text-slate-100`}
                                   />
                                 </div>
 
@@ -840,7 +837,7 @@ export default function InputForm({
                                     value={cSkillSet}
                                     onChange={(e) => setCSkillSet(e.target.value)}
                                     placeholder="e.g. Legal, IT, Port Operations"
-                                    className={`w-full text-xs p-2 bg-slate-50 dark:bg-slate-950 border ${cErrors.skillSet ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'} rounded-lg font-semibold text-slate-800 dark:text-slate-100`}
+                                    className={`w-full text-xs p-2 bg-slate-50 dark:bg-slate-950 border ${cErrors.skillSet ? 'border-red-500' : 'border-slate-200 dark:border-slate-800'} rounded-lg font-semibold text-slate-800 dark:text-slate-100`}
                                   />
                                 </div>
                               </div>
