@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, Save, X } from 'lucide-react';
-import { createSocialMedia, updateSocialMedia } from '../api';
+import { createSocialMedia, updateSocialMedia, friendlyErrorMessage } from '../api';
 import { getSessionOrganisationId } from '../../../utils/authSession';
 import { MONTHS, FINANCIAL_YEARS, SOCIAL_CHANNELS, STEPS } from '../utils/constants';
 
@@ -69,9 +69,8 @@ function saveErrorMessage(err, isEdit) {
   const status = err?.response?.status;
   if (status === 409) return 'A record already exists for this Financial Year, Month and Organisation.';
   if (status === 400) return 'Some values are not valid. Please check and try again.';
-  if (status === 403) return 'You do not have permission to save this record.';
   if (status === 404) return 'This record no longer exists. Please refresh the list.';
-  return isEdit ? 'Could not update the record. Please try again.' : 'Could not save the record. Please try again.';
+  return friendlyErrorMessage(err, isEdit ? 'Could not update the record. Please try again.' : 'Could not save the record. Please try again.');
 }
 
 export default function InputForm({ onBack, onSuccess, triggerNotification, editData, activeMediaType, organisations, isStandardView = false, permissions }) {
@@ -86,6 +85,8 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
   // Common fields
   const [financialYear, setFinancialYear] = useState('');
   const [month, setMonth] = useState('');
+  // Months that have not started yet are hidden when adding (edit keeps the record's own month)
+  const monthOptions = isEdit || !financialYear ? MONTHS : MONTHS.filter(m => !isFutureMonth(financialYear, m));
   const [organisationId, setOrganisationId] = useState('');
 
   // Step state
@@ -247,7 +248,10 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
             </label>
             <select
               value={financialYear}
-              onChange={(e) => setFinancialYear(e.target.value)}
+              onChange={(e) => {
+                setFinancialYear(e.target.value);
+                if (month && isFutureMonth(e.target.value, month)) setMonth('');
+              }}
               disabled={isEdit}
               className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:focus:bg-slate-950 cursor-pointer ${isEdit ? 'opacity-60 cursor-not-allowed' : ''}`}
             >
@@ -266,7 +270,7 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
               className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:focus:bg-slate-950 cursor-pointer ${isEdit ? 'opacity-60 cursor-not-allowed' : ''}`}
             >
               <option value="">--Select Month--</option>
-              {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
+              {monthOptions.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
           </div>
           {!hideOrgSelect && (
@@ -277,7 +281,8 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
               <select
                 value={organisationId}
                 onChange={(e) => setOrganisationId(e.target.value)}
-                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:focus:bg-slate-950 cursor-pointer"
+                disabled={isEdit}
+                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:focus:bg-slate-950 cursor-pointer ${isEdit ? 'opacity-60 cursor-not-allowed' : ''}`}
               >
                 <option value="">--Select Organisation--</option>
                 {organisations && organisations.map(org => (
