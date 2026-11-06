@@ -363,13 +363,16 @@ export default function UserListTab({
         </div>
       </div>
 
-      <div className="table-area">
+      <div className="table-area um-list-table-area">
         <Table
           rowData={filteredDbUsers}
           columnDefs={columnDefs}
           loading={dbLoading}
           pagination
           paginationPageSize={20}
+          // Header stays fixed and only the rows scroll
+          domLayout="normal"
+          containerStyle={{ height: '100%' }}
           getRowId={getRowId}
           color="#0f417a"
           defaultColDef={{

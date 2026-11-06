@@ -4,6 +4,13 @@ import { supportMailer, temporaryPassword } from "../../utils/mailer.js";
 import bcrypt from "bcrypt";
 import forge from 'node-forge';
 
+const EMAIL_PATTERN = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+// Indian mobile number: 10 digits starting 6-9
+const MOBILE_PATTERN = /^[6-9]\d{9}$/;
+// At least 8 characters with upper and lower case letters, a number and a special character
+const PASSWORD_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+const PASSWORD_RULE_MESSAGE = "Password must be at least 8 characters with upper and lower case letters, a number and a special character";
+
 
 async function createuser(req, res) {
     const title = req.body.title;
@@ -13,8 +20,15 @@ async function createuser(req, res) {
     const organisation = req.body.organisation;
     const wingId = req.body.wingId;
     const divisionId = req.body.divisionId;
-    let email = req.body.email;
-    const phone = req.body.phone;
+    let email = String(req.body.email || '').trim();
+    const phone = String(req.body.phone || '').trim();
+
+    if (!EMAIL_PATTERN.test(email)) {
+        return res.status(400).json({ message: "Please enter a valid email address" });
+    }
+    if (!MOBILE_PATTERN.test(phone)) {
+        return res.status(400).json({ message: "Please enter a valid 10-digit mobile number" });
+    }
 
     const defaultPassword = temporaryPassword(); // emailed to the user, changed at first login
     const hashedPassword = bcrypt.hashSync(defaultPassword, 10);
@@ -33,7 +47,9 @@ async function createuser(req, res) {
     request.input("password", hashedPassword);
 
     try {
-        let checkIfExists = await request.query(`SELECT count(*) as count FROM tbl_user WHERE email = @email;`);
+        // Same address in another case or with spaces counts as a duplicate
+        let checkIfExists = await request.query(`SELECT count(*) as count FROM tbl_user
+            WHERE LOWER(LTRIM(RTRIM(email))) = LOWER(@email);`);
         console.log(checkIfExists.recordset)
         if (checkIfExists.recordset[0].count > 0) {
             return res.status(409).json({ message: "Email already exists. User cannot be created." });
@@ -204,10 +220,17 @@ async function updateUser(req, res) {
     const organisation = req.body.organisation;
     const wingId = req.body.wingId;
     const divisionId = req.body.divisionId;
-    const email = req.body.email;
-    const phone = req.body.phone;
+    const email = String(req.body.email || '').trim();
+    const phone = String(req.body.phone || '').trim();
     const loginUser = req.user?.userId ?? null; // the signed-in user, not a value sent in the request
-    
+
+    if (!EMAIL_PATTERN.test(email)) {
+        return res.status(400).json({ message: "Please enter a valid email address" });
+    }
+    if (!MOBILE_PATTERN.test(phone)) {
+        return res.status(400).json({ message: "Please enter a valid 10-digit mobile number" });
+    }
+
     const conn = await pool;
     const request = conn.request();
     request.input("userID", userID);
@@ -226,7 +249,7 @@ async function updateUser(req, res) {
         const duplicate = await request.query(`
             SELECT COUNT(*) AS count
             FROM tbl_user
-            WHERE email = @email AND user_id <> @userID
+            WHERE LOWER(LTRIM(RTRIM(email))) = LOWER(@email) AND user_id <> @userID
         `);
 
         if (duplicate.recordset[0].count > 0) {
@@ -327,10 +350,31 @@ async function toggleUserStatusData(req, res) {
 
 async function changePasswordAction(req, res) {
     const userID = req.body.userID;
-    const confirmPassword = req.body.confirmPassword;
+    const encryptedNewPassword = req.body.newPassword; // RSA-encrypted, as on Login and Profile
     const loginUser = req.user?.userId ?? null; // the signed-in user, not a value sent in the request
+    if (!userID || !encryptedNewPassword) {
+        return res.status(400).json({ message: "New password is required" });
+    }
+
+    let newPassword;
+    try {
+        const privateKeyPem = (process.env.RSA_PRIVATE_KEY || "").replace(/\\n/g, "\n");
+        const privateKey = forge.pki.privateKeyFromPem(privateKeyPem);
+        newPassword = forge.util.decodeUtf8(privateKey.decrypt(forge.util.decode64(encryptedNewPassword), 'RSA-OAEP', {
+            md: forge.md.sha256.create(),
+            mgf1: { md: forge.md.sha256.create() },
+        }));
+    } catch (decryptErr) {
+        console.error("Change password decrypt error:", decryptErr);
+        return res.status(400).json({ message: "Password could not be read. Please try again." });
+    }
+
+    if (!PASSWORD_PATTERN.test(newPassword)) {
+        return res.status(400).json({ message: PASSWORD_RULE_MESSAGE });
+    }
+
   try {
-        const hash = bcrypt.hashSync(confirmPassword, 10);
+        const hash = bcrypt.hashSync(newPassword, 10);
         const conn = await pool;
         const updateResult = await conn.request()
             .input("userID", userID)
@@ -380,8 +424,13 @@ async function changePasswordAction(req, res) {
                 <strong>Government of India</strong>
             `,
         };
-        await transporter.sendMail(mailOptions);
-        console.log("Password change email sent");
+        // The password is already changed: a failed email must not report the reset as failed
+        try {
+            await transporter.sendMail(mailOptions);
+            console.log("Password change email sent");
+        } catch (emailError) {
+            console.error("Error sending password change email:", emailError);
+        }
 
         return res.sendStatus(200);
 
