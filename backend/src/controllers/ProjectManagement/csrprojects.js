@@ -431,43 +431,8 @@ async function csrfileDownload(req, res)
     }
 }
 
-async function csrfileDelete(req, res) 
-{
-    try {
-        const { fileName } = req.query;
-
-        if (!fileName) {
-            return res.status(400).send({ error: "File name is required" });
-        }
-
-        // Only for a project the user can see
-        const projectId = await projectForCsrFile(fileName);
-        if (!projectId || !(await canAccessProject(req.user, projectId))) {
-            return res.status(404).send({ error: "No matching database record found" });
-        }
-
-        // Update the database to set projectcompletion to NULL
-        const conn = await pool;
-        const request = conn.request();
-        request.input('fileName', fileName);
-        request.input('projectId', projectId);
-
-        const result = await request.query(`
-            UPDATE tbl_csr_projects
-            SET project_completion_doc = NULL
-            WHERE project_completion_doc = @fileName AND csr_project_id = @projectId
-        `);
-
-        if (result.rowsAffected[0] > 0) {
-            res.status(200).send({ message: "File deleted successfully and database updated" });
-        } else {
-            res.status(404).send({ error: "No matching database record found" });
-        }
-    } catch (err) {
-        console.error("Error deleting file or updating database:", err);
-        res.status(500).send({ error: "Internal Server Error" });
-    }
-}
+// The completion document and gallery files are replaced through the add / edit form; the
+// unused delete endpoints were removed (QC CSR-37), so nothing is removed without a log.
 
 // ----------------------------------------------------- GET DATA  -----------------------------------------------------------
 
@@ -651,27 +616,49 @@ async function updateCsrProjects(req, res)
             WHERE csr_project_id = @projectID
         `);
 
-        // Replace all expenditure rows for this project: the frontend doesn't
-        // track individual expenditure row IDs, so the simplest correct way
-        // to handle additions, removals, and edits in one step is to clear
-        // the existing rows and re-insert fresh from the current payload.
+        // Expenditure is matched by year (QC CSR-11 / CSR-36): a year whose amount changed is
+        // updated in place (its creator is kept and updated_by / updated_date are set), a new
+        // year is added, and a year no longer on the form is removed and logged in
+        // tbl_csr_delete_log (sql/csr/03; skipped until that table exists). An extra row for a
+        // year that already has one (old data) is removed the same way.
         if (expenditures) {
-            const deleteRequest = transaction.request();
-            deleteRequest.input("projectID", projectID);
-            await deleteRequest.query(`DELETE FROM tbl_csr_expenditure WHERE csr_project_id = @projectID`);
+            const rows = expenditures.map((e) => ({ year: String(e.expenditureFinancialYear), cost: Number(e.expenditureCost) }));
+            const expenditureRequest = transaction.request();
+            expenditureRequest.input("projectID", projectID);
+            expenditureRequest.input("userID", userID);
+            expenditureRequest.input("rows", JSON.stringify(rows));
+            await expenditureRequest.query(`
+                SELECT [year], cost INTO #wanted
+                FROM OPENJSON(@rows) WITH ([year] NVARCHAR(20) '$.year', cost DECIMAL(12,2) '$.cost');
 
-            for (let i = 0; i < expenditures.length; i++) {
-                const expenditureRequest = transaction.request();
-                expenditureRequest.input(`csrProjectId${i}`, projectID);
-                expenditureRequest.input(`expenditureFinancialYear${i}`, expenditures[i].expenditureFinancialYear);
-                expenditureRequest.input(`expenditureCost${i}`, expenditures[i].expenditureCost);
-                expenditureRequest.input(`userID${i}`, userID);
+                SELECT e.csr_expenditure_id INTO #gone
+                FROM tbl_csr_expenditure e
+                WHERE e.csr_project_id = @projectID
+                  AND (NOT EXISTS (SELECT 1 FROM #wanted w WHERE w.[year] = e.[year])
+                       OR e.csr_expenditure_id <> (SELECT MIN(k.csr_expenditure_id) FROM tbl_csr_expenditure k
+                                                   WHERE k.csr_project_id = e.csr_project_id AND k.[year] = e.[year]));
 
-                await expenditureRequest.query(`
-                    INSERT INTO tbl_csr_expenditure (csr_project_id, year, csr_expenditure_cost, created_by, created_date)
-                    VALUES (@csrProjectId${i}, @expenditureFinancialYear${i}, @expenditureCost${i}, @userID${i}, GETDATE());
-                `);
-            }
+                IF OBJECT_ID('dbo.tbl_csr_delete_log', 'U') IS NOT NULL
+                    INSERT INTO tbl_csr_delete_log (entity, record_id, csr_project_id, organisation_id, row_json, deleted_by)
+                    SELECT 'expenditure', e.csr_expenditure_id, e.csr_project_id, p.organisation_id,
+                           (SELECT e.* FOR JSON PATH, WITHOUT_ARRAY_WRAPPER, INCLUDE_NULL_VALUES), @userID
+                    FROM tbl_csr_expenditure e
+                    JOIN #gone g ON g.csr_expenditure_id = e.csr_expenditure_id
+                    JOIN tbl_csr_projects p ON p.csr_project_id = e.csr_project_id;
+
+                DELETE e FROM tbl_csr_expenditure e JOIN #gone g ON g.csr_expenditure_id = e.csr_expenditure_id;
+
+                UPDATE e SET csr_expenditure_cost = w.cost, updated_by = @userID, updated_date = GETDATE()
+                FROM tbl_csr_expenditure e JOIN #wanted w ON w.[year] = e.[year]
+                WHERE e.csr_project_id = @projectID AND ISNULL(e.csr_expenditure_cost, -1) <> w.cost;
+
+                INSERT INTO tbl_csr_expenditure (csr_project_id, [year], csr_expenditure_cost, created_by, created_date)
+                SELECT @projectID, w.[year], w.cost, @userID, GETDATE()
+                FROM #wanted w
+                WHERE NOT EXISTS (SELECT 1 FROM tbl_csr_expenditure e WHERE e.csr_project_id = @projectID AND e.[year] = w.[year]);
+
+                DROP TABLE #wanted; DROP TABLE #gone;
+            `);
         }
 
         await transaction.commit();
@@ -744,45 +731,6 @@ async function getCsrFileUploadDocument(req,res) {
     }    
 }
 
-async function deleteGalleryFile(req, res) {
-    const csrProjectId = req.params.csrProjectId;
-    const fileName = req.params.filename;
-    
-    try {
-        if (!fileName || path.basename(fileName) !== fileName) {
-            return res.status(400).send({ error: "File name is required" });
-        }
-        if (!(await canAccessProject(req.user, csrProjectId))) {
-            return res.status(404).send({ error: "File not found in the database" });
-        }
-
-        const uploadDestination = './fileuploads/CSR_Projects';
-        const filePath = path.join(uploadDestination, fileName);
-
-        const conn = await pool;
-        const request = conn.request();
-        request.input('csrProjectId', csrProjectId);
-        request.input('fileName', fileName);
-
-        const result = await request.query(`
-            DELETE FROM tbl_csr_image
-            WHERE csr_project_id = @csrProjectId AND document_name = @fileName
-        `);
-
-        if (result.rowsAffected[0] > 0) {
-            fs.rmSync(filePath, { force: true });
-            res.status(200).send({ message: "File deleted successfully and database updated" });
-        }else if (result.rowsAffected[0] === 0) {
-            return res.status(404).send({ error: "File not found in the database" });
-        }else {
-            res.status(404).send({ error: "No matching database record found" });
-        }
-    } catch (err) {
-        console.error("Error deleting CSR gallery file:", err)
-        res.status(500).send({ error: "Internal Server Error" });
-    }
-}
-
 
 // Gallery upload for a saved project. The route checks the project is the user's (projectAccess)
 // before any file is written (QC CSR-19); a file whose content isn't the photo / video its name
@@ -807,8 +755,15 @@ async function uploadMediaGalleryFile(req,res) {
                     .input('csrProjectId', csrProjectId)
                     .input('documentName', file.filename)
                     .input('documentType', file.mimetype.split('/')[0])
+                    .input('userID', req.user.userId)
+                    // created_date has a default; created_by is set once sql/csr/03 has added the
+                    // column (QC CSR-11) - until then the insert works as before
                     .query(`INSERT INTO tbl_csr_image (csr_project_id, document_name, document_type)
-                        VALUES (@csrProjectId, @documentName, @documentType)`);
+                        VALUES (@csrProjectId, @documentName, @documentType);
+                        DECLARE @newId INT = SCOPE_IDENTITY();
+                        IF COL_LENGTH('dbo.tbl_csr_image', 'created_by') IS NOT NULL
+                            EXEC sp_executesql N'UPDATE tbl_csr_image SET created_by = @u WHERE document_id = @id',
+                                N'@u INT, @id INT', @u = @userID, @id = @newId;`);
             }
             await transaction.commit();
         } catch (err) {
@@ -2191,8 +2146,8 @@ const answerOnError = (handler) => async (req, res, next) => {
     }
 };
 const exported = {nodalOfficerOnly, projectAccess, createCsrProjects, upload, fileUpload, handleUploadErrors, getCsrProjectslist,
-        getUpdateCsrProjectsData, updateCsrProjects, csrProjectDocumentUploader, csrfileDownload, csrfileDelete,
-        getCsrExpenditureCost,  getCsrFileUploadDocument,deleteGalleryFile,uploadMediaGalleryFile, addCsrFundDetails, getCsrFundList, getUpdateFundData,  editCsrFund,csrProjectsAbstractReport,csrProjectsDetailedReport,csrExpenditureReport,getCsrFundYearWiseReport, getCsrFundOrgWiseReport, getCsrFundOrgTrendReport, getCsrProjectsYearWiseSummary, getCsrProjectsOrgWiseSummary, getCsrProjectsFocusWiseSummary,
+        getUpdateCsrProjectsData, updateCsrProjects, csrProjectDocumentUploader, csrfileDownload,
+        getCsrExpenditureCost,  getCsrFileUploadDocument, uploadMediaGalleryFile, addCsrFundDetails, getCsrFundList, getUpdateFundData,  editCsrFund,csrProjectsAbstractReport,csrProjectsDetailedReport,csrExpenditureReport,getCsrFundYearWiseReport, getCsrFundOrgWiseReport, getCsrFundOrgTrendReport, getCsrProjectsYearWiseSummary, getCsrProjectsOrgWiseSummary, getCsrProjectsFocusWiseSummary,
         getCsrDashboard};
 export default Object.fromEntries(Object.entries(exported).map(([name, value]) => [name,
     typeof value === 'function' && value.constructor.name === 'AsyncFunction' ? answerOnError(value) : value]));
