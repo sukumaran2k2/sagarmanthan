@@ -93,6 +93,13 @@ async function loadRecordOrganisationId(cfg, gemId) {
   return result.recordset.length ? result.recordset[0].organisationId : null;
 }
 
+// Blank stays null; anything else must be a finite, non-negative number (NaN = invalid).
+function parseAmount(value) {
+  if (value == null || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : NaN;
+}
+
 function resolveUserId(req, fallback) {
   const raw = req.user?.userId ?? req.user?.user_id ?? fallback;
   const n = Number(raw);
@@ -276,6 +283,9 @@ async function addCategory(req, res, cfg) {
   if (!userId || !financialYear || !organisationId || !Number.isFinite(potential)) {
     return res.status(400).json({ error: "Missing required fields." });
   }
+  if (potential < 0) {
+    return res.status(400).json({ error: "Planned procurement cannot be negative." });
+  }
 
   if (!isOrganisationInScope(req, organisationId)) {
     return res.status(403).json({ error: "Organisation outside your data scope." });
@@ -339,7 +349,7 @@ async function addCategory(req, res, cfg) {
   } catch (err) {
     console.error(`addCategory(${cfg.key}):`, err);
     return res.status(500).json({
-      error: err?.message || "Failed to create GeM planned procurement.",
+      error: "Failed to create GeM planned procurement.",
     });
   }
 }
@@ -360,6 +370,9 @@ async function updateCategory(req, res, cfg) {
 
   if (!userId || !financialYear || !organisationId || !Number.isFinite(potential)) {
     return res.status(400).json({ error: "Missing required fields." });
+  }
+  if (potential < 0) {
+    return res.status(400).json({ error: "Planned procurement cannot be negative." });
   }
 
   if (!isOrganisationInScope(req, organisationId)) {
@@ -406,7 +419,7 @@ async function updateCategory(req, res, cfg) {
   } catch (err) {
     console.error(`updateCategory(${cfg.key}):`, err);
     return res.status(500).json({
-      error: err?.message || "Failed to update GeM planned procurement.",
+      error: "Failed to update GeM planned procurement.",
     });
   }
 }
@@ -503,17 +516,31 @@ async function saveMonthly(req, res, cfg) {
     return res.status(400).json({ error: `Invalid ${cfg.idBodyKey}.` });
   }
 
-  const recordOrgId = await loadRecordOrganisationId(cfg, gemId);
-  if (recordOrgId == null) {
-    return res.status(404).json({ error: "GeM record not found." });
-  }
-  if (!isOrganisationInScope(req, recordOrgId)) {
-    return res.status(403).json({ error: "Record outside your data scope." });
+  const values = {};
+  for (const month of MONTHS) {
+    const through = parseAmount(readMonthlyField(req.body, month, "through"));
+    const outside = parseAmount(readMonthlyField(req.body, month, "outside"));
+    if (Number.isNaN(through) || Number.isNaN(outside)) {
+      return res.status(400).json({
+        error: `Invalid amount for ${monthCap(month)}. Enter a number that is 0 or more.`,
+      });
+    }
+    const reason = readMonthlyField(req.body, month, "reason");
+    values[month] = { through, outside, reason: reason == null ? null : String(reason) };
   }
 
-  const conn = await pool;
-  const transaction = conn.transaction();
+  let transaction;
   try {
+    const recordOrgId = await loadRecordOrganisationId(cfg, gemId);
+    if (recordOrgId == null) {
+      return res.status(404).json({ error: "GeM record not found." });
+    }
+    if (!isOrganisationInScope(req, recordOrgId)) {
+      return res.status(403).json({ error: "Record outside your data scope." });
+    }
+
+    const conn = await pool;
+    transaction = conn.transaction();
     await transaction.begin();
     const request = transaction.request();
     request.input("gemId", sql.Int, gemId);
@@ -521,12 +548,9 @@ async function saveMonthly(req, res, cfg) {
 
     for (const month of MONTHS) {
       const cap = monthCap(month);
-      const through = readMonthlyField(req.body, month, "through");
-      const outside = readMonthlyField(req.body, month, "outside");
-      const reason = readMonthlyField(req.body, month, "reason");
-      request.input(`through${cap}`, sql.Float, through == null || through === "" ? null : Number(through));
-      request.input(`outside${cap}`, sql.Float, outside == null || outside === "" ? null : Number(outside));
-      request.input(`reason${cap}`, sql.NVarChar(sql.MAX), reason == null ? null : String(reason));
+      request.input(`through${cap}`, sql.Float, values[month].through);
+      request.input(`outside${cap}`, sql.Float, values[month].outside);
+      request.input(`reason${cap}`, sql.NVarChar(sql.MAX), values[month].reason);
     }
 
     const exists = await request.query(`
@@ -590,7 +614,7 @@ async function saveMonthly(req, res, cfg) {
     return res.sendStatus(201);
   } catch (err) {
     try {
-      await transaction.rollback();
+      await transaction?.rollback();
     } catch (_) {}
     console.error(`saveMonthly(${cfg.key}):`, err);
     return res.sendStatus(500);
@@ -602,14 +626,14 @@ async function getMonthly(req, res, cfg, paramName) {
   if (!Number.isFinite(gemId) || gemId <= 0) {
     return res.status(400).json({ error: `Invalid ${paramName}.` });
   }
-  const recordOrgId = await loadRecordOrganisationId(cfg, gemId);
-  if (recordOrgId != null && !isOrganisationInScope(req, recordOrgId)) {
-    return res.status(403).json({ error: "Record outside your data scope." });
-  }
-  const conn = await pool;
-  const request = conn.request();
-  request.input("gemId", sql.Int, gemId);
   try {
+    const recordOrgId = await loadRecordOrganisationId(cfg, gemId);
+    if (recordOrgId != null && !isOrganisationInScope(req, recordOrgId)) {
+      return res.status(403).json({ error: "Record outside your data scope." });
+    }
+    const conn = await pool;
+    const request = conn.request();
+    request.input("gemId", sql.Int, gemId);
     const result = await request.query(`
       SELECT * FROM ${cfg.monthlyTable} WHERE ${cfg.idCol} = @gemId
     `);
@@ -625,14 +649,14 @@ async function getPotential(req, res, cfg, paramName) {
   if (!Number.isFinite(gemId) || gemId <= 0) {
     return res.status(400).json({ error: `Invalid ${paramName}.` });
   }
-  const recordOrgId = await loadRecordOrganisationId(cfg, gemId);
-  if (recordOrgId != null && !isOrganisationInScope(req, recordOrgId)) {
-    return res.status(403).json({ error: "Record outside your data scope." });
-  }
-  const conn = await pool;
-  const request = conn.request();
-  request.input("gemId", sql.Int, gemId);
   try {
+    const recordOrgId = await loadRecordOrganisationId(cfg, gemId);
+    if (recordOrgId != null && !isOrganisationInScope(req, recordOrgId)) {
+      return res.status(403).json({ error: "Record outside your data scope." });
+    }
+    const conn = await pool;
+    const request = conn.request();
+    request.input("gemId", sql.Int, gemId);
     const result = await request.query(`
       SELECT ${cfg.potentialCol}
       FROM ${cfg.table}
@@ -890,16 +914,23 @@ async function getOrganisationName(req, res) {
 
 async function getGemProcurementDataEntry(req, res) {
   const currentYear = new Date().getFullYear();
+  // getMonth() is 0-based, so April (3) starts the new financial year.
   const financialYear =
-    new Date().getMonth() > 3
+    new Date().getMonth() >= 3
       ? `${currentYear}-${currentYear + 1}`
       : `${currentYear - 1}-${currentYear}`;
 
-  const conn = await pool;
-  const request = conn.request();
-  request.input("financialYear", sql.NVarChar(50), financialYear);
-
   try {
+    const conn = await pool;
+    const request = conn.request();
+    request.input("financialYear", sql.NVarChar(50), financialYear);
+    // Organisation users see only their own row; ministry/master see all.
+    const { whereSql } = applyDataScope(request, req.user, {
+      strategy: "directOrgColumn",
+      alias: "mmt",
+      orgColumn: "organisation_id",
+    });
+
     const result = await request.query(`
       SELECT TOP (1000)
         g.goods_gem_id,
@@ -932,7 +963,8 @@ async function getGemProcurementDataEntry(req, res) {
        AND g.goods_financial_year = @financialYear
       LEFT JOIN tbl_gem_procurement_goods_monthly gm
         ON g.goods_gem_id = gm.goods_gem_id
-      WHERE mmt.organisation_category_id = 1 OR mmt.organisation_id IN (25, 15, 18, 19, 21, 17)
+      WHERE (mmt.organisation_category_id = 1 OR mmt.organisation_id IN (25, 15, 18, 19, 21, 17))
+      ${whereSql}
       ORDER BY updated_month
     `);
     return res.json(result.recordset);

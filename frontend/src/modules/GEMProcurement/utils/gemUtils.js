@@ -58,13 +58,19 @@ export function getGemPotential(record, category) {
   return Number(record?.total_procurement_potential) || 0;
 }
 
-export const GEM_FY_OPTIONS = [
-  '2026-2027',
-  '2025-2026',
-  '2024-2025',
-  '2023-2024',
-  '2022-2023',
-];
+const GEM_FIRST_FY_START = 2022;
+
+// Current financial year first, back to 2022-2023; a new year appears every April.
+export function getGemFyOptions(asOf = new Date()) {
+  const currentStart = Number(getCurrentFinancialYear(asOf).slice(0, 4));
+  const options = [];
+  for (let start = currentStart; start >= GEM_FIRST_FY_START; start -= 1) {
+    options.push(`${start}-${start + 1}`);
+  }
+  return options;
+}
+
+export const GEM_FY_OPTIONS = getGemFyOptions();
 
 export function getCurrentFinancialYear(asOf = new Date()) {
   const date = asOf instanceof Date ? asOf : new Date(asOf);

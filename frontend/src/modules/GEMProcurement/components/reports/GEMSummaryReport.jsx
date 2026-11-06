@@ -4,16 +4,18 @@ import { RefreshCw, Search, X, TrendingUp } from 'lucide-react';
 import CopyButton from '../../../../components/CopyButton';
 import ExportDropdown from '../../../../components/ExportDropdown';
 import { fetchGemSummaryReport } from '../../api';
-import { getGemReportAsOnMeta } from '../../utils/gemUtils';
+import {
+  getCurrentFinancialYear,
+  getGemReportAsOnMeta,
+  GEM_FY_OPTIONS as FY_OPTIONS,
+} from '../../utils/gemUtils';
 import { COMMON_TOASTS } from '../../../../utils/notify';
 import { GEM_TOASTS } from '../../toastMessages';
-
-const FY_OPTIONS = ['2026-2027', '2025-2026', '2024-2025', '2023-2024', '2022-2023'];
 
 const fmt = (n) => (Number.isFinite(Number(n)) ? Number(n).toFixed(2) : '0.00');
 
 export default function GEMSummaryReport({ notify, viewMode = 'ministry' }) {
-  const [selectedYear, setSelectedYear] = useState('2026-2027');
+  const [selectedYear, setSelectedYear] = useState(getCurrentFinancialYear);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [quickFilter, setQuickFilter] = useState('');

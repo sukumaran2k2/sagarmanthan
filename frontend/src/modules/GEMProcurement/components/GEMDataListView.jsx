@@ -7,14 +7,7 @@ import Table from '../../../components/Table';
 import TablePagination from '../../../components/TablePagination';
 import CopyButton from '../../../components/CopyButton';
 import ExportDropdown from '../../../components/ExportDropdown';
-
-const FY_OPTIONS = [
-  '2026-2027',
-  '2025-2026',
-  '2024-2025',
-  '2023-2024',
-  '2022-2023',
-];
+import { GEM_FY_OPTIONS as FY_OPTIONS } from '../utils/gemUtils';
 
 function getColKey(col) {
   return col.field || col.headerName || '';
