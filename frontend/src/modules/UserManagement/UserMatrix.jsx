@@ -209,16 +209,16 @@ export default function UserMatrix({ onGoHome, mode = 'permissions', triggerNoti
   }, [organisations, selectedCategory]);
 
   useEffect(() => {
-    if (selectedCategory === 'all') {
+    // Users are listed only once an organisation is chosen: permissions are set per
+    // organisation, so its modules are needed to edit them
+    if (selectedCategory === 'all' || selectedOrg === 'all') {
       setMatrixUsers([]);
       setSelectedIds(new Set());
-      setActiveModules([]);
       return;
     }
 
     setUsersLoading(true);
-    const params = { categoryId: selectedCategory };
-    if (selectedOrg !== 'all') params.organisationId = selectedOrg;
+    const params = { categoryId: selectedCategory, organisationId: selectedOrg };
     if (selectedRole !== 'all') params.roleId = selectedRole;
 
     rbacApi
