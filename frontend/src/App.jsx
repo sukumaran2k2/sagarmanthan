@@ -7,7 +7,7 @@ import Loader from './components/Loader';
 import { Activity, Sparkles } from 'lucide-react';
 import { TAB_USER_MODULE_PERMISSION, TAB_USER_MASTER_MANAGEMENT, TAB_USER_LIST, normalizeTab } from './utils/moduleAccess';
 import { resetAllStores } from './stores/resetRegistry';
-import { endSession } from './utils/sessionRefresh';
+import { endSession, SESSION_EXPIRED_EVENT } from './utils/sessionRefresh';
 
 // Lazy-loaded feature modules for code splitting and instant initial page load
 const LandingView = lazy(() => import('./modules/Landing/Landing'));
@@ -215,6 +215,21 @@ export default function App() {
     setIsLoggedIn(false);
   };
 
+  // The session could not be renewed: sign out and say so on the login page, instead of
+  // staying "signed in" without a token (which showed Access Restricted)
+  const [sessionExpired, setSessionExpired] = useState(false);
+  useEffect(() => {
+    const onExpired = () => {
+      endSession();
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      setSessionExpired(true);
+      setIsLoggedIn(false);
+    };
+    window.addEventListener(SESSION_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
+  }, []);
+
   if (!isLoggedIn) {
     if (showWelcome) {
       return (
@@ -226,7 +241,15 @@ export default function App() {
         />
       );
     }
-    return <LoginView onLogin={handleLoginSuccess} />;
+    return (
+      <LoginView
+        onLogin={() => {
+          setSessionExpired(false);
+          handleLoginSuccess();
+        }}
+        notice={sessionExpired ? 'Your session has expired. Please log in again.' : ''}
+      />
+    );
   }
 
   return (

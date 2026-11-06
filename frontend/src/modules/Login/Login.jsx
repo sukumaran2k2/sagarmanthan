@@ -67,8 +67,9 @@ function loginReducer(state, action) {
   }
 }
 
-export default function LoginView({ onLogin }) {
-  const [state, dispatch] = useReducer(loginReducer, initialState);
+// notice: shown in the login message line on arrival (e.g. "Your session has expired")
+export default function LoginView({ onLogin, notice = '' }) {
+  const [state, dispatch] = useReducer(loginReducer, { ...initialState, loginError: notice });
 
   const {
     email,

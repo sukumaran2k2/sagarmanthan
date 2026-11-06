@@ -96,9 +96,8 @@ export function checkModulePermission(user, moduleCode, action, { strict = false
     if (perm) break;
   }
 
-  // No user matrix row for the module is still allowed (also in strict mode) until the
-  // matrix is filled in for every user
-  if (perm && !hasAction(perm, normalizedAction)) {
+  // No user matrix row for the module means no access, as the User Matrix screen shows it
+  if (!hasAction(perm, normalizedAction)) {
     return { ok: false, status: 403, message: `Missing ${normalizedAction} permission for ${code}` };
   }
 
@@ -155,7 +154,9 @@ export function requireAnyModulePermission(moduleCode, actions = [], { strict = 
       : [];
     const moduleAllowed = candidates.some((c) => allowedCodes.includes(c));
 
+    // View Only Admin: read on the organisation's modules, as in checkModulePermission
     if (user.roleCode === 'VIEW_ONLY_ADMIN') {
+      if (moduleAllowed && normalized.includes('read')) return next();
       return res.status(403).json({
         status: 'fail',
         message: 'View Only Admin has read-only access',
@@ -175,7 +176,8 @@ export function requireAnyModulePermission(moduleCode, actions = [], { strict = 
       if (perm) break;
     }
 
-    const ok = !perm || normalized.some((action) => hasAction(perm, action));
+    // No user matrix row for the module means no access
+    const ok = normalized.some((action) => hasAction(perm, action));
     if (!ok) {
       return res.status(403).json({
         status: 'fail',

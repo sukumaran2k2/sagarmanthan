@@ -62,10 +62,8 @@ export function getSessionOrganisationName() {
 export function isOrgSeniorOfficer() {
   const claims = getSessionClaims();
   if (!claims || isSuperAdmin()) return false;
-  const code = String(claims.roleCode || '').toUpperCase();
-  const name = String(claims.roleName || '').toLowerCase();
-  if (code.includes('SENIOR')) return true;
-  return name.includes('senior officer');
+  // The same exact role the server checks (middleware/userAdmin.js)
+  return String(claims.roleCode || '').toUpperCase() === 'ORG_SENIOR_OFFICER';
 }
 
 export function isNodalOfficerRole(role) {

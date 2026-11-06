@@ -238,7 +238,7 @@ export default function UserFormModal({
 
               {isAdd && (
                 <p className="text-[10px] text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 font-medium">
-                  Default password will be set to <strong>Sagarmanthan@123</strong> and shared by email when possible.
+                  A temporary password will be created and emailed to the user, to be changed at first login.
                 </p>
               )}
 

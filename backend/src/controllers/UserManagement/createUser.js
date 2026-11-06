@@ -105,111 +105,6 @@ async function createuser(req, res) {
     }
 };
 
-async function createNodalUser(req, res) {
-    const title = req.body.title;
-    const name = req.body.name;
-    const designation = req.body.designation;
-    const role = req.body.role;
-    const organisation = req.body.organisation;
-    let email = req.body.email;
-    const phone = req.body.phone;
-    const permissions = req.body.permissions;
-
-    console.log(role);
-    const defaultPassword = temporaryPassword(); // emailed to the user, changed at first login
-    const hashedPassword = bcrypt.hashSync(defaultPassword, 10);
-
-    const conn = await pool;
-    const request = conn.request();
-    request.input("title", title);
-    request.input("name", name);
-    request.input("designation", designation);
-    request.input("role", role);
-    request.input("organisation", organisation);
-    request.input("email", email);
-    request.input("phone", phone);
-    request.input("password", hashedPassword);
-
-    try {
-        const checkIfExists = await request.query(
-            `SELECT count(*) as count FROM tbl_user WHERE email = @email;`
-        );
-
-        if (checkIfExists.recordset[0].count > 0) {
-            return res.status(400).json({ message: "User Already Exists!" });
-        } else {
-            try {
-                // Insert the new user into tbl_user
-                const result = await request.query(`
-                    INSERT INTO tbl_user (title, name, designation, role_id, organisation_id, email, password, phone) 
-                    OUTPUT INSERTED.user_id
-                    VALUES (@title, @name, @designation, @role, @organisation, @email, @password, @phone)
-                `);
-
-                console.log("res.record", result.recordset);
-
-                const userId = result.recordset[0].user_id;
-
-                for (const permission of permissions) {
-                    const permissionRequest = conn.request();
-                    permissionRequest.input("userId", userId);
-                    permissionRequest.input("moduleId", permission.module_id);
-                    permissionRequest.input("create", permission.create_permission);
-                    permissionRequest.input("read", permission.read_permission);
-                    permissionRequest.input("update", permission.update_permission);
-                    permissionRequest.input("delete", permission.delete_permission)
-
-                    await permissionRequest.query(`
-                INSERT INTO tbl_usermatrix_user_module_crud_permission (user_id, module_id, create_permission, read_permission, update_permission, delete_permission)
-                VALUES (@userId, @moduleId, @create, @read, @update, @delete)
-            `);
-                }
-
-                const transporter = supportMailer();
-
-                const mailOptions = {
-                    from: "sagarmanthansupport@ntcpwc.iitm.ac.in",
-                    to: email,
-                    subject: "Sagarmanthan Portal – User Account Credentials",
-                    html: `<strong>Dear User</strong>,
-                          <br><br>
-                          Welcome to the Sagarmanthan Portal!
-                          <br><br>
-                          Your user account has been successfully created. Please find your login credentials below:
-                          <br><br>
-                          <ul>
-                            <li><strong>Email: </strong>${email}</li>
-                            <li><strong>Temporary Password: </strong>${defaultPassword}</li>
-                          </ul>
-                          For security purposes, you are required to reset your password immediately upon your first login.
-                          <br><br>
-                          Should you experience any difficulties or require technical assistance, please contact the support team at support@ntcpwc.iitm.ac.in.
-                          <br><br>
-                          Warm regards,
-                          <br><br>
-                          <strong>Sagarmanthan Portal Team</strong>
-                          <strong>Ministry of Ports, Shipping and Waterways</strong>
-                          <strong>Government of India</strong>
-                          <br><br>`,
-                };
-
-                await transporter.sendMail(mailOptions);
-                console.log("Email Sent Successfully");
-                return res.sendStatus(200);
-            } catch (emailError) {
-                console.error("Error sending email:", emailError);
-                return res.sendStatus(500);
-            }
-        }
-    }
-    catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
-    }
-};
-
-
-
 // One row per user, as the user list shows it
 const USER_LIST_SELECT = `SELECT tbl_user.user_id, tbl_user.title, tbl_user.name, tbl_user.designation,
         tbl_user.role_id, tbl_role.role_name, tbl_role.role_code, tbl_user.organisation_id, tbl_user.wing_id, wing_name, tbl_user.division_id,
@@ -311,7 +206,7 @@ async function updateUser(req, res) {
     const divisionId = req.body.divisionId;
     const email = req.body.email;
     const phone = req.body.phone;
-    const loginUser = req.body.loginUser;
+    const loginUser = req.user?.userId ?? null; // the signed-in user, not a value sent in the request
     
     const conn = await pool;
     const request = conn.request();
@@ -352,50 +247,6 @@ async function updateUser(req, res) {
     }
 };
 
-async function updateNodalUser(req, res) {
-    const userID = req.body.userID;
-    const title = req.body.title;
-    const name = req.body.name;
-    const designation = req.body.designation;
-    const email = req.body.email;
-    const phone = req.body.phone;
-    const organisation = req.body.organisation;
-    const loginUser = req.body.loginUser;
-
-    const conn = await pool;
-    const request = conn.request();
-    request.input("userID", userID);
-    request.input("title", title);
-    request.input("name", name);
-    request.input("designation", designation);
-    request.input("email", email);
-    request.input("phone", phone);
-    request.input("organisation", organisation);
-    request.input("loginUser", loginUser);
-
-    try {
-        const result = await request.query(`
-            UPDATE tbl_user 
-            SET 
-                title = @title, 
-                name = @name, 
-                designation = @designation, 
-                email = @email, 
-                phone = @phone,
-                updated_on = GETDATE(), 
-                updated_by = @loginUser
-
-            WHERE user_id = @userID
-        `);
-
-        return res.sendStatus(200);
-    } catch (err) {
-        console.error(err);
-        return res.sendStatus(500);
-    }
-};
-
-
 // A user's own details; their organisation, wing and division are set by the admin only
 async function editUserProfileData(req, res) {
     const userID = req.body.userID;
@@ -406,7 +257,7 @@ async function editUserProfileData(req, res) {
     const phone = req.body.phone;
     const stateID = req.body.state;
     const districtID = req.body.district;
-    const loginUser = req.body.loginUser;
+    const loginUser = req.user?.userId ?? null; // the signed-in user, not a value sent in the request
 
     const conn = await pool;
     const request = conn.request();
@@ -422,6 +273,16 @@ async function editUserProfileData(req, res) {
     request.input("loginUser", loginUser);
 
     try {
+        // The email is the login ID, so it must stay unique (as in updateUser)
+        const duplicate = await request.query(`
+            SELECT COUNT(*) AS count
+            FROM tbl_user
+            WHERE email = @email AND user_id <> @userID
+        `);
+        if (duplicate.recordset[0].count > 0) {
+            return res.status(409).json({ message: "Email already exists for another user" });
+        }
+
         const result = await request.query(`
             UPDATE tbl_user
             SET title = @title, name = @name, designation = @designation,
@@ -441,7 +302,7 @@ async function editUserProfileData(req, res) {
 async function toggleUserStatusData(req, res) {
     const userID = req.body.userID;
     const userStatus = req.body.userStatus;
-    const loginUser = req.body.loginUser;
+    const loginUser = req.user?.userId ?? null; // the signed-in user, not a value sent in the request
 
     const conn = await pool;
     const request = conn.request();
@@ -467,7 +328,7 @@ async function toggleUserStatusData(req, res) {
 async function changePasswordAction(req, res) {
     const userID = req.body.userID;
     const confirmPassword = req.body.confirmPassword;
-    const loginUser = req.body.loginUser;
+    const loginUser = req.user?.userId ?? null; // the signed-in user, not a value sent in the request
   try {
         const hash = bcrypt.hashSync(confirmPassword, 10);
         const conn = await pool;
@@ -530,6 +391,31 @@ async function changePasswordAction(req, res) {
     }
 }
 
+// Wrong current passwords per account; after MAX_PASSWORD_FAILURES within the window the
+// account's password can't be changed this way until the window ends (stops password guessing)
+const MAX_PASSWORD_FAILURES = 5;
+const PASSWORD_FAILURE_WINDOW_MS = 15 * 60 * 1000;
+const passwordFailures = new Map();
+
+function isPasswordChangeLocked(key) {
+    const entry = passwordFailures.get(key);
+    if (!entry) return false;
+    if (Date.now() - entry.since > PASSWORD_FAILURE_WINDOW_MS) {
+        passwordFailures.delete(key);
+        return false;
+    }
+    return entry.count >= MAX_PASSWORD_FAILURES;
+}
+
+function recordPasswordFailure(key) {
+    const entry = passwordFailures.get(key);
+    if (!entry || Date.now() - entry.since > PASSWORD_FAILURE_WINDOW_MS) {
+        passwordFailures.set(key, { count: 1, since: Date.now() });
+    } else {
+        entry.count += 1;
+    }
+}
+
 // Changing a password needs the current one (or the code emailed by Forgot Password, which is
 // set as the password), so it also works from the login page without a session. The user is
 // found by userID or, from Forgot Password, by email.
@@ -541,6 +427,11 @@ async function updatePassword(req, res) {
     const encryptedNewPassword = req.body.newPassword;
     if (!encryptedOldPassword || !encryptedNewPassword || (!userID && !email)) {
         return res.status(400).json({ message: "Current and new password are required" });
+    }
+
+    const failureKey = userID ? `id:${Number(userID)}` : `email:${String(email).trim().toLowerCase()}`;
+    if (isPasswordChangeLocked(failureKey)) {
+        return res.status(429).json({ message: "Too many wrong attempts. Please try again after 15 minutes." });
     }
 
     const privateKeyPem = (process.env.RSA_PRIVATE_KEY || "").replace(/\\n/g, "\n");
@@ -570,18 +461,16 @@ async function updatePassword(req, res) {
                 : `SELECT user_id, email, password FROM tbl_user WHERE LOWER(email) = LOWER(@email)`);
             const userData = result.recordset[0];
 
-            if (!userData || !email && !userID) {
-                return res.status(404).json({ message: "User not found" });
+            // An unknown account gets the same answer as a wrong password, so this can't be used
+            // to find out which emails have accounts
+            if (!userData || !bcrypt.compareSync(decryptedOldPassword, userData.password)) {
+                recordPasswordFailure(failureKey);
+                return res.status(400).json({ message: "Current password is incorrect" });
             }
+            passwordFailures.delete(failureKey);
             // The confirmation goes to the address on file, and the update to the user found
             email = userData.email;
             request.input("targetUserID", userData.user_id);
-
-            // Compare old password
-            const isPasswordMatch = bcrypt.compareSync(decryptedOldPassword, userData.password);
-            if (!isPasswordMatch) {
-                return res.status(400).json({ message: "Current password is incorrect" });
-            }
 
             // Hash and update the new password
             const saltRounds = 10;
@@ -668,115 +557,6 @@ async function updatePassword(req, res) {
 //     }
 // };
 
-async function getPermissionModulesData(req, res) {
-    const { userId, organisationId } = req.params;
-
-    try {
-        const conn = await pool;
-        const request = conn.request();
-        request.input("userId", userId);
-        request.input("organisationId", organisationId);
-
-        const result = await request.query(`
-            SELECT 
-                m.module_id, 
-                m.module_name, 
-                COALESCE(p.create_permission, 0) AS create_permission,
-                COALESCE(p.read_permission, 0) AS read_permission,
-                COALESCE(p.update_permission, 0) AS update_permission,
-                COALESCE(p.delete_permission, 0) AS delete_permission
-            FROM 
-                tbl_usermatrix_category_module_permission mp
-            INNER JOIN 
-                tbl_modules m 
-                ON m.module_id = mp.module_id
-            INNER JOIN 
-                mmt_organisation o 
-                ON o.organisation_category_id = mp.organisation_usermatrix_category_id
-            LEFT JOIN 
-                tbl_usermatrix_user_module_crud_permission p 
-                ON p.module_id = mp.module_id AND p.user_id = @userId
-            WHERE 
-                o.organisation_id = @organisationId 
-                AND mp.permission = 1;
-        `);
-
-        res.status(200).json({ modules: result.recordset });
-    } catch (err) {
-        console.error("Error fetching permission modules:", err);
-        res.status(500).json({ message: "Error fetching modules" });
-    }
-}
-
-
-async function updatePermissions(req, res) {
-    const userId = req.body.userId;
-    const permissionsData = req.body.permissionsData;
-    const conn = await pool;
-
-    if (!userId || !Array.isArray(permissionsData)) {
-        return res.status(400).json({ message: "Invalid userId or permissions data" });
-    }
-
-    try {
-        const groupedPermissions = permissionsData.reduce((acc, curr) => {
-            const { module_id, permission_type, value } = curr;
-
-            if (!acc[module_id]) {
-                acc[module_id] = { create: 0, read: 0, update: 0, deletePermission: 0 };
-            }
-            acc[module_id][permission_type] = value;
-            return acc;
-        }, {});
-
-        for (const [moduleId, permissions] of Object.entries(groupedPermissions)) {
-            const { create, read, update, delete: deletePermission } = permissions;
-
-            const requestCheck = conn.request();
-            requestCheck.input("userId", userId);
-            requestCheck.input("moduleId", moduleId);
-
-            const checkResult = await requestCheck.query(`
-                SELECT 1 FROM tbl_usermatrix_user_module_crud_permission 
-                WHERE user_id = @userId AND module_id = @moduleId
-            `);
-
-            const request = conn.request();
-            request.input("create", create || 0);
-            request.input("read", read || 0);
-            request.input("update", update || 0);
-            request.input("delete", deletePermission || 0);
-            request.input("userId", userId);
-            request.input("moduleId", moduleId);
-
-            if (checkResult.recordset.length > 0) {
-                await request.query(`
-                    UPDATE tbl_usermatrix_user_module_crud_permission
-                    SET 
-                        create_permission = @create,
-                        read_permission = @read,
-                        update_permission = @update,
-                        delete_permission = @delete
-                    WHERE user_id = @userId AND module_id = @moduleId
-                `);
-            } else {
-                await request.query(`
-                    INSERT INTO tbl_usermatrix_user_module_crud_permission
-                    (user_id, module_id, create_permission, read_permission, update_permission, delete_permission)
-                    VALUES (@userId, @moduleId, @create, @read, @update, @delete)
-                `);
-            }
-        }
-
-        res.status(200).json({ message: "Permissions updated successfully!" });
-
-    } catch (error) {
-        console.error("Error updating permissions:", error);
-        res.status(500).json({ message: "Error updating permissions", error: error.message });
-    }
-}
-
-
 async function getUserDetails(req, res) {
     const userId = req.params.userId;
     const conn = await pool;
@@ -791,6 +571,6 @@ async function getUserDetails(req, res) {
     }
 };
 
-export default { createuser, getUserData, getMyProfile, updateUser, toggleUserStatusData, changePasswordAction, updatePassword, editUserProfileData, getOrgUserData, createNodalUser, updateNodalUser,
-    getPermissionModulesData, updatePermissions, getUserDetails
+export default { createuser, getUserData, getMyProfile, updateUser, toggleUserStatusData, changePasswordAction, updatePassword, editUserProfileData, getOrgUserData,
+    getUserDetails
  };
