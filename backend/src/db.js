@@ -20,9 +20,19 @@ const connection = new mssql.ConnectionPool({
     requestTimeout: 1000 * 60
 });
 
-const pool = connection.connect().then(pool => {
-    console.log("DB Connected");
-    return pool;
-}).catch(err => console.log(err));
+// If the database isn't reachable yet (e.g. SQL Server still starting), keep retrying instead of
+// leaving `pool` undefined for good; requests made meanwhile wait for the connection
+const RETRY_MS = 10 * 1000;
+function connectWithRetry() {
+    return connection.connect().then(pool => {
+        console.log("DB Connected");
+        return pool;
+    }).catch(err => {
+        console.log(`DB connection failed (${err.message}); retrying in ${RETRY_MS / 1000} s`);
+        return new Promise((resolve) => setTimeout(resolve, RETRY_MS)).then(connectWithRetry);
+    });
+}
+
+const pool = connectWithRetry();
 
 export { pool };

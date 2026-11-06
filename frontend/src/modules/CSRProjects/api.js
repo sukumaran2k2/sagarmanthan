@@ -3,7 +3,10 @@ import { getCurrentUserId } from '../../utils/authSession';
 
 export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
-const api = axios.create({ baseURL: API_BASE });
+// A stalled request fails after 30 s, so the page shows its error instead of loading forever
+// (QC CSR-06); file uploads get longer
+const api = axios.create({ baseURL: API_BASE, timeout: 30000 });
+const UPLOAD_TIMEOUT = 180000;
 
 // Request Interceptor: Automatically attach Bearer token
 api.interceptors.request.use(
@@ -86,7 +89,8 @@ export const updateCsrProject = async (payload) => {
 
 export const uploadCsrDocument = async (formData) => {
   const response = await api.post('/csrprojectdocument', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: UPLOAD_TIMEOUT,
   });
   return response.data;
 };
@@ -122,13 +126,14 @@ export const fetchCsrGalleryFiles = async (csrProjectId) => {
 
 export const uploadCsrGalleryFiles = async (csrProjectId, formData) => {
   const response = await api.post(`/update-csr-gallery-upload/${csrProjectId}`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: UPLOAD_TIMEOUT,
   });
   return response.data;
 };
 
 export const deleteCsrGalleryFile = async (csrProjectId, filename) => {
-  const response = await api.delete(`/delete-csr-gallery-file/${csrProjectId}/${filename}`);
+  const response = await api.delete(`/delete-csr-gallery-file/${csrProjectId}/${encodeURIComponent(filename)}`);
   return response.data;
 };
 

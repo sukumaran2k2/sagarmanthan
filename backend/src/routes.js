@@ -950,22 +950,22 @@ router.get("/get-litigation-detailed-case-report/:organisationID/:stageID", arbi
 const csrRead = requireModulePermission("CSR_PROJECTS", "read");
 const csrCreate = requireModulePermission("CSR_PROJECTS", "create");
 const csrUpdate = requireModulePermission("CSR_PROJECTS", "update");
+// Removing a file needs the delete right; the expenditure endpoint adds and updates rows (QC CSR-16)
+const csrDelete = requireModulePermission("CSR_PROJECTS", "delete");
 const csrWrite = requireAnyModulePermission("CSR_PROJECTS", ["create", "update"]);
-router.post("/csr-gallery-upload", auth, csrWrite, csrProjectTab.handleUploadErrors(csrProjectTab.upload.array('file')), csrProjectTab.addNewCsrFileGallery);
 router.post('/add-csr-projects', auth, csrCreate, csrProjectTab.createCsrProjects);
 router.get('/csr-projects-list/:userID', auth, csrRead, csrProjectTab.getCsrProjectslist);
 router.put("/update-csr-list", auth, csrUpdate, csrProjectTab.updateCsrProjects);
 router.get("/csr-list/:csrProjectId", auth, csrRead, csrProjectTab.getUpdateCsrProjectsData);
 router.post("/csrprojectdocument", auth, csrWrite, csrProjectTab.handleUploadErrors(csrProjectTab.upload.single('file')), csrProjectTab.csrProjectDocumentUploader);
 router.get("/download-csrfile/:fileName", auth, csrRead, csrProjectTab.csrfileDownload);
-router.delete("/delete-csrfile", auth, csrUpdate, csrProjectTab.csrfileDelete);
+router.delete("/delete-csrfile", auth, csrDelete, csrProjectTab.csrfileDelete);
 router.get("/get-csr-expenditure/:csrProjectId", auth, csrRead, csrProjectTab.getCsrExpenditureCost);
-router.post('/add-csr-expenditure', auth, csrCreate, csrProjectTab.addCsrExpenditure);
+router.post('/add-csr-expenditure', auth, csrWrite, csrProjectTab.addCsrExpenditure);
 router.get("/get-csr-project-files/:csrProjectId", auth, csrRead, csrProjectTab.getCsrFileUploadDocument);
-router.delete("/delete-csr-gallery-file/:csrProjectId/:filename", auth, csrUpdate, csrProjectTab.deleteGalleryFile);
-router.put("/update-csr-gallery-file", auth, csrUpdate, csrProjectTab.handleUploadErrors(csrProjectTab.fileUpload.single('file')),csrProjectTab.updateGalleryFile);
-router.post("/update-csr-gallery-upload/:csrProjectId", auth, csrWrite, csrProjectTab.handleUploadErrors(csrProjectTab.fileUpload.array('file')),csrProjectTab.uploadMediaGalleryFile)
-router.get("/download-csrfile-pdf-document", auth, csrRead, csrProjectTab.csrPdfFileDownload);
+router.delete("/delete-csr-gallery-file/:csrProjectId/:filename", auth, csrDelete, csrProjectTab.deleteGalleryFile);
+// The project is checked before any file is written (QC CSR-19)
+router.post("/update-csr-gallery-upload/:csrProjectId", auth, csrWrite, csrProjectTab.projectAccess, csrProjectTab.handleUploadErrors(csrProjectTab.fileUpload.array('file')),csrProjectTab.uploadMediaGalleryFile)
 router.get("/get-csr-project-overview-reports/:userID", auth, csrRead, csrProjectTab.csrProjectsAbstractReport);
 router.get("/get-csr-projects-detailed-reports/:organisationID/:OrganisationName", auth, csrRead, csrProjectTab.csrProjectsDetailedReport)
 
@@ -976,17 +976,12 @@ router.post('/csrFund-edit', auth, csrUpdate, csrProjectTab.editCsrFund);
 router.post('/add-csr-Fund', auth, csrCreate, csrProjectTab.addCsrFundDetails);
 router.get('/get-csr-fund-expenditure-report/:userID', auth, csrRead, csrProjectTab.csrExpenditureReport);
 router.get('/get-csr-dashboard', auth, csrRead, csrProjectTab.getCsrDashboard);
-router.get('/get-csr-project-dashboard/:clusterID/:organisationID/:fy/:focusID', auth, csrRead, csrProjectTab.getCSRProjectDashboard);
-router.get('/get-csr-fund-allocatted/:clusterID/:organisationID/:fy/:focusID', auth, csrRead, csrProjectTab.getCsrFundAllocatted);
 router.get('/get-csr-fund-year-wise-report/:fy', auth, csrRead, csrProjectTab.getCsrFundYearWiseReport);
 router.get('/get-csr-fund-org-wise-report/:fy', auth, csrRead, csrProjectTab.getCsrFundOrgWiseReport);
 router.get('/get-csr-fund-org-trend-report/:orgId', auth, csrRead, csrProjectTab.getCsrFundOrgTrendReport);
 router.get('/get-csr-projects-year-wise-summary/:orgId', auth, csrRead, csrProjectTab.getCsrProjectsYearWiseSummary);
 router.get('/get-csr-projects-org-wise-summary', auth, csrRead, csrProjectTab.getCsrProjectsOrgWiseSummary);
 router.get('/get-csr-projects-focus-wise-summary/:orgId', auth, csrRead, csrProjectTab.getCsrProjectsFocusWiseSummary);
-router.get('/get-csr-project-stage-wise/:clusterID/:organisationID/:fy/:focusID', auth, csrRead, csrProjectTab.getCsrProjectStageWise);
-router.get('/get-csr-project-count-wise/:clusterID/:organisationID/:fy/:focusID', auth, csrRead, csrProjectTab.getCSRProjectCountWise);
-router.get('/get-detailed-csr-projects/:clusterID/:organisationID/:fy/:stage/:focusID', auth, csrRead, csrProjectTab.getDetailedCSRProjects);
 // Drop Project (soft-drop workflow — not CRUD delete)
 router.post("/dropproject-request", auth, requireModulePermission("PROJECTS", "update"), dropRequestTab.deleteProjectRequest);
 router.get("/viewdrop-projectlist/:userID", auth, requireModulePermission("PROJECTS", "read"), dropRequestTab.viewDropProjectList);
