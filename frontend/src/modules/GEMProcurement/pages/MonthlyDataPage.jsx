@@ -38,6 +38,8 @@ export default function GEMMonthlyDataPage({
 }) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Stays true until a load succeeds, so a failed load can't save over stored data.
+  const [loadFailed, setLoadFailed] = useState(false);
   const [allMonthsData, setAllMonthsData] = useState(createEmptyMonthsData());
 
   const recordId = getGemRecordId(record, category);
@@ -45,6 +47,7 @@ export default function GEMMonthlyDataPage({
   const fetchMonthlyData = useCallback(async () => {
     if (!recordId) {
       setAllMonthsData(createEmptyMonthsData());
+      setLoadFailed(false);
       return;
     }
     setLoading(true);
@@ -61,9 +64,11 @@ export default function GEMMonthlyDataPage({
         };
       });
       setAllMonthsData(loaded);
+      setLoadFailed(false);
     } catch (err) {
       console.error('Failed to fetch monthly GeM data:', err);
       setAllMonthsData(createEmptyMonthsData());
+      setLoadFailed(true);
       notify?.(COMMON_TOASTS.loadFailed('The monthly procurement data'));
     } finally {
       setLoading(false);
@@ -92,7 +97,7 @@ export default function GEMMonthlyDataPage({
   );
 
   const handleSave = async () => {
-    if (!recordId || !canEdit) return;
+    if (!recordId || !canEdit || loadFailed) return;
     setSaving(true);
     try {
       const payload = {};
@@ -280,9 +285,9 @@ export default function GEMMonthlyDataPage({
             <button
               type="button"
               onClick={handleSave}
-              disabled={saving || loading}
+              disabled={saving || loading || loadFailed}
               className={`px-5.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                saving || loading
+                saving || loading || loadFailed
                   ? 'bg-slate-300 text-slate-500 cursor-not-allowed border border-slate-200'
                   : 'bg-[#0f417a] hover:bg-[#1a5ba3] text-white shadow-md shadow-blue-900/10 hover:shadow-lg'
               }`}

@@ -387,24 +387,23 @@ async function gemTotalMonthlyReport(req, res) {
 async function gemGoodsMonthlyReport(req, res) {
     const goodsGemID = req.params.goodsGemID;
 
-    const recordOrgId = await loadRecordOrganisationId(
-        "tbl_gem_procurement_goods",
-        "goods_gem_id",
-        "goods_organisation_id",
-        goodsGemID
-    );
-    if (recordOrgId == null) {
-        return res.status(404).json({ error: "GeM goods record not found." });
-    }
-    if (!isOrganisationInScope(req, recordOrgId)) {
-        return res.status(403).json({ error: "Record outside your data scope." });
-    }
-
-    const conn = await pool;
-    const request = conn.request();
-    console.log('goodsgemID', goodsGemID);
-    request.input("goodsGemID", goodsGemID);
     try {
+        const recordOrgId = await loadRecordOrganisationId(
+            "tbl_gem_procurement_goods",
+            "goods_gem_id",
+            "goods_organisation_id",
+            goodsGemID
+        );
+        if (recordOrgId == null) {
+            return res.status(404).json({ error: "GeM goods record not found." });
+        }
+        if (!isOrganisationInScope(req, recordOrgId)) {
+            return res.status(403).json({ error: "Record outside your data scope." });
+        }
+
+        const conn = await pool;
+        const request = conn.request();
+        request.input("goodsGemID", goodsGemID);
         const result = await request.query(`
             SELECT * FROM tbl_gem_procurement_goods_monthly where goods_gem_id = @goodsGemID;
         `);
@@ -419,25 +418,23 @@ async function gemGoodsMonthlyReport(req, res) {
 async function gemServiceMonthlyReport(req, res) {
     const serviceGemId = req.params.serviceGemID;
 
-    const recordOrgId = await loadRecordOrganisationId(
-        "tbl_gem_procurement_service",
-        "service_gem_id",
-        "service_organisation_id",
-        serviceGemId
-    );
-    if (recordOrgId == null) {
-        return res.status(404).json({ error: "GeM service record not found." });
-    }
-    if (!isOrganisationInScope(req, recordOrgId)) {
-        return res.status(403).json({ error: "Record outside your data scope." });
-    }
-
-    const conn = await pool;
-    const request = conn.request();
-    console.log('serviceGemId', serviceGemId);
-    request.input("serviceGemId", serviceGemId);
-    
     try {
+        const recordOrgId = await loadRecordOrganisationId(
+            "tbl_gem_procurement_service",
+            "service_gem_id",
+            "service_organisation_id",
+            serviceGemId
+        );
+        if (recordOrgId == null) {
+            return res.status(404).json({ error: "GeM service record not found." });
+        }
+        if (!isOrganisationInScope(req, recordOrgId)) {
+            return res.status(403).json({ error: "Record outside your data scope." });
+        }
+
+        const conn = await pool;
+        const request = conn.request();
+        request.input("serviceGemId", serviceGemId);
         const result = await request.query(`
             SELECT * FROM tbl_gem_procurement_service_monthly where service_gem_id = @serviceGemId;
         `);
@@ -452,24 +449,23 @@ async function gemServiceMonthlyReport(req, res) {
 async function gemWorkMonthlyReport(req, res) {
     const worksGemID = req.params.worksGemID;
 
-    const recordOrgId = await loadRecordOrganisationId(
-        "tbl_gem_procurement_works",
-        "works_gem_id",
-        "works_organisation_id",
-        worksGemID
-    );
-    if (recordOrgId == null) {
-        return res.status(404).json({ error: "GeM works record not found." });
-    }
-    if (!isOrganisationInScope(req, recordOrgId)) {
-        return res.status(403).json({ error: "Record outside your data scope." });
-    }
-
-    const conn = await pool;
-    const request = conn.request();
-    console.log('worksGemID', worksGemID);
-    request.input("worksGemID", worksGemID);
     try {
+        const recordOrgId = await loadRecordOrganisationId(
+            "tbl_gem_procurement_works",
+            "works_gem_id",
+            "works_organisation_id",
+            worksGemID
+        );
+        if (recordOrgId == null) {
+            return res.status(404).json({ error: "GeM works record not found." });
+        }
+        if (!isOrganisationInScope(req, recordOrgId)) {
+            return res.status(403).json({ error: "Record outside your data scope." });
+        }
+
+        const conn = await pool;
+        const request = conn.request();
+        request.input("worksGemID", worksGemID);
         const result = await request.query(`
             SELECT * FROM tbl_gem_procurement_works_monthly where works_gem_id = @worksGemID;
         `);
@@ -565,8 +561,9 @@ ${categoryRollup("works", "tbl_gem_procurement_works", "tbl_gem_procurement_work
     });
 
     }catch(err){
+        console.error(err);
         return res.status(500).json({
-            message: err.message
+            message: "Failed to load the GeM report."
         });
     }
 }
@@ -680,8 +677,9 @@ ${categoryRollup("works", "tbl_gem_procurement_works", "tbl_gem_procurement_work
             data: result.recordset || [],
         });
     } catch (err) {
+        console.error(err);
         return res.status(500).json({
-            message: err.message,
+            message: "Failed to load the GeM report.",
         });
     }
 }
@@ -815,8 +813,9 @@ async function getGemYoYReport(req, res) {
             data: pivotGemYoYRows(result.recordset, financialYears),
         });
     } catch (err) {
+        console.error(err);
         return res.status(500).json({
-            message: err.message,
+            message: "Failed to load the GeM report.",
         });
     }
 }

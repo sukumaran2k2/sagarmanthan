@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { fetchOrganisationsDropdown } from '../api';
+import { getCurrentFinancialYear } from '../utils/gemUtils';
 import { registerStoreReset } from '../../../stores/resetRegistry';
 
 /**
@@ -26,7 +27,7 @@ const initialState = {
   debouncedSearch: '',
   page: 1,
   pageSize: 10,
-  filterYear: '2026-2027',
+  filterYear: getCurrentFinancialYear(),
   filterOrg: '',
   showFilterPanel: false,
   visibleCols: {}, // filled in by the list view as columns appear; false = hidden

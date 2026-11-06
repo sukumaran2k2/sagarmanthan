@@ -14,12 +14,16 @@ import CopyButton from "../../../components/CopyButton";
 import ExportDropdown from "../../../components/ExportDropdown";
 import * as XLSX from "xlsx";
 import { fetchGemReport } from "../api";
-import { getGemReportAsOnMeta } from "../utils/gemUtils";
+import {
+  getCurrentFinancialYear,
+  getGemReportAsOnMeta,
+  GEM_FY_OPTIONS,
+} from "../utils/gemUtils";
 import { COMMON_TOASTS } from "../../../utils/notify";
 import { GEM_TOASTS } from "../toastMessages";
 
 export default function GEMReportView({ notify, viewMode = 'ministry' }) {
-  const [selectedYear, setSelectedYear] = useState("2026-2027");
+  const [selectedYear, setSelectedYear] = useState(getCurrentFinancialYear);
   const [groupFilter, setGroupFilter] = useState("ALL");
   const [orgFilter, setOrgFilter] = useState("ALL");
   const [reportData, setReportData] = useState([]);
@@ -154,7 +158,7 @@ export default function GEMReportView({ notify, viewMode = 'ministry' }) {
   };
 
   const handleResetFilters = () => {
-    setSelectedYear("2026-2027");
+    setSelectedYear(getCurrentFinancialYear());
     setGroupFilter("ALL");
     setOrgFilter("ALL");
     setQuickFilter("");
@@ -315,11 +319,9 @@ export default function GEMReportView({ notify, viewMode = 'ministry' }) {
                     cursor: "pointer",
                   }}
                 >
-                  <option value="2026-2027">2026-2027</option>
-                  <option value="2025-2026">2025-2026</option>
-                  <option value="2024-2025">2024-2025</option>
-                  <option value="2023-2024">2023-2024</option>
-                  <option value="2022-2023">2022-2023</option>
+                  {GEM_FY_OPTIONS.map((fy) => (
+                    <option key={fy} value={fy}>{fy}</option>
+                  ))}
                 </select>
               </div>
 
