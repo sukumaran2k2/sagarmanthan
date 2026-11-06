@@ -163,7 +163,7 @@ export default function ProfileView({ triggerNotification }) {
     })
     .catch(err => {
       console.error(err);
-      alert('Failed to update profile details.');
+      alert(err.response?.data?.message || 'Failed to update profile details.');
     });
   };
 

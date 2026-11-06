@@ -1,7 +1,8 @@
 export function getDataScope(user) {
   const scope = String(user?.dataScopeCode || '').toUpperCase();
   const organisationId = Number(user?.organisationId);
-  const isWide = scope === 'MASTER' || scope === 'MINISTRY' || !scope;
+  // No data scope sees no organisation's data (every portal role has one)
+  const isWide = scope === 'MASTER' || scope === 'MINISTRY';
   const isOrganisation = scope === 'ORGANISATION';
   return { scope, organisationId, isWide, isOrganisation };
 }

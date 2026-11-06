@@ -4,6 +4,10 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
 let pending = null;
 
+// Fired on window when the server refuses to renew the session (refresh cookie expired, signed
+// out elsewhere, or the account deactivated). App signs out and shows the login page.
+export const SESSION_EXPIRED_EVENT = 'sagarmanthan:session-expired';
+
 /**
  * Gets a new access token when the current one has expired (30 minutes), so the user stays
  * signed in for the session instead of being sent back to the login page.
@@ -22,6 +26,14 @@ export function refreshAccessToken() {
         if (!next) throw new Error('Refresh failed');
         localStorage.setItem('accessToken', next);
         return next;
+      })
+      .catch((err) => {
+        // Only a refusal ends the session; a network error or a busy server (503) doesn't
+        const status = err?.response?.status;
+        if (status === 401 || status === 403) {
+          window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+        }
+        throw err;
       })
       .finally(() => {
         pending = null;

@@ -225,7 +225,6 @@ async function saveUserModuleCrud(req, res) {
     console.error('saveUserModuleCrud:', error);
     res.status(500).json({
       message: 'Failed to save user permissions',
-      detail: error.message,
     });
   }
 }

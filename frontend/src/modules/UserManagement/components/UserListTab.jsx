@@ -3,6 +3,15 @@ import { Edit, RotateCcw, Shield, X, UserPlus } from 'lucide-react';
 import Table from '../../../components/Table';
 import { colorFromString, getInits, roleClassName } from '../utils';
 import { rbacApi } from '../rbacApi';
+import { getCurrentUserId } from '../../../utils/authSession';
+
+// The superadmin and the signed-in user's own row are shown without Edit / Status / Reset:
+// the server refuses those changes (own details are changed on the Profile page)
+const isProtectedRow = (u) =>
+  String(u?.role_code || '').toUpperCase() === 'SUPERADMIN' ||
+  Number(u?.user_id) === Number(getCurrentUserId());
+
+const NoAction = () => <span className="text-slate-400">—</span>;
 
 function CrudDot({ on, label }) {
   return (
@@ -223,7 +232,7 @@ export default function UserListTab({
         width: 80,
         sortable: false,
         filter: false,
-        cellRenderer: (params) => (
+        cellRenderer: (params) => isProtectedRow(params.data) ? <NoAction /> : (
           <button
             type="button"
             onClick={() => handleOpenEdit(params.data)}
@@ -241,7 +250,7 @@ export default function UserListTab({
         width: 90,
         sortable: false,
         filter: false,
-        cellRenderer: (params) => (
+        cellRenderer: (params) => isProtectedRow(params.data) ? <NoAction /> : (
           <label className="toggle-switch" style={{ margin: '0 auto' }}>
             <input
               type="checkbox"
@@ -258,7 +267,7 @@ export default function UserListTab({
         width: 130,
         sortable: false,
         filter: false,
-        cellRenderer: (params) => (
+        cellRenderer: (params) => isProtectedRow(params.data) ? <NoAction /> : (
           <button
             type="button"
             onClick={() => handleResetPassword(params.data)}

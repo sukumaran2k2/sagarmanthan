@@ -208,7 +208,7 @@ async function createMmt(req, res) {
             const employeeID = await request.query(`
                 SELECT COUNT(*) AS Emp_Id 
                 FROM mmt_employee_info  
-                WHERE Emp_Id = '${empID}';
+                WHERE Emp_Id = @empID;
             `);
             const replaceFileID = employeeID.recordset[0].Emp_Id;
     
@@ -593,7 +593,7 @@ async function getDropDownProjectList(req, res)
     {
         case "tbl_project":
             query = `SELECT project_id, project_name FROM tbl_project WHERE status = 1 AND project_stage_id != 14  
-                AND on_sub_project_available = 0 AND organisation_id = ${organisationID} 
+                AND on_sub_project_available = 0 AND organisation_id = @organisationID 
                 
                 UNION
 
@@ -601,12 +601,12 @@ async function getDropDownProjectList(req, res)
                 FROM tbl_project
                 INNER JOIN  tbl_sub_project ON tbl_sub_project.project_id = tbl_project.project_id
                 WHERE sub_status = 1 AND sub_project_stage_id != 14
-                AND sub_organisation_id = ${organisationID}
+                AND sub_organisation_id = @organisationID
             `;
             break;
     }
     try {
-        const result = await conn.query(query);
+        const result = await conn.request().input("organisationID", Number(organisationID) || 0).query(query);
         res.json(result.recordset);
     }
     catch (err) {
@@ -653,13 +653,13 @@ async function getDropDownSubProjectList(req, res)
             WHERE 
                 sub_status = 1 
                 AND sub_project_stage_id != 14
-                AND project_id = '${projectId}' 
+                AND project_id = @projectId 
                                
             `;
             break;
     }
     try {
-        const result = await conn.query(query);
+        const result = await conn.request().input("projectId", Number(projectId) || 0).query(query);
         res.json(result.recordset);
     }
     catch (err) {
