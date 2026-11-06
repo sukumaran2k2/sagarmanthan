@@ -1,5 +1,5 @@
-﻿import React from 'react';
-import { Edit, UserPlus } from 'lucide-react';
+﻿import React, { useMemo } from 'react';
+import { ArrowLeft, Edit, UserPlus } from 'lucide-react';
 import UserModuleCrudPanel from './UserModuleCrudPanel';
 
 const fieldClass =
@@ -43,6 +43,12 @@ export default function UserFormModal({
   formError = '',
   lockOrganisation = false,
 }) {
+  // Only the chosen wing's divisions are offered
+  const wingDivisions = useMemo(
+    () => (formWing ? masterDivisions.filter((d) => String(d.wing_id) === String(formWing)) : []),
+    [masterDivisions, formWing]
+  );
+
   if (!isOpen) return null;
 
   const isAdd = mode === 'add';
@@ -54,14 +60,24 @@ export default function UserFormModal({
       style={{ zIndex: 9999 }}
     >
       <form onSubmit={onSubmit} className="flex flex-col h-full min-h-0">
-        <div className="shrink-0 flex items-center justify-between gap-4 px-4 sm:px-6 py-3.5 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 shadow-sm">
-          <div className="flex items-center gap-2 min-w-0">
-            <TitleIcon className="h-5 w-5 text-blue-700 dark:text-blue-400 shrink-0" />
+        <div className="shrink-0 flex items-center justify-between gap-4 px-4 sm:px-6 py-4 bg-gradient-to-r from-[#0f417a] via-[#134e96] to-[#1a5ba3] text-white shadow-sm">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-xl transition cursor-pointer backdrop-blur-sm border border-white/10 shrink-0"
+              title="Back to List"
+              aria-label="Back to List"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <TitleIcon className="h-5 w-5 text-blue-100 shrink-0" />
             <div className="min-w-0">
-              <h2 className="text-base font-black text-[#0f417a] dark:text-blue-300 uppercase tracking-wide truncate">
+              <h2 className="text-base font-black text-white uppercase tracking-wide truncate">
                 {isAdd ? 'Add User' : 'Update User'}
               </h2>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate">
+              <p className="text-[10px] text-blue-100/80 font-medium truncate">
                 Profile details and module Create / Read / Update / Delete access
               </p>
             </div>
@@ -71,25 +87,16 @@ export default function UserFormModal({
               type="button"
               onClick={onClose}
               disabled={saving}
-              className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer font-bold text-xs"
+              className="px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-white cursor-pointer font-bold text-xs transition"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving || formCrudLoading}
-              className="px-4 py-2 bg-[#0f417a] hover:bg-blue-800 text-white rounded-lg shadow cursor-pointer font-bold text-xs transition-all active:scale-95 disabled:opacity-60"
+              className="px-4 py-2 bg-white hover:bg-blue-50 text-[#0f417a] rounded-xl shadow cursor-pointer font-bold text-xs transition-all active:scale-95 disabled:opacity-60"
             >
               {saving ? 'Saving…' : isAdd ? 'Create Account' : 'Update Account'}
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer ml-1"
-              style={{ border: 'none', background: 'none', fontSize: '1.15rem', fontWeight: 'bold' }}
-              aria-label="Close"
-            >
-              ✕
             </button>
           </div>
         </div>
@@ -184,7 +191,10 @@ export default function UserFormModal({
                 <label className={labelClass}>Wing</label>
                 <select
                   value={formWing}
-                  onChange={(e) => setFormWing(e.target.value)}
+                  onChange={(e) => {
+                    setFormWing(e.target.value);
+                    setFormDivision('');
+                  }}
                   className={fieldClass}
                 >
                   <option value="">Select Wing</option>
@@ -201,10 +211,11 @@ export default function UserFormModal({
                 <select
                   value={formDivision}
                   onChange={(e) => setFormDivision(e.target.value)}
-                  className={fieldClass}
+                  disabled={!formWing}
+                  className={`${fieldClass} disabled:opacity-60 disabled:cursor-not-allowed`}
                 >
-                  <option value="">Select Division</option>
-                  {masterDivisions.map((d) => (
+                  <option value="">{formWing ? 'Select Division' : 'Select Wing first'}</option>
+                  {wingDivisions.map((d) => (
                     <option key={d.division_id} value={d.division_id}>
                       {d.division_name}
                     </option>
@@ -229,9 +240,11 @@ export default function UserFormModal({
                 <input
                   type="tel"
                   required
-                  placeholder="Enter mobile number"
+                  inputMode="numeric"
+                  maxLength={10}
+                  placeholder="Enter 10-digit mobile number"
                   value={formPhone}
-                  onChange={(e) => setFormPhone(e.target.value)}
+                  onChange={(e) => setFormPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
                   className={inputClass}
                 />
               </div>
