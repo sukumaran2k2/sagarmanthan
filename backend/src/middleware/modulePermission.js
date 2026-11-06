@@ -125,8 +125,8 @@ export function requireStrictModulePermission(moduleCode, action) {
   return permissionMiddleware(moduleCode, action, { strict: true });
 }
 
-/** Allow if the user has any one of the listed actions. */
-export function requireAnyModulePermission(moduleCode, actions = []) {
+/** Allow if the user has any one of the listed actions. { strict: true } adds the data scope check. */
+export function requireAnyModulePermission(moduleCode, actions = [], { strict = false } = {}) {
   const code = String(moduleCode || '').toUpperCase();
   const normalized = (Array.isArray(actions) ? actions : [actions])
     .map(normalizeAction)
@@ -144,6 +144,10 @@ export function requireAnyModulePermission(moduleCode, actions = []) {
 
     // Superadmin has full access
     if (isSuperAdmin(user)) return next();
+
+    if (strict && !['MASTER', 'MINISTRY', 'ORGANISATION'].includes(String(user.dataScopeCode || '').toUpperCase())) {
+      return res.status(403).json({ status: 'fail', message: 'No data scope is set for this account' });
+    }
 
     const candidates = getCodeCandidates(code);
     const allowedCodes = Array.isArray(user.allowedModuleCodes)

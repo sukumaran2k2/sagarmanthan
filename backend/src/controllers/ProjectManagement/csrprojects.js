@@ -13,8 +13,9 @@ import { ORG_GROUPS } from './capexDashboard.js';
 // orgId is the organisation to restrict to (null = every organisation); blocked is true for an
 // organisation user without an organisation, who sees nothing.
 function csrScope(user) {
-    const { isWide, isOrganisation, organisationId } = getDataScope(user);
-    if (isWide) return { orgId: null, blocked: false };
+    const { scope, isOrganisation, organisationId } = getDataScope(user);
+    // Only MASTER / MINISTRY see every organisation; a token without a scope sees nothing (QC CSR-17)
+    if (scope === 'MASTER' || scope === 'MINISTRY') return { orgId: null, blocked: false };
     if (!isOrganisation || !Number.isFinite(organisationId) || organisationId <= 0) return { orgId: null, blocked: true };
     return { orgId: organisationId, blocked: false };
 }
@@ -689,60 +690,8 @@ async function updateCsrProjects(req, res)
 }
 
 // ----------------------------------------------------- Edit Expenditure  ------------------------------------------------------
-async function addCsrExpenditure(req, res) 
-{
-    const csrProjectId = req.body.csrProjectId;
-    const csrExpenditureTab = JSON.parse(req.body.csrExpenditureTab);
-    const userID = req.user.userId;
-
-    const conn = await pool;
-
-    try
-    {
-        if (!(await canAccessProject(req.user, csrProjectId))) {
-            return res.status(404).json({ error: "CSR project not found" });
-        }
-        for (let p = 0; p < csrExpenditureTab.length; p++)
-        {
-            let csrExpenditureId = csrExpenditureTab[p].csrExpenditureId
-            let financialYear = csrExpenditureTab[p].financialYear
-            let expenditureCost = csrExpenditureTab[p].expenditureCost
-        
-            const request = conn.request();
-            request.input("csrProjectId", csrProjectId);             
-            request.input("csrExpenditureId", csrExpenditureId);
-            request.input("financialYear", financialYear);
-            request.input("expenditureCost", expenditureCost);
-            request.input("userID", userID);
-
-            let query;
-
-            // if (recordCount > 0) 
-            if(csrExpenditureId && csrProjectId)
-            {
-                query =   ` UPDATE tbl_csr_expenditure 
-                    SET  csr_expenditure_cost = @expenditureCost, updated_by = @userID, updated_date = GETDATE()
-                    WHERE csr_project_id = @csrProjectId AND year = @financialYear`;
-            }
-            else 
-            {
-                query = ` INSERT INTO tbl_csr_expenditure ( csr_project_id, year, csr_expenditure_cost, created_by, created_date ) 
-                        VALUES ( @csrProjectId, @financialYear, @expenditureCost, @userID, GETDATE() )            
-                    ` ;
-            }          
-            
-            await request.query(query);
-        }
-
-       res.sendStatus(201);
-    } 
-    catch (err) {
-        console.error(err);
-        res.sendStatus(500);
-    }
-}
-
-
+// Expenditure is saved with the project (create/update), where it is validated; the separate
+// unvalidated /add-csr-expenditure endpoint was removed (QC CSR-16 follow-up).
 async function getCsrExpenditureCost(req, res) 
 {
     const csrProjectId = req.params.csrProjectId;
@@ -2233,7 +2182,7 @@ const answerOnError = (handler) => async (req, res, next) => {
 };
 const exported = {projectAccess, createCsrProjects, upload, fileUpload, handleUploadErrors, getCsrProjectslist,
         getUpdateCsrProjectsData, updateCsrProjects, csrProjectDocumentUploader, csrfileDownload, csrfileDelete,
-        getCsrExpenditureCost, addCsrExpenditure,  getCsrFileUploadDocument,deleteGalleryFile,uploadMediaGalleryFile, addCsrFundDetails, getCsrFundList, getUpdateFundData,  editCsrFund,csrProjectsAbstractReport,csrProjectsDetailedReport,csrExpenditureReport,getCsrFundYearWiseReport, getCsrFundOrgWiseReport, getCsrFundOrgTrendReport, getCsrProjectsYearWiseSummary, getCsrProjectsOrgWiseSummary, getCsrProjectsFocusWiseSummary,
+        getCsrExpenditureCost,  getCsrFileUploadDocument,deleteGalleryFile,uploadMediaGalleryFile, addCsrFundDetails, getCsrFundList, getUpdateFundData,  editCsrFund,csrProjectsAbstractReport,csrProjectsDetailedReport,csrExpenditureReport,getCsrFundYearWiseReport, getCsrFundOrgWiseReport, getCsrFundOrgTrendReport, getCsrProjectsYearWiseSummary, getCsrProjectsOrgWiseSummary, getCsrProjectsFocusWiseSummary,
         getCsrDashboard};
 export default Object.fromEntries(Object.entries(exported).map(([name, value]) => [name,
     typeof value === 'function' && value.constructor.name === 'AsyncFunction' ? answerOnError(value) : value]));

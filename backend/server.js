@@ -137,8 +137,8 @@ app.post('/upload', upload.array('files', 10), (req, res) => {
     res.status(200).json({ message: 'Files uploaded successfully' });
 });
 
-app.use('/fileuploads', express.static(path.join(__dirname, 'fileuploads')));
-app.use('/fileuploads/Project_Documents/project_images', express.static(path.join(__dirname, 'fileuploads', 'Project_Documents', 'project_images')));
+// Uploaded files are not served publicly (QC CSR-01): each module downloads them through its own
+// signed-in, scoped route (e.g. /download-csrfile/:name).
 
 // Fetch images endpoint
 app.get('/getImages', async (req, res) => {

@@ -114,11 +114,6 @@ export const fetchCsrExpenditureCost = async (csrProjectId) => {
   return response.data;
 };
 
-export const addCsrExpenditure = async (payload) => {
-  const response = await api.post('/add-csr-expenditure', payload);
-  return response.data;
-};
-
 export const fetchCsrGalleryFiles = async (csrProjectId) => {
   const response = await api.get(`/get-csr-project-files/${csrProjectId}`);
   return response.data;
