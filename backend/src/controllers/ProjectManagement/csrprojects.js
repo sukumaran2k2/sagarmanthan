@@ -439,67 +439,37 @@ async function csrfileDownload(req, res)
 async function getCsrProjectslist(req, res)
 {
     const scope = csrScope(req.user);
-    const conn = await pool;
-    const request = conn.request();
-
-    try
-    {
-        if (!scope.orgId && !scope.blocked)
-        {
-            const query = ` SELECT csr_project_id, tbl_csr_projects.organisation_id, mmt_organisation.organisation_name, csr_focus, 
-                project_name, project_received_from, impact_possible_outcome, target_beneficiaries, project_value, project_status, 
-                financial_year, commenced_on, completed_on, financial_progress, physical_progress, remarks, created_by, project_completion_doc,updated_date
-
-                FROM tbl_csr_projects 
-                INNER JOIN mmt_organisation ON tbl_csr_projects.organisation_id = mmt_organisation.organisation_id 
-                ORDER BY financial_year DESC, 
-                CASE 
-                    WHEN project_status = 'Approved by Board' THEN 1
-                    WHEN project_status = 'Project yet to start' THEN 2
-                    WHEN project_status = 'Project Under implementation' THEN 3
-                    WHEN project_status = 'Completed' THEN 4
-                    ELSE 5 
-                END 
-                ;
-            `;
-            
-            // Execute the query
-            const result = await request.query(query);
-
-            res.json(result.recordset);
+    if (scope.blocked) return res.json([]);
+    try {
+        const request = (await pool).request();
+        // One query for Ministry and organisation users; the same fields for both (QC CSR-26)
+        let orgSql = '';
+        if (scope.orgId) {
+            request.input("organisationID", scope.orgId);
+            orgSql = 'WHERE p.organisation_id = @organisationID';
         }
-        else {
-            const organisationID = scope.orgId;
-
-            if (!organisationID) {
-                return res.json([]);
-            }
-
-            request.input("organisationID", organisationID);
-
-            const query  = `
-            SELECT csr_project_id, tbl_csr_projects.organisation_id, mmt_organisation.organisation_name, csr_focus, 
-                project_name, project_received_from, impact_possible_outcome, target_beneficiaries, project_value, project_status, 
-                financial_year, commenced_on, completed_on, financial_progress, physical_progress, remarks, created_by, project_completion_doc
-                FROM tbl_csr_projects 
-                INNER JOIN mmt_organisation ON tbl_csr_projects.organisation_id = mmt_organisation.organisation_id
-                WHERE tbl_csr_projects.organisation_id = @organisationID
-                ORDER BY financial_year DESC, 
-                CASE 
-                    WHEN project_status = 'Approved by Board' THEN 1
-                    WHEN project_status = 'Project yet to start' THEN 2
-                    WHEN project_status = 'Project Under implementation' THEN 3
-                    WHEN project_status = 'Completed' THEN 4
-                    ELSE 5 
+        const result = await request.query(`
+            SELECT p.csr_project_id, p.organisation_id, o.organisation_name, p.csr_focus,
+                p.project_name, p.project_received_from, p.impact_possible_outcome, p.target_beneficiaries,
+                p.project_value, p.project_status, p.financial_year, p.commenced_on, p.completed_on,
+                p.financial_progress, p.physical_progress, p.remarks, p.created_by, p.project_completion_doc,
+                p.updated_date
+            FROM tbl_csr_projects p
+            JOIN mmt_organisation o ON o.organisation_id = p.organisation_id
+            ${orgSql}
+            ORDER BY p.financial_year DESC,
+                CASE p.project_status
+                    WHEN 'Approved by Board' THEN 1
+                    WHEN 'Project yet to start' THEN 2
+                    WHEN 'Project Under implementation' THEN 3
+                    WHEN 'Completed' THEN 4
+                    ELSE 5
                 END;
-            `;
-
-            const result = await request.query(query);
-            res.json(result.recordset);
-        }
+        `);
+        res.json(result.recordset);
     } catch (err) {
         console.error('Error fetching CSR projects:', err);
-        res.status(500).json({ error: 'Internal server error' }); // Send an error response
+        res.status(500).json({ error: 'Internal server error' });
     }
 }
 
@@ -861,139 +831,43 @@ async function addCsrFundDetails(req, res)
 
 async function getCsrFundList(req, res) {
     const scope = csrScope(req.user);
-    const conn = await pool;
-    const request = conn.request();
-
+    if (scope.blocked) return res.json([]);
     try {
-    if (!scope.orgId && !scope.blocked)
-
-
-
-     {
-            const query = `WITH FundExpenditure AS (
-                SELECT 
-                    tbl_csr_fund.csr_fund_id, 
-                    tbl_csr_fund.organisation_id, 
-                    tbl_csr_fund.financial_year, 
-                    
-                    ROUND(SUM(CASE 
-                        WHEN tbl_csr_expenditure.year = tbl_csr_fund.financial_year 
-                        AND tbl_csr_projects.organisation_id = tbl_csr_fund.organisation_id
-                        THEN tbl_csr_expenditure.csr_expenditure_cost 
-                        ELSE 0 
-                    END), 2) AS project_expenditure
-                FROM 
-                    tbl_csr_fund
-                LEFT JOIN tbl_csr_expenditure 
-                    ON tbl_csr_expenditure.year = tbl_csr_fund.financial_year
-                LEFT JOIN tbl_csr_projects 
-                    ON tbl_csr_projects.csr_project_id = tbl_csr_expenditure.csr_project_id
-                GROUP BY 
-                    tbl_csr_fund.csr_fund_id, 
-                    tbl_csr_fund.organisation_id, 
-                    tbl_csr_fund.financial_year
-            )
-            SELECT 
-                tbl_csr_fund.csr_fund_id, 
-                tbl_csr_fund.organisation_id, 
-                mmt_organisation.organisation_name, 
-                tbl_csr_fund.financial_year, 
-                net_profit, 
-                opening_balance_csr,
-                csr_fund_alloted_year, 
-                fe.project_expenditure,
-                tbl_csr_fund.updated_date, 
-
-                -- Renaming the total_project_expenditure_for_year to csr_fund_balance
-                ROUND(
-                    (opening_balance_csr + csr_fund_alloted_year) - 
-                    SUM(fe.project_expenditure) OVER (PARTITION BY tbl_csr_fund.organisation_id, tbl_csr_fund.financial_year), 
-                    2
-                ) AS csr_fund_balance  -- Renamed here
-
-                
-            FROM 
-                tbl_csr_fund
-            INNER JOIN mmt_organisation 
-                ON tbl_csr_fund.organisation_id = mmt_organisation.organisation_id 
-            LEFT JOIN FundExpenditure fe 
-                ON fe.csr_fund_id = tbl_csr_fund.csr_fund_id
-
-            ORDER BY 
-                tbl_csr_fund.financial_year DESC;
-
-           `;
-            
-          // Execute the query
-            const result = await request.query(query);
-
-             res.json(result.recordset);
+        const request = (await pool).request();
+        // One query for Ministry and organisation users; the same fields for both (QC CSR-26)
+        let orgSql = '';
+        if (scope.orgId) {
+            request.input("organisationID", scope.orgId);
+            orgSql = 'WHERE f.organisation_id = @organisationID';
         }
-        
-       else {
-           const organisationID = scope.orgId;
-
-           if (!organisationID) {
-               return res.json([]);
-           }
-
-           request.input("organisationID", organisationID);
-
-           const query  = `  WITH FundExpenditure AS (
-                SELECT 
-                    tbl_csr_fund.csr_fund_id, 
-                    tbl_csr_fund.organisation_id, 
-                    tbl_csr_fund.financial_year, 
-                    ROUND(SUM(CASE 
-                        WHEN tbl_csr_expenditure.year = tbl_csr_fund.financial_year 
-                        AND tbl_csr_projects.organisation_id = tbl_csr_fund.organisation_id
-                        THEN tbl_csr_expenditure.csr_expenditure_cost 
-                        ELSE 0 
-                    END), 2) AS project_expenditure
-                FROM 
-                    tbl_csr_fund
-                LEFT JOIN tbl_csr_expenditure 
-                    ON tbl_csr_expenditure.year = tbl_csr_fund.financial_year
-                LEFT JOIN tbl_csr_projects 
-                    ON tbl_csr_projects.csr_project_id = tbl_csr_expenditure.csr_project_id
-                GROUP BY 
-                    tbl_csr_fund.csr_fund_id, 
-                    tbl_csr_fund.organisation_id, 
-                    tbl_csr_fund.financial_year
+        // Spending is totalled once per organisation and year, then joined to the fund rows,
+        // instead of joining every fund row to every expenditure row of that year (QC CSR-25)
+        const result = await request.query(`
+            WITH spent AS (
+                SELECT p.organisation_id, e.[year] AS financial_year, SUM(e.csr_expenditure_cost) AS amount
+                FROM tbl_csr_expenditure e
+                JOIN tbl_csr_projects p ON p.csr_project_id = e.csr_project_id
+                ${scope.orgId ? 'WHERE p.organisation_id = @organisationID' : ''}
+                GROUP BY p.organisation_id, e.[year]
             )
-            SELECT 
-                tbl_csr_fund.csr_fund_id, 
-                tbl_csr_fund.organisation_id, 
-                mmt_organisation.organisation_name, 
-                tbl_csr_fund.financial_year, 
-                net_profit, 
-                opening_balance_csr,
-                csr_fund_alloted_year, 
-                fe.project_expenditure,
-                ROUND(
-                    (opening_balance_csr + csr_fund_alloted_year) - 
-                    SUM(fe.project_expenditure) OVER (PARTITION BY tbl_csr_fund.organisation_id, tbl_csr_fund.financial_year), 
-                    2
-                ) AS csr_fund_balance
-            FROM 
-                tbl_csr_fund
-            INNER JOIN mmt_organisation 
-                ON tbl_csr_fund.organisation_id = mmt_organisation.organisation_id 
-            LEFT JOIN FundExpenditure fe 
-                ON fe.csr_fund_id = tbl_csr_fund.csr_fund_id
-            WHERE tbl_csr_fund.organisation_id = @organisationID
-            ORDER BY 
-                tbl_csr_fund.financial_year DESC;
-            `;
-
-           const result = await request.query(query);
-           res.json(result.recordset);
-
-        }
+            SELECT
+                f.csr_fund_id, f.organisation_id, o.organisation_name, f.financial_year,
+                f.net_profit, f.opening_balance_csr, f.csr_fund_alloted_year,
+                ROUND(ISNULL(s.amount, 0), 2) AS project_expenditure,
+                f.updated_date,
+                -- closing balance of the year: opening + allotted - spent
+                ROUND(f.opening_balance_csr + f.csr_fund_alloted_year - ISNULL(s.amount, 0), 2) AS csr_fund_balance
+            FROM tbl_csr_fund f
+            JOIN mmt_organisation o ON o.organisation_id = f.organisation_id
+            LEFT JOIN spent s ON s.organisation_id = f.organisation_id AND s.financial_year = f.financial_year
+            ${orgSql}
+            ORDER BY f.financial_year DESC, o.organisation_name;
+        `);
+        res.json(result.recordset);
     } catch (err) {
         console.error('Error fetching CSR Fund:', err);
-        res.status(500).json({ error: 'Internal server error' }); // Send an error response
-     }
+        res.status(500).json({ error: 'Internal server error' });
+    }
 }
 
 async function getUpdateFundData(req, res) 
