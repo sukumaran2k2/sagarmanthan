@@ -393,6 +393,10 @@ const Table = forwardRef(({
             onFirstDataRendered={handleFirstDataRendered}
             onGridReady={handleGridReady}
             onPaginationChanged={handlePaginationChanged}
+            // While data is loading the page shows its own loading overlay; without this AG Grid
+            // also shows - and announces to screen readers - "No Rows To Show", which then stays in
+            // its live region after the rows arrive (QC CSR-49)
+            suppressNoRowsOverlay={loading}
             {...props}
           />
         </div>
