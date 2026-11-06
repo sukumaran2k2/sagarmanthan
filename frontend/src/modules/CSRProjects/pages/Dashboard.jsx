@@ -219,6 +219,8 @@ export default function Dashboard({ notify, isOrgUser }) {
     { label: 'Total Project Value', value: fund.projectValue },
     { label: 'CSR Expenditure (as reported)', value: fund.expenditure },
   ];
+  // Spending booked in a year the organisation has no fund entry for: not in the balance, so shown apart
+  const unfunded = Number(fund.unfundedExpenditure) || 0;
   const balance = Number(fund.balance) || 0;
 
   // 3. Organisation-wise stage-wise table, largest first (the cluster and organisation filters narrow it)
@@ -362,7 +364,8 @@ export default function Dashboard({ notify, isOrgUser }) {
           actions={(
             <TableExportMenu
               headers={['Particulars', 'Amount (₹ Cr)']}
-              rows={[...fundRows.map((r) => [r.label, formatCrore(r.value)]), ['Balance Available', formatCrore(balance)]]}
+              rows={[...fundRows.map((r) => [r.label, formatCrore(r.value)]), ['Balance Available', formatCrore(balance)],
+                ...(unfunded > 0 ? [['Expenditure in years with no fund entry (not included)', formatCrore(unfunded)]] : [])]}
               fileName="csr_fund_summary"
               title={`CSR Fund Summary (${yearLabel}, ₹ Cr)`}
             />
@@ -390,7 +393,8 @@ export default function Dashboard({ notify, isOrgUser }) {
           </table>
           <p className="px-4 py-2.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
             Balance = opening balance + fund allotted − expenditure.
-            {allYears && ' For all years the opening balance is each organisation\'s first year.'}
+            {allYears && ' Across years: each organisation\'s latest year; the opening balance shown is its first year.'}
+            {unfunded > 0 && ` Another ₹ ${formatCrore(unfunded)} Cr of expenditure was booked in years with no fund entry, so it is not in these figures.`}
             {filters.focus !== 0 && ' Funds have no focus area, so this table covers every focus area.'}
           </p>
         </Section>

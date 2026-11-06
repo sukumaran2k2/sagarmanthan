@@ -21,7 +21,7 @@ export const CSR_REPORTS = [
     label: 'Organisation-wise CSR Fund Trend',
     tab: 'Organisation-wise CSR Fund Trend',
     title: 'Report No.: C.S.R 1.3 - Organisation-wise CSR Fund Trend',
-    orgTitle: 'Report No.: C.S.R 1.1 - CSR Fund - Summary Report',
+    orgTitle: 'Report No.: C.S.R 1.1 - Organisation-wise CSR Fund Trend',
   },
   {
     id: 'projects-year-wise-summary',

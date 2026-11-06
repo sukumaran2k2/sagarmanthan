@@ -60,14 +60,7 @@ async function validation(req, res) {
     }
 
     const result =
-      await request.query(`SELECT tbl_user.user_id, tbl_user.password, tbl_user.email, tbl_user.role_id, tbl_role.role_name,
-            tbl_user.status, tbl_user.vibhas_id, tbl_user.password_status, tbl_user.wing_id, tbl_user.organisation_id,
-            tbl_user.password_updated_on, mmt_organisation.organisation_name AS organisation_name,
-            mmt_organisation.organisation_category_id
-            FROM tbl_user
-            INNER JOIN tbl_role ON tbl_role.role_id = tbl_user.role_id
-            LEFT JOIN mmt_organisation ON mmt_organisation.organisation_id = tbl_user.organisation_id
-            WHERE tbl_user.email = @email`);
+      await request.query(`${SESSION_USER_SQL} WHERE tbl_user.email = @email`);
 
     const userData = result.recordset[0];
     if (userData) {
@@ -113,115 +106,7 @@ async function validation(req, res) {
           });
         }
 
-        let organisationId = userData.organisation_id;
-
-        console.log('[LOGIN_ORG_CHECK]', { email, userId: userData.user_id, organisationId });
-
-        const roleProfileQuery = await request.query(`
-          SELECT
-            r.role_id,
-            r.role_code,
-            r.role_name,
-            uv.ui_view_code,
-            ds.data_scope_code
-          FROM tbl_role r
-          LEFT JOIN tbl_rbac_role_ui_view ruv ON ruv.role_id = r.role_id
-          LEFT JOIN mmt_rbac_ui_view uv ON uv.ui_view_id = ruv.ui_view_id
-          LEFT JOIN tbl_rbac_role_data_scope rds ON rds.role_id = r.role_id
-          LEFT JOIN mmt_rbac_data_scope ds ON ds.data_scope_id = rds.data_scope_id
-          WHERE r.role_id = ${userData.role_id}
-        `);
-        const roleProfile = roleProfileQuery.recordset[0] || {};
-        const roleCode = roleProfile.role_code || null;
-        const uiViewCode = roleProfile.ui_view_code || null;
-        const dataScopeCode = roleProfile.data_scope_code || null;
-
-        const isSuperAdminLogin = roleCode === 'SUPERADMIN';
-
-        let allowedModules = [];
-        let allowedModuleCodes = [];
-        let modulePermissions = [];
-
-        if (!isSuperAdminLogin && organisationId != null) {
-          const moduleQuery = await request.query(`
-            SELECT p.module_id, m.module_code
-            FROM tbl_rbac_org_module_permission p
-            INNER JOIN tbl_modules m ON m.module_id = p.module_id
-            WHERE p.organisation_id = ${Number(organisationId)}
-              AND p.is_allowed = 1
-              AND ISNULL(m.is_active, 1) = 1
-          `);
-          allowedModules = moduleQuery.recordset.map((row) => row.module_id);
-          allowedModuleCodes = moduleQuery.recordset
-            .map((row) => row.module_code)
-            .filter(Boolean);
-
-          if (allowedModules.length > 0) {
-            const modulePermissionsQuery = await request.query(`
-              SELECT
-                p.module_id,
-                m.module_code,
-                p.can_create,
-                p.can_read,
-                p.can_update,
-                p.can_delete
-              FROM tbl_rbac_user_module_crud p
-              INNER JOIN tbl_modules m ON m.module_id = p.module_id
-              WHERE p.user_id = ${userData.user_id}
-                AND p.module_id IN (${allowedModules.join(',')})
-            `);
-
-            modulePermissions = modulePermissionsQuery.recordset.map(row => ({
-              moduleId: row.module_id,
-              moduleCode: row.module_code,
-              create: !!row.can_create,
-              read: !!row.can_read,
-              update: !!row.can_update,
-              delete: !!row.can_delete,
-            }));
-          }
-        }
-
-        console.log('[LOGIN_MODULES]', {
-          email,
-          userId: userData.user_id,
-          roleId: userData.role_id,
-          roleCode,
-          uiViewCode,
-          dataScopeCode,
-          isSuperAdminLogin,
-          organisationId,
-          allowedModules,
-          allowedModuleCodes,
-          allowedModulesCount: allowedModules.length
-        });
-
-        const chainlitAccessToken = generateChainlitToken(userData);
-
-        const tokenPayload = {
-          userId: userData.user_id,
-          roleId: userData.role_id,
-          roleCode,
-          roleName: roleProfile.role_name || userData.role_name,
-          uiViewCode,
-          dataScopeCode,
-          email: userData.email,
-          status: userData.status,
-          passwordStatus: userData.password_status,
-          passwordUpdatedOn: userData.password_updated_on,
-          organisationId: isSuperAdminLogin ? null : userData.organisation_id,
-          organisationName: isSuperAdminLogin
-            ? 'System'
-            : (userData.organisation_name || null),
-          // mmt_organisation_category: 1 = Major Ports. HR shows port or non-port pages from it.
-          organisationCategoryId: isSuperAdminLogin ? null : (userData.organisation_category_id ?? null),
-          wingId: userData.wing_id,
-          vibhasId: userData.vibhas_id,
-          chainlitAccessToken,
-          allowedModules,
-          allowedModuleCodes,
-          modulePermissions,
-        };
+        const tokenPayload = await buildSessionPayload(request, userData);
 
         try {
           const updateLoginRequest = conn.request();
@@ -274,6 +159,132 @@ async function validation(req, res) {
     return res.sendStatus(500);
   }
 }
+
+// Builds the signed-in session (role, data scope, organisation, allowed modules and the user's
+// CRUD matrix) from the database. Used at login and again on every token refresh, so role or
+// permission changes apply within one access-token lifetime (QC CSR-35).
+export async function buildSessionPayload(request, userData) {
+  const email = userData.email;
+  let organisationId = userData.organisation_id;
+
+  console.log('[LOGIN_ORG_CHECK]', { email, userId: userData.user_id, organisationId });
+
+  const roleProfileQuery = await request.query(`
+    SELECT
+      r.role_id,
+      r.role_code,
+      r.role_name,
+      uv.ui_view_code,
+      ds.data_scope_code
+    FROM tbl_role r
+    LEFT JOIN tbl_rbac_role_ui_view ruv ON ruv.role_id = r.role_id
+    LEFT JOIN mmt_rbac_ui_view uv ON uv.ui_view_id = ruv.ui_view_id
+    LEFT JOIN tbl_rbac_role_data_scope rds ON rds.role_id = r.role_id
+    LEFT JOIN mmt_rbac_data_scope ds ON ds.data_scope_id = rds.data_scope_id
+    WHERE r.role_id = ${userData.role_id}
+  `);
+  const roleProfile = roleProfileQuery.recordset[0] || {};
+  const roleCode = roleProfile.role_code || null;
+  const uiViewCode = roleProfile.ui_view_code || null;
+  const dataScopeCode = roleProfile.data_scope_code || null;
+
+  const isSuperAdminLogin = roleCode === 'SUPERADMIN';
+
+  let allowedModules = [];
+  let allowedModuleCodes = [];
+  let modulePermissions = [];
+
+  if (!isSuperAdminLogin && organisationId != null) {
+    const moduleQuery = await request.query(`
+      SELECT p.module_id, m.module_code
+      FROM tbl_rbac_org_module_permission p
+      INNER JOIN tbl_modules m ON m.module_id = p.module_id
+      WHERE p.organisation_id = ${Number(organisationId)}
+        AND p.is_allowed = 1
+        AND ISNULL(m.is_active, 1) = 1
+    `);
+    allowedModules = moduleQuery.recordset.map((row) => row.module_id);
+    allowedModuleCodes = moduleQuery.recordset
+      .map((row) => row.module_code)
+      .filter(Boolean);
+
+    if (allowedModules.length > 0) {
+      const modulePermissionsQuery = await request.query(`
+        SELECT
+          p.module_id,
+          m.module_code,
+          p.can_create,
+          p.can_read,
+          p.can_update,
+          p.can_delete
+        FROM tbl_rbac_user_module_crud p
+        INNER JOIN tbl_modules m ON m.module_id = p.module_id
+        WHERE p.user_id = ${userData.user_id}
+          AND p.module_id IN (${allowedModules.join(',')})
+      `);
+
+      modulePermissions = modulePermissionsQuery.recordset.map(row => ({
+        moduleId: row.module_id,
+        moduleCode: row.module_code,
+        create: !!row.can_create,
+        read: !!row.can_read,
+        update: !!row.can_update,
+        delete: !!row.can_delete,
+      }));
+    }
+  }
+
+  console.log('[LOGIN_MODULES]', {
+    email,
+    userId: userData.user_id,
+    roleId: userData.role_id,
+    roleCode,
+    uiViewCode,
+    dataScopeCode,
+    isSuperAdminLogin,
+    organisationId,
+    allowedModules,
+    allowedModuleCodes,
+    allowedModulesCount: allowedModules.length
+  });
+
+  const chainlitAccessToken = generateChainlitToken(userData);
+
+  const tokenPayload = {
+    userId: userData.user_id,
+    roleId: userData.role_id,
+    roleCode,
+    roleName: roleProfile.role_name || userData.role_name,
+    uiViewCode,
+    dataScopeCode,
+    email: userData.email,
+    status: userData.status,
+    passwordStatus: userData.password_status,
+    passwordUpdatedOn: userData.password_updated_on,
+    organisationId: isSuperAdminLogin ? null : userData.organisation_id,
+    organisationName: isSuperAdminLogin
+      ? 'System'
+      : (userData.organisation_name || null),
+    // mmt_organisation_category: 1 = Major Ports. HR shows port or non-port pages from it.
+    organisationCategoryId: isSuperAdminLogin ? null : (userData.organisation_category_id ?? null),
+    wingId: userData.wing_id,
+    vibhasId: userData.vibhas_id,
+    chainlitAccessToken,
+    allowedModules,
+    allowedModuleCodes,
+    modulePermissions,
+  };
+  return tokenPayload;
+}
+
+// The user row the session is built from (login looks it up by email, refresh by id)
+export const SESSION_USER_SQL = `SELECT tbl_user.user_id, tbl_user.password, tbl_user.email, tbl_user.role_id, tbl_role.role_name,
+            tbl_user.status, tbl_user.vibhas_id, tbl_user.password_status, tbl_user.wing_id, tbl_user.organisation_id,
+            tbl_user.password_updated_on, mmt_organisation.organisation_name AS organisation_name,
+            mmt_organisation.organisation_category_id
+            FROM tbl_user
+            INNER JOIN tbl_role ON tbl_role.role_id = tbl_user.role_id
+            LEFT JOIN mmt_organisation ON mmt_organisation.organisation_id = tbl_user.organisation_id`;
 
 function generateChainlitToken(user) {
   const CHAINLIT_AUTH_SECRET = process.env.CHAINLIT_AUTH_SECRET;

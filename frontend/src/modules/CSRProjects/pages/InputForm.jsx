@@ -24,42 +24,80 @@ const STAGE_IDS = STAGES.map((s) => s.id);
 
 const MAX_DOC_MB = 20;      // completion document (PDF)
 const MAX_GALLERY_MB = 10;  // each gallery photo / video (the server's limit)
+const MAX_GALLERY_FILES = 10; // per upload (the server's limit)
+// The photo / video types the server accepts
+const GALLERY_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'video/mp4'];
 
 const dateOnly = (v) => (v ? String(v).split('T')[0] : '');
 const numberText = (v) => (v != null && v !== '' ? String(v) : '');
 const isAmount = (v) => v !== '' && !Number.isNaN(Number(v)) && Number(v) >= 0;
 const isPercent = (v) => v === '' || (!Number.isNaN(Number(v)) && Number(v) >= 0 && Number(v) <= 100);
 
+// Column sizes (QC CSR-44) and amount limits (QC CSR-41): amounts are stored in lakh as decimal(12,2)
+const NAME_MAX = 255;     // project_name, project_received_from
+const TEXT_MAX = 256;     // impact_possible_outcome, target_beneficiaries
+const MAX_CRORE = 99999999; // the largest amount the columns hold, in crore
+const LARGE_CRORE = 100;  // above this the form asks to check the amount is in crore
+const NOT_STARTED = ['Approved by Board', 'Project yet to start'];
+// Today as YYYY-MM-DD in the user's time zone
+const today = () => new Date().toLocaleDateString('en-CA');
+
+// A new project starts with focus area, year and status unselected, as in 2.0 (QC CSR-48)
 const initialProject = (item) => ({
-  csrFocus: String(item?.csr_focus || CSR_FOCUS_AREAS[0].id),
-  financialYear: item?.financial_year || FINANCIAL_YEARS[0],
+  csrFocus: item?.csr_focus ? String(item.csr_focus) : '',
+  financialYear: item?.financial_year || '',
   projectName: item?.project_name || '',
   receivedFrom: item?.project_received_from || '',
   impact: item?.impact_possible_outcome || '',
   beneficiaries: item?.target_beneficiaries || '',
   remarks: item?.remarks || '',
   projectValue: croreInput(item?.project_value),
-  status: item?.project_status || CSR_STATUSES[0],
+  status: item?.project_status || '',
   commencedOn: dateOnly(item?.commenced_on),
   completedOn: dateOnly(item?.completed_on),
   physicalProgress: numberText(item?.physical_progress),
   financialProgress: numberText(item?.financial_progress),
 });
 
-// The mandatory fields of each stage; returns { field: message }
-function stageErrors(stageId, v) {
+// The status saved: "Completed" only when both progress figures are 100%, and back to
+// "Under implementation" when either falls below
+const statusOf = (v) => {
+  if (Number(v.physicalProgress) === 100 && Number(v.financialProgress) === 100) return 'Completed';
+  return v.status === 'Completed' ? 'Project Under implementation' : v.status;
+};
+
+// The checks of each stage; returns { field: message }. The server makes the same checks.
+// The status / date / progress rules apply to new projects only (saved ones often break them).
+function stageErrors(stageId, v, isNew) {
   const errs = {};
   if (stageId === 'general') {
+    if (!v.csrFocus) errs.csrFocus = 'Select the CSR focus / project area.';
+    if (!v.financialYear) errs.financialYear = 'Select the financial year.';
     if (!v.projectName.trim()) errs.projectName = 'Name of the Project is required.';
+    else if (v.projectName.trim().length > NAME_MAX) errs.projectName = `At most ${NAME_MAX} characters.`;
     if (!v.receivedFrom.trim()) errs.receivedFrom = 'Project received from is required.';
+    else if (v.receivedFrom.trim().length > NAME_MAX) errs.receivedFrom = `At most ${NAME_MAX} characters.`;
     if (!isAmount(v.projectValue)) errs.projectValue = 'Enter the project value in ₹ Cr (0 or more).';
+    else if (Number(v.projectValue) > MAX_CRORE) errs.projectValue = 'This amount is too large. Enter it in ₹ Cr.';
   } else if (stageId === 'outcomes') {
     if (!v.impact.trim()) errs.impact = 'Impact / Possible Outcome is required.';
+    else if (v.impact.trim().length > TEXT_MAX) errs.impact = `At most ${TEXT_MAX} characters.`;
     if (!v.beneficiaries.trim()) errs.beneficiaries = 'Target Beneficiaries is required.';
+    else if (v.beneficiaries.trim().length > TEXT_MAX) errs.beneficiaries = `At most ${TEXT_MAX} characters.`;
   } else if (stageId === 'status') {
-    if (v.commencedOn && v.completedOn && v.completedOn < v.commencedOn) errs.completedOn = 'Completed date cannot be earlier than the commenced date.';
+    // Status, dates and progress have to agree (QC CSR-43)
+    const status = statusOf(v);
+    const strict = isNew;
+    if (!status) errs.status = 'Select the project status.';
+    if (v.commencedOn && v.commencedOn > today()) errs.commencedOn = 'The commenced date cannot be in the future.';
+    if (v.completedOn && v.completedOn > today()) errs.completedOn = 'The completed date cannot be in the future.';
+    else if (v.commencedOn && v.completedOn && v.completedOn < v.commencedOn) errs.completedOn = 'Completed date cannot be earlier than the commenced date.';
+    else if (strict && v.completedOn && status !== 'Completed') errs.completedOn = 'Enter a completed date only once the project is completed (both progress figures 100%).';
+    if (strict && !v.commencedOn && (status === 'Project Under implementation' || status === 'Completed')) errs.commencedOn = 'Enter the date the project commenced.';
     if (!isPercent(v.physicalProgress)) errs.physicalProgress = 'Physical progress must be between 0 and 100.';
+    else if (strict && NOT_STARTED.includes(status) && Number(v.physicalProgress) > 0) errs.physicalProgress = `Must be 0 while the status is "${status}". Change the status to Under implementation.`;
     if (!isPercent(v.financialProgress)) errs.financialProgress = 'Financial progress must be between 0 and 100.';
+    else if (strict && NOT_STARTED.includes(status) && Number(v.financialProgress) > 0) errs.financialProgress = `Must be 0 while the status is "${status}". Change the status to Under implementation.`;
   }
   return errs;
 }
@@ -106,16 +144,14 @@ function ProjectForm({ editData, organisationId, onBack, onSaved, notify }) {
   // "Completed" is set only by both progress figures reaching 100%, and drops back to
   // "Under implementation" when either falls below
   const isFullyComplete = Number(values.physicalProgress) === 100 && Number(values.financialProgress) === 100;
-  const effectiveStatus = isFullyComplete
-    ? 'Completed'
-    : (values.status === 'Completed' ? 'Project Under implementation' : values.status);
+  const effectiveStatus = statusOf(values);
 
   const setValue = (key, value) => {
     setValues((v) => ({ ...v, [key]: value }));
     setErrors((e) => (e[key] ? { ...e, [key]: undefined } : e));
   };
 
-  const stageValid = (id) => Object.keys(stageErrors(id, values)).length === 0;
+  const stageValid = (id) => Object.keys(stageErrors(id, values, !isEdit)).length === 0;
   const stageDone = {
     general: stageValid('general'),
     outcomes: stageValid('general') && stageValid('outcomes'),
@@ -126,11 +162,11 @@ function ProjectForm({ editData, organisationId, onBack, onSaved, notify }) {
   // Checks every stage before the target one; stops at the first with missing fields
   const checkStagesBefore = (targetIndex) => {
     for (let i = 0; i < targetIndex; i += 1) {
-      const errs = stageErrors(STAGE_IDS[i], values);
+      const errs = stageErrors(STAGE_IDS[i], values, !isEdit);
       if (Object.keys(errs).length) {
         setErrors((e) => ({ ...e, ...errs }));
         setActiveStage(STAGE_IDS[i]);
-        notify(errs.completedOn && Object.keys(errs).length === 1 ? CSR_TOASTS.completedBeforeCommenced() : CSR_TOASTS.stageIncomplete(i + 1));
+        notify(CSR_TOASTS.stageIncomplete(i + 1));
         return false;
       }
     }
@@ -157,8 +193,12 @@ function ProjectForm({ editData, organisationId, onBack, onSaved, notify }) {
 
   const pickGallery = (fileList) => {
     const files = Array.from(fileList || []);
-    if (files.some((f) => !f.type.startsWith('image/') && !f.type.startsWith('video/'))) {
-      notify(COMMON_TOASTS.invalidFileType('image or video'));
+    if (files.some((f) => !GALLERY_TYPES.includes(f.type))) {
+      notify(COMMON_TOASTS.invalidFileType('JPG, PNG, WebP photo or MP4 video'));
+      return;
+    }
+    if (files.length > MAX_GALLERY_FILES) {
+      notify(COMMON_TOASTS.fixValidationErrors(`Choose at most ${MAX_GALLERY_FILES} files at a time`));
       return;
     }
     if (files.some((f) => f.size > MAX_GALLERY_MB * 1024 * 1024)) {
@@ -171,9 +211,19 @@ function ProjectForm({ editData, organisationId, onBack, onSaved, notify }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!checkStagesBefore(STAGE_IDS.length - 1)) return;
-    const badCost = expenditures.some((x) => x.cost !== '' && !isAmount(x.cost));
-    if (badCost) {
-      notify(COMMON_TOASTS.fixValidationErrors('Expenditure amounts must be 0 or more'));
+    const costs = expenditures.filter((x) => x.cost !== '');
+    if (costs.some((x) => !isAmount(x.cost) || Number(x.cost) > MAX_CRORE)) {
+      notify(COMMON_TOASTS.fixValidationErrors('Expenditure amounts must be 0 or more, in ₹ Cr'));
+      return;
+    }
+    if (new Set(costs.map((x) => x.year)).size !== costs.length) {
+      notify(COMMON_TOASTS.fixValidationErrors('Each financial year can appear only once in the expenditure'));
+      return;
+    }
+    // Spent can't be more than a new project's value (QC CSR-41)
+    const spent = costs.reduce((sum, x) => sum + Number(x.cost), 0);
+    if (!isEdit && spent > Number(values.projectValue) + 1e-9) {
+      notify(COMMON_TOASTS.fixValidationErrors(`Total expenditure (₹ ${spent.toLocaleString('en-IN')} Cr) is more than the project value (₹ ${Number(values.projectValue).toLocaleString('en-IN')} Cr)`));
       return;
     }
 
@@ -339,34 +389,43 @@ function ProjectForm({ editData, organisationId, onBack, onSaved, notify }) {
             <h4 className="module-form-section-title">General Project Details</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="module-form-label">CSR Focus/Project Area <span className="text-red-500">*</span></label>
-                <select value={values.csrFocus} onChange={(e) => setValue('csrFocus', e.target.value)} className="module-form-select">
+                <label className="module-form-label" htmlFor="csr-csrFocus">CSR Focus/Project Area <span className="text-red-500">*</span></label>
+                <select id="csr-csrFocus" value={values.csrFocus} onChange={(e) => setValue('csrFocus', e.target.value)} className={`module-form-select${errors.csrFocus ? ' !border-red-500' : ''}`}>
+                  <option value="">-- Select --</option>
                   {CSR_FOCUS_AREAS.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
                 </select>
+                {fieldError('csrFocus')}
               </div>
               <div>
-                <label className="module-form-label">Financial Year <span className="text-red-500">*</span></label>
-                <select value={values.financialYear} onChange={(e) => setValue('financialYear', e.target.value)} className="module-form-select">
+                <label className="module-form-label" htmlFor="csr-financialYear">Financial Year <span className="text-red-500">*</span></label>
+                <select id="csr-financialYear" value={values.financialYear} onChange={(e) => setValue('financialYear', e.target.value)} className={`module-form-select${errors.financialYear ? ' !border-red-500' : ''}`}>
+                  <option value="">-- Select --</option>
                   {FINANCIAL_YEARS.map((fy) => <option key={fy} value={fy}>{fy}</option>)}
                 </select>
+                {fieldError('financialYear')}
               </div>
               <div className="md:col-span-2">
-                <label className="module-form-label">Name of the Project <span className="text-red-500">*</span></label>
-                <input type="text" placeholder="Enter project name" value={values.projectName}
+                <label className="module-form-label" htmlFor="csr-projectName">Name of the Project <span className="text-red-500">*</span></label>
+                <input type="text" placeholder="Enter project name" maxLength={NAME_MAX} id="csr-projectName" value={values.projectName}
                   onChange={(e) => setValue('projectName', e.target.value)} className={fieldClass('projectName')} />
                 {fieldError('projectName')}
               </div>
               <div>
-                <label className="module-form-label">Project Received From <span className="text-red-500">*</span></label>
-                <input type="text" placeholder="Enter project received from" value={values.receivedFrom}
+                <label className="module-form-label" htmlFor="csr-receivedFrom">Project Received From <span className="text-red-500">*</span></label>
+                <input type="text" placeholder="Enter project received from" maxLength={NAME_MAX} id="csr-receivedFrom" value={values.receivedFrom}
                   onChange={(e) => setValue('receivedFrom', e.target.value)} className={fieldClass('receivedFrom')} />
                 {fieldError('receivedFrom')}
               </div>
               <div>
-                <label className="module-form-label">Project Value (₹ Cr) <span className="text-red-500">*</span></label>
-                <input type="number" step="0.0001" min="0" placeholder="0.00" value={values.projectValue}
+                <label className="module-form-label" htmlFor="csr-projectValue">Project Value (₹ Cr) <span className="text-red-500">*</span></label>
+                <input type="number" step="0.0001" min="0" placeholder="0.00" id="csr-projectValue" value={values.projectValue}
                   onChange={(e) => setValue('projectValue', e.target.value)} className={fieldClass('projectValue')} />
                 {fieldError('projectValue')}
+                {!errors.projectValue && Number(values.projectValue) > LARGE_CRORE && (
+                  <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 mt-1">
+                    That is more than ₹{LARGE_CRORE} Cr. Check the amount is in crore, not lakh or rupees.
+                  </p>
+                )}
               </div>
             </div>
             {footer(null, STAGES[1])}
@@ -378,20 +437,20 @@ function ProjectForm({ editData, organisationId, onBack, onSaved, notify }) {
             <h4 className="module-form-section-title">Impact, Beneficiaries &amp; Remarks</h4>
             <div className="space-y-4">
               <div>
-                <label className="module-form-label">Impact / Possible Outcome of the Project <span className="text-red-500">*</span></label>
-                <textarea rows={3} placeholder="Enter impact / outcome of the project..." value={values.impact}
+                <label className="module-form-label" htmlFor="csr-impact">Impact / Possible Outcome of the Project <span className="text-red-500">*</span></label>
+                <textarea rows={3} placeholder="Enter impact / outcome of the project..." maxLength={TEXT_MAX} id="csr-impact" value={values.impact}
                   onChange={(e) => setValue('impact', e.target.value)} className={fieldClass('impact')} />
                 {fieldError('impact')}
               </div>
               <div>
-                <label className="module-form-label">Target Beneficiaries <span className="text-red-500">*</span></label>
-                <textarea rows={2} placeholder="Enter target beneficiaries..." value={values.beneficiaries}
+                <label className="module-form-label" htmlFor="csr-beneficiaries">Target Beneficiaries <span className="text-red-500">*</span></label>
+                <textarea rows={2} placeholder="Enter target beneficiaries..." maxLength={TEXT_MAX} id="csr-beneficiaries" value={values.beneficiaries}
                   onChange={(e) => setValue('beneficiaries', e.target.value)} className={fieldClass('beneficiaries')} />
                 {fieldError('beneficiaries')}
               </div>
               <div>
-                <label className="module-form-label">Remarks</label>
-                <textarea rows={2} placeholder="Enter remarks..." value={values.remarks}
+                <label className="module-form-label" htmlFor="csr-remarks">Remarks</label>
+                <textarea rows={2} placeholder="Enter remarks..." id="csr-remarks" value={values.remarks}
                   onChange={(e) => setValue('remarks', e.target.value)} className="module-form-input" />
               </div>
             </div>
@@ -404,38 +463,42 @@ function ProjectForm({ editData, organisationId, onBack, onSaved, notify }) {
             <h4 className="module-form-section-title">Status, Timelines &amp; Progress</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="module-form-label">Project Status <span className="text-red-500">*</span></label>
+                <label className="module-form-label" htmlFor="csr-status">Project Status <span className="text-red-500">*</span></label>
                 <select
+                  id="csr-status"
                   value={effectiveStatus}
                   onChange={(e) => setValue('status', e.target.value)}
                   disabled={isFullyComplete}
                   className="module-form-select disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:cursor-not-allowed"
                 >
+                  {!effectiveStatus && <option value="">-- Select --</option>}
                   {CSR_STATUSES.filter((s) => s !== 'Completed' || isFullyComplete).map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
+                {fieldError('status')}
                 <p className="text-[10px] font-semibold text-slate-500 mt-1">
                   {isFullyComplete ? 'Set automatically: both progress figures are 100%.' : 'Becomes "Completed" once physical and financial progress both reach 100%.'}
                 </p>
               </div>
               <div className="hidden md:block" />
               <div>
-                <label className="module-form-label">Commenced On</label>
-                <input type="date" value={values.commencedOn} onChange={(e) => setValue('commencedOn', e.target.value)} className="module-form-input" />
+                <label className="module-form-label" htmlFor="csr-commencedOn">Commenced On</label>
+                <input type="date" max={today()} id="csr-commencedOn" value={values.commencedOn} onChange={(e) => setValue('commencedOn', e.target.value)} className={fieldClass('commencedOn')} />
+                {fieldError('commencedOn')}
               </div>
               <div>
-                <label className="module-form-label">Completed On</label>
-                <input type="date" value={values.completedOn} onChange={(e) => setValue('completedOn', e.target.value)} className={fieldClass('completedOn')} />
+                <label className="module-form-label" htmlFor="csr-completedOn">Completed On</label>
+                <input type="date" max={today()} id="csr-completedOn" value={values.completedOn} onChange={(e) => setValue('completedOn', e.target.value)} className={fieldClass('completedOn')} />
                 {fieldError('completedOn')}
               </div>
               <div>
-                <label className="module-form-label">Physical Progress (%)</label>
-                <input type="number" min="0" max="100" step="0.01" placeholder="0" value={values.physicalProgress}
+                <label className="module-form-label" htmlFor="csr-physicalProgress">Physical Progress (%)</label>
+                <input type="number" min="0" max="100" step="0.01" placeholder="0" id="csr-physicalProgress" value={values.physicalProgress}
                   onChange={(e) => setValue('physicalProgress', e.target.value)} className={fieldClass('physicalProgress')} />
                 {fieldError('physicalProgress')}
               </div>
               <div>
-                <label className="module-form-label">Financial Progress (%)</label>
-                <input type="number" min="0" max="100" step="0.01" placeholder="0" value={values.financialProgress}
+                <label className="module-form-label" htmlFor="csr-financialProgress">Financial Progress (%)</label>
+                <input type="number" min="0" max="100" step="0.01" placeholder="0" id="csr-financialProgress" value={values.financialProgress}
                   onChange={(e) => setValue('financialProgress', e.target.value)} className={fieldClass('financialProgress')} />
                 {fieldError('financialProgress')}
               </div>
@@ -518,7 +581,7 @@ function ProjectForm({ editData, organisationId, onBack, onSaved, notify }) {
                 <label className="module-form-label">Gallery (Photos and Videos)</label>
                 <p className="text-[10px] text-red-500 font-bold uppercase tracking-wider">Several files can be chosen, max. {MAX_GALLERY_MB} MB each</p>
                 <div className="flex items-center space-x-3 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
-                  <input type="file" ref={galleryInputRef} multiple accept="image/*,video/*" className="hidden"
+                  <input type="file" ref={galleryInputRef} multiple accept=".jpg,.jpeg,.png,.webp,.mp4" className="hidden"
                     onChange={(e) => { pickGallery(e.target.files); e.target.value = ''; }} />
                   <button type="button" onClick={() => galleryInputRef.current?.click()}
                     className="flex items-center gap-1.5 px-4 py-2 bg-[#0f417a] hover:bg-blue-800 text-white text-xs font-bold rounded-lg transition cursor-pointer">

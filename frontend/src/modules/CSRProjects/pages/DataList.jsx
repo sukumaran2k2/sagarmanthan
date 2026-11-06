@@ -339,7 +339,7 @@ export default function DataList({ notify, permissions, onEdit }) {
                 className="w-full module-search-input"
               />
               {searchTerm && (
-                <button type="button" onClick={() => actions.setSearchTerm('')}
+                <button aria-label="Clear search" type="button" onClick={() => actions.setSearchTerm('')}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer">
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -479,7 +479,7 @@ export default function DataList({ notify, permissions, onEdit }) {
                   {detailProject.organisation_name} • {detailProject.financial_year}
                 </p>
               </div>
-              <button type="button" onClick={() => setDetailProject(null)} className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition cursor-pointer">
+              <button aria-label="Close" type="button" onClick={() => setDetailProject(null)} className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition cursor-pointer">
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -591,7 +591,7 @@ export default function DataList({ notify, permissions, onEdit }) {
                 <h3 className="text-sm font-black uppercase tracking-wider font-display">Project Photo Gallery</h3>
                 <p className="text-[10px] text-purple-200 font-semibold mt-0.5">{galleryProject.project_name}</p>
               </div>
-              <button type="button" onClick={() => setGalleryProject(null)} className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition cursor-pointer">
+              <button aria-label="Close" type="button" onClick={() => setGalleryProject(null)} className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition cursor-pointer">
                 <X className="h-4 w-4" />
               </button>
             </div>
