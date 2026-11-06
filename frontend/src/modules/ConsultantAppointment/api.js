@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { refreshAccessToken } from '../../utils/sessionRefresh';
 
 export const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
@@ -15,16 +16,7 @@ api.interceptors.request.use((config) => {
 
 let refreshPromise = null;
 
-async function refreshAccessToken() {
-  // Refresh token is stored in an httpOnly cookie — the browser sends it automatically.
-  const res = await axios.get(`${API_BASE}/refresh-token`, {
-    withCredentials: true,
-  });
-  const next = res.data?.accessToken;
-  if (!next) throw new Error('Refresh failed');
-  localStorage.setItem('accessToken', next);
-  return next;
-}
+// A new access token comes from the shared session refresh (cookie-based)
 
 api.interceptors.response.use(
   (response) => response,

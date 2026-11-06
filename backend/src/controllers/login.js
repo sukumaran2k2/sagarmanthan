@@ -123,7 +123,10 @@ async function validation(req, res) {
         const accessToken = jwt.sign(tokenPayload, process.env.JWT_SECRET, {
           expiresIn: "30m",
         });
-        const refreshToken = jwt.sign(tokenPayload, process.env.MIKR_REFRESH_SECRET, {
+        // The refresh token only names the user: a refresh rebuilds the session from the database
+        // (refresh-token.js). The full payload made the cookie larger than the 4 KB browsers
+        // accept, so it was dropped and the session could never be renewed.
+        const refreshToken = jwt.sign({ userId: userData.user_id, kind: 'portal' }, process.env.MIKR_REFRESH_SECRET, {
           expiresIn: "1d",
         });
 

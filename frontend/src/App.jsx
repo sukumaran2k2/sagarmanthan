@@ -7,6 +7,7 @@ import Loader from './components/Loader';
 import { Activity, Sparkles } from 'lucide-react';
 import { TAB_USER_MODULE_PERMISSION, TAB_USER_MASTER_MANAGEMENT, TAB_USER_LIST, normalizeTab } from './utils/moduleAccess';
 import { resetAllStores } from './stores/resetRegistry';
+import { endSession } from './utils/sessionRefresh';
 
 // Lazy-loaded feature modules for code splitting and instant initial page load
 const LandingView = lazy(() => import('./modules/Landing/Landing'));
@@ -208,6 +209,7 @@ export default function App() {
   }, [isLoggedIn]);
 
   const handleLogout = () => {
+    endSession();
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     setIsLoggedIn(false);

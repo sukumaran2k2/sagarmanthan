@@ -112,12 +112,17 @@ export default function LoginView({ onLogin }) {
         email,
         password: encrypted,
         recaptchaResponse: recaptchaToken,
+      }, {
+        // Keep the httpOnly refresh-token cookie the server sets, so the session can be renewed
+        // after the 30-minute access token expires
+        withCredentials: true,
       })
       .then((res) => {
         dispatch({ type: 'SUBMIT_SUCCESS' });
         if (res.data.accessToken) {
           localStorage.setItem("accessToken", res.data.accessToken);
-          localStorage.setItem("refreshToken", res.data.refreshToken);
+          // The refresh token is only in the httpOnly cookie now; drop any old stored copy
+          localStorage.removeItem("refreshToken");
           onLogin();
         } else {
           let errMsg = res.data.message || "Invalid credentials.";
