@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { refreshAccessToken } from '../../utils/sessionRefresh';
 
 export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
@@ -28,19 +29,15 @@ api.interceptors.response.use(
     const originalRequest = error.config;
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
-      const refreshToken = localStorage.getItem('refreshToken');
-      if (refreshToken) {
-        try {
-          const res = await axios.post(`${API_BASE}/refresh-token`, { refreshToken });
-          const newAccessToken = res.data.accessToken;
-          localStorage.setItem('accessToken', newAccessToken);
-          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
-          return api(originalRequest);
-        } catch (refreshErr) {
-          localStorage.clear();
-          window.location.href = '/';
-          return Promise.reject(refreshErr);
-        }
+      try {
+        // Shared session refresh (cookie-based; the old POST with a stored token never worked)
+        const newAccessToken = await refreshAccessToken();
+        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+        return api(originalRequest);
+      } catch (refreshErr) {
+        localStorage.clear();
+        window.location.href = '/';
+        return Promise.reject(refreshErr);
       }
     }
     return Promise.reject(error);

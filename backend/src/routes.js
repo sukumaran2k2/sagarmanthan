@@ -242,7 +242,7 @@ import ModuleControllerTab from "./controllers/UserManagement/moduleManagement.j
 //API - MIKR
 import { getAuthCode, getToken } from "./controllers/mikr-authcode-token-generation.js";
 import { getVerifyToken } from "./controllers/verify-api-token.js";
-import { getRefreshToken } from "./controllers/refresh-token.js";
+import { getRefreshToken, endSession } from "./controllers/refresh-token.js";
 import { requireSuperAdmin, requireUserAdmin, guardManagedUser, guardManagedUserList, guardOrganisation, requireSelf, ownOrganisationQuery, guardUserIdsQuery } from "./middleware/userAdmin.js";
 import { getKrDocumentData } from "./controllers/fetch-kr-document-data.js";
 import { getUpdateDocStatus } from "./controllers/update-document-status.js";
@@ -275,7 +275,7 @@ import { acceptFormFiles } from "./controllers/formBuilder/formBuilderFiles.js";
 const router = express.Router();
 
 // Every request needs a signed-in user, except logging in, the password reset steps (they check
-// the emailed code / current password), refreshing the session (it carries the refresh token),
+// the emailed code / current password), refreshing or ending the session (they use the refresh cookie),
 // MIKR's token routes (they check their own token), the external KPI / project data feed (it
 // checks an email and password sent with each request) and the chatbot reading its
 // permissions. Uploaded files are only reachable through each module's signed-in download route.
@@ -293,6 +293,7 @@ const PUBLIC_ROUTES = new Set([
     'POST /password-reset-validation',
     'PUT /edit-password',
     'GET /refresh-token',
+    'POST /logout',
     'GET /token',
     'GET /verify-api-token',
     'GET /fetch-kr-document-data',
@@ -315,6 +316,7 @@ router.get('/authorize', auth, getAuthCode);
 router.get('/token', getToken);
 router.get("/verify-api-token", mikrAuth, getVerifyToken);
 router.get("/refresh-token", getRefreshToken);
+router.post("/logout", endSession);
 router.get("/fetch-kr-document-data", mikrAuth, getKrDocumentData);
 router.put("/update-document-status", mikrAuth, getUpdateDocStatus);
 router.get("/download-document", mikrAuth, getDownloadDocument);

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { refreshAccessToken } from '../../utils/sessionRefresh';
 import { getCurrentUserId } from '../../utils/authSession';
 
 export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
@@ -24,17 +25,7 @@ api.interceptors.request.use(
 // Response Interceptor: Auto-refresh on 401 Unauthorized
 let refreshPromise = null;
 
-async function refreshAccessToken() {
-  const refreshToken = localStorage.getItem('refreshToken');
-  if (!refreshToken) {
-    throw new Error('No refresh token');
-  }
-  const res = await axios.post(`${API_BASE}/refresh-token`, { refreshToken });
-  const next = res.data?.accessToken;
-  if (!next) throw new Error('Refresh failed');
-  localStorage.setItem('accessToken', next);
-  return next;
-}
+// A new access token comes from the shared session refresh (cookie-based)
 
 api.interceptors.response.use(
   (response) => response,

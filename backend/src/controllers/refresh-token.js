@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import { pool } from "../db.js";
-import { isBlacklisted } from "../utils/tokenStore.js";
+import { isBlacklisted, addToBlacklist } from "../utils/tokenStore.js";
 import { buildSessionPayload, SESSION_USER_SQL } from "./login.js";
 
 export async function getRefreshToken(req, res) {
@@ -23,8 +23,10 @@ export async function getRefreshToken(req, res) {
         const decoded = jwt.verify(refreshToken, process.env.MIKR_REFRESH_SECRET);
         const { iat, exp, ...payload } = decoded;
 
-        // MIKR tokens carry their own payload and are re-signed as they are
-        if (payload.allowedModules === undefined) {
+        // Portal refresh tokens are { userId, kind: 'portal' } (older ones carried the whole session,
+        // with allowedModules). MIKR tokens carry their own payload and are re-signed as they are.
+        const isPortal = payload.kind === 'portal' || payload.allowedModules !== undefined;
+        if (!isPortal) {
             const newAccessToken = jwt.sign(payload, process.env.MIKR_SECRET, { expiresIn: "30m" });
             return res.json({ accessToken: newAccessToken });
         }
@@ -53,4 +55,18 @@ export async function getRefreshToken(req, res) {
         // e.g. the database is unreachable: not the user's fault, so don't treat it as a bad token
         return res.status(503).json({ message: "Could not refresh the session. Please try again." });
     }
+}
+
+// Ends the portal session: the refresh-token cookie (and the access token, if sent) can no longer
+// be used, and the cookie is removed, so a signed-out browser can't be signed back in by a
+// refresh. Needs no valid access token, since it only switches a session off.
+export function endSession(req, res) {
+    addToBlacklist(req.cookies?.refreshToken);
+    addToBlacklist(req.headers.authorization?.split(" ")[1]);
+    res.clearCookie('refreshToken', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'Strict',
+    });
+    return res.sendStatus(204);
 }
