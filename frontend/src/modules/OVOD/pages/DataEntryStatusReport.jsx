@@ -4,8 +4,7 @@ import {
   Layers,
   Compass,
   RefreshCw,
-  Search,
-  ChevronDown
+  Search
 } from 'lucide-react';
 import ReportTable from '../../../components/ReportTable';
 import { fetchOvdStatusReport, fetchOvdOrgListData, getUserIdFromToken } from '../api';
@@ -711,34 +710,43 @@ export default function DataEntryStatusReport({ triggerNotification }) {
   return (
     <div className="space-y-3 animate-fade-in text-stone-800 dark:text-stone-100">
 
-      {/* ── Toolbar: Dropdown tab selector + note ──────────────── */}
-      <div className="flex items-center justify-between gap-3">
-        {/* Sub-tab as dropdown */}
-        <div className="relative">
-          <select
-            value={activeTabId}
-            onChange={(e) => {
-              setStatusReportTab(e.target.value);
-              setDrilldownOrg(null);
-              setDrilldownRows([]);
-              setDrilldownType(null);
-              setNumDrilldownOrg(null);
-            }}
-            className="appearance-none pl-3 pr-8 py-1.5 text-sm font-bold bg-teal-500 hover:bg-teal-600 text-white rounded cursor-pointer focus:outline-none transition-colors"
-          >
-            {SUB_TABS.map((tab) => (
-              <option key={tab.id} value={tab.id}>{tab.label}</option>
-            ))}
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-white" />
+      {/* ── Note + Tab switcher on same row ────────────────────── */}
+      <div className="flex items-start justify-between gap-4">
+        {/* Note */}
+        <p className="text-xs text-stone-600 dark:text-stone-400 leading-relaxed pt-1.5">
+          <strong className="text-rose-600 dark:text-rose-400">Note : </strong>
+          Kindly note that the counts displayed in this report may not match the corresponding totals shown on the dashboard, as a single A1/A2/A3 item may be mapped to more than one wing. Therefore, this report is intended only to track whether A1/A2/A3 items are being updated and should not be used for any other analytical or progress-tracking purposes.
+        </p>
+
+        {/* Pills */}
+        <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl shrink-0 border border-slate-200 dark:border-slate-700">
+          {SUB_TABS.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = tab.id === activeTabId;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => {
+                  setStatusReportTab(tab.id);
+                  setDrilldownOrg(null);
+                  setDrilldownRows([]);
+                  setDrilldownType(null);
+                  setNumDrilldownOrg(null);
+                }}
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer select-none ${
+                  isActive
+                    ? 'bg-[#4b2424] text-white shadow-sm'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-white/60 dark:hover:bg-slate-700/60'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
       </div>
-
-      {/* ── Note ───────────────────────────────────────────────── */}
-      <p className="text-xs text-stone-700 dark:text-stone-300 leading-relaxed">
-        <strong className="text-rose-600 dark:text-rose-400">Note : </strong>
-        Kindly note that the counts displayed in this report may not match the corresponding totals shown on the dashboard, as a single A1/A2/A3 item may be mapped to more than one wing. Therefore, this report is intended only to track whether A1/A2/A3 items are being updated and should not be used for any other analytical or progress-tracking purposes.
-      </p>
 
       {/* ── Main Data Table or Drilldown ───────────────────────── */}
       <div className="relative">
