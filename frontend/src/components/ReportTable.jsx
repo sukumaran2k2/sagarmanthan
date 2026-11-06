@@ -32,6 +32,9 @@ export default function ReportTable({
   filterPanel = null,
   autoHeaderHeight = false,
   showColumnVisibility = true,
+  // true: Excel = .xlsx and PDF = file download, each with title, subtitle (period), merged group
+  // headers and total rows, as the earlier portal's dashboard exports. false keeps CSV / print.
+  reportExport = false,
 }) {
   const effectiveData = useMemo(() => {
     if (viewData && viewData.length > 0) return viewData;
@@ -292,7 +295,8 @@ export default function ReportTable({
           }
         }
       } else if (type === 'PDF') {
-        const leafCols = getLeafColumns(effectiveInputCols).filter(c => c.field !== 'Ministry Id' && c.field !== 'Ministry ID');
+        const keepLeaf = (c) => c.field !== 'Ministry Id' && c.field !== 'Ministry ID';
+        const leafCols = getLeafColumns(effectiveInputCols).filter(keepLeaf);
         const docTitle = title || 'Report';
 
         let headersHtml = '';
@@ -305,9 +309,12 @@ export default function ReportTable({
         });
 
         let rowsHtml = '';
-        (effectiveData || []).forEach((row, i) => {
-          const bg = i % 2 === 0 ? '#fff' : oddRowColor;
-          rowsHtml += `<tr style="background:${bg}">`;
+        // Body rows, then the total rows pinned at the bottom (shown bold, no serial number)
+        const bodyRows = effectiveData || [];
+        [...bodyRows, ...(pinnedBottomRowData || [])].forEach((row, i) => {
+          const isPinned = i >= bodyRows.length;
+          const bg = isPinned ? accentColor : i % 2 === 0 ? '#fff' : oddRowColor;
+          rowsHtml += `<tr style="background:${bg};${isPinned ? 'font-weight:800;' : ''}">`;
           leafCols.forEach(col => {
             const val = isSerialCol(col) ? (isPinned ? '' : i + 1) : cellText(col, row);
             rowsHtml += `<td style="border:1px solid #e2e8f0; padding:8px 14px; font-size:12px; color:#334155; text-align:center;">${val}</td>`;
@@ -387,7 +394,7 @@ export default function ReportTable({
       <div className="relative flex flex-wrap items-center justify-between gap-4 px-[26px] py-5 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-[#fdfcfc] to-slate-50 dark:from-slate-900 dark:to-slate-800">
         <div className="flex items-center gap-3 flex-1 min-w-[300px]">
           {showBackButton && (
-            <button type="button" onClick={onBack} className={iconBtnClass} style={{ color: brandColor }}>
+            <button type="button" onClick={onBack} className={iconBtnClass} style={{ color: brandColor }} aria-label="Back" title="Back">
               <ChevronLeft size={18} />
             </button>
           )}
@@ -536,7 +543,7 @@ export default function ReportTable({
           </div>
 
           {onRefresh && (
-            <button type="button" onClick={onRefresh} className={iconBtnClass}>
+            <button type="button" onClick={onRefresh} className={iconBtnClass} aria-label="Refresh" title="Refresh">
               <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
             </button>
           )}
@@ -585,6 +592,8 @@ export default function ReportTable({
             ref={gridRef}
             theme="legacy"
             rowData={effectiveData}
+            // No "No Rows To Show" (also announced to screen readers) while loading (QC CSR-49)
+            suppressNoRowsOverlay={loading}
             pinnedBottomRowData={pinnedBottomRowData}
             columnDefs={effectiveColumns}
             defaultColDef={defaultColDef}
