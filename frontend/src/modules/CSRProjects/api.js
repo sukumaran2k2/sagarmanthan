@@ -102,13 +102,6 @@ export const downloadCsrDocument = async (fileName) => {
   return response.data;
 };
 
-export const deleteCsrDocument = async (fileName) => {
-  const response = await api.delete(`/delete-csrfile`, {
-    params: { fileName }
-  });
-  return response.data;
-};
-
 export const fetchCsrExpenditureCost = async (csrProjectId) => {
   const response = await api.get(`/get-csr-expenditure/${csrProjectId}`);
   return response.data;
@@ -124,11 +117,6 @@ export const uploadCsrGalleryFiles = async (csrProjectId, formData) => {
     headers: { 'Content-Type': 'multipart/form-data' },
     timeout: UPLOAD_TIMEOUT,
   });
-  return response.data;
-};
-
-export const deleteCsrGalleryFile = async (csrProjectId, filename) => {
-  const response = await api.delete(`/delete-csr-gallery-file/${csrProjectId}/${encodeURIComponent(filename)}`);
   return response.data;
 };
 

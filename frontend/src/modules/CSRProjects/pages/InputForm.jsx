@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Upload, Plus, Trash2, Heart, Coins, ListTodo, Save, ArrowRight, Check, Clock, Layers, IndianRupee } from 'lucide-react';
 import FundForm from '../components/FundForm';
+import ConfirmModal from '../../../components/ConfirmModal';
 import {
   createCsrProject,
   updateCsrProject,
@@ -113,6 +114,8 @@ function ProjectForm({ editData, organisationId, onBack, onSaved, notify }) {
   // Yearly expenditure rows and existing gallery files; an edit loads them from the server
   // before it can be saved, so an unfinished load can't replace the stored rows
   const [expenditures, setExpenditures] = useState([{ year: FINANCIAL_YEARS[0], cost: '' }]);
+  // Row waiting for the user to confirm its removal (QC CSR-37)
+  const [rowToRemove, setRowToRemove] = useState(null);
   const [existingGallery, setExistingGallery] = useState([]);
   const [detailsLoaded, setDetailsLoaded] = useState(!isEdit);
   useEffect(() => {
@@ -546,7 +549,7 @@ function ProjectForm({ editData, organisationId, onBack, onSaved, notify }) {
                           </button>
                         ) : (
                           <button type="button" title="Remove row"
-                            onClick={() => setExpenditures((rows) => rows.filter((_, i) => i !== idx))}
+                            onClick={() => setRowToRemove(idx)}
                             className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-400 rounded-lg transition cursor-pointer">
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -557,6 +560,17 @@ function ProjectForm({ editData, organisationId, onBack, onSaved, notify }) {
                 </tbody>
               </table>
             </div>
+            <ConfirmModal
+              isOpen={rowToRemove !== null}
+              title="Remove expenditure row"
+              message={`Remove the expenditure for ${expenditures[rowToRemove]?.year ?? 'this year'}? It is removed when you save the project.`}
+              confirmText="Remove"
+              onClose={() => setRowToRemove(null)}
+              onConfirm={() => {
+                setExpenditures((rows) => rows.filter((_, i) => i !== rowToRemove));
+                setRowToRemove(null);
+              }}
+            />
 
             <h4 className="module-form-section-title">Media &amp; Documents</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

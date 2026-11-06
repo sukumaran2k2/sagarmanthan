@@ -948,21 +948,19 @@ router.get("/get-litigation-detailed-case-report/:organisationID/:stageID", arbi
 // scope records by the signed token. Uploads happen while adding or editing, so either is enough.
 // Strict: an account without a data scope is refused instead of seeing every organisation (QC CSR-17).
 const csrRead = requireStrictModulePermission("CSR_PROJECTS", "read");
-const csrCreate = requireStrictModulePermission("CSR_PROJECTS", "create");
-const csrUpdate = requireStrictModulePermission("CSR_PROJECTS", "update");
-// Removing a file needs the delete right (QC CSR-16)
-const csrDelete = requireStrictModulePermission("CSR_PROJECTS", "delete");
-const csrWrite = requireAnyModulePermission("CSR_PROJECTS", ["create", "update"], { strict: true });
+// Writes also need the Organisation Nodal Officer role (QC CSR-18 / CSR-34); arrays of
+// middleware run in order
+const csrCreate = [requireStrictModulePermission("CSR_PROJECTS", "create"), csrProjectTab.nodalOfficerOnly];
+const csrUpdate = [requireStrictModulePermission("CSR_PROJECTS", "update"), csrProjectTab.nodalOfficerOnly];
+const csrWrite = [requireAnyModulePermission("CSR_PROJECTS", ["create", "update"], { strict: true }), csrProjectTab.nodalOfficerOnly];
 router.post('/add-csr-projects', auth, csrCreate, csrProjectTab.createCsrProjects);
 router.get('/csr-projects-list/:userID', auth, csrRead, csrProjectTab.getCsrProjectslist);
 router.put("/update-csr-list", auth, csrUpdate, csrProjectTab.updateCsrProjects);
 router.get("/csr-list/:csrProjectId", auth, csrRead, csrProjectTab.getUpdateCsrProjectsData);
 router.post("/csrprojectdocument", auth, csrWrite, csrProjectTab.handleUploadErrors(csrProjectTab.upload.single('file')), csrProjectTab.csrProjectDocumentUploader);
 router.get("/download-csrfile/:fileName", auth, csrRead, csrProjectTab.csrfileDownload);
-router.delete("/delete-csrfile", auth, csrDelete, csrProjectTab.csrfileDelete);
 router.get("/get-csr-expenditure/:csrProjectId", auth, csrRead, csrProjectTab.getCsrExpenditureCost);
 router.get("/get-csr-project-files/:csrProjectId", auth, csrRead, csrProjectTab.getCsrFileUploadDocument);
-router.delete("/delete-csr-gallery-file/:csrProjectId/:filename", auth, csrDelete, csrProjectTab.deleteGalleryFile);
 // The project is checked before any file is written (QC CSR-19)
 router.post("/update-csr-gallery-upload/:csrProjectId", auth, csrWrite, csrProjectTab.projectAccess, csrProjectTab.handleUploadErrors(csrProjectTab.fileUpload.array('file')),csrProjectTab.uploadMediaGalleryFile)
 router.get("/get-csr-project-overview-reports/:userID", auth, csrRead, csrProjectTab.csrProjectsAbstractReport);
