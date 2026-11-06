@@ -829,6 +829,16 @@ async function uploadMediaGalleryFile(req,res) {
 }
 
 // Route check before a gallery upload: the project in the URL must be one the user can see
+// Only Organisation Nodal Officers add or change CSR data, for their own organisation (QC CSR-18 /
+// CSR-34, as in 2.0's screens). Ministry users, Organisation Senior Officers and everyone else
+// only view, whatever their CRUD matrix says, so a Ministry user can't save data for any organisation.
+function nodalOfficerOnly(req, res, next) {
+    const role = String(req.user?.roleCode || '').toUpperCase();
+    const scope = String(req.user?.dataScopeCode || '').toUpperCase();
+    if (role === 'ORG_NODAL_OFFICER' && scope === 'ORGANISATION') return next();
+    return res.status(403).json({ error: 'CSR data is added and changed by Organisation Nodal Officers only. You can view it.' });
+}
+
 function projectAccess(req, res, next) {
     canAccessProject(req.user, req.params.csrProjectId)
         .then((ok) => (ok ? next() : res.status(404).json({ error: 'CSR project not found' })))
@@ -2180,7 +2190,7 @@ const answerOnError = (handler) => async (req, res, next) => {
         if (!res.headersSent) res.sendStatus(500);
     }
 };
-const exported = {projectAccess, createCsrProjects, upload, fileUpload, handleUploadErrors, getCsrProjectslist,
+const exported = {nodalOfficerOnly, projectAccess, createCsrProjects, upload, fileUpload, handleUploadErrors, getCsrProjectslist,
         getUpdateCsrProjectsData, updateCsrProjects, csrProjectDocumentUploader, csrfileDownload, csrfileDelete,
         getCsrExpenditureCost,  getCsrFileUploadDocument,deleteGalleryFile,uploadMediaGalleryFile, addCsrFundDetails, getCsrFundList, getUpdateFundData,  editCsrFund,csrProjectsAbstractReport,csrProjectsDetailedReport,csrExpenditureReport,getCsrFundYearWiseReport, getCsrFundOrgWiseReport, getCsrFundOrgTrendReport, getCsrProjectsYearWiseSummary, getCsrProjectsOrgWiseSummary, getCsrProjectsFocusWiseSummary,
         getCsrDashboard};
