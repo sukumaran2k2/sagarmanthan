@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { fetchWings, fetchDivisions } from '../api';
+import { fetchWings, fetchDivisions, fetchConsultantStages } from '../api';
 import { registerStoreReset } from '../../../stores/resetRegistry';
 
 /**
@@ -15,6 +15,7 @@ const initialState = {
   // Reference Metadata
   wings: [],
   divisions: [],
+  stages: [],
   loadingMetadata: false,
   metadataError: null,
 
@@ -83,21 +84,22 @@ export const useCaStore = create((set, get) => ({
   // Restore defaults (called on logout so nothing carries over to the next session)
   reset: () => set(initialState),
 
-  // Asynchronous action to fetch wings and divisions once and cache them
+  // Asynchronous action to fetch wings, divisions and stages once and cache them
   loadWingsAndDivisions: async () => {
-    const { wings, divisions, loadingMetadata } = get();
-    if ((wings.length > 0 && divisions.length > 0) || loadingMetadata) return;
+    const { wings, divisions, stages, loadingMetadata } = get();
+    if ((wings.length > 0 && divisions.length > 0 && stages.length > 0) || loadingMetadata) return;
 
     set({ loadingMetadata: true, metadataError: null });
-    const [wRes, dRes] = await Promise.allSettled([fetchWings(), fetchDivisions()]);
-    const failed = [wRes, dRes].filter(r => r.status === 'rejected');
-    failed.forEach(r => console.error("Failed to load CA wings & divisions:", r.reason));
+    const [wRes, dRes, sRes] = await Promise.allSettled([fetchWings(), fetchDivisions(), fetchConsultantStages()]);
+    const failed = [wRes, dRes, sRes].filter(r => r.status === 'rejected');
+    failed.forEach(r => console.error("Failed to load CA reference data:", r.reason));
 
     set({
       wings: wRes.status === 'fulfilled' ? (wRes.value.data || []) : [],
       divisions: dRes.status === 'fulfilled' ? (dRes.value.data || []) : [],
+      stages: sRes.status === 'fulfilled' ? (sRes.value.data || []) : [],
       loadingMetadata: false,
-      metadataError: failed.length > 0 ? 'Failed to load wings and divisions.' : null
+      metadataError: failed.length > 0 ? 'Failed to load wings, divisions and stages.' : null
     });
   }
 }));
