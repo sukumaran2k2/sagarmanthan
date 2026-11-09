@@ -55,11 +55,9 @@ export default function TablePagination({
   const endRow = Math.min((currentPage + 1) * pageSize, totalRows);
 
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-3 border-t border-slate-200 dark:border-slate-700 select-none bg-slate-50/70 dark:bg-slate-950/50 font-sans shadow-2xs">
-      <div className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-        Showing <span className="font-bold text-slate-800 dark:text-slate-100">{startRow}</span> to{' '}
-        <span className="font-bold text-slate-800 dark:text-slate-100">{endRow}</span> of{' '}
-        <span className="font-bold text-slate-900 dark:text-slate-100">{totalRows}</span> entries
+    <div className="flex items-center justify-between gap-4 px-4 py-3 border-t border-slate-200 dark:border-slate-700 select-none bg-slate-50/70 dark:bg-slate-950/50 font-sans shadow-2xs">
+      <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+        Showing <span className="font-bold text-slate-700 dark:text-slate-200">{startRow}</span>–<span className="font-bold text-slate-700 dark:text-slate-200">{endRow}</span> of <span className="font-bold text-slate-800 dark:text-slate-100">{totalRows}</span>
       </div>
 
       <div className="flex items-center space-x-1">

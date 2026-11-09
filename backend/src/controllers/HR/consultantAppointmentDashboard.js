@@ -3,8 +3,9 @@ import { pool } from "../../db.js";
 // Consultant Appointment dashboard, modelled on the VIP Reference dashboard:
 // KPI counters, stage-wise heat map, wing-wise pending, and the longest-pending appointments.
 //
-// An appointment is complete once the contract is signed (stage 8, or a contract signed date),
-// the same rule the Data List's Pending / Completed filter uses.
+// An appointment is complete once the contract is signed (stage 8, or a contract signed date).
+// This is the same expression as COMPLETED_SQL in controllers/HR/consultantAppointment.js, which
+// the Data List's Pending / Completed filter and the tab counts use, so the two agree.
 const COMPLETED = `(ca.stage_id = 8 OR ca.contract_signed_date IS NOT NULL)`;
 
 // Each stage's own "entered stage" date column, matching mmt_consultant_appointment_stage.stage_id;

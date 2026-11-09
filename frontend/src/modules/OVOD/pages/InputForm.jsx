@@ -416,14 +416,12 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
   );
 
   // Fund requirement totals (derived from financeRows)
+  // capExpenditure is always auto-computed = fundSpend + all requirement fields
   const financeTotals = useMemo(() => {
-    const rowCapEx = (r) => {
-      // Use stored value if the user has typed one; otherwise fall back to auto-formula
-      if (r.capExpenditure !== '') return parseFloat(r.capExpenditure) || 0;
-      return (parseFloat(r.fundSpend) || 0) +
-        (parseFloat(r.oneYear) || 0) + (parseFloat(r.threeYear) || 0) +
-        (parseFloat(r.threeFiveYear) || 0) + (parseFloat(r.greaterFive) || 0);
-    };
+    const rowCapEx = (r) =>
+      (parseFloat(r.fundSpend) || 0) +
+      (parseFloat(r.oneYear) || 0) + (parseFloat(r.threeYear) || 0) +
+      (parseFloat(r.threeFiveYear) || 0) + (parseFloat(r.greaterFive) || 0);
     const fundReq = financeRows.reduce((acc, r) =>
       acc + (parseFloat(r.oneYear) || 0) + (parseFloat(r.threeYear) || 0) +
       (parseFloat(r.threeFiveYear) || 0) + (parseFloat(r.greaterFive) || 0), 0);
@@ -470,26 +468,42 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
       if (parseFloat(formData.total_cost) < 0) newFormErrors.total_cost = 'Total Cost cannot be negative.';
     }
 
-    // Finance rows — negative value check + source-of-fund completeness check
+    // Finance rows — negative value check + mandatory field validation
     const newFinanceRowErrors = {};
-    const numFields = ['fundSpend', 'oneYear', 'threeYear', 'threeFiveYear', 'greaterFive', 'capExpenditure'];
-    const numFieldLabels = { fundSpend: 'Fund Spent', oneYear: '1 Year', threeYear: '3 Years', threeFiveYear: '>3-5 Years', greaterFive: '>5 Years', capExpenditure: 'Capital Expenditure' };
+    const numFields = ['fundSpend', 'oneYear', 'threeYear', 'threeFiveYear', 'greaterFive'];
+    const numFieldLabels = { fundSpend: 'Fund Spent', oneYear: '1 Year', threeYear: '3 Years', threeFiveYear: '>3-5 Years', greaterFive: '>5 Years' };
+    const isFilled = (v) => v !== undefined && v !== null && v !== '';
     financeRows.forEach(r => {
+      // Skip rows that are completely empty
+      const isActive = isFilled(r.capExpenditure) || isFilled(r.sourceOfFund) || isFilled(r.fundSpend) ||
+        isFilled(r.oneYear) || isFilled(r.threeYear) || isFilled(r.threeFiveYear) || isFilled(r.greaterFive) || isFilled(r.detailedBreakUp);
+      if (!isActive) return;
+
       // Negative value check (first offending field wins)
       for (const field of numFields) {
-        if (r[field] !== '' && r[field] !== null && r[field] !== undefined && parseFloat(r[field]) < 0) {
+        if (isFilled(r[field]) && parseFloat(r[field]) < 0) {
           newFinanceRowErrors[r.id] = `${numFieldLabels[field]} cannot be negative.`;
           break;
         }
       }
-      // Source-of-fund completeness check (only if no negative error already)
-      if (!newFinanceRowErrors[r.id] && r.sourceOfFund) {
-        const hasNumeric = [r.fundSpend, r.oneYear, r.threeYear, r.threeFiveYear, r.greaterFive].some(
-          v => v !== undefined && v !== null && v !== '' && parseFloat(v) > 0
-        );
-        if (!hasNumeric) {
-          newFinanceRowErrors[r.id] = 'Please enter at least one value (Fund Spent, 1 Year, 3 Years, >3-5 Years, >5 Years) or remove this row.';
-        }
+      if (newFinanceRowErrors[r.id]) return;
+
+      // Source of Funding is mandatory for every active row
+      if (!r.sourceOfFund) {
+        newFinanceRowErrors[r.id] = 'Source of Funding is mandatory.';
+        return;
+      }
+
+      // Fund Spent is mandatory
+      if (!isFilled(r.fundSpend)) {
+        newFinanceRowErrors[r.id] = 'Fund Spent is mandatory.';
+        return;
+      }
+
+      // At least one Fund Requirement field must be filled
+      const hasFundReq = [r.oneYear, r.threeYear, r.threeFiveYear, r.greaterFive].some(isFilled);
+      if (!hasFundReq) {
+        newFinanceRowErrors[r.id] = 'At least one Fund Requirement value (1 Year, 3 Years, >3-5 Years, or >5 Years) is mandatory.';
       }
     });
 
@@ -1110,7 +1124,19 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                   <tbody>
                     {financeRows.map((row, idx) => {
                       const updateRow = (field, val) => {
-                        setFinanceRows(prev => prev.map((r, i) => i === idx ? { ...r, [field]: val } : r));
+                        setFinanceRows(prev => prev.map((r, i) => {
+                          if (i !== idx) return r;
+                          const updated = { ...r, [field]: val };
+                          // Auto-compute Capital Expenditure = Fund Spent + all Fund Requirement fields
+                          const autoCapEx =
+                            (parseFloat(updated.fundSpend) || 0) +
+                            (parseFloat(updated.oneYear) || 0) +
+                            (parseFloat(updated.threeYear) || 0) +
+                            (parseFloat(updated.threeFiveYear) || 0) +
+                            (parseFloat(updated.greaterFive) || 0);
+                          updated.capExpenditure = autoCapEx > 0 ? autoCapEx.toFixed(2) : '';
+                          return updated;
+                        }));
                         setFinanceRowErrors(prev => { const next = { ...prev }; delete next[row.id]; return next; });
                       };
                       const hasRowError = !!financeRowErrors[row.id];
@@ -1128,13 +1154,6 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                           </td>
                         );
                       };
-                      const autoCapEx = (
-                        (parseFloat(row.fundSpend) || 0) +
-                        (parseFloat(row.oneYear) || 0) +
-                        (parseFloat(row.threeYear) || 0) +
-                        (parseFloat(row.threeFiveYear) || 0) +
-                        (parseFloat(row.greaterFive) || 0)
-                      );
                       return (
                         <React.Fragment key={row.id}>
                         <tr className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800">
@@ -1157,16 +1176,10 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
                           {numInput('threeYear')}
                           {numInput('threeFiveYear')}
                           {numInput('greaterFive')}
-                          <td className={`px-1 py-1 border ${row.capExpenditure !== '' && parseFloat(row.capExpenditure) < 0 ? 'border-red-400 bg-red-50 dark:bg-red-900/20' : 'border-slate-200 dark:border-slate-700'}`}>
-                            <input
-                              type="number" min="0" step="0.01"
-                              value={row.capExpenditure !== '' ? row.capExpenditure : (autoCapEx > 0 ? autoCapEx.toFixed(2) : '')}
-                              onChange={e => updateRow('capExpenditure', e.target.value)}
-                              onFocus={() => { if (row.capExpenditure === '' && autoCapEx > 0) updateRow('capExpenditure', autoCapEx.toFixed(2)); }}
-                              className="module-form-table-input bg-amber-50 dark:bg-slate-800 font-medium"
-                              placeholder="Auto"
-                              title="Auto-calculated from Fund Requirement total. Editable."
-                            />
+                          <td className="px-1 py-1 border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-center select-none" title="Auto-calculated: Fund Spent + Fund Requirement">
+                            <span className="font-mono font-bold text-[#154b8a] dark:text-blue-300 text-xs">
+                              {row.capExpenditure !== '' ? parseFloat(row.capExpenditure).toFixed(2) : '—'}
+                            </span>
                           </td>
                           <td className="px-1 py-1 border border-slate-200 dark:border-slate-700">
                             <input

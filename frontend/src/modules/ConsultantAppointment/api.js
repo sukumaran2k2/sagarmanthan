@@ -80,6 +80,12 @@ export function fetchDivisions() {
   return api.get('/mmt-dropdown/mmt_division');
 }
 
+// The Data List's Stage filter matches stage_name on the server, so the options have to come
+// from the same master table rather than a list hardcoded in the page.
+export function fetchConsultantStages() {
+  return api.get('/mmt-dropdown/mmt_consultant_appointment_stage');
+}
+
 export function fetchConsultantReport() {
   return api.get('/consultantapp-report');
 }

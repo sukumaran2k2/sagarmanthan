@@ -1,19 +1,13 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { 
-  Building2, 
-  Layers, 
-  Compass, 
-  FileSpreadsheet, 
-  RefreshCw, 
-  TrendingUp, 
-  Coins, 
-  CheckCircle2, 
-  AlertCircle,
-  Search,
-  Check
+import {
+  Building2,
+  Layers,
+  Compass,
+  RefreshCw,
+  Search
 } from 'lucide-react';
 import ReportTable from '../../../components/ReportTable';
-import { fetchOvdStatusReport } from '../api';
+import { fetchOvdStatusReport, fetchOvdOrgListData, getUserIdFromToken } from '../api';
 import { useShallow } from 'zustand/react/shallow';
 import { useOvodStore } from '../store/useOvodStore';
 import { useNotifier, COMMON_TOASTS } from '../../../utils/notify';
@@ -75,6 +69,17 @@ export default function DataEntryStatusReport({ triggerNotification }) {
   })));
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState([]);
+  const [drilldownOrg, setDrilldownOrg] = useState(null);
+  const [drilldownRows, setDrilldownRows] = useState([]);
+  const [drilldownLoading, setDrilldownLoading] = useState(false);
+  const [drilldownType, setDrilldownType] = useState(null); // 'wing' | 'org' | null
+  // 3rd-level: clicking a count number inside an org row
+  const [numDrilldownOrg, setNumDrilldownOrg] = useState(null);   // org name
+  const [numDrilldownLevel, setNumDrilldownLevel] = useState('B1'); // 'B1'|'B2'|'B3'
+  const [numDrilldownUpdated, setNumDrilldownUpdated] = useState(false);
+  const [numDrilldownRows, setNumDrilldownRows] = useState([]);
+  const [numDrilldownLoading, setNumDrilldownLoading] = useState(false);
+  const cachedItemsRef = React.useRef([]); // raw fetchOvdOrgListData cache
 
   const activeTabConfig = useMemo(() => {
     return SUB_TABS.find(t => t.id === activeTabId) || SUB_TABS[0];
@@ -100,6 +105,130 @@ export default function DataEntryStatusReport({ triggerNotification }) {
     loadData();
   }, [loadData]);
 
+  const handleEntityClick = useCallback(async (entityName, type) => {
+    if (!entityName) return;
+    setDrilldownOrg(entityName);
+    setDrilldownType(type);
+    setDrilldownLoading(true);
+    try {
+      const userId = getUserIdFromToken();
+      const res = await fetchOvdOrgListData(userId);
+      const rows = Array.isArray(res) ? res : (res?.data || []);
+      cachedItemsRef.current = rows; // cache for number-click drilldown
+
+      if (type === 'wing') {
+        // Filter individual items by wing
+        const target = entityName.toLowerCase();
+        const filtered = rows.filter((r) => {
+          const rw = String(r.Wing || r.wing || '').toLowerCase().trim();
+          if (!rw) return false;
+          return rw.includes(target) || target.includes(rw);
+        });
+
+        // Aggregate into org-level B1/B2/B3 summary (mirrors the Organisation tab query)
+        const orgMap = new Map();
+        const extractCode = (val) => (val ? String(val).split(':')[0].trim() : null);
+        filtered.forEach((item) => {
+          const orgName = String(item.ia_name || '').trim();
+          if (!orgName) return;
+          if (!orgMap.has(orgName)) {
+            orgMap.set(orgName, { b1: new Set(), b1u: new Set(), b2: new Set(), b2u: new Set(), b3: new Set(), b3u: new Set(), cost: 0 });
+          }
+          const o = orgMap.get(orgName);
+          const isUpdated = !!(item['Last Updated Date'] || item.updated_date);
+          const b1c = extractCode(item['Goal (B1)']);
+          const b2c = extractCode(item['Intervention (B2)']);
+          const b3c = extractCode(item['Action (B3)']);
+          if (b1c) { o.b1.add(b1c); if (isUpdated) o.b1u.add(b1c); }
+          if (b2c) { o.b2.add(b2c); if (isUpdated) o.b2u.add(b2c); }
+          if (b3c) { o.b3.add(b3c); if (isUpdated) o.b3u.add(b3c); }
+          o.cost += Number(item['Total Cost'] || 0);
+        });
+
+        const wingRows = [...orgMap.entries()].map(([name, o], idx) => ({
+          sno: idx + 1,
+          'Organisation Name': name,
+          'Total B1': o.b1.size,
+          'Updated B1': o.b1u.size,
+          'Total B2': o.b2.size,
+          'Updated B2': o.b2u.size,
+          'Total B3': o.b3.size,
+          'Updated B3': o.b3u.size,
+          'Total Cost (In Cr)': o.cost,
+        }));
+        setDrilldownRows(wingRows);
+      } else {
+        // org click → individual action items
+        const orgKey = entityName.toLowerCase().split(' ').slice(0, 2).join(' ');
+        const filtered = rows.filter((r) => {
+          const org = String(r.ia_name || r.organisation_name || '').toLowerCase();
+          return org.includes(orgKey) || orgKey.includes(org.split(' ').slice(0, 2).join(' '));
+        });
+        setDrilldownRows(filtered.map((item, idx) => ({ ...item, sno: idx + 1 })));
+      }
+    } catch (err) {
+      console.error('Drilldown load failed:', err);
+      notify(COMMON_TOASTS.loadFailed('The detailed data'));
+      setDrilldownRows([]);
+    } finally {
+      setDrilldownLoading(false);
+    }
+  }, [notify]);
+
+  /* ── Number-click handler: B1/B2/B3 items for an org ───────── */
+  const handleNumberClick = useCallback(async (orgName, bLevel, updatedOnly, wingFilter) => {
+    if (!orgName) return;
+    setNumDrilldownOrg(orgName);
+    setNumDrilldownLevel(bLevel);
+    setNumDrilldownUpdated(updatedOnly);
+    setNumDrilldownLoading(true);
+    try {
+      let items = cachedItemsRef.current;
+      if (!items.length) {
+        const res = await fetchOvdOrgListData(getUserIdFromToken());
+        items = Array.isArray(res) ? res : (res?.data || []);
+        cachedItemsRef.current = items;
+      }
+      // Filter by org
+      const orgLow = orgName.toLowerCase();
+      let filtered = items.filter((r) => {
+        const rOrg = String(r.ia_name || '').toLowerCase().trim();
+        return rOrg.includes(orgLow) || orgLow.includes(rOrg);
+      });
+      // Filter by wing if provided (number clicked inside wing drilldown)
+      if (wingFilter) {
+        const wingLow = wingFilter.toLowerCase();
+        filtered = filtered.filter((r) => {
+          const rw = String(r.Wing || '').toLowerCase().trim();
+          return rw && (rw.includes(wingLow) || wingLow.includes(rw));
+        });
+      }
+      // Filter updated-only if applicable
+      if (updatedOnly) {
+        filtered = filtered.filter((r) => !!(r['Last Updated Date'] || r.updated_date));
+      }
+      // Deduplicate by the B-level code so row count matches the displayed count
+      const fieldMap = { B1: 'Goal (B1)', B2: 'Intervention (B2)', B3: 'Action (B3)' };
+      const bField = fieldMap[bLevel] || 'Goal (B1)';
+      const seen = new Set();
+      const deduped = filtered.filter((r) => {
+        const val = r[bField];
+        if (!val) return false;
+        const code = String(val).split(':')[0].trim();
+        if (seen.has(code)) return false;
+        seen.add(code);
+        return true;
+      });
+      setNumDrilldownRows(deduped.map((item, idx) => ({ ...item, sno: idx + 1 })));
+    } catch (err) {
+      console.error('Number drilldown failed:', err);
+      notify(COMMON_TOASTS.loadFailed('The detailed data'));
+      setNumDrilldownRows([]);
+    } finally {
+      setNumDrilldownLoading(false);
+    }
+  }, [notify]);
+
   /* ── Formatters ────────────────────────────────────────────── */
   const fmtNumber = (val) => {
     if (val === null || val === undefined || val === '') return '0';
@@ -113,6 +242,126 @@ export default function DataEntryStatusReport({ triggerNotification }) {
     return isNaN(n) ? String(val) : n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
+  /* ── Drilldown Detail Columns ──────────────────────────────── */
+  const drilldownColumns = useMemo(() => {
+    const wrap = { wrapText: true, autoHeight: true, wrapHeaderText: true, autoHeaderHeight: true, cellClass: 'yp-wrap-cell', cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4' } };
+    const cell = (content) => <div className="py-2 whitespace-normal break-words text-xs text-slate-700 dark:text-slate-300">{content}</div>;
+    return [
+      { headerName: 'S.No', field: 'sno', width: 70, minWidth: 65, maxWidth: 80, pinned: 'left', headerClass: 'text-center', cellClass: 'text-center font-mono font-bold yp-wrap-cell', ...wrap, valueGetter: (p) => (p.node?.rowIndex != null ? p.node.rowIndex + 1 : (p.data?.sno || '-')), cellRenderer: (p) => <div className="py-2 text-center font-mono font-bold text-xs">{p.value}</div> },
+      { headerName: 'Goal (A1)', field: 'goal_a1', minWidth: 200, flex: 1.4, ...wrap, valueGetter: (p) => p.data?.['Goal (A1)'] || p.data?.goal_a1 || '-', cellRenderer: (p) => cell(p.value) },
+      { headerName: 'Intervention (A2)', field: 'intervention_a2', minWidth: 200, flex: 1.4, ...wrap, valueGetter: (p) => p.data?.['Intervention (A2)'] || p.data?.intervention_a2 || '-', cellRenderer: (p) => cell(p.value) },
+      { headerName: 'Action (A3)', field: 'action_a3', minWidth: 230, flex: 1.5, ...wrap, valueGetter: (p) => p.data?.['Action (A3)'] || p.data?.action_a3 || '-', cellRenderer: (p) => <div className="py-2 whitespace-normal break-words text-xs font-semibold text-slate-800 dark:text-slate-200">{p.value}</div> },
+      { headerName: 'Goal (B1)', field: 'goal_b1', minWidth: 190, flex: 1.3, ...wrap, valueGetter: (p) => p.data?.['Goal (B1)'] || p.data?.goal_b1 || '-', cellRenderer: (p) => cell(p.value) },
+      { headerName: 'Intervention (B2)', field: 'intervention_b2', minWidth: 200, flex: 1.4, ...wrap, valueGetter: (p) => p.data?.['Intervention (B2)'] || p.data?.intervention_b2 || '-', cellRenderer: (p) => cell(p.value) },
+      { headerName: 'Action (B3)', field: 'action_b3', minWidth: 230, flex: 1.5, ...wrap, valueGetter: (p) => p.data?.['Action (B3)'] || p.data?.action_b3 || '-', cellRenderer: (p) => <div className="py-2 whitespace-normal break-words text-xs font-semibold text-slate-800 dark:text-slate-200">{p.value}</div> },
+      {
+        headerName: 'Expected Date', field: 'expected_date', minWidth: 130, width: 140, ...wrap, headerClass: 'text-center', cellClass: 'text-center yp-wrap-cell', cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4' },
+        valueGetter: (p) => { const v = p.data?.['Expected Date'] || p.data?.expected_date; if (!v) return '-'; const d = new Date(v); return isNaN(d) ? v : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); },
+        cellRenderer: (p) => <div className="py-2 text-center text-xs">{p.value}</div>
+      },
+      {
+        headerName: 'Physical Progress (%)', field: 'progress', minWidth: 130, width: 140, ...wrap, headerClass: 'text-center', cellClass: 'text-center font-semibold yp-wrap-cell', cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4' },
+        valueGetter: (p) => { const v = p.data?.['Progress'] ?? p.data?.progress; return v != null ? Number(v) : '-'; },
+        cellRenderer: (p) => <div className="py-2 text-center text-xs font-bold">{p.value !== '-' ? `${p.value}%` : '-'}</div>
+      },
+      {
+        headerName: 'Total Cost (₹ Cr)', field: 'total_cost', width: 140, minWidth: 130, ...wrap, headerClass: 'text-right', cellClass: 'text-right font-bold font-mono yp-wrap-cell', cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4' },
+        valueGetter: (p) => { const v = p.data?.total_cost != null ? p.data.total_cost : p.data?.['Total Cost']; return v != null ? Number(v) : 0; },
+        cellRenderer: (p) => <div className="py-2 text-right font-mono font-bold text-xs">₹{Number(p.value || 0).toFixed(2)} Cr</div>
+      }
+    ];
+  }, []);
+
+  /* ── Number-Drilldown Columns (B-level items for one org) ──── */
+  const numDrilldownColumns = useMemo(() => {
+    const fieldMap = { B1: 'Goal (B1)', B2: 'Intervention (B2)', B3: 'Action (B3)' };
+    const bField = fieldMap[numDrilldownLevel] || 'Goal (B1)';
+    const wrap = { wrapText: true, autoHeight: true, cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.5' } };
+    const cell = (content) => <div className="py-1.5 whitespace-normal break-words text-xs text-slate-700 dark:text-slate-300">{content}</div>;
+    return [
+      {
+        headerName: 'S.No', field: 'sno', width: 70, minWidth: 65, maxWidth: 80,
+        pinned: 'left', headerClass: 'text-center',
+        cellClass: 'text-center font-mono font-bold text-stone-600 dark:text-stone-400',
+        cellRenderer: (p) => <div className="py-1.5 text-center font-mono text-xs">{(p.node?.rowIndex ?? 0) + 1}</div>
+      },
+      {
+        headerName: `Goal (${numDrilldownLevel})`, field: bField, minWidth: 320, flex: 2.5, ...wrap,
+        wrapHeaderText: true, autoHeaderHeight: true,
+        valueGetter: (p) => p.data?.[bField] || '-',
+        cellRenderer: (p) => cell(p.value)
+      },
+      {
+        headerName: 'Current Status', field: 'Current Status', minWidth: 140, width: 155, ...wrap,
+        wrapHeaderText: true, autoHeaderHeight: true, headerClass: 'text-center', cellClass: 'text-center',
+        valueGetter: (p) => p.data?.['Current Status'] || p.data?.current_status || '-',
+        cellRenderer: (p) => <div className="py-1.5 text-center text-xs">{p.value}</div>
+      },
+      {
+        headerName: 'Physical Progress (%)', field: 'Progress', width: 150, minWidth: 130, ...wrap,
+        wrapHeaderText: true, autoHeaderHeight: true, headerClass: 'text-center', cellClass: 'text-center font-bold',
+        valueGetter: (p) => { const v = p.data?.['Progress'] ?? p.data?.progress; return v != null ? Number(v) : '-'; },
+        cellRenderer: (p) => <div className="py-1.5 text-center text-xs font-bold">{p.value !== '-' ? `${p.value}%` : '-'}</div>
+      },
+      {
+        headerName: 'Target Completion Date', field: 'Expected Date', width: 170, minWidth: 150, ...wrap,
+        wrapHeaderText: true, autoHeaderHeight: true, headerClass: 'text-center', cellClass: 'text-center',
+        valueGetter: (p) => {
+          const v = p.data?.['Expected Date'] || p.data?.['Target Date'] || p.data?.expected_date;
+          if (!v) return '-';
+          const d = new Date(v);
+          return isNaN(d) ? v : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        },
+        cellRenderer: (p) => <div className="py-1.5 text-center text-xs">{p.value}</div>
+      },
+      {
+        headerName: 'Last Updated', field: 'Last Updated Date', width: 150, minWidth: 130, ...wrap,
+        wrapHeaderText: true, autoHeaderHeight: true, headerClass: 'text-center', cellClass: 'text-center',
+        valueGetter: (p) => {
+          const v = p.data?.['Last Updated Date'] || p.data?.updated_date;
+          if (!v) return '-';
+          const d = new Date(v);
+          return isNaN(d) ? v : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        },
+        cellRenderer: (p) => <div className="py-1.5 text-center text-xs">{p.value}</div>
+      },
+    ];
+  }, [numDrilldownLevel]);
+
+  /* ── Wing Drilldown Columns (Org-Level B1/B2/B3 Summary) ─── */
+  const wingDrilldownColumns = useMemo(() => {
+    const numLink = (orgName, bLevel, updatedOnly, value) => (
+      value > 0
+        ? <span className="text-[#0f417a] dark:text-blue-400 font-bold hover:underline cursor-pointer" onClick={() => handleNumberClick(orgName, bLevel, updatedOnly, drilldownOrg)}>{value}</span>
+        : <span className="font-mono">{value}</span>
+    );
+    const sNoCol = {
+      headerName: 'S.No', field: 'sno', width: 70, minWidth: 65, maxWidth: 80,
+      pinned: 'left', headerClass: 'text-center',
+      cellClass: 'text-center font-mono font-bold text-stone-600 dark:text-stone-400',
+      cellRenderer: (p) => <span>{(p.node?.rowIndex ?? 0) + 1}</span>
+    };
+    return [
+      sNoCol,
+      {
+        headerName: 'Organisation Name', field: 'Organisation Name', minWidth: 260, flex: 2,
+        pinned: 'left', headerClass: 'font-bold',
+        cellClass: 'font-semibold text-stone-900 dark:text-stone-100',
+      },
+      { headerName: 'Total B1', field: 'Total B1', width: 110, headerClass: 'text-center', cellClass: 'text-center font-mono font-semibold', cellRenderer: (p) => numLink(p.data?.['Organisation Name'], 'B1', false, p.value) },
+      { headerName: 'Updated B1', field: 'Updated B1', width: 115, headerClass: 'text-center', cellClass: updatedCellClass, cellRenderer: (p) => numLink(p.data?.['Organisation Name'], 'B1', true, p.value) },
+      { headerName: 'Total B2', field: 'Total B2', width: 110, headerClass: 'text-center', cellClass: 'text-center font-mono font-semibold', cellRenderer: (p) => numLink(p.data?.['Organisation Name'], 'B2', false, p.value) },
+      { headerName: 'Updated B2', field: 'Updated B2', width: 115, headerClass: 'text-center', cellClass: updatedCellClass, cellRenderer: (p) => numLink(p.data?.['Organisation Name'], 'B2', true, p.value) },
+      { headerName: 'Total B3', field: 'Total B3', width: 110, headerClass: 'text-center', cellClass: 'text-center font-mono font-semibold', cellRenderer: (p) => numLink(p.data?.['Organisation Name'], 'B3', false, p.value) },
+      { headerName: 'Updated B3', field: 'Updated B3', width: 115, headerClass: 'text-center', cellClass: updatedCellClass, cellRenderer: (p) => numLink(p.data?.['Organisation Name'], 'B3', true, p.value) },
+      {
+        headerName: 'Total Cost (₹ Cr)', field: 'Total Cost (In Cr)', minWidth: 160, flex: 1.2,
+        cellClass: 'text-right font-mono font-black text-[#4b2424] dark:text-amber-300', headerClass: 'text-right',
+        cellRenderer: (p) => fmtCurrency(p.value)
+      }
+    ];
+  }, [handleNumberClick, drilldownOrg]);
+
   /* ── Filtered Rows by Quick Search ─────────────────────────── */
   const filteredRows = useMemo(() => {
     if (!searchQuery.trim()) return data;
@@ -124,97 +373,6 @@ export default function DataEntryStatusReport({ triggerNotification }) {
     });
   }, [data, searchQuery]);
 
-  /* ── KPI Summary Calculations ──────────────────────────────── */
-  const kpis = useMemo(() => {
-    const rows = filteredRows;
-    const totalRows = rows.length;
-
-    if (activeTabConfig.id === 'ministry') {
-      const totalA1 = rows.reduce((s, r) => s + (Number(r['Total A1']) || 0), 0);
-      const updatedA1 = rows.reduce((s, r) => s + (Number(r['Updated A1']) || 0), 0);
-      const totalA2 = rows.reduce((s, r) => s + (Number(r['Total A2']) || 0), 0);
-      const updatedA2 = rows.reduce((s, r) => s + (Number(r['Updated A2']) || 0), 0);
-      const totalA3 = rows.reduce((s, r) => s + (Number(r['Total A3']) || 0), 0);
-      const updatedA3 = rows.reduce((s, r) => s + (Number(r['Updated A3']) || 0), 0);
-      const costA3 = rows.reduce((s, r) => s + (Number(r['Total Cost A3 (In Cr)']) || 0), 0);
-      const costB3 = rows.reduce((s, r) => s + (Number(r['Total Cost B3 (In Cr)']) || 0), 0);
-      const overallCost = rows.reduce((s, r) => s + (Number(r['Overall Total Cost (In Cr)']) || Number(r['Total Cost (Cr)']) || 0), 0);
-      const pct = totalA3 > 0 ? Math.round((updatedA3 / totalA3) * 100) : 0;
-
-      return {
-        totalEntities: totalRows,
-        entityLabel: 'Total Wings',
-        card1Title: 'Total A1 Goals',
-        card1Val: `${fmtNumber(updatedA1)} / ${fmtNumber(totalA1)}`,
-        card1Sub: `${totalA1 > 0 ? Math.round((updatedA1 / totalA1) * 100) : 0}% Updated`,
-        card2Title: 'Total A2 Interventions',
-        card2Val: `${fmtNumber(updatedA2)} / ${fmtNumber(totalA2)}`,
-        card2Sub: `${totalA2 > 0 ? Math.round((updatedA2 / totalA2) * 100) : 0}% Updated`,
-        card3Title: 'Total A3 Actions',
-        card3Val: `${fmtNumber(updatedA3)} / ${fmtNumber(totalA3)}`,
-        card3Sub: `${pct}% Updated`,
-        card4Title: 'Cost A3 (₹ Cr)',
-        card4Val: `₹${fmtCurrency(costA3)}`,
-        card5Title: 'Overall Total Cost (₹ Cr)',
-        card5Val: `₹${fmtCurrency(overallCost || (costA3 + costB3))}`,
-      };
-    } else if (activeTabConfig.id === 'organization') {
-      const totalB1 = rows.reduce((s, r) => s + (Number(r['Total B1']) || 0), 0);
-      const updatedB1 = rows.reduce((s, r) => s + (Number(r['Updated B1']) || 0), 0);
-      const totalB2 = rows.reduce((s, r) => s + (Number(r['Total B2']) || 0), 0);
-      const updatedB2 = rows.reduce((s, r) => s + (Number(r['Updated B2']) || 0), 0);
-      const totalB3 = rows.reduce((s, r) => s + (Number(r['Total B3']) || 0), 0);
-      const updatedB3 = rows.reduce((s, r) => s + (Number(r['Updated B3']) || 0), 0);
-      const cost = rows.reduce((s, r) => s + (Number(r['Total Cost (In Cr)']) || Number(r['Total Cost (Cr)']) || 0), 0);
-      const pct = totalB3 > 0 ? Math.round((updatedB3 / totalB3) * 100) : 0;
-
-      return {
-        totalEntities: totalRows,
-        entityLabel: 'Total Organisations',
-        card1Title: 'Total B1 Goals',
-        card1Val: `${fmtNumber(updatedB1)} / ${fmtNumber(totalB1)}`,
-        card1Sub: `${totalB1 > 0 ? Math.round((updatedB1 / totalB1) * 100) : 0}% Updated`,
-        card2Title: 'Total B2 Interventions',
-        card2Val: `${fmtNumber(updatedB2)} / ${fmtNumber(totalB2)}`,
-        card2Sub: `${totalB2 > 0 ? Math.round((updatedB2 / totalB2) * 100) : 0}% Updated`,
-        card3Title: 'Total B3 Actions',
-        card3Val: `${fmtNumber(updatedB3)} / ${fmtNumber(totalB3)}`,
-        card3Sub: `${pct}% Updated`,
-        card4Title: 'Update Progress',
-        card4Val: `${pct}%`,
-        card5Title: 'Total Cost (₹ Cr)',
-        card5Val: `₹${fmtCurrency(cost)}`,
-      };
-    } else {
-      // Vibhas
-      const totalA3 = rows.reduce((s, r) => s + (Number(r['Total A3']) || 0), 0);
-      const updatedA3 = rows.reduce((s, r) => s + (Number(r['Updated A3']) || 0), 0);
-      const totalB3 = rows.reduce((s, r) => s + (Number(r['Total B3']) || 0), 0);
-      const updatedB3 = rows.reduce((s, r) => s + (Number(r['Updated B3']) || 0), 0);
-      const cost = rows.reduce((s, r) => s + (Number(r['Total Cost (In Cr)']) || Number(r['Total Cost (Cr)']) || 0), 0);
-      const overallActions = totalA3 + totalB3;
-      const overallUpdated = updatedA3 + updatedB3;
-      const pct = overallActions > 0 ? Math.round((overallUpdated / overallActions) * 100) : 0;
-
-      return {
-        totalEntities: totalRows,
-        entityLabel: 'Total ViBhas/NAVIC Cells',
-        card1Title: 'A3 Actions (Ministry)',
-        card1Val: `${fmtNumber(updatedA3)} / ${fmtNumber(totalA3)}`,
-        card1Sub: `${totalA3 > 0 ? Math.round((updatedA3 / totalA3) * 100) : 0}% Updated`,
-        card2Title: 'B3 Actions (Organisations)',
-        card2Val: `${fmtNumber(updatedB3)} / ${fmtNumber(totalB3)}`,
-        card2Sub: `${totalB3 > 0 ? Math.round((updatedB3 / totalB3) * 100) : 0}% Updated`,
-        card3Title: 'Total Actions (A3 + B3)',
-        card3Val: `${fmtNumber(overallUpdated)} / ${fmtNumber(overallActions)}`,
-        card3Sub: `${pct}% Overall Updated`,
-        card4Title: 'Overall Data Entry',
-        card4Val: `${pct}%`,
-        card5Title: 'Total Cost (₹ Cr)',
-        card5Val: `₹${fmtCurrency(cost)}`,
-      };
-    }
-  }, [filteredRows, activeTabConfig]);
 
   /* ── Columns Definition for AG Grid ────────────────────────── */
   const columns = useMemo(() => {
@@ -247,7 +405,7 @@ export default function DataEntryStatusReport({ triggerNotification }) {
               return <strong className="font-extrabold text-[#4b2424] dark:text-amber-300">{p.value || 'Grand Total'}</strong>;
             }
             return (
-              <span className="text-[#0f417a] dark:text-blue-400 font-bold hover:underline cursor-pointer">
+              <span className="text-[#0f417a] dark:text-blue-400 font-bold hover:underline cursor-pointer" onClick={() => handleEntityClick(p.value, 'wing')}>
                 {p.value}
               </span>
             );
@@ -341,55 +499,15 @@ export default function DataEntryStatusReport({ triggerNotification }) {
             if (p.node?.rowPinned) {
               return <strong className="font-extrabold text-[#4b2424] dark:text-amber-300">{p.value || 'Grand Total'}</strong>;
             }
-            return (
-              <span className="text-stone-800 dark:text-stone-200 font-medium">
-                {p.value}
-              </span>
-            );
+            return <span className="font-semibold text-stone-800 dark:text-stone-200">{p.value}</span>;
           }
         },
-        {
-          headerName: 'Total B1',
-          field: 'Total B1',
-          width: 110,
-          cellClass: 'text-center font-mono font-semibold',
-          headerClass: 'text-center'
-        },
-        {
-          headerName: 'Updated B1',
-          field: 'Updated B1',
-          width: 115,
-          cellClass: updatedCellClass,
-          headerClass: 'text-center'
-        },
-        {
-          headerName: 'Total B2',
-          field: 'Total B2',
-          width: 110,
-          cellClass: 'text-center font-mono font-semibold',
-          headerClass: 'text-center'
-        },
-        {
-          headerName: 'Updated B2',
-          field: 'Updated B2',
-          width: 115,
-          cellClass: updatedCellClass,
-          headerClass: 'text-center'
-        },
-        {
-          headerName: 'Total B3',
-          field: 'Total B3',
-          width: 110,
-          cellClass: 'text-center font-mono font-semibold',
-          headerClass: 'text-center'
-        },
-        {
-          headerName: 'Updated B3',
-          field: 'Updated B3',
-          width: 115,
-          cellClass: updatedCellClass,
-          headerClass: 'text-center'
-        },
+        { headerName: 'Total B1', field: 'Total B1', width: 110, headerClass: 'text-center', cellClass: 'text-center font-mono font-semibold' },
+        { headerName: 'Updated B1', field: 'Updated B1', width: 115, headerClass: 'text-center', cellClass: updatedCellClass },
+        { headerName: 'Total B2', field: 'Total B2', width: 110, headerClass: 'text-center', cellClass: 'text-center font-mono font-semibold' },
+        { headerName: 'Updated B2', field: 'Updated B2', width: 115, headerClass: 'text-center', cellClass: updatedCellClass },
+        { headerName: 'Total B3', field: 'Total B3', width: 110, headerClass: 'text-center', cellClass: 'text-center font-mono font-semibold' },
+        { headerName: 'Updated B3', field: 'Updated B3', width: 115, headerClass: 'text-center', cellClass: updatedCellClass },
         {
           headerName: 'Total Cost (In Cr)',
           field: 'Total Cost (In Cr)',
@@ -524,7 +642,7 @@ export default function DataEntryStatusReport({ triggerNotification }) {
         }
       ];
     }
-  }, [activeTabConfig]);
+  }, [activeTabConfig, handleNumberClick]);
 
   /* ── Pinned Bottom Row Data (Grand Total Sums) ─────────────── */
   const pinnedBottomRowData = useMemo(() => {
@@ -590,28 +708,18 @@ export default function DataEntryStatusReport({ triggerNotification }) {
   );
 
   return (
-    <div className="space-y-4 animate-fade-in text-stone-800 dark:text-stone-100">
-      
-      {/* ── Top Header & Sub-Tabs Navigation (Brown Theme) ─────── */}
-      <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-[#4b2424]/10 dark:bg-amber-400/10 text-[#4b2424] dark:text-amber-400">
-              <FileSpreadsheet className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-lg font-black text-[#4b2424] dark:text-amber-400 tracking-wide">
-                {activeTabConfig.title}
-              </h1>
-              <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
-                {activeTabConfig.subtitle}
-              </p>
-            </div>
-          </div>
-        </div>
+    <div className="space-y-3 animate-fade-in text-stone-800 dark:text-stone-100">
 
-        {/* Sub-Tabs Pills (Ministry / Organization / Vibhas) */}
-        <div className="flex items-center gap-2 bg-stone-100 dark:bg-slate-800 p-1.5 rounded-2xl border border-stone-200/80 dark:border-stone-700/80 self-start md:self-auto">
+      {/* ── Note + Tab switcher on same row ────────────────────── */}
+      <div className="flex items-start justify-between gap-4">
+        {/* Note */}
+        <p className="text-xs text-stone-600 dark:text-stone-400 leading-relaxed pt-1.5">
+          <strong className="text-rose-600 dark:text-rose-400">Note : </strong>
+          Kindly note that the counts displayed in this report may not match the corresponding totals shown on the dashboard, as a single A1/A2/A3 item may be mapped to more than one wing. Therefore, this report is intended only to track whether A1/A2/A3 items are being updated and should not be used for any other analytical or progress-tracking purposes.
+        </p>
+
+        {/* Pills */}
+        <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl shrink-0 border border-slate-200 dark:border-slate-700">
           {SUB_TABS.map((tab) => {
             const Icon = tab.icon;
             const isActive = tab.id === activeTabId;
@@ -619,146 +727,98 @@ export default function DataEntryStatusReport({ triggerNotification }) {
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setStatusReportTab(tab.id)}
-                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                onClick={() => {
+                  setStatusReportTab(tab.id);
+                  setDrilldownOrg(null);
+                  setDrilldownRows([]);
+                  setDrilldownType(null);
+                  setNumDrilldownOrg(null);
+                }}
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer select-none ${
                   isActive
-                    ? 'bg-gradient-to-r from-[#4b2424] to-[#6b3535] text-white shadow-sm ring-1 ring-[#4b2424]/20'
-                    : 'text-stone-600 dark:text-stone-300 hover:text-stone-900 hover:bg-stone-200/60 dark:hover:bg-slate-700/60'
+                    ? 'bg-[#4b2424] text-white shadow-sm'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-white/60 dark:hover:bg-slate-700/60'
                 }`}
               >
                 <Icon className="w-3.5 h-3.5" />
-                <span>{tab.label}</span>
-                {isActive && <Check className="w-3 h-3 text-emerald-300 stroke-[3]" />}
+                {tab.label}
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* ── Crucial Compliance Notice Note (Matching User Screenshot) ── */}
-      <div className="p-3.5 bg-amber-50/90 dark:bg-amber-950/25 border border-amber-200/90 dark:border-amber-800/40 rounded-2xl shadow-2xs text-xs text-stone-700 dark:text-amber-100 flex items-start gap-2.5">
-        <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
-        <div className="leading-relaxed">
-          <strong className="text-rose-600 dark:text-rose-400 font-bold">Note : </strong>
-          <span>
-            Kindly note that the counts displayed in this report may not match the corresponding totals shown on the dashboard, as a single A1/A2/A3 item may be mapped to more than one wing. Therefore, this report is intended only to track whether A1/A2/A3 items are being updated and should not be used for any other analytical or progress-tracking purposes.
-          </span>
-        </div>
-      </div>
-
-      {/* ── KPI Highlight Cards (Brown Theme Pro Grid) ─────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        {/* Total Entities */}
-        <div className="p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wider">{kpis.entityLabel}</span>
-            <div className="p-1.5 rounded-lg bg-[#4b2424]/10 text-[#4b2424] dark:text-amber-400">
-              <Building2 className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-2 text-xl font-black font-mono text-[#4b2424] dark:text-amber-300">
-            {fmtNumber(kpis.totalEntities)}
-          </div>
-        </div>
-
-        {/* Card 1 */}
-        <div className="p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wider truncate">{kpis.card1Title}</span>
-            <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400">
-              <CheckCircle2 className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-2 text-xl font-black font-mono text-emerald-700 dark:text-emerald-400">
-            {kpis.card1Val}
-          </div>
-          <div className="text-[10px] font-bold text-stone-400 mt-0.5">{kpis.card1Sub}</div>
-        </div>
-
-        {/* Card 2 */}
-        <div className="p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wider truncate">{kpis.card2Title}</span>
-            <div className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400">
-              <TrendingUp className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-2 text-xl font-black font-mono text-blue-600 dark:text-blue-400">
-            {kpis.card2Val}
-          </div>
-          <div className="text-[10px] font-bold text-stone-400 mt-0.5">{kpis.card2Sub}</div>
-        </div>
-
-        {/* Card 3 */}
-        <div className="p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wider truncate">{kpis.card3Title}</span>
-            <div className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
-              <Layers className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-2 text-xl font-black font-mono text-indigo-600 dark:text-indigo-400">
-            {kpis.card3Val}
-          </div>
-          <div className="text-[10px] font-bold text-stone-400 mt-0.5">{kpis.card3Sub}</div>
-        </div>
-
-        {/* Card 4 */}
-        <div className="p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wider truncate">{kpis.card4Title}</span>
-            <div className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400">
-              <Coins className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-2 text-lg font-black font-mono text-amber-700 dark:text-amber-400 truncate">
-            {kpis.card4Val}
-          </div>
-          <div className="text-[10px] font-bold text-stone-400 mt-0.5">Tracked value</div>
-        </div>
-
-        {/* Card 5 */}
-        <div className="p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wider truncate">{kpis.card5Title}</span>
-            <div className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400">
-              <Coins className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-2 text-lg font-black font-mono text-rose-700 dark:text-rose-400 truncate">
-            {kpis.card5Val}
-          </div>
-          <div className="text-[10px] font-bold text-stone-400 mt-0.5">Budget outlay</div>
-        </div>
-      </div>
-
-      {/* ── Main Data Table (Brown Theme YP-Pro-Grid) ──────────── */}
+      {/* ── Main Data Table or Drilldown ───────────────────────── */}
       <div className="relative">
-        <ReportTable
-          title={activeTabConfig.title}
-          subtitle={`Active View: ${activeTabConfig.label} • Showing ${filteredRows.length} entries`}
-          rawData={filteredRows}
-          viewData={filteredRows}
-          columns={columns}
-          pinnedBottomRowData={pinnedBottomRowData}
-          loading={loading}
-          onRefresh={loadData}
-          triggerNotification={triggerNotification}
-          pagination={false}
-          themeClass="yp-pro-grid"
-          brandColor="var(--module-report-brand-color, #4b2424)"
-          brandColorHover="var(--module-report-brand-color-hover, #6b3535)"
-          accentColor="var(--module-report-accent-color, #f7f3f3)"
-          oddRowColor="var(--module-report-odd-row-bg, #f8faf6)"
-          totalLabel="Total"
-          toolbarExtra={toolbarExtra}
-        />
-
-        {/* Footer info: Total Rows matching screenshots */}
-        <div className="flex items-center justify-between px-3 py-2 text-xs font-bold text-stone-500 dark:text-stone-400">
-          <span>Total Rows: <strong className="text-stone-800 dark:text-stone-200 font-mono">{filteredRows.length}</strong></span>
-          <span className="text-[11px] font-medium text-stone-400">Data source: Drishti Portal (OVOD)</span>
-        </div>
+        {numDrilldownOrg ? (
+          /* Level 3: B-count number click → individual B items for one org */
+          <ReportTable
+            title={`${numDrilldownOrg} — ${numDrilldownUpdated ? 'Updated' : 'All'} ${numDrilldownLevel} Items`}
+            subtitle={`${numDrilldownUpdated ? 'Updated' : 'Total'} Goal (${numDrilldownLevel}) items for ${numDrilldownOrg} (${numDrilldownRows.length} records)`}
+            rawData={numDrilldownRows}
+            viewData={numDrilldownRows}
+            columns={numDrilldownColumns}
+            loading={numDrilldownLoading}
+            triggerNotification={triggerNotification}
+            pagination={true}
+            showBackButton={true}
+            onBack={() => setNumDrilldownOrg(null)}
+            themeClass="yp-pro-grid"
+            brandColor="#4b2424"
+            brandColorHover="#6b3535"
+            accentColor="#f7f3f3"
+            oddRowColor="#f8faf6"
+            autoHeaderHeight={true}
+          />
+        ) : drilldownOrg ? (
+          /* Level 2: wing/org name click */
+          <ReportTable
+            title={drilldownType === 'wing' ? `${drilldownOrg} — Wing Wise Data Entry Status` : `Detail — ${drilldownOrg}`}
+            subtitle={drilldownType === 'wing'
+              ? `Organisations under ${drilldownOrg} wing with their B1/B2/B3 data entry counts (${drilldownRows.length} organisations)`
+              : `Action items for ${drilldownOrg} (${drilldownRows.length} records)`}
+            rawData={drilldownRows}
+            viewData={drilldownRows}
+            columns={drilldownType === 'wing' ? wingDrilldownColumns : drilldownColumns}
+            loading={drilldownLoading}
+            triggerNotification={triggerNotification}
+            pagination={true}
+            showBackButton={true}
+            onBack={() => { setDrilldownOrg(null); setDrilldownRows([]); setDrilldownType(null); }}
+            themeClass="yp-pro-grid"
+            brandColor="#4b2424"
+            brandColorHover="#6b3535"
+            accentColor="#f7f3f3"
+            oddRowColor="#f8faf6"
+            autoHeaderHeight={true}
+          />
+        ) : (
+          <>
+            <ReportTable
+              title={activeTabConfig.title}
+              subtitle={`Active View: ${activeTabConfig.label} • Showing ${filteredRows.length} entries`}
+              rawData={filteredRows}
+              viewData={filteredRows}
+              columns={columns}
+              pinnedBottomRowData={pinnedBottomRowData}
+              loading={loading}
+              onRefresh={loadData}
+              triggerNotification={triggerNotification}
+              pagination={true}
+              themeClass="yp-pro-grid"
+              brandColor="var(--module-report-brand-color, #4b2424)"
+              brandColorHover="var(--module-report-brand-color-hover, #6b3535)"
+              accentColor="var(--module-report-accent-color, #f7f3f3)"
+              oddRowColor="var(--module-report-odd-row-bg, #f8faf6)"
+              totalLabel="Total"
+              toolbarExtra={toolbarExtra}
+            />
+            <div className="flex items-center justify-between px-3 py-2 text-xs font-bold text-stone-500 dark:text-stone-400">
+              <span>Total Rows: <strong className="text-stone-800 dark:text-stone-200 font-mono">{filteredRows.length}</strong></span>
+              <span className="text-[11px] font-medium text-stone-400">Data source: Drishti Portal (OVOD)</span>
+            </div>
+          </>
+        )}
       </div>
 
     </div>

@@ -185,6 +185,14 @@ export default function ReportTable({
     }
   };
 
+  const handlePageSizeChange = (newSize) => {
+    if (gridRef.current?.api) {
+      gridRef.current.api.paginationSetPageSize(newSize);
+      gridRef.current.api.paginationGoToFirstPage();
+      setPageSize(newSize);
+    }
+  };
+
   const isSerialCol = (col) => ['S No', 'S.No'].includes(col.field) || ['S No', 'S.No'].includes(col.headerName);
   const cellText = (col, row) => {
     let val;
@@ -330,6 +338,23 @@ export default function ReportTable({
               </button>
             )}
           </div>
+
+          {/* Rows-per-page selector — shown next to search when pagination is on */}
+          {pagination && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Rows</span>
+              <select
+                value={pageSize}
+                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                className="px-2 py-[7px] rounded-[9px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold cursor-pointer focus:outline-none focus:ring-[3px] focus:ring-[color:var(--theme-primary-color)]/10 focus:border-[color:var(--theme-primary-color)] transition"
+                style={{ color: brandColor }}
+              >
+                {[10, 25, 50, 100].map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {toolbarExtra}
 

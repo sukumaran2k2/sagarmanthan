@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { openBackendFile } from '../../../utils/openBackendFile';
 import {
   ArrowLeft,
   Download,
   Upload,
-  FileText,
   User,
   Calendar,
   Search,
@@ -14,7 +13,6 @@ import {
   Loader2,
   RefreshCw,
   File,
-  CheckCircle,
   ChevronDown,
   Trash2
 } from 'lucide-react';
@@ -25,6 +23,7 @@ import { fetchCandidatesByConsultantAppointmentId, fetchCandidateDetail, fetchCa
 import { getCurrentUserId } from '../../../utils/authSession';
 import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
 import { CA_TOASTS } from '../toastMessages';
+import { toInputDate, formatDate, csvCell, tsvCell } from '../formatters';
 
 export default function CandidateDrilldownView({
   appointment,
@@ -75,59 +74,40 @@ export default function CandidateDrilldownView({
   const inPlaceFileInputRef = useRef(null);
   const visDropdownRef = useRef(null);
 
+  // Candidates linked only through the legacy comma-separated list have to be fetched one at
+  // a time. Shared by the primary path and the error fallback, which held three copies of it.
+  const loadCandidatesByIds = async (candIdsStr) => {
+    const idList = String(candIdsStr || '').split(',').map(s => s.trim()).filter(Boolean);
+    if (!idList.length) return [];
+    return Promise.all(
+      idList.map(async (cid) => {
+        try {
+          const cres = await fetchCandidateDetail(cid);
+          const docRes = await fetchCandidateDocument(cid).catch(() => ({ data: [] }));
+          const cdata = cres.data?.[0] || {};
+          const docName = docRes.data?.[0]?.appointment_order_document || '';
+          return { ...cdata, appointment_order_document: docName, documentName: docName };
+        } catch {
+          return { candidate_id: cid };
+        }
+      })
+    );
+  };
+
   const loadCandidates = async () => {
     if (!appointment?.id) return;
     setLoading(true);
+    const legacyIds = appointment.raw?.candidate_id || '';
     try {
       const res = await fetchCandidatesByConsultantAppointmentId(appointment.id);
-      if (res.data && res.data.length > 0) {
-        setCandidates(res.data);
-      } else {
-        const candIdsStr = appointment.raw?.candidate_id || '';
-        if (candIdsStr) {
-          const idList = String(candIdsStr).split(',').map(s => s.trim()).filter(Boolean);
-          const loaded = await Promise.all(
-            idList.map(async (cid) => {
-              try {
-                const cres = await fetchCandidateDetail(cid);
-                const docRes = await fetchCandidateDocument(cid).catch(() => ({ data: [] }));
-                const cdata = cres.data?.[0] || {};
-                const docName = docRes.data?.[0]?.appointment_order_document || '';
-                return { ...cdata, appointment_order_document: docName, documentName: docName };
-              } catch {
-                return { candidate_id: cid };
-              }
-            })
-          );
-          setCandidates(loaded);
-        } else {
-          setCandidates([]);
-        }
-      }
+      setCandidates(res.data?.length ? res.data : await loadCandidatesByIds(legacyIds));
     } catch (err) {
       console.error('Error fetching candidates for drilldown:', err);
-      const candIdsStr = appointment.raw?.candidate_id || '';
-      if (candIdsStr) {
-        try {
-          const idList = String(candIdsStr).split(',').map(s => s.trim()).filter(Boolean);
-          const loaded = await Promise.all(
-            idList.map(async (cid) => {
-              try {
-                const cres = await fetchCandidateDetail(cid);
-                const docRes = await fetchCandidateDocument(cid).catch(() => ({ data: [] }));
-                const cdata = cres.data?.[0] || {};
-                const docName = docRes.data?.[0]?.appointment_order_document || '';
-                return { ...cdata, appointment_order_document: docName, documentName: docName };
-              } catch {
-                return { candidate_id: cid };
-              }
-            })
-          );
-          setCandidates(loaded);
-        } catch {
-          notify(CA_TOASTS.candidatesLoadFailed());
-        }
-      } else {
+      try {
+        const fallback = await loadCandidatesByIds(legacyIds);
+        setCandidates(fallback);
+        if (!fallback.length) notify(CA_TOASTS.candidatesLoadFailed());
+      } catch {
         notify(CA_TOASTS.candidatesLoadFailed());
       }
     } finally {
@@ -180,11 +160,7 @@ export default function CandidateDrilldownView({
         cand.salary !== undefined && cand.salary !== null ? String(cand.salary) : ''
       );
       setCandCategory(cand.category || 'Direct Contract');
-      setCandAppointmentDate(
-        cand.date_of_appointment
-          ? new Date(cand.date_of_appointment).toISOString().split('T')[0]
-          : ''
-      );
+      setCandAppointmentDate(toInputDate(cand.date_of_appointment));
       setCandSkillSet(cand.skill_set || '');
       setCandFileName(cand.appointment_order_document || '');
       setCandFile(null);
@@ -353,16 +329,7 @@ export default function CandidateDrilldownView({
     notify(CA_TOASTS.orderDownloading(documentName));
   };
 
-  const formatDateDisplay = (dateVal) => {
-    if (!dateVal) return '-';
-    try {
-      const d = new Date(dateVal);
-      if (isNaN(d.getTime())) return String(dateVal);
-      return d.toLocaleDateString('en-GB');
-    } catch {
-      return String(dateVal);
-    }
-  };
+  const formatDateDisplay = (dateVal) => formatDate(dateVal, '-');
 
   const handleExport = (type) => {
     const exportHeaders = ['S.No', 'Candidate Name', 'Qualification', 'Experience (Years)', 'Salary (LPA)', 'Category', 'Appointment Date', 'Skill Set', 'Appointment Order File'];
@@ -371,32 +338,34 @@ export default function CandidateDrilldownView({
       filteredCandidates.forEach((c, idx) => {
         tsv += [
           idx + 1,
-          c.name || '',
-          c.qualification || '',
-          c.work_experience || '',
-          c.salary || '',
-          c.category || '',
-          c.date_of_appointment ? new Date(c.date_of_appointment).toLocaleDateString('en-GB') : '',
-          c.skill_set || '',
-          c.appointment_order_document || ''
+          tsvCell(c.name),
+          tsvCell(c.qualification),
+          tsvCell(c.work_experience),
+          tsvCell(c.salary),
+          tsvCell(c.category),
+          formatDate(c.date_of_appointment),
+          tsvCell(c.skill_set),
+          tsvCell(c.appointment_order_document)
         ].join('\t') + '\n';
       });
       navigator.clipboard.writeText(tsv)
         .then(() => notify(CA_TOASTS.candidatesCopied(filteredCandidates.length)))
         .catch(() => notify(COMMON_TOASTS.copyFailed()));
     } else if (type === 'Excel') {
+      // Every text field goes through csvCell: Excel executes a cell that opens with = + - @,
+      // and candidate names and skill sets are free text
       let csv = exportHeaders.map(h => `"${h}"`).join(',') + '\n';
       filteredCandidates.forEach((c, idx) => {
         csv += [
           idx + 1,
-          `"${(c.name || '').replace(/"/g, '""')}"`,
-          `"${(c.qualification || '').replace(/"/g, '""')}"`,
-          c.work_experience || '',
-          c.salary || '',
-          `"${(c.category || '').replace(/"/g, '""')}"`,
-          c.date_of_appointment ? new Date(c.date_of_appointment).toLocaleDateString('en-GB') : '',
-          `"${(c.skill_set || '').replace(/"/g, '""')}"`,
-          `"${(c.appointment_order_document || '').replace(/"/g, '""')}"`
+          csvCell(c.name),
+          csvCell(c.qualification),
+          csvCell(c.work_experience),
+          csvCell(c.salary),
+          csvCell(c.category),
+          csvCell(formatDate(c.date_of_appointment)),
+          csvCell(c.skill_set),
+          csvCell(c.appointment_order_document)
         ].join(',') + '\n';
       });
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -425,7 +394,7 @@ export default function CandidateDrilldownView({
           <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px; text-align: center;">${escHtml(c.work_experience) || '-'}</td>
           <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px; text-align: center;">${c.salary ? '₹ ' + escHtml(c.salary) + ' L' : '-'}</td>
           <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px;">${escHtml(c.category) || '-'}</td>
-          <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px; text-align: center;">${c.date_of_appointment ? new Date(c.date_of_appointment).toLocaleDateString('en-GB') : '-'}</td>
+          <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px; text-align: center;">${escHtml(formatDate(c.date_of_appointment, '-'))}</td>
           <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px;">${escHtml(c.skill_set) || '-'}</td>
           <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px;">${escHtml(c.appointment_order_document) || 'Pending'}</td>
         </tr>

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { ArrowLeft, Calendar, Upload, File, FileText, CheckCircle, ChevronUp, ChevronDown, X } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { Calendar, Upload, FileText, CheckCircle, ChevronUp, ChevronDown, X } from 'lucide-react';
 import {
   createConsultantAppointment,
   updateConsultantAppointment,
@@ -14,6 +14,7 @@ import {
 import { getCurrentUserId } from '../../../utils/authSession';
 import { useNotifier, COMMON_TOASTS, getErrorMessage, toastError } from '../../../utils/notify';
 import { CA_TOASTS } from '../toastMessages';
+import { toInputDate } from '../formatters';
 
 /**
  * Milestone Workflow Configuration
@@ -238,49 +239,57 @@ export default function InputForm({
   };
 
   const handleDateChange = (dateKey, val) => {
-    let updatedDates = {};
-    setDates(prev => {
-      const newDates = { ...prev, [dateKey]: val };
-      if (!val) {
-        let clear = false;
-        for (const stage of STAGES) {
-          if (clear) {
-            newDates[stage.dateKey] = '';
-            if (stage.key === 'contractSigned') {
-              setConsultingFirmName('');
-            }
-          }
-          if (stage.dateKey === dateKey) clear = true;
+    const nextDates = { ...dates, [dateKey]: val };
+    const clearedStages = [];
+
+    if (!val) {
+      // Clearing a stage date clears every later stage too: the chain cannot resume past a gap
+      let clear = false;
+      for (const stage of STAGES) {
+        if (clear && nextDates[stage.dateKey]) {
+          nextDates[stage.dateKey] = '';
+          clearedStages.push(stage.key);
         }
-      } else {
-        // If a stage date is set, ensure no subsequent stage has an earlier date than this one
-        let isSubsequent = false;
-        for (const stage of STAGES) {
-          if (isSubsequent) {
-            if (newDates[stage.dateKey] && newDates[stage.dateKey] < val) {
-              newDates[stage.dateKey] = '';
-            }
-          }
-          if (stage.dateKey === dateKey) isSubsequent = true;
-        }
+        if (stage.dateKey === dateKey) clear = true;
       }
-      updatedDates = newDates;
-      return newDates;
-    });
-    
+      const own = STAGES.find(s => s.dateKey === dateKey);
+      if (own) clearedStages.push(own.key);
+    } else {
+      // If a stage date is set, ensure no subsequent stage has an earlier date than this one
+      let isSubsequent = false;
+      for (const stage of STAGES) {
+        if (isSubsequent && nextDates[stage.dateKey] && nextDates[stage.dateKey] < val) {
+          nextDates[stage.dateKey] = '';
+          clearedStages.push(stage.key);
+        }
+        if (stage.dateKey === dateKey) isSubsequent = true;
+      }
+    }
+
+    setDates(nextDates);
+
+    // A remark belongs to its stage's date. Leaving it behind saved a remark against a NULL
+    // date which the form no longer displays, so it could be neither read nor cleared.
+    if (clearedStages.length) {
+      setRemarks(prev => {
+        const next = { ...prev };
+        for (const key of clearedStages) next[key] = '';
+        return next;
+      });
+      if (clearedStages.includes('contractSigned')) {
+        setConsultingFirmName('');
+      }
+    }
+
     setErrors(prev => {
       const newErrors = { ...prev };
-      if (!val) {
-        let clear = false;
-        for (const stage of STAGES) {
-          if (clear) delete newErrors[stage.dateKey];
-          if (stage.dateKey === dateKey) clear = true;
-        }
+      for (const stage of STAGES) {
+        if (!nextDates[stage.dateKey]) delete newErrors[stage.dateKey];
       }
       return newErrors;
     });
-    
-    validateField(dateKey, val, { ...dates, [dateKey]: val });
+
+    validateField(dateKey, val, nextDates);
   };
 
   const handleRemarkChange = (key, val) => {
@@ -301,6 +310,23 @@ export default function InputForm({
     if (Object.keys(errors).length > 0) {
       notify(COMMON_TOASTS.fixValidationErrors());
       return;
+    }
+
+    // The chain is enforced as dates change, but re-check the whole sequence here so an
+    // out-of-order or gapped set can never be submitted.
+    for (let i = 1; i < STAGES.length; i++) {
+      const previous = dates[STAGES[i - 1].dateKey];
+      const current = dates[STAGES[i].dateKey];
+      if (current && !previous) {
+        notify(toastError('Incomplete Stages',
+          `${STAGES[i].label} has a date but ${STAGES[i - 1].label} does not. Fill the earlier stage first.`));
+        return;
+      }
+      if (current && previous && current < previous) {
+        notify(toastError('Dates Out of Order',
+          `${STAGES[i].label} cannot be earlier than ${STAGES[i - 1].label}.`));
+        return;
+      }
     }
 
     if (isEdit && !canEdit) {
@@ -354,8 +380,9 @@ export default function InputForm({
       contractSignedRemarks: remarks.contractSigned || null,
       consultingFirmName: consultingFirmName || '',
       candidateIDs: candidateIDs,
-      stageID: selectedStage,
-      userID: activeUserId
+      stageID: selectedStage
+      // created_by / updated_by come from the signed-in user's token on the server, so no
+      // user id is sent here. activeUserId above only checks the session is still valid.
     };
 
     try {
@@ -405,7 +432,7 @@ export default function InputForm({
       setCWorkExperience(cand.work_experience !== undefined && cand.work_experience !== null ? String(cand.work_experience) : '');
       setCSalary(cand.salary !== undefined && cand.salary !== null ? String(cand.salary) : '');
       setCCategory(cand.category || 'Direct Contract');
-      setCAppointmentDate(cand.date_of_appointment ? new Date(cand.date_of_appointment).toISOString().split('T')[0] : '');
+      setCAppointmentDate(toInputDate(cand.date_of_appointment));
       setCSkillSet(cand.skill_set || '');
       setCFileName(cand.appointment_order_document || '');
       setCFile(null);
@@ -516,6 +543,21 @@ export default function InputForm({
     } finally {
       setCSaving(false);
     }
+  };
+
+  // In create mode a candidate profile is written as soon as it is saved, before the
+  // appointment exists. Leaving without submitting would strand those rows, so say so first.
+  const handleExit = () => {
+    const savedCandidates = candidates.filter(c => c && c.candidate_id).length;
+    if (!isEdit && savedCandidates > 0) {
+      const leave = window.confirm(
+        `${savedCandidates} candidate profile${savedCandidates === 1 ? ' has' : 's have'} already been saved. ` +
+        `If you leave now the appointment is not created and ${savedCandidates === 1 ? 'that profile' : 'those profiles'} ` +
+        `will not be linked to it. Leave anyway?`
+      );
+      if (!leave) return;
+    }
+    onBack();
   };
 
   const isFormDisabled =
@@ -956,7 +998,7 @@ export default function InputForm({
             </button>
             <button
               type="button"
-              onClick={onBack}
+              onClick={handleExit}
               className="px-6 py-2 rounded-xl text-xs font-black uppercase tracking-wider text-white bg-red-600 hover:bg-red-700 hover:shadow transition-all cursor-pointer active:scale-95"
             >
               Exit
