@@ -2,6 +2,7 @@ import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
 import { pool } from "../../db.js";
+import { scanFile } from '../../utils/clamScan.js';
 
 const uploadDestination = "./fileuploads/Consultant_Appointment";
 // Absolute form of the upload folder, used to prove a resolved path stays inside it
@@ -107,6 +108,17 @@ async function candidateDocumentUploader(req, res) {
         if (!Number.isInteger(candidateID) || candidateID <= 0) {
             removeUploadedFile(req.file.filename);
             return res.status(400).json({ error: "A valid candidate ID is required" });
+        }
+
+        // ClamAV security scan
+        try {
+            const scanResult = await scanFile(req.file.path);
+            if (!scanResult.clean) {
+                removeUploadedFile(req.file.filename);
+                return res.status(422).json({ error: 'File rejected: malware or threat detected.', threat: scanResult.threat });
+            }
+        } catch (scanErr) {
+            console.warn('[ClamAV] Scanner unavailable, skipping scan:', scanErr.message);
         }
 
         const conn = await pool;
