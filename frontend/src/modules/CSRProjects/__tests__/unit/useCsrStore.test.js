@@ -100,6 +100,18 @@ describe('CSR Projects store', () => {
     expect(resolveReport('projects-org-wise-summary', false).id).toBe('projects-org-wise-summary');
   });
 
+  it('each user type sees the numbers and names from the approved report list (R-16)', () => {
+    expect(reportsFor(false).map((r) => r.title.match(/C\.S\.R ([\d.]+)/)[1])).toEqual(['1.1', '1.2', '1.3', '1.4', '1.5', '1.6']);
+    expect(reportsFor(true).map((r) => r.title)).toEqual([
+      'Report No.: C.S.R 1.1 - CSR Fund - Summary Report',
+      'Report No.: C.S.R 1.2 - Financial Year-wise CSR Projects Summary',
+      'Report No.: C.S.R 1.3 - CSR Focus/Project Area-wise CSR Projects Summary',
+    ]);
+    expect(resolveReport('fund-org-trend-report', true).label).toBe('CSR Fund - Summary Report');
+    expect(resolveReport('fund-org-trend-report', false).label).toBe('Organisation-wise CSR Fund Trend');
+    expect(reportsFor(true).some((r) => 'org' in r)).toBe(false);
+  });
+
   it('page, filter panels and columns accept values or updater functions', () => {
     state().setShowFilterPanel((open) => !open);
     state().setFundShowFilterPanel(true);
