@@ -19,6 +19,9 @@ const initialValues = (fund) => ({
   fundAllotted: croreInput(fund?.csr_fund_alloted_year),
 });
 
+// Above this an amount gets a 'check it is in crore' note (QC CSR-41), as on the project form
+const LARGE_CRORE = 100;
+
 // '2026-2027' -> '2025-2026'
 const previousYear = (fy) => {
   const start = Number(String(fy || '').slice(0, 4));
@@ -163,6 +166,11 @@ export default function FundForm({ fund = null, organisationName, notify, onSave
               className={inputClass(f.key)}
             />
             {errors[f.key] && <p className="text-[10px] font-bold text-red-500 mt-1">{errors[f.key]}</p>}
+            {!errors[f.key] && isAmount(shown[f.key]) && Number(shown[f.key]) > LARGE_CRORE && (
+              <p className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 mt-1">
+                More than ₹{LARGE_CRORE} Cr. Check it is in crore, not lakh or rupees.
+              </p>
+            )}
             {f.key === 'openingBalance' && carriedLakh != null && (
               <p className={`text-[11px] mt-1 ${openingDiffers ? 'text-amber-600 dark:text-amber-400 font-semibold' : 'text-slate-500 dark:text-slate-400'}`}>
                 Closing balance of {lastYear}: ₹{formatCrore(carriedLakh)} Cr

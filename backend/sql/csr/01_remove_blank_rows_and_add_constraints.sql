@@ -6,7 +6,9 @@
 -- created rows with only created_date filled in. 3.0 needs a login, CSR access and a valid body.
 --
 -- Removed rows are copied to tbl_csr_cleanup_backup first, so they can be looked at later.
--- Safe to run more than once. Take a backup first.
+-- Safe to run more than once: a second run finds nothing to remove and skips the column changes.
+-- If a real project lacks a required value, it stops with the project ids and changes nothing.
+-- Run order: 01 -> 02 -> 03 -> 04 -> 05 -> 06. Take a backup first.
 --
 -- No foreign key to mmt_organisation: the organisation script drops and recreates that table,
 -- which a foreign key would block.
@@ -51,17 +53,68 @@ DELETE e FROM tbl_csr_expenditure e
 WHERE NOT EXISTS (SELECT 1 FROM tbl_csr_projects p WHERE p.csr_project_id = e.csr_project_id);
 PRINT 'Expenditure rows without a project removed: ' + CAST(@@ROWCOUNT AS VARCHAR(12));
 
--- 3. Required project fields (the form and the API already require them)
-ALTER TABLE tbl_csr_projects ALTER COLUMN organisation_id INT NOT NULL;
-ALTER TABLE tbl_csr_projects ALTER COLUMN project_name VARCHAR(255) NOT NULL;
-ALTER TABLE tbl_csr_projects ALTER COLUMN project_value DECIMAL(12,2) NOT NULL;
-ALTER TABLE tbl_csr_projects ALTER COLUMN project_status VARCHAR(50) NOT NULL;
--- csr_focus has an index, which has to be dropped while the column changes
-IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_tbl_csr_projects_csr_focus' AND object_id = OBJECT_ID('dbo.tbl_csr_projects'))
-    DROP INDEX IX_tbl_csr_projects_csr_focus ON tbl_csr_projects;
-ALTER TABLE tbl_csr_projects ALTER COLUMN csr_focus INT NOT NULL;
-CREATE INDEX IX_tbl_csr_projects_csr_focus ON tbl_csr_projects (csr_focus);
-ALTER TABLE tbl_csr_expenditure ALTER COLUMN csr_project_id INT NOT NULL;
+-- 2b. Gallery rows whose project does not exist (none on the 6 Nov 2026 copy); the foreign key
+-- added below would refuse them (QC R-02)
+INSERT INTO tbl_csr_cleanup_backup (source_table, source_id, row_json)
+SELECT 'tbl_csr_image', i.document_id, (SELECT i.* FOR JSON PATH, WITHOUT_ARRAY_WRAPPER, INCLUDE_NULL_VALUES)
+FROM tbl_csr_image i
+WHERE NOT EXISTS (SELECT 1 FROM tbl_csr_projects p WHERE p.csr_project_id = i.csr_project_id);
+
+DELETE i FROM tbl_csr_image i
+WHERE NOT EXISTS (SELECT 1 FROM tbl_csr_projects p WHERE p.csr_project_id = i.csr_project_id);
+PRINT 'Gallery rows without a project removed: ' + CAST(@@ROWCOUNT AS VARCHAR(12));
+
+-- 3. Required project fields (the form and the API already require them).
+-- First, stop with a clear list if a real project still lacks one of them (QC R-02): those
+-- need correcting by their organisation, not removing.
+DECLARE @missing NVARCHAR(MAX) = (
+    SELECT STRING_AGG(CAST(csr_project_id AS NVARCHAR(12)), ', ')
+    FROM (SELECT TOP 50 csr_project_id FROM tbl_csr_projects
+          WHERE organisation_id IS NULL OR project_name IS NULL OR project_value IS NULL
+             OR project_status IS NULL OR csr_focus IS NULL
+          ORDER BY csr_project_id) m);
+IF @missing IS NOT NULL
+BEGIN
+    DECLARE @msg NVARCHAR(2048) = N'These CSR projects lack an organisation, name, value, status or focus area '
+        + N'(first 50 ids): ' + @missing + N'. Fill them in, then run this script again. Nothing was changed.';
+    THROW 50003, @msg, 1;
+END
+IF EXISTS (SELECT 1 FROM tbl_csr_expenditure WHERE csr_project_id IS NULL)
+    THROW 50004, 'Some tbl_csr_expenditure rows have no csr_project_id. Remove or fix them, then run again. Nothing was changed.', 1;
+
+-- Each column is changed only while it still allows NULL, so a second run skips this part.
+-- An index on the column has to be dropped while it changes and is then put back (the focus
+-- index from schema-changes _1, and script 04's indexes if 04 was run before this one).
+IF COLUMNPROPERTY(OBJECT_ID('dbo.tbl_csr_projects'), 'organisation_id', 'AllowsNull') = 1
+BEGIN
+    DECLARE @orgIndex BIT = CASE WHEN EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_tbl_csr_projects_organisation_year'
+                                              AND object_id = OBJECT_ID('dbo.tbl_csr_projects')) THEN 1 ELSE 0 END;
+    IF @orgIndex = 1 DROP INDEX IX_tbl_csr_projects_organisation_year ON tbl_csr_projects;
+    ALTER TABLE tbl_csr_projects ALTER COLUMN organisation_id INT NOT NULL;
+    IF @orgIndex = 1 CREATE INDEX IX_tbl_csr_projects_organisation_year ON tbl_csr_projects (organisation_id, financial_year);
+END
+IF COLUMNPROPERTY(OBJECT_ID('dbo.tbl_csr_projects'), 'project_name', 'AllowsNull') = 1
+    ALTER TABLE tbl_csr_projects ALTER COLUMN project_name VARCHAR(255) NOT NULL;
+IF COLUMNPROPERTY(OBJECT_ID('dbo.tbl_csr_projects'), 'project_value', 'AllowsNull') = 1
+    ALTER TABLE tbl_csr_projects ALTER COLUMN project_value DECIMAL(12,2) NOT NULL;
+IF COLUMNPROPERTY(OBJECT_ID('dbo.tbl_csr_projects'), 'project_status', 'AllowsNull') = 1
+    ALTER TABLE tbl_csr_projects ALTER COLUMN project_status VARCHAR(50) NOT NULL;
+IF COLUMNPROPERTY(OBJECT_ID('dbo.tbl_csr_projects'), 'csr_focus', 'AllowsNull') = 1
+BEGIN
+    DECLARE @focusIndex BIT = CASE WHEN EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_tbl_csr_projects_csr_focus'
+                                                AND object_id = OBJECT_ID('dbo.tbl_csr_projects')) THEN 1 ELSE 0 END;
+    IF @focusIndex = 1 DROP INDEX IX_tbl_csr_projects_csr_focus ON tbl_csr_projects;
+    ALTER TABLE tbl_csr_projects ALTER COLUMN csr_focus INT NOT NULL;
+    CREATE INDEX IX_tbl_csr_projects_csr_focus ON tbl_csr_projects (csr_focus);
+END
+IF COLUMNPROPERTY(OBJECT_ID('dbo.tbl_csr_expenditure'), 'csr_project_id', 'AllowsNull') = 1
+BEGIN
+    DECLARE @expIndex BIT = CASE WHEN EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_tbl_csr_expenditure_project_year'
+                                              AND object_id = OBJECT_ID('dbo.tbl_csr_expenditure')) THEN 1 ELSE 0 END;
+    IF @expIndex = 1 DROP INDEX IX_tbl_csr_expenditure_project_year ON tbl_csr_expenditure;
+    ALTER TABLE tbl_csr_expenditure ALTER COLUMN csr_project_id INT NOT NULL;
+    IF @expIndex = 1 CREATE INDEX IX_tbl_csr_expenditure_project_year ON tbl_csr_expenditure (csr_project_id, [year]) INCLUDE (csr_expenditure_cost);
+END
 PRINT 'Required fields set';
 
 -- 4. Expenditure and gallery rows must belong to an existing project. tbl_csr_projects has no

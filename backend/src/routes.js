@@ -940,11 +940,11 @@ router.get("/get-litigation-detailed-case-report/:organisationID/:stageID", arbi
 // scope records by the signed token. Uploads happen while adding or editing, so either is enough.
 // Strict: an account without a data scope is refused instead of seeing every organisation (QC CSR-17).
 const csrRead = requireStrictModulePermission("CSR_PROJECTS", "read");
-// Writes also need the Organisation Nodal Officer role (QC CSR-18 / CSR-34); arrays of
-// middleware run in order
-const csrCreate = [requireStrictModulePermission("CSR_PROJECTS", "create"), csrProjectTab.nodalOfficerOnly];
-const csrUpdate = [requireStrictModulePermission("CSR_PROJECTS", "update"), csrProjectTab.nodalOfficerOnly];
-const csrWrite = [requireAnyModulePermission("CSR_PROJECTS", ["create", "update"], { strict: true }), csrProjectTab.nodalOfficerOnly];
+// Writes are made by organisation users only, for their own organisation (QC CSR-18 / CSR-34 /
+// R-14); arrays of middleware run in order
+const csrCreate = [requireStrictModulePermission("CSR_PROJECTS", "create"), csrProjectTab.organisationWriter];
+const csrUpdate = [requireStrictModulePermission("CSR_PROJECTS", "update"), csrProjectTab.organisationWriter];
+const csrWrite = [requireAnyModulePermission("CSR_PROJECTS", ["create", "update"], { strict: true }), csrProjectTab.organisationWriter];
 router.post('/add-csr-projects', auth, csrCreate, csrProjectTab.createCsrProjects);
 router.get('/csr-projects-list/:userID', auth, csrRead, csrProjectTab.getCsrProjectslist);
 router.put("/update-csr-list", auth, csrUpdate, csrProjectTab.updateCsrProjects);

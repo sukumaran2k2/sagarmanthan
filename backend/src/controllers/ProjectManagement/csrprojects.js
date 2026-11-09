@@ -39,8 +39,9 @@ async function canAccessRow(user, table, idColumn, id) {
 const canAccessProject = (user, csrProjectId) => canAccessRow(user, 'tbl_csr_projects', 'csr_project_id', csrProjectId);
 const canAccessFund = (user, csrFundId) => canAccessRow(user, 'tbl_csr_fund', 'csr_fund_id', csrFundId);
 
-// Records an organisation user adds always belong to their own organisation.
-const organisationForSave = (user, requested) => csrScope(user).orgId ?? requested;
+// Records are always saved for the user's own organisation; only organisation users can write
+// (organisationWriter), so an organisation id sent in the request is never used (QC CSR-18).
+const organisationForSave = (user) => csrScope(user).orgId;
 
 // ----- Checks on what is saved (QC CSR-10 / CSR-41 / CSR-43 / CSR-44); the form makes the same ones.
 // Each returns an error message for a 400, or null. Amounts arrive in lakh (columns decimal(12,2)).
@@ -68,47 +69,117 @@ const dateOrNull = (v) => {
 };
 const todayInIndia = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 
-// The status / date / progress rules and expenditure <= project value apply to new projects only:
-// 550+ saved projects break one of them, and an edit shouldn't need those fixed first
-function projectError(body, { isNew }) {
-    const focus = Number(body.csrfocus);
-    if (!Number.isInteger(focus) || focus <= 0) return 'Select the CSR focus / project area.';
-    if (!isFinancialYear(body.financialYear)) return 'Select a valid financial year.';
-    const text = textError('Name of the project', body.nameofproject, 255)
-        || textError('Project received from', body.projectReceived, 255)
-        || textError('Impact / possible outcome', body.impactproject, 256)
-        || textError('Target beneficiaries', body.targetbeneficiaries, 256);
-    if (text) return text;
-    const value = amountError('Project value', body.projectvalue);
-    if (value) return value;
-    const status = body.projectstatus;
-    if (!CSR_STATUSES.includes(status)) return 'Select a valid project status.';
-    for (const [label, v] of [['Physical progress', body.physicalprogresssofar], ['Financial progress', body.finiancialprogresssofar]]) {
-        const n = Number(isBlank(v) ? 0 : v);
-        if (!Number.isFinite(n) || n < 0 || n > 100) return `${label} must be between 0 and 100.`;
-        if (isNew && NOT_STARTED.includes(status) && n > 0) return `${label} must be 0 while the status is "${status}".`;
+const REMARKS_MAX = 2000;
+
+// Compare a field as sent with the saved value
+const sameText = (a, b) => String(a ?? '').trim() === String(b ?? '').trim();
+const sameNumber = (a, b) => (isBlank(a) && isBlank(b)) || (!isBlank(a) && !isBlank(b) && Number(a) === Number(b));
+const savedDate = (d) => (d ? new Date(d).toISOString().slice(0, 10) : null);
+const sameDate = (a, b) => (dateOrNull(a) || null) === savedDate(b);
+
+// Checks a project before it is saved. `current` is the saved project ({ row, expenditures }) when
+// editing, null for a new one. A new project gets every check. On an edit a rule is checked only
+// when a field it depends on was changed (QC R-03 / R-11 / CSR-41 / CSR-43): a field left as it was
+// saved - even blank or out of range on an old row - doesn't block the save, but anything the user
+// enters or changes must be valid, so the CSR-03 wrong-unit amounts can't be entered on edit either.
+function projectError(body, { current = null } = {}) {
+    const isNew = !current;
+    const row = current?.row || {};
+    const check = (changed) => isNew || changed;
+
+    if (check(!sameNumber(body.csrfocus, row.csr_focus))) {
+        const focus = Number(body.csrfocus);
+        if (!Number.isInteger(focus) || focus <= 0) return 'Select the CSR focus / project area.';
     }
+    if (check(!sameText(body.financialYear, row.financial_year)) && !isFinancialYear(body.financialYear)) {
+        return 'Select a valid financial year.';
+    }
+    for (const [label, key, column, max] of [
+        ['Name of the project', 'nameofproject', 'project_name', 255],
+        ['Project received from', 'projectReceived', 'project_received_from', 255],
+        ['Impact / possible outcome', 'impactproject', 'impact_possible_outcome', 256],
+        ['Target beneficiaries', 'targetbeneficiaries', 'target_beneficiaries', 256],
+    ]) {
+        if (check(!sameText(body[key], row[column]))) {
+            const text = textError(label, body[key], max);
+            if (text) return text;
+        }
+    }
+    if (check(!sameText(body.remarksoftheproject, row.remarks)) && String(body.remarksoftheproject || '').trim().length > REMARKS_MAX) {
+        return `Remarks can be at most ${REMARKS_MAX} characters.`;
+    }
+    const valueChanged = !sameNumber(body.projectvalue, row.project_value);
+    if (check(valueChanged)) {
+        const value = amountError('Project value', body.projectvalue);
+        if (value) return value;
+    }
+
+    const status = body.projectstatus;
+    const statusChanged = !sameText(status, row.project_status);
+    if (check(statusChanged) && !CSR_STATUSES.includes(status)) return 'Select a valid project status.';
+    const progress = [
+        ['Physical progress', body.physicalprogresssofar, row.physical_progress],
+        ['Financial progress', body.finiancialprogresssofar, row.financial_progress],
+    ];
+    const progressChanged = progress.some(([, v, saved]) => !sameNumber(isBlank(v) ? 0 : v, saved ?? 0));
+    for (const [label, v, saved] of progress) {
+        const n = Number(isBlank(v) ? 0 : v);
+        if (check(!sameNumber(isBlank(v) ? 0 : v, saved ?? 0)) && (!Number.isFinite(n) || n < 0 || n > 100)) {
+            return `${label} must be between 0 and 100.`;
+        }
+        if (check(statusChanged || progressChanged) && NOT_STARTED.includes(status) && n > 0) {
+            return `${label} must be 0 while the status is "${status}".`;
+        }
+    }
+
     const commenced = dateOrNull(body.commencedon);
     const completed = dateOrNull(body.completedon);
-    if (commenced === 'bad' || completed === 'bad') return 'A date is not valid.';
-    const today = todayInIndia();
-    if ((commenced && commenced > today) || (completed && completed > today)) return 'Dates cannot be in the future.';
-    if (commenced && completed && completed < commenced) return 'The completed date cannot be earlier than the commenced date.';
-    if (isNew && completed && status !== 'Completed') return 'A completed date can be entered only for a completed project.';
-    if (isNew && !commenced && (status === 'Project Under implementation' || status === 'Completed')) return 'Enter the date the project commenced.';
-    const expenditures = Array.isArray(body.expenditures) ? body.expenditures : [];
+    const datesChanged = !sameDate(body.commencedon, row.commenced_on) || !sameDate(body.completedon, row.completed_on);
+    if (check(datesChanged)) {
+        if (commenced === 'bad' || completed === 'bad') return 'A date is not valid.';
+        const today = todayInIndia();
+        if ((commenced && commenced > today) || (completed && completed > today)) return 'Dates cannot be in the future.';
+        if (commenced && completed && completed < commenced) return 'The completed date cannot be earlier than the commenced date.';
+    }
+    if (check(statusChanged || datesChanged)) {
+        if (completed && completed !== 'bad' && status !== 'Completed') return 'A completed date can be entered only for a completed project.';
+        if (!commenced && (status === 'Project Under implementation' || status === 'Completed')) return 'Enter the date the project commenced.';
+    }
+
+    // No expenditure sent on an edit: the saved rows stay as they are
+    const expenditures = Array.isArray(body.expenditures) ? body.expenditures
+        : (current?.expenditures || []).map((e) => ({ expenditureFinancialYear: e.year, expenditureCost: e.csr_expenditure_cost }));
+    const savedSpend = new Map((current?.expenditures || []).map((e) => [String(e.year), Number(e.csr_expenditure_cost)]));
     const years = new Set();
     let spent = 0;
+    let spendChanged = expenditures.length !== savedSpend.size;
     for (const e of expenditures) {
-        if (!isFinancialYear(e.expenditureFinancialYear)) return 'An expenditure row has no valid financial year.';
-        if (years.has(e.expenditureFinancialYear)) return `${e.expenditureFinancialYear} appears twice in the expenditure.`;
-        years.add(e.expenditureFinancialYear);
-        const cost = amountError(`Expenditure for ${e.expenditureFinancialYear}`, e.expenditureCost);
-        if (cost) return cost;
-        spent += Number(e.expenditureCost);
+        const year = e.expenditureFinancialYear;
+        const rowChanged = !savedSpend.has(String(year)) || savedSpend.get(String(year)) !== Number(e.expenditureCost);
+        if (rowChanged) spendChanged = true;
+        if (check(rowChanged) && !isFinancialYear(year)) return 'An expenditure row has no valid financial year.';
+        if (years.has(year)) return `${year} appears twice in the expenditure.`;
+        years.add(year);
+        if (check(rowChanged)) {
+            const cost = amountError(`Expenditure for ${year}`, e.expenditureCost);
+            if (cost) return cost;
+        }
+        spent += Number(e.expenditureCost) || 0;
     }
-    if (isNew && spent > Number(body.projectvalue) + 1e-9) return 'Total expenditure cannot be more than the project value.';
+    if (check(valueChanged || spendChanged) && spent > Number(body.projectvalue) + 1e-9) {
+        return 'Total expenditure cannot be more than the project value.';
+    }
     return null;
+}
+
+// The saved project and its expenditure, for comparing an edit with (projectError)
+async function savedProject(projectID) {
+    const request = (await pool).request().input('projectID', projectID);
+    const result = await request.query(`
+        SELECT * FROM tbl_csr_projects WHERE csr_project_id = @projectID;
+        SELECT [year], csr_expenditure_cost FROM tbl_csr_expenditure WHERE csr_project_id = @projectID;`);
+    const row = result.recordsets[0][0];
+    return row ? { row, expenditures: result.recordsets[1] } : null;
 }
 
 function fundError(body) {
@@ -236,9 +307,9 @@ async function createCsrProjects(req, res)
     if (csrScope(req.user).blocked) {
         return res.status(403).json({ error: "Your account is not linked to an organisation." });
     }
-    const invalid = projectError(req.body, { isNew: true });
+    const invalid = projectError(req.body);
     if (invalid) return res.status(400).json({ error: invalid });
-    const organisationID = organisationForSave(req.user, req.body.organisationID);
+    const organisationID = organisationForSave(req.user);
     const csrfocus = req.body.csrfocus;
     const nameofproject = req.body.nameofproject;
     const projectReceived = req.body.projectReceived;
@@ -501,9 +572,15 @@ async function getUpdateCsrProjectsData(req, res)
 
 async function updateCsrProjects(req, res) 
 {    
-    const invalid = projectError(req.body, { isNew: false });
-    if (invalid) return res.status(400).json({ error: invalid });
     const projectID = req.body.csrProjectId;
+    if (!(await canAccessProject(req.user, projectID))) {
+        return res.status(404).json({ error: "CSR project not found" });
+    }
+    // Checked against the saved project, so a rule applies to what the user changed (QC R-03 / R-11)
+    const saved = await savedProject(projectID);
+    if (!saved) return res.status(404).json({ error: "CSR project not found" });
+    const invalid = projectError(req.body, { current: saved });
+    if (invalid) return res.status(400).json({ error: invalid });
     const csrfocus = req.body.csrfocus;
     const nameofproject = req.body.nameofproject;
     const projectReceived = req.body.projectReceived;
@@ -529,12 +606,7 @@ async function updateCsrProjects(req, res)
         completedon = null;
     }
     const conn = await pool;
-    if (!(await canAccessProject(req.user, projectID))) {
-        return res.status(404).json({ error: "CSR project not found" });
-    }
-    const current = await conn.request().input("projectID", projectID)
-        .query(`SELECT project_completion_doc FROM tbl_csr_projects WHERE csr_project_id = @projectID`);
-    const currentDocument = current.recordset[0]?.project_completion_doc || null;
+    const currentDocument = saved.row.project_completion_doc || null;
     const document = await documentForSave(req.body.uniqueFileName, userID, currentDocument);
     if (document.error) return res.status(400).json({ error: document.error });
     const uniqueFileName = document.name;
@@ -753,17 +825,17 @@ async function uploadMediaGalleryFile(req,res) {
     }
 }
 
-// Route check before a gallery upload: the project in the URL must be one the user can see
-// Only Organisation Nodal Officers add or change CSR data, for their own organisation (QC CSR-18 /
-// CSR-34, as in 2.0's screens). Ministry users, Organisation Senior Officers and everyone else
-// only view, whatever their CRUD matrix says, so a Ministry user can't save data for any organisation.
-function nodalOfficerOnly(req, res, next) {
-    const role = String(req.user?.roleCode || '').toUpperCase();
-    const scope = String(req.user?.dataScopeCode || '').toUpperCase();
-    if (role === 'ORG_NODAL_OFFICER' && scope === 'ORGANISATION') return next();
-    return res.status(403).json({ error: 'CSR data is added and changed by Organisation Nodal Officers only. You can view it.' });
+// CSR data is entered by the organisations themselves (any organisation login, as in 2.0 and as
+// the business owner confirmed on 06-Nov - QC R-14), each for its own organisation, as far as
+// their CSR create / update rights allow (checked before this). Ministry users, including
+// superadmin, only view (QC CSR-18 / CSR-34 / R-08), so nobody saves data for another organisation.
+function organisationWriter(req, res, next) {
+    const scope = csrScope(req.user);
+    if (String(req.user?.dataScopeCode || '').toUpperCase() === 'ORGANISATION' && scope.orgId) return next();
+    return res.status(403).json({ error: 'CSR data is added and changed by the organisations. You can view it.' });
 }
 
+// Route check before a gallery upload: the project in the URL must be one the user can see
 function projectAccess(req, res, next) {
     canAccessProject(req.user, req.params.csrProjectId)
         .then((ok) => (ok ? next() : res.status(404).json({ error: 'CSR project not found' })))
@@ -778,7 +850,7 @@ async function addCsrFundDetails(req, res)
     }
     const invalid = fundError(req.body);
     if (invalid) return res.status(400).json({ error: invalid });
-    const organisationID = organisationForSave(req.user, req.body.organisationID);
+    const organisationID = organisationForSave(req.user);
     const financialYear = req.body.financialYear;
     const netProfit = req.body.netProfit;
     const csrFundAllotedForYear = req.body.csrFundAllotedForYear;
@@ -2019,7 +2091,7 @@ const answerOnError = (handler) => async (req, res, next) => {
         if (!res.headersSent) res.sendStatus(500);
     }
 };
-const exported = {nodalOfficerOnly, projectAccess, createCsrProjects, upload, fileUpload, handleUploadErrors, getCsrProjectslist,
+const exported = {organisationWriter, projectAccess, createCsrProjects, upload, fileUpload, handleUploadErrors, getCsrProjectslist,
         getUpdateCsrProjectsData, updateCsrProjects, csrProjectDocumentUploader, csrfileDownload,
         getCsrExpenditureCost,  getCsrFileUploadDocument, uploadMediaGalleryFile, addCsrFundDetails, getCsrFundList, getUpdateFundData,  editCsrFund,csrProjectsAbstractReport,csrProjectsDetailedReport,csrExpenditureReport,getCsrFundYearWiseReport, getCsrFundOrgWiseReport, getCsrFundOrgTrendReport, getCsrProjectsYearWiseSummary, getCsrProjectsOrgWiseSummary, getCsrProjectsFocusWiseSummary,
         getCsrDashboard};
