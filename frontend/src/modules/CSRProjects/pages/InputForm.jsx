@@ -37,6 +37,7 @@ const isPercent = (v) => v === '' || (!Number.isNaN(Number(v)) && Number(v) >= 0
 // Column sizes (QC CSR-44) and amount limits (QC CSR-41): amounts are stored in lakh as decimal(12,2)
 const NAME_MAX = 255;     // project_name, project_received_from
 const TEXT_MAX = 256;     // impact_possible_outcome, target_beneficiaries
+const REMARKS_MAX = 2000; // remarks (QC CSR-10)
 const MAX_CRORE = 99999999; // the largest amount the columns hold, in crore
 const LARGE_CRORE = 100;  // above this the form asks to check the amount is in crore
 const NOT_STARTED = ['Approved by Board', 'Project yet to start'];
@@ -68,36 +69,51 @@ const statusOf = (v) => {
 };
 
 // The checks of each stage; returns { field: message }. The server makes the same checks.
-// The status / date / progress rules apply to new projects only (saved ones often break them).
-function stageErrors(stageId, v, isNew) {
+// `saved` is the project as it was loaded (null for a new one). A new project gets every check;
+// on an edit a rule is checked only when a field it depends on was changed (QC R-03 / R-11 /
+// CSR-43), so an old project with gaps can still be corrected, but nothing invalid can be entered.
+function stageErrors(stageId, v, saved) {
   const errs = {};
+  const changed = (...keys) => !saved || keys.some((k) => String(v[k] ?? '').trim() !== String(saved[k] ?? '').trim());
   if (stageId === 'general') {
-    if (!v.csrFocus) errs.csrFocus = 'Select the CSR focus / project area.';
-    if (!v.financialYear) errs.financialYear = 'Select the financial year.';
-    if (!v.projectName.trim()) errs.projectName = 'Name of the Project is required.';
-    else if (v.projectName.trim().length > NAME_MAX) errs.projectName = `At most ${NAME_MAX} characters.`;
-    if (!v.receivedFrom.trim()) errs.receivedFrom = 'Project received from is required.';
-    else if (v.receivedFrom.trim().length > NAME_MAX) errs.receivedFrom = `At most ${NAME_MAX} characters.`;
-    if (!isAmount(v.projectValue)) errs.projectValue = 'Enter the project value in ₹ Cr (0 or more).';
-    else if (Number(v.projectValue) > MAX_CRORE) errs.projectValue = 'This amount is too large. Enter it in ₹ Cr.';
+    if (changed('csrFocus') && !v.csrFocus) errs.csrFocus = 'Select the CSR focus / project area.';
+    if (changed('financialYear') && !v.financialYear) errs.financialYear = 'Select the financial year.';
+    if (changed('projectName')) {
+      if (!v.projectName.trim()) errs.projectName = 'Name of the Project is required.';
+      else if (v.projectName.trim().length > NAME_MAX) errs.projectName = `At most ${NAME_MAX} characters.`;
+    }
+    if (changed('receivedFrom')) {
+      if (!v.receivedFrom.trim()) errs.receivedFrom = 'Project received from is required.';
+      else if (v.receivedFrom.trim().length > NAME_MAX) errs.receivedFrom = `At most ${NAME_MAX} characters.`;
+    }
+    if (changed('projectValue')) {
+      if (!isAmount(v.projectValue)) errs.projectValue = 'Enter the project value in ₹ Cr (0 or more).';
+      else if (Number(v.projectValue) > MAX_CRORE) errs.projectValue = 'This amount is too large. Enter it in ₹ Cr.';
+    }
   } else if (stageId === 'outcomes') {
-    if (!v.impact.trim()) errs.impact = 'Impact / Possible Outcome is required.';
-    else if (v.impact.trim().length > TEXT_MAX) errs.impact = `At most ${TEXT_MAX} characters.`;
-    if (!v.beneficiaries.trim()) errs.beneficiaries = 'Target Beneficiaries is required.';
-    else if (v.beneficiaries.trim().length > TEXT_MAX) errs.beneficiaries = `At most ${TEXT_MAX} characters.`;
+    if (changed('impact')) {
+      if (!v.impact.trim()) errs.impact = 'Impact / Possible Outcome is required.';
+      else if (v.impact.trim().length > TEXT_MAX) errs.impact = `At most ${TEXT_MAX} characters.`;
+    }
+    if (changed('beneficiaries')) {
+      if (!v.beneficiaries.trim()) errs.beneficiaries = 'Target Beneficiaries is required.';
+      else if (v.beneficiaries.trim().length > TEXT_MAX) errs.beneficiaries = `At most ${TEXT_MAX} characters.`;
+    }
+    if (changed('remarks') && v.remarks.trim().length > REMARKS_MAX) errs.remarks = `At most ${REMARKS_MAX} characters.`;
   } else if (stageId === 'status') {
     // Status, dates and progress have to agree (QC CSR-43)
     const status = statusOf(v);
-    const strict = isNew;
-    if (!status) errs.status = 'Select the project status.';
-    if (v.commencedOn && v.commencedOn > today()) errs.commencedOn = 'The commenced date cannot be in the future.';
-    if (v.completedOn && v.completedOn > today()) errs.completedOn = 'The completed date cannot be in the future.';
-    else if (v.commencedOn && v.completedOn && v.completedOn < v.commencedOn) errs.completedOn = 'Completed date cannot be earlier than the commenced date.';
+    const strict = changed('status', 'physicalProgress', 'financialProgress', 'commencedOn', 'completedOn');
+    const datesChanged = changed('commencedOn', 'completedOn');
+    if (changed('status') && !status) errs.status = 'Select the project status.';
+    if (datesChanged && v.commencedOn && v.commencedOn > today()) errs.commencedOn = 'The commenced date cannot be in the future.';
+    if (datesChanged && v.completedOn && v.completedOn > today()) errs.completedOn = 'The completed date cannot be in the future.';
+    else if (datesChanged && v.commencedOn && v.completedOn && v.completedOn < v.commencedOn) errs.completedOn = 'Completed date cannot be earlier than the commenced date.';
     else if (strict && v.completedOn && status !== 'Completed') errs.completedOn = 'Enter a completed date only once the project is completed (both progress figures 100%).';
     if (strict && !v.commencedOn && (status === 'Project Under implementation' || status === 'Completed')) errs.commencedOn = 'Enter the date the project commenced.';
-    if (!isPercent(v.physicalProgress)) errs.physicalProgress = 'Physical progress must be between 0 and 100.';
+    if (changed('physicalProgress') && !isPercent(v.physicalProgress)) errs.physicalProgress = 'Physical progress must be between 0 and 100.';
     else if (strict && NOT_STARTED.includes(status) && Number(v.physicalProgress) > 0) errs.physicalProgress = `Must be 0 while the status is "${status}". Change the status to Under implementation.`;
-    if (!isPercent(v.financialProgress)) errs.financialProgress = 'Financial progress must be between 0 and 100.';
+    if (changed('financialProgress') && !isPercent(v.financialProgress)) errs.financialProgress = 'Financial progress must be between 0 and 100.';
     else if (strict && NOT_STARTED.includes(status) && Number(v.financialProgress) > 0) errs.financialProgress = `Must be 0 while the status is "${status}". Change the status to Under implementation.`;
   }
   return errs;
@@ -107,6 +123,10 @@ function ProjectForm({ editData, organisationId, onBack, onSaved, notify }) {
   const isEdit = !!editData;
   const projectId = editData?.csr_project_id;
   const [values, setValues] = useState(() => initialProject(editData));
+  // The project as loaded, to tell what an edit changed (null for a new project)
+  const [savedValues] = useState(() => (editData ? initialProject(editData) : null));
+  // The expenditure as loaded, by year ('' until loaded / for a new project)
+  const [savedSpend, setSavedSpend] = useState(null);
   const [errors, setErrors] = useState({});
   const [activeStage, setActiveStage] = useState('general');
   const [submitting, setSubmitting] = useState(false);
@@ -126,6 +146,7 @@ function ProjectForm({ editData, organisationId, onBack, onSaved, notify }) {
         if (cancelled) return;
         if (Array.isArray(expRes) && expRes.length > 0) {
           setExpenditures(expRes.map((e) => ({ year: e.year, cost: croreInput(e.csr_expenditure_cost) })));
+          setSavedSpend(expRes.map((e) => `${e.year}:${Number(e.csr_expenditure_cost)}`).sort().join('|'));
         }
         setExistingGallery(Array.isArray(galRes) ? galRes : []);
         setDetailsLoaded(true);
@@ -154,7 +175,7 @@ function ProjectForm({ editData, organisationId, onBack, onSaved, notify }) {
     setErrors((e) => (e[key] ? { ...e, [key]: undefined } : e));
   };
 
-  const stageValid = (id) => Object.keys(stageErrors(id, values, !isEdit)).length === 0;
+  const stageValid = (id) => Object.keys(stageErrors(id, values, savedValues)).length === 0;
   const stageDone = {
     general: stageValid('general'),
     outcomes: stageValid('general') && stageValid('outcomes'),
@@ -165,7 +186,7 @@ function ProjectForm({ editData, organisationId, onBack, onSaved, notify }) {
   // Checks every stage before the target one; stops at the first with missing fields
   const checkStagesBefore = (targetIndex) => {
     for (let i = 0; i < targetIndex; i += 1) {
-      const errs = stageErrors(STAGE_IDS[i], values, !isEdit);
+      const errs = stageErrors(STAGE_IDS[i], values, savedValues);
       if (Object.keys(errs).length) {
         setErrors((e) => ({ ...e, ...errs }));
         setActiveStage(STAGE_IDS[i]);
@@ -223,9 +244,12 @@ function ProjectForm({ editData, organisationId, onBack, onSaved, notify }) {
       notify(COMMON_TOASTS.fixValidationErrors('Each financial year can appear only once in the expenditure'));
       return;
     }
-    // Spent can't be more than a new project's value (QC CSR-41)
+    // Spent can't be more than the project value (QC CSR-41): always for a new project, and on an
+    // edit whenever the value or any expenditure was changed (QC R-03)
     const spent = costs.reduce((sum, x) => sum + Number(x.cost), 0);
-    if (!isEdit && spent > Number(values.projectValue) + 1e-9) {
+    const spendNow = costs.map((x) => `${x.year}:${croreToLakh(x.cost)}`).sort().join('|');
+    const amountsChanged = !isEdit || values.projectValue !== savedValues.projectValue || spendNow !== (savedSpend ?? '');
+    if (amountsChanged && spent > Number(values.projectValue) + 1e-9) {
       notify(COMMON_TOASTS.fixValidationErrors(`Total expenditure (₹ ${spent.toLocaleString('en-IN')} Cr) is more than the project value (₹ ${Number(values.projectValue).toLocaleString('en-IN')} Cr)`));
       return;
     }
@@ -453,7 +477,7 @@ function ProjectForm({ editData, organisationId, onBack, onSaved, notify }) {
               </div>
               <div>
                 <label className="module-form-label" htmlFor="csr-remarks">Remarks</label>
-                <textarea rows={2} placeholder="Enter remarks..." id="csr-remarks" value={values.remarks}
+                <textarea rows={2} placeholder="Enter remarks..." maxLength={REMARKS_MAX} id="csr-remarks" value={values.remarks}
                   onChange={(e) => setValue('remarks', e.target.value)} className="module-form-input" />
               </div>
             </div>
@@ -539,6 +563,11 @@ function ProjectForm({ editData, organisationId, onBack, onSaved, notify }) {
                         <input type="number" step="0.0001" min="0" placeholder="0.00" value={exp.cost}
                           onChange={(e) => setExpenditures((rows) => rows.map((r, i) => (i === idx ? { ...r, cost: e.target.value } : r)))}
                           className={`module-form-input max-w-sm ${exp.cost !== '' && !isAmount(exp.cost) ? '!border-red-500' : ''}`} />
+                        {isAmount(exp.cost) && Number(exp.cost) > LARGE_CRORE && (
+                          <p className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 mt-1">
+                            More than ₹{LARGE_CRORE} Cr. Check it is in crore, not lakh or rupees.
+                          </p>
+                        )}
                       </td>
                       <td className="py-2 px-4 text-center">
                         {idx === 0 ? (
