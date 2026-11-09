@@ -473,25 +473,6 @@ function deleteFile(fileName) {
     }
 }
 
-async function deleteEmployee(req, res){
-    const empId = req.params.empID;
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input("empId", empId);
-
-    try {
-            await request.query(
-                `DELETE FROM mmt_employee_info WHERE Emp_Id = @empId`
-            );
-
-        return res.sendStatus(201);
-    } catch (err) {
-        console.error(err);
-        return res.sendStatus(500);
-    }
-}
-
 const EofficeFileDisposalTab = { addFileDisposal, upload,
-    updateFileDisposal, deleteEmployee };
+    updateFileDisposal };
 export default EofficeFileDisposalTab;

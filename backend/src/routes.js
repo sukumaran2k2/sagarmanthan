@@ -388,7 +388,6 @@ const billsDelete = requireModulePermission("BILLS_PRE_CONSTITUTION", "delete");
 //attendance
 //check
 router.get("/employee-attendance-file", auth, attRead, empAttendanceTab.getEmployeeAttendance);
-router.get("/employee-attendance-sample", auth, attRead, empAttendanceTab.agSample);
 
 router.get("/employee-attendance-view", auth, attRead, empAttendanceTab.getEmpAttendance);
 router.post("/employee-attendance", auth, attCreate, empAttendanceTab.uploadSingleFile, empAttendanceTab.createEmpAttendance);
@@ -735,7 +734,6 @@ router.delete(
 // Audit Para
 router.get("/audit-para", auditParaTab.getAuditPara);
 router.post("/audit-para", auditParaTab.createAuditPara);
-router.get("/edit-audit-para/:auditParaID", auditParaTab.getUpdateAuditData);
 router.put("/audit-para", auditParaTab.updateAuditPara);
 // router.post("/audit-para-stage", auditParaTab.createAuditParaStage);
 router.delete("/audit-para/:audit_para_id/:userID", auditParaTab.deleteAuditPara);
@@ -777,8 +775,6 @@ router.get("/eoffice-employee-org-units", auth, eofficeRead, empAttendanceTab.ge
 router.post("/file-pendancy-create", auth, eofficeCreate, EofficeFilePendancyTab.upload.single('file'), EofficeFilePendancyTab.addFilePendancy);
 router.put("/file-pendancy-update", auth, eofficeUpdate, EofficeFilePendancyTab.upload.single('file'), EofficeFilePendancyTab.updateFilePendancy);
 
-//File disposal Chart
-router.get('/file-pendancy-chart/:Year/:Month/:Hierarchy', auth, eofficeRead, eOfficeTab.getFilePendancyChart);
 
 //Receipt pendancy
 router.get('/receipt-pendancy-report/:Year/:Month/:Week', auth, eofficeRead, eOfficeTab.getReceiptPendenceReport);
@@ -791,8 +787,6 @@ router.delete("/receipt-pendancy/delete/:id", auth, eofficeDelete, eOfficeTab.de
 router.post("/receipt-pendancy-create", auth, eofficeCreate, EofficeReceiptPendancyTab.upload.single('file'), EofficeReceiptPendancyTab.addReceiptPendancy);
 router.put("/receipt-pendancy-update", auth, eofficeUpdate, EofficeReceiptPendancyTab.upload.single('file'), EofficeReceiptPendancyTab.updateReceiptPendancy);
 
-//Receipt pendancy Chart
-router.get('/receipt-pendancy-chart/:Year/:Month/:Hierarchy', auth, eofficeRead, eOfficeTab.getReceiptPendancyChart);
 
 //File disposal
 router.get('/file-disposal-report/:Year/:Month/:Week', auth, eofficeRead, eOfficeTab.getFileDisposalReport);
@@ -802,12 +796,9 @@ router.get("/file-disposal-History", auth, eofficeRead, eOfficeTab.getFileDispos
 router.get("/file-disposal/download/:id", auth, eofficeRead, eOfficeTab.downloadFileDisposal);
 router.get("/file-disposal/download-sample", auth, eofficeRead, eOfficeTab.downloadFileDisposalSample);
 router.delete("/file-disposal/delete/:id", auth, eofficeDelete, eOfficeTab.deleteFileDisposal);
-router.delete("/delete-employee/:empID", auth, eofficeDelete, EofficeFileDisposalTab.deleteEmployee);
 router.post("/file-disposal-create", auth, eofficeCreate, EofficeFileDisposalTab.upload.single('file'), EofficeFileDisposalTab.addFileDisposal);
 router.put("/file-disposal-update", auth, eofficeUpdate, EofficeFileDisposalTab.upload.single('file'), EofficeFileDisposalTab.updateFileDisposal);
 
-//File disposal Chart
-router.get('/file-disposal-chart/:Year/:Month/:Hierarchy', auth, eofficeRead, eOfficeTab.getFileDisposalChart);
 
 // Official Foreign Visit
 router.get("/OFV-data/:userID/:organisationID", officialForeignVisitTab.getOFVData);
@@ -2933,12 +2924,6 @@ router.delete(
   requireModulePermission("KPI_IMU", "delete"),
   imuTab.deleteStudentEnrollment
 );
-router.get(
-  "/get-imu-k-5-1-year",
-  auth,
-  requireModulePermission("KPI_IMU", "read"),
-  imuTab.getStudentEnrollmentYear
-);
 
 router.post(
   "/add-imu-k-5-2",
@@ -2963,12 +2948,6 @@ router.get(
   auth,
   requireModulePermission("KPI_IMU", "read"),
   imuTab.getimuNewCourseUpgradation
-);
-router.get(
-  "/get-imu-k-5-2-year",
-  auth,
-  requireModulePermission("KPI_IMU", "read"),
-  imuTab.getimuNewCourseUpgradationYear
 );
 
 router.post(
@@ -2995,12 +2974,6 @@ router.delete(
   requireModulePermission("KPI_IMU", "delete"),
   imuTab.deleteFacilities
 );
-router.get(
-  "/get-imu-k-5-3-year",
-  auth,
-  requireModulePermission("KPI_IMU", "read"),
-  imuTab.getimuFacilitiesYear
-);
 
 router.post(
   "/add-imu-k-5-4",
@@ -3026,12 +2999,6 @@ router.delete(
   requireModulePermission("KPI_IMU", "delete"),
   imuTab.deletePartnership
 );
-router.get(
-  "/get-imu-k-5-4-year",
-  auth,
-  requireModulePermission("KPI_IMU", "read"),
-  imuTab.getimuPartnershipYear
-);
 
 router.post(
   "/add-imu-k-5-5",
@@ -3056,12 +3023,6 @@ router.delete(
   auth,
   requireModulePermission("KPI_IMU", "delete"),
   imuTab.deleteResearch
-);
-router.get(
-  "/get-imu-k-5-5-year",
-  auth,
-  requireModulePermission("KPI_IMU", "read"),
-  imuTab.getimuResearchYear
 );
 
 router.get(
@@ -3118,12 +3079,6 @@ router.delete(
   auth,
   requireModulePermission("KPI_IMU", "delete"),
   imuTab.deleteFinalYearPassPercentage
-);
-router.get(
-  "/get-imu-k-5-1-1-program",
-  auth,
-  requireModulePermission("KPI_IMU", "read"),
-  imuTab.checkProgramalreadyExists
 );
 
 // Report

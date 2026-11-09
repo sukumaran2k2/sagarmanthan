@@ -148,26 +148,6 @@ async function getAuditPara (req, res)
     }
 };
 
-async function getUpdateAuditData (req, res) 
-{    
-    const auditParaID = req.params.auditParaID;
-     console.log(auditParaID,"audit")
-    const conn = await pool;
-    const request = conn.request();
-    request.input("auditParaID", auditParaID);
-
-    try
-    {
-        const result = await request.query(`SELECT * FROM tbl_audit_para WHERE tbl_audit_para.audit_para_id = @auditParaID;`);
-        res.json(result.recordset);
-    }
-    catch(err)
-    {
-        console.log(err);
-        return res.sendStatus(500);
-    }
-};
-
 async function updateAuditPara(req, res) 
 {   
     const auditParaID = req.body.auditParaID;
@@ -358,4 +338,4 @@ async function deleteAuditPara (req, res)
     }
 };
 
-export default { createAuditPara, getAuditPara, getUpdateAuditData, updateAuditPara, deleteAuditPara };
+export default { createAuditPara, getAuditPara, updateAuditPara, deleteAuditPara };
