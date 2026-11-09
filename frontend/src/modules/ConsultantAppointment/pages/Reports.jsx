@@ -9,7 +9,7 @@ const isWingNameField = (f) => lower(f) === 'wing name' || lower(f) === 'wing';
 const isDivisionNameField = (f) => lower(f) === 'division name';
 const isCountField = (f) => lower(f) === 'no of consultant officer';
 const isSNoField = (f) => ['s no', 's.no', 'sno'].includes(lower(f));
-const isHiddenIdField = (f) => ['wing id', 'wing_id'].includes(lower(f));
+const isHiddenIdField = (f) => ['wing id', 'wing_id', 'division id', 'division_id'].includes(lower(f));
 
 /**
  * Renders a drill-down link in a grid cell. Declared at module scope rather than inside the

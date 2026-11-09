@@ -70,9 +70,6 @@ export default function ConsultantAppointmentView({ triggerNotification }) {
   }, [navigate]);
 
   const handleDelete = useCallback(async (ca) => {
-    if (!window.confirm(`Are you sure you want to delete this Consultant Appointment record (${ca.wing} / ${ca.division})? This will also remove associated candidate records and documents.`)) {
-      return;
-    }
     const userId = getCurrentUserId();
     if (!userId) {
       notify(toastError('Session Expired', 'Please log in again before deleting.'));

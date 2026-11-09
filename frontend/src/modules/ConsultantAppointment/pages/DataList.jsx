@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import Table from '../../../components/Table';
 import { Search, X, Edit, Trash2, ChevronDown, Users, Filter, Plus } from 'lucide-react';
 import ExportDropdown from '../../../components/ExportDropdown';
@@ -157,6 +158,10 @@ export default function DataList({
 
   // Drilldown is view state for this page only; it must not outlive the Data List
   const [drilldownAppointment, setDrilldownAppointment] = useState(null);
+
+  // Delete confirmation overlay state
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -395,11 +400,24 @@ export default function DataList({
     }
   };
 
-  // Hoisted out of the columnDefs memo so the memo body stays a plain list of definitions
-  const handleDeleteRow = useCallback(async (row) => {
-    await onDelete(row);
-    fetchData();
-  }, [onDelete, fetchData]);
+  // Open overlay instead of window.confirm
+  const handleDeleteRow = useCallback((row) => {
+    setDeleteTarget(row);
+  }, []);
+
+  const confirmDelete = useCallback(async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await onDelete(deleteTarget);
+      setDeleteTarget(null);
+      fetchData();
+    } catch (err) {
+      console.error('Delete failed:', err);
+    } finally {
+      setDeleting(false);
+    }
+  }, [deleteTarget, onDelete, fetchData]);
 
   const showDeleteAction = canRemove && !!onDelete;
 
@@ -833,6 +851,69 @@ export default function DataList({
         />
       </div>
       </div>
+
+      {/* Delete Confirmation Overlay */}
+      {deleteTarget && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 animate-fade-in"
+          onClick={() => !deleting && setDeleteTarget(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl animate-scale-up overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-black text-slate-800 dark:text-slate-100">
+                  Delete Consultant Appointment
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Are you sure you want to delete this record? This will also remove associated candidate records and documents.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="px-5 py-4 space-y-3">
+              <div className="bg-slate-50 dark:bg-slate-950 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs space-y-1">
+                <p className="text-slate-800 dark:text-slate-200 font-bold truncate">
+                  {deleteTarget.wing} — {deleteTarget.division}
+                </p>
+                <p className="text-slate-500 dark:text-slate-400 text-[11px]">
+                  {deleteTarget.appointmentType} • {deleteTarget.status}
+                </p>
+              </div>
+            </div>
+
+            <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2 bg-slate-50/60 dark:bg-slate-950/40">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="px-3.5 py-2 text-xs font-bold rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-60 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={confirmDelete}
+                className="px-4 py-2 text-xs font-bold rounded-lg bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-60 transition shadow-xs cursor-pointer"
+              >
+                {deleting ? 'Deleting...' : 'Delete Appointment'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
