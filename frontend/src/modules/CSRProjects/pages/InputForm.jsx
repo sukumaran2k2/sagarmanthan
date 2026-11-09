@@ -553,14 +553,14 @@ function ProjectForm({ editData, organisationId, onBack, onSaved, notify }) {
                     <tr key={idx}>
                       <td className="py-2.5 px-4 text-center font-bold text-slate-500 dark:text-slate-400">{idx + 1}</td>
                       <td className="py-2 px-4">
-                        <select value={exp.year}
+                        <select value={exp.year} aria-label={`Financial year, row ${idx + 1}`}
                           onChange={(e) => setExpenditures((rows) => rows.map((r, i) => (i === idx ? { ...r, year: e.target.value } : r)))}
                           className="module-form-select max-w-xs">
                           {FINANCIAL_YEARS.map((fy) => <option key={fy} value={fy}>{fy}</option>)}
                         </select>
                       </td>
                       <td className="py-2 px-4">
-                        <input type="number" step="0.0001" min="0" placeholder="0.00" value={exp.cost}
+                        <input type="number" step="0.0001" min="0" placeholder="0.00" value={exp.cost} aria-label={`Expenditure in ₹ Cr for ${exp.year}`}
                           onChange={(e) => setExpenditures((rows) => rows.map((r, i) => (i === idx ? { ...r, cost: e.target.value } : r)))}
                           className={`module-form-input max-w-sm ${exp.cost !== '' && !isAmount(exp.cost) ? '!border-red-500' : ''}`} />
                         {isAmount(exp.cost) && Number(exp.cost) > LARGE_CRORE && (
@@ -604,12 +604,12 @@ function ProjectForm({ editData, organisationId, onBack, onSaved, notify }) {
             <h4 className="module-form-section-title">Media &amp; Documents</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label className="module-form-label">Project Completion Document</label>
+                <label className="module-form-label" id="csr-doc-label" htmlFor="csr-doc-file">Project Completion Document</label>
                 <p className="text-[10px] text-red-500 font-bold uppercase tracking-wider">PDF only, max. {MAX_DOC_MB} MB</p>
                 <div className="flex items-center space-x-3 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
-                  <input type="file" ref={docInputRef} accept="application/pdf" className="hidden"
+                  <input type="file" ref={docInputRef} id="csr-doc-file" accept="application/pdf" className="hidden"
                     onChange={(e) => { pickDocument(e.target.files?.[0]); e.target.value = ''; }} />
-                  <button type="button" onClick={() => docInputRef.current?.click()}
+                  <button type="button" onClick={() => docInputRef.current?.click()} aria-labelledby="csr-doc-label csr-doc-action" id="csr-doc-action"
                     className="flex items-center gap-1.5 px-4 py-2 bg-[#0f417a] hover:bg-blue-800 text-white text-xs font-bold rounded-lg transition cursor-pointer">
                     <Upload className="h-3.5 w-3.5" />
                     <span>{docFile || storedDocName ? 'Replace' : 'Upload'}</span>
@@ -621,12 +621,12 @@ function ProjectForm({ editData, organisationId, onBack, onSaved, notify }) {
               </div>
 
               <div className="space-y-2">
-                <label className="module-form-label">Gallery (Photos and Videos)</label>
+                <label className="module-form-label" id="csr-gallery-label" htmlFor="csr-gallery-file">Gallery (Photos and Videos)</label>
                 <p className="text-[10px] text-red-500 font-bold uppercase tracking-wider">Several files can be chosen, max. {MAX_GALLERY_MB} MB each</p>
                 <div className="flex items-center space-x-3 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
-                  <input type="file" ref={galleryInputRef} multiple accept=".jpg,.jpeg,.png,.webp,.mp4" className="hidden"
+                  <input type="file" ref={galleryInputRef} id="csr-gallery-file" multiple accept=".jpg,.jpeg,.png,.webp,.mp4" className="hidden"
                     onChange={(e) => { pickGallery(e.target.files); e.target.value = ''; }} />
-                  <button type="button" onClick={() => galleryInputRef.current?.click()}
+                  <button type="button" onClick={() => galleryInputRef.current?.click()} aria-labelledby="csr-gallery-label csr-gallery-action" id="csr-gallery-action"
                     className="flex items-center gap-1.5 px-4 py-2 bg-[#0f417a] hover:bg-blue-800 text-white text-xs font-bold rounded-lg transition cursor-pointer">
                     <Upload className="h-3.5 w-3.5" />
                     <span>Upload</span>

@@ -216,8 +216,10 @@ async function sendCsrFile(req, res, fileName) {
     if (!fs.existsSync(filePath)) {
         return res.status(404).send({ message: "File not found" });
     }
+    // res.attachment writes Content-Disposition safely for any name (filename* for non-Latin
+    // characters); a raw header threw for such legacy names, so the download failed (QC R-10)
+    res.attachment(fileName);
     res.setHeader('Content-Type', mime.lookup(filePath) || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
     res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
     res.setHeader('Content-Length', fs.statSync(filePath).size);
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -280,6 +282,23 @@ async function documentForSave(name, userId, currentName = null) {
     return { name, isNew: true };
 }
 
+// The completion PDF is uploaded before the project is saved. When a save is refused, the PDF
+// uploaded for it is removed again - if it is this user's and no project uses it (QC CSR-19).
+async function discardUnusedUpload(name, userId) {
+    if (isOwnUpload(name, userId, '.pdf') && !(await projectForCsrFile(name))) removeUploads([name]);
+}
+
+// Completion PDFs this user uploaded more than a day ago that no project uses (a form left
+// after uploading) are removed when they upload the next one (QC CSR-19)
+const STALE_UPLOAD_MS = 24 * 60 * 60 * 1000;
+async function removeStaleUploads(userId) {
+    const prefix = `${Number(userId)}_`;
+    for (const name of fs.readdirSync(uploadDestination).filter((n) => n.startsWith(prefix) && n.endsWith('.pdf'))) {
+        const age = Date.now() - fs.statSync(path.join(uploadDestination, name)).mtimeMs;
+        if (age > STALE_UPLOAD_MS) await discardUnusedUpload(name, userId);
+    }
+}
+
 // Define the storage configuration first
 const storage = multer.diskStorage({
     destination: (req, file, callback) => {
@@ -304,11 +323,14 @@ const storage = multer.diskStorage({
 
 async function createCsrProjects(req, res)
 {
-    if (csrScope(req.user).blocked) {
-        return res.status(403).json({ error: "Your account is not linked to an organisation." });
-    }
+    // A refused save removes the PDF uploaded for it (QC CSR-19)
+    const refuse = async (status, error) => {
+        await discardUnusedUpload(req.body.csrDocumentFileName, req.user.userId);
+        return res.status(status).json({ error });
+    };
+    if (csrScope(req.user).blocked) return refuse(403, "Your account is not linked to an organisation.");
     const invalid = projectError(req.body);
-    if (invalid) return res.status(400).json({ error: invalid });
+    if (invalid) return refuse(400, invalid);
     const organisationID = organisationForSave(req.user);
     const csrfocus = req.body.csrfocus;
     const nameofproject = req.body.nameofproject;
@@ -378,7 +400,7 @@ async function createCsrProjects(req, res)
             VALUES (
                 @organisationID, @csrfocus, @nameofproject, @projectReceived, @impactproject, @targetbeneficiaries,
                 @projectvalue, @projectstatus, @financialYear, @commencedon, @completedon, @finiancialprogresssofar, @physicalprogresssofar,
-                @remarksoftheproject, @userID, GETDATE(), @uniqueFileName
+                @remarksoftheproject, @userID, SYSUTCDATETIME(), @uniqueFileName
             );
         `);
 
@@ -403,7 +425,7 @@ async function createCsrProjects(req, res)
         
                 let query = ` 
                     INSERT INTO tbl_csr_expenditure (csr_project_id, year, csr_expenditure_cost, created_by, created_date) 
-                    VALUES (@csrProjectId, @expenditureFinancialYear, @expenditureCost, @userID, GETDATE());
+                    VALUES (@csrProjectId, @expenditureFinancialYear, @expenditureCost, @userID, SYSUTCDATETIME());
                 `;
         
                 await expenditureRequest.query(query);
@@ -441,6 +463,7 @@ async function csrProjectDocumentUploader(req, res)
             return res.status(400).json({ error: "The file is not a valid PDF." });
         }
         res.status(200).json({ status: 'success', uniqueFileName: req.file.filename });
+        await removeStaleUploads(req.user.userId).catch((err) => console.error('CSR: stale upload clean-up failed', err));
     } catch (err) {
         console.error("Error in file upload:", err);
         res.status(500).json({ error: "Internal server error" });
@@ -565,7 +588,7 @@ async function getUpdateCsrProjectsData(req, res)
 
         res.json(result.recordset);
     } catch (err) {
-        console.log(err);
+        console.error(err);
         return res.sendStatus(500);
     }
 };
@@ -573,14 +596,17 @@ async function getUpdateCsrProjectsData(req, res)
 async function updateCsrProjects(req, res) 
 {    
     const projectID = req.body.csrProjectId;
-    if (!(await canAccessProject(req.user, projectID))) {
-        return res.status(404).json({ error: "CSR project not found" });
-    }
+    // A refused save removes the PDF uploaded for it, unless a project uses it (QC CSR-19)
+    const refuse = async (status, error) => {
+        await discardUnusedUpload(req.body.uniqueFileName, req.user.userId);
+        return res.status(status).json({ error });
+    };
+    if (!(await canAccessProject(req.user, projectID))) return refuse(404, "CSR project not found");
     // Checked against the saved project, so a rule applies to what the user changed (QC R-03 / R-11)
     const saved = await savedProject(projectID);
-    if (!saved) return res.status(404).json({ error: "CSR project not found" });
+    if (!saved) return refuse(404, "CSR project not found");
     const invalid = projectError(req.body, { current: saved });
-    if (invalid) return res.status(400).json({ error: invalid });
+    if (invalid) return refuse(400, invalid);
     const csrfocus = req.body.csrfocus;
     const nameofproject = req.body.nameofproject;
     const projectReceived = req.body.projectReceived;
@@ -653,7 +679,7 @@ async function updateCsrProjects(req, res)
                 remarks = @remarksoftheproject,
                 project_completion_doc = @uniqueFileName,
                 updated_by = @userID,
-                updated_date = getDate()
+                updated_date = SYSUTCDATETIME()
             
             WHERE csr_project_id = @projectID
         `);
@@ -681,21 +707,21 @@ async function updateCsrProjects(req, res)
                                                    WHERE k.csr_project_id = e.csr_project_id AND k.[year] = e.[year]));
 
                 IF OBJECT_ID('dbo.tbl_csr_delete_log', 'U') IS NOT NULL
-                    INSERT INTO tbl_csr_delete_log (entity, record_id, csr_project_id, organisation_id, row_json, deleted_by)
+                    INSERT INTO tbl_csr_delete_log (entity, record_id, csr_project_id, organisation_id, row_json, deleted_by, deleted_date)
                     SELECT 'expenditure', e.csr_expenditure_id, e.csr_project_id, p.organisation_id,
-                           (SELECT e.* FOR JSON PATH, WITHOUT_ARRAY_WRAPPER, INCLUDE_NULL_VALUES), @userID
+                           (SELECT e.* FOR JSON PATH, WITHOUT_ARRAY_WRAPPER, INCLUDE_NULL_VALUES), @userID, SYSUTCDATETIME()
                     FROM tbl_csr_expenditure e
                     JOIN #gone g ON g.csr_expenditure_id = e.csr_expenditure_id
                     JOIN tbl_csr_projects p ON p.csr_project_id = e.csr_project_id;
 
                 DELETE e FROM tbl_csr_expenditure e JOIN #gone g ON g.csr_expenditure_id = e.csr_expenditure_id;
 
-                UPDATE e SET csr_expenditure_cost = w.cost, updated_by = @userID, updated_date = GETDATE()
+                UPDATE e SET csr_expenditure_cost = w.cost, updated_by = @userID, updated_date = SYSUTCDATETIME()
                 FROM tbl_csr_expenditure e JOIN #wanted w ON w.[year] = e.[year]
                 WHERE e.csr_project_id = @projectID AND ISNULL(e.csr_expenditure_cost, -1) <> w.cost;
 
                 INSERT INTO tbl_csr_expenditure (csr_project_id, [year], csr_expenditure_cost, created_by, created_date)
-                SELECT @projectID, w.[year], w.cost, @userID, GETDATE()
+                SELECT @projectID, w.[year], w.cost, @userID, SYSUTCDATETIME()
                 FROM #wanted w
                 WHERE NOT EXISTS (SELECT 1 FROM tbl_csr_expenditure e WHERE e.csr_project_id = @projectID AND e.[year] = w.[year]);
 
@@ -703,19 +729,35 @@ async function updateCsrProjects(req, res)
             `);
         }
 
-        await transaction.commit();
-        // A replaced or removed completion document is no longer used: remove its file (QC CSR-19)
-        if (currentDocument && currentDocument !== uniqueFileName && !(await projectForCsrFile(currentDocument))) {
-            removeUploads([currentDocument]);
+        // A replaced or removed completion document is logged with the save (QC CSR-36)
+        if (currentDocument && currentDocument !== uniqueFileName) {
+            await transaction.request()
+                .input('projectID', projectID).input('userID', userID)
+                .input('rowJson', JSON.stringify({ csr_project_id: Number(projectID), project_completion_doc: currentDocument, replaced_by: uniqueFileName }))
+                .query(`IF OBJECT_ID('dbo.tbl_csr_delete_log', 'U') IS NOT NULL
+                    INSERT INTO tbl_csr_delete_log (entity, record_id, csr_project_id, organisation_id, row_json, deleted_by, deleted_date)
+                    SELECT 'completion_document', csr_project_id, csr_project_id, organisation_id, @rowJson, @userID, SYSUTCDATETIME()
+                    FROM tbl_csr_projects WHERE csr_project_id = @projectID`);
         }
-        res.sendStatus(200);
+
+        await transaction.commit();
     }catch (err) {
         console.error(err);
         await transaction.rollback().catch(() => {});
         if (document.isNew) removeUploads([document.name]); // the PDF uploaded for this save
         return res.status(500).json({ error: "The project could not be saved." });
     }
-    
+    res.sendStatus(200);
+
+    // After the reply: the replaced document's file is no longer used, so remove it. Kept apart
+    // from the save, so a problem here can't report a saved project as failed (QC R-07 / CSR-19)
+    if (currentDocument && currentDocument !== uniqueFileName) {
+        try {
+            if (!(await projectForCsrFile(currentDocument))) removeUploads([currentDocument]);
+        } catch (err) {
+            console.error('CSR: could not remove the replaced completion document', err);
+        }
+    }
 }
 
 // ----------------------------------------------------- Edit Expenditure  ------------------------------------------------------
@@ -742,7 +784,7 @@ async function getCsrExpenditureCost(req, res)
         res.json(result.recordset);
     }
     catch (err) {
-        console.log(err);
+        console.error(err);
         return res.sendStatus(500);
     }
 };
@@ -798,13 +840,13 @@ async function uploadMediaGalleryFile(req,res) {
                     .input('documentName', file.filename)
                     .input('documentType', file.mimetype.split('/')[0])
                     .input('userID', req.user.userId)
-                    // created_date has a default; created_by is set once sql/csr/03 has added the
-                    // column (QC CSR-11) - until then the insert works as before
+                    // created_by / created_date are set once sql/csr/03 has added the columns (QC CSR-11) -
+                    // until then the insert works as before. Times are saved in UTC (QC R-09).
                     .query(`INSERT INTO tbl_csr_image (csr_project_id, document_name, document_type)
                         VALUES (@csrProjectId, @documentName, @documentType);
                         DECLARE @newId INT = SCOPE_IDENTITY();
                         IF COL_LENGTH('dbo.tbl_csr_image', 'created_by') IS NOT NULL
-                            EXEC sp_executesql N'UPDATE tbl_csr_image SET created_by = @u WHERE document_id = @id',
+                            EXEC sp_executesql N'UPDATE tbl_csr_image SET created_by = @u, created_date = SYSUTCDATETIME() WHERE document_id = @id',
                                 N'@u INT, @id INT', @u = @userID, @id = @newId;`);
             }
             await transaction.commit();
@@ -882,7 +924,7 @@ async function addCsrFundDetails(req, res)
             )
             OUTPUT INSERTED.csr_fund_id
             VALUES (
-                @organisationID, @financialYear, @netProfit, @csrFundAllotedForYear, @openingBalanceCSR, @userID, GETDATE()
+                @organisationID, @financialYear, @netProfit, @csrFundAllotedForYear, @openingBalanceCSR, @userID, SYSUTCDATETIME()
             );
         `);
 
@@ -896,8 +938,8 @@ async function addCsrFundDetails(req, res)
         });
 
     } catch (err) {
-        console.error("Error creating CSR project:", err);
-        res.status(500).json({ error: "An error occurred while creating the project." });
+        console.error("Error adding CSR fund details:", err);
+        res.status(500).json({ error: "The fund details could not be saved." });
     }
 }
 
@@ -964,7 +1006,7 @@ async function getUpdateFundData(req, res)
 
         res.json(result.recordset);
     } catch (err) {
-        console.log(err);
+        console.error(err);
         return res.sendStatus(500);
     }
 };
@@ -1003,7 +1045,7 @@ try {
     }
     await request.query(`
         UPDATE tbl_csr_fund  SET financial_year = @financialYear, net_profit = @netProfit, csr_fund_alloted_year = @csrFundAllotedForYear,
-            opening_balance_csr = @openingBalanceCSR, updated_by = @userID, updated_date = GETDATE()
+            opening_balance_csr = @openingBalanceCSR, updated_by = @userID, updated_date = SYSUTCDATETIME()
             WHERE csr_fund_id = @csrFundId
 
     `);
@@ -1017,467 +1059,11 @@ try {
 }
 
 
-async function csrProjectsAbstractReport(req,res) {
-    try {
-        const conn = await pool;
-        const request = conn.request();
-
-        const scope = csrScope(req.user);
-        const organisation_id = scope.orgId; // null for a blocked user, which matches no organisation
-
-        let result;
-
-        if (!scope.orgId && !scope.blocked) {
-        result = await conn.query(`
-        SELECT
-            ROW_NUMBER() OVER (ORDER BY org.organisation_id) AS [S No],
-            org.organisation_id AS [organisationID],
-            org.organisation_name AS [Organisation Name],
-            SUM(CASE WHEN ac.project_status = 'Approved by Board' THEN 1 ELSE 0 END) AS [Approved by Board],
-            SUM(CASE WHEN ac.project_status = 'Project yet to start' THEN 1 ELSE 0 END) AS [Project yet to Start],
-            SUM(CASE WHEN ac.project_status = 'Project Under implementation' THEN 1 ELSE 0 END) AS [Project Under implementation],
-            SUM(CASE WHEN ac.project_status = 'Completed' THEN 1 ELSE 0 END) AS [Completed],
-            SUM(CASE WHEN ac.project_status IN ('Approved by Board', 'Project yet to start', 'Project Under implementation', 'Completed') THEN 1 ELSE 0 END) AS [Total Number of CSR Projects till date]
-        FROM
-            mmt_organisation org
-        LEFT JOIN
-            tbl_csr_projects ac ON org.organisation_id = ac.organisation_id
-        GROUP BY
-            org.organisation_id, org.organisation_name
-        ORDER BY
-            org.organisation_id;
-        `);
-        }else{
-            request.input("organisation_id", organisation_id);
-            result = await request.query(`
-                SELECT
-                    ROW_NUMBER() OVER (ORDER BY org.organisation_id) AS [S No],
-                    org.organisation_id AS [organisationID],
-                    org.organisation_name AS [Organisation Name],
-                    SUM(CASE WHEN ac.project_status = 'Approved by Board' THEN 1 ELSE 0 END) AS [Approved by Board],
-                    SUM(CASE WHEN ac.project_status = 'Project yet to start' THEN 1 ELSE 0 END) AS [Project yet to Start],
-                    SUM(CASE WHEN ac.project_status = 'Project Under implementation' THEN 1 ELSE 0 END) AS [Project Under implementation],
-                    SUM(CASE WHEN ac.project_status = 'Completed' THEN 1 ELSE 0 END) AS [Completed],
-                    SUM(CASE WHEN ac.project_status IN ('Approved by Board', 'Project yet to start', 'Project Under implementation', 'Completed') THEN 1 ELSE 0 END) AS [Total Number of CSR Projects till date]
-                FROM
-                    mmt_organisation org
-                LEFT JOIN
-                    tbl_csr_projects ac ON org.organisation_id = ac.organisation_id
-                WHERE
-                    org.organisation_id = @organisation_id
-                GROUP BY
-                    org.organisation_id, org.organisation_name
-                ORDER BY
-                    org.organisation_id;
-                `);
-        }
-
-        const rowData = result.recordset || [];
-
-        let columnDefs = [
-            {
-                headerName: "S.No",
-                field: "S No",
-                cellStyle: { textAlign: 'center' }
-            },
-            {
-                headerName: "Organisation Name",
-                field: "Organisation Name",
-                width: 455,
-                cellStyle: { textAlign: 'center' },
-            },
-            {
-                headerName: "Total Number of CSR Projects till date",
-                field: "Total Number of CSR Projects till date",
-                width: 490,
-                cellStyle: { textAlign: 'center' },
-            },
-            {
-                headerName: "Current Stage",
-                headerClass: "headercenter",
-                cellStyle: { textAlign: 'center' },
-                children: [
-                    {
-                        headerName: "Approved by Board",
-                        field: "Approved by Board",
-                        width: 260,
-                        cellStyle: { textAlign: 'center' },
-                        cellRenderer: 'hyperlinkCellRenderer'
-                    },
-                    {
-                        headerName: "Project yet to Start",
-                        field: "Project yet to Start",
-                        width: 280,
-                        cellStyle: { textAlign: 'center' },
-                        cellRenderer: 'hyperlinkCellRenderer'
-                    },
-                    {
-                        headerName: "Project Under implementation",
-                        field: "Project Under implementation",
-                        width: 280,
-                        cellStyle: { textAlign: 'center' },
-                        cellRenderer: 'hyperlinkCellRenderer'
-                    },
-                    {
-                        headerName: "Completed",
-                        field: "Completed",
-                        width: 260,
-                        cellStyle: { textAlign: 'center' },
-                        cellRenderer: 'hyperlinkCellRenderer'
-                    }
-                ]
-            }
-        ];
-        return res.json({ columnDefs, rowData });
-
-    } catch (error) {
-        console.log(error);
-        res.status(500).json({ error: 'Internal server error' });
-    }
-}
-
-async function csrProjectsDetailedReport(req,res) {
-    try {
-
-        const organisationID = req.params.organisationID;
-        const OrganisationName = req.params.OrganisationName;
-        const statusText = req.query.status;
-
-        const conn = await pool;
-        const request = conn.request();
-
-        // Organisation users only get their own organisation, whatever the URL names
-        const scope = csrScope(req.user);
-        request.input("organisationID", scope.orgId || scope.blocked ? scope.orgId : organisationID);
-        request.input("OrganisationName", OrganisationName);
-
-        let statusCondition = '';
-        if (statusText) {
-            switch (statusText) {
-                case 'ApprovedbyBoard':
-                    statusCondition = ` AND ac.project_status = 'Approved by Board'`;
-                    break;
-                case 'ProjectyettoStart':
-                    statusCondition = ` AND ac.project_status = 'Project yet to Start'`;
-                    break;
-                case 'ProjectUnderImplementation':
-                    statusCondition = ` AND ac.project_status = 'Project Under implementation'`;
-                    break;
-                case 'Completed':
-                    statusCondition = ` AND ac.project_status = 'Completed'`;
-                    break;
-                default:
-                    break;
-            }
-        }
-
-        const query = `
-            SELECT
-                ROW_NUMBER() OVER (ORDER BY ac.csr_project_id) AS [S No],
-                org.organisation_id AS [Organisation ID],
-                org.organisation_name AS [Organisation Name],
-                ac.csr_focus AS [CSR Focus],
-                ac.project_name AS [Project Name],
-                ac.project_received_from AS [Project Received From],
-                ac.impact_possible_outcome AS [Impact Possible Outcome],
-                ac.target_beneficiaries AS [Target Beneficiaries],
-                ac.project_value AS [Project Value],
-                ac.financial_year AS [Financial Year],
-                ac.commenced_on AS [Commenced On],
-                ac.completed_on AS [Completed On],
-                ac.financial_progress AS [Financial Progress],
-                ac.physical_progress AS [Physical Progress]
-            FROM
-                mmt_organisation org
-            LEFT JOIN
-                tbl_csr_projects ac ON org.organisation_id = ac.organisation_id
-            WHERE
-                org.organisation_id = @organisationID ${statusCondition}
-            ORDER BY
-                ac.csr_project_id;
-        `;
-
-        const result = await request.query(query);
-        const rowData = result.recordset || [];
-
-        let columnDefs = [
-            {
-                headerName: "S. No",
-                field: "S No",
-                width:180,
-                cellStyle: { textAlign: 'center' }
-            },
-            {
-                headerName: "Organisation Name",
-                field: "Organisation Name",
-                width: 280,
-                cellStyle: { textAlign: 'center' },
-            },
-            {
-                headerName: "CSR Focus",
-                field: "CSR Focus",
-                width:180,
-                cellStyle: { textAlign: 'center' },
-            },
-            {
-                headerName: "Project Name",
-                field: "Project Name",
-                width:350,
-                cellStyle: { textAlign: 'center' },
-            },
-            {
-                headerName: "Project Received From",
-                field: "Project Received From",
-                width:250,
-                cellStyle: { textAlign: 'center' },
-            },
-            {
-                headerName: "Impact Possible Outcome",
-                field: "Impact Possible Outcome",
-                width:250,
-                cellStyle: { textAlign: 'center' },
-            },
-            {
-                headerName: "Target Beneficiaries",
-                field: "Target Beneficiaries",
-                width:250,
-                cellStyle: { textAlign: 'center' },
-            },
-            {
-                headerName: "Project Value",
-                field: "Project Value",
-                width:180,
-                cellStyle: { textAlign: 'center' },
-            },
-            {
-                headerName: "Financial Year",
-                field: "Financial Year",
-                width:200,
-                cellStyle: { textAlign: 'center' },
-            },
-            {
-                headerName: "Commenced On",
-                field: "Commenced On",
-                width:245,
-                cellStyle: { textAlign: 'center' },
-            },
-            {
-                headerName: "Completed On",
-                field: "Completed On",
-                width:240,
-                cellStyle: { textAlign: 'center' },
-            },
-            {
-                headerName: "Financial Progress",
-                field: "Financial Progress",
-                cellStyle: { textAlign: 'center' },
-            },
-            {
-                headerName: "Physical Progress",
-                field: "Physical Progress",
-                cellStyle: { textAlign: 'center' },
-            },
-        ];
-        return res.json({ columnDefs, rowData });
-
-    } catch (error) {
-        console.log(error);
-        res.status(500).json({ error: 'Internal server error' });
-    }
-}
-
 const getCurrentFinancialYear = () => {
     const today = new Date();
     const year = today.getFullYear();
     return today.getMonth() < 3 ? `${year - 1}-${year}` : `${year}-${year + 1}`;
 };
-
-
-async function csrExpenditureReport(req,res) {
-    try {
-
-        const conn = await pool;
-        const request = conn.request();
-
-        let financialYear = req.query.financialYear;
-        if (financialYear && financialYear !== 'all') {
-            request.input("financialYear", financialYear);
-        } else {
-            financialYear = null;
-            request.input("financialYear", null);
-        }
-
-        const scope = csrScope(req.user);
-        const organisation_id = scope.orgId; // null for a blocked user, which matches no organisation
-
-        let result;
-        if (!scope.orgId && !scope.blocked) {
-        result = await request.query(`
-          WITH ProjectExpenditure AS (
-            SELECT 
-                p.organisation_id,
-                e.year AS financial_year,  
-                SUM(e.csr_expenditure_cost) AS total_expenditure
-            FROM 
-                [tbl_csr_expenditure] e
-            JOIN 
-                [tbl_csr_projects] p 
-                ON e.csr_project_id = p.csr_project_id
-            GROUP BY 
-                p.organisation_id, e.year
-        ),
-        CTE AS (
-            SELECT 
-                org.organisation_id AS [organisationID],
-                org.organisation_name AS [Organisation Name],
-                fund.financial_year AS [Financial Year],
-                fund.csr_fund_alloted_year AS [CSR Fund Allotted Year],
-                ROUND(COALESCE(SUM(pe.total_expenditure), 0), 2) AS [Project Expenditure],
-                ROUND(
-                    (fund.opening_balance_csr + fund.csr_fund_alloted_year) - 
-                    COALESCE(SUM(pe.total_expenditure), 0), 2
-                ) AS [CSR Fund Balance],
-                ROW_NUMBER() OVER (PARTITION BY org.organisation_id ORDER BY fund.financial_year DESC) AS rn
-            FROM
-                mmt_organisation org
-            JOIN
-                [tbl_csr_fund] fund
-                ON org.organisation_id = fund.organisation_id
-            LEFT JOIN 
-                ProjectExpenditure pe
-                ON pe.organisation_id = fund.organisation_id  
-                AND pe.financial_year = fund.financial_year  
-            WHERE 
-                (@financialYear IS NULL OR fund.financial_year = @financialYear)
-            GROUP BY
-                org.organisation_id,
-                org.organisation_name,
-                fund.financial_year,
-                fund.csr_fund_alloted_year,
-                fund.opening_balance_csr
-        )
-        SELECT 
-            ROW_NUMBER() OVER (ORDER BY organisationID) AS [S No], 
-            organisationID, 
-            [Organisation Name], 
-            [Financial Year], 
-            [CSR Fund Allotted Year], 
-            [Project Expenditure], 
-            [CSR Fund Balance]
-        FROM CTE
-        ORDER BY organisationID;
-         `);
-     
-        }else {
-            request.input("organisationID", organisation_id);
-            result = await request.query(
-                `WITH ProjectExpenditure AS (
-            SELECT 
-                p.organisation_id,
-                e.year AS financial_year,  
-                SUM(e.csr_expenditure_cost) AS total_expenditure
-            FROM 
-                [tbl_csr_expenditure] e
-            JOIN 
-                [tbl_csr_projects] p 
-                ON e.csr_project_id = p.csr_project_id
-            GROUP BY 
-                p.organisation_id, e.year
-        ),
-        CTE AS (
-            SELECT 
-                org.organisation_id AS [organisationID],
-                org.organisation_name AS [Organisation Name],
-                fund.financial_year AS [Financial Year],
-                fund.csr_fund_alloted_year AS [CSR Fund Allotted Year],
-                ROUND(COALESCE(SUM(pe.total_expenditure), 0), 2) AS [Project Expenditure],
-                ROUND(
-                    (fund.opening_balance_csr + fund.csr_fund_alloted_year) - 
-                    COALESCE(SUM(pe.total_expenditure), 0), 2
-                ) AS [CSR Fund Balance],
-                ROW_NUMBER() OVER (PARTITION BY org.organisation_id ORDER BY fund.financial_year DESC) AS rn
-            FROM
-                mmt_organisation org
-            JOIN
-                [tbl_csr_fund] fund
-                ON org.organisation_id = fund.organisation_id
-            LEFT JOIN 
-                ProjectExpenditure pe
-                ON pe.organisation_id = fund.organisation_id  
-                AND pe.financial_year = fund.financial_year  
-            WHERE 
-                (@financialYear IS NULL OR fund.financial_year = @financialYear) AND org.organisation_id = @organisationID
-            GROUP BY
-                org.organisation_id,
-                org.organisation_name,
-                fund.financial_year,
-                fund.csr_fund_alloted_year,
-                fund.opening_balance_csr
-        )
-        SELECT 
-            ROW_NUMBER() OVER (ORDER BY organisationID) AS [S No], 
-            organisationID, 
-            [Organisation Name], 
-            [Financial Year], 
-            [CSR Fund Allotted Year], 
-            [Project Expenditure], 
-            [CSR Fund Balance]
-        FROM CTE
-        ORDER BY organisationID;
-                   `);
-        };
-
-        const rowData = result.recordset || [];
-        
-        let columnDefs = [
-            {
-                headerName: "S. No",
-                field: "S No",
-                width:200,
-                cellStyle: { textAlign: 'center' }
-            },
-            {
-                headerName: "Organisation Name",
-                field: "Organisation Name",
-                width: 280,
-                cellStyle: { textAlign: 'center' },
-            },
-            {
-                headerName: "Financial Year",
-                field: "Financial Year",
-                width:200,
-                cellStyle: { textAlign: 'center' },
-            },
-            {
-                headerName: "CSR fund Allotted for the year (Rs.In lakhs)",
-                field: "CSR Fund Allotted Year",
-                width:400,
-                cellStyle: { textAlign: 'center' },
-            },
-            {
-                headerName: "Project Expenditure (Rs.In lakhs) ",
-                field: "Project Expenditure",
-                width:250,
-                cellStyle: { textAlign: 'center' },
-            },
-            {
-                headerName: "CSR Fund Balance (Rs.In lakhs)",
-                field: "CSR Fund Balance",
-                width:400,
-                cellStyle: { textAlign: 'center' },
-            },
-            
-        ];
-        return res.json({ columnDefs, rowData });
-        
-    } catch (error) {
-        console.log(error);
-        res.status(500).json({ error: 'Internal server error' });
-    }
-}
-
-
-
 
 
 // Dashboard: everything in one call, for the filters (cluster, organisation, financial year,
@@ -2087,13 +1673,13 @@ const answerOnError = (handler) => async (req, res, next) => {
     try {
         await handler(req, res, next);
     } catch (err) {
-        console.log(err);
+        console.error(err);
         if (!res.headersSent) res.sendStatus(500);
     }
 };
 const exported = {organisationWriter, projectAccess, createCsrProjects, upload, fileUpload, handleUploadErrors, getCsrProjectslist,
         getUpdateCsrProjectsData, updateCsrProjects, csrProjectDocumentUploader, csrfileDownload,
-        getCsrExpenditureCost,  getCsrFileUploadDocument, uploadMediaGalleryFile, addCsrFundDetails, getCsrFundList, getUpdateFundData,  editCsrFund,csrProjectsAbstractReport,csrProjectsDetailedReport,csrExpenditureReport,getCsrFundYearWiseReport, getCsrFundOrgWiseReport, getCsrFundOrgTrendReport, getCsrProjectsYearWiseSummary, getCsrProjectsOrgWiseSummary, getCsrProjectsFocusWiseSummary,
+        getCsrExpenditureCost,  getCsrFileUploadDocument, uploadMediaGalleryFile, addCsrFundDetails, getCsrFundList, getUpdateFundData,  editCsrFund,getCsrFundYearWiseReport, getCsrFundOrgWiseReport, getCsrFundOrgTrendReport, getCsrProjectsYearWiseSummary, getCsrProjectsOrgWiseSummary, getCsrProjectsFocusWiseSummary,
         getCsrDashboard};
 export default Object.fromEntries(Object.entries(exported).map(([name, value]) => [name,
     typeof value === 'function' && value.constructor.name === 'AsyncFunction' ? answerOnError(value) : value]));

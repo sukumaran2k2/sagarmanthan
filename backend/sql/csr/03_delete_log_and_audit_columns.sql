@@ -5,6 +5,7 @@
 --   2. tbl_csr_image gets created_by / created_date (gallery files had no audit columns).
 --   3. Project and fund created / updated dates keep the time too (DATE -> DATETIME2).
 --      Existing dates stay as they are (midnight of that day).
+--   New times are saved in UTC (SYSUTCDATETIME), which the portal shows in local time (QC R-09).
 -- Safe to run more than once. Take a backup first.
 
 SET XACT_ABORT ON;
@@ -20,7 +21,7 @@ IF OBJECT_ID('dbo.tbl_csr_delete_log', 'U') IS NULL
         organisation_id INT            NULL,
         row_json        NVARCHAR(MAX)  NOT NULL CONSTRAINT CK_tbl_csr_delete_log_json CHECK (ISJSON(row_json) = 1),
         deleted_by      INT            NOT NULL,
-        deleted_date    DATETIME2(0)   NOT NULL CONSTRAINT DF_tbl_csr_delete_log_date DEFAULT SYSDATETIME()
+        deleted_date    DATETIME2(0)   NOT NULL CONSTRAINT DF_tbl_csr_delete_log_date DEFAULT SYSUTCDATETIME()
     );
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_tbl_csr_delete_log_project' AND object_id = OBJECT_ID('dbo.tbl_csr_delete_log'))
     CREATE INDEX IX_tbl_csr_delete_log_project ON dbo.tbl_csr_delete_log (csr_project_id, deleted_date DESC);
@@ -30,7 +31,7 @@ PRINT 'tbl_csr_delete_log ready';
 IF COL_LENGTH('dbo.tbl_csr_image', 'created_by') IS NULL
     ALTER TABLE dbo.tbl_csr_image ADD created_by INT NULL;
 IF COL_LENGTH('dbo.tbl_csr_image', 'created_date') IS NULL
-    ALTER TABLE dbo.tbl_csr_image ADD created_date DATETIME2(0) NULL CONSTRAINT DF_tbl_csr_image_created_date DEFAULT SYSDATETIME();
+    ALTER TABLE dbo.tbl_csr_image ADD created_date DATETIME2(0) NULL CONSTRAINT DF_tbl_csr_image_created_date DEFAULT SYSUTCDATETIME();
 PRINT 'tbl_csr_image audit columns ready';
 
 -- 3. DATE -> DATETIME2 for the project and fund audit dates. A default on the column has to be

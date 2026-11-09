@@ -17,7 +17,7 @@ IF @csr IS NULL THROW 50001, 'Module CSR_PROJECTS not found in tbl_modules.', 1;
 
 -- Ministry-side roles: no create / update / delete
 UPDATE c
-SET can_create = 0, can_update = 0, can_delete = 0, updated_at = GETDATE(), updated_by = @updatedBy
+SET can_create = 0, can_update = 0, can_delete = 0, updated_at = SYSUTCDATETIME(), updated_by = @updatedBy
 FROM tbl_rbac_user_module_crud c
 JOIN tbl_user u ON u.user_id = c.user_id
 LEFT JOIN tbl_rbac_role_data_scope rds ON rds.role_id = u.role_id
@@ -29,7 +29,7 @@ PRINT 'Ministry-side rows set to view only: ' + CAST(@@ROWCOUNT AS VARCHAR(12));
 
 -- Organisation logins: delete off; create / update unchanged
 UPDATE c
-SET can_delete = 0, updated_at = GETDATE(), updated_by = @updatedBy
+SET can_delete = 0, updated_at = SYSUTCDATETIME(), updated_by = @updatedBy
 FROM tbl_rbac_user_module_crud c
 JOIN tbl_user u ON u.user_id = c.user_id
 JOIN tbl_rbac_role_data_scope rds ON rds.role_id = u.role_id

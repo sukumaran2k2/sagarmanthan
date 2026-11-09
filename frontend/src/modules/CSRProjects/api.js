@@ -169,22 +169,6 @@ export const fetchCsrProjectsFocusWiseSummary = async (orgId = 'all') => {
   return response.data;
 };
 
-// --- Reports APIs ---
-export const fetchCsrAbstractReport = async (userId = pathUserId()) => {
-  const response = await api.get(`/get-csr-project-overview-reports/${userId}`);
-  return response.data;
-};
-
-export const fetchCsrDetailedReport = async (orgId, orgName) => {
-  const response = await api.get(`/get-csr-projects-detailed-reports/${orgId}/${encodeURIComponent(orgName)}`);
-  return response.data;
-};
-
-export const fetchCsrExpenditureReport = async (userId = pathUserId()) => {
-  const response = await api.get(`/get-csr-fund-expenditure-report/${userId}`);
-  return response.data;
-};
-
 // Master Dropdowns
 export const fetchOrganisations = async () => {
   const response = await api.get('/mmt-dropdown/mmt_organisation');

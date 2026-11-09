@@ -4,7 +4,12 @@ dotenv.config();
 
 import { pool } from "../db.js";
 import { isBlacklisted, addToBlacklist } from "../utils/tokenStore.js";
+import { setRefreshCookie, clearRefreshCookie } from "../utils/refreshCookie.js";
 import { buildSessionPayload, SESSION_USER_SQL } from "./login.js";
+
+// A refreshed cookie stays usable this long, so two tabs refreshing at the same moment don't
+// sign each other out
+const ROTATION_GRACE_MS = 60 * 1000;
 
 export async function getRefreshToken(req, res) {
     try {
@@ -36,15 +41,28 @@ export async function getRefreshToken(req, res) {
         // instead of lasting until the refresh token expires (QC CSR-35)
         const request = (await pool).request();
         request.input("userId", Number(payload.userId));
-        const result = await request.query(`${SESSION_USER_SQL} WHERE tbl_user.user_id = @userId`);
-        const userData = result.recordset[0];
+        // A password change ends every session started before it (QC R-05). Compared on the
+        // database's own clock (password_updated_on is mostly written with GETDATE()), so the
+        // server's time zone can't shift it: changed after "now minus the token's age"?
+        request.input("tokenAgeSec", Math.max(0, Math.floor(Date.now() / 1000) - iat));
+        const result = await request.query(`${SESSION_USER_SQL} WHERE tbl_user.user_id = @userId;
+            SELECT CASE WHEN password_updated_on > DATEADD(second, -@tokenAgeSec, GETDATE()) THEN 1 ELSE 0 END AS changed
+            FROM tbl_user WHERE user_id = @userId;`);
+        const userData = result.recordsets[0][0];
         if (!userData || Number(userData.status) !== 1) {
             return res.status(403).json({ message: "Account is inactive or no longer exists" });
+        }
+        if (result.recordsets[1][0]?.changed === 1) {
+            clearRefreshCookie(res);
+            return res.status(403).json({ message: "The password was changed. Please sign in again." });
         }
 
         const newAccessToken = jwt.sign(await buildSessionPayload(request, userData), process.env.JWT_SECRET, {
             expiresIn: "30m",
         });
+        // A new refresh cookie each time; the old one stops working after a short grace (QC R-05)
+        addToBlacklist(refreshToken, { graceMs: ROTATION_GRACE_MS });
+        setRefreshCookie(res, userData.user_id);
         return res.json({ accessToken: newAccessToken });
 
     } catch (err) {
@@ -59,14 +77,19 @@ export async function getRefreshToken(req, res) {
 
 // Ends the portal session: the refresh-token cookie (and the access token, if sent) can no longer
 // be used, and the cookie is removed, so a signed-out browser can't be signed back in by a
-// refresh. Needs no valid access token, since it only switches a session off.
+// refresh. Needs no valid access token, since it only switches a session off. Only tokens this
+// server signed are recorded, so anonymous calls can't fill the list (QC R-04).
+const verified = (token, secret) => {
+    try {
+        return token && jwt.verify(token, secret) ? token : null;
+    } catch {
+        return null;
+    }
+};
+
 export function endSession(req, res) {
-    addToBlacklist(req.cookies?.refreshToken);
-    addToBlacklist(req.headers.authorization?.split(" ")[1]);
-    res.clearCookie('refreshToken', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'Strict',
-    });
+    addToBlacklist(verified(req.cookies?.refreshToken, process.env.MIKR_REFRESH_SECRET));
+    addToBlacklist(verified(req.headers.authorization?.split(" ")[1], process.env.JWT_SECRET));
+    clearRefreshCookie(res);
     return res.sendStatus(204);
 }

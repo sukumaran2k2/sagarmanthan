@@ -22,7 +22,7 @@ IF OBJECT_ID('dbo.tbl_csr_cleanup_backup') IS NULL
         source_table VARCHAR(50) NOT NULL,
         source_id INT NOT NULL,
         row_json NVARCHAR(MAX) NOT NULL,
-        removed_date DATETIME NOT NULL DEFAULT GETDATE()
+        removed_date DATETIME NOT NULL DEFAULT SYSUTCDATETIME()
     );
 
 -- 1. Blank projects: no organisation, no name and no creator (13 rows on the 6 Nov 2026 copy)
