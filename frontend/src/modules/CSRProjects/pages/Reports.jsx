@@ -770,7 +770,7 @@ export default function Reports({ notify, triggerNotification, isOrgUser }) {
       )}
 
       <ReportTable
-        title={(isOrgUser && report.orgTitle) || report.title}
+        title={report.title}
         subtitle={null}
         eyebrow={report.label}
         showBackButton={false}
