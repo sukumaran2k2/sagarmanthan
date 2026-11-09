@@ -365,9 +365,16 @@ export default function InputForm({
           ...payload
         });
       } else {
-        await createConsultantAppointment({
-          ...payload
-        });
+        const createRes = await createConsultantAppointment({ ...payload });
+        const newAppointmentId = createRes.data?.consultant_appointment_id;
+        if (newAppointmentId) {
+          const candidateIds = candidates.map(c => c.candidate_id).filter(Boolean);
+          await Promise.allSettled(
+            candidateIds.map(cid =>
+              addConsultantID({ candidateID: cid, consultantAppointmentID: newAppointmentId })
+            )
+          );
+        }
       }
 
       const wingName = wings.find(w => String(w.wing_id) === String(wing))?.wing_name;
@@ -448,7 +455,8 @@ export default function InputForm({
         salary: Number(cSalary) || 0,
         category: cCategory,
         appointmentDate: cAppointmentDate,
-        skillSet: cSkillSet
+        skillSet: cSkillSet,
+        consultantAppointmentID: editData?.id || null
       };
 
       if (candidateId) {
