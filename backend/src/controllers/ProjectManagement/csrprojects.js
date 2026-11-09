@@ -216,8 +216,10 @@ async function sendCsrFile(req, res, fileName) {
     if (!fs.existsSync(filePath)) {
         return res.status(404).send({ message: "File not found" });
     }
+    // res.attachment writes Content-Disposition safely for any name (filename* for non-Latin
+    // characters); a raw header threw for such legacy names, so the download failed (QC R-10)
+    res.attachment(fileName);
     res.setHeader('Content-Type', mime.lookup(filePath) || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
     res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
     res.setHeader('Content-Length', fs.statSync(filePath).size);
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -280,6 +282,23 @@ async function documentForSave(name, userId, currentName = null) {
     return { name, isNew: true };
 }
 
+// The completion PDF is uploaded before the project is saved. When a save is refused, the PDF
+// uploaded for it is removed again - if it is this user's and no project uses it (QC CSR-19).
+async function discardUnusedUpload(name, userId) {
+    if (isOwnUpload(name, userId, '.pdf') && !(await projectForCsrFile(name))) removeUploads([name]);
+}
+
+// Completion PDFs this user uploaded more than a day ago that no project uses (a form left
+// after uploading) are removed when they upload the next one (QC CSR-19)
+const STALE_UPLOAD_MS = 24 * 60 * 60 * 1000;
+async function removeStaleUploads(userId) {
+    const prefix = `${Number(userId)}_`;
+    for (const name of fs.readdirSync(uploadDestination).filter((n) => n.startsWith(prefix) && n.endsWith('.pdf'))) {
+        const age = Date.now() - fs.statSync(path.join(uploadDestination, name)).mtimeMs;
+        if (age > STALE_UPLOAD_MS) await discardUnusedUpload(name, userId);
+    }
+}
+
 // Define the storage configuration first
 const storage = multer.diskStorage({
     destination: (req, file, callback) => {
@@ -304,11 +323,14 @@ const storage = multer.diskStorage({
 
 async function createCsrProjects(req, res)
 {
-    if (csrScope(req.user).blocked) {
-        return res.status(403).json({ error: "Your account is not linked to an organisation." });
-    }
+    // A refused save removes the PDF uploaded for it (QC CSR-19)
+    const refuse = async (status, error) => {
+        await discardUnusedUpload(req.body.csrDocumentFileName, req.user.userId);
+        return res.status(status).json({ error });
+    };
+    if (csrScope(req.user).blocked) return refuse(403, "Your account is not linked to an organisation.");
     const invalid = projectError(req.body);
-    if (invalid) return res.status(400).json({ error: invalid });
+    if (invalid) return refuse(400, invalid);
     const organisationID = organisationForSave(req.user);
     const csrfocus = req.body.csrfocus;
     const nameofproject = req.body.nameofproject;
@@ -441,6 +463,7 @@ async function csrProjectDocumentUploader(req, res)
             return res.status(400).json({ error: "The file is not a valid PDF." });
         }
         res.status(200).json({ status: 'success', uniqueFileName: req.file.filename });
+        await removeStaleUploads(req.user.userId).catch((err) => console.error('CSR: stale upload clean-up failed', err));
     } catch (err) {
         console.error("Error in file upload:", err);
         res.status(500).json({ error: "Internal server error" });
@@ -573,14 +596,17 @@ async function getUpdateCsrProjectsData(req, res)
 async function updateCsrProjects(req, res) 
 {    
     const projectID = req.body.csrProjectId;
-    if (!(await canAccessProject(req.user, projectID))) {
-        return res.status(404).json({ error: "CSR project not found" });
-    }
+    // A refused save removes the PDF uploaded for it, unless a project uses it (QC CSR-19)
+    const refuse = async (status, error) => {
+        await discardUnusedUpload(req.body.uniqueFileName, req.user.userId);
+        return res.status(status).json({ error });
+    };
+    if (!(await canAccessProject(req.user, projectID))) return refuse(404, "CSR project not found");
     // Checked against the saved project, so a rule applies to what the user changed (QC R-03 / R-11)
     const saved = await savedProject(projectID);
-    if (!saved) return res.status(404).json({ error: "CSR project not found" });
+    if (!saved) return refuse(404, "CSR project not found");
     const invalid = projectError(req.body, { current: saved });
-    if (invalid) return res.status(400).json({ error: invalid });
+    if (invalid) return refuse(400, invalid);
     const csrfocus = req.body.csrfocus;
     const nameofproject = req.body.nameofproject;
     const projectReceived = req.body.projectReceived;
@@ -703,19 +729,35 @@ async function updateCsrProjects(req, res)
             `);
         }
 
-        await transaction.commit();
-        // A replaced or removed completion document is no longer used: remove its file (QC CSR-19)
-        if (currentDocument && currentDocument !== uniqueFileName && !(await projectForCsrFile(currentDocument))) {
-            removeUploads([currentDocument]);
+        // A replaced or removed completion document is logged with the save (QC CSR-36)
+        if (currentDocument && currentDocument !== uniqueFileName) {
+            await transaction.request()
+                .input('projectID', projectID).input('userID', userID)
+                .input('rowJson', JSON.stringify({ csr_project_id: Number(projectID), project_completion_doc: currentDocument, replaced_by: uniqueFileName }))
+                .query(`IF OBJECT_ID('dbo.tbl_csr_delete_log', 'U') IS NOT NULL
+                    INSERT INTO tbl_csr_delete_log (entity, record_id, csr_project_id, organisation_id, row_json, deleted_by)
+                    SELECT 'completion_document', csr_project_id, csr_project_id, organisation_id, @rowJson, @userID
+                    FROM tbl_csr_projects WHERE csr_project_id = @projectID`);
         }
-        res.sendStatus(200);
+
+        await transaction.commit();
     }catch (err) {
         console.error(err);
         await transaction.rollback().catch(() => {});
         if (document.isNew) removeUploads([document.name]); // the PDF uploaded for this save
         return res.status(500).json({ error: "The project could not be saved." });
     }
-    
+    res.sendStatus(200);
+
+    // After the reply: the replaced document's file is no longer used, so remove it. Kept apart
+    // from the save, so a problem here can't report a saved project as failed (QC R-07 / CSR-19)
+    if (currentDocument && currentDocument !== uniqueFileName) {
+        try {
+            if (!(await projectForCsrFile(currentDocument))) removeUploads([currentDocument]);
+        } catch (err) {
+            console.error('CSR: could not remove the replaced completion document', err);
+        }
+    }
 }
 
 // ----------------------------------------------------- Edit Expenditure  ------------------------------------------------------
@@ -896,8 +938,8 @@ async function addCsrFundDetails(req, res)
         });
 
     } catch (err) {
-        console.error("Error creating CSR project:", err);
-        res.status(500).json({ error: "An error occurred while creating the project." });
+        console.error("Error adding CSR fund details:", err);
+        res.status(500).json({ error: "The fund details could not be saved." });
     }
 }
 

@@ -578,6 +578,12 @@ export default function Reports({ notify, triggerNotification, isOrgUser }) {
   // (expenditure + that balance), as in the rows (QC CSR-14 / CSR-45)
   const utilisation = (exp, bal) => (exp + bal > 0 ? Number(((exp / (exp + bal)) * 100).toFixed(2)) : null);
   const sumOf = (rows, key) => rows.reduce((acc, r) => acc + (Number(r[key]) || 0), 0);
+  // The earliest-year row of each organisation (rows carry Organisation_Id and Financial_Year)
+  const firstYearRows = (rows) => Object.values(rows.reduce((acc, r) => {
+    const key = r.Organisation_Id ?? r.Organisation_Name;
+    if (!acc[key] || String(r.Financial_Year) < String(acc[key].Financial_Year)) acc[key] = r;
+    return acc;
+  }, {}));
 
   const pinnedBottomRowData = useMemo(() => {
     if (!reportData || reportData.length === 0) return undefined;
@@ -588,7 +594,9 @@ export default function Reports({ notify, triggerNotification, isOrgUser }) {
       return [{
         'S No': 'Total',
         Financial_Year: '',
-        No_of_Organisations: '',
+        // Organisations can't be added across years (the same one reports every year); a blank
+        // cell, not '' - the grid shows 'Invalid Number' for text in a number column (QC R-13)
+        No_of_Organisations: null,
         CSR_Fund_Allotted_Lakh: sumOf(reportData, 'CSR_Fund_Allotted_Lakh'),
         Project_Expenditure_Lakh: totalExp,
         CSR_Fund_Balance_Lakh: totalBal,
@@ -603,7 +611,9 @@ export default function Reports({ notify, triggerNotification, isOrgUser }) {
       return [{
         'S No': 'Total',
         Organisation_Name: '',
-        Opening_CSR_Balance_Lakh: sumOf(reportData, 'Opening_CSR_Balance_Lakh'),
+        // Each organisation's opening balance once - its earliest year shown: a later year's opening
+        // is the earlier years' unspent money, so adding every year counted it again (QC CSR-14)
+        Opening_CSR_Balance_Lakh: sumOf(firstYearRows(reportData), 'Opening_CSR_Balance_Lakh'),
         CSR_Fund_Allotted_Lakh: sumOf(reportData, 'CSR_Fund_Allotted_Lakh'),
         Project_Expenditure_Lakh: totalExp,
         CSR_Fund_Balance_Lakh: totalBal,

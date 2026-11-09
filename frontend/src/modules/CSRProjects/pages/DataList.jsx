@@ -195,7 +195,7 @@ export default function DataList({ notify, permissions, onEdit }) {
     { key: 'project_status', label: 'Project Status' },
     ...(category === 'completed' ? [{ key: 'completed_on', label: 'Completed On' }] : []),
     { key: 'remarks', label: 'Remarks' },
-    { key: 'actions', label: 'Update' },
+    { key: 'actions', label: 'Actions' },
   ], [isOrgUser, category]);
 
   const columnDefs = useMemo(() => {
@@ -234,7 +234,8 @@ export default function DataList({ notify, permissions, onEdit }) {
         valueFormatter: (p) => p.value || '-',
       },
       {
-        headerName: 'Update', width: 120, minWidth: 110, pinned: 'right', hide: !show('actions'), sortable: false, ...centered,
+        // View buttons for everyone, Edit for those who can edit (QC R-15: was titled 'Update')
+        headerName: 'Actions', width: 120, minWidth: 110, pinned: 'right', hide: !show('actions'), sortable: false, ...centered,
         cellRenderer: (p) => p.data && (
           <div className="flex items-center justify-center space-x-1.5 h-full w-full">
             <button type="button" onClick={() => setDetailProject(p.data)} title="View Project Details"
