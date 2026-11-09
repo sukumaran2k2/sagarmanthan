@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import axios from "axios";
 import forge from 'node-forge';
+import { setRefreshCookie } from "../utils/refreshCookie.js";
 
 // const nodemailer = require('nodemailer');
 // validation();
@@ -123,21 +124,9 @@ async function validation(req, res) {
         const accessToken = jwt.sign(tokenPayload, process.env.JWT_SECRET, {
           expiresIn: "30m",
         });
-        // The refresh token only names the user: a refresh rebuilds the session from the database
-        // (refresh-token.js). The full payload made the cookie larger than the 4 KB browsers
-        // accept, so it was dropped and the session could never be renewed.
-        const refreshToken = jwt.sign({ userId: userData.user_id, kind: 'portal' }, process.env.MIKR_REFRESH_SECRET, {
-          expiresIn: "1d",
-        });
-
-        // Refresh token lives in an httpOnly cookie so JS cannot read or exfiltrate it.
-        // Secure flag is set only in production (requires HTTPS).
-        res.cookie('refreshToken', refreshToken, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'Strict',
-          maxAge: 24 * 60 * 60 * 1000, // 1 day in ms
-        });
+        // The refresh token lives in an httpOnly cookie (JS can't read it) and only names the user:
+        // a refresh rebuilds the session from the database (refresh-token.js)
+        setRefreshCookie(res, userData.user_id);
         res.json({ accessToken });
       } else {
         console.error('[LOGIN_ERROR] WRONG_PASSWORD', { email, userId: userData.user_id });

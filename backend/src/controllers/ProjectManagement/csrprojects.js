@@ -400,7 +400,7 @@ async function createCsrProjects(req, res)
             VALUES (
                 @organisationID, @csrfocus, @nameofproject, @projectReceived, @impactproject, @targetbeneficiaries,
                 @projectvalue, @projectstatus, @financialYear, @commencedon, @completedon, @finiancialprogresssofar, @physicalprogresssofar,
-                @remarksoftheproject, @userID, GETDATE(), @uniqueFileName
+                @remarksoftheproject, @userID, SYSUTCDATETIME(), @uniqueFileName
             );
         `);
 
@@ -425,7 +425,7 @@ async function createCsrProjects(req, res)
         
                 let query = ` 
                     INSERT INTO tbl_csr_expenditure (csr_project_id, year, csr_expenditure_cost, created_by, created_date) 
-                    VALUES (@csrProjectId, @expenditureFinancialYear, @expenditureCost, @userID, GETDATE());
+                    VALUES (@csrProjectId, @expenditureFinancialYear, @expenditureCost, @userID, SYSUTCDATETIME());
                 `;
         
                 await expenditureRequest.query(query);
@@ -679,7 +679,7 @@ async function updateCsrProjects(req, res)
                 remarks = @remarksoftheproject,
                 project_completion_doc = @uniqueFileName,
                 updated_by = @userID,
-                updated_date = getDate()
+                updated_date = SYSUTCDATETIME()
             
             WHERE csr_project_id = @projectID
         `);
@@ -707,21 +707,21 @@ async function updateCsrProjects(req, res)
                                                    WHERE k.csr_project_id = e.csr_project_id AND k.[year] = e.[year]));
 
                 IF OBJECT_ID('dbo.tbl_csr_delete_log', 'U') IS NOT NULL
-                    INSERT INTO tbl_csr_delete_log (entity, record_id, csr_project_id, organisation_id, row_json, deleted_by)
+                    INSERT INTO tbl_csr_delete_log (entity, record_id, csr_project_id, organisation_id, row_json, deleted_by, deleted_date)
                     SELECT 'expenditure', e.csr_expenditure_id, e.csr_project_id, p.organisation_id,
-                           (SELECT e.* FOR JSON PATH, WITHOUT_ARRAY_WRAPPER, INCLUDE_NULL_VALUES), @userID
+                           (SELECT e.* FOR JSON PATH, WITHOUT_ARRAY_WRAPPER, INCLUDE_NULL_VALUES), @userID, SYSUTCDATETIME()
                     FROM tbl_csr_expenditure e
                     JOIN #gone g ON g.csr_expenditure_id = e.csr_expenditure_id
                     JOIN tbl_csr_projects p ON p.csr_project_id = e.csr_project_id;
 
                 DELETE e FROM tbl_csr_expenditure e JOIN #gone g ON g.csr_expenditure_id = e.csr_expenditure_id;
 
-                UPDATE e SET csr_expenditure_cost = w.cost, updated_by = @userID, updated_date = GETDATE()
+                UPDATE e SET csr_expenditure_cost = w.cost, updated_by = @userID, updated_date = SYSUTCDATETIME()
                 FROM tbl_csr_expenditure e JOIN #wanted w ON w.[year] = e.[year]
                 WHERE e.csr_project_id = @projectID AND ISNULL(e.csr_expenditure_cost, -1) <> w.cost;
 
                 INSERT INTO tbl_csr_expenditure (csr_project_id, [year], csr_expenditure_cost, created_by, created_date)
-                SELECT @projectID, w.[year], w.cost, @userID, GETDATE()
+                SELECT @projectID, w.[year], w.cost, @userID, SYSUTCDATETIME()
                 FROM #wanted w
                 WHERE NOT EXISTS (SELECT 1 FROM tbl_csr_expenditure e WHERE e.csr_project_id = @projectID AND e.[year] = w.[year]);
 
@@ -735,8 +735,8 @@ async function updateCsrProjects(req, res)
                 .input('projectID', projectID).input('userID', userID)
                 .input('rowJson', JSON.stringify({ csr_project_id: Number(projectID), project_completion_doc: currentDocument, replaced_by: uniqueFileName }))
                 .query(`IF OBJECT_ID('dbo.tbl_csr_delete_log', 'U') IS NOT NULL
-                    INSERT INTO tbl_csr_delete_log (entity, record_id, csr_project_id, organisation_id, row_json, deleted_by)
-                    SELECT 'completion_document', csr_project_id, csr_project_id, organisation_id, @rowJson, @userID
+                    INSERT INTO tbl_csr_delete_log (entity, record_id, csr_project_id, organisation_id, row_json, deleted_by, deleted_date)
+                    SELECT 'completion_document', csr_project_id, csr_project_id, organisation_id, @rowJson, @userID, SYSUTCDATETIME()
                     FROM tbl_csr_projects WHERE csr_project_id = @projectID`);
         }
 
@@ -840,13 +840,13 @@ async function uploadMediaGalleryFile(req,res) {
                     .input('documentName', file.filename)
                     .input('documentType', file.mimetype.split('/')[0])
                     .input('userID', req.user.userId)
-                    // created_date has a default; created_by is set once sql/csr/03 has added the
-                    // column (QC CSR-11) - until then the insert works as before
+                    // created_by / created_date are set once sql/csr/03 has added the columns (QC CSR-11) -
+                    // until then the insert works as before. Times are saved in UTC (QC R-09).
                     .query(`INSERT INTO tbl_csr_image (csr_project_id, document_name, document_type)
                         VALUES (@csrProjectId, @documentName, @documentType);
                         DECLARE @newId INT = SCOPE_IDENTITY();
                         IF COL_LENGTH('dbo.tbl_csr_image', 'created_by') IS NOT NULL
-                            EXEC sp_executesql N'UPDATE tbl_csr_image SET created_by = @u WHERE document_id = @id',
+                            EXEC sp_executesql N'UPDATE tbl_csr_image SET created_by = @u, created_date = SYSUTCDATETIME() WHERE document_id = @id',
                                 N'@u INT, @id INT', @u = @userID, @id = @newId;`);
             }
             await transaction.commit();
@@ -924,7 +924,7 @@ async function addCsrFundDetails(req, res)
             )
             OUTPUT INSERTED.csr_fund_id
             VALUES (
-                @organisationID, @financialYear, @netProfit, @csrFundAllotedForYear, @openingBalanceCSR, @userID, GETDATE()
+                @organisationID, @financialYear, @netProfit, @csrFundAllotedForYear, @openingBalanceCSR, @userID, SYSUTCDATETIME()
             );
         `);
 
@@ -1045,7 +1045,7 @@ try {
     }
     await request.query(`
         UPDATE tbl_csr_fund  SET financial_year = @financialYear, net_profit = @netProfit, csr_fund_alloted_year = @csrFundAllotedForYear,
-            opening_balance_csr = @openingBalanceCSR, updated_by = @userID, updated_date = GETDATE()
+            opening_balance_csr = @openingBalanceCSR, updated_by = @userID, updated_date = SYSUTCDATETIME()
             WHERE csr_fund_id = @csrFundId
 
     `);
