@@ -530,18 +530,62 @@ async function csrfileDownload(req, res)
 
 // ----------------------------------------------------- GET DATA  -----------------------------------------------------------
 
+// Project list (QC CSR-26). Filters, search and paging run in SQL:
+//   ?page=&pageSize=  -> { rows, total, counts: { all, active, completed } } for that page
+//   no page           -> every matching row (the Copy / Excel / PDF export)
+// Filters: category (all / active / completed), organisation (Ministry only), financialYear,
+// focus, status, search (project, organisation, received from, beneficiaries, remarks).
+const PAGE_SIZES = [10, 25, 50, 100];
+const STATUS_SQL = "ISNULL(NULLIF(p.project_status, ''), 'Project yet to start')";
+const likeText = (v) => `%${String(v).replace(/[\\%_[]/g, (c) => `\\${c}`)}%`;
+
 async function getCsrProjectslist(req, res)
 {
     const scope = csrScope(req.user);
-    if (scope.blocked) return res.json([]);
+    const q = req.query || {};
+    const paged = q.page !== undefined;
+    if (scope.blocked) return res.json(paged ? { rows: [], total: 0, counts: { all: 0, active: 0, completed: 0 } } : []);
     try {
         const request = (await pool).request();
-        // One query for Ministry and organisation users; the same fields for both (QC CSR-26)
-        let orgSql = '';
+        // Organisation users only ever get their own organisation, whatever is asked for
+        const where = [];
         if (scope.orgId) {
             request.input("organisationID", scope.orgId);
-            orgSql = 'WHERE p.organisation_id = @organisationID';
+            where.push('p.organisation_id = @organisationID');
         }
+        const scopeSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+        if (!scope.orgId && /^\d+$/.test(String(q.organisation || ''))) {
+            request.input('fOrg', Number(q.organisation));
+            where.push('p.organisation_id = @fOrg');
+        }
+        if (q.financialYear) {
+            request.input('fYear', String(q.financialYear).slice(0, 9));
+            where.push('p.financial_year = @fYear');
+        }
+        if (/^\d+$/.test(String(q.focus || ''))) {
+            request.input('fFocus', Number(q.focus));
+            where.push('p.csr_focus = @fFocus');
+        }
+        if (q.category === 'completed') where.push(`${STATUS_SQL} = 'Completed'`);
+        else if (q.category === 'active') where.push(`${STATUS_SQL} <> 'Completed'`);
+        if (q.status && q.category !== 'completed') {
+            request.input('fStatus', String(q.status).slice(0, 100));
+            where.push(`${STATUS_SQL} = @fStatus`);
+        }
+        const search = String(q.search || '').trim().slice(0, 200);
+        if (search) {
+            request.input('fSearch', likeText(search));
+            where.push(`(${['p.project_name', 'o.organisation_name', 'p.project_received_from', 'p.target_beneficiaries', 'p.remarks']
+                .map((c) => `${c} LIKE @fSearch ESCAPE '\\'`).join(' OR ')})`);
+        }
+        const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+        const pageSize = PAGE_SIZES.includes(Number(q.pageSize)) ? Number(q.pageSize) : 10;
+        const page = Math.max(1, Math.floor(Number(q.page)) || 1);
+        request.input('offset', (page - 1) * pageSize);
+        request.input('pageSize', pageSize);
+
         const result = await request.query(`
             SELECT p.csr_project_id, p.organisation_id, o.organisation_name, p.csr_focus,
                 p.project_name, p.project_received_from, p.impact_possible_outcome, p.target_beneficiaries,
@@ -550,7 +594,7 @@ async function getCsrProjectslist(req, res)
                 p.updated_date
             FROM tbl_csr_projects p
             JOIN mmt_organisation o ON o.organisation_id = p.organisation_id
-            ${orgSql}
+            ${whereSql}
             ORDER BY p.financial_year DESC,
                 CASE p.project_status
                     WHEN 'Approved by Board' THEN 1
@@ -558,9 +602,24 @@ async function getCsrProjectslist(req, res)
                     WHEN 'Project Under implementation' THEN 3
                     WHEN 'Completed' THEN 4
                     ELSE 5
-                END;
+                END,
+                p.csr_project_id DESC
+            ${paged ? 'OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY' : ''};
+            ${paged ? `
+            SELECT COUNT(*) AS total FROM tbl_csr_projects p
+            JOIN mmt_organisation o ON o.organisation_id = p.organisation_id ${whereSql};
+            -- Category tab counts: everything the user may see, before filters
+            SELECT COUNT(*) AS [all], ISNULL(SUM(CASE WHEN ${STATUS_SQL} = 'Completed' THEN 1 ELSE 0 END), 0) AS completed
+            FROM tbl_csr_projects p
+            JOIN mmt_organisation o ON o.organisation_id = p.organisation_id ${scopeSql};` : ''}
         `);
-        res.json(result.recordset);
+        if (!paged) return res.json(result.recordsets[0]);
+        const counts = result.recordsets[2][0];
+        res.json({
+            rows: result.recordsets[0],
+            total: result.recordsets[1][0].total,
+            counts: { all: counts.all, active: counts.all - counts.completed, completed: counts.completed },
+        });
     } catch (err) {
         console.error('Error fetching CSR projects:', err);
         res.status(500).json({ error: 'Internal server error' });

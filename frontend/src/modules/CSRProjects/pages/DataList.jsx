@@ -19,7 +19,6 @@ const CATEGORIES = [
   { id: 'completed', label: 'Completed' },
 ];
 
-const isCompleted = (p) => p.project_status === 'Completed';
 const statusText = (p) => p.project_status || 'Project yet to start';
 
 // Saves a downloaded blob under its stored name
@@ -61,24 +60,50 @@ export default function DataList({ notify, permissions, onEdit }) {
     setVisibleCols: state.setVisibleCols,
   })));
 
-  // The server returns only the projects the user may see (their organisation's, or all for the Ministry)
-  const [projects, setProjects] = useState(null); // null while loading
+  // Search waits for a pause in typing before asking the server
+  const [search, setSearch] = useState(searchTerm);
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchTerm), 300);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
+  // Filters, search and paging run on the server (QC CSR-26); it returns only the projects the
+  // user may see (their organisation's, or all for the Ministry). Organisation users can't pick
+  // another organisation, so that filter isn't sent for them.
+  const query = useMemo(() => {
+    const q = { category, financialYear: filters.financialYear, focus: filters.focus, status: filters.status, search: search.trim() };
+    if (!isOrgUser) q.organisation = filters.organisation;
+    return Object.fromEntries(Object.entries(q).filter(([, v]) => v !== '' && v != null));
+  }, [category, filters, search, isOrgUser]);
+  const requestKey = JSON.stringify([query, currentPage, pageSize]);
+  const [result, setResult] = useState(null); // { key, rows, total, counts }; null before the first answer
   useEffect(() => {
     let cancelled = false;
-    fetchCsrProjectsList()
+    fetchCsrProjectsList({ ...query, page: currentPage, pageSize })
       .then((res) => {
-        if (!cancelled) setProjects(Array.isArray(res) ? res : []);
+        if (cancelled) return;
+        const total = Number(res?.total) || 0;
+        // A stored page can be past the end once the data or filters change
+        const lastPage = Math.max(1, Math.ceil(total / pageSize));
+        if (currentPage > lastPage) {
+          actions.setCurrentPage(lastPage);
+          return;
+        }
+        setResult({ key: requestKey, rows: Array.isArray(res?.rows) ? res.rows : [], total, counts: res?.counts || null });
       })
       .catch((err) => {
         if (cancelled) return;
         console.error('Error loading CSR projects:', err);
-        setProjects([]);
+        setResult({ key: requestKey, rows: [], total: 0, counts: null });
         notify(COMMON_TOASTS.loadFailed('CSR projects'));
       });
     return () => { cancelled = true; };
-  }, [notify]);
-  const loading = projects === null;
-  const rows = useMemo(() => projects || [], [projects]);
+    // requestKey stands for query, currentPage and pageSize
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestKey, notify]);
+  const loading = result?.key !== requestKey;
+  const pageRows = useMemo(() => result?.rows || [], [result]);
+  const totalRows = result?.total ?? 0;
 
   const [colDropdownOpen, setColDropdownOpen] = useState(false);
   const colDropdownRef = useRef(null);
@@ -145,31 +170,12 @@ export default function DataList({ notify, permissions, onEdit }) {
     }
   };
 
-  const allCount = rows.length;
-  const completedCount = useMemo(() => rows.filter(isCompleted).length, [rows]);
-  const countFor = { all: allCount, active: allCount - completedCount, completed: completedCount };
+  // Tab counts: everything the user may see, before filters (the last answer's, kept while loading)
+  const countFor = result?.counts || { all: '…', active: '…', completed: '…' };
 
   const availableStatuses = category === 'active'
     ? CSR_STATUSES.filter((s) => s !== 'Completed')
     : category === 'completed' ? ['Completed'] : CSR_STATUSES;
-
-  const filteredProjects = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase();
-    return rows.filter((p) => {
-      if (category === 'completed' && !isCompleted(p)) return false;
-      if (category === 'active' && isCompleted(p)) return false;
-      if (filters.organisation && String(p.organisation_id) !== String(filters.organisation)) return false;
-      if (filters.financialYear && String(p.financial_year) !== filters.financialYear) return false;
-      if (filters.focus && String(p.csr_focus) !== String(filters.focus)) return false;
-      if (filters.status && statusText(p) !== filters.status) return false;
-      if (query) {
-        const haystack = [p.project_name, p.organisation_name, p.project_received_from, p.target_beneficiaries, p.remarks]
-          .map((v) => String(v || '').toLowerCase());
-        if (!haystack.some((v) => v.includes(query))) return false;
-      }
-      return true;
-    });
-  }, [rows, category, filters, searchTerm]);
 
   // Organisation users only ever see their own organisation, so that filter isn't offered to them
   const activeFiltersCount = [!isOrgUser && filters.organisation, filters.financialYear, filters.focus, filters.status].filter(Boolean).length;
@@ -179,11 +185,8 @@ export default function DataList({ notify, permissions, onEdit }) {
     notify(COMMON_TOASTS.filtersReset());
   };
 
-  // Paged in the browser, so the page is kept in the store
-  const totalPages = Math.max(1, Math.ceil(filteredProjects.length / pageSize));
-  // A stored page can be past the end once the data or filters change
+  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
   const page = Math.min(currentPage, totalPages);
-  const pageRows = useMemo(() => filteredProjects.slice((page - 1) * pageSize, page * pageSize), [filteredProjects, page, pageSize]);
 
   // Columns by visibility key; the organisation column is for the Ministry view only
   const columnChoices = useMemo(() => [
@@ -258,7 +261,7 @@ export default function DataList({ notify, permissions, onEdit }) {
     ];
   }, [columnChoices, visibleCols, page, pageSize, canEdit, onEdit]);
 
-  // Copy / Excel / PDF: every filtered row, visible data columns
+  // Copy / Excel / PDF columns: the visible data columns
   const exportColumns = useMemo(() => {
     const values = {
       org: (p) => p.organisation_name,
@@ -274,13 +277,24 @@ export default function DataList({ notify, permissions, onEdit }) {
       .map((c) => ({ ...c, value: values[c.key] }));
   }, [columnChoices, visibleCols]);
 
-  const handleExport = (type) => exportCsrList(type, {
-    columns: exportColumns,
-    rows: filteredProjects,
-    fileName: 'CSR_Projects_List',
-    title: 'CSR Projects List',
-    notify,
-  });
+  // Copy / Excel / PDF: every project matching the filters, fetched when asked for
+  const handleExport = async (type) => {
+    let rows;
+    try {
+      rows = await fetchCsrProjectsList(query);
+    } catch (err) {
+      console.error('Error loading CSR projects for export:', err);
+      notify(COMMON_TOASTS.loadFailed('CSR projects'));
+      return;
+    }
+    exportCsrList(type, {
+      columns: exportColumns,
+      rows: Array.isArray(rows) ? rows : [],
+      fileName: 'CSR_Projects_List',
+      title: 'CSR Projects List',
+      notify,
+    });
+  };
 
   return (
     <div className="space-y-4">
@@ -359,7 +373,7 @@ export default function DataList({ notify, permissions, onEdit }) {
             </div>
 
             <div className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
-              Total: <span className="text-[#0f417a] dark:text-blue-400 font-extrabold">{loading ? '...' : filteredProjects.length}</span>
+              Total: <span className="text-[#0f417a] dark:text-blue-400 font-extrabold">{loading && !result ? '...' : totalRows}</span>
             </div>
 
             <div className="relative" ref={colDropdownRef}>
@@ -459,7 +473,7 @@ export default function DataList({ notify, permissions, onEdit }) {
           <TablePagination
             currentPage={page - 1}
             totalPages={totalPages}
-            totalRows={filteredProjects.length}
+            totalRows={totalRows}
             pageSize={pageSize}
             onPageChange={(zeroIdx) => actions.setCurrentPage(zeroIdx + 1)}
             onPrevPage={() => actions.setCurrentPage(Math.max(1, page - 1))}

@@ -58,8 +58,9 @@ api.interceptors.response.use(
 const pathUserId = () => getCurrentUserId() || 0;
 
 // --- CSR Projects APIs ---
-export const fetchCsrProjectsList = async (userId = pathUserId()) => {
-  const response = await api.get(`/csr-projects-list/${userId}`);
+// With page / pageSize: { rows, total, counts } for that page; without: every matching row (QC CSR-26)
+export const fetchCsrProjectsList = async (params = {}) => {
+  const response = await api.get(`/csr-projects-list/${pathUserId()}`, { params });
   return response.data;
 };
 
