@@ -965,15 +965,12 @@ router.get("/get-csr-expenditure/:csrProjectId", auth, csrRead, csrProjectTab.ge
 router.get("/get-csr-project-files/:csrProjectId", auth, csrRead, csrProjectTab.getCsrFileUploadDocument);
 // The project is checked before any file is written (QC CSR-19)
 router.post("/update-csr-gallery-upload/:csrProjectId", auth, csrWrite, csrProjectTab.projectAccess, csrProjectTab.handleUploadErrors(csrProjectTab.fileUpload.array('file')),csrProjectTab.uploadMediaGalleryFile)
-router.get("/get-csr-project-overview-reports/:userID", auth, csrRead, csrProjectTab.csrProjectsAbstractReport);
-router.get("/get-csr-projects-detailed-reports/:organisationID/:OrganisationName", auth, csrRead, csrProjectTab.csrProjectsDetailedReport)
 
 // CSR Fund Detail
 router.get('/csr-Fund-list/:userID', auth, csrRead, csrProjectTab.getCsrFundList);
 router.get("/csr-update-fundlist/:csrFundId", auth, csrRead, csrProjectTab.getUpdateFundData);
 router.post('/csrFund-edit', auth, csrUpdate, csrProjectTab.editCsrFund);
 router.post('/add-csr-Fund', auth, csrCreate, csrProjectTab.addCsrFundDetails);
-router.get('/get-csr-fund-expenditure-report/:userID', auth, csrRead, csrProjectTab.csrExpenditureReport);
 router.get('/get-csr-dashboard', auth, csrRead, csrProjectTab.getCsrDashboard);
 router.get('/get-csr-fund-year-wise-report/:fy', auth, csrRead, csrProjectTab.getCsrFundYearWiseReport);
 router.get('/get-csr-fund-org-wise-report/:fy', auth, csrRead, csrProjectTab.getCsrFundOrgWiseReport);
