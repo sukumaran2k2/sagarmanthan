@@ -676,73 +676,6 @@ async function getEmployeeOrgUnits(req, res) {
     }
 }
 
-async function agSample(req, res) {
-    try {
-        const conn = await pool;  
-      // Query the database
-      const result = await conn.query(`SELECT 
-                --ROW_NUMBER() OVER (ORDER BY Year DESC, MonthNumber DESC, ID) AS [S No],
-                Emp_Id AS [EMP ID],
-                (SELECT TOP 1 Emp_Name FROM sagarmanthan_revamp.dbo.mmt_employee_info WHERE Emp_Id = tbl_employee_attendance.Emp_Id) AS [EMP Name],
-                (SELECT TOP 1 Designation FROM sagarmanthan_revamp.dbo.mmt_employee_info WHERE Emp_Id = tbl_employee_attendance.Emp_Id) AS Designation,
-                (SELECT TOP 1 wing_name FROM sagarmanthan_revamp.dbo.mmt_organization_info WHERE organization_id = (SELECT TOP 1 organization_id FROM sagarmanthan_revamp.dbo.mmt_employee_info WHERE Emp_Id = tbl_employee_attendance.Emp_Id)) AS [Wing],
-                (SELECT TOP 1 division_name FROM sagarmanthan_revamp.dbo.mmt_organization_info WHERE organization_id = (SELECT TOP 1 organization_id FROM sagarmanthan_revamp.dbo.mmt_employee_info WHERE Emp_Id = tbl_employee_attendance.Emp_Id)) AS [Division],
-                No_of_days_Attendance_Marked AS [No of days Attendance Marked],
-                Average_Working_Hours AS [Average Working Hours],
-                In_Time_Avg AS [In Time Avg],
-                Out_Time_Avg AS [Out Time Avg],
-                Month,
-                Year,
-            CASE
-                WHEN week = 1 THEN 'Week 1'
-                WHEN week = 2 THEN 'Week 2'
-                WHEN week = 3 THEN 'Week 3'
-                WHEN week = 4 THEN 'Week 4'
-                WHEN week = 5 THEN 'Week 5'
-                ELSE 'Unknown Week'
-              END AS Week
-            FROM 
-                sagarmanthan_revamp.dbo.tbl_employee_attendance
-            CROSS APPLY (
-                SELECT 
-                    CASE 
-                        WHEN tbl_employee_attendance.Month = 'January' THEN 1
-                        WHEN tbl_employee_attendance.Month = 'February' THEN 2
-                        WHEN tbl_employee_attendance.Month = 'March' THEN 3
-                        WHEN tbl_employee_attendance.Month = 'April' THEN 4
-                        WHEN tbl_employee_attendance.Month = 'May' THEN 5
-                        WHEN tbl_employee_attendance.Month = 'June' THEN 6
-                        WHEN tbl_employee_attendance.Month = 'July' THEN 7
-                        WHEN tbl_employee_attendance.Month = 'August' THEN 8
-                        WHEN tbl_employee_attendance.Month = 'September' THEN 9
-                        WHEN tbl_employee_attendance.Month = 'October' THEN 10
-                        WHEN tbl_employee_attendance.Month = 'November' THEN 11
-                        ELSE 12
-                    END AS MonthNumber
-            ) AS MonthNumbers
-            ORDER BY Year DESC ,MonthNumber DESC, week DESC, ID;`);
-   
-        const rowData = result.recordset;  
-
-        if (rowData.length === 0) {
-            return res.json({ columnDefs: [], rowData: [], message: 'No records found' });
-        }
-        
-        const columnDefs = Object.keys(rowData[0]).map(key => ({
-            headerName: key.charAt(0).toUpperCase() + key.slice(1), // Capitalize the first letter
-            field: key,
-        }));
-
-    res.json({ columnDefs, rowData });
-
-
-    } catch (err) {
-      console.error(err.message);
-      res.status(500).send('Internal Server Error');
-    }
-    
-  }
-
   async function getEmployeeAttendance(req, res) {
     const conn = await pool;
 
@@ -845,6 +778,6 @@ async function deleteEmpAttendanceFile(req, res) {
 }
 
 const empAttendanceTab = { createEmpAttendance, upload, uploadSingleFile, addEmpDataAttendance,
-    getEmployeeAttendance, updateEmpAttendance, getEmpAttendance, agSample,
+    getEmployeeAttendance, updateEmpAttendance, getEmpAttendance,
     downloadEmpAttendanceFile, deleteEmpAttendanceFile, getEmployeeOrgUnits };
 export default empAttendanceTab;
