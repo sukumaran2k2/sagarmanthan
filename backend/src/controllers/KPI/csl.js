@@ -6,7 +6,8 @@ import fs from 'fs';
 
 
     async function addVesselsBuilt(req, res) {
-        const { financialYear, vesselsBuilt, tonnageVessels, valueofVessels, userID } = req.body;
+        const { financialYear, vesselsBuilt, tonnageVessels, valueofVessels } = req.body;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
         const conn = await pool;
 
@@ -130,7 +131,7 @@ import fs from 'fs';
         const updateTonnageVessels = req.body.updateTonnageVessels;
         const updateValueofVessels = req.body.updateValueofVessels;
         const  VesselIdOrg  = req.body. VesselIdOrg ;
-        const userID = req.body.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
 
         const conn = await pool;
@@ -154,7 +155,7 @@ import fs from 'fs';
 
     async function deleteVesselsBuilt(req, res) {
         const cslVesselId = req.params.csl_vessel_id;
-        const userID = req.params.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
         const now = new Date();
         const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -199,7 +200,8 @@ import fs from 'fs';
 
     async function addShipBuildingOrders(req, res) {
         try {
-            const { financialYear, financialQuater, shipOrdersreceived, valueOfshipOrder, userID } = req.body;
+            const { financialYear, financialQuater, shipOrdersreceived, valueOfshipOrder } = req.body;
+            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
             const conn = await pool;
             const request = conn.request();
     
@@ -341,7 +343,7 @@ import fs from 'fs';
             const updateValueofship = req.body.updateValueofship;
             const CslshipbuildingIdOrg  = req.body.CslshipbuildingIdOrg ;
         
-            const userID = req.body.userID;
+            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         
         
             const conn = await pool;
@@ -367,7 +369,7 @@ import fs from 'fs';
 
         async function deleteShipBuildingOrders(req, res) {
             const cslShipbuildingId = req.params.csl_shipbuilding_id;
-            const userID = req.params.userID;
+            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
             const now = new Date();
             const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -411,7 +413,8 @@ import fs from 'fs';
         
     async function  addShipdelivery(req, res) {
         try {
-            const { financialYear, financialQuater, noOfshipsReceived, noOfshipsDeleivered, userID } = req.body;
+            const { financialYear, financialQuater, noOfshipsReceived, noOfshipsDeleivered } = req.body;
+            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
             const conn = await pool;
             const request = conn.request();
     
@@ -547,7 +550,7 @@ import fs from 'fs';
             const updateShipsdelivered = req.body.updateShipsdelivered;
             const CslshipdeliveryIdOrg  = req.body.CslshipdeliveryIdOrg ;
         
-            const userID = req.body.userID;
+            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         
         
             const conn = await pool;
@@ -573,7 +576,7 @@ import fs from 'fs';
         
         async function deleteShipDeliveryPerformance(req, res) {
             const cslShipdeliveryId = req.params.csl_shipdelivery_id;
-            const userID = req.params.userID;
+            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
             const now = new Date();
             const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -621,7 +624,7 @@ import fs from 'fs';
             const financialYear = req.body.financialYear;
             const shipbuildingCapacity = req.body.shipbuildingCapacity;
             const tonnageOfVesselsBuilt = req.body.tonnageofVesselsBuilt;
-            const userID = req.body.userID;
+            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         
             const conn = await pool;
         
@@ -742,7 +745,7 @@ import fs from 'fs';
             const updatetonnageofVesselsBuilt = req.body.updatetonnageofVesselsBuilt;
             const CslcapacityUtilizationIdOrg  = req.body.CslcapacityUtilizationIdOrg ;
         
-            const userID = req.body.userID;
+            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
             const conn = await pool;
             const request = conn.request();
             request.input('updatefinancialYear', updatefinancialYear);
@@ -764,7 +767,7 @@ import fs from 'fs';
         }
         async function deleteCapacityUtilization(req, res) {
             const cslCapacityUtilizationId = req.params.csl_capacity_utilization_id;
-            const userID = req.params.userID;
+            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
             const now = new Date();
             const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -807,7 +810,8 @@ import fs from 'fs';
         }
         async function addfabricationofsteels(req, res) {
             try {
-                const { financialYear, fabricationmonth, fabricationOfSteels,fabrigationinTonns, userID } = req.body;
+                const { financialYear, fabricationmonth, fabricationOfSteels, fabrigationinTonns } = req.body;
+                const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         
                 // Log received data to debug
                 console.log("Received Data:", req.body);
@@ -942,7 +946,7 @@ import fs from 'fs';
             const updatefabrigationinTonns = req.body.updatefabrigationinTonns;
             const CslfabricationIdOrg  = req.body.CslfabricationIdOrg ;
         
-            const userID = req.body.userID;
+            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         
         
             const conn = await pool;
@@ -968,7 +972,7 @@ import fs from 'fs';
 
         async function deleteFabricationOfSteels(req, res) {
             const cslFabricationId = req.params.csl_fabrication_id;
-            const userID = req.params.userID;
+            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
             const now = new Date();
             const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -1012,7 +1016,8 @@ import fs from 'fs';
     
         async function addShipRepaired(req, res) {
             try {
-                const { financialYear, financialQuater, noOfshipsrepaired, valueOfshipsrepaired, userID } = req.body;
+                const { financialYear, financialQuater, noOfshipsrepaired, valueOfshipsrepaired } = req.body;
+                const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
                 const conn = await pool;
                 const request = conn.request();
         
@@ -1155,7 +1160,7 @@ import fs from 'fs';
             const updatenoOfshipsrepaired = req.body.updatenoOfshipsrepaired;
             const updatevalueOfshipsrepaired = req.body.updatevalueOfshipsrepaired;
             const CslreapiredIdOrg  = req.body.CslreapiredIdOrg ;
-            const userID = req.body.userID;
+            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         
         
             const conn = await pool;
@@ -1179,7 +1184,7 @@ import fs from 'fs';
 
         async function deleteShipRepaired(req, res) {
             const cslShipsRepairedId = req.params.csl_ships_reapired_id;
-            const userID = req.params.userID;
+            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
             const now = new Date();
             const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');

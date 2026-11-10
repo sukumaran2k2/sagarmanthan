@@ -4,7 +4,8 @@ import fs from 'fs';
 
 
 async function addVesselAvailabiltydata(req, res) {
-    const { scifinancialYear, operatedShips, shipUtilization, userID } = req.body;
+    const { scifinancialYear, operatedShips, shipUtilization } = req.body;
+    const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
     console.log("Received data:", req.body);
 
     try {
@@ -90,7 +91,7 @@ async function getUpdatesciVesseldata(req, res)
             
             const SciVesselIdOrg  = req.body.SciVesselIdOrg ;
         
-            const userID = req.body.userID;
+            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         
         
             const conn = await pool;
@@ -115,7 +116,7 @@ async function getUpdatesciVesseldata(req, res)
 
         async function deleteVesselAvailabilityOwnShips(req, res) {
             const sciVesselId = req.params.sci_vessel_id;
-            const userID = req.params.userID;
+            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
             const now = new Date();
             const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -159,7 +160,8 @@ async function getUpdatesciVesseldata(req, res)
 
         
 async function addscitimeVoyageydata(req, res) {
-    const { financialYear, bulkCarriers, timeCharter,voyageCharter,revenue,earnings, userID } = req.body;
+    const { financialYear, bulkCarriers, timeCharter, voyageCharter, revenue, earnings } = req.body;
+    const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
     console.log("Received data:", req.body);
 
     try {
@@ -247,7 +249,7 @@ async function updatescitimeVoyageBulkData(req,res){
             const updateRevenue = req.body.updateRevenue;
             const  updateAverage = req.body.  updateAverage;
             const ScitimeVoyageBuiklIdOrg  = req.body.ScitimeVoyageBuiklIdOrg ;
-            const userID = req.body.userID;
+            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
             const conn = await pool;
             const request = conn.request();
             
@@ -273,7 +275,7 @@ async function updatescitimeVoyageBulkData(req,res){
 
     async function deleteTimeVoyageBulk(req, res) {
         const sciTimeVoyageBulkId = req.params.sci_time_voyage_bulk_id;
-        const userID = req.params.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
         const now = new Date();
         const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -316,7 +318,8 @@ async function updatescitimeVoyageBulkData(req,res){
     }
 
     async function addscitimeVoyagetankers(req, res) {
-        const { financialYear, totalTankersFleet, daysTimeCharter,daysVoyageCharter,totalRevenue,averageEarnings, userID } = req.body;
+        const { financialYear, totalTankersFleet, daysTimeCharter, daysVoyageCharter, totalRevenue, averageEarnings } = req.body;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         console.log("Received data:", req.body);
     
         try {
@@ -403,7 +406,7 @@ async function updateTimeVoyagetankerData(req,res){
     
     const ScitimeVoyageTankerlIdOrg  = req.body.ScitimeVoyageTankerlIdOrg ;
 
-    const userID = req.body.userID;
+    const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
 
     const conn = await pool;
@@ -431,7 +434,7 @@ async function updateTimeVoyagetankerData(req,res){
 
 async function deleteTimeVoyageTanker(req, res) {
     const sciTimeVoyageTankerId = req.params.sci_time_voyage_tanker_id;
-    const userID = req.params.userID;
+    const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
     const now = new Date();
     const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -475,7 +478,8 @@ async function deleteTimeVoyageTanker(req, res) {
 
 
     async function addscitimeVoyageoffshore(req, res) {
-        const { financialYear, offshoreFleet, timeCharter,voyageCharter,revenue,average, userID } = req.body;
+        const { financialYear, offshoreFleet, timeCharter, voyageCharter, revenue, average } = req.body;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         console.log("Received data:", req.body);
 
         try {
@@ -564,7 +568,7 @@ async function deleteTimeVoyageTanker(req, res) {
         
         const ScitimeVoyageoffshoreIdOrg  = req.body.ScitimeVoyageoffshoreIdOrg ;
 
-        const userID = req.body.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
 
         const conn = await pool;
@@ -592,7 +596,7 @@ async function deleteTimeVoyageTanker(req, res) {
 
     async function deleteTimeVoyageOffshore(req, res) {
         const sciTimeVoyageOffshoreId = req.params.sci_time_voyage_offshore_id;
-        const userID = req.params.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
         const now = new Date();
         const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -635,7 +639,8 @@ async function deleteTimeVoyageTanker(req, res) {
     }
 
     async function addscilinearVesselavailability(req, res) {
-        const { financialYear, totallinearfleet, totalrevenue,averageEarnings, userID } = req.body;
+        const { financialYear, totallinearfleet, totalrevenue, averageEarnings } = req.body;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         console.log("Received data:", req.body);
 
         try {
@@ -718,7 +723,7 @@ async function deleteTimeVoyageTanker(req, res) {
         
         const SciLinearvesselIdOrg  = req.body.SciLinearvesselIdOrg ;
 
-        const userID = req.body.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
 
         const conn = await pool;
@@ -744,7 +749,7 @@ async function deleteTimeVoyageTanker(req, res) {
 
     async function deleteVesselAvailabilityLiner(req, res) {
         const sciLinearVesselId = req.params.sci_vessel_availability_bulk_id;
-        const userID = req.params.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
         const now = new Date();
         const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -788,7 +793,8 @@ async function deleteTimeVoyageTanker(req, res) {
 
 
     async function addvesselprocurementdata(req, res) {
-        const { financialYear, newBuiltships, valueOfnewbuiltShips, userID } = req.body;
+        const { financialYear, newBuiltships, valueOfnewbuiltShips } = req.body;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         console.log("Received data:", req.body);
 
         try {
@@ -869,7 +875,7 @@ async function deleteTimeVoyageTanker(req, res) {
         const updateValueshipsprocured = req.body.updateValueshipsprocured;
         const SciProcurementIdOrg  = req.body.SciProcurementIdOrg ;
 
-        const userID = req.body.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
 
         const conn = await pool;
@@ -894,7 +900,7 @@ async function deleteTimeVoyageTanker(req, res) {
 
     async function deleteVesselProcurement(req, res) {
         const sciProcurementId = req.params.sci_procurement_id;
-        const userID = req.params.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
         const now = new Date();
         const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -937,7 +943,8 @@ async function deleteTimeVoyageTanker(req, res) {
     }
 
     async function addSecondhandvesselprocurementdata(req, res) {
-        const {  financialYear, noofSecondhandships, averageageofSecondhandships,grossvalueOfsecondhandships, userID } = req.body;
+        const { financialYear, noofSecondhandships, averageageofSecondhandships, grossvalueOfsecondhandships } = req.body;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         console.log("Received data:", req.body);
 
         try {
@@ -1022,7 +1029,7 @@ async function deleteTimeVoyageTanker(req, res) {
         const updateGrossvalueofSecondhandships = req.body.updateGrossvalueofSecondhandships;
         const ScisecondhandProcurementIdOrg  = req.body.ScisecondhandProcurementIdOrg ;
 
-        const userID = req.body.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
 
         const conn = await pool;
@@ -1048,7 +1055,7 @@ async function deleteTimeVoyageTanker(req, res) {
 
     async function deleteSecondhandVesselProcurement(req, res) {
         const sciSecondhandProcurementId = req.params.sci_secondhand_procurement_id;
-        const userID = req.params.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
         const now = new Date();
         const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -1091,7 +1098,8 @@ async function deleteTimeVoyageTanker(req, res) {
     }
 
     async function addshipDrydocking(req, res) {
-        const { financialYear, dryDockingscheduled, dryDockingscompleted, userID } = req.body;
+        const { financialYear, dryDockingscheduled, dryDockingscompleted } = req.body;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         console.log("Received data:", req.body);
 
         try {
@@ -1171,7 +1179,7 @@ async function deleteTimeVoyageTanker(req, res) {
         const updatedryDockingscompleted = req.body.updatedryDockingscompleted;
         const SciDrydockIdOrg  = req.body.SciDrydockIdOrg ;
 
-        const userID = req.body.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
 
         const conn = await pool;
@@ -1196,7 +1204,7 @@ async function deleteTimeVoyageTanker(req, res) {
 
     async function deleteShipDryDocking(req, res) {
         const sciDrydockId = req.params.sci_ship_dry_docking_id;
-        const userID = req.params.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
         const now = new Date();
         const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -1239,7 +1247,8 @@ async function deleteTimeVoyageTanker(req, res) {
     }
 
     async function addshipRepaiandMaintanace(req, res) {
-        const {  financialYear, repairCosts, operationalRevenue,repairPercentage, userID } = req.body;
+        const { financialYear, repairCosts, operationalRevenue, repairPercentage } = req.body;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         console.log("Received data:", req.body);
 
         try {
@@ -1320,7 +1329,7 @@ async function deleteTimeVoyageTanker(req, res) {
         const updaterepairPercentage = req.body.updaterepairPercentage;
         const ScirepairandMaintanaceIdOrg  = req.body.ScirepairandMaintanaceIdOrg ;
 
-        const userID = req.body.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
 
         const conn = await pool;
@@ -1346,7 +1355,7 @@ async function deleteTimeVoyageTanker(req, res) {
 
     async function deleteRepairAndMaintenance(req, res) {
         const sciRepairId = req.params.sci_repair_and_maintanace_id;
-        const userID = req.params.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
         const now = new Date();
         const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -1389,7 +1398,8 @@ async function deleteTimeVoyageTanker(req, res) {
     }
 
     async function addsaleandRecycling(req, res) {
-        const {  financialYear, noOfoldvessels, valueOfsale,averageAge, userID } = req.body;
+        const { financialYear, noOfoldvessels, valueOfsale, averageAge } = req.body;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         console.log("Received data:", req.body);
 
         try {
@@ -1471,7 +1481,7 @@ async function deleteTimeVoyageTanker(req, res) {
         const updateaverageAge = req.body.updateaverageAge;
         const ScisaleRecyclingIdOrg  = req.body.ScisaleRecyclingIdOrg;
 
-        const userID = req.body.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
 
         const conn = await pool;
@@ -1495,7 +1505,7 @@ async function deleteTimeVoyageTanker(req, res) {
 
     async function deleteSaleAndRecycling(req, res) {
         const sciSaleRecyclingId = req.params.sci_sale_recycling_id;
-        const userID = req.params.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
         const now = new Date();
         const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -1538,7 +1548,8 @@ async function deleteTimeVoyageTanker(req, res) {
     }
 
     async function addsaleandRecyclingofgreenRecycling(req, res) {
-        const {  financialYear, vesselssold, valueofVessels,adherencetoGreenrecycling, userID } = req.body;
+        const { financialYear, vesselssold, valueofVessels, adherencetoGreenrecycling } = req.body;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         console.log("Received data:", req.body);
 
         try {
@@ -1620,7 +1631,7 @@ async function deleteTimeVoyageTanker(req, res) {
             const updateadherencetoGreenrecycling = req.body.updateadherencetoGreenrecycling;
             const ScisaleGreenrecyclingIdOrg  = req.body.ScisaleGreenrecyclingIdOrg;
         
-            const userID = req.body.userID;
+            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         
         
             const conn = await pool;
@@ -1646,7 +1657,7 @@ async function deleteTimeVoyageTanker(req, res) {
 
    async function deleteGreenRecycling(req, res) {
         const sciSaleGreenRecyclingId = req.params.sci_sale_green_recycling_id;
-        const userID = req.params.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
         const now = new Date();
         const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -1729,7 +1740,8 @@ async function deleteTimeVoyageTanker(req, res) {
 //             }
 //    }
 async function addmanningofOwnedships(req, res) {
-    const { financialYear, noofVesselsaudited, noofShipsfullycomplaint, userID } = req.body;
+    const { financialYear, noofVesselsaudited, noofShipsfullycomplaint } = req.body;
+    const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
     console.log("Received data:", req.body);
 
     try {
@@ -1809,7 +1821,8 @@ async function addmanningofOwnedships(req, res) {
     }
     async function updatemanningofOwnedshipsData(req, res) {
         try {
-            const { updatefinancialYear, updatenoofVesselsaudited, updatenoofShipsfullycomplaint, ScimanningIdOrg, userID } = req.body;
+            const { updatefinancialYear, updatenoofVesselsaudited, updatenoofShipsfullycomplaint, ScimanningIdOrg } = req.body;
+            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
             
             console.log("Received update request:", req.body);
 
@@ -1849,7 +1862,7 @@ async function addmanningofOwnedships(req, res) {
 
     async function deleteManningOfOwnedShips(req, res) {
         const sciManningId = req.params.sci_manning_id;
-        const userID = req.params.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
         const now = new Date();
         const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -1892,7 +1905,8 @@ async function addmanningofOwnedships(req, res) {
     }
     
     async function addshipManagementBusiness(req, res) {
-        const {  financialYear, noofShipsManaged, totalManagementcost,revenue,costtoRevenueratio, userID } = req.body;
+        const { financialYear, noofShipsManaged, totalManagementcost, revenue, costtoRevenueratio } = req.body;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         console.log("Received data:", req.body);
     
         try {
@@ -1977,7 +1991,7 @@ async function addmanningofOwnedships(req, res) {
         const  updatecosttoRevenueratio = req.body.updatecosttoRevenueratio;
         const ScishipmanagementIdOrg  = req.body.ScishipmanagementIdOrg ;
     
-        const userID = req.body.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
     
     
         const conn = await pool;
@@ -2004,7 +2018,7 @@ async function addmanningofOwnedships(req, res) {
 
     async function deleteShipManagementBusiness(req, res) {
         const sciShipManagementId = req.params.sci_ship_management_id;
-        const userID = req.params.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
         const now = new Date();
         const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');

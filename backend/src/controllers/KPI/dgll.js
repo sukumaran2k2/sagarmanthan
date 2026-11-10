@@ -12,7 +12,7 @@ async function addLightsHouseMaster(req, res)
     const district = req.body.district;
     const latitude = req.body.latitude;
     const longitude = req.body.longitude;
-    const userID = req.body.userID;
+    const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
     const conn = await pool;
     const request = conn.request();
@@ -151,7 +151,7 @@ async function updateLightsHousedata(req,res){
     const updateLatitude = req.body.updateLatitude;
     const updateLongitude = req.body.updateLongitude;
     const lightHouseIdIdOrg = req.body.lightHouseIdIdOrg;
-    const userID = req.body.userID;
+    const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
 
     const conn = await pool;
@@ -180,7 +180,7 @@ async function updateLightsHousedata(req,res){
 
 async function deleteLightHouseMaster(req, res) {
     const lightsHouseId = req.params.lights_house_id;
-    const userID = req.params.userID;
+    const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
     const now = new Date();
     const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -223,7 +223,8 @@ async function deleteLightHouseMaster(req, res) {
 }
 
 async function addVtmsIntegration(req, res) {
-    const { financialYear, vtmsIntegration, userID } = req.body;
+    const { financialYear, vtmsIntegration } = req.body;
+    const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
     const conn = await pool;
 
     try {
@@ -345,7 +346,7 @@ async function updateVtmsData(req,res){
     const updateVtmsSystem = req.body.updateVtmsSystem;
     const  VtmsIdOrg  = req.body. VtmsIdOrg ;
 
-    const userID = req.body.userID;
+    const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
 
     const conn = await pool;
@@ -369,7 +370,7 @@ async function updateVtmsData(req,res){
 
 async function deleteVtmsIntegration(req, res) {
     const vtmsId = req.params.vtms_id;
-    const userID = req.params.userID;
+    const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
     const now = new Date();
     const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -413,7 +414,8 @@ async function deleteVtmsIntegration(req, res) {
 
 
 async function addNaisUptime(req, res) {
-    const { financialYear, naisAvailability, userID } = req.body;
+    const { financialYear, naisAvailability } = req.body;
+    const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
     const conn = await pool;
 
     try {
@@ -535,7 +537,7 @@ async function addNaisUptime(req, res) {
             const updateNaisUptime = req.body.updateNaisUptime;
             const NaisIdOrg  = req.body.NaisIdOrg ;
         
-            const userID = req.body.userID;
+            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         
         
             const conn = await pool;
@@ -559,7 +561,7 @@ async function addNaisUptime(req, res) {
 
         async function deleteNaisUptime(req, res) {
             const naisId = req.params.nais_id;
-            const userID = req.params.userID;
+            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
             const now = new Date();
             const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -602,7 +604,8 @@ async function addNaisUptime(req, res) {
         }
         
         async function addNAISIntegration(req, res) {
-            const { financialYear, NAISintegration, NAISupgraded, userID } = req.body;
+            const { financialYear, NAISintegration, NAISupgraded } = req.body;
+            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
             console.log("User ID:", userID);
         
             try {
@@ -727,7 +730,7 @@ async function addNaisUptime(req, res) {
             const updateNAISystem = req.body.updateNAISystem;
             const NaisIntegrationIdOrg  = req.body.NaisIntegrationIdOrg ;
         
-            const userID = req.body.userID;
+            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         
         
             const conn = await pool;
@@ -752,7 +755,7 @@ async function addNaisUptime(req, res) {
 
         async function deleteNaisIntegration(req, res) {
             const naisIntegrationId = req.params.nais_integration_id;
-            const userID = req.params.userID;
+            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
             const now = new Date();
             const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -795,7 +798,8 @@ async function addNaisUptime(req, res) {
         }
 
         async function addTouristDestinations(req, res) {
-            const {financialYears, lighthouseDeveloped, annualTourist, userID} = req.body;
+            const { financialYears, lighthouseDeveloped, annualTourist } = req.body;
+            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
             console.log("response", financialYears);
             const conn = await pool;
             const request = conn.request();
@@ -888,7 +892,8 @@ async function addNaisUptime(req, res) {
         const data = req.body;
         console.log("response", data);
         
-        const {year, collectionLightDue, footFallLighthouse, userID} = req.body;
+        const { year, collectionLightDue, footFallLighthouse } = req.body;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         const conn = await pool;
         const request = conn.request();
 
@@ -1016,7 +1021,8 @@ async function addNaisUptime(req, res) {
 
        async function UpdateTouristDestinations(req, res) {
 
-        const { userID, updateFinancialYears, updateLighthouseDeveloped, updateAnnualTourist, TouristDestinationsRowId} = req.body;
+        const { updateFinancialYears, updateLighthouseDeveloped, updateAnnualTourist, TouristDestinationsRowId } = req.body;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
         console.log("req.body",req.body);
 
@@ -1073,7 +1079,8 @@ async function addNaisUptime(req, res) {
 
        async function updateTargetDestinationData(req, res) {
         
-        const {TouristDestinationsRowId, updateYear,updateCollectionLightDue,updateFootFallLighthouse, userID}= req.body;
+        const { TouristDestinationsRowId, updateYear, updateCollectionLightDue, updateFootFallLighthouse } = req.body;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         
         console.log("req.body-targeted", req.body);
 
@@ -1099,7 +1106,7 @@ async function addNaisUptime(req, res) {
 
        async function deleteTouristDestination(req, res) {
             const touristDestinationId = req.params.tourist_destination_id;
-            const userID = req.params.userID;
+            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
             const now = new Date();
             const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -1143,7 +1150,7 @@ async function addNaisUptime(req, res) {
 
        async function deleteTargetDetail(req, res) {
             const targetId = req.params.tourist_destination_target_id;
-            const userID = req.params.userID;
+            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
             const now = new Date();
             const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -1245,7 +1252,10 @@ async function addNaisUptime(req, res) {
     
 async function submitFinancialPerformance(req,res) {
    
-        const {financialId,financialYear,lightDuesCollect,revenueFromTourism,subsidesFromGovt,operatingCoasts,capitalExpenditure,tourismDevelopmentCosts,userID,organisationID,organisationName} = req.body;
+        const { financialId, financialYear, lightDuesCollect, revenueFromTourism, subsidesFromGovt, operatingCoasts, capitalExpenditure, tourismDevelopmentCosts } = req.body;
+        // A new entry belongs to the signed-in user's organisation; an edit keeps the saved one (QC KPI-02)
+        const organisationID = req.user.organisationId ?? null;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
       
         const conn = await pool;
         const existingRequest = conn.request();
@@ -1266,8 +1276,6 @@ async function submitFinancialPerformance(req,res) {
             operating_costs = @operatingCoasts,
             capital_expenditure = @capitalExpenditure,
             tourism_develop_cost = @tourismDevelopmentCosts,
-            organisation_id = @organisationID,
-            organisation_name = @organisationName,
             updated_date = GETDATE(),
             updated_by = @userID
         WHERE financialyear = @financialYear
@@ -1279,8 +1287,6 @@ async function submitFinancialPerformance(req,res) {
             .input("operatingCoasts",operatingCoasts)
             .input("capitalExpenditure",capitalExpenditure)
             .input("tourismDevelopmentCosts",tourismDevelopmentCosts)
-            .input("organisationID",organisationID)
-            .input("organisationName",organisationName)
             .input("userID", userID)
             .query(updateQuery);
             res.status(201).json({ message: "Updated successfully" });
@@ -1293,6 +1299,8 @@ async function submitFinancialPerformance(req,res) {
             `;
 
             const insertRequest = conn.request();
+            const orgName = organisationID ? (await conn.request().input("orgId", organisationID)
+                .query("SELECT organisation_name FROM mmt_organisation WHERE organisation_id = @orgId")).recordset[0]?.organisation_name ?? null : null;
             insertRequest.input("financialYear", financialYear);
             insertRequest.input("lightDuesCollect", lightDuesCollect);
             insertRequest.input("revenueFromTourism", revenueFromTourism);
@@ -1301,7 +1309,7 @@ async function submitFinancialPerformance(req,res) {
             insertRequest.input("capitalExpenditure", capitalExpenditure);
             insertRequest.input("tourismDevelopmentCosts", tourismDevelopmentCosts);
             insertRequest.input("organisationID",organisationID);
-            insertRequest.input("organisationName",organisationName);
+            insertRequest.input("organisationName", orgName);
             insertRequest.input("userID", userID);
 
             const result = await insertRequest.query(insertQuery);
@@ -1388,7 +1396,7 @@ async function getFinancialPerformanceDataByID(req,res) {
 
 async function deleteFinancialPerformance(req, res) {
     const financialId = req.params.financial_id;
-    const userID = req.params.userID;
+    const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
     const now = new Date();
     const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
