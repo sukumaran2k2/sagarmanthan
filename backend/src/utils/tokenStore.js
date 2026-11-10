@@ -29,6 +29,10 @@ export const isBlacklisted = (token) => {
     return !!entry && Date.now() >= entry.usableUntil;
 };
 
+// MIKR: the tokens issued to each user (set at MIKR token generation, removed at MIKR logout).
+// QC R-17: this declaration was dropped by mistake in 241376a.
+const userTokenMap = new Map();
+
 export const storeUserTokens = (userId, tokens) => {
     userTokenMap.set(userId, tokens);
     console.log(`Stored tokens for user ${userId}`);
