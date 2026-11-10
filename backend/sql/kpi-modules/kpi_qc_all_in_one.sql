@@ -2,7 +2,7 @@
 --
 -- Run it AFTER the new KPI code (branch fix/kpi-modules-qc) is deployed.
 -- 1. Take a backup of the database.
--- 2. Run the whole file (SSMS: Execute / F5). It runs 2 parts in order and prints each one.
+-- 2. Run the whole file (SSMS: Execute / F5). It runs 3 parts in order and prints each one.
 --
 -- Part 1 removes CSL fabrication months entered twice with the same figures (a copy of each
 -- removed row is kept in tbl_kpi_cleanup_backup). If a month is entered twice with DIFFERENT
@@ -11,6 +11,8 @@
 -- Part 2 makes the database refuse a second entry for the same period (financial year, or year +
 -- quarter / month) in 32 KPI tables, and a second lighthouse with the same name. A table that
 -- still has repeats is skipped and named in the output.
+-- Part 3 adds tbl_kpi_delete_log: a copy of every KPI entry the portal deletes, with who deleted
+-- it and when (until now these went to text files on the app server).
 --
 -- Safe to run more than once. If a part stops with an error it is rolled back and the parts
 -- after it are skipped; the last message says where it stopped.
@@ -19,6 +21,7 @@
 -- Parts:
 --   1. Remove repeated months in CSL Fabrication of Steels (QC KPI-04)
 --   2. Unique period indexes on the KPI tables (QC KPI-05 / KPI-13)
+--   3. Delete log table for KPI entries (QC KPI-08)
 
 SET NOCOUNT ON;
 SET XACT_ABORT ON;   -- any error rolls the part back and stops it
@@ -27,7 +30,7 @@ EXEC sp_set_session_context @key = N'kpi_qc_step', @value = 0;
 GO
 
 -- ============================================================================================
--- Part 1 of 2: Remove repeated months in CSL Fabrication of Steels (QC KPI-04)
+-- Part 1 of 3: Remove repeated months in CSL Fabrication of Steels (QC KPI-04)
 -- ============================================================================================
 IF ISNULL(CAST(SESSION_CONTEXT(N'kpi_qc_step') AS INT), -1) <> 0
 BEGIN
@@ -35,7 +38,7 @@ BEGIN
     SET NOEXEC ON;   -- skip the remaining parts
 END
 GO
-PRINT 'Part 1 of 2: Remove repeated months in CSL Fabrication of Steels (QC KPI-04)';
+PRINT 'Part 1 of 3: Remove repeated months in CSL Fabrication of Steels (QC KPI-04)';
 
 -- KPI CSL (QC KPI-04): remove repeated months in CSL K-4.5 Fabrication of Steels.
 --
@@ -110,7 +113,7 @@ PRINT 'Part 1 done.';
 GO
 
 -- ============================================================================================
--- Part 2 of 2: Unique period indexes on the KPI tables (QC KPI-05 / KPI-13)
+-- Part 2 of 3: Unique period indexes on the KPI tables (QC KPI-05 / KPI-13)
 -- ============================================================================================
 IF ISNULL(CAST(SESSION_CONTEXT(N'kpi_qc_step') AS INT), -1) <> 1
 BEGIN
@@ -118,7 +121,7 @@ BEGIN
     SET NOEXEC ON;   -- skip the remaining parts
 END
 GO
-PRINT 'Part 2 of 2: Unique period indexes on the KPI tables (QC KPI-05 / KPI-13)';
+PRINT 'Part 2 of 3: Unique period indexes on the KPI tables (QC KPI-05 / KPI-13)';
 
 -- KPI DGLL / CSL / IMU / SCI (QC KPI-05 / KPI-13): the database refuses a second entry for the same
 -- period (financial year, or year + quarter / month) - and a second lighthouse with the same name -
@@ -492,12 +495,52 @@ PRINT 'Part 2 done.';
 GO
 
 -- ============================================================================================
+-- Part 3 of 3: Delete log table for KPI entries (QC KPI-08)
+-- ============================================================================================
+IF ISNULL(CAST(SESSION_CONTEXT(N'kpi_qc_step') AS INT), -1) <> 2
+BEGIN
+    PRINT 'Part 3 skipped: an earlier part did not finish.';
+    SET NOEXEC ON;   -- skip the remaining parts
+END
+GO
+PRINT 'Part 3 of 3: Delete log table for KPI entries (QC KPI-08)';
+
+-- KPI DGLL / CSL / IMU / SCI (QC KPI-08): a copy of every KPI entry the portal deletes, with who
+-- deleted it and when, kept in the database (until now it went to text files under ./delete_log on
+-- the app server, which are lost on redeploy and not backed up with the data).
+--
+-- The new code writes to this table in the same transaction as the delete. Until the table exists
+-- it keeps writing the text files, so the script can run before or after the deploy.
+-- Safe to run more than once.
+
+SET XACT_ABORT ON;
+SET NOCOUNT ON;
+
+IF OBJECT_ID('dbo.tbl_kpi_delete_log', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.tbl_kpi_delete_log (
+        delete_log_id   INT IDENTITY(1, 1) PRIMARY KEY,
+        table_name      SYSNAME         NOT NULL,   -- e.g. tbl_csl_vessels_built
+        record_id       INT             NOT NULL,   -- the deleted entry's id
+        row_json        NVARCHAR(MAX)   NOT NULL,   -- the entry as it was
+        deleted_by      INT             NULL,       -- tbl_user.user_id of the signed-in user
+        deleted_date    DATETIME2(0)    NOT NULL CONSTRAINT DF_tbl_kpi_delete_log_date DEFAULT SYSUTCDATETIME()
+    );
+    CREATE INDEX IX_tbl_kpi_delete_log_table ON dbo.tbl_kpi_delete_log (table_name, record_id);
+END
+PRINT 'tbl_kpi_delete_log ready';
+
+EXEC sp_set_session_context @key = N'kpi_qc_step', @value = 3;
+PRINT 'Part 3 done.';
+GO
+
+-- ============================================================================================
 SET NOEXEC OFF;
 DECLARE @done INT = ISNULL(CAST(SESSION_CONTEXT(N'kpi_qc_step') AS INT), 0);
 DECLARE @failed INT = @done + 1;
 EXEC sp_set_session_context @key = N'kpi_qc_step', @value = NULL;
-IF @done = 2
-    PRINT 'All 2 parts done.';
+IF @done = 3
+    PRINT 'All 3 parts done.';
 ELSE IF @done = 0
     RAISERROR('Stopped: part 1 failed (see the error above), nothing was changed. Fix it and run the whole file again.', 16, 1);
 ELSE

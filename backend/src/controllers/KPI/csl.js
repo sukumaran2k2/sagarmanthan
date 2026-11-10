@@ -1,7 +1,5 @@
 import { pool } from "../../db.js";
-import { checkEdit, refuseEdit } from "./kpiEditChecks.js";
-import path from 'path';
-import fs from 'fs';
+import { checkEdit, refuseEdit, deleteKpiEntry } from "./kpiEditChecks.js";
 
 
 
@@ -158,48 +156,8 @@ import fs from 'fs';
     }
 
     async function deleteVesselsBuilt(req, res) {
-        const cslVesselId = req.params.csl_vessel_id;
-        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-
-        const now = new Date();
-        const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-        const hourPart = String(now.getHours()).padStart(2, '0');
-        const minutePart = String(now.getMinutes()).padStart(2, '0');
-        const secondPart = String(now.getSeconds()).padStart(2, '0');
-        const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
-        const logFolder = `./delete_log/CSL_Vessels_Built`;
-        const logFileName = `${logFolder}/deleted_VesselsBuilt_log_${timestamp}.txt`;
-
-        const conn = await pool;
-        const request = conn.request();
-        request.input("cslVesselId", cslVesselId);
-        request.input("userID", userID);
-        try {
-            const dataToDelete = await request.query(`SELECT * FROM tbl_csl_vessels_built WHERE csl_vessel_id = @cslVesselId;`);
-            const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
-
-            const result = await request.query(`DELETE FROM tbl_csl_vessels_built WHERE csl_vessel_id = @cslVesselId;`);
-
-            if (result.rowsAffected[0] > 0) {
-                const logMessage = `User '${userID}' deleted Vessels Built data with Data ID '${cslVesselId}'. Deleted Data: ${dataJSON}\n`;
-
-                fs.mkdirSync(logFolder, { recursive: true });
-                fs.appendFile(logFileName, logMessage, (err) => {
-                    if (err) {
-                        console.error('Error writing to delete_logs.txt:', err);
-                    }
-                });
-
-                return res.sendStatus(201);
-            } else {
-                return res.status(404).send("Data not found");
-            }
-        }
-        catch (err) {
-            console.log(err);
-            return res.sendStatus(500);
-        }
-    }
+    return deleteKpiEntry(req, res, { table: "tbl_csl_vessels_built", idColumn: "csl_vessel_id", idParam: "csl_vessel_id", logFolder: "CSL_Vessels_Built" });
+}
 
 
     async function addShipBuildingOrders(req, res) {
@@ -375,48 +333,8 @@ import fs from 'fs';
         }
 
         async function deleteShipBuildingOrders(req, res) {
-            const cslShipbuildingId = req.params.csl_shipbuilding_id;
-            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-
-            const now = new Date();
-            const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-            const hourPart = String(now.getHours()).padStart(2, '0');
-            const minutePart = String(now.getMinutes()).padStart(2, '0');
-            const secondPart = String(now.getSeconds()).padStart(2, '0');
-            const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
-            const logFolder = `./delete_log/CSL_Ship_Building_Orders`;
-            const logFileName = `${logFolder}/deleted_ShipBuildingOrders_log_${timestamp}.txt`;
-
-            const conn = await pool;
-            const request = conn.request();
-            request.input("cslShipbuildingId", cslShipbuildingId);
-            request.input("userID", userID);
-            try {
-                const dataToDelete = await request.query(`SELECT * FROM tbl_csl_ship_building_orders WHERE csl_shipbuilding_id = @cslShipbuildingId;`);
-                const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
-
-                const result = await request.query(`DELETE FROM tbl_csl_ship_building_orders WHERE csl_shipbuilding_id = @cslShipbuildingId;`);
-
-                if (result.rowsAffected[0] > 0) {
-                    const logMessage = `User '${userID}' deleted Ship Building Orders data with Data ID '${cslShipbuildingId}'. Deleted Data: ${dataJSON}\n`;
-
-                    fs.mkdirSync(logFolder, { recursive: true });
-                    fs.appendFile(logFileName, logMessage, (err) => {
-                        if (err) {
-                            console.error('Error writing to delete_logs.txt:', err);
-                        }
-                    });
-
-                    return res.sendStatus(201);
-                } else {
-                    return res.status(404).send("Data not found");
-                }
-            }
-            catch (err) {
-                console.log(err);
-                return res.sendStatus(500);
-            }
-        }
+    return deleteKpiEntry(req, res, { table: "tbl_csl_ship_building_orders", idColumn: "csl_shipbuilding_id", idParam: "csl_shipbuilding_id", logFolder: "CSL_Ship_Building_Orders" });
+}
         
     async function  addShipdelivery(req, res) {
         try {
@@ -585,48 +503,8 @@ import fs from 'fs';
         }
         
         async function deleteShipDeliveryPerformance(req, res) {
-            const cslShipdeliveryId = req.params.csl_shipdelivery_id;
-            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-
-            const now = new Date();
-            const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-            const hourPart = String(now.getHours()).padStart(2, '0');
-            const minutePart = String(now.getMinutes()).padStart(2, '0');
-            const secondPart = String(now.getSeconds()).padStart(2, '0');
-            const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
-            const logFolder = `./delete_log/CSL_Ship_Delivery_Performance`;
-            const logFileName = `${logFolder}/deleted_ShipDeliveryPerformance_log_${timestamp}.txt`;
-
-            const conn = await pool;
-            const request = conn.request();
-            request.input("cslShipdeliveryId", cslShipdeliveryId);
-            request.input("userID", userID);
-            try {
-                const dataToDelete = await request.query(`SELECT * FROM tbl_csl_ship_delivery_performance WHERE csl_shipdelivery_id = @cslShipdeliveryId;`);
-                const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
-
-                const result = await request.query(`DELETE FROM tbl_csl_ship_delivery_performance WHERE csl_shipdelivery_id = @cslShipdeliveryId;`);
-
-                if (result.rowsAffected[0] > 0) {
-                    const logMessage = `User '${userID}' deleted Ship Delivery Performance data with Data ID '${cslShipdeliveryId}'. Deleted Data: ${dataJSON}\n`;
-
-                    fs.mkdirSync(logFolder, { recursive: true });
-                    fs.appendFile(logFileName, logMessage, (err) => {
-                        if (err) {
-                            console.error('Error writing to delete_logs.txt:', err);
-                        }
-                    });
-
-                    return res.sendStatus(201);
-                } else {
-                    return res.status(404).send("Data not found");
-                }
-            }
-            catch (err) {
-                console.log(err);
-                return res.sendStatus(500);
-            }
-        }
+    return deleteKpiEntry(req, res, { table: "tbl_csl_ship_delivery_performance", idColumn: "csl_shipdelivery_id", idParam: "csl_shipdelivery_id", logFolder: "CSL_Ship_Delivery_Performance" });
+}
 
 
 
@@ -779,48 +657,8 @@ import fs from 'fs';
             }
         }
         async function deleteCapacityUtilization(req, res) {
-            const cslCapacityUtilizationId = req.params.csl_capacity_utilization_id;
-            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-
-            const now = new Date();
-            const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-            const hourPart = String(now.getHours()).padStart(2, '0');
-            const minutePart = String(now.getMinutes()).padStart(2, '0');
-            const secondPart = String(now.getSeconds()).padStart(2, '0');
-            const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
-            const logFolder = `./delete_log/CSL_Capacity_Utilization`;
-            const logFileName = `${logFolder}/deleted_CapacityUtilization_log_${timestamp}.txt`;
-
-            const conn = await pool;
-            const request = conn.request();
-            request.input("cslCapacityUtilizationId", cslCapacityUtilizationId);
-            request.input("userID", userID);
-            try {
-                const dataToDelete = await request.query(`SELECT * FROM tbl_csl_capacity_utilization WHERE csl_capacity_utilization_id = @cslCapacityUtilizationId;`);
-                const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
-
-                const result = await request.query(`DELETE FROM tbl_csl_capacity_utilization WHERE csl_capacity_utilization_id = @cslCapacityUtilizationId;`);
-
-                if (result.rowsAffected[0] > 0) {
-                    const logMessage = `User '${userID}' deleted Capacity Utilization data with Data ID '${cslCapacityUtilizationId}'. Deleted Data: ${dataJSON}\n`;
-
-                    fs.mkdirSync(logFolder, { recursive: true });
-                    fs.appendFile(logFileName, logMessage, (err) => {
-                        if (err) {
-                            console.error('Error writing to delete_logs.txt:', err);
-                        }
-                    });
-
-                    return res.sendStatus(201);
-                } else {
-                    return res.status(404).send("Data not found");
-                }
-            }
-            catch (err) {
-                console.log(err);
-                return res.sendStatus(500);
-            }
-        }
+    return deleteKpiEntry(req, res, { table: "tbl_csl_capacity_utilization", idColumn: "csl_capacity_utilization_id", idParam: "csl_capacity_utilization_id", logFolder: "CSL_Capacity_Utilization" });
+}
         async function addfabricationofsteels(req, res) {
             try {
                 const { financialYear, fabricationmonth, fabricationOfSteels, fabrigationinTonns } = req.body;
@@ -994,48 +832,8 @@ import fs from 'fs';
         }
 
         async function deleteFabricationOfSteels(req, res) {
-            const cslFabricationId = req.params.csl_fabrication_id;
-            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-
-            const now = new Date();
-            const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-            const hourPart = String(now.getHours()).padStart(2, '0');
-            const minutePart = String(now.getMinutes()).padStart(2, '0');
-            const secondPart = String(now.getSeconds()).padStart(2, '0');
-            const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
-            const logFolder = `./delete_log/CSL_Fabrication_Of_Steels`;
-            const logFileName = `${logFolder}/deleted_FabricationOfSteels_log_${timestamp}.txt`;
-
-            const conn = await pool;
-            const request = conn.request();
-            request.input("cslFabricationId", cslFabricationId);
-            request.input("userID", userID);
-            try {
-                const dataToDelete = await request.query(`SELECT * FROM tbl_csl_fabrication_of_steels WHERE csl_fabrication_id = @cslFabricationId;`);
-                const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
-
-                const result = await request.query(`DELETE FROM tbl_csl_fabrication_of_steels WHERE csl_fabrication_id = @cslFabricationId;`);
-
-                if (result.rowsAffected[0] > 0) {
-                    const logMessage = `User '${userID}' deleted Fabrication of Steels data with Data ID '${cslFabricationId}'. Deleted Data: ${dataJSON}\n`;
-
-                    fs.mkdirSync(logFolder, { recursive: true });
-                    fs.appendFile(logFileName, logMessage, (err) => {
-                        if (err) {
-                            console.error('Error writing to delete_logs.txt:', err);
-                        }
-                    });
-
-                    return res.sendStatus(201);
-                } else {
-                    return res.status(404).send("Data not found");
-                }
-            }
-            catch (err) {
-                console.log(err);
-                return res.sendStatus(500);
-            }
-        }
+    return deleteKpiEntry(req, res, { table: "tbl_csl_fabrication_of_steels", idColumn: "csl_fabrication_id", idParam: "csl_fabrication_id", logFolder: "CSL_Fabrication_Of_Steels" });
+}
     
         async function addShipRepaired(req, res) {
             try {
@@ -1209,48 +1007,8 @@ import fs from 'fs';
         }
 
         async function deleteShipRepaired(req, res) {
-            const cslShipsRepairedId = req.params.csl_ships_reapired_id;
-            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-
-            const now = new Date();
-            const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-            const hourPart = String(now.getHours()).padStart(2, '0');
-            const minutePart = String(now.getMinutes()).padStart(2, '0');
-            const secondPart = String(now.getSeconds()).padStart(2, '0');
-            const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
-            const logFolder = `./delete_log/CSL_Ships_Repaired`;
-            const logFileName = `${logFolder}/deleted_ShipsRepaired_log_${timestamp}.txt`;
-
-            const conn = await pool;
-            const request = conn.request();
-            request.input("cslShipsRepairedId", cslShipsRepairedId);
-            request.input("userID", userID);
-            try {
-                const dataToDelete = await request.query(`SELECT * FROM tbl_csl_ships_repaired WHERE csl_ships_reapired_id = @cslShipsRepairedId;`);
-                const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
-
-                const result = await request.query(`DELETE FROM tbl_csl_ships_repaired WHERE csl_ships_reapired_id = @cslShipsRepairedId;`);
-
-                if (result.rowsAffected[0] > 0) {
-                    const logMessage = `User '${userID}' deleted Ships Repaired data with Data ID '${cslShipsRepairedId}'. Deleted Data: ${dataJSON}\n`;
-
-                    fs.mkdirSync(logFolder, { recursive: true });
-                    fs.appendFile(logFileName, logMessage, (err) => {
-                        if (err) {
-                            console.error('Error writing to delete_logs.txt:', err);
-                        }
-                    });
-
-                    return res.sendStatus(201);
-                } else {
-                    return res.status(404).send("Data not found");
-                }
-            }
-            catch (err) {
-                console.log(err);
-                return res.sendStatus(500);
-            }
-        }
+    return deleteKpiEntry(req, res, { table: "tbl_csl_ships_repaired", idColumn: "csl_ships_reapired_id", idParam: "csl_ships_reapired_id", logFolder: "CSL_Ships_Repaired" });
+}
     
 
 
