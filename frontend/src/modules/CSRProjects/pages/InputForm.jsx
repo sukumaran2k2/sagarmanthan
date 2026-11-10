@@ -22,6 +22,13 @@ const STAGES = [
   { id: 'expenditure', title: 'Expenditure & Media', icon: IndianRupee },
 ];
 const STAGE_IDS = STAGES.map((s) => s.id);
+// The stage each field is on, to show a field the server refused (QC R-25)
+const FIELD_STAGE = {
+  csrFocus: 'general', financialYear: 'general', projectName: 'general', receivedFrom: 'general', projectValue: 'general',
+  impact: 'outcomes', beneficiaries: 'outcomes', remarks: 'outcomes',
+  status: 'status', commencedOn: 'status', completedOn: 'status', physicalProgress: 'status', financialProgress: 'status',
+  expenditure: 'expenditure',
+};
 
 const MAX_DOC_MB = 20;      // completion document (PDF)
 const MAX_GALLERY_MB = 10;  // each gallery photo / video (the server's limit)
@@ -282,19 +289,20 @@ function ProjectForm({ editData, organisationId, onBack, onSaved, notify }) {
       // Field names as the server reads them (2.0 contract)
       const payload = {
         organisationID: organisationId,
-        csrfocus: Number(values.csrFocus),
-        focusID: Number(values.csrFocus),
+        // An empty field is sent empty, not as 0, so an old project's blank value stays blank (QC R-25)
+        csrfocus: values.csrFocus !== '' ? Number(values.csrFocus) : null,
+        focusID: values.csrFocus !== '' ? Number(values.csrFocus) : null,
         nameofproject: values.projectName.trim(),
         projectReceived: values.receivedFrom.trim(),
         impactproject: values.impact.trim(),
         targetbeneficiaries: values.beneficiaries.trim(),
-        projectvalue: croreToLakh(values.projectValue),
+        projectvalue: values.projectValue !== '' ? croreToLakh(values.projectValue) : null,
         projectstatus: effectiveStatus,
         financialYear: values.financialYear,
         commencedon: values.commencedOn || null,
         completedon: values.completedOn || null,
-        physicalprogresssofar: values.physicalProgress !== '' ? Number(values.physicalProgress) : 0,
-        finiancialprogresssofar: values.financialProgress !== '' ? Number(values.financialProgress) : 0,
+        physicalprogresssofar: values.physicalProgress !== '' ? Number(values.physicalProgress) : null,
+        finiancialprogresssofar: values.financialProgress !== '' ? Number(values.financialProgress) : null,
         remarksoftheproject: values.remarks.trim(),
         expenditures: expenditures
           .filter((x) => x.cost !== '')
@@ -311,6 +319,12 @@ function ProjectForm({ editData, organisationId, onBack, onSaved, notify }) {
         }
       } catch (err) {
         console.error('Error saving CSR project:', err);
+        // A field the server refused is shown on its stage, next to the field (QC R-25)
+        const field = err.response?.status === 400 ? err.response.data?.field : null;
+        if (field && FIELD_STAGE[field]) {
+          setErrors((e) => ({ ...e, [field]: err.response.data.error }));
+          setActiveStage(FIELD_STAGE[field]);
+        }
         notify(CSR_TOASTS.projectSaveFailed(isEdit, getErrorMessage(err)));
         return;
       }

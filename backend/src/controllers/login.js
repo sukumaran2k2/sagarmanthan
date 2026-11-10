@@ -299,7 +299,8 @@ function generateChainlitToken(user) {
 async function resetpassword(req, res) {
 
   const email = req.body.email;
-  const updated_on = req.body.updated_on;
+  // password_updated_on is set on the database clock (GETDATE), like the other password changes and
+  // the session check in refresh-token.js - never from a time the browser sends (QC R-22)
   const reCaptchaResponse = req.body.recaptchaResponse;
   const RECAPTCHA_SECRET_KEY = process.env.RECAPTCHA_SECRET_KEY || '6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe';
 
@@ -349,7 +350,6 @@ async function resetpassword(req, res) {
     if (userData && userData.status === 1) {
       const newPassword = await generateRandomPassword();
 
-      console.log("GENERATED_RESET_PASSWORD:", newPassword);
       const saltRounds = 10;
       const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
       //console.log("hashedPassword",hashedPassword);
@@ -358,14 +358,13 @@ async function resetpassword(req, res) {
         try {
           const sqlQuery = `
                         UPDATE tbl_user 
-                        SET password = @hashedPassword, password_status = 1 , password_updated_on = @updated_on
+                        SET password = @hashedPassword, password_status = 1 , password_updated_on = GETDATE()
                         WHERE user_id = @userID
                     `;
 
           const request = conn.request();
           request.input("hashedPassword", hashedPassword);
           request.input("userID", userData.user_id);
-          request.input("updated_on", updated_on);
 
           await request.query(sqlQuery);
 

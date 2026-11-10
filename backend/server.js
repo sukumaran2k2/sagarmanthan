@@ -24,7 +24,8 @@ const corsOptions = {
   origin: ALLOWED_ORIGIN,
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
+  // Cache-Control: the network speed test asks for an uncached answer (QC R-26)
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin", "Cache-Control"],
 };
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));

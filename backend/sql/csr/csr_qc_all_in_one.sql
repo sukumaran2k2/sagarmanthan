@@ -366,6 +366,7 @@ PRINT 'Part 6 of 9: Delete log and audit columns (QC CSR-11 / CSR-36)';
 --   3. Project and fund created / updated dates keep the time too (DATE -> DATETIME2).
 --      Existing dates stay as they are (midnight of that day).
 --   New times are saved in UTC (SYSUTCDATETIME), which the portal shows in local time (QC R-09).
+--   4. Date defaults on the CSR tables are set to UTC as well (QC R-24).
 -- Safe to run more than once. Take a backup first.
 
 SET XACT_ABORT ON;
@@ -429,6 +430,28 @@ BEGIN
     FETCH NEXT FROM cols INTO @t, @c;
 END
 CLOSE cols; DEALLOCATE cols;
+
+-- 4. Date defaults on the CSR tables use UTC, like the code (QC R-24). A default still set to the
+-- server's local time (getdate / sysdatetime) is replaced; the column and its data are unchanged.
+DECLARE @dt SYSNAME, @dcol SYSNAME, @dcon SYSNAME, @dsql NVARCHAR(MAX), @dn INT = 0;
+DECLARE defaults CURSOR LOCAL FAST_FORWARD FOR
+    SELECT OBJECT_NAME(d.parent_object_id), c.name, d.name
+    FROM sys.default_constraints d
+    JOIN sys.columns c ON c.object_id = d.parent_object_id AND c.column_id = d.parent_column_id
+    WHERE OBJECT_NAME(d.parent_object_id) LIKE 'tbl[_]csr[_]%'
+      AND REPLACE(REPLACE(LOWER(d.definition), '(', ''), ')', '') IN ('getdate', 'sysdatetime', 'current_timestamp');
+OPEN defaults;
+FETCH NEXT FROM defaults INTO @dt, @dcol, @dcon;
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    SET @dsql = N'ALTER TABLE dbo.' + QUOTENAME(@dt) + N' DROP CONSTRAINT ' + QUOTENAME(@dcon) + N'; '
+              + N'ALTER TABLE dbo.' + QUOTENAME(@dt) + N' ADD CONSTRAINT ' + QUOTENAME(@dcon) + N' DEFAULT SYSUTCDATETIME() FOR ' + QUOTENAME(@dcol) + N';';
+    EXEC (@dsql);
+    SET @dn += 1;
+    FETCH NEXT FROM defaults INTO @dt, @dcol, @dcon;
+END
+CLOSE defaults; DEALLOCATE defaults;
+PRINT 'CSR date defaults set to UTC: ' + CAST(@dn AS VARCHAR(12));
 
 COMMIT;
 
