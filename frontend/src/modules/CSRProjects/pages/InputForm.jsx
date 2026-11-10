@@ -61,10 +61,15 @@ const initialProject = (item) => ({
   financialProgress: numberText(item?.financial_progress),
 });
 
-// The status saved: "Completed" only when both progress figures are 100%, and back to
-// "Under implementation" when either falls below
-const statusOf = (v) => {
+// The status saved: "Completed" when both progress figures are 100%, and back to "Under
+// implementation" when either falls below. An edit that leaves both progress figures as they were
+// keeps a saved "Completed" (old projects completed without 100 / 100 progress), so changing
+// another field doesn't change the status behind the user's back (QC R-18).
+const statusOf = (v, saved) => {
   if (Number(v.physicalProgress) === 100 && Number(v.financialProgress) === 100) return 'Completed';
+  const progressUnchanged = saved && String(v.physicalProgress) === String(saved.physicalProgress)
+    && String(v.financialProgress) === String(saved.financialProgress);
+  if (v.status === 'Completed' && saved?.status === 'Completed' && progressUnchanged) return 'Completed';
   return v.status === 'Completed' ? 'Project Under implementation' : v.status;
 };
 
@@ -102,7 +107,7 @@ function stageErrors(stageId, v, saved) {
     if (changed('remarks') && v.remarks.trim().length > REMARKS_MAX) errs.remarks = `At most ${REMARKS_MAX} characters.`;
   } else if (stageId === 'status') {
     // Status, dates and progress have to agree (QC CSR-43)
-    const status = statusOf(v);
+    const status = statusOf(v, saved);
     const strict = changed('status', 'physicalProgress', 'financialProgress', 'commencedOn', 'completedOn');
     const datesChanged = changed('commencedOn', 'completedOn');
     if (changed('status') && !status) errs.status = 'Select the project status.';
@@ -168,7 +173,10 @@ function ProjectForm({ editData, organisationId, onBack, onSaved, notify }) {
   // "Completed" is set only by both progress figures reaching 100%, and drops back to
   // "Under implementation" when either falls below
   const isFullyComplete = Number(values.physicalProgress) === 100 && Number(values.financialProgress) === 100;
-  const effectiveStatus = statusOf(values);
+  const effectiveStatus = statusOf(values, savedValues);
+  // An old project saved as Completed without 100 / 100 progress keeps that status until a progress
+  // figure is changed (QC R-18); the field shows it and can't be changed directly
+  const keptCompleted = effectiveStatus === 'Completed' && !isFullyComplete;
 
   const setValue = (key, value) => {
     setValues((v) => ({ ...v, [key]: value }));
@@ -495,15 +503,17 @@ function ProjectForm({ editData, organisationId, onBack, onSaved, notify }) {
                   id="csr-status"
                   value={effectiveStatus}
                   onChange={(e) => setValue('status', e.target.value)}
-                  disabled={isFullyComplete}
+                  disabled={isFullyComplete || keptCompleted}
                   className="module-form-select disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:cursor-not-allowed"
                 >
                   {!effectiveStatus && <option value="">-- Select --</option>}
-                  {CSR_STATUSES.filter((s) => s !== 'Completed' || isFullyComplete).map((s) => <option key={s} value={s}>{s}</option>)}
+                  {CSR_STATUSES.filter((s) => s !== 'Completed' || effectiveStatus === 'Completed').map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
                 {fieldError('status')}
                 <p className="text-[10px] font-semibold text-slate-500 mt-1">
-                  {isFullyComplete ? 'Set automatically: both progress figures are 100%.' : 'Becomes "Completed" once physical and financial progress both reach 100%.'}
+                  {isFullyComplete ? 'Set automatically: both progress figures are 100%.'
+                    : keptCompleted ? 'Saved as Completed. It changes only if you change a progress figure.'
+                    : 'Becomes "Completed" once physical and financial progress both reach 100%.'}
                 </p>
               </div>
               <div className="hidden md:block" />

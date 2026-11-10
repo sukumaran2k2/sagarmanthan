@@ -534,9 +534,15 @@ async function csrfileDownload(req, res)
 //   ?page=&pageSize=  -> { rows, total, counts: { all, active, completed } } for that page
 //   no page           -> every matching row (the Copy / Excel / PDF export)
 // Filters: category (all / active / completed), organisation (Ministry only), financialYear,
-// focus, status, search (project, organisation, received from, beneficiaries, remarks).
+// focus, status, search (project, organisation, received from, beneficiaries, remarks); sort + dir.
 const PAGE_SIZES = [10, 25, 50, 100];
 const STATUS_SQL = "ISNULL(NULLIF(p.project_status, ''), 'Project yet to start')";
+// Columns the list may be sorted by (?sort=&dir=asc|desc), so a header sorts every matching
+// project, not just the page on screen (QC R-19); anything else keeps the default order
+const LIST_SORTS = {
+    organisation_name: 'o.organisation_name', financial_year: 'p.financial_year', project_name: 'p.project_name',
+    project_value: 'p.project_value', project_status: STATUS_SQL, completed_on: 'p.completed_on', remarks: 'p.remarks',
+};
 const likeText = (v) => `%${String(v).replace(/[\\%_[]/g, (c) => `\\${c}`)}%`;
 
 async function getCsrProjectslist(req, res)
@@ -581,6 +587,19 @@ async function getCsrProjectslist(req, res)
         }
         const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
+        const sortColumn = LIST_SORTS[q.sort];
+        const orderSql = sortColumn
+            ? `${sortColumn} ${q.dir === 'desc' ? 'DESC' : 'ASC'}, p.csr_project_id DESC`
+            : `p.financial_year DESC,
+                CASE p.project_status
+                    WHEN 'Approved by Board' THEN 1
+                    WHEN 'Project yet to start' THEN 2
+                    WHEN 'Project Under implementation' THEN 3
+                    WHEN 'Completed' THEN 4
+                    ELSE 5
+                END,
+                p.csr_project_id DESC`;
+
         const pageSize = PAGE_SIZES.includes(Number(q.pageSize)) ? Number(q.pageSize) : 10;
         const page = Math.max(1, Math.floor(Number(q.page)) || 1);
         request.input('offset', (page - 1) * pageSize);
@@ -595,15 +614,7 @@ async function getCsrProjectslist(req, res)
             FROM tbl_csr_projects p
             JOIN mmt_organisation o ON o.organisation_id = p.organisation_id
             ${whereSql}
-            ORDER BY p.financial_year DESC,
-                CASE p.project_status
-                    WHEN 'Approved by Board' THEN 1
-                    WHEN 'Project yet to start' THEN 2
-                    WHEN 'Project Under implementation' THEN 3
-                    WHEN 'Completed' THEN 4
-                    ELSE 5
-                END,
-                p.csr_project_id DESC
+            ORDER BY ${orderSql}
             ${paged ? 'OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY' : ''};
             ${paged ? `
             SELECT COUNT(*) AS total FROM tbl_csr_projects p
@@ -774,6 +785,16 @@ async function updateCsrProjects(req, res)
                     JOIN tbl_csr_projects p ON p.csr_project_id = e.csr_project_id;
 
                 DELETE e FROM tbl_csr_expenditure e JOIN #gone g ON g.csr_expenditure_id = e.csr_expenditure_id;
+
+                -- A changed amount: the row as it was goes to the log first (QC CSR-36)
+                IF OBJECT_ID('dbo.tbl_csr_delete_log', 'U') IS NOT NULL
+                    INSERT INTO tbl_csr_delete_log (entity, record_id, csr_project_id, organisation_id, row_json, deleted_by, deleted_date)
+                    SELECT 'expenditure_changed', e.csr_expenditure_id, e.csr_project_id, p.organisation_id,
+                           (SELECT e.* FOR JSON PATH, WITHOUT_ARRAY_WRAPPER, INCLUDE_NULL_VALUES), @userID, SYSUTCDATETIME()
+                    FROM tbl_csr_expenditure e
+                    JOIN #wanted w ON w.[year] = e.[year]
+                    JOIN tbl_csr_projects p ON p.csr_project_id = e.csr_project_id
+                    WHERE e.csr_project_id = @projectID AND ISNULL(e.csr_expenditure_cost, -1) <> w.cost;
 
                 UPDATE e SET csr_expenditure_cost = w.cost, updated_by = @userID, updated_date = SYSUTCDATETIME()
                 FROM tbl_csr_expenditure e JOIN #wanted w ON w.[year] = e.[year]
