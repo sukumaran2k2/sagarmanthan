@@ -26,6 +26,7 @@ IF OBJECT_ID('dbo.tbl_csr_cleanup_backup') IS NULL
     );
 
 -- 1. Blank projects: no organisation, no name and no creator (13 rows on the 6 Nov 2026 copy)
+DROP TABLE IF EXISTS #blank;
 SELECT p.csr_project_id INTO #blank
 FROM tbl_csr_projects p
 WHERE p.organisation_id IS NULL AND p.project_name IS NULL AND p.created_by IS NULL;
@@ -83,28 +84,59 @@ IF EXISTS (SELECT 1 FROM tbl_csr_expenditure WHERE csr_project_id IS NULL)
     THROW 50004, 'Some tbl_csr_expenditure rows have no csr_project_id. Remove or fix them, then run again. Nothing was changed.', 1;
 
 -- Each column is changed only while it still allows NULL, so a second run skips this part.
+-- Each keeps its existing type, length and collation - only NOT NULL is added (QC R-20).
 -- An index on the column has to be dropped while it changes and is then put back (the focus
 -- index from schema-changes _1, and script 04's indexes if 04 was run before this one).
+DROP TABLE IF EXISTS #csrColumnType;
+SELECT OBJECT_NAME(c.object_id) AS tbl, c.name AS col,
+       CASE WHEN t.name IN ('varchar', 'char', 'varbinary', 'binary')
+                THEN t.name + '(' + CASE WHEN c.max_length = -1 THEN 'MAX' ELSE CAST(c.max_length AS VARCHAR(10)) END + ')'
+            WHEN t.name IN ('nvarchar', 'nchar')
+                THEN t.name + '(' + CASE WHEN c.max_length = -1 THEN 'MAX' ELSE CAST(c.max_length / 2 AS VARCHAR(10)) END + ')'
+            WHEN t.name IN ('decimal', 'numeric')
+                THEN t.name + '(' + CAST(c.precision AS VARCHAR(10)) + ',' + CAST(c.scale AS VARCHAR(10)) + ')'
+            WHEN t.name IN ('datetime2', 'time', 'datetimeoffset')
+                THEN t.name + '(' + CAST(c.scale AS VARCHAR(10)) + ')'
+            ELSE t.name END
+       + CASE WHEN c.collation_name IS NOT NULL THEN ' COLLATE ' + c.collation_name ELSE '' END AS spec
+INTO #csrColumnType
+FROM sys.columns c
+JOIN sys.types t ON t.user_type_id = c.user_type_id
+WHERE (c.object_id = OBJECT_ID('dbo.tbl_csr_projects') AND c.name IN ('organisation_id', 'project_name', 'project_value', 'project_status', 'csr_focus'))
+   OR (c.object_id = OBJECT_ID('dbo.tbl_csr_expenditure') AND c.name = 'csr_project_id');
+DECLARE @alterSql NVARCHAR(MAX);
+
 IF COLUMNPROPERTY(OBJECT_ID('dbo.tbl_csr_projects'), 'organisation_id', 'AllowsNull') = 1
 BEGIN
     DECLARE @orgIndex BIT = CASE WHEN EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_tbl_csr_projects_organisation_year'
                                               AND object_id = OBJECT_ID('dbo.tbl_csr_projects')) THEN 1 ELSE 0 END;
     IF @orgIndex = 1 DROP INDEX IX_tbl_csr_projects_organisation_year ON tbl_csr_projects;
-    ALTER TABLE tbl_csr_projects ALTER COLUMN organisation_id INT NOT NULL;
+    SELECT @alterSql = N'ALTER TABLE dbo.tbl_csr_projects ALTER COLUMN organisation_id ' + spec + N' NOT NULL' FROM #csrColumnType WHERE tbl = 'tbl_csr_projects' AND col = 'organisation_id';
+    EXEC sp_executesql @alterSql;
     IF @orgIndex = 1 CREATE INDEX IX_tbl_csr_projects_organisation_year ON tbl_csr_projects (organisation_id, financial_year);
 END
 IF COLUMNPROPERTY(OBJECT_ID('dbo.tbl_csr_projects'), 'project_name', 'AllowsNull') = 1
-    ALTER TABLE tbl_csr_projects ALTER COLUMN project_name VARCHAR(255) NOT NULL;
+BEGIN
+    SELECT @alterSql = N'ALTER TABLE dbo.tbl_csr_projects ALTER COLUMN project_name ' + spec + N' NOT NULL' FROM #csrColumnType WHERE tbl = 'tbl_csr_projects' AND col = 'project_name';
+    EXEC sp_executesql @alterSql;
+END
 IF COLUMNPROPERTY(OBJECT_ID('dbo.tbl_csr_projects'), 'project_value', 'AllowsNull') = 1
-    ALTER TABLE tbl_csr_projects ALTER COLUMN project_value DECIMAL(12,2) NOT NULL;
+BEGIN
+    SELECT @alterSql = N'ALTER TABLE dbo.tbl_csr_projects ALTER COLUMN project_value ' + spec + N' NOT NULL' FROM #csrColumnType WHERE tbl = 'tbl_csr_projects' AND col = 'project_value';
+    EXEC sp_executesql @alterSql;
+END
 IF COLUMNPROPERTY(OBJECT_ID('dbo.tbl_csr_projects'), 'project_status', 'AllowsNull') = 1
-    ALTER TABLE tbl_csr_projects ALTER COLUMN project_status VARCHAR(50) NOT NULL;
+BEGIN
+    SELECT @alterSql = N'ALTER TABLE dbo.tbl_csr_projects ALTER COLUMN project_status ' + spec + N' NOT NULL' FROM #csrColumnType WHERE tbl = 'tbl_csr_projects' AND col = 'project_status';
+    EXEC sp_executesql @alterSql;
+END
 IF COLUMNPROPERTY(OBJECT_ID('dbo.tbl_csr_projects'), 'csr_focus', 'AllowsNull') = 1
 BEGIN
     DECLARE @focusIndex BIT = CASE WHEN EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_tbl_csr_projects_csr_focus'
                                                 AND object_id = OBJECT_ID('dbo.tbl_csr_projects')) THEN 1 ELSE 0 END;
     IF @focusIndex = 1 DROP INDEX IX_tbl_csr_projects_csr_focus ON tbl_csr_projects;
-    ALTER TABLE tbl_csr_projects ALTER COLUMN csr_focus INT NOT NULL;
+    SELECT @alterSql = N'ALTER TABLE dbo.tbl_csr_projects ALTER COLUMN csr_focus ' + spec + N' NOT NULL' FROM #csrColumnType WHERE tbl = 'tbl_csr_projects' AND col = 'csr_focus';
+    EXEC sp_executesql @alterSql;
     CREATE INDEX IX_tbl_csr_projects_csr_focus ON tbl_csr_projects (csr_focus);
 END
 IF COLUMNPROPERTY(OBJECT_ID('dbo.tbl_csr_expenditure'), 'csr_project_id', 'AllowsNull') = 1
@@ -112,7 +144,8 @@ BEGIN
     DECLARE @expIndex BIT = CASE WHEN EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_tbl_csr_expenditure_project_year'
                                               AND object_id = OBJECT_ID('dbo.tbl_csr_expenditure')) THEN 1 ELSE 0 END;
     IF @expIndex = 1 DROP INDEX IX_tbl_csr_expenditure_project_year ON tbl_csr_expenditure;
-    ALTER TABLE tbl_csr_expenditure ALTER COLUMN csr_project_id INT NOT NULL;
+    SELECT @alterSql = N'ALTER TABLE dbo.tbl_csr_expenditure ALTER COLUMN csr_project_id ' + spec + N' NOT NULL' FROM #csrColumnType WHERE tbl = 'tbl_csr_expenditure' AND col = 'csr_project_id';
+    EXEC sp_executesql @alterSql;
     IF @expIndex = 1 CREATE INDEX IX_tbl_csr_expenditure_project_year ON tbl_csr_expenditure (csr_project_id, [year]) INCLUDE (csr_expenditure_cost);
 END
 PRINT 'Required fields set';
