@@ -361,19 +361,24 @@ async function vipPendencyWingWiseReport (req, res)
             mmt_wings.wing_id;        
         ;`);      
 
-        const rowData = result.recordset;  
-    
+        const rowData = result.recordset;
+
         if (rowData.length === 0) {
             return res.status(404).json({ error: 'No data available' });
         }
-        
-        const columnDefs = Object.keys(rowData[0]).map(key => ({
-            headerName: key.charAt(0).toUpperCase() + key.slice(1), // Capitalize the first letter
-            field: key,
-        }));
-        res.json({ columnDefs, rowData });     
+
+        const columnDefs = [
+            { headerName: "S.No", field: "S No", cellStyle: { textAlign: 'center' } },
+            { headerName: "Wing ID", field: "Wing ID", hide: true },
+            { headerName: "Wing", field: "Wing" },
+            { headerName: "Total No of Pending VIP References", field: "Total No of Pending VIP References" },
+            { headerName: "0-30 Days", field: "0-30 Days" },
+            { headerName: "31-60 Days", field: "31-60 Days" },
+            { headerName: "More Than 60 Days", field: "More Than 60 Days" },
+        ];
+        res.json({ columnDefs, rowData });
     }
-    catch(err) 
+    catch(err)
     {
         console.log(err);
         return res.sendStatus(500);
@@ -442,30 +447,43 @@ async function vipPendencyDivisionWiseReport (req, res)
             ) AS [More Than 60 Days]
         FROM
             mmt_division
-        LEFT JOIN 
+        LEFT JOIN
             tbl_vip_reference ON mmt_division.division_id = tbl_vip_reference.division
-        LEFT JOIN 
+                AND tbl_vip_reference.wing = @wingID
+        LEFT JOIN
             mmt_vip_stage ON mmt_vip_stage.vip_stage_id = tbl_vip_reference.stage_id
         WHERE
-            mmt_division.wing_id = @wingID OR tbl_vip_reference.wing = @wingID AND DATEDIFF(day, GETDATE(), tbl_vip_reference.received_at_ministry_date) < 0  AND (stage_id != 6 ) 
+            mmt_division.wing_id = @wingID
+            AND (
+                (
+                    DATEDIFF(day, GETDATE(), COALESCE(tbl_vip_reference.received_at_ministry_date, GETDATE())) < 0
+                    AND COALESCE(tbl_vip_reference.stage_id, 6) != 6
+                )
+                OR tbl_vip_reference.received_at_ministry_date IS NULL
+            )
         GROUP BY
             mmt_division.division_id,
             mmt_division.division_name
         Order BY
             mmt_division.division_id      
         ;`);
-        const rowData = result.recordset;  
+        const rowData = result.recordset;
         if (rowData.length === 0) {
             return res.status(404).json({ error: 'No data available' });
         }
-        
-        const columnDefs = Object.keys(rowData[0]).map(key => ({
-            headerName: key.charAt(0).toUpperCase() + key.slice(1), 
-            field: key,
-        }));
+
+        const columnDefs = [
+            { headerName: "S.No", field: "S No", cellStyle: { textAlign: 'center' } },
+            { headerName: "Division Id", field: "Division Id", hide: true },
+            { headerName: "Division Name", field: "Division Name" },
+            { headerName: "Total No of Pending VIP References", field: "Total No of Pending VIP References" },
+            { headerName: "0-30 Days", field: "0-30 Days" },
+            { headerName: "31-60 Days", field: "31-60 Days" },
+            { headerName: "More Than 60 Days", field: "More Than 60 Days" },
+        ];
         res.json({ columnDefs, rowData });
     }
-    catch(err) 
+    catch(err)
     {
         console.log(err);
         return res.sendStatus(500);
@@ -553,8 +571,8 @@ async function getDetailVipPendencyWingWise (req, res)
                 INNER JOIN mmt_wings on mmt_wings.wing_id = tbl_vip_reference.wing
                    
                 INNER JOIN mmt_vip_stage on mmt_vip_stage.vip_stage_id = tbl_vip_reference.stage_id
-            WHERE (wing = @wingID) AND (stage_id != 6 ) 
-                AND DATEDIFF(D, GETDATE(), received_at_ministry_date) <= 61     
+            WHERE (wing = @wingID) AND (stage_id != 6 )
+                AND DATEDIFF(D, GETDATE(), received_at_ministry_date) <= -61
             ;`);
         }
 
@@ -617,9 +635,9 @@ async function getDetailVipPendencyDivisionWise (req, res)
          --   INNER JOIN mmt_wings on mmt_wings.wing_id= tbl_vip_reference.wing
             INNER JOIN mmt_division on mmt_division.division_id = tbl_vip_reference.division       
             INNER JOIN mmt_vip_stage on mmt_vip_stage.vip_stage_id = tbl_vip_reference.stage_id
-            WHERE (division = @divisionID) AND (stage_id != 6 ) 
+            WHERE (division = @divisionID) AND (stage_id != 6 )
             AND (DATEDIFF(D, GETDATE(), received_at_ministry_date) <= 0 AND
-            DATEDIFF(D, GETDATE(), received_at_ministry_date) >= 30 )         
+            DATEDIFF(D, GETDATE(), received_at_ministry_date) >= -30 )         
         ;`);
     }
     else if(countDate > 30 && countDate <= 60)
@@ -644,9 +662,9 @@ async function getDetailVipPendencyDivisionWise (req, res)
           --  INNER JOIN mmt_wings on mmt_wings.wing_id= tbl_vip_reference.wing
             INNER JOIN mmt_division on mmt_division.division_id = tbl_vip_reference.division       
             INNER JOIN mmt_vip_stage on mmt_vip_stage.vip_stage_id = tbl_vip_reference.stage_id
-            WHERE (division = @divisionID) AND (stage_id != 6 ) 
-            AND (DATEDIFF(D, GETDATE(), received_at_ministry_date) <= 31 AND
-            DATEDIFF(D, GETDATE(), received_at_ministry_date) >= 60 ) 
+            WHERE (division = @divisionID) AND (stage_id != 6 )
+            AND (DATEDIFF(D, GETDATE(), received_at_ministry_date) <= -31 AND
+            DATEDIFF(D, GETDATE(), received_at_ministry_date) >= -60 ) 
             ORDER BY subject, eoffice_file_number
         ;`);
     }
@@ -671,8 +689,8 @@ async function getDetailVipPendencyDivisionWise (req, res)
             FROM tbl_vip_reference 
             INNER JOIN mmt_division on mmt_division.division_id = tbl_vip_reference.division       
             INNER JOIN mmt_vip_stage on mmt_vip_stage.vip_stage_id = tbl_vip_reference.stage_id
-            WHERE (division = @divisionID) AND (stage_id != 6 ) 
-            AND DATEDIFF(D, GETDATE(), received_at_ministry_date) <= 61    
+            WHERE (division = @divisionID) AND (stage_id != 6 )
+            AND DATEDIFF(D, GETDATE(), received_at_ministry_date) <= -61    
             ORDER BY subject, eoffice_file_number
         ;`);
     }

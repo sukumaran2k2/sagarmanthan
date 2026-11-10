@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import ReportTable from '../../../components/ReportTable';
-import  {axiosInstance, fetchWings } from '../api.js';
+import { fetchVipReportByUrl, fetchWings } from '../api';
 import { STAGE_MAPPING, PENDENCY_AGE_MAPPING } from '../utils/constants';
 import { FileText, Clock, Filter } from 'lucide-react';
 
@@ -58,7 +58,7 @@ export default function Reports({ triggerNotification }) {
   const fetchReportData = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await axiosInstance.get(currentView.url);
+      const response = await fetchVipReportByUrl(currentView.url);
       const data = response.data || {};
       
       const rawRows = Array.isArray(data.rowData) ? data.rowData : (Array.isArray(data) ? data : []);
