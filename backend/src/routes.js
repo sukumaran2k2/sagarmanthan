@@ -1,3 +1,4 @@
+import { ministryOnly } from "./middleware/dataScope.js";
 import { validateKpiBody } from "./middleware/kpiValidation.js";
 import express from "express";
 
@@ -387,15 +388,15 @@ const billsDelete = requireModulePermission("BILLS_PRE_CONSTITUTION", "delete");
 
 //attendance
 //check
-router.get("/employee-attendance-file", auth, attRead, empAttendanceTab.getEmployeeAttendance);
+router.get("/employee-attendance-file", auth, ministryOnly, attRead, empAttendanceTab.getEmployeeAttendance);
 
-router.get("/employee-attendance-view", auth, attRead, empAttendanceTab.getEmpAttendance);
-router.post("/employee-attendance", auth, attCreate, empAttendanceTab.uploadSingleFile, empAttendanceTab.createEmpAttendance);
-router.put("/attend-employee", auth, attUpdate, empAttendanceTab.uploadSingleFile, empAttendanceTab.updateEmpAttendance);
-router.post("/employee-attendance-data", auth, attCreate, empAttendanceTab.addEmpDataAttendance);
-router.get("/employee-org-units", auth, attRead, empAttendanceTab.getEmployeeOrgUnits);
-router.get("/employee-attendance/download/:id", auth, attRead, empAttendanceTab.downloadEmpAttendanceFile);
-router.delete("/employee-attendance/:id", auth, attDelete, empAttendanceTab.deleteEmpAttendanceFile);
+router.get("/employee-attendance-view", auth, ministryOnly, attRead, empAttendanceTab.getEmpAttendance);
+router.post("/employee-attendance", auth, ministryOnly, attCreate, empAttendanceTab.uploadSingleFile, empAttendanceTab.createEmpAttendance);
+router.put("/attend-employee", auth, ministryOnly, attUpdate, empAttendanceTab.uploadSingleFile, empAttendanceTab.updateEmpAttendance);
+router.post("/employee-attendance-data", auth, ministryOnly, attCreate, empAttendanceTab.addEmpDataAttendance);
+router.get("/employee-org-units", auth, ministryOnly, attRead, empAttendanceTab.getEmployeeOrgUnits);
+router.get("/employee-attendance/download/:id", auth, ministryOnly, attRead, empAttendanceTab.downloadEmpAttendanceFile);
+router.delete("/employee-attendance/:id", auth, ministryOnly, attDelete, empAttendanceTab.deleteEmpAttendanceFile);
 // router.post("/employee-attendance/storecsv/:id",empAttendanceTab.storeEMPAttendanceData);
 // router.get("/employee-attendance/downloadSampleDocument", empAttendanceTab.downloadEmpSampleDocument);
 
@@ -734,11 +735,11 @@ router.delete(
 // Audit Para: signed-in users with the AUDIT_PARAS rights; the user and their scope come from
 // the token, not from the request
 const auditParaRead = requireModulePermission("AUDIT_PARAS", "read");
-router.get("/audit-para-dashboard", auth, auditParaRead, auditParaTab.getAuditParaDashboard);
-router.get("/audit-para", auth, auditParaRead, auditParaTab.getAuditPara);
-router.post("/audit-para", auth, requireModulePermission("AUDIT_PARAS", "create"), auditParaTab.createAuditPara);
-router.put("/audit-para", auth, requireModulePermission("AUDIT_PARAS", "update"), auditParaTab.updateAuditPara);
-router.delete("/audit-para/:audit_para_id/:userID", auth, requireModulePermission("AUDIT_PARAS", "delete"), auditParaTab.deleteAuditPara);
+router.get("/audit-para-dashboard", auth, ministryOnly, auditParaRead, auditParaTab.getAuditParaDashboard);
+router.get("/audit-para", auth, ministryOnly, auditParaRead, auditParaTab.getAuditPara);
+router.post("/audit-para", auth, ministryOnly, requireModulePermission("AUDIT_PARAS", "create"), auditParaTab.createAuditPara);
+router.put("/audit-para", auth, ministryOnly, requireModulePermission("AUDIT_PARAS", "update"), auditParaTab.updateAuditPara);
+router.delete("/audit-para/:audit_para_id/:userID", auth, ministryOnly, requireModulePermission("AUDIT_PARAS", "delete"), auditParaTab.deleteAuditPara);
 
 //Issues Tracking
 
@@ -764,42 +765,42 @@ router.get("/decision-implement/:ID", decisionController.getUpdateDecisionImplem
 
 // E-OFFICE
 //File pendancy
-router.get('/file-pendancy-report/:Year/:Month/:Week', auth, eofficeRead, eOfficeTab.getFilePendenceReport);
-router.get("/file-pendancy-all", auth, eofficeRead, eOfficeTab.getFilePendenceAll);
-router.get("/file-pendancy-check", auth, eofficeRead, eOfficeTab.getFilePendenceCheck);
-router.get("/file-pendancy-History", auth, eofficeRead, eOfficeTab.getFilePendencyHistory);
-router.get("/file-pendancy/download/:id", auth, eofficeRead, eOfficeTab.downloadFilePendancy);
-router.get("/file-pendancy/download-sample", auth, eofficeRead, eOfficeTab.downloadFilePendancySample);
-router.delete("/file-pendancy/delete/:id", auth, eofficeDelete, eOfficeTab.deleteFilePendency);
+router.get('/file-pendancy-report/:Year/:Month/:Week', auth, ministryOnly, eofficeRead, eOfficeTab.getFilePendenceReport);
+router.get("/file-pendancy-all", auth, ministryOnly, eofficeRead, eOfficeTab.getFilePendenceAll);
+router.get("/file-pendancy-check", auth, ministryOnly, eofficeRead, eOfficeTab.getFilePendenceCheck);
+router.get("/file-pendancy-History", auth, ministryOnly, eofficeRead, eOfficeTab.getFilePendencyHistory);
+router.get("/file-pendancy/download/:id", auth, ministryOnly, eofficeRead, eOfficeTab.downloadFilePendancy);
+router.get("/file-pendancy/download-sample", auth, ministryOnly, eofficeRead, eOfficeTab.downloadFilePendancySample);
+router.delete("/file-pendancy/delete/:id", auth, ministryOnly, eofficeDelete, eOfficeTab.deleteFilePendency);
 // Unknown Emp Ids in an E-Office sheet: create them (same as Attendance, under E-Office rights)
-router.post("/eoffice-employee-data", auth, eofficeCreate, empAttendanceTab.addEmpDataAttendance);
-router.get("/eoffice-employee-org-units", auth, eofficeRead, empAttendanceTab.getEmployeeOrgUnits);
-router.post("/file-pendancy-create", auth, eofficeCreate, EofficeFilePendancyTab.upload.single('file'), EofficeFilePendancyTab.addFilePendancy);
-router.put("/file-pendancy-update", auth, eofficeUpdate, EofficeFilePendancyTab.upload.single('file'), EofficeFilePendancyTab.updateFilePendancy);
+router.post("/eoffice-employee-data", auth, ministryOnly, eofficeCreate, empAttendanceTab.addEmpDataAttendance);
+router.get("/eoffice-employee-org-units", auth, ministryOnly, eofficeRead, empAttendanceTab.getEmployeeOrgUnits);
+router.post("/file-pendancy-create", auth, ministryOnly, eofficeCreate, EofficeFilePendancyTab.uploadSingleFile, EofficeFilePendancyTab.addFilePendancy);
+router.put("/file-pendancy-update", auth, ministryOnly, eofficeUpdate, EofficeFilePendancyTab.uploadSingleFile, EofficeFilePendancyTab.updateFilePendancy);
 
 
 //Receipt pendancy
-router.get('/receipt-pendancy-report/:Year/:Month/:Week', auth, eofficeRead, eOfficeTab.getReceiptPendenceReport);
-router.get("/receipt-pendancy-all", auth, eofficeRead, eOfficeTab.getReceiptPendenceAll);
-router.get("/receipt-pendancy-check", auth, eofficeRead, eOfficeTab.getReceiptPendenceCheck);
-router.get("/receipt-pendancy-History", auth, eofficeRead, eOfficeTab.getReceiptPendencyHistory);
-router.get("/receipt-pendancy/download/:id", auth, eofficeRead, eOfficeTab.downloadReceiptPendency);
-router.get("/receipt-pendancy/download-sample", auth, eofficeRead, eOfficeTab.downloadReceiptPendencySample);
-router.delete("/receipt-pendancy/delete/:id", auth, eofficeDelete, eOfficeTab.deleteReceiptPendency);
-router.post("/receipt-pendancy-create", auth, eofficeCreate, EofficeReceiptPendancyTab.upload.single('file'), EofficeReceiptPendancyTab.addReceiptPendancy);
-router.put("/receipt-pendancy-update", auth, eofficeUpdate, EofficeReceiptPendancyTab.upload.single('file'), EofficeReceiptPendancyTab.updateReceiptPendancy);
+router.get('/receipt-pendancy-report/:Year/:Month/:Week', auth, ministryOnly, eofficeRead, eOfficeTab.getReceiptPendenceReport);
+router.get("/receipt-pendancy-all", auth, ministryOnly, eofficeRead, eOfficeTab.getReceiptPendenceAll);
+router.get("/receipt-pendancy-check", auth, ministryOnly, eofficeRead, eOfficeTab.getReceiptPendenceCheck);
+router.get("/receipt-pendancy-History", auth, ministryOnly, eofficeRead, eOfficeTab.getReceiptPendencyHistory);
+router.get("/receipt-pendancy/download/:id", auth, ministryOnly, eofficeRead, eOfficeTab.downloadReceiptPendency);
+router.get("/receipt-pendancy/download-sample", auth, ministryOnly, eofficeRead, eOfficeTab.downloadReceiptPendencySample);
+router.delete("/receipt-pendancy/delete/:id", auth, ministryOnly, eofficeDelete, eOfficeTab.deleteReceiptPendency);
+router.post("/receipt-pendancy-create", auth, ministryOnly, eofficeCreate, EofficeReceiptPendancyTab.uploadSingleFile, EofficeReceiptPendancyTab.addReceiptPendancy);
+router.put("/receipt-pendancy-update", auth, ministryOnly, eofficeUpdate, EofficeReceiptPendancyTab.uploadSingleFile, EofficeReceiptPendancyTab.updateReceiptPendancy);
 
 
 //File disposal
-router.get('/file-disposal-report/:Year/:Month/:Week', auth, eofficeRead, eOfficeTab.getFileDisposalReport);
-router.get("/file-disposal-all", auth, eofficeRead, eOfficeTab.getFileDisposalAll);
-router.get("/file-disposal-check", auth, eofficeRead, eOfficeTab.getFileDisposalCheck);
-router.get("/file-disposal-History", auth, eofficeRead, eOfficeTab.getFileDisposalHistory);
-router.get("/file-disposal/download/:id", auth, eofficeRead, eOfficeTab.downloadFileDisposal);
-router.get("/file-disposal/download-sample", auth, eofficeRead, eOfficeTab.downloadFileDisposalSample);
-router.delete("/file-disposal/delete/:id", auth, eofficeDelete, eOfficeTab.deleteFileDisposal);
-router.post("/file-disposal-create", auth, eofficeCreate, EofficeFileDisposalTab.upload.single('file'), EofficeFileDisposalTab.addFileDisposal);
-router.put("/file-disposal-update", auth, eofficeUpdate, EofficeFileDisposalTab.upload.single('file'), EofficeFileDisposalTab.updateFileDisposal);
+router.get('/file-disposal-report/:Year/:Month/:Week', auth, ministryOnly, eofficeRead, eOfficeTab.getFileDisposalReport);
+router.get("/file-disposal-all", auth, ministryOnly, eofficeRead, eOfficeTab.getFileDisposalAll);
+router.get("/file-disposal-check", auth, ministryOnly, eofficeRead, eOfficeTab.getFileDisposalCheck);
+router.get("/file-disposal-History", auth, ministryOnly, eofficeRead, eOfficeTab.getFileDisposalHistory);
+router.get("/file-disposal/download/:id", auth, ministryOnly, eofficeRead, eOfficeTab.downloadFileDisposal);
+router.get("/file-disposal/download-sample", auth, ministryOnly, eofficeRead, eOfficeTab.downloadFileDisposalSample);
+router.delete("/file-disposal/delete/:id", auth, ministryOnly, eofficeDelete, eOfficeTab.deleteFileDisposal);
+router.post("/file-disposal-create", auth, ministryOnly, eofficeCreate, EofficeFileDisposalTab.uploadSingleFile, EofficeFileDisposalTab.addFileDisposal);
+router.put("/file-disposal-update", auth, ministryOnly, eofficeUpdate, EofficeFileDisposalTab.uploadSingleFile, EofficeFileDisposalTab.updateFileDisposal);
 
 
 // Official Foreign Visit

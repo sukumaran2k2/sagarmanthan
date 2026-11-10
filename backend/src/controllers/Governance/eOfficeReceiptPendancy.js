@@ -4,6 +4,8 @@ import fs from 'fs';
 import path from 'path';
 import xlsx from 'xlsx';
 import { pool } from "../../db.js";
+import { spreadsheetFileFilter, singleSpreadsheet } from "./eOfficeUpload.js";
+import { readPeriod } from "./eOfficePeriod.js";
 import { fileURLToPath } from 'url';
 
 const uploadDestination = "./fileuploads/E-Office/Receipt_Pendancy";
@@ -23,10 +25,12 @@ const storage = multer.diskStorage({
     },
 });
 
-const upload = multer({ 
+const upload = multer({
     storage: storage,
-    limits: { fileSize: 10000000 }  
+    limits: { fileSize: 10000000 },
+    fileFilter: spreadsheetFileFilter,
 });
+const uploadSingleFile = singleSpreadsheet(upload);
 
 async function addReceiptPendancy(req, res) {
     let transaction;
@@ -34,10 +38,12 @@ async function addReceiptPendancy(req, res) {
         const conn = await pool;
         const request = conn.request();
 
-        const rawYear = req.body.Year || req.body.financialYear;
-        const Year = parseInt(rawYear, 10) || 2026;
-        const month = req.body.month;
-        const week = parseInt(req.body.week, 10) || 1;
+        const period = readPeriod(req.body);
+        if (period.error) {
+            deleteFile(req.uniqueFileName);
+            return res.status(400).json({ error: period.error });
+        }
+        const { Year, month, week } = period;
         const userID = req.user.userId; // the uploader is the signed-in user, not a form value
         const uniqueFileName = req.uniqueFileName;
 
@@ -157,7 +163,7 @@ async function addReceiptPendancy(req, res) {
                 await transaction.rollback();
                 transaction = null;
                 deleteFile(req.file, req.uniqueFileName);
-                return res.status(402).json({ error: `Employee ID(s) not found in the employee table: ${missingEmpIds.join(', ')}`, EmpId: missingEmpIds[0], missingEmpIds });
+                return res.status(422).json({ error: `Employee ID(s) not found in the employee table: ${missingEmpIds.join(', ')}`, EmpId: missingEmpIds[0], missingEmpIds });
             }
         }
 
@@ -236,7 +242,7 @@ async function addReceiptPendancy(req, res) {
         }
         deleteFile(req.file, req.uniqueFileName);
         console.error(err);
-        res.status(500).json({ error: "Internal server error: " + err.message });
+        res.status(500).json({ error: "The sheet could not be saved. Please try again." });
     }
 }
 
@@ -246,9 +252,13 @@ async function updateReceiptPendancy(req, res) {
         const conn = await pool;
         const request = conn.request();
 
-        const Year = req.body.Year;
-        const month = req.body.month;
-        const week = req.body.week;
+        const period = readPeriod(req.body);
+        if (period.error) {
+            deleteFile(req.uniqueFileName);
+            return res.status(400).json({ error: period.error });
+        }
+        const { Year, month, week } = period;
+
         const FileId = req.body.fileId;
         const userID = req.user.userId; // the uploader is the signed-in user, not a form value
 
@@ -293,7 +303,7 @@ async function updateReceiptPendancy(req, res) {
         }
         if (duplicateEmpIds.length > 0) {
             deleteFile(req.file, req.uniqueFileName);
-            return res.status(410).json({ error: `Duplicate/Empty Emp-Ids found ${duplicateEmpIds.join(', ')}` });
+            return res.status(400).json({ error: `Duplicate/Empty Emp-Ids found ${duplicateEmpIds.join(', ')}` });
         }
 
          for (const row of trimmedData) {
@@ -312,7 +322,7 @@ async function updateReceiptPendancy(req, res) {
             if ( EmpId !== 'Total' && EmpId !== null && EmpId !== undefined) {
                 if (typeof EmpId !== 'string') {
                     deleteFile(req.uniqueFileName);
-                    return res.status(403).json({ error: 'Invalid Emp Id format' });
+                    return res.status(400).json({ error: 'Invalid Emp Id format' });
                 }    
                 if (
                     !Number.isInteger(ZeroToThreeDays) || 
@@ -323,7 +333,7 @@ async function updateReceiptPendancy(req, res) {
                     !Number.isInteger(TotalPendency)
                 ) {
                     deleteFile(req.uniqueFileName);
-                    return res.status(403).json({ error: 'Invalid/Empty value for one or more fields in number' });
+                    return res.status(400).json({ error: 'Invalid/Empty value for one or more fields in number' });
                 }        
             }
         }
@@ -347,7 +357,7 @@ async function updateReceiptPendancy(req, res) {
 
             if (missingEmpIds.length > 0) {
                 deleteFile(req.uniqueFileName);
-                return res.status(402).json({ error: `Employee ID(s) not found in the employee table: ${missingEmpIds.join(', ')}`, EmpId: missingEmpIds[0], missingEmpIds });
+                return res.status(422).json({ error: `Employee ID(s) not found in the employee table: ${missingEmpIds.join(', ')}`, EmpId: missingEmpIds[0], missingEmpIds });
             }
         }
             
@@ -495,6 +505,6 @@ function deleteFile(fileName) {
 
 
 
-const EofficeReceiptPendancyTab = { addReceiptPendancy, upload,
+const EofficeReceiptPendancyTab = { addReceiptPendancy, upload, uploadSingleFile,
     updateReceiptPendancy };
 export default EofficeReceiptPendancyTab;

@@ -52,3 +52,12 @@ export default {
   getDataScope,
   applyDataScope,
 };
+
+// Ministry-internal modules (Audit Paras, E-Office, Attendance) hold MoPSW data with no
+// organisation column, so only Ministry and master scope may use them, whatever rights are
+// ticked for an organisation login (QC AP-01).
+export function ministryOnly(req, res, next) {
+  const { isWide } = getDataScope(req.user);
+  if (!isWide) return res.status(403).json({ message: 'This module is for Ministry users only.' });
+  return next();
+}
