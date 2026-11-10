@@ -8,8 +8,8 @@ export const STATUS_STEPS = {
   7: 'Dropped'
 };
 
-// Data List status filter: every para not yet dropped (used by the dashboard's open-para links)
-export const OPEN_STATUS = 'Open (not dropped)';
+// Data List status filter: every para not yet dropped (used by the dashboard's active-para links)
+export const ACTIVE_STATUS = 'Active (not dropped)';
 
 export const CATEGORIES = ['Audit Para', 'Draft Para', 'CAG Report Item'];
 

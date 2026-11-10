@@ -8,17 +8,18 @@ import { newChartRoot, chartColors, useIsDark } from '../../../utils/amCharts';
 import { COMMON_TOASTS } from '../../../utils/notify';
 import { exportTableRows } from '../../../utils/exportTableRows';
 import { fetchAuditParaDashboard } from '../api';
-import { STATUS_STEPS, OPEN_STATUS } from '../constants';
+import { STATUS_STEPS, ACTIVE_STATUS, CATEGORIES } from '../constants';
 
-// Same layout and theme as the other module dashboards: KPI cards; 1. open paras per stage with how
-// long they have waited; 2. paras per wing (per division once a wing is picked), open and dropped,
-// by category; 3. the ten longest-pending paras; 4. paras received and dropped each year. Open = every stage before "Dropped". Rows, bars and pending paras open the
+// Same layout and theme as the other module dashboards: KPI cards; 1. active paras per stage with how
+// long they have waited; 2. paras per wing (per division once a wing is picked), active and dropped,
+// by category; 3. the ten longest-pending paras; 4. paras received and dropped each year. Wing and
+// category filters narrow every figure. Active = every stage before "Dropped". Rows, bars and pending paras open the
 // Data List with the matching filters.
 
 const formatDate = (v) => (v ? new Date(v).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 const hex = (n) => `#${n.toString(16).padStart(6, '0')}`;
 
-// Category colours, shared by the charts (open: navy / orange; dropped: green / light green)
+// Category colours, shared by the charts (active: navy / orange; dropped: green / light green)
 const AUDIT = 0x1e4d8c;
 const DRAFT = 0xd97706;
 
@@ -109,10 +110,10 @@ function BarChart({ data, categoryField, series, horizontal = false, stacked = t
   return <div ref={divRef} style={{ width: '100%', height: '100%', overflow: 'hidden' }} />;
 }
 
-// 2. Paras per wing / division: open, then dropped, each by category
+// 2. Paras per wing / division: active, then dropped, each by category
 const SPLIT_SERIES = [
-  { field: 'audit_para', name: 'Audit Para (open)', color: AUDIT },
-  { field: 'draft_para', name: 'Draft Para (open)', color: DRAFT },
+  { field: 'audit_para', name: 'Audit Para (active)', color: AUDIT },
+  { field: 'draft_para', name: 'Draft Para (active)', color: DRAFT },
   { field: 'dropped_audit', name: 'Audit Para (dropped)', color: 0x3b8a4a },
   { field: 'dropped_draft', name: 'Draft Para (dropped)', color: 0xa7d7a8, label: 0x14532d },
 ];
@@ -121,6 +122,54 @@ const YEAR_SERIES = [
   { field: 'received', name: 'Received', color: 0x6366f1 },
   { field: 'dropped', name: 'Dropped', color: 0x3b8a4a },
 ];
+
+// Filter button with a dropdown list. options: [{ value, label }]; '' is the 'all' choice.
+function FilterDropdown({ value, options, allLabel, onChange }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setIsOpen(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, []);
+  const current = options.find((o) => String(o.value) === String(value));
+  const choose = (v) => { onChange(v); setIsOpen(false); };
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setIsOpen((o) => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition cursor-pointer ${
+          value
+            ? 'bg-indigo-50 border-indigo-200 text-[#6366f1] dark:bg-indigo-950/40 dark:border-indigo-800 dark:text-indigo-400'
+            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-400'
+        }`}
+      >
+        <Filter className="h-3 w-3" />
+        {value ? (current?.label || allLabel) : allLabel}
+        <ChevronDown className="h-3 w-3" />
+      </button>
+      {isOpen && (
+        <div role="listbox" className="absolute left-0 top-full mt-1.5 w-48 max-h-64 overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50">
+          {[{ value: '', label: allLabel }, ...options].map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              role="option"
+              aria-selected={String(value) === String(o.value)}
+              onClick={() => choose(o.value)}
+              className={`flex w-full items-center px-3 py-2 text-xs font-semibold text-left cursor-pointer border-none bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800 ${String(value) === String(o.value) ? 'text-[#6366f1]' : 'text-slate-700 dark:text-slate-200'}`}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function PendingDays({ days }) {
   const cls = days >= 180 ? 'text-red-600 dark:text-red-400' : days >= 60 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400';
@@ -161,7 +210,7 @@ function TableExportMenu({ onExport }) {
 
 const STAGE_COLUMNS = [
   { key: 'stage', label: 'Stage', value: (r) => r.stage_name },
-  { key: 'count', label: 'Open paras', value: (r) => r.para_count },
+  { key: 'count', label: 'Active paras', value: (r) => r.para_count },
   { key: 'avg', label: 'Avg days', value: (r) => (r.para_count ? r.avg_days : '—') },
   { key: 'max', label: 'Max days', value: (r) => (r.para_count ? r.max_days : '—') },
 ];
@@ -184,17 +233,17 @@ const clickableRow = 'cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-950
 // onOpenList({ wing, division, category, status, search }) opens the Data List with those filters
 export default function AuditParaDashboard({ notify, wings = [], onOpenList }) {
   const [selectedWing, setSelectedWing] = useState('');
-  const [wingDropdownOpen, setWingDropdownOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('');
   const [splitChartRoot, setSplitChartRoot] = useState(null);
   const [yearChartRoot, setYearChartRoot] = useState(null);
 
   // Dashboard figures, tagged with the request they answer
   const [reloadKey, setReloadKey] = useState(0);
-  const requestKey = `${selectedWing}:${reloadKey}`;
+  const requestKey = `${selectedWing}:${selectedCategory}:${reloadKey}`;
   const [result, setResult] = useState(null); // { key, data, failed }
   useEffect(() => {
     let cancelled = false;
-    fetchAuditParaDashboard(selectedWing)
+    fetchAuditParaDashboard(selectedWing, selectedCategory)
       .then((res) => { if (!cancelled) setResult({ key: requestKey, data: res.data }); })
       .catch((err) => {
         if (cancelled) return;
@@ -203,15 +252,9 @@ export default function AuditParaDashboard({ notify, wings = [], onOpenList }) {
         notify(COMMON_TOASTS.loadFailed('The Audit Para dashboard'));
       });
     return () => { cancelled = true; };
-  }, [requestKey, selectedWing, notify]);
+  }, [requestKey, selectedWing, selectedCategory, notify]);
   const loading = result?.key !== requestKey;
 
-  const wingDropdownRef = useRef(null);
-  useEffect(() => {
-    const close = (e) => { if (wingDropdownRef.current && !wingDropdownRef.current.contains(e.target)) setWingDropdownOpen(false); };
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
-  }, []);
 
   const data = loading ? null : result.data;
   const { kpi, lastDataUpdate } = data || {};
@@ -223,15 +266,17 @@ export default function AuditParaDashboard({ notify, wings = [], onOpenList }) {
   const selectedWingName = wings.find((w) => String(w.wing_id) === String(selectedWing))?.wing_name;
 
   // Bar of the wing / division chart -> the Data List for that wing (and division), category and
-  // open / dropped. "Audit Para" bars stand for every category but Draft Para.
+  // active / dropped. "Audit Para" bars stand for every category but Draft Para; with a category
+  // picked, that category is used.
   const pickSplit = useMemo(() => (row, field) => {
     if (!row || !onOpenList) return;
     const isDraft = field === 'draft_para' || field === 'dropped_draft';
-    const isDropped = field.startsWith('dropped');
+    const category = selectedCategory || (isDraft ? 'Draft Para' : 'Audit Para');
+    const status = field.startsWith('dropped') ? STATUS_STEPS[7] : ACTIVE_STATUS;
     onOpenList(breakdown.by === 'division'
-      ? { wing: selectedWingName, division: row.name, category: isDraft ? 'Draft Para' : 'Audit Para', status: isDropped ? STATUS_STEPS[7] : OPEN_STATUS }
-      : { wing: row.name, category: isDraft ? 'Draft Para' : 'Audit Para', status: isDropped ? STATUS_STEPS[7] : OPEN_STATUS });
-  }, [breakdown.by, selectedWingName, onOpenList]);
+      ? { wing: selectedWingName, division: row.name, category, status }
+      : { wing: row.name, category, status });
+  }, [breakdown.by, selectedWingName, selectedCategory, onOpenList]);
 
   if (loading) return (
     <div className="flex items-center justify-center py-20 text-slate-500 text-sm">
@@ -247,9 +292,8 @@ export default function AuditParaDashboard({ notify, wings = [], onOpenList }) {
   );
 
   const exportRows = (type, columns, rows, fileName, title) => exportTableRows(type, { columns, rows, fileName, title, notify });
-  const chooseWing = (id) => { setSelectedWing(id); setWingDropdownOpen(false); };
   const openDraft = kpi?.openDraft || 0;
-  const wingFilter = selectedWingName ? { wing: selectedWingName } : {};
+  const wingFilter = { ...(selectedWingName ? { wing: selectedWingName } : {}), ...(selectedCategory ? { category: selectedCategory } : {}) };
   const openStage = (row) => onOpenList?.({ ...wingFilter, status: STATUS_STEPS[row.stage_id] });
   const openPara = (row) => onOpenList?.({ search: row.para_number });
   const rowKeys = (open) => (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } };
@@ -260,49 +304,32 @@ export default function AuditParaDashboard({ notify, wings = [], onOpenList }) {
     <div className="space-y-5 bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-indigo-950/25 dark:via-slate-950 dark:to-purple-950/20 rounded-3xl p-6">
       <div className="flex flex-wrap items-center gap-3">
         <p className="text-[10px] text-slate-700 dark:text-slate-300 font-semibold">Last updated date: {formatDate(lastDataUpdate)}</p>
-        <div className="relative" ref={wingDropdownRef}>
-          <button
-            type="button"
-            onClick={() => setWingDropdownOpen((o) => !o)}
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition cursor-pointer ${
-              selectedWing
-                ? 'bg-indigo-50 border-indigo-200 text-[#6366f1] dark:bg-indigo-950/40 dark:border-indigo-800 dark:text-indigo-400'
-                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-400'
-            }`}
-          >
-            <Filter className="h-3 w-3" />
-            {selectedWing ? (selectedWingName || 'Wing') : 'All Wings'}
-            <ChevronDown className="h-3 w-3" />
-          </button>
-          {wingDropdownOpen && (
-            <div className="absolute left-0 top-full mt-1.5 w-48 max-h-64 overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50">
-              {[{ wing_id: '', wing_name: 'All Wings' }, ...wings].map((w) => (
-                <button
-                  key={w.wing_id}
-                  type="button"
-                  onClick={() => chooseWing(w.wing_id)}
-                  className={`flex w-full items-center px-3 py-2 text-xs font-semibold text-left cursor-pointer border-none bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800 ${String(selectedWing) === String(w.wing_id) ? 'text-[#6366f1]' : 'text-slate-700 dark:text-slate-200'}`}
-                >
-                  {w.wing_name}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        <FilterDropdown
+          value={selectedWing}
+          allLabel="All Wings"
+          options={wings.map((w) => ({ value: w.wing_id, label: w.wing_name }))}
+          onChange={setSelectedWing}
+        />
+        <FilterDropdown
+          value={selectedCategory}
+          allLabel="All Categories"
+          options={CATEGORIES.map((c) => ({ value: c, label: c }))}
+          onChange={setSelectedCategory}
+        />
         {onOpenList && <p className="text-[10px] text-slate-600 dark:text-slate-400">Click a stage, bar or pending para to see those paras in the Data List.</p>}
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiCard label="Total paras" value={kpi?.total} subtext={selectedWing ? selectedWingName : 'Across all wings'} icon={Layers}
+        <KpiCard label="Total paras" value={kpi?.total} subtext={[selectedWing ? selectedWingName : 'Across all wings', selectedCategory].filter(Boolean).join(' · ')} icon={Layers}
           valueColorClass="text-[#6366f1] dark:text-indigo-400" subtextColorClass="text-indigo-600 dark:text-indigo-400"
           iconWrapClass="bg-indigo-50 dark:bg-indigo-950/40 text-[#6366f1] dark:text-indigo-400 border-indigo-100 dark:border-indigo-900" />
-        <KpiCard label="Open paras" value={kpi?.open} subtext={`${openDraft} draft ${openDraft === 1 ? 'para' : 'paras'}`} icon={FileWarning}
+        <KpiCard label="Active paras" value={kpi?.open} subtext={selectedCategory ? 'Not yet dropped' : `${openDraft} draft ${openDraft === 1 ? 'para' : 'paras'}`} icon={FileWarning}
           valueColorClass="text-amber-700 dark:text-amber-400" subtextColorClass="text-amber-700 dark:text-amber-400"
           iconWrapClass="bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-900" />
         <KpiCard label="Dropped" value={kpi?.dropped} subtext="Settled and dropped by CAG" icon={CheckCircle2}
           valueColorClass="text-emerald-700 dark:text-emerald-400" subtextColorClass="text-emerald-700 dark:text-emerald-400"
           iconWrapClass="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900" />
-        <KpiCard label="Avg age of open paras (days)" value={kpi?.avgAgeDays} subtext="Since received at the Ministry" icon={Clock}
+        <KpiCard label="Avg age of active paras (days)" value={kpi?.avgAgeDays} subtext="Since received at the Ministry" icon={Clock}
           valueColorClass="text-teal-700 dark:text-teal-400" subtextColorClass="text-teal-700 dark:text-teal-400"
           iconWrapClass="bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-100 dark:border-teal-900" />
       </div>
@@ -310,8 +337,8 @@ export default function AuditParaDashboard({ notify, wings = [], onOpenList }) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
         <div className={panel}>
           <div className={panelHeader}>
-            <h3 className={panelTitle}><span className="text-indigo-200">1.</span> Open paras by stage</h3>
-            <TableExportMenu onExport={(type) => exportRows(type, STAGE_COLUMNS, stageRows, 'audit_paras_by_stage', 'Audit Paras - Open Paras by Stage')} />
+            <h3 className={panelTitle}><span className="text-indigo-200">1.</span> Active paras by stage</h3>
+            <TableExportMenu onExport={(type) => exportRows(type, STAGE_COLUMNS, stageRows, 'audit_paras_by_stage', 'Audit Paras - Active Paras by Stage')} />
           </div>
           <div className="flex-1 min-h-0 p-3 flex flex-col">
             <div className="flex-1 min-h-0 overflow-auto rounded-xl border border-slate-200 dark:border-slate-800">

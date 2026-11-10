@@ -227,18 +227,25 @@ async function deleteAuditPara(req, res) {
 }
 
 // Dashboard: totals, open paras per stage with how long they have waited, paras per wing (per division of a picked wing), paras received and dropped each year, and the
-// ten longest-pending paras. ?wingId narrows everything; across wings the wing chart stays whole.
+// ten longest-pending paras. ?wingId narrows everything (across wings the wing chart stays whole);
+// ?category narrows everything. Active = every stage before Dropped.
 async function getAuditParaDashboard(req, res) {
     const conn = await pool;
     try {
         const wingId = Number(req.query.wingId);
         const filterWing = Number.isInteger(wingId) && wingId > 0;
+        // ?category narrows every figure, the wing chart included
+        const category = CATEGORIES.includes(req.query.category) ? req.query.category : null;
         const query = async (sql, { byWing = true } = {}) => {
             const request = conn.request();
             const conditions = [await auditScope(request, req.user.userId)];
             if (byWing && filterWing) {
                 request.input("filterWingId", wingId);
                 conditions.push('tbl_audit_para.wing = @filterWingId');
+            }
+            if (category) {
+                request.input("filterCategory", category);
+                conditions.push('tbl_audit_para.category = @filterCategory');
             }
             // Every /*SCOPE*/ in the statement gets the same conditions
             return (await request.query(sql.split('/*SCOPE*/').join(conditions.map((c) => `AND ${c}`).join(' ')))).recordset;

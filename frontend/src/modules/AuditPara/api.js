@@ -48,9 +48,12 @@ export function fetchAuditParas(userID) {
   return api.get('/audit-para', { params: { userID } });
 }
 
-// Dashboard figures; wingId narrows the cards, stage table and long-pending list
-export function fetchAuditParaDashboard(wingId) {
-  return api.get('/audit-para-dashboard', { params: wingId ? { wingId } : {} });
+// Dashboard figures; wingId and category ('' = all) narrow them
+export function fetchAuditParaDashboard(wingId, category) {
+  const params = {};
+  if (wingId) params.wingId = wingId;
+  if (category) params.category = category;
+  return api.get('/audit-para-dashboard', { params });
 }
 
 export function createAuditPara(payload) {
