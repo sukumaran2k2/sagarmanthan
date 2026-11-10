@@ -57,7 +57,7 @@ const isDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(new Date(v)
 // Checks the form and returns the values to save, or { error }. The stage is the last step
 // reached (the browser's selectedStage isn't trusted); a dated step counts once it has a date.
 // A new para's wing and division are checked; an update keeps them.
-async function readAuditPara(body, conn, { isNew }) {
+async function readAuditPara(body, conn, { isNew, savedDays = null }) {
     const paraNumber = String(body.auditParaNumber ?? '').trim();
     const subject = String(body.subject ?? '').trim();
     const category = String(body.category ?? '').trim();
@@ -67,10 +67,20 @@ async function readAuditPara(body, conn, { isNew }) {
     if (subject.length > 256) return { error: 'Subject can be at most 256 characters.' };
     if (!CATEGORIES.includes(category)) return { error: 'Category must be Audit Para, Draft Para or CAG Report Item.' };
 
+    // Stage dates as on the form: valid, not in the future, and each on or after the previous dated
+    // stage (QC AP-03). On an edit that leaves every date as it was, the order and future checks are
+    // skipped, so an old para with dates out of order can still be corrected in its other fields.
+    const sent = STAGE_FIELDS.map(({ date }) => (date ? String(body[date] ?? '').trim() || null : null));
+    const datesUnchanged = !!savedDays && sent.every((d, i) => d === savedDays[i]);
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
     const steps = [];
+    let lastDay = null;
     for (const { flag, date } of STAGE_FIELDS) {
         const day = date ? String(body[date] ?? '').trim() : '';
         if (day && !isDate(day)) return { error: 'A stage date is not a valid date.' };
+        if (!datesUnchanged && day && day > today) return { error: 'A stage date cannot be in the future.' };
+        if (!datesUnchanged && day && lastDay && day < lastDay) return { error: 'Each stage date must be on or after the date of the stage before it.' };
+        if (day) lastDay = day;
         steps.push({ on: toBit(body[flag]) || (day ? 1 : 0), day: day || null });
     }
     let stage = 1;
@@ -168,7 +178,13 @@ async function updateAuditPara(req, res) {
     try {
         const id = Number(req.body.auditParaID);
         if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ message: 'Audit Para is missing.' });
-        const values = await readAuditPara(req.body, conn, { isNew: false });
+        // The saved stage dates, so the date rules apply only when a date is changed
+        const savedRow = (await conn.request().input('savedId', id)
+            .query('SELECT * FROM tbl_audit_para WHERE audit_para_id = @savedId')).recordset[0];
+        const savedDays = savedRow
+            ? STEP_COLUMNS.map(([, date]) => (date && savedRow[date] ? new Date(savedRow[date]).toISOString().slice(0, 10) : null))
+            : null;
+        const values = await readAuditPara(req.body, conn, { isNew: false, savedDays });
         if (values.error) return res.status(400).json({ message: values.error });
 
         const request = conn.request();
@@ -195,7 +211,8 @@ async function updateAuditPara(req, res) {
     }
 }
 
-// Only a para the user may see can be deleted; a copy goes to delete_log/Audit_para first
+// Only a para the user may see can be deleted. A copy goes to tbl_audit_para_delete_log in the same
+// transaction (QC AP-02); until sql/governance/01 has created that table, to delete_log/Audit_para.
 async function deleteAuditPara(req, res) {
     const id = Number(req.params.audit_para_id);
     if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ message: 'Audit Para is missing.' });
@@ -205,14 +222,31 @@ async function deleteAuditPara(req, res) {
         const request = conn.request();
         const scope = await auditScope(request, userID);
         request.input("auditParaID", id);
-        const result = await request.query(`DELETE FROM tbl_audit_para
-            OUTPUT DELETED.*
-            WHERE audit_para_id = @auditParaID AND ${scope};`);
-        if (!result.recordset.length) return res.status(404).json({ message: 'Audit Para not found.' });
+        request.input("userID", userID);
+        const result = await request.query(`
+            SET XACT_ABORT ON;
+            BEGIN TRANSACTION;
+            DECLARE @row NVARCHAR(MAX) = (SELECT * FROM tbl_audit_para
+                WHERE audit_para_id = @auditParaID AND ${scope}
+                FOR JSON PATH, WITHOUT_ARRAY_WRAPPER, INCLUDE_NULL_VALUES);
+            DECLARE @logged BIT = 0;
+            IF @row IS NOT NULL AND OBJECT_ID('dbo.tbl_audit_para_delete_log', 'U') IS NOT NULL
+            BEGIN
+                INSERT INTO dbo.tbl_audit_para_delete_log (audit_para_id, para_number, row_json, deleted_by)
+                VALUES (@auditParaID, JSON_VALUE(@row, '$.para_number'), @row, @userID);
+                SET @logged = 1;
+            END
+            DELETE FROM tbl_audit_para WHERE audit_para_id = @auditParaID AND ${scope};
+            DECLARE @deleted INT = @@ROWCOUNT;
+            COMMIT TRANSACTION;
+            SELECT @deleted AS deleted, @logged AS logged, @row AS row_json;`);
+        const { deleted, logged, row_json: rowJson } = result.recordset[0];
+        if (!deleted) return res.status(404).json({ message: 'Audit Para not found.' });
+        if (logged) return res.sendStatus(201);
 
         const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '_').slice(0, 15);
         const logFolder = './delete_log/Audit_para';
-        const logMessage = `User '${userID}' deleted Audit para data with Data ID '${id}'. Deleted Data: ${JSON.stringify(result.recordset[0])}\n`;
+        const logMessage = `User '${userID}' deleted Audit para data with Data ID '${id}'. Deleted Data: ${rowJson}\n`;
         fs.mkdir(logFolder, { recursive: true }, (mkdirErr) => {
             if (mkdirErr) return console.error('Audit Para delete log folder error:', mkdirErr);
             fs.appendFile(`${logFolder}/deleted_Auditpara_log_${timestamp}.txt`, logMessage, (err) => {
