@@ -86,13 +86,19 @@ export default function FabricationOfSteelsInputForm({
         });
         notify(CSL_TOASTS.updated('Fabrication of Steels'));
       } else {
-        await createFabricationOfSteels({
+        const response = await createFabricationOfSteels({
           financialYear,
           fabricationmonth: fabricationmonth || undefined,
           fabricationOfSteels: numericValues[0],
           fabrigationinTonns: numericValues[1],
           userID: getCurrentUserId(),
         });
+        // 205: this year and month (or this year, for a yearly entry) is already entered
+        if (response.status === 205) {
+          notify(CSL_TOASTS.duplicate(fabricationmonth ? 'financial year and month' : 'financial year'));
+          setSubmitting(false);
+          return;
+        }
         notify(CSL_TOASTS.added('Fabrication of Steels'));
       }
       if (onSuccess) onSuccess();

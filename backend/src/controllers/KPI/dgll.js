@@ -1,4 +1,5 @@
 import { pool } from "../../db.js";
+import { checkEdit, refuseEdit } from "./kpiEditChecks.js";
 import path from 'path';
 import fs from 'fs';
 
@@ -26,15 +27,26 @@ async function addLightsHouseMaster(req, res)
     request.input("longitude", longitude);
     request.input("userID", userID);
 
-    const result = await request.query(`
-        INSERT INTO tbl_light_house_master (alol,light_house_name,light_status,commisioned_date,state_id,district_id,latitude,longitude,created_by,created_date)
-        OUTPUT INSERTED.lights_house_id
-        VALUES (@alol, @lightsName, @status, @dateOfCommissioning, @state, @district, @latitude, @longitude, @userID, GETDATE())
-    `);
+    try {
+        // One entry per lighthouse name (QC KPI-13)
+        const taken = await request.query(`SELECT COUNT(*) AS count FROM tbl_light_house_master
+            WHERE LTRIM(RTRIM(light_house_name)) = LTRIM(RTRIM(@lightsName))`);
+        if (taken.recordset[0].count > 0) {
+            return res.status(409).json({ message: "A lighthouse with this name is already listed." });
+        }
 
-    const insertedYPId = result.recordset[0].lights_house_id;
-    res.status(201).json({ insertedYPId });
+        const result = await request.query(`
+            INSERT INTO tbl_light_house_master (alol,light_house_name,light_status,commisioned_date,state_id,district_id,latitude,longitude,created_by,created_date)
+            OUTPUT INSERTED.lights_house_id
+            VALUES (@alol, @lightsName, @status, @dateOfCommissioning, @state, @district, @latitude, @longitude, @userID, GETDATE())
+        `);
 
+        const insertedYPId = result.recordset[0].lights_house_id;
+        return res.status(201).json({ insertedYPId });
+    } catch (err) {
+        console.error("Lighthouse add error:", err);
+        return res.sendStatus(500);
+    }
 } 
 
 async function getLightHouseMaster(req, res) {
@@ -168,6 +180,9 @@ async function updateLightsHousedata(req,res){
     request.input("lightHouseIdIdOrg", lightHouseIdIdOrg);
 
     try {
+        // The entry must still exist, and its new period must not be another entry's (QC KPI-05 / KPI-09)
+        const editCheck = await checkEdit({ table: "tbl_light_house_master", idColumn: "lights_house_id", id: lightHouseIdIdOrg, period: { light_house_name: lightHouseName } });
+        if (editCheck) return refuseEdit(res, editCheck);
         const result = await request.query(`UPDATE tbl_light_house_master SET alol = @alolName, light_house_name = @lightHouseName,
         light_status = @status, commisioned_date = @updateDateOfCommissioning,state_id = @updateState, district_id = @updateDistrict ,latitude = @updateLatitude,longitude = @updateLongitude,updated_by = @userID,updated_date = getDate() WHERE lights_house_id  = @lightHouseIdIdOrg`);
         return res.sendStatus(200);
@@ -359,6 +374,9 @@ async function updateVtmsData(req,res){
     
 
     try {
+        // The entry must still exist, and its new period must not be another entry's (QC KPI-05 / KPI-09)
+        const editCheck = await checkEdit({ table: "tbl_vtms_integration", idColumn: "vtms_id", id: VtmsIdOrg, period: { financial_year: updatevtmsfinancialYear } });
+        if (editCheck) return refuseEdit(res, editCheck);
         const result = await request.query(`UPDATE tbl_vtms_integration SET financial_year = @updatevtmsfinancialYear, no_of_ports_vtms_integrated = @updateVtmsSystem,updated_by = @userID,updated_date = getDate() WHERE vtms_id  = @VtmsIdOrg`);
         return res.sendStatus(200);
     }
@@ -550,6 +568,9 @@ async function addNaisUptime(req, res) {
             
         
             try {
+                // The entry must still exist, and its new period must not be another entry's (QC KPI-05 / KPI-09)
+                const editCheck = await checkEdit({ table: "tbl_nais_uptime", idColumn: "nais_id", id: NaisIdOrg, period: { financial_year: updatenaisfinancialYear } });
+                if (editCheck) return refuseEdit(res, editCheck);
                 const result = await request.query(`UPDATE tbl_nais_uptime SET financial_year = @updatenaisfinancialYear, availability_of_nais = @updateNaisUptime,updated_by = @userID,updated_date = getDate() WHERE nais_id  = @NaisIdOrg`);
                 return res.sendStatus(200);
             }
@@ -744,6 +765,9 @@ async function addNaisUptime(req, res) {
             
         
             try {
+                // The entry must still exist, and its new period must not be another entry's (QC KPI-05 / KPI-09)
+                const editCheck = await checkEdit({ table: "tbl_nais_integration", idColumn: "nais_integration_id", id: NaisIntegrationIdOrg, period: { financial_year: updateFinancialYear } });
+                if (editCheck) return refuseEdit(res, editCheck);
                 const result = await request.query('UPDATE tbl_nais_integration SET financial_year = @updateFinancialYear, nais_integrated_with_nmda = @updateNAISintegrationdata,no_of_nais_upgraded = @updateNAISystem,updated_by = @userID,updated_date = getDate() WHERE nais_integration_id  = @NaisIntegrationIdOrg');
                 return res.sendStatus(200);
             }
@@ -1036,6 +1060,9 @@ async function addNaisUptime(req, res) {
         request.input("userID", userID);
 
         try{
+            // The entry must still exist, and its new period must not be another entry's (QC KPI-05 / KPI-09)
+            const editCheck = await checkEdit({ table: "tbl_kpi_dgll_3_5_1", idColumn: "tourist_destination_id", id: TouristDestinationsRowId, period: { finacial_year: updateFinancialYears } });
+            if (editCheck) return refuseEdit(res, editCheck);
             const result = await request.query('UPDATE tbl_kpi_dgll_3_5_1 SET finacial_year = @updateFinancialYears, no_lighthouses_developed_tourist_destination = @updateLighthouseDeveloped, annual_tourist_footfall = @updateAnnualTourist, updated_by = @userID, updated_date = getDate() WHERE tourist_destination_id  = @TouristDestinationsRowId');
             console.log("res-sun", result);   
             return res.status(200).json({ message: "Updated successfully" });
@@ -1094,6 +1121,9 @@ async function addNaisUptime(req, res) {
         request.input("userID", userID);
 
         try{
+            // The entry must still exist, and its new period must not be another entry's (QC KPI-05 / KPI-09)
+            const editCheck = await checkEdit({ table: "tbl_kpi_dgll_3_5_2", idColumn: "tourist_destination_target_id", id: TouristDestinationsRowId, period: { year: updateYear } });
+            if (editCheck) return refuseEdit(res, editCheck);
             const result = await request.query('UPDATE tbl_kpi_dgll_3_5_2 SET year = @updateYear, collection_of_light_dues = @updateCollectionLightDue, footfall_in_the_lighthouses = @updateFootFallLighthouse, updated_by = @userID, updated_date = getDate() WHERE tourist_destination_target_id  = @TouristDestinationsRowId');
             console.log("res-sun", result);    
             return res.status(200).json({message: "Updated successfully"});
