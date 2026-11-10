@@ -4,6 +4,7 @@ import * as am5 from '@amcharts/amcharts5';
 import * as am5xy from '@amcharts/amcharts5/xy';
 import am5themes_Animated from '@amcharts/amcharts5/themes/Animated';
 import ChartExportMenu from '../../../components/ChartExportMenu';
+import { chartColors, useIsDark } from '../../../utils/amCharts';
 import { COMMON_TOASTS } from '../../../utils/notify';
 import { exportTableRows } from '../../../utils/exportTableRows';
 import { fetchBillDashboard } from '../api';
@@ -30,26 +31,28 @@ function KpiCard({ label, value, subtext, icon: Icon, valueColorClass, iconWrapC
 
 function StageDistributionChart({ data, onRootReady }) {
   const divRef = useRef(null);
+  const dark = useIsDark();
   useLayoutEffect(() => {
+    const c = chartColors();
     if (!divRef.current || !data?.length) return undefined;
     const root = am5.Root.new(divRef.current);
     onRootReady?.(root);
     root.setThemes([am5themes_Animated.new(root)]);
     const chart = root.container.children.push(am5xy.XYChart.new(root, { panX: false, panY: false, wheelX: 'none', wheelY: 'none', layout: root.verticalLayout, paddingRight: 20 }));
     const yRenderer = am5xy.AxisRendererY.new(root, { minGridDistance: 10 });
-    yRenderer.labels.template.setAll({ fontSize: 10, fill: am5.color(0x1e293b), fontWeight: '600', maxWidth: 280, oversizedBehavior: 'wrap', textAlign: 'end', lineHeight: 1, paddingTop: 0, paddingBottom: 0 });
+    yRenderer.labels.template.setAll({ fontSize: 10, fill: am5.color(c.text), fontWeight: '600', maxWidth: 280, oversizedBehavior: 'wrap', textAlign: 'end', lineHeight: 1, paddingTop: 0, paddingBottom: 0 });
     // Rows are keyed by stage id (stages 2 and 6 share a name, and the axis merges equal
     // categories); the label shows the name
     yRenderer.labels.template.adapters.add('text', (text, target) => target.dataItem?.dataContext?.stage_name ?? text);
     yRenderer.grid.template.set('visible', false);
     const yAxis = chart.yAxes.push(am5xy.CategoryAxis.new(root, { categoryField: 'stage_key', renderer: yRenderer }));
     const xRenderer = am5xy.AxisRendererX.new(root, {});
-    xRenderer.labels.template.setAll({ fontSize: 10, fill: am5.color(0x1e293b), fontWeight: '600' });
-    xRenderer.grid.template.setAll({ stroke: am5.color(0xe2e8f0), strokeDasharray: [3, 3] });
+    xRenderer.labels.template.setAll({ fontSize: 10, fill: am5.color(c.text), fontWeight: '600' });
+    xRenderer.grid.template.setAll({ stroke: am5.color(c.grid), strokeDasharray: [3, 3] });
     const xAxis = chart.xAxes.push(am5xy.ValueAxis.new(root, { renderer: xRenderer, min: 0 }));
     const series = chart.series.push(am5xy.ColumnSeries.new(root, { xAxis, yAxis, valueXField: 'bill_count', categoryYField: 'stage_key', tooltip: am5.Tooltip.new(root, { labelText: '{stage_name}: [bold]{valueX}[/]' }) }));
     series.columns.template.setAll({ fill: am5.color(0x6366f1), stroke: am5.color(0x6366f1), height: am5.percent(60), cornerRadiusTR: 3, cornerRadiusBR: 3 });
-    series.bullets.push(() => am5.Bullet.new(root, { locationX: 1, sprite: am5.Label.new(root, { text: '{valueX}', fill: am5.color(0x334155), centerY: am5.p50, centerX: am5.p0, dx: 6, fontSize: 11, fontWeight: '700', populateText: true }) }));
+    series.bullets.push(() => am5.Bullet.new(root, { locationX: 1, sprite: am5.Label.new(root, { text: '{valueX}', fill: am5.color(c.value), centerY: am5.p50, centerX: am5.p0, dx: 6, fontSize: 11, fontWeight: '700', populateText: true }) }));
     const sorted = data
       .map((s) => ({ ...s, stage_key: String(s.stage_id) }))
       .sort((a, b) => a.bill_count - b.bill_count);
@@ -57,7 +60,7 @@ function StageDistributionChart({ data, onRootReady }) {
     series.data.setAll(sorted);
     chart.appear(600, 100);
     return () => { root.dispose(); onRootReady?.(null); };
-  }, [data, onRootReady]);
+  }, [data, onRootReady, dark]);
   return <div ref={divRef} style={{ width: '100%', height: '100%', overflow: 'hidden' }} />;
 }
 
@@ -70,7 +73,9 @@ const WING_SERIES = [
 
 function WingWiseChart({ data, onRootReady }) {
   const divRef = useRef(null);
+  const dark = useIsDark();
   useLayoutEffect(() => {
+    const c = chartColors();
     if (!divRef.current || !data?.length) return undefined;
     const root = am5.Root.new(divRef.current);
     onRootReady?.(root);
@@ -78,12 +83,12 @@ function WingWiseChart({ data, onRootReady }) {
     const chart = root.container.children.push(am5xy.XYChart.new(root, { panX: false, panY: false, wheelX: 'none', wheelY: 'none', layout: root.verticalLayout, paddingRight: 20 }));
     // inversed: the server sends the busiest wing first, so it is drawn at the top
     const yRenderer = am5xy.AxisRendererY.new(root, { minGridDistance: 10, inversed: true });
-    yRenderer.labels.template.setAll({ fontSize: 10, fill: am5.color(0x1e293b), fontWeight: '600', maxWidth: 220, oversizedBehavior: 'wrap', textAlign: 'end' });
+    yRenderer.labels.template.setAll({ fontSize: 10, fill: am5.color(c.text), fontWeight: '600', maxWidth: 220, oversizedBehavior: 'wrap', textAlign: 'end' });
     yRenderer.grid.template.set('visible', false);
     const yAxis = chart.yAxes.push(am5xy.CategoryAxis.new(root, { categoryField: 'wing_name', renderer: yRenderer }));
     const xRenderer = am5xy.AxisRendererX.new(root, {});
-    xRenderer.labels.template.setAll({ fontSize: 10, fill: am5.color(0x1e293b), fontWeight: '600' });
-    xRenderer.grid.template.setAll({ stroke: am5.color(0xe2e8f0), strokeDasharray: [3, 3] });
+    xRenderer.labels.template.setAll({ fontSize: 10, fill: am5.color(c.text), fontWeight: '600' });
+    xRenderer.grid.template.setAll({ stroke: am5.color(c.grid), strokeDasharray: [3, 3] });
     const xAxis = chart.xAxes.push(am5xy.ValueAxis.new(root, { renderer: xRenderer, min: 0, maxPrecision: 0 }));
     WING_SERIES.forEach(({ field, name, color }) => {
       const s = chart.series.push(am5xy.ColumnSeries.new(root, { name, xAxis, yAxis, valueXField: field, categoryYField: 'wing_name', stacked: true, tooltip: am5.Tooltip.new(root, { labelText: `${name}: [bold]{valueX}[/]` }) }));
@@ -96,7 +101,7 @@ function WingWiseChart({ data, onRootReady }) {
     yAxis.data.setAll(data);
     chart.appear(600, 100);
     return () => { root.dispose(); onRootReady?.(null); };
-  }, [data, onRootReady]);
+  }, [data, onRootReady, dark]);
   return <div ref={divRef} style={{ width: '100%', height: '100%', overflow: 'hidden' }} />;
 }
 
