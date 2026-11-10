@@ -1,10 +1,12 @@
 import { pool } from "../../db.js";
+import { checkEdit, refuseEdit } from "./kpiEditChecks.js";
 import path from 'path';
 import fs from 'fs';
 
 
 async function addVesselAvailabiltydata(req, res) {
-    const { scifinancialYear, operatedShips, shipUtilization, userID } = req.body;
+    const { scifinancialYear, operatedShips, shipUtilization } = req.body;
+    const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
     console.log("Received data:", req.body);
 
     try {
@@ -90,7 +92,7 @@ async function getUpdatesciVesseldata(req, res)
             
             const SciVesselIdOrg  = req.body.SciVesselIdOrg ;
         
-            const userID = req.body.userID;
+            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         
         
             const conn = await pool;
@@ -104,6 +106,9 @@ async function getUpdatesciVesseldata(req, res)
             
         
             try {
+                // The entry must still exist, and its new period must not be another entry's (QC KPI-05 / KPI-09)
+                const editCheck = await checkEdit({ table: "tbl_sci_vessel_availability", idColumn: "sci_vessel_id", id: SciVesselIdOrg, period: { financial_year: updatescifinancialYear } });
+                if (editCheck) return refuseEdit(res, editCheck);
                 const result = await request.query(`UPDATE tbl_sci_vessel_availability SET financial_year = @updatescifinancialYear, total_no_of_own_operated = @updateoperatedShips,ship_utilization = @updateshipUtilization,updated_by = @userID,updated_date = getDate() WHERE sci_vessel_id  = @SciVesselIdOrg`);
                 return res.sendStatus(200);
             }
@@ -115,7 +120,7 @@ async function getUpdatesciVesseldata(req, res)
 
         async function deleteVesselAvailabilityOwnShips(req, res) {
             const sciVesselId = req.params.sci_vessel_id;
-            const userID = req.params.userID;
+            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
             const now = new Date();
             const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -159,7 +164,8 @@ async function getUpdatesciVesseldata(req, res)
 
         
 async function addscitimeVoyageydata(req, res) {
-    const { financialYear, bulkCarriers, timeCharter,voyageCharter,revenue,earnings, userID } = req.body;
+    const { financialYear, bulkCarriers, timeCharter, voyageCharter, revenue, earnings } = req.body;
+    const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
     console.log("Received data:", req.body);
 
     try {
@@ -247,7 +253,7 @@ async function updatescitimeVoyageBulkData(req,res){
             const updateRevenue = req.body.updateRevenue;
             const  updateAverage = req.body.  updateAverage;
             const ScitimeVoyageBuiklIdOrg  = req.body.ScitimeVoyageBuiklIdOrg ;
-            const userID = req.body.userID;
+            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
             const conn = await pool;
             const request = conn.request();
             
@@ -262,6 +268,9 @@ async function updatescitimeVoyageBulkData(req,res){
             request.input("ScitimeVoyageBuiklIdOrg",ScitimeVoyageBuiklIdOrg);
         
             try {
+                // The entry must still exist, and its new period must not be another entry's (QC KPI-05 / KPI-09)
+                const editCheck = await checkEdit({ table: "tbl_sci_time_voyage_bulk", idColumn: "sci_time_voyage_bulk_id", id: ScitimeVoyageBuiklIdOrg, period: { financial_year: updatefinancialYear } });
+                if (editCheck) return refuseEdit(res, editCheck);
                 const result = await request.query(`UPDATE tbl_sci_time_voyage_bulk SET financial_year = @updatefinancialYear, total_bulk_carriers_fleet = @updatebulkCarriers,total_bulk_carriers_time_charter = @updateTimecharter,total_bulk_carriers_voyage_charter = @updateVoyagecharter,total_revenue_bulk_carriers= @updateRevenue,average_earnings_bulk_carriers = @updateAverage,updated_by = @userID,updated_date = getDate() WHERE sci_time_voyage_bulk_id  = @ScitimeVoyageBuiklIdOrg`);
                 return res.sendStatus(200);
             }
@@ -273,7 +282,7 @@ async function updatescitimeVoyageBulkData(req,res){
 
     async function deleteTimeVoyageBulk(req, res) {
         const sciTimeVoyageBulkId = req.params.sci_time_voyage_bulk_id;
-        const userID = req.params.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
         const now = new Date();
         const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -316,7 +325,8 @@ async function updatescitimeVoyageBulkData(req,res){
     }
 
     async function addscitimeVoyagetankers(req, res) {
-        const { financialYear, totalTankersFleet, daysTimeCharter,daysVoyageCharter,totalRevenue,averageEarnings, userID } = req.body;
+        const { financialYear, totalTankersFleet, daysTimeCharter, daysVoyageCharter, totalRevenue, averageEarnings } = req.body;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         console.log("Received data:", req.body);
     
         try {
@@ -403,7 +413,7 @@ async function updateTimeVoyagetankerData(req,res){
     
     const ScitimeVoyageTankerlIdOrg  = req.body.ScitimeVoyageTankerlIdOrg ;
 
-    const userID = req.body.userID;
+    const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
 
     const conn = await pool;
@@ -420,6 +430,9 @@ async function updateTimeVoyagetankerData(req,res){
     
 
     try {
+        // The entry must still exist, and its new period must not be another entry's (QC KPI-05 / KPI-09)
+        const editCheck = await checkEdit({ table: "tbl_sci_time_voyage_tanker", idColumn: "sci_time_voyage_tanker_id", id: ScitimeVoyageTankerlIdOrg, period: { financial_year: updatefinancialYear } });
+        if (editCheck) return refuseEdit(res, editCheck);
         const result = await request.query(`UPDATE tbl_sci_time_voyage_tanker SET financial_year = @updatefinancialYear, total_no_of_tankers_in_fleet = @updatetotalTankersFleet,total_no_days_on_time_charter = @updatedaysTimeCharter,total_no_days_on_voyage_charter = @updatedaysVoyageCharter,total_revenue_tankers= @updateRevenue,average_earnings_tankers = @updateTanker,updated_by = @userID,updated_date = getDate() WHERE sci_time_voyage_tanker_id  = @ScitimeVoyageTankerlIdOrg`);
         return res.sendStatus(200);
     }
@@ -431,7 +444,7 @@ async function updateTimeVoyagetankerData(req,res){
 
 async function deleteTimeVoyageTanker(req, res) {
     const sciTimeVoyageTankerId = req.params.sci_time_voyage_tanker_id;
-    const userID = req.params.userID;
+    const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
     const now = new Date();
     const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -475,7 +488,8 @@ async function deleteTimeVoyageTanker(req, res) {
 
 
     async function addscitimeVoyageoffshore(req, res) {
-        const { financialYear, offshoreFleet, timeCharter,voyageCharter,revenue,average, userID } = req.body;
+        const { financialYear, offshoreFleet, timeCharter, voyageCharter, revenue, average } = req.body;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         console.log("Received data:", req.body);
 
         try {
@@ -564,7 +578,7 @@ async function deleteTimeVoyageTanker(req, res) {
         
         const ScitimeVoyageoffshoreIdOrg  = req.body.ScitimeVoyageoffshoreIdOrg ;
 
-        const userID = req.body.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
 
         const conn = await pool;
@@ -581,6 +595,9 @@ async function deleteTimeVoyageTanker(req, res) {
         
 
         try {
+            // The entry must still exist, and its new period must not be another entry's (QC KPI-05 / KPI-09)
+            const editCheck = await checkEdit({ table: "tbl_sci_time_voyage_offshore", idColumn: "sci_time_voyage_offshore_id", id: ScitimeVoyageoffshoreIdOrg, period: { financial_year: updatefinancialYear } });
+            if (editCheck) return refuseEdit(res, editCheck);
             const result = await request.query(`UPDATE tbl_sci_time_voyage_offshore SET financial_year = @updatefinancialYear, total_no_of_offshore_in_fleet = @updateoffshoreFleet,total_no_days_on_offshore_time_charter = @updatetimeCharter,total_no_days_on_offshore_voyage_charter = @updatevoyageCharter,total_revenue_offshore= @updateRevenue,average_earnings_offshore = @updateAverage,updated_by = @userID,updated_date = getDate() WHERE sci_time_voyage_offshore_id = @ScitimeVoyageoffshoreIdOrg`);
             return res.sendStatus(200);
         }
@@ -592,7 +609,7 @@ async function deleteTimeVoyageTanker(req, res) {
 
     async function deleteTimeVoyageOffshore(req, res) {
         const sciTimeVoyageOffshoreId = req.params.sci_time_voyage_offshore_id;
-        const userID = req.params.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
         const now = new Date();
         const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -635,7 +652,8 @@ async function deleteTimeVoyageTanker(req, res) {
     }
 
     async function addscilinearVesselavailability(req, res) {
-        const { financialYear, totallinearfleet, totalrevenue,averageEarnings, userID } = req.body;
+        const { financialYear, totallinearfleet, totalrevenue, averageEarnings } = req.body;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         console.log("Received data:", req.body);
 
         try {
@@ -718,7 +736,7 @@ async function deleteTimeVoyageTanker(req, res) {
         
         const SciLinearvesselIdOrg  = req.body.SciLinearvesselIdOrg ;
 
-        const userID = req.body.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
 
         const conn = await pool;
@@ -733,6 +751,9 @@ async function deleteTimeVoyageTanker(req, res) {
         
 
         try {
+            // The entry must still exist, and its new period must not be another entry's (QC KPI-05 / KPI-09)
+            const editCheck = await checkEdit({ table: "tbl_sci_vessel_availability_linear", idColumn: "sci_vessel_availability_bulk_id", id: SciLinearvesselIdOrg, period: { financial_year: updatefinancialYear } });
+            if (editCheck) return refuseEdit(res, editCheck);
             const result = await request.query(`UPDATE tbl_sci_vessel_availability_linear SET financial_year = @updatefinancialYear, total_no_of_linear_vessels_in_fleet = @updatelinearfleet ,total_revenue_of_linear_vessels = @updateRevenue,average_earnings_linear_vessels_perday = @updateAverage,updated_by = @userID,updated_date = getDate() WHERE sci_vessel_availability_bulk_id = @SciLinearvesselIdOrg`);
             return res.sendStatus(200);
         }
@@ -744,7 +765,7 @@ async function deleteTimeVoyageTanker(req, res) {
 
     async function deleteVesselAvailabilityLiner(req, res) {
         const sciLinearVesselId = req.params.sci_vessel_availability_bulk_id;
-        const userID = req.params.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
         const now = new Date();
         const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -788,7 +809,8 @@ async function deleteTimeVoyageTanker(req, res) {
 
 
     async function addvesselprocurementdata(req, res) {
-        const { financialYear, newBuiltships, valueOfnewbuiltShips, userID } = req.body;
+        const { financialYear, newBuiltships, valueOfnewbuiltShips } = req.body;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         console.log("Received data:", req.body);
 
         try {
@@ -869,7 +891,7 @@ async function deleteTimeVoyageTanker(req, res) {
         const updateValueshipsprocured = req.body.updateValueshipsprocured;
         const SciProcurementIdOrg  = req.body.SciProcurementIdOrg ;
 
-        const userID = req.body.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
 
         const conn = await pool;
@@ -883,6 +905,9 @@ async function deleteTimeVoyageTanker(req, res) {
         
 
         try {
+            // The entry must still exist, and its new period must not be another entry's (QC KPI-05 / KPI-09)
+            const editCheck = await checkEdit({ table: "tbl_sci_vessel_procurement", idColumn: "sci_procurement_id", id: SciProcurementIdOrg, period: { financial_year: updateFinancialyear } });
+            if (editCheck) return refuseEdit(res, editCheck);
             const result = await request.query(`UPDATE tbl_sci_vessel_procurement SET financial_year = @updateFinancialyear, total_no_of_new_built_ships_procured = @updateShipsProcured ,value_of_new_built_ships_procured = @updateValueshipsprocured,updated_by = @userID,updated_date = getDate() WHERE sci_procurement_id = @SciProcurementIdOrg`);
             return res.sendStatus(200);
         }
@@ -894,7 +919,7 @@ async function deleteTimeVoyageTanker(req, res) {
 
     async function deleteVesselProcurement(req, res) {
         const sciProcurementId = req.params.sci_procurement_id;
-        const userID = req.params.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
         const now = new Date();
         const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -937,7 +962,8 @@ async function deleteTimeVoyageTanker(req, res) {
     }
 
     async function addSecondhandvesselprocurementdata(req, res) {
-        const {  financialYear, noofSecondhandships, averageageofSecondhandships,grossvalueOfsecondhandships, userID } = req.body;
+        const { financialYear, noofSecondhandships, averageageofSecondhandships, grossvalueOfsecondhandships } = req.body;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         console.log("Received data:", req.body);
 
         try {
@@ -1022,7 +1048,7 @@ async function deleteTimeVoyageTanker(req, res) {
         const updateGrossvalueofSecondhandships = req.body.updateGrossvalueofSecondhandships;
         const ScisecondhandProcurementIdOrg  = req.body.ScisecondhandProcurementIdOrg ;
 
-        const userID = req.body.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
 
         const conn = await pool;
@@ -1037,6 +1063,9 @@ async function deleteTimeVoyageTanker(req, res) {
         
 
         try {
+            // The entry must still exist, and its new period must not be another entry's (QC KPI-05 / KPI-09)
+            const editCheck = await checkEdit({ table: "tbl_sci_secondhand_vessel_procurement", idColumn: "sci_secondhand_procurement_id", id: ScisecondhandProcurementIdOrg, period: { financial_year: updateFinancialyear } });
+            if (editCheck) return refuseEdit(res, editCheck);
             const result = await request.query(`UPDATE tbl_sci_secondhand_vessel_procurement SET financial_year = @updateFinancialyear, total_no_of_secondhand_ships_procured = @updateNoofSecondhandships ,average_age_of_secondhand_ships_procured = @updateaverageageofSecondhandships,gross_value_of_secondhand_ships_procured = @updateGrossvalueofSecondhandships, updated_by = @userID,updated_date = getDate() WHERE sci_secondhand_procurement_id = @ScisecondhandProcurementIdOrg`);
             return res.sendStatus(200);
         }
@@ -1048,7 +1077,7 @@ async function deleteTimeVoyageTanker(req, res) {
 
     async function deleteSecondhandVesselProcurement(req, res) {
         const sciSecondhandProcurementId = req.params.sci_secondhand_procurement_id;
-        const userID = req.params.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
         const now = new Date();
         const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -1091,7 +1120,8 @@ async function deleteTimeVoyageTanker(req, res) {
     }
 
     async function addshipDrydocking(req, res) {
-        const { financialYear, dryDockingscheduled, dryDockingscompleted, userID } = req.body;
+        const { financialYear, dryDockingscheduled, dryDockingscompleted } = req.body;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         console.log("Received data:", req.body);
 
         try {
@@ -1171,7 +1201,7 @@ async function deleteTimeVoyageTanker(req, res) {
         const updatedryDockingscompleted = req.body.updatedryDockingscompleted;
         const SciDrydockIdOrg  = req.body.SciDrydockIdOrg ;
 
-        const userID = req.body.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
 
         const conn = await pool;
@@ -1185,6 +1215,9 @@ async function deleteTimeVoyageTanker(req, res) {
         
 
         try {
+            // The entry must still exist, and its new period must not be another entry's (QC KPI-05 / KPI-09)
+            const editCheck = await checkEdit({ table: "tbl_sci_ship_dry_docking", idColumn: "sci_ship_dry_docking_id", id: SciDrydockIdOrg, period: { financial_year: updatefinancialYear } });
+            if (editCheck) return refuseEdit(res, editCheck);
             const result = await request.query(`UPDATE tbl_sci_ship_dry_docking SET financial_year = @updatefinancialYear, total_dry_docking_scheduled = @updatedryDockingscheduled ,total_dry_docking_completed = @updatedryDockingscompleted, updated_by = @userID,updated_date = getDate() WHERE sci_ship_dry_docking_id = @SciDrydockIdOrg`);
             return res.sendStatus(200);
         }
@@ -1196,7 +1229,7 @@ async function deleteTimeVoyageTanker(req, res) {
 
     async function deleteShipDryDocking(req, res) {
         const sciDrydockId = req.params.sci_ship_dry_docking_id;
-        const userID = req.params.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
         const now = new Date();
         const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -1239,7 +1272,8 @@ async function deleteTimeVoyageTanker(req, res) {
     }
 
     async function addshipRepaiandMaintanace(req, res) {
-        const {  financialYear, repairCosts, operationalRevenue,repairPercentage, userID } = req.body;
+        const { financialYear, repairCosts, operationalRevenue, repairPercentage } = req.body;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         console.log("Received data:", req.body);
 
         try {
@@ -1320,7 +1354,7 @@ async function deleteTimeVoyageTanker(req, res) {
         const updaterepairPercentage = req.body.updaterepairPercentage;
         const ScirepairandMaintanaceIdOrg  = req.body.ScirepairandMaintanaceIdOrg ;
 
-        const userID = req.body.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
 
         const conn = await pool;
@@ -1335,6 +1369,9 @@ async function deleteTimeVoyageTanker(req, res) {
         
 
         try {
+            // The entry must still exist, and its new period must not be another entry's (QC KPI-05 / KPI-09)
+            const editCheck = await checkEdit({ table: "tbl_sci_repair_and_maintanace", idColumn: "sci_repair_and_maintanace_id", id: ScirepairandMaintanaceIdOrg, period: { financial_year: updatefinancialYear } });
+            if (editCheck) return refuseEdit(res, editCheck);
             const result = await request.query(`UPDATE tbl_sci_repair_and_maintanace SET financial_year = @updatefinancialYear, total_repair_and_maintanace_cost = @updaterepairCosts ,total_operational_revenue = @updateoperationalRevenue,percentage_repair_and_maintanace_cost = @updaterepairPercentage, updated_by = @userID,updated_date = getDate() WHERE sci_repair_and_maintanace_id = @ScirepairandMaintanaceIdOrg`);
             return res.sendStatus(200);
         }
@@ -1346,7 +1383,7 @@ async function deleteTimeVoyageTanker(req, res) {
 
     async function deleteRepairAndMaintenance(req, res) {
         const sciRepairId = req.params.sci_repair_and_maintanace_id;
-        const userID = req.params.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
         const now = new Date();
         const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -1389,7 +1426,8 @@ async function deleteTimeVoyageTanker(req, res) {
     }
 
     async function addsaleandRecycling(req, res) {
-        const {  financialYear, noOfoldvessels, valueOfsale,averageAge, userID } = req.body;
+        const { financialYear, noOfoldvessels, valueOfsale, averageAge } = req.body;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         console.log("Received data:", req.body);
 
         try {
@@ -1471,7 +1509,7 @@ async function deleteTimeVoyageTanker(req, res) {
         const updateaverageAge = req.body.updateaverageAge;
         const ScisaleRecyclingIdOrg  = req.body.ScisaleRecyclingIdOrg;
 
-        const userID = req.body.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
 
         const conn = await pool;
@@ -1484,6 +1522,9 @@ async function deleteTimeVoyageTanker(req, res) {
         request.input("ScisaleRecyclingIdOrg",ScisaleRecyclingIdOrg);  
 
         try {
+            // The entry must still exist, and its new period must not be another entry's (QC KPI-05 / KPI-09)
+            const editCheck = await checkEdit({ table: "tbl_sci_sale_and_recycling_oldvessels", idColumn: "sci_sale_recycling_id", id: ScisaleRecyclingIdOrg, period: { financial_year: updateFinancialyear } });
+            if (editCheck) return refuseEdit(res, editCheck);
             const result = await request.query(`UPDATE tbl_sci_sale_and_recycling_oldvessels SET financial_year = @updateFinancialyear,no_of_old_vessels_sold = @updatenoOfoldvessels ,value_of_sale_proceeds = @updatevalueOfsale,avg_age_of_old_vessels_sold = @updateaverageAge, updated_by = @userID,updated_date = getDate() WHERE sci_sale_recycling_id = @ScisaleRecyclingIdOrg`);
             return res.sendStatus(200);
         }
@@ -1495,7 +1536,7 @@ async function deleteTimeVoyageTanker(req, res) {
 
     async function deleteSaleAndRecycling(req, res) {
         const sciSaleRecyclingId = req.params.sci_sale_recycling_id;
-        const userID = req.params.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
         const now = new Date();
         const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -1538,7 +1579,8 @@ async function deleteTimeVoyageTanker(req, res) {
     }
 
     async function addsaleandRecyclingofgreenRecycling(req, res) {
-        const {  financialYear, vesselssold, valueofVessels,adherencetoGreenrecycling, userID } = req.body;
+        const { financialYear, vesselssold, valueofVessels, adherencetoGreenrecycling } = req.body;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         console.log("Received data:", req.body);
 
         try {
@@ -1620,7 +1662,7 @@ async function deleteTimeVoyageTanker(req, res) {
             const updateadherencetoGreenrecycling = req.body.updateadherencetoGreenrecycling;
             const ScisaleGreenrecyclingIdOrg  = req.body.ScisaleGreenrecyclingIdOrg;
         
-            const userID = req.body.userID;
+            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         
         
             const conn = await pool;
@@ -1635,6 +1677,9 @@ async function deleteTimeVoyageTanker(req, res) {
             
         
             try {
+                // The entry must still exist, and its new period must not be another entry's (QC KPI-05 / KPI-09)
+                const editCheck = await checkEdit({ table: "tbl_sci_sale_and_recycling_oldvessels_green_recycling", idColumn: "sci_sale_green_recycling_id", id: ScisaleGreenrecyclingIdOrg, period: { financial_year: updateFinancialyear } });
+                if (editCheck) return refuseEdit(res, editCheck);
                 const result = await request.query(`UPDATE tbl_sci_sale_and_recycling_oldvessels_green_recycling SET financial_year = @updateFinancialyear,no_of_old_vessels_sold_for_recycling = @updatevesselssold ,value_of_recycled_vessels = @updatevalueofVessels,adherence_green_recycling = @updateadherencetoGreenrecycling, updated_by = @userID,updated_date = getDate() WHERE sci_sale_green_recycling_id = @ScisaleGreenrecyclingIdOrg`);
                 return res.sendStatus(200);
             }
@@ -1646,7 +1691,7 @@ async function deleteTimeVoyageTanker(req, res) {
 
    async function deleteGreenRecycling(req, res) {
         const sciSaleGreenRecyclingId = req.params.sci_sale_green_recycling_id;
-        const userID = req.params.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
         const now = new Date();
         const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -1729,7 +1774,8 @@ async function deleteTimeVoyageTanker(req, res) {
 //             }
 //    }
 async function addmanningofOwnedships(req, res) {
-    const { financialYear, noofVesselsaudited, noofShipsfullycomplaint, userID } = req.body;
+    const { financialYear, noofVesselsaudited, noofShipsfullycomplaint } = req.body;
+    const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
     console.log("Received data:", req.body);
 
     try {
@@ -1809,7 +1855,8 @@ async function addmanningofOwnedships(req, res) {
     }
     async function updatemanningofOwnedshipsData(req, res) {
         try {
-            const { updatefinancialYear, updatenoofVesselsaudited, updatenoofShipsfullycomplaint, ScimanningIdOrg, userID } = req.body;
+            const { updatefinancialYear, updatenoofVesselsaudited, updatenoofShipsfullycomplaint, ScimanningIdOrg } = req.body;
+            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
             
             console.log("Received update request:", req.body);
 
@@ -1828,6 +1875,9 @@ async function addmanningofOwnedships(req, res) {
             request.input("ScimanningIdOrg", ScimanningIdOrg);
     
             console.log("Updating data in database...");
+            // The entry must still exist, and its new period must not be another entry's (QC KPI-05 / KPI-09)
+            const editCheck = await checkEdit({ table: "tbl_sci_manning_of_owned_ships", idColumn: "sci_manning_id", id: ScimanningIdOrg, period: { financial_year: updatefinancialYear } });
+            if (editCheck) return refuseEdit(res, editCheck);
             const result = await request.query(`
                 UPDATE tbl_sci_manning_of_owned_ships 
                 SET financial_year = @updatefinancialYear, 
@@ -1849,7 +1899,7 @@ async function addmanningofOwnedships(req, res) {
 
     async function deleteManningOfOwnedShips(req, res) {
         const sciManningId = req.params.sci_manning_id;
-        const userID = req.params.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
         const now = new Date();
         const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -1892,7 +1942,8 @@ async function addmanningofOwnedships(req, res) {
     }
     
     async function addshipManagementBusiness(req, res) {
-        const {  financialYear, noofShipsManaged, totalManagementcost,revenue,costtoRevenueratio, userID } = req.body;
+        const { financialYear, noofShipsManaged, totalManagementcost, revenue, costtoRevenueratio } = req.body;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         console.log("Received data:", req.body);
     
         try {
@@ -1977,7 +2028,7 @@ async function addmanningofOwnedships(req, res) {
         const  updatecosttoRevenueratio = req.body.updatecosttoRevenueratio;
         const ScishipmanagementIdOrg  = req.body.ScishipmanagementIdOrg ;
     
-        const userID = req.body.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
     
     
         const conn = await pool;
@@ -1993,6 +2044,9 @@ async function addmanningofOwnedships(req, res) {
         
     
         try {
+            // The entry must still exist, and its new period must not be another entry's (QC KPI-05 / KPI-09)
+            const editCheck = await checkEdit({ table: "tbl_sci_ship_management_business", idColumn: "sci_ship_management_id", id: ScishipmanagementIdOrg, period: { financial_year: updateFinancialyear } });
+            if (editCheck) return refuseEdit(res, editCheck);
             const result = await request.query(`UPDATE tbl_sci_ship_management_business SET financial_year = @updateFinancialyear, no_of_ships_managed_by_sci = @updatenoofShipsManaged,total_management_cost = @updatetotalManagementcost,revenue_from_managing_ships = @updaterevenue,cost_to_revenue_ratio = @updatecosttoRevenueratio,updated_by = @userID,updated_date = getDate() WHERE sci_ship_management_id  = @ScishipmanagementIdOrg`);
             return res.sendStatus(200);
         }
@@ -2004,7 +2058,7 @@ async function addmanningofOwnedships(req, res) {
 
     async function deleteShipManagementBusiness(req, res) {
         const sciShipManagementId = req.params.sci_ship_management_id;
-        const userID = req.params.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
         const now = new Date();
         const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');

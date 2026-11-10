@@ -2,7 +2,8 @@ import { pool } from "../../db.js";
 import fs from 'fs';
 
 async function createStudentEnrollment(req,res) {
-    const {studentId,financialYear,noOfStdCapacity,noOfStdEnrolled,studentsAdmission,studentsonRoll,studentsFinalyear,studentsPassed,noOfStdPlaced,percentagePlacement,userID} = req.body;
+    const { studentId, financialYear, noOfStdCapacity, noOfStdEnrolled, studentsAdmission, studentsonRoll, studentsFinalyear, studentsPassed, noOfStdPlaced, percentagePlacement } = req.body;
+    const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
     if (!financialYear || !noOfStdCapacity || !noOfStdEnrolled ||!studentsAdmission || !studentsonRoll || !studentsFinalyear || !studentsPassed || !noOfStdPlaced || !percentagePlacement || !userID) {
         return res.status(400).json({ message: "All fields are required" });
@@ -152,7 +153,7 @@ async function getStudentEnrollmentByID(req,res) {
 
 async function deleteStudentEnrollment(req, res) {
     const studentId = req.params.student_id;
-    const userID = req.params.userID;
+    const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
     const now = new Date();
     const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -195,7 +196,8 @@ async function deleteStudentEnrollment(req, res) {
 }
 
 async function createimunewCourseUpgradation(req, res) {
-    const { courseId, financialYear, noOfCourseOffered, noOfCourseUpgraded, userID } = req.body;
+    const { courseId, financialYear, noOfCourseOffered, noOfCourseUpgraded } = req.body;
+    const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
     const conn = await pool;
     const existingRequest = conn.request();
@@ -326,7 +328,7 @@ async function getimuNewCourseUpgradationByID(req,res) {
 
 async function deleteNewCourseUpgradation(req, res) {
     const courseId = req.params.course_id;
-    const userID = req.params.userID;
+    const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
     const now = new Date();
     const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -370,7 +372,8 @@ async function deleteNewCourseUpgradation(req, res) {
 
 async function createimuFacilities(req,res) {
 
-        const {facilitiesId,financialYear,noOfClassrooms,noOfLabs,noOfSimulators,noOfWorkshops,noOfLibrarybooks,noOfEbooks,noOfEjournals,noOfEdatabases,noOfacadamicSoftware,totalEresources,userID} = req.body;
+        const { facilitiesId, financialYear, noOfClassrooms, noOfLabs, noOfSimulators, noOfWorkshops, noOfLibrarybooks, noOfEbooks, noOfEjournals, noOfEdatabases, noOfacadamicSoftware, totalEresources } = req.body;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
         const conn = await pool;
         const existingRequest = conn.request();
@@ -546,7 +549,7 @@ async function getimuFacilities(req,res) {
 
 async function deleteFacilities(req, res) {
     const facilitiesId = req.params.facilities_id;
-    const userID = req.params.userID;
+    const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
     const now = new Date();
     const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -590,7 +593,8 @@ async function deleteFacilities(req, res) {
 
 async function createimuPartnership(req,res) {
 
-        const {partnershipId,financialYear,academicMoUsDomestic,academicMoUsInternational,industryMoUsDomestic,industryMoUsInternational,userID} = req.body
+        const { partnershipId, financialYear, academicMoUsDomestic, academicMoUsInternational, industryMoUsDomestic, industryMoUsInternational } = req.body;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
      
         const conn = await pool;
         const existingRequest = conn.request();
@@ -720,7 +724,7 @@ async function getimuPartnershipByID(req,res) {
 
 async function deletePartnership(req, res) {
     const partnershipId = req.params.partnership_id;
-    const userID = req.params.userID;
+    const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
     const now = new Date();
     const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -764,7 +768,8 @@ async function deletePartnership(req, res) {
 
 async function createImuResearch(req,res) {
 
-    const {researchId,financialYear,domesticJournals,internationalJournals,phdAwarded,patentsFiled,startupsFunded,researchAwarded,userID} = req.body
+    const { researchId, financialYear, domesticJournals, internationalJournals, phdAwarded, patentsFiled, startupsFunded, researchAwarded } = req.body;
+    const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
      
     const conn = await pool;
     const existingRequest = conn.request();
@@ -902,7 +907,7 @@ async function getImuResearchByID(req,res) {
 
 async function deleteResearch(req, res) {
     const researchId = req.params.research_id;
-    const userID = req.params.userID;
+    const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
     const now = new Date();
     const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -978,7 +983,8 @@ async function deleteResearch(req, res) {
 //         }
 //     }
    async function createimuFinalYearpassPercentage(req, res) {
-    const { programme, Batch, appeared, passed, passPercentage, userID } = req.body;
+    const { programme, Batch, appeared, passed, passPercentage } = req.body;
+    const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
     if (!programme || !Batch || !appeared || !passed || !passPercentage || !userID) {
         return res.status(400).json({ message: "All fields are required" });
@@ -1084,7 +1090,7 @@ async function deleteResearch(req, res) {
 
     async function deleteFinalYearPassPercentage(req, res) {
         const studentId = req.params.student_id;
-        const userID = req.params.userID;
+        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
         const now = new Date();
         const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
