@@ -47,7 +47,7 @@ async function getsciVesselAvailabilityReport(req,res) {
 const rowData = result.recordset;
 
 if (rowData.length === 0) {
-    return res.status(404).json({ error: 'No data available' });
+    return res.json({ columnDefs: [], rowData: [] }); // nothing entered yet: an empty report, not an error (QC KPI-15)
 }
 
 // Define columns
@@ -170,7 +170,7 @@ async function sciVeslAvailUtilTimeandVoyageChartShipsReport(req,res) {
 const rowData = result.recordset;
 
 if (rowData.length === 0) {
-    return res.status(404).json({ error: 'No data available' });
+    return res.json({ columnDefs: [], rowData: [] }); // nothing entered yet: an empty report, not an error (QC KPI-15)
 }
 
 // Define columns
@@ -286,7 +286,7 @@ EXEC sp_executesql @sql;
 const rowData = result.recordset;
 
 if (rowData.length === 0) {
-    return res.status(404).json({ error: 'No data available' });
+    return res.json({ columnDefs: [], rowData: [] }); // nothing entered yet: an empty report, not an error (QC KPI-15)
 }
 
 // Define columns
@@ -374,7 +374,7 @@ async function sciVessellAvailabilityLinerReport(req,res) {
 const rowData = result.recordset;
 
 if (rowData.length === 0) {
-    return res.status(404).json({ error: 'No data available' });
+    return res.json({ columnDefs: [], rowData: [] }); // nothing entered yet: an empty report, not an error (QC KPI-15)
 }
 
 // Define columns
@@ -489,7 +489,7 @@ async function sciVesselAvailabilityOffshoreReport(req,res)
     const rowData = result.recordset;
 
     if (rowData.length === 0) {
-        return res.status(404).json({ error: 'No data available' });
+        return res.json({ columnDefs: [], rowData: [] }); // nothing entered yet: an empty report, not an error (QC KPI-15)
     }
 
     // Define columns
@@ -573,7 +573,7 @@ async function getsciVesselprocurementReport(req,res)
         const rowData = result.recordset;
 
         if (rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available' });
+            return res.json({ columnDefs: [], rowData: [] }); // nothing entered yet: an empty report, not an error (QC KPI-15)
         }
 
         // Define columns
@@ -671,7 +671,7 @@ async function getsciVesselprocurementsecondhandReport(req,res)
     const rowData = result.recordset;
 
     if (rowData.length === 0) {
-        return res.status(404).json({ error: 'No data available' });
+        return res.json({ columnDefs: [], rowData: [] }); // nothing entered yet: an empty report, not an error (QC KPI-15)
     }
 
     // Define columns
@@ -767,7 +767,7 @@ async function getsciRepairandMaintanceReport(req,res) {
     const rowData = result.recordset;
 
     if (rowData.length === 0) {
-        return res.status(404).json({ error: 'No data available' });
+        return res.json({ columnDefs: [], rowData: [] }); // nothing entered yet: an empty report, not an error (QC KPI-15)
     }
 
     // Define columns
@@ -863,7 +863,7 @@ async function getscisaleandRecyclingofvesselsReport(req,res) {
     const rowData = result.recordset;
 
     if (rowData.length === 0) {
-        return res.status(404).json({ error: 'No data available' });
+        return res.json({ columnDefs: [], rowData: [] }); // nothing entered yet: an empty report, not an error (QC KPI-15)
     }
 
     // Define columns
@@ -958,7 +958,7 @@ async function getsciSaleandGreenrecyclingodoldvesselsReport(req,res) {
     const rowData = result.recordset;
 
     if (rowData.length === 0) {
-        return res.status(404).json({ error: 'No data available' });
+        return res.json({ columnDefs: [], rowData: [] }); // nothing entered yet: an empty report, not an error (QC KPI-15)
     }
 
     // Define columns
@@ -1066,7 +1066,7 @@ async function getsciShipmanagementbusinessReport(req,res) {
     const rowData = result.recordset;
 
     if (rowData.length === 0) {
-        return res.status(404).json({ error: 'No data available' });
+        return res.json({ columnDefs: [], rowData: [] }); // nothing entered yet: an empty report, not an error (QC KPI-15)
     }
 
     // Define columns
@@ -1145,7 +1145,7 @@ async function getsciShipdrydockingReport(req, res) {
         const rowData = result.recordset;
 
         if (rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available' });
+            return res.json({ columnDefs: [], rowData: [] }); // nothing entered yet: an empty report, not an error (QC KPI-15)
         }
 
         // Define columns dynamically
@@ -1239,7 +1239,7 @@ async function getsciManningofownedshipsReport(req, res) {
         const rowData = result.recordset;
 
         if (rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available' });
+            return res.json({ columnDefs: [], rowData: [] }); // nothing entered yet: an empty report, not an error (QC KPI-15)
         }
 
         // Define columns dynamically

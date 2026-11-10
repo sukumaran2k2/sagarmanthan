@@ -1,13 +1,10 @@
 import { pool } from "../../db.js";
-import { checkEdit, refuseEdit } from "./kpiEditChecks.js";
-import path from 'path';
-import fs from 'fs';
+import { checkEdit, refuseEdit, deleteKpiEntry } from "./kpiEditChecks.js";
 
 
 async function addVesselAvailabiltydata(req, res) {
     const { scifinancialYear, operatedShips, shipUtilization } = req.body;
     const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-    console.log("Received data:", req.body);
 
     try {
         const conn = await pool;
@@ -45,16 +42,22 @@ async function addVesselAvailabiltydata(req, res) {
 
        
 async function getsciVesselList(req, res) {
-
-    const conn = await pool;
-    const request = conn.request();
-
-    const result = await request.query(`
-        SELECT * FROM tbl_sci_vessel_availability
-        ORDER BY financial_year DESC;
-    `);
-
-    res.json(result.recordset);
+    try {
+    
+        const conn = await pool;
+        const request = conn.request();
+    
+        const result = await request.query(`
+            SELECT * FROM tbl_sci_vessel_availability
+            ORDER BY financial_year DESC;
+        `);
+    
+        res.json(result.recordset);
+    
+    } catch (err) {
+        console.error("getsciVesselList error:", err);
+        if (!res.headersSent) return res.sendStatus(500);
+    }
 } 
 
 
@@ -77,7 +80,7 @@ async function getUpdatesciVesseldata(req, res)
         
                 res.json(result.recordset);
             } catch (err) {
-                console.log(err);
+                console.error(err);
                 return res.sendStatus(500);
             }
         }
@@ -113,60 +116,19 @@ async function getUpdatesciVesseldata(req, res)
                 return res.sendStatus(200);
             }
             catch (err) {
-                console.log(err);
+                console.error(err);
                 return res.sendStatus(500);
             }
         }
 
         async function deleteVesselAvailabilityOwnShips(req, res) {
-            const sciVesselId = req.params.sci_vessel_id;
-            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-
-            const now = new Date();
-            const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-            const hourPart = String(now.getHours()).padStart(2, '0');
-            const minutePart = String(now.getMinutes()).padStart(2, '0');
-            const secondPart = String(now.getSeconds()).padStart(2, '0');
-            const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
-            const logFolder = `./delete_log/SCI_Vessel_Availability_Own_Ships`;
-            const logFileName = `${logFolder}/deleted_VesselAvailabilityOwnShips_log_${timestamp}.txt`;
-
-            const conn = await pool;
-            const request = conn.request();
-            request.input("sciVesselId", sciVesselId);
-            request.input("userID", userID);
-            try {
-                const dataToDelete = await request.query(`SELECT * FROM tbl_sci_vessel_availability WHERE sci_vessel_id = @sciVesselId;`);
-                const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
-
-                const result = await request.query(`DELETE FROM tbl_sci_vessel_availability WHERE sci_vessel_id = @sciVesselId;`);
-
-                if (result.rowsAffected[0] > 0) {
-                    const logMessage = `User '${userID}' deleted Vessel Availability Own Ships data with Data ID '${sciVesselId}'. Deleted Data: ${dataJSON}\n`;
-
-                    fs.mkdirSync(logFolder, { recursive: true });
-                    fs.appendFile(logFileName, logMessage, (err) => {
-                        if (err) {
-                            console.error('Error writing to delete_logs.txt:', err);
-                        }
-                    });
-
-                    return res.sendStatus(201);
-                } else {
-                    return res.status(404).send("Data not found");
-                }
-            }
-            catch (err) {
-                console.log(err);
-                return res.sendStatus(500);
-            }
-        }
+    return deleteKpiEntry(req, res, { table: "tbl_sci_vessel_availability", idColumn: "sci_vessel_id", idParam: "sci_vessel_id", logFolder: "SCI_Vessel_Availability_Own_Ships" });
+}
 
         
 async function addscitimeVoyageydata(req, res) {
     const { financialYear, bulkCarriers, timeCharter, voyageCharter, revenue, earnings } = req.body;
     const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-    console.log("Received data:", req.body);
 
     try {
         const conn = await pool;
@@ -207,16 +169,22 @@ async function addscitimeVoyageydata(req, res) {
 
        
 async function getscitimeVoyageList(req, res) {
-
-    const conn = await pool;
-    const request = conn.request();
-
-    const result = await request.query(`
-        SELECT * FROM tbl_sci_time_voyage_bulk
-        ORDER BY financial_year DESC;
-    `);
-
-    res.json(result.recordset);
+    try {
+    
+        const conn = await pool;
+        const request = conn.request();
+    
+        const result = await request.query(`
+            SELECT * FROM tbl_sci_time_voyage_bulk
+            ORDER BY financial_year DESC;
+        `);
+    
+        res.json(result.recordset);
+    
+    } catch (err) {
+        console.error("getscitimeVoyageList error:", err);
+        if (!res.headersSent) return res.sendStatus(500);
+    }
 } 
 async function getUpdatescitimeVoyageBulkdata(req, res) 
         {
@@ -237,7 +205,7 @@ async function getUpdatescitimeVoyageBulkdata(req, res)
         
                 res.json(result.recordset);
             } catch (err) {
-                console.log(err);
+                console.error(err);
                 return res.sendStatus(500);
             }
         }
@@ -275,59 +243,18 @@ async function updatescitimeVoyageBulkData(req,res){
                 return res.sendStatus(200);
             }
             catch (err) {
-                console.log(err);
+                console.error(err);
                 return res.sendStatus(500);
             }
     }
 
     async function deleteTimeVoyageBulk(req, res) {
-        const sciTimeVoyageBulkId = req.params.sci_time_voyage_bulk_id;
-        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-
-        const now = new Date();
-        const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-        const hourPart = String(now.getHours()).padStart(2, '0');
-        const minutePart = String(now.getMinutes()).padStart(2, '0');
-        const secondPart = String(now.getSeconds()).padStart(2, '0');
-        const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
-        const logFolder = `./delete_log/SCI_Time_Voyage_Bulk`;
-        const logFileName = `${logFolder}/deleted_TimeVoyageBulk_log_${timestamp}.txt`;
-
-        const conn = await pool;
-        const request = conn.request();
-        request.input("sciTimeVoyageBulkId", sciTimeVoyageBulkId);
-        request.input("userID", userID);
-        try {
-            const dataToDelete = await request.query(`SELECT * FROM tbl_sci_time_voyage_bulk WHERE sci_time_voyage_bulk_id = @sciTimeVoyageBulkId;`);
-            const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
-
-            const result = await request.query(`DELETE FROM tbl_sci_time_voyage_bulk WHERE sci_time_voyage_bulk_id = @sciTimeVoyageBulkId;`);
-
-            if (result.rowsAffected[0] > 0) {
-                const logMessage = `User '${userID}' deleted Time Voyage Bulk data with Data ID '${sciTimeVoyageBulkId}'. Deleted Data: ${dataJSON}\n`;
-
-                fs.mkdirSync(logFolder, { recursive: true });
-                fs.appendFile(logFileName, logMessage, (err) => {
-                    if (err) {
-                        console.error('Error writing to delete_logs.txt:', err);
-                    }
-                });
-
-                return res.sendStatus(201);
-            } else {
-                return res.status(404).send("Data not found");
-            }
-        }
-        catch (err) {
-            console.log(err);
-            return res.sendStatus(500);
-        }
-    }
+    return deleteKpiEntry(req, res, { table: "tbl_sci_time_voyage_bulk", idColumn: "sci_time_voyage_bulk_id", idParam: "sci_time_voyage_bulk_id", logFolder: "SCI_Time_Voyage_Bulk" });
+}
 
     async function addscitimeVoyagetankers(req, res) {
         const { financialYear, totalTankersFleet, daysTimeCharter, daysVoyageCharter, totalRevenue, averageEarnings } = req.body;
         const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-        console.log("Received data:", req.body);
     
         try {
             const conn = await pool;
@@ -364,17 +291,23 @@ async function updatescitimeVoyageBulkData(req,res){
         }
     }
     async function getscitimeList(req, res) {
-
-        const conn = await pool;
-        const request = conn.request();
+    try {
     
-        const result = await request.query(`
-            SELECT * FROM tbl_sci_time_voyage_tanker
-            ORDER BY financial_year DESC;
-        `);
-    
-        res.json(result.recordset);
-    } 
+            const conn = await pool;
+            const request = conn.request();
+        
+            const result = await request.query(`
+                SELECT * FROM tbl_sci_time_voyage_tanker
+                ORDER BY financial_year DESC;
+            `);
+        
+            res.json(result.recordset);
+        
+    } catch (err) {
+        console.error("getscitimeList error:", err);
+        if (!res.headersSent) return res.sendStatus(500);
+    }
+} 
 
     
 async function getUpdatesciVessetankerldata(req, res) 
@@ -396,7 +329,7 @@ async function getUpdatesciVessetankerldata(req, res)
 
         res.json(result.recordset);
     } catch (err) {
-        console.log(err);
+        console.error(err);
         return res.sendStatus(500);
     }
 }
@@ -437,60 +370,19 @@ async function updateTimeVoyagetankerData(req,res){
         return res.sendStatus(200);
     }
     catch (err) {
-        console.log(err);
+        console.error(err);
         return res.sendStatus(500);
     }
 }
 
 async function deleteTimeVoyageTanker(req, res) {
-    const sciTimeVoyageTankerId = req.params.sci_time_voyage_tanker_id;
-    const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-
-    const now = new Date();
-    const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-    const hourPart = String(now.getHours()).padStart(2, '0');
-    const minutePart = String(now.getMinutes()).padStart(2, '0');
-    const secondPart = String(now.getSeconds()).padStart(2, '0');
-    const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
-    const logFolder = `./delete_log/SCI_Time_Voyage_Tanker`;
-    const logFileName = `${logFolder}/deleted_TimeVoyageTanker_log_${timestamp}.txt`;
-
-    const conn = await pool;
-    const request = conn.request();
-    request.input("sciTimeVoyageTankerId", sciTimeVoyageTankerId);
-    request.input("userID", userID);
-    try {
-        const dataToDelete = await request.query(`SELECT * FROM tbl_sci_time_voyage_tanker WHERE sci_time_voyage_tanker_id = @sciTimeVoyageTankerId;`);
-        const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
-
-        const result = await request.query(`DELETE FROM tbl_sci_time_voyage_tanker WHERE sci_time_voyage_tanker_id = @sciTimeVoyageTankerId;`);
-
-        if (result.rowsAffected[0] > 0) {
-            const logMessage = `User '${userID}' deleted Time Voyage Tanker data with Data ID '${sciTimeVoyageTankerId}'. Deleted Data: ${dataJSON}\n`;
-
-            fs.mkdirSync(logFolder, { recursive: true });
-            fs.appendFile(logFileName, logMessage, (err) => {
-                if (err) {
-                    console.error('Error writing to delete_logs.txt:', err);
-                }
-            });
-
-            return res.sendStatus(201);
-        } else {
-            return res.status(404).send("Data not found");
-        }
-    }
-    catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
-    }
+    return deleteKpiEntry(req, res, { table: "tbl_sci_time_voyage_tanker", idColumn: "sci_time_voyage_tanker_id", idParam: "sci_time_voyage_tanker_id", logFolder: "SCI_Time_Voyage_Tanker" });
 }
 
 
     async function addscitimeVoyageoffshore(req, res) {
         const { financialYear, offshoreFleet, timeCharter, voyageCharter, revenue, average } = req.body;
         const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-        console.log("Received data:", req.body);
 
         try {
             const conn = await pool;
@@ -530,17 +422,23 @@ async function deleteTimeVoyageTanker(req, res) {
     }
         
     async function getscioffshoreList(req, res) {
-
-        const conn = await pool;
-        const request = conn.request();
-
-        const result = await request.query(`
-            SELECT * FROM tbl_sci_time_voyage_offshore
-            ORDER BY financial_year DESC;
-        `);
-
-        res.json(result.recordset);
-    } 
+    try {
+    
+            const conn = await pool;
+            const request = conn.request();
+    
+            const result = await request.query(`
+                SELECT * FROM tbl_sci_time_voyage_offshore
+                ORDER BY financial_year DESC;
+            `);
+    
+            res.json(result.recordset);
+        
+    } catch (err) {
+        console.error("getscioffshoreList error:", err);
+        if (!res.headersSent) return res.sendStatus(500);
+    }
+} 
 
     async function getUpdatesciVesseoffshoreldata(req, res) 
     {
@@ -561,7 +459,7 @@ async function deleteTimeVoyageTanker(req, res) {
 
             res.json(result.recordset);
         } catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     }
@@ -602,59 +500,18 @@ async function deleteTimeVoyageTanker(req, res) {
             return res.sendStatus(200);
         }
         catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     }
 
     async function deleteTimeVoyageOffshore(req, res) {
-        const sciTimeVoyageOffshoreId = req.params.sci_time_voyage_offshore_id;
-        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-
-        const now = new Date();
-        const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-        const hourPart = String(now.getHours()).padStart(2, '0');
-        const minutePart = String(now.getMinutes()).padStart(2, '0');
-        const secondPart = String(now.getSeconds()).padStart(2, '0');
-        const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
-        const logFolder = `./delete_log/SCI_Time_Voyage_Offshore`;
-        const logFileName = `${logFolder}/deleted_TimeVoyageOffshore_log_${timestamp}.txt`;
-
-        const conn = await pool;
-        const request = conn.request();
-        request.input("sciTimeVoyageOffshoreId", sciTimeVoyageOffshoreId);
-        request.input("userID", userID);
-        try {
-            const dataToDelete = await request.query(`SELECT * FROM tbl_sci_time_voyage_offshore WHERE sci_time_voyage_offshore_id = @sciTimeVoyageOffshoreId;`);
-            const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
-
-            const result = await request.query(`DELETE FROM tbl_sci_time_voyage_offshore WHERE sci_time_voyage_offshore_id = @sciTimeVoyageOffshoreId;`);
-
-            if (result.rowsAffected[0] > 0) {
-                const logMessage = `User '${userID}' deleted Time Voyage Offshore data with Data ID '${sciTimeVoyageOffshoreId}'. Deleted Data: ${dataJSON}\n`;
-
-                fs.mkdirSync(logFolder, { recursive: true });
-                fs.appendFile(logFileName, logMessage, (err) => {
-                    if (err) {
-                        console.error('Error writing to delete_logs.txt:', err);
-                    }
-                });
-
-                return res.sendStatus(201);
-            } else {
-                return res.status(404).send("Data not found");
-            }
-        }
-        catch (err) {
-            console.log(err);
-            return res.sendStatus(500);
-        }
-    }
+    return deleteKpiEntry(req, res, { table: "tbl_sci_time_voyage_offshore", idColumn: "sci_time_voyage_offshore_id", idParam: "sci_time_voyage_offshore_id", logFolder: "SCI_Time_Voyage_Offshore" });
+}
 
     async function addscilinearVesselavailability(req, res) {
         const { financialYear, totallinearfleet, totalrevenue, averageEarnings } = req.body;
         const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-        console.log("Received data:", req.body);
 
         try {
             const conn = await pool;
@@ -691,17 +548,23 @@ async function deleteTimeVoyageTanker(req, res) {
         }
     }
     async function getscilinearvesselList(req, res) {
-
-        const conn = await pool;
-        const request = conn.request();
-
-        const result = await request.query(`
-            SELECT * FROM tbl_sci_vessel_availability_linear
-            ORDER BY financial_year DESC;
-        `);
-
-        res.json(result.recordset);
+    try {
+    
+            const conn = await pool;
+            const request = conn.request();
+    
+            const result = await request.query(`
+                SELECT * FROM tbl_sci_vessel_availability_linear
+                ORDER BY financial_year DESC;
+            `);
+    
+            res.json(result.recordset);
+        
+    } catch (err) {
+        console.error("getscilinearvesselList error:", err);
+        if (!res.headersSent) return res.sendStatus(500);
     }
+}
     async function getUpdatescilinearvesseldata(req, res) 
     {
 
@@ -721,7 +584,7 @@ async function deleteTimeVoyageTanker(req, res) {
 
             res.json(result.recordset);
         } catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     }  
@@ -758,60 +621,19 @@ async function deleteTimeVoyageTanker(req, res) {
             return res.sendStatus(200);
         }
         catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     } 
 
     async function deleteVesselAvailabilityLiner(req, res) {
-        const sciLinearVesselId = req.params.sci_vessel_availability_bulk_id;
-        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-
-        const now = new Date();
-        const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-        const hourPart = String(now.getHours()).padStart(2, '0');
-        const minutePart = String(now.getMinutes()).padStart(2, '0');
-        const secondPart = String(now.getSeconds()).padStart(2, '0');
-        const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
-        const logFolder = `./delete_log/SCI_Vessel_Availability_Liner`;
-        const logFileName = `${logFolder}/deleted_VesselAvailabilityLiner_log_${timestamp}.txt`;
-
-        const conn = await pool;
-        const request = conn.request();
-        request.input("sciLinearVesselId", sciLinearVesselId);
-        request.input("userID", userID);
-        try {
-            const dataToDelete = await request.query(`SELECT * FROM tbl_sci_vessel_availability_linear WHERE sci_vessel_availability_bulk_id = @sciLinearVesselId;`);
-            const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
-
-            const result = await request.query(`DELETE FROM tbl_sci_vessel_availability_linear WHERE sci_vessel_availability_bulk_id = @sciLinearVesselId;`);
-
-            if (result.rowsAffected[0] > 0) {
-                const logMessage = `User '${userID}' deleted Vessel Availability Liner data with Data ID '${sciLinearVesselId}'. Deleted Data: ${dataJSON}\n`;
-
-                fs.mkdirSync(logFolder, { recursive: true });
-                fs.appendFile(logFileName, logMessage, (err) => {
-                    if (err) {
-                        console.error('Error writing to delete_logs.txt:', err);
-                    }
-                });
-
-                return res.sendStatus(201);
-            } else {
-                return res.status(404).send("Data not found");
-            }
-        }
-        catch (err) {
-            console.log(err);
-            return res.sendStatus(500);
-        }
-    }
+    return deleteKpiEntry(req, res, { table: "tbl_sci_vessel_availability_linear", idColumn: "sci_vessel_availability_bulk_id", idParam: "sci_vessel_availability_bulk_id", logFolder: "SCI_Vessel_Availability_Liner" });
+}
 
 
     async function addvesselprocurementdata(req, res) {
         const { financialYear, newBuiltships, valueOfnewbuiltShips } = req.body;
         const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-        console.log("Received data:", req.body);
 
         try {
             const conn = await pool;
@@ -847,17 +669,23 @@ async function deleteTimeVoyageTanker(req, res) {
         }
     }
     async function getsciprocurementList(req, res) {
-
-        const conn = await pool;
-        const request = conn.request();
-
-        const result = await request.query(`
-            SELECT * FROM tbl_sci_vessel_procurement
-            ORDER BY financial_year DESC;
-        `);
-
-        res.json(result.recordset);
+    try {
+    
+            const conn = await pool;
+            const request = conn.request();
+    
+            const result = await request.query(`
+                SELECT * FROM tbl_sci_vessel_procurement
+                ORDER BY financial_year DESC;
+            `);
+    
+            res.json(result.recordset);
+        
+    } catch (err) {
+        console.error("getsciprocurementList error:", err);
+        if (!res.headersSent) return res.sendStatus(500);
     }
+}
 
     async function getUpdatesciVesselprocurementdata(req, res) 
     {
@@ -878,7 +706,7 @@ async function deleteTimeVoyageTanker(req, res) {
 
             res.json(result.recordset);
         } catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     }
@@ -912,59 +740,18 @@ async function deleteTimeVoyageTanker(req, res) {
             return res.sendStatus(200);
         }
         catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     } 
 
     async function deleteVesselProcurement(req, res) {
-        const sciProcurementId = req.params.sci_procurement_id;
-        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-
-        const now = new Date();
-        const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-        const hourPart = String(now.getHours()).padStart(2, '0');
-        const minutePart = String(now.getMinutes()).padStart(2, '0');
-        const secondPart = String(now.getSeconds()).padStart(2, '0');
-        const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
-        const logFolder = `./delete_log/SCI_Vessel_Procurement`;
-        const logFileName = `${logFolder}/deleted_VesselProcurement_log_${timestamp}.txt`;
-
-        const conn = await pool;
-        const request = conn.request();
-        request.input("sciProcurementId", sciProcurementId);
-        request.input("userID", userID);
-        try {
-            const dataToDelete = await request.query(`SELECT * FROM tbl_sci_vessel_procurement WHERE sci_procurement_id = @sciProcurementId;`);
-            const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
-
-            const result = await request.query(`DELETE FROM tbl_sci_vessel_procurement WHERE sci_procurement_id = @sciProcurementId;`);
-
-            if (result.rowsAffected[0] > 0) {
-                const logMessage = `User '${userID}' deleted Vessel Procurement data with Data ID '${sciProcurementId}'. Deleted Data: ${dataJSON}\n`;
-
-                fs.mkdirSync(logFolder, { recursive: true });
-                fs.appendFile(logFileName, logMessage, (err) => {
-                    if (err) {
-                        console.error('Error writing to delete_logs.txt:', err);
-                    }
-                });
-
-                return res.sendStatus(201);
-            } else {
-                return res.status(404).send("Data not found");
-            }
-        }
-        catch (err) {
-            console.log(err);
-            return res.sendStatus(500);
-        }
-    }
+    return deleteKpiEntry(req, res, { table: "tbl_sci_vessel_procurement", idColumn: "sci_procurement_id", idParam: "sci_procurement_id", logFolder: "SCI_Vessel_Procurement" });
+}
 
     async function addSecondhandvesselprocurementdata(req, res) {
         const { financialYear, noofSecondhandships, averageageofSecondhandships, grossvalueOfsecondhandships } = req.body;
         const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-        console.log("Received data:", req.body);
 
         try {
             const conn = await pool;
@@ -1002,17 +789,23 @@ async function deleteTimeVoyageTanker(req, res) {
     }
 
     async function getsecondhandsciprocurementList(req, res) {
-
-        const conn = await pool;
-        const request = conn.request();
-
-        const result = await request.query(`
-            SELECT * FROM tbl_sci_secondhand_vessel_procurement
-            ORDER BY financial_year DESC;
-        `);
-
-        res.json(result.recordset);
+    try {
+    
+            const conn = await pool;
+            const request = conn.request();
+    
+            const result = await request.query(`
+                SELECT * FROM tbl_sci_secondhand_vessel_procurement
+                ORDER BY financial_year DESC;
+            `);
+    
+            res.json(result.recordset);
+        
+    } catch (err) {
+        console.error("getsecondhandsciprocurementList error:", err);
+        if (!res.headersSent) return res.sendStatus(500);
     }
+}
 
     async function getUpdatescisecondhandVesselprocurementdata(req, res) 
     {
@@ -1033,7 +826,7 @@ async function deleteTimeVoyageTanker(req, res) {
 
             res.json(result.recordset);
         } catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     }
@@ -1070,59 +863,18 @@ async function deleteTimeVoyageTanker(req, res) {
             return res.sendStatus(200);
         }
         catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     } 
 
     async function deleteSecondhandVesselProcurement(req, res) {
-        const sciSecondhandProcurementId = req.params.sci_secondhand_procurement_id;
-        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-
-        const now = new Date();
-        const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-        const hourPart = String(now.getHours()).padStart(2, '0');
-        const minutePart = String(now.getMinutes()).padStart(2, '0');
-        const secondPart = String(now.getSeconds()).padStart(2, '0');
-        const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
-        const logFolder = `./delete_log/SCI_Secondhand_Vessel_Procurement`;
-        const logFileName = `${logFolder}/deleted_SecondhandVesselProcurement_log_${timestamp}.txt`;
-
-        const conn = await pool;
-        const request = conn.request();
-        request.input("sciSecondhandProcurementId", sciSecondhandProcurementId);
-        request.input("userID", userID);
-        try {
-            const dataToDelete = await request.query(`SELECT * FROM tbl_sci_secondhand_vessel_procurement WHERE sci_secondhand_procurement_id = @sciSecondhandProcurementId;`);
-            const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
-
-            const result = await request.query(`DELETE FROM tbl_sci_secondhand_vessel_procurement WHERE sci_secondhand_procurement_id = @sciSecondhandProcurementId;`);
-
-            if (result.rowsAffected[0] > 0) {
-                const logMessage = `User '${userID}' deleted Secondhand Vessel Procurement data with Data ID '${sciSecondhandProcurementId}'. Deleted Data: ${dataJSON}\n`;
-
-                fs.mkdirSync(logFolder, { recursive: true });
-                fs.appendFile(logFileName, logMessage, (err) => {
-                    if (err) {
-                        console.error('Error writing to delete_logs.txt:', err);
-                    }
-                });
-
-                return res.sendStatus(201);
-            } else {
-                return res.status(404).send("Data not found");
-            }
-        }
-        catch (err) {
-            console.log(err);
-            return res.sendStatus(500);
-        }
-    }
+    return deleteKpiEntry(req, res, { table: "tbl_sci_secondhand_vessel_procurement", idColumn: "sci_secondhand_procurement_id", idParam: "sci_secondhand_procurement_id", logFolder: "SCI_Secondhand_Vessel_Procurement" });
+}
 
     async function addshipDrydocking(req, res) {
         const { financialYear, dryDockingscheduled, dryDockingscompleted } = req.body;
         const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-        console.log("Received data:", req.body);
 
         try {
             const conn = await pool;
@@ -1158,17 +910,23 @@ async function deleteTimeVoyageTanker(req, res) {
         }
     }
     async function getShipdrydockList(req, res) {
-
-        const conn = await pool;
-        const request = conn.request();
-
-        const result = await request.query(`
-            SELECT * FROM tbl_sci_ship_dry_docking
-            ORDER BY financial_year DESC;
-        `);
-
-        res.json(result.recordset);
+    try {
+    
+            const conn = await pool;
+            const request = conn.request();
+    
+            const result = await request.query(`
+                SELECT * FROM tbl_sci_ship_dry_docking
+                ORDER BY financial_year DESC;
+            `);
+    
+            res.json(result.recordset);
+        
+    } catch (err) {
+        console.error("getShipdrydockList error:", err);
+        if (!res.headersSent) return res.sendStatus(500);
     }
+}
     async function getUpdateshipdrydockdata(req, res) 
     {
 
@@ -1188,7 +946,7 @@ async function deleteTimeVoyageTanker(req, res) {
 
             res.json(result.recordset);
         } catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     } 
@@ -1222,59 +980,18 @@ async function deleteTimeVoyageTanker(req, res) {
             return res.sendStatus(200);
         }
         catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     } 
 
     async function deleteShipDryDocking(req, res) {
-        const sciDrydockId = req.params.sci_ship_dry_docking_id;
-        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-
-        const now = new Date();
-        const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-        const hourPart = String(now.getHours()).padStart(2, '0');
-        const minutePart = String(now.getMinutes()).padStart(2, '0');
-        const secondPart = String(now.getSeconds()).padStart(2, '0');
-        const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
-        const logFolder = `./delete_log/SCI_Ship_Dry_Docking`;
-        const logFileName = `${logFolder}/deleted_ShipDryDocking_log_${timestamp}.txt`;
-
-        const conn = await pool;
-        const request = conn.request();
-        request.input("sciDrydockId", sciDrydockId);
-        request.input("userID", userID);
-        try {
-            const dataToDelete = await request.query(`SELECT * FROM tbl_sci_ship_dry_docking WHERE sci_ship_dry_docking_id = @sciDrydockId;`);
-            const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
-
-            const result = await request.query(`DELETE FROM tbl_sci_ship_dry_docking WHERE sci_ship_dry_docking_id = @sciDrydockId;`);
-
-            if (result.rowsAffected[0] > 0) {
-                const logMessage = `User '${userID}' deleted Ship Dry Docking data with Data ID '${sciDrydockId}'. Deleted Data: ${dataJSON}\n`;
-
-                fs.mkdirSync(logFolder, { recursive: true });
-                fs.appendFile(logFileName, logMessage, (err) => {
-                    if (err) {
-                        console.error('Error writing to delete_logs.txt:', err);
-                    }
-                });
-
-                return res.sendStatus(201);
-            } else {
-                return res.status(404).send("Data not found");
-            }
-        }
-        catch (err) {
-            console.log(err);
-            return res.sendStatus(500);
-        }
-    }
+    return deleteKpiEntry(req, res, { table: "tbl_sci_ship_dry_docking", idColumn: "sci_ship_dry_docking_id", idParam: "sci_ship_dry_docking_id", logFolder: "SCI_Ship_Dry_Docking" });
+}
 
     async function addshipRepaiandMaintanace(req, res) {
         const { financialYear, repairCosts, operationalRevenue, repairPercentage } = req.body;
         const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-        console.log("Received data:", req.body);
 
         try {
             const conn = await pool;
@@ -1310,17 +1027,23 @@ async function deleteTimeVoyageTanker(req, res) {
         }
     }
     async function getShiprepairandMaintanaceList(req, res) {
-
-        const conn = await pool;
-        const request = conn.request();
-
-        const result = await request.query(`
-            SELECT * FROM tbl_sci_repair_and_maintanace
-            ORDER BY financial_year DESC;
-        `);
-
-        res.json(result.recordset);
+    try {
+    
+            const conn = await pool;
+            const request = conn.request();
+    
+            const result = await request.query(`
+                SELECT * FROM tbl_sci_repair_and_maintanace
+                ORDER BY financial_year DESC;
+            `);
+    
+            res.json(result.recordset);
+        
+    } catch (err) {
+        console.error("getShiprepairandMaintanaceList error:", err);
+        if (!res.headersSent) return res.sendStatus(500);
     }
+}
     async function getUpdateshiprepairandMaintanacedata(req, res) 
     {
 
@@ -1340,7 +1063,7 @@ async function deleteTimeVoyageTanker(req, res) {
 
             res.json(result.recordset);
         } catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     } 
@@ -1376,59 +1099,18 @@ async function deleteTimeVoyageTanker(req, res) {
             return res.sendStatus(200);
         }
         catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     } 
 
     async function deleteRepairAndMaintenance(req, res) {
-        const sciRepairId = req.params.sci_repair_and_maintanace_id;
-        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-
-        const now = new Date();
-        const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-        const hourPart = String(now.getHours()).padStart(2, '0');
-        const minutePart = String(now.getMinutes()).padStart(2, '0');
-        const secondPart = String(now.getSeconds()).padStart(2, '0');
-        const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
-        const logFolder = `./delete_log/SCI_Repair_And_Maintenance`;
-        const logFileName = `${logFolder}/deleted_RepairAndMaintenance_log_${timestamp}.txt`;
-
-        const conn = await pool;
-        const request = conn.request();
-        request.input("sciRepairId", sciRepairId);
-        request.input("userID", userID);
-        try {
-            const dataToDelete = await request.query(`SELECT * FROM tbl_sci_repair_and_maintanace WHERE sci_repair_and_maintanace_id = @sciRepairId;`);
-            const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
-
-            const result = await request.query(`DELETE FROM tbl_sci_repair_and_maintanace WHERE sci_repair_and_maintanace_id = @sciRepairId;`);
-
-            if (result.rowsAffected[0] > 0) {
-                const logMessage = `User '${userID}' deleted Repair and Maintenance data with Data ID '${sciRepairId}'. Deleted Data: ${dataJSON}\n`;
-
-                fs.mkdirSync(logFolder, { recursive: true });
-                fs.appendFile(logFileName, logMessage, (err) => {
-                    if (err) {
-                        console.error('Error writing to delete_logs.txt:', err);
-                    }
-                });
-
-                return res.sendStatus(201);
-            } else {
-                return res.status(404).send("Data not found");
-            }
-        }
-        catch (err) {
-            console.log(err);
-            return res.sendStatus(500);
-        }
-    }
+    return deleteKpiEntry(req, res, { table: "tbl_sci_repair_and_maintanace", idColumn: "sci_repair_and_maintanace_id", idParam: "sci_repair_and_maintanace_id", logFolder: "SCI_Repair_And_Maintenance" });
+}
 
     async function addsaleandRecycling(req, res) {
         const { financialYear, noOfoldvessels, valueOfsale, averageAge } = req.body;
         const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-        console.log("Received data:", req.body);
 
         try {
             const conn = await pool;
@@ -1465,17 +1147,23 @@ async function deleteTimeVoyageTanker(req, res) {
         }
     }
     async function getSaleandrecyclingList(req, res) {
-
-        const conn = await pool;
-        const request = conn.request();
-
-        const result = await request.query(`
-            SELECT * FROM tbl_sci_sale_and_recycling_oldvessels
-            ORDER BY financial_year DESC;
-        `);
-
-        res.json(result.recordset);
+    try {
+    
+            const conn = await pool;
+            const request = conn.request();
+    
+            const result = await request.query(`
+                SELECT * FROM tbl_sci_sale_and_recycling_oldvessels
+                ORDER BY financial_year DESC;
+            `);
+    
+            res.json(result.recordset);
+        
+    } catch (err) {
+        console.error("getSaleandrecyclingList error:", err);
+        if (!res.headersSent) return res.sendStatus(500);
     }
+}
     async function getUpdatescisaleandRecyclingdata(req, res) 
     {
 
@@ -1495,7 +1183,7 @@ async function deleteTimeVoyageTanker(req, res) {
 
             res.json(result.recordset);
         } catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     } 
@@ -1529,59 +1217,18 @@ async function deleteTimeVoyageTanker(req, res) {
             return res.sendStatus(200);
         }
         catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     } 
 
     async function deleteSaleAndRecycling(req, res) {
-        const sciSaleRecyclingId = req.params.sci_sale_recycling_id;
-        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-
-        const now = new Date();
-        const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-        const hourPart = String(now.getHours()).padStart(2, '0');
-        const minutePart = String(now.getMinutes()).padStart(2, '0');
-        const secondPart = String(now.getSeconds()).padStart(2, '0');
-        const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
-        const logFolder = `./delete_log/SCI_Sale_And_Recycling`;
-        const logFileName = `${logFolder}/deleted_SaleAndRecycling_log_${timestamp}.txt`;
-
-        const conn = await pool;
-        const request = conn.request();
-        request.input("sciSaleRecyclingId", sciSaleRecyclingId);
-        request.input("userID", userID);
-        try {
-            const dataToDelete = await request.query(`SELECT * FROM tbl_sci_sale_and_recycling_oldvessels WHERE sci_sale_recycling_id = @sciSaleRecyclingId;`);
-            const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
-
-            const result = await request.query(`DELETE FROM tbl_sci_sale_and_recycling_oldvessels WHERE sci_sale_recycling_id = @sciSaleRecyclingId;`);
-
-            if (result.rowsAffected[0] > 0) {
-                const logMessage = `User '${userID}' deleted Sale and Recycling data with Data ID '${sciSaleRecyclingId}'. Deleted Data: ${dataJSON}\n`;
-
-                fs.mkdirSync(logFolder, { recursive: true });
-                fs.appendFile(logFileName, logMessage, (err) => {
-                    if (err) {
-                        console.error('Error writing to delete_logs.txt:', err);
-                    }
-                });
-
-                return res.sendStatus(201);
-            } else {
-                return res.status(404).send("Data not found");
-            }
-        }
-        catch (err) {
-            console.log(err);
-            return res.sendStatus(500);
-        }
-    }
+    return deleteKpiEntry(req, res, { table: "tbl_sci_sale_and_recycling_oldvessels", idColumn: "sci_sale_recycling_id", idParam: "sci_sale_recycling_id", logFolder: "SCI_Sale_And_Recycling" });
+}
 
     async function addsaleandRecyclingofgreenRecycling(req, res) {
         const { financialYear, vesselssold, valueofVessels, adherencetoGreenrecycling } = req.body;
         const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-        console.log("Received data:", req.body);
 
         try {
             const conn = await pool;
@@ -1617,17 +1264,23 @@ async function deleteTimeVoyageTanker(req, res) {
         }
     }
     async function getSaleandGreenrecyclingList(req, res) {
-
-        const conn = await pool;
-        const request = conn.request();
-
-        const result = await request.query(`
-            SELECT * FROM tbl_sci_sale_and_recycling_oldvessels_green_recycling
-            ORDER BY financial_year DESC;
-        `);
-
-        res.json(result.recordset);
+    try {
+    
+            const conn = await pool;
+            const request = conn.request();
+    
+            const result = await request.query(`
+                SELECT * FROM tbl_sci_sale_and_recycling_oldvessels_green_recycling
+                ORDER BY financial_year DESC;
+            `);
+    
+            res.json(result.recordset);
+        
+    } catch (err) {
+        console.error("getSaleandGreenrecyclingList error:", err);
+        if (!res.headersSent) return res.sendStatus(500);
     }
+}
 
     async function getUpdatescisaleandGreenrecyclingdata(req, res) 
             {
@@ -1648,7 +1301,7 @@ async function deleteTimeVoyageTanker(req, res) {
             
                     res.json(result.recordset);
                 } catch (err) {
-                    console.log(err);
+                    console.error(err);
                     return res.sendStatus(500);
                 }
        }
@@ -1684,54 +1337,14 @@ async function deleteTimeVoyageTanker(req, res) {
                 return res.sendStatus(200);
             }
             catch (err) {
-                console.log(err);
+                console.error(err);
                 return res.sendStatus(500);
             }
    } 
 
    async function deleteGreenRecycling(req, res) {
-        const sciSaleGreenRecyclingId = req.params.sci_sale_green_recycling_id;
-        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-
-        const now = new Date();
-        const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-        const hourPart = String(now.getHours()).padStart(2, '0');
-        const minutePart = String(now.getMinutes()).padStart(2, '0');
-        const secondPart = String(now.getSeconds()).padStart(2, '0');
-        const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
-        const logFolder = `./delete_log/SCI_Sale_Green_Recycling`;
-        const logFileName = `${logFolder}/deleted_SaleGreenRecycling_log_${timestamp}.txt`;
-
-        const conn = await pool;
-        const request = conn.request();
-        request.input("sciSaleGreenRecyclingId", sciSaleGreenRecyclingId);
-        request.input("userID", userID);
-        try {
-            const dataToDelete = await request.query(`SELECT * FROM tbl_sci_sale_and_recycling_oldvessels_green_recycling WHERE sci_sale_green_recycling_id = @sciSaleGreenRecyclingId;`);
-            const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
-
-            const result = await request.query(`DELETE FROM tbl_sci_sale_and_recycling_oldvessels_green_recycling WHERE sci_sale_green_recycling_id = @sciSaleGreenRecyclingId;`);
-
-            if (result.rowsAffected[0] > 0) {
-                const logMessage = `User '${userID}' deleted Sale Green Recycling data with Data ID '${sciSaleGreenRecyclingId}'. Deleted Data: ${dataJSON}\n`;
-
-                fs.mkdirSync(logFolder, { recursive: true });
-                fs.appendFile(logFileName, logMessage, (err) => {
-                    if (err) {
-                        console.error('Error writing to delete_logs.txt:', err);
-                    }
-                });
-
-                return res.sendStatus(201);
-            } else {
-                return res.status(404).send("Data not found");
-            }
-        }
-        catch (err) {
-            console.log(err);
-            return res.sendStatus(500);
-        }
-    }
+    return deleteKpiEntry(req, res, { table: "tbl_sci_sale_and_recycling_oldvessels_green_recycling", idColumn: "sci_sale_green_recycling_id", idParam: "sci_sale_green_recycling_id", logFolder: "SCI_Sale_Green_Recycling" });
+}
   
 //     async function addmanningofOwnedships(req, res) {
 
@@ -1776,12 +1389,10 @@ async function deleteTimeVoyageTanker(req, res) {
 async function addmanningofOwnedships(req, res) {
     const { financialYear, noofVesselsaudited, noofShipsfullycomplaint } = req.body;
     const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-    console.log("Received data:", req.body);
 
     try {
         // Calculate compliance percentage
         const compliance = (noofShipsfullycomplaint / noofVesselsaudited) * 100;
-        console.log(`Calculated compliance: ${compliance}%`);
 
         const conn = await pool;
         const request = conn.request();
@@ -1800,7 +1411,6 @@ async function addmanningofOwnedships(req, res) {
         request.input("noofShipsfullycomplaint", noofShipsfullycomplaint);
         request.input("compliance", compliance);
         request.input("userID", userID);
-        console.log();
 
         const insertResult = await request.query(`
             INSERT INTO tbl_sci_manning_of_owned_ships
@@ -1819,17 +1429,23 @@ async function addmanningofOwnedships(req, res) {
 
 
     async function getscimanningdataList(req, res) {
-
-        const conn = await pool;
-        const request = conn.request();
+    try {
     
-        const result = await request.query(`
-            SELECT * FROM tbl_sci_manning_of_owned_ships
-            ORDER BY financial_year DESC;
-        `);
-    
-        res.json(result.recordset);
+            const conn = await pool;
+            const request = conn.request();
+        
+            const result = await request.query(`
+                SELECT * FROM tbl_sci_manning_of_owned_ships
+                ORDER BY financial_year DESC;
+            `);
+        
+            res.json(result.recordset);
+        
+    } catch (err) {
+        console.error("getscimanningdataList error:", err);
+        if (!res.headersSent) return res.sendStatus(500);
     }
+}
     async function getUpdatescimanningodOwnedshipsdata(req, res) 
     {
 
@@ -1849,7 +1465,7 @@ async function addmanningofOwnedships(req, res) {
 
             res.json(result.recordset);
         } catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     }
@@ -1858,11 +1474,9 @@ async function addmanningofOwnedships(req, res) {
             const { updatefinancialYear, updatenoofVesselsaudited, updatenoofShipsfullycomplaint, ScimanningIdOrg } = req.body;
             const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
             
-            console.log("Received update request:", req.body);
 
             // Calculate compliance percentage dynamically
             const updatecompliance = (updatenoofShipsfullycomplaint / updatenoofVesselsaudited) * 100;
-            console.log(`Calculated updatecompliance: ${updatecompliance}%`);
     
             const conn = await pool;
             const request = conn.request();
@@ -1874,7 +1488,6 @@ async function addmanningofOwnedships(req, res) {
             request.input("userID", userID);
             request.input("ScimanningIdOrg", ScimanningIdOrg);
     
-            console.log("Updating data in database...");
             // The entry must still exist, and its new period must not be another entry's (QC KPI-05 / KPI-09)
             const editCheck = await checkEdit({ table: "tbl_sci_manning_of_owned_ships", idColumn: "sci_manning_id", id: ScimanningIdOrg, period: { financial_year: updatefinancialYear } });
             if (editCheck) return refuseEdit(res, editCheck);
@@ -1889,7 +1502,6 @@ async function addmanningofOwnedships(req, res) {
                 WHERE sci_manning_id = @ScimanningIdOrg
             `);
     
-            console.log("Update successful.");
             return res.sendStatus(200);
         } catch (err) {
             console.error("Error updating data:", err);
@@ -1898,53 +1510,12 @@ async function addmanningofOwnedships(req, res) {
     }
 
     async function deleteManningOfOwnedShips(req, res) {
-        const sciManningId = req.params.sci_manning_id;
-        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-
-        const now = new Date();
-        const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-        const hourPart = String(now.getHours()).padStart(2, '0');
-        const minutePart = String(now.getMinutes()).padStart(2, '0');
-        const secondPart = String(now.getSeconds()).padStart(2, '0');
-        const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
-        const logFolder = `./delete_log/SCI_Manning_Of_Owned_Ships`;
-        const logFileName = `${logFolder}/deleted_ManningOfOwnedShips_log_${timestamp}.txt`;
-
-        const conn = await pool;
-        const request = conn.request();
-        request.input("sciManningId", sciManningId);
-        request.input("userID", userID);
-        try {
-            const dataToDelete = await request.query(`SELECT * FROM tbl_sci_manning_of_owned_ships WHERE sci_manning_id = @sciManningId;`);
-            const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
-
-            const result = await request.query(`DELETE FROM tbl_sci_manning_of_owned_ships WHERE sci_manning_id = @sciManningId;`);
-
-            if (result.rowsAffected[0] > 0) {
-                const logMessage = `User '${userID}' deleted Manning of Owned Ships data with Data ID '${sciManningId}'. Deleted Data: ${dataJSON}\n`;
-
-                fs.mkdirSync(logFolder, { recursive: true });
-                fs.appendFile(logFileName, logMessage, (err) => {
-                    if (err) {
-                        console.error('Error writing to delete_logs.txt:', err);
-                    }
-                });
-
-                return res.sendStatus(201);
-            } else {
-                return res.status(404).send("Data not found");
-            }
-        }
-        catch (err) {
-            console.log(err);
-            return res.sendStatus(500);
-        }
-    }
+    return deleteKpiEntry(req, res, { table: "tbl_sci_manning_of_owned_ships", idColumn: "sci_manning_id", idParam: "sci_manning_id", logFolder: "SCI_Manning_Of_Owned_Ships" });
+}
     
     async function addshipManagementBusiness(req, res) {
         const { financialYear, noofShipsManaged, totalManagementcost, revenue, costtoRevenueratio } = req.body;
         const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-        console.log("Received data:", req.body);
     
         try {
             const conn = await pool;
@@ -1981,17 +1552,23 @@ async function addmanningofOwnedships(req, res) {
         }
     }
     async function getshipmanagementList(req, res) {
-
-        const conn = await pool;
-        const request = conn.request();
+    try {
     
-        const result = await request.query(`
-            SELECT * FROM tbl_sci_ship_management_business
-            ORDER BY financial_year DESC;
-        `);
-    
-        res.json(result.recordset);
+            const conn = await pool;
+            const request = conn.request();
+        
+            const result = await request.query(`
+                SELECT * FROM tbl_sci_ship_management_business
+                ORDER BY financial_year DESC;
+            `);
+        
+            res.json(result.recordset);
+        
+    } catch (err) {
+        console.error("getshipmanagementList error:", err);
+        if (!res.headersSent) return res.sendStatus(500);
     }
+}
 
     async function getUpdatescishipManagementdata(req, res) 
     {
@@ -2012,7 +1589,7 @@ async function addmanningofOwnedships(req, res) {
 
             res.json(result.recordset);
         } catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     }
@@ -2051,54 +1628,14 @@ async function addmanningofOwnedships(req, res) {
             return res.sendStatus(200);
         }
         catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     }
 
     async function deleteShipManagementBusiness(req, res) {
-        const sciShipManagementId = req.params.sci_ship_management_id;
-        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-
-        const now = new Date();
-        const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-        const hourPart = String(now.getHours()).padStart(2, '0');
-        const minutePart = String(now.getMinutes()).padStart(2, '0');
-        const secondPart = String(now.getSeconds()).padStart(2, '0');
-        const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
-        const logFolder = `./delete_log/SCI_Ship_Management_Business`;
-        const logFileName = `${logFolder}/deleted_ShipManagementBusiness_log_${timestamp}.txt`;
-
-        const conn = await pool;
-        const request = conn.request();
-        request.input("sciShipManagementId", sciShipManagementId);
-        request.input("userID", userID);
-        try {
-            const dataToDelete = await request.query(`SELECT * FROM tbl_sci_ship_management_business WHERE sci_ship_management_id = @sciShipManagementId;`);
-            const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
-
-            const result = await request.query(`DELETE FROM tbl_sci_ship_management_business WHERE sci_ship_management_id = @sciShipManagementId;`);
-
-            if (result.rowsAffected[0] > 0) {
-                const logMessage = `User '${userID}' deleted Ship Management Business data with Data ID '${sciShipManagementId}'. Deleted Data: ${dataJSON}\n`;
-
-                fs.mkdirSync(logFolder, { recursive: true });
-                fs.appendFile(logFileName, logMessage, (err) => {
-                    if (err) {
-                        console.error('Error writing to delete_logs.txt:', err);
-                    }
-                });
-
-                return res.sendStatus(201);
-            } else {
-                return res.status(404).send("Data not found");
-            }
-        }
-        catch (err) {
-            console.log(err);
-            return res.sendStatus(500);
-        }
-    }
+    return deleteKpiEntry(req, res, { table: "tbl_sci_ship_management_business", idColumn: "sci_ship_management_id", idParam: "sci_ship_management_id", logFolder: "SCI_Ship_Management_Business" });
+}
 
 export default {addVesselAvailabiltydata,getsciVesselList,getUpdatesciVesseldata,updatesciVesselData,deleteVesselAvailabilityOwnShips,addscitimeVoyageydata,getscitimeVoyageList,getUpdatescitimeVoyageBulkdata,updatescitimeVoyageBulkData,deleteTimeVoyageBulk,addscitimeVoyagetankers,getscitimeList,getUpdatesciVessetankerldata,updateTimeVoyagetankerData,deleteTimeVoyageTanker,addscitimeVoyageoffshore,getscioffshoreList,getUpdatesciVesseoffshoreldata,updateTimeVoyageoffshoreData,deleteTimeVoyageOffshore,
     addscilinearVesselavailability,getscilinearvesselList,getUpdatescilinearvesseldata,updatescilinearvesselAvailabilityData,deleteVesselAvailabilityLiner,addvesselprocurementdata,getsciprocurementList,getUpdatesciVesselprocurementdata,submitVesselProcurementdata,deleteVesselProcurement,addSecondhandvesselprocurementdata,getsecondhandsciprocurementList,getUpdatescisecondhandVesselprocurementdata,updatesecondhandVesselProcurementdata,deleteSecondhandVesselProcurement,addshipDrydocking,

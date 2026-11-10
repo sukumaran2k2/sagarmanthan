@@ -33,7 +33,7 @@ async function getVTMSIntegrationReport(req,res) {
 
         const rowData = result.recordset;
         if (rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available' });
+            return res.json({ columnDefs: [], rowData: [] }); // nothing entered yet: an empty report, not an error (QC KPI-15)
         }
 
         // Define columns
@@ -93,7 +93,7 @@ async function getNAISUptimeReport(req,res) {
         const rowData = result.recordset;
 
         if (rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available' });
+            return res.json({ columnDefs: [], rowData: [] }); // nothing entered yet: an empty report, not an error (QC KPI-15)
         }
 
         // Define columns
@@ -167,7 +167,7 @@ EXEC sp_executesql @sql;
 const rowData = result.recordset;
 
 if (rowData.length === 0) {
-    return res.status(404).json({ error: 'No data available' });
+    return res.json({ columnDefs: [], rowData: [] }); // nothing entered yet: an empty report, not an error (QC KPI-15)
 }
 
 // Define columns
@@ -308,7 +308,7 @@ async function getLightHouseMasterReport(req, res) {
       const rowData = result.recordset;
   
       if (rowData.length === 0) {
-        return res.status(404).json({ error: 'No data available' });
+        return res.json({ columnDefs: [], rowData: [] }); // nothing entered yet: an empty report, not an error (QC KPI-15)
       }
   
       // Generate dynamic columns based on the financial years fetched dynamically
@@ -387,7 +387,7 @@ EXEC sp_executesql @sql;
   console.log("sunrowdata",result);
 
   if (!rowData || rowData.length == 0) {
-    return res.status(404).json({ error: 'No data available' });
+    return res.json({ columnDefs: [], rowData: [] }); // nothing entered yet: an empty report, not an error (QC KPI-15)
   }
 
   // Generate dynamic columns based on the financial years fetched dynamically
@@ -564,7 +564,7 @@ async function getFinancialPerformanceReport(req,res) {
     const rowData = result.recordset;
 
     if (!rowData || rowData.length === 0) {
-        return res.status(404).json({ error: 'No data available' });
+        return res.json({ columnDefs: [], rowData: [] }); // nothing entered yet: an empty report, not an error (QC KPI-15)
     }
 
     // Define columns

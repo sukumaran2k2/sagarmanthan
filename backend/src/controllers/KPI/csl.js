@@ -1,7 +1,5 @@
 import { pool } from "../../db.js";
-import { checkEdit, refuseEdit } from "./kpiEditChecks.js";
-import path from 'path';
-import fs from 'fs';
+import { checkEdit, refuseEdit, deleteKpiEntry } from "./kpiEditChecks.js";
 
 
 
@@ -95,7 +93,7 @@ import fs from 'fs';
             },
         });
     } catch (error) {
-        console.log("error", error);
+        console.error("error", error);
         return res.status(500).json({ message: 'Internal Server Error' });
     }
 } 
@@ -119,7 +117,7 @@ import fs from 'fs';
 
             res.json(result.recordset);
         } catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
         }
@@ -152,54 +150,14 @@ import fs from 'fs';
             return res.sendStatus(200);
         }
         catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     }
 
     async function deleteVesselsBuilt(req, res) {
-        const cslVesselId = req.params.csl_vessel_id;
-        const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-
-        const now = new Date();
-        const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-        const hourPart = String(now.getHours()).padStart(2, '0');
-        const minutePart = String(now.getMinutes()).padStart(2, '0');
-        const secondPart = String(now.getSeconds()).padStart(2, '0');
-        const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
-        const logFolder = `./delete_log/CSL_Vessels_Built`;
-        const logFileName = `${logFolder}/deleted_VesselsBuilt_log_${timestamp}.txt`;
-
-        const conn = await pool;
-        const request = conn.request();
-        request.input("cslVesselId", cslVesselId);
-        request.input("userID", userID);
-        try {
-            const dataToDelete = await request.query(`SELECT * FROM tbl_csl_vessels_built WHERE csl_vessel_id = @cslVesselId;`);
-            const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
-
-            const result = await request.query(`DELETE FROM tbl_csl_vessels_built WHERE csl_vessel_id = @cslVesselId;`);
-
-            if (result.rowsAffected[0] > 0) {
-                const logMessage = `User '${userID}' deleted Vessels Built data with Data ID '${cslVesselId}'. Deleted Data: ${dataJSON}\n`;
-
-                fs.mkdirSync(logFolder, { recursive: true });
-                fs.appendFile(logFileName, logMessage, (err) => {
-                    if (err) {
-                        console.error('Error writing to delete_logs.txt:', err);
-                    }
-                });
-
-                return res.sendStatus(201);
-            } else {
-                return res.status(404).send("Data not found");
-            }
-        }
-        catch (err) {
-            console.log(err);
-            return res.sendStatus(500);
-        }
-    }
+    return deleteKpiEntry(req, res, { table: "tbl_csl_vessels_built", idColumn: "csl_vessel_id", idParam: "csl_vessel_id", logFolder: "CSL_Vessels_Built" });
+}
 
 
     async function addShipBuildingOrders(req, res) {
@@ -236,20 +194,6 @@ import fs from 'fs';
             `);
     
             const insertedId = insertResult.recordset[0].csl_shipbuilding_id;
-            await request.query(`
-                MERGE INTO tbl_csl_ship_building_orders_update AS target
-                USING (SELECT @financialYear AS financial_year) AS source
-                ON target.financial_year = source.financial_year
-                WHEN MATCHED THEN
-                    UPDATE SET 
-                        target.ship_orders_received = target.ship_orders_received + @shipOrdersreceived,
-                        target.value_of_ship_orders_received = target.value_of_ship_orders_received + @valueOfshipOrder,
-                        target.updated_by = @userID,
-                        target.updated_date = GETDATE()
-                WHEN NOT MATCHED THEN
-                    INSERT (financial_year, ship_orders_received, value_of_ship_orders_received, updated_by, updated_date)
-                    VALUES (@financialYear, @shipOrdersreceived, @valueOfshipOrder, @userID, GETDATE());
-            `);
 
             res.status(201).json({ insertedId });
 
@@ -308,7 +252,7 @@ import fs from 'fs';
             },
         });
     } catch (error) {
-        console.log("error", error);
+        console.error("error", error);
         return res.status(500).json({ message: 'Internal Server Error' });
     }
 } 
@@ -332,7 +276,7 @@ import fs from 'fs';
             
                     res.json(result.recordset);
                 } catch (err) {
-                    console.log(err);
+                    console.error(err);
                     return res.sendStatus(500);
                 }
         }
@@ -369,54 +313,14 @@ import fs from 'fs';
                 return res.sendStatus(200);
             }
             catch (err) {
-                console.log(err);
+                console.error(err);
                 return res.sendStatus(500);
             }
         }
 
         async function deleteShipBuildingOrders(req, res) {
-            const cslShipbuildingId = req.params.csl_shipbuilding_id;
-            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-
-            const now = new Date();
-            const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-            const hourPart = String(now.getHours()).padStart(2, '0');
-            const minutePart = String(now.getMinutes()).padStart(2, '0');
-            const secondPart = String(now.getSeconds()).padStart(2, '0');
-            const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
-            const logFolder = `./delete_log/CSL_Ship_Building_Orders`;
-            const logFileName = `${logFolder}/deleted_ShipBuildingOrders_log_${timestamp}.txt`;
-
-            const conn = await pool;
-            const request = conn.request();
-            request.input("cslShipbuildingId", cslShipbuildingId);
-            request.input("userID", userID);
-            try {
-                const dataToDelete = await request.query(`SELECT * FROM tbl_csl_ship_building_orders WHERE csl_shipbuilding_id = @cslShipbuildingId;`);
-                const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
-
-                const result = await request.query(`DELETE FROM tbl_csl_ship_building_orders WHERE csl_shipbuilding_id = @cslShipbuildingId;`);
-
-                if (result.rowsAffected[0] > 0) {
-                    const logMessage = `User '${userID}' deleted Ship Building Orders data with Data ID '${cslShipbuildingId}'. Deleted Data: ${dataJSON}\n`;
-
-                    fs.mkdirSync(logFolder, { recursive: true });
-                    fs.appendFile(logFileName, logMessage, (err) => {
-                        if (err) {
-                            console.error('Error writing to delete_logs.txt:', err);
-                        }
-                    });
-
-                    return res.sendStatus(201);
-                } else {
-                    return res.status(404).send("Data not found");
-                }
-            }
-            catch (err) {
-                console.log(err);
-                return res.sendStatus(500);
-            }
-        }
+    return deleteKpiEntry(req, res, { table: "tbl_csl_ship_building_orders", idColumn: "csl_shipbuilding_id", idParam: "csl_shipbuilding_id", logFolder: "CSL_Ship_Building_Orders" });
+}
         
     async function  addShipdelivery(req, res) {
         try {
@@ -451,20 +355,6 @@ import fs from 'fs';
             `);
     
             const insertedId = insertResult.recordset[0].csl_shipdelivery_id;
-            await request.query(`
-                MERGE INTO tbl_csl_ship_delivery_performance_update AS target
-                USING (SELECT @financialYear AS financial_year) AS source
-                ON target.financial_year = source.financial_year
-                WHEN MATCHED THEN
-                    UPDATE SET 
-                        target.total_no_ship_orders_received = target.total_no_ship_orders_received + @noOfshipsReceived,
-                        target.no_of_ships_delivered = target.no_of_ships_delivered + @noOfshipsDeleivered,
-                        target.updated_by = @userID,
-                        target.updated_date =  GETDATE()-- Store only date
-                WHEN NOT MATCHED THEN
-                    INSERT (financial_year, total_no_ship_orders_received, no_of_ships_delivered, updated_by, updated_date)
-                    VALUES (@financialYear, @noOfshipsReceived, @noOfshipsDeleivered, @userID,  GETDATE());
-            `);
     
             res.status(201).json({ insertedId });
     
@@ -523,29 +413,35 @@ import fs from 'fs';
             },
         });
     } catch (error) {
-        console.log("error", error);
+        console.error("error", error);
         return res.status(500).json({ message: 'Internal Server Error' });
     }
 } 
 
         async function getUpdateshipdeliverydata(req, res) 
         {
-        
-            const CslshipdeliveryId = req.params.CslshipdeliveryId;
-            const conn = await pool;
-            const request = conn.request();
-            request.input("CslshipdeliveryId", CslshipdeliveryId);
-        
-                const result = await request.query(`
-                    SELECT 
-                        *
-                    FROM 
-                        tbl_csl_ship_delivery_performance
-                        WHERE csl_shipdelivery_id  = @CslshipdeliveryId
-                `);
-        
-                res.json(result.recordset);
-        } 
+    try {
+            
+                const CslshipdeliveryId = req.params.CslshipdeliveryId;
+                const conn = await pool;
+                const request = conn.request();
+                request.input("CslshipdeliveryId", CslshipdeliveryId);
+            
+                    const result = await request.query(`
+                        SELECT 
+                            *
+                        FROM 
+                            tbl_csl_ship_delivery_performance
+                            WHERE csl_shipdelivery_id  = @CslshipdeliveryId
+                    `);
+            
+                    res.json(result.recordset);
+            
+    } catch (err) {
+        console.error("getUpdateshipdeliverydata error:", err);
+        if (!res.headersSent) return res.sendStatus(500);
+    }
+} 
 
         async function updatecslShipdeliveryData(req,res){
         
@@ -579,94 +475,60 @@ import fs from 'fs';
                 return res.sendStatus(200);
             }
             catch (err) {
-                console.log(err);
+                console.error(err);
                 return res.sendStatus(500);
             }
         }
         
         async function deleteShipDeliveryPerformance(req, res) {
-            const cslShipdeliveryId = req.params.csl_shipdelivery_id;
-            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-
-            const now = new Date();
-            const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-            const hourPart = String(now.getHours()).padStart(2, '0');
-            const minutePart = String(now.getMinutes()).padStart(2, '0');
-            const secondPart = String(now.getSeconds()).padStart(2, '0');
-            const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
-            const logFolder = `./delete_log/CSL_Ship_Delivery_Performance`;
-            const logFileName = `${logFolder}/deleted_ShipDeliveryPerformance_log_${timestamp}.txt`;
-
-            const conn = await pool;
-            const request = conn.request();
-            request.input("cslShipdeliveryId", cslShipdeliveryId);
-            request.input("userID", userID);
-            try {
-                const dataToDelete = await request.query(`SELECT * FROM tbl_csl_ship_delivery_performance WHERE csl_shipdelivery_id = @cslShipdeliveryId;`);
-                const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
-
-                const result = await request.query(`DELETE FROM tbl_csl_ship_delivery_performance WHERE csl_shipdelivery_id = @cslShipdeliveryId;`);
-
-                if (result.rowsAffected[0] > 0) {
-                    const logMessage = `User '${userID}' deleted Ship Delivery Performance data with Data ID '${cslShipdeliveryId}'. Deleted Data: ${dataJSON}\n`;
-
-                    fs.mkdirSync(logFolder, { recursive: true });
-                    fs.appendFile(logFileName, logMessage, (err) => {
-                        if (err) {
-                            console.error('Error writing to delete_logs.txt:', err);
-                        }
-                    });
-
-                    return res.sendStatus(201);
-                } else {
-                    return res.status(404).send("Data not found");
-                }
-            }
-            catch (err) {
-                console.log(err);
-                return res.sendStatus(500);
-            }
-        }
+    return deleteKpiEntry(req, res, { table: "tbl_csl_ship_delivery_performance", idColumn: "csl_shipdelivery_id", idParam: "csl_shipdelivery_id", logFolder: "CSL_Ship_Delivery_Performance" });
+}
 
 
 
         async function addcapacityUtilization(req, res) {
-            const financialYear = req.body.financialYear;
-            const shipbuildingCapacity = req.body.shipbuildingCapacity;
-            const tonnageOfVesselsBuilt = req.body.tonnageofVesselsBuilt;
-            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-        
-            const conn = await pool;
-        
-                const checkRequest = conn.request();
-                checkRequest.input("financialYear", financialYear);
-                
-                // Check if financial year already exists
-                const checkResult = await checkRequest.query(`
-                    SELECT COUNT(*) AS count FROM tbl_csl_capacity_utilization WHERE financial_year = @financialYear
-                `);
-        
-                if (checkResult.recordset[0].count > 0) {
-                    return res.status(205).json({ error: "Data already exists for the selected financial year!" });
-                }
-        
-                // If no duplicate, proceed with insert
-                const request = conn.request();
-                request.input("financialYear", financialYear);
-                request.input("shipbuildingCapacity", shipbuildingCapacity);
-                request.input("tonnageOfVesselsBuilt", tonnageOfVesselsBuilt);
-                request.input("userID", userID);
-        
-                const result = await request.query(`
-                    INSERT INTO tbl_csl_capacity_utilization (financial_year, total_shipbuilding_capacity, tonnage_of_vessels, created_by, created_date)
-                    OUTPUT INSERTED.csl_capacity_utilization_id
-                    VALUES (@financialYear, @shipbuildingCapacity, @tonnageOfVesselsBuilt, @userID, GETDATE())
-                `);
-        
-                const insertedYPId = result.recordset[0].csl_capacity_utilization_id;
-                res.status(201).json({ insertedYPId });
-        
-         } 
+    try {
+                const financialYear = req.body.financialYear;
+                const shipbuildingCapacity = req.body.shipbuildingCapacity;
+                const tonnageOfVesselsBuilt = req.body.tonnageofVesselsBuilt;
+                const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
+            
+                const conn = await pool;
+            
+                    const checkRequest = conn.request();
+                    checkRequest.input("financialYear", financialYear);
+                    
+                    // Check if financial year already exists
+                    const checkResult = await checkRequest.query(`
+                        SELECT COUNT(*) AS count FROM tbl_csl_capacity_utilization WHERE financial_year = @financialYear
+                    `);
+            
+                    if (checkResult.recordset[0].count > 0) {
+                        return res.status(205).json({ error: "Data already exists for the selected financial year!" });
+                    }
+            
+                    // If no duplicate, proceed with insert
+                    const request = conn.request();
+                    request.input("financialYear", financialYear);
+                    request.input("shipbuildingCapacity", shipbuildingCapacity);
+                    request.input("tonnageOfVesselsBuilt", tonnageOfVesselsBuilt);
+                    request.input("userID", userID);
+            
+                    const result = await request.query(`
+                        INSERT INTO tbl_csl_capacity_utilization (financial_year, total_shipbuilding_capacity, tonnage_of_vessels, created_by, created_date)
+                        OUTPUT INSERTED.csl_capacity_utilization_id
+                        VALUES (@financialYear, @shipbuildingCapacity, @tonnageOfVesselsBuilt, @userID, GETDATE())
+                    `);
+            
+                    const insertedYPId = result.recordset[0].csl_capacity_utilization_id;
+                    res.status(201).json({ insertedYPId });
+            
+             
+    } catch (err) {
+        console.error("addcapacityUtilization error:", err);
+        if (!res.headersSent) return res.sendStatus(500);
+    }
+} 
         
 
         async function getcapacityUtilizationList(req, res) {
@@ -718,7 +580,7 @@ import fs from 'fs';
             },
         });
     } catch (error) {
-        console.log("error", error);
+        console.error("error", error);
         return res.status(500).json({ message: 'Internal Server Error' });
     }
 } 
@@ -742,7 +604,7 @@ import fs from 'fs';
         
                 res.json(result.recordset);
             } catch (err) {
-                console.log(err);
+                console.error(err);
                 return res.sendStatus(500);
             }
         }
@@ -774,60 +636,19 @@ import fs from 'fs';
                 return res.sendStatus(200);
             }
             catch (err) {
-                console.log(err);
+                console.error(err);
                 return res.sendStatus(500);
             }
         }
         async function deleteCapacityUtilization(req, res) {
-            const cslCapacityUtilizationId = req.params.csl_capacity_utilization_id;
-            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-
-            const now = new Date();
-            const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-            const hourPart = String(now.getHours()).padStart(2, '0');
-            const minutePart = String(now.getMinutes()).padStart(2, '0');
-            const secondPart = String(now.getSeconds()).padStart(2, '0');
-            const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
-            const logFolder = `./delete_log/CSL_Capacity_Utilization`;
-            const logFileName = `${logFolder}/deleted_CapacityUtilization_log_${timestamp}.txt`;
-
-            const conn = await pool;
-            const request = conn.request();
-            request.input("cslCapacityUtilizationId", cslCapacityUtilizationId);
-            request.input("userID", userID);
-            try {
-                const dataToDelete = await request.query(`SELECT * FROM tbl_csl_capacity_utilization WHERE csl_capacity_utilization_id = @cslCapacityUtilizationId;`);
-                const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
-
-                const result = await request.query(`DELETE FROM tbl_csl_capacity_utilization WHERE csl_capacity_utilization_id = @cslCapacityUtilizationId;`);
-
-                if (result.rowsAffected[0] > 0) {
-                    const logMessage = `User '${userID}' deleted Capacity Utilization data with Data ID '${cslCapacityUtilizationId}'. Deleted Data: ${dataJSON}\n`;
-
-                    fs.mkdirSync(logFolder, { recursive: true });
-                    fs.appendFile(logFileName, logMessage, (err) => {
-                        if (err) {
-                            console.error('Error writing to delete_logs.txt:', err);
-                        }
-                    });
-
-                    return res.sendStatus(201);
-                } else {
-                    return res.status(404).send("Data not found");
-                }
-            }
-            catch (err) {
-                console.log(err);
-                return res.sendStatus(500);
-            }
-        }
+    return deleteKpiEntry(req, res, { table: "tbl_csl_capacity_utilization", idColumn: "csl_capacity_utilization_id", idParam: "csl_capacity_utilization_id", logFolder: "CSL_Capacity_Utilization" });
+}
         async function addfabricationofsteels(req, res) {
             try {
                 const { financialYear, fabricationmonth, fabricationOfSteels, fabrigationinTonns } = req.body;
                 const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         
                 // Log received data to debug
-                console.log("Received Data:", req.body);
         
                 // Check if userID is missing
                 if (!userID) {
@@ -928,7 +749,7 @@ import fs from 'fs';
             },
         });
     } catch (error) {
-        console.log("error", error);
+        console.error("error", error);
         return res.status(500).json({ message: 'Internal Server Error' });
     }
 } 
@@ -952,7 +773,7 @@ import fs from 'fs';
         
                 res.json(result.recordset);
             } catch (err) {
-                console.log(err);
+                console.error(err);
                 return res.sendStatus(500);
             }
         }
@@ -988,54 +809,14 @@ import fs from 'fs';
                 return res.sendStatus(200);
             }
             catch (err) {
-                console.log(err);
+                console.error(err);
                 return res.sendStatus(500);
             }
         }
 
         async function deleteFabricationOfSteels(req, res) {
-            const cslFabricationId = req.params.csl_fabrication_id;
-            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-
-            const now = new Date();
-            const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-            const hourPart = String(now.getHours()).padStart(2, '0');
-            const minutePart = String(now.getMinutes()).padStart(2, '0');
-            const secondPart = String(now.getSeconds()).padStart(2, '0');
-            const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
-            const logFolder = `./delete_log/CSL_Fabrication_Of_Steels`;
-            const logFileName = `${logFolder}/deleted_FabricationOfSteels_log_${timestamp}.txt`;
-
-            const conn = await pool;
-            const request = conn.request();
-            request.input("cslFabricationId", cslFabricationId);
-            request.input("userID", userID);
-            try {
-                const dataToDelete = await request.query(`SELECT * FROM tbl_csl_fabrication_of_steels WHERE csl_fabrication_id = @cslFabricationId;`);
-                const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
-
-                const result = await request.query(`DELETE FROM tbl_csl_fabrication_of_steels WHERE csl_fabrication_id = @cslFabricationId;`);
-
-                if (result.rowsAffected[0] > 0) {
-                    const logMessage = `User '${userID}' deleted Fabrication of Steels data with Data ID '${cslFabricationId}'. Deleted Data: ${dataJSON}\n`;
-
-                    fs.mkdirSync(logFolder, { recursive: true });
-                    fs.appendFile(logFileName, logMessage, (err) => {
-                        if (err) {
-                            console.error('Error writing to delete_logs.txt:', err);
-                        }
-                    });
-
-                    return res.sendStatus(201);
-                } else {
-                    return res.status(404).send("Data not found");
-                }
-            }
-            catch (err) {
-                console.log(err);
-                return res.sendStatus(500);
-            }
-        }
+    return deleteKpiEntry(req, res, { table: "tbl_csl_fabrication_of_steels", idColumn: "csl_fabrication_id", idParam: "csl_fabrication_id", logFolder: "CSL_Fabrication_Of_Steels" });
+}
     
         async function addShipRepaired(req, res) {
             try {
@@ -1072,21 +853,6 @@ import fs from 'fs';
                 `);
         
                 const insertedId = insertResult.recordset[0].csl_ships_reapired_id;
-               // Update or insert into tbl_csl_ships_repaired_UPDATE (cumulative table)
-                await request.query(`
-                    MERGE INTO tbl_csl_ships_repaired_UPDATE AS target
-                    USING (SELECT @financialYear AS financial_year) AS source
-                    ON target.financial_year = source.financial_year
-                    WHEN MATCHED THEN
-                        UPDATE SET 
-                            target.no_of_ships_repaired = target.no_of_ships_repaired+ @noOfshipsrepaired,
-                            target.value_of_ships_repaired = target.value_of_ships_repaired + @valueOfshipsrepaired,
-                            target.updated_by = @userID,
-                            target.updated_date = GETDATE()
-                    WHEN NOT MATCHED THEN
-                        INSERT (financial_year, no_of_ships_repaired, value_of_ships_repaired, updated_by, updated_date)
-                        VALUES (@financialYear, @noOfshipsrepaired, @valueOfshipsrepaired, @userID, GETDATE());
-                `);
     
                 res.status(201).json({ insertedId });
     
@@ -1146,7 +912,7 @@ import fs from 'fs';
             },
         });
     } catch (error) {
-        console.log("error", error);
+        console.error("error", error);
         return res.status(500).json({ message: 'Internal Server Error' });
     }
 } 
@@ -1170,7 +936,7 @@ import fs from 'fs';
         
                 res.json(result.recordset);
             } catch (err) {
-                console.log(err);
+                console.error(err);
                 return res.sendStatus(500);
             }
         }
@@ -1203,54 +969,14 @@ import fs from 'fs';
                 return res.sendStatus(200);
             }
             catch (err) {
-                console.log(err);
+                console.error(err);
                 return res.sendStatus(500);
             }
         }
 
         async function deleteShipRepaired(req, res) {
-            const cslShipsRepairedId = req.params.csl_ships_reapired_id;
-            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-
-            const now = new Date();
-            const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-            const hourPart = String(now.getHours()).padStart(2, '0');
-            const minutePart = String(now.getMinutes()).padStart(2, '0');
-            const secondPart = String(now.getSeconds()).padStart(2, '0');
-            const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
-            const logFolder = `./delete_log/CSL_Ships_Repaired`;
-            const logFileName = `${logFolder}/deleted_ShipsRepaired_log_${timestamp}.txt`;
-
-            const conn = await pool;
-            const request = conn.request();
-            request.input("cslShipsRepairedId", cslShipsRepairedId);
-            request.input("userID", userID);
-            try {
-                const dataToDelete = await request.query(`SELECT * FROM tbl_csl_ships_repaired WHERE csl_ships_reapired_id = @cslShipsRepairedId;`);
-                const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
-
-                const result = await request.query(`DELETE FROM tbl_csl_ships_repaired WHERE csl_ships_reapired_id = @cslShipsRepairedId;`);
-
-                if (result.rowsAffected[0] > 0) {
-                    const logMessage = `User '${userID}' deleted Ships Repaired data with Data ID '${cslShipsRepairedId}'. Deleted Data: ${dataJSON}\n`;
-
-                    fs.mkdirSync(logFolder, { recursive: true });
-                    fs.appendFile(logFileName, logMessage, (err) => {
-                        if (err) {
-                            console.error('Error writing to delete_logs.txt:', err);
-                        }
-                    });
-
-                    return res.sendStatus(201);
-                } else {
-                    return res.status(404).send("Data not found");
-                }
-            }
-            catch (err) {
-                console.log(err);
-                return res.sendStatus(500);
-            }
-        }
+    return deleteKpiEntry(req, res, { table: "tbl_csl_ships_repaired", idColumn: "csl_ships_reapired_id", idParam: "csl_ships_reapired_id", logFolder: "CSL_Ships_Repaired" });
+}
     
 
 
