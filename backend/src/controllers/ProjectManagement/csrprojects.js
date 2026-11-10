@@ -6,6 +6,7 @@ import mssql from "mssql";
 import { pool } from "../../db.js";
 import mime from 'mime-types';
 import { getDataScope } from '../../middleware/dataScope.js';
+import { checkModulePermission } from '../../middleware/modulePermission.js';
 import { ORG_GROUPS } from './capexDashboard.js';
 
 // Ministry / master users see every organisation's CSR data; organisation users only their own.
@@ -83,52 +84,54 @@ const sameDate = (a, b) => (dateOrNull(a) || null) === savedDate(b);
 // saved - even blank or out of range on an old row - doesn't block the save, but anything the user
 // enters or changes must be valid, so the CSR-03 wrong-unit amounts can't be entered on edit either.
 function projectError(body, { current = null } = {}) {
+    // { message, field }: field is the form field the message is about, so the form can show it there
+    const fail = (field, message) => ({ field, message });
     const isNew = !current;
     const row = current?.row || {};
     const check = (changed) => isNew || changed;
 
     if (check(!sameNumber(body.csrfocus, row.csr_focus))) {
         const focus = Number(body.csrfocus);
-        if (!Number.isInteger(focus) || focus <= 0) return 'Select the CSR focus / project area.';
+        if (!Number.isInteger(focus) || focus <= 0) return fail('csrFocus', 'Select the CSR focus / project area.');
     }
     if (check(!sameText(body.financialYear, row.financial_year)) && !isFinancialYear(body.financialYear)) {
-        return 'Select a valid financial year.';
+        return fail('financialYear', 'Select a valid financial year.');
     }
-    for (const [label, key, column, max] of [
-        ['Name of the project', 'nameofproject', 'project_name', 255],
-        ['Project received from', 'projectReceived', 'project_received_from', 255],
-        ['Impact / possible outcome', 'impactproject', 'impact_possible_outcome', 256],
-        ['Target beneficiaries', 'targetbeneficiaries', 'target_beneficiaries', 256],
+    for (const [label, key, column, max, field] of [
+        ['Name of the project', 'nameofproject', 'project_name', 255, 'projectName'],
+        ['Project received from', 'projectReceived', 'project_received_from', 255, 'receivedFrom'],
+        ['Impact / possible outcome', 'impactproject', 'impact_possible_outcome', 256, 'impact'],
+        ['Target beneficiaries', 'targetbeneficiaries', 'target_beneficiaries', 256, 'beneficiaries'],
     ]) {
         if (check(!sameText(body[key], row[column]))) {
             const text = textError(label, body[key], max);
-            if (text) return text;
+            if (text) return fail(field, text);
         }
     }
     if (check(!sameText(body.remarksoftheproject, row.remarks)) && String(body.remarksoftheproject || '').trim().length > REMARKS_MAX) {
-        return `Remarks can be at most ${REMARKS_MAX} characters.`;
+        return fail('remarks', `Remarks can be at most ${REMARKS_MAX} characters.`);
     }
     const valueChanged = !sameNumber(body.projectvalue, row.project_value);
     if (check(valueChanged)) {
         const value = amountError('Project value', body.projectvalue);
-        if (value) return value;
+        if (value) return fail('projectValue', value);
     }
 
     const status = body.projectstatus;
     const statusChanged = !sameText(status, row.project_status);
-    if (check(statusChanged) && !CSR_STATUSES.includes(status)) return 'Select a valid project status.';
+    if (check(statusChanged) && !CSR_STATUSES.includes(status)) return fail('status', 'Select a valid project status.');
     const progress = [
-        ['Physical progress', body.physicalprogresssofar, row.physical_progress],
-        ['Financial progress', body.finiancialprogresssofar, row.financial_progress],
+        ['Physical progress', body.physicalprogresssofar, row.physical_progress, 'physicalProgress'],
+        ['Financial progress', body.finiancialprogresssofar, row.financial_progress, 'financialProgress'],
     ];
     const progressChanged = progress.some(([, v, saved]) => !sameNumber(isBlank(v) ? 0 : v, saved ?? 0));
-    for (const [label, v, saved] of progress) {
+    for (const [label, v, saved, field] of progress) {
         const n = Number(isBlank(v) ? 0 : v);
         if (check(!sameNumber(isBlank(v) ? 0 : v, saved ?? 0)) && (!Number.isFinite(n) || n < 0 || n > 100)) {
-            return `${label} must be between 0 and 100.`;
+            return fail(field, `${label} must be between 0 and 100.`);
         }
         if (check(statusChanged || progressChanged) && NOT_STARTED.includes(status) && n > 0) {
-            return `${label} must be 0 while the status is "${status}".`;
+            return fail(field, `${label} must be 0 while the status is "${status}".`);
         }
     }
 
@@ -136,14 +139,14 @@ function projectError(body, { current = null } = {}) {
     const completed = dateOrNull(body.completedon);
     const datesChanged = !sameDate(body.commencedon, row.commenced_on) || !sameDate(body.completedon, row.completed_on);
     if (check(datesChanged)) {
-        if (commenced === 'bad' || completed === 'bad') return 'A date is not valid.';
+        if (commenced === 'bad' || completed === 'bad') return fail(commenced === 'bad' ? 'commencedOn' : 'completedOn', 'A date is not valid.');
         const today = todayInIndia();
-        if ((commenced && commenced > today) || (completed && completed > today)) return 'Dates cannot be in the future.';
-        if (commenced && completed && completed < commenced) return 'The completed date cannot be earlier than the commenced date.';
+        if ((commenced && commenced > today) || (completed && completed > today)) return fail(commenced && commenced > today ? 'commencedOn' : 'completedOn', 'Dates cannot be in the future.');
+        if (commenced && completed && completed < commenced) return fail('completedOn', 'The completed date cannot be earlier than the commenced date.');
     }
     if (check(statusChanged || datesChanged)) {
-        if (completed && completed !== 'bad' && status !== 'Completed') return 'A completed date can be entered only for a completed project.';
-        if (!commenced && (status === 'Project Under implementation' || status === 'Completed')) return 'Enter the date the project commenced.';
+        if (completed && completed !== 'bad' && status !== 'Completed') return fail('completedOn', 'A completed date can be entered only for a completed project.');
+        if (!commenced && (status === 'Project Under implementation' || status === 'Completed')) return fail('commencedOn', 'Enter the date the project commenced.');
     }
 
     // No expenditure sent on an edit: the saved rows stay as they are
@@ -157,17 +160,17 @@ function projectError(body, { current = null } = {}) {
         const year = e.expenditureFinancialYear;
         const rowChanged = !savedSpend.has(String(year)) || savedSpend.get(String(year)) !== Number(e.expenditureCost);
         if (rowChanged) spendChanged = true;
-        if (check(rowChanged) && !isFinancialYear(year)) return 'An expenditure row has no valid financial year.';
-        if (years.has(year)) return `${year} appears twice in the expenditure.`;
+        if (check(rowChanged) && !isFinancialYear(year)) return fail('expenditure', 'An expenditure row has no valid financial year.');
+        if (years.has(year)) return fail('expenditure', `${year} appears twice in the expenditure.`);
         years.add(year);
         if (check(rowChanged)) {
             const cost = amountError(`Expenditure for ${year}`, e.expenditureCost);
-            if (cost) return cost;
+            if (cost) return fail('expenditure', cost);
         }
         spent += Number(e.expenditureCost) || 0;
     }
     if (check(valueChanged || spendChanged) && spent > Number(body.projectvalue) + 1e-9) {
-        return 'Total expenditure cannot be more than the project value.';
+        return fail('expenditure', 'Total expenditure cannot be more than the project value.');
     }
     return null;
 }
@@ -326,7 +329,8 @@ async function createCsrProjects(req, res)
     // A refused save removes the PDF uploaded for it (QC CSR-19)
     const refuse = async (status, error) => {
         await discardUnusedUpload(req.body.csrDocumentFileName, req.user.userId);
-        return res.status(status).json({ error });
+        // A field check comes as { message, field }: the field goes back so the form can show it there
+        return res.status(status).json(typeof error === "string" ? { error } : { error: error.message, field: error.field });
     };
     if (csrScope(req.user).blocked) return refuse(403, "Your account is not linked to an organisation.");
     const invalid = projectError(req.body);
@@ -669,7 +673,8 @@ async function updateCsrProjects(req, res)
     // A refused save removes the PDF uploaded for it, unless a project uses it (QC CSR-19)
     const refuse = async (status, error) => {
         await discardUnusedUpload(req.body.uniqueFileName, req.user.userId);
-        return res.status(status).json({ error });
+        // A field check comes as { message, field }: the field goes back so the form can show it there
+        return res.status(status).json(typeof error === "string" ? { error } : { error: error.message, field: error.field });
     };
     if (!(await canAccessProject(req.user, projectID))) return refuse(404, "CSR project not found");
     // Checked against the saved project, so a rule applies to what the user changed (QC R-03 / R-11)
@@ -958,6 +963,22 @@ function organisationWriter(req, res, next) {
 }
 
 // Route check before a gallery upload: the project in the URL must be one the user can see
+// Photos on an existing project need edit rights. A user who can only add may add photos to a
+// project they created themselves - the form uploads them right after saving a new project (QC R-23).
+async function galleryAccess(req, res, next) {
+    if (checkModulePermission(req.user, 'CSR_PROJECTS', 'update', { strict: true }).ok) return next();
+    try {
+        const request = (await pool).request();
+        request.input('projectId', Number(req.params.csrProjectId));
+        request.input('userId', req.user.userId);
+        const own = await request.query('SELECT 1 AS ok FROM tbl_csr_projects WHERE csr_project_id = @projectId AND created_by = @userId');
+        return own.recordset.length ? next() : res.status(403).json({ error: 'Adding photos to this project needs edit rights.' });
+    } catch (err) {
+        console.error(err);
+        return res.sendStatus(500);
+    }
+}
+
 function projectAccess(req, res, next) {
     canAccessProject(req.user, req.params.csrProjectId)
         .then((ok) => (ok ? next() : res.status(404).json({ error: 'CSR project not found' })))
@@ -1757,7 +1778,7 @@ const answerOnError = (handler) => async (req, res, next) => {
         if (!res.headersSent) res.sendStatus(500);
     }
 };
-const exported = {organisationWriter, projectAccess, createCsrProjects, upload, fileUpload, handleUploadErrors, getCsrProjectslist,
+const exported = {organisationWriter, projectAccess, galleryAccess, createCsrProjects, upload, fileUpload, handleUploadErrors, getCsrProjectslist,
         getUpdateCsrProjectsData, updateCsrProjects, csrProjectDocumentUploader, csrfileDownload,
         getCsrExpenditureCost,  getCsrFileUploadDocument, uploadMediaGalleryFile, addCsrFundDetails, getCsrFundList, getUpdateFundData,  editCsrFund,getCsrFundYearWiseReport, getCsrFundOrgWiseReport, getCsrFundOrgTrendReport, getCsrProjectsYearWiseSummary, getCsrProjectsOrgWiseSummary, getCsrProjectsFocusWiseSummary,
         getCsrDashboard};

@@ -947,7 +947,7 @@ router.get("/download-csrfile/:fileName", auth, csrRead, csrProjectTab.csrfileDo
 router.get("/get-csr-expenditure/:csrProjectId", auth, csrRead, csrProjectTab.getCsrExpenditureCost);
 router.get("/get-csr-project-files/:csrProjectId", auth, csrRead, csrProjectTab.getCsrFileUploadDocument);
 // The project is checked before any file is written (QC CSR-19)
-router.post("/update-csr-gallery-upload/:csrProjectId", auth, csrWrite, csrProjectTab.projectAccess, csrProjectTab.handleUploadErrors(csrProjectTab.fileUpload.array('file')),csrProjectTab.uploadMediaGalleryFile)
+router.post("/update-csr-gallery-upload/:csrProjectId", auth, csrWrite, csrProjectTab.projectAccess, csrProjectTab.galleryAccess, csrProjectTab.handleUploadErrors(csrProjectTab.fileUpload.array('file')),csrProjectTab.uploadMediaGalleryFile)
 
 // CSR Fund Detail
 router.get('/csr-Fund-list/:userID', auth, csrRead, csrProjectTab.getCsrFundList);
