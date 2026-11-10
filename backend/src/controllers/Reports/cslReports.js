@@ -67,7 +67,7 @@ async function CslYearWiseReport(req,res) {
     const rowData = result.recordset;
 
     if (rowData.length === 0) {
-        return res.status(404).json({ error: 'No data available' });
+        return res.json({ columnDefs: [], rowData: [] }); // nothing entered yet: an empty report, not an error (QC KPI-15)
     }
 
     // Define columns
@@ -225,7 +225,7 @@ async function getCslshipbuildingYearWiseReport(req, res) {
         const rowData = result.recordset;
 
         if (!rowData || rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available' });
+            return res.json({ columnDefs: [], rowData: [] }); // nothing entered yet: an empty report, not an error (QC KPI-15)
         }
 
         // Define columns dynamically based on result
@@ -270,7 +270,7 @@ async function getCslshipdeliveryYearWiseReport(req, res) {
         const rowData = result.recordset;
 
         if (!rowData || rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available' });
+            return res.json({ columnDefs: [], rowData: [] }); // nothing entered yet: an empty report, not an error (QC KPI-15)
         }
 
         // Define columns dynamically based on result
@@ -346,7 +346,7 @@ async function getCslcapacityUtilizationReport(req,res) {
     const rowData = result.recordset;
 
     if (rowData.length === 0) {
-        return res.status(404).json({ error: 'No data available' });
+        return res.json({ columnDefs: [], rowData: [] }); // nothing entered yet: an empty report, not an error (QC KPI-15)
     }
 
     // Define columns
@@ -397,7 +397,7 @@ async function getCslfabricationofsteelsYearWiseReport(req, res) {
         const rowData = result.recordset;
 
         if (!rowData || rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available' });
+            return res.json({ columnDefs: [], rowData: [] }); // nothing entered yet: an empty report, not an error (QC KPI-15)
         }
 
         // Define columns dynamically based on result
@@ -441,7 +441,7 @@ async function getCslshipRepairedYearWiseReport(req, res) {
         const rowData = result.recordset;
 
         if (!rowData || rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available' });
+            return res.json({ columnDefs: [], rowData: [] }); // nothing entered yet: an empty report, not an error (QC KPI-15)
         }
 
         // Define columns dynamically based on result

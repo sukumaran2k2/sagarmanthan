@@ -93,7 +93,7 @@ import { checkEdit, refuseEdit, deleteKpiEntry } from "./kpiEditChecks.js";
             },
         });
     } catch (error) {
-        console.log("error", error);
+        console.error("error", error);
         return res.status(500).json({ message: 'Internal Server Error' });
     }
 } 
@@ -117,7 +117,7 @@ import { checkEdit, refuseEdit, deleteKpiEntry } from "./kpiEditChecks.js";
 
             res.json(result.recordset);
         } catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
         }
@@ -150,7 +150,7 @@ import { checkEdit, refuseEdit, deleteKpiEntry } from "./kpiEditChecks.js";
             return res.sendStatus(200);
         }
         catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     }
@@ -194,20 +194,6 @@ import { checkEdit, refuseEdit, deleteKpiEntry } from "./kpiEditChecks.js";
             `);
     
             const insertedId = insertResult.recordset[0].csl_shipbuilding_id;
-            await request.query(`
-                MERGE INTO tbl_csl_ship_building_orders_update AS target
-                USING (SELECT @financialYear AS financial_year) AS source
-                ON target.financial_year = source.financial_year
-                WHEN MATCHED THEN
-                    UPDATE SET 
-                        target.ship_orders_received = target.ship_orders_received + @shipOrdersreceived,
-                        target.value_of_ship_orders_received = target.value_of_ship_orders_received + @valueOfshipOrder,
-                        target.updated_by = @userID,
-                        target.updated_date = GETDATE()
-                WHEN NOT MATCHED THEN
-                    INSERT (financial_year, ship_orders_received, value_of_ship_orders_received, updated_by, updated_date)
-                    VALUES (@financialYear, @shipOrdersreceived, @valueOfshipOrder, @userID, GETDATE());
-            `);
 
             res.status(201).json({ insertedId });
 
@@ -266,7 +252,7 @@ import { checkEdit, refuseEdit, deleteKpiEntry } from "./kpiEditChecks.js";
             },
         });
     } catch (error) {
-        console.log("error", error);
+        console.error("error", error);
         return res.status(500).json({ message: 'Internal Server Error' });
     }
 } 
@@ -290,7 +276,7 @@ import { checkEdit, refuseEdit, deleteKpiEntry } from "./kpiEditChecks.js";
             
                     res.json(result.recordset);
                 } catch (err) {
-                    console.log(err);
+                    console.error(err);
                     return res.sendStatus(500);
                 }
         }
@@ -327,7 +313,7 @@ import { checkEdit, refuseEdit, deleteKpiEntry } from "./kpiEditChecks.js";
                 return res.sendStatus(200);
             }
             catch (err) {
-                console.log(err);
+                console.error(err);
                 return res.sendStatus(500);
             }
         }
@@ -369,20 +355,6 @@ import { checkEdit, refuseEdit, deleteKpiEntry } from "./kpiEditChecks.js";
             `);
     
             const insertedId = insertResult.recordset[0].csl_shipdelivery_id;
-            await request.query(`
-                MERGE INTO tbl_csl_ship_delivery_performance_update AS target
-                USING (SELECT @financialYear AS financial_year) AS source
-                ON target.financial_year = source.financial_year
-                WHEN MATCHED THEN
-                    UPDATE SET 
-                        target.total_no_ship_orders_received = target.total_no_ship_orders_received + @noOfshipsReceived,
-                        target.no_of_ships_delivered = target.no_of_ships_delivered + @noOfshipsDeleivered,
-                        target.updated_by = @userID,
-                        target.updated_date =  GETDATE()-- Store only date
-                WHEN NOT MATCHED THEN
-                    INSERT (financial_year, total_no_ship_orders_received, no_of_ships_delivered, updated_by, updated_date)
-                    VALUES (@financialYear, @noOfshipsReceived, @noOfshipsDeleivered, @userID,  GETDATE());
-            `);
     
             res.status(201).json({ insertedId });
     
@@ -441,29 +413,35 @@ import { checkEdit, refuseEdit, deleteKpiEntry } from "./kpiEditChecks.js";
             },
         });
     } catch (error) {
-        console.log("error", error);
+        console.error("error", error);
         return res.status(500).json({ message: 'Internal Server Error' });
     }
 } 
 
         async function getUpdateshipdeliverydata(req, res) 
         {
-        
-            const CslshipdeliveryId = req.params.CslshipdeliveryId;
-            const conn = await pool;
-            const request = conn.request();
-            request.input("CslshipdeliveryId", CslshipdeliveryId);
-        
-                const result = await request.query(`
-                    SELECT 
-                        *
-                    FROM 
-                        tbl_csl_ship_delivery_performance
-                        WHERE csl_shipdelivery_id  = @CslshipdeliveryId
-                `);
-        
-                res.json(result.recordset);
-        } 
+    try {
+            
+                const CslshipdeliveryId = req.params.CslshipdeliveryId;
+                const conn = await pool;
+                const request = conn.request();
+                request.input("CslshipdeliveryId", CslshipdeliveryId);
+            
+                    const result = await request.query(`
+                        SELECT 
+                            *
+                        FROM 
+                            tbl_csl_ship_delivery_performance
+                            WHERE csl_shipdelivery_id  = @CslshipdeliveryId
+                    `);
+            
+                    res.json(result.recordset);
+            
+    } catch (err) {
+        console.error("getUpdateshipdeliverydata error:", err);
+        if (!res.headersSent) return res.sendStatus(500);
+    }
+} 
 
         async function updatecslShipdeliveryData(req,res){
         
@@ -497,7 +475,7 @@ import { checkEdit, refuseEdit, deleteKpiEntry } from "./kpiEditChecks.js";
                 return res.sendStatus(200);
             }
             catch (err) {
-                console.log(err);
+                console.error(err);
                 return res.sendStatus(500);
             }
         }
@@ -509,42 +487,48 @@ import { checkEdit, refuseEdit, deleteKpiEntry } from "./kpiEditChecks.js";
 
 
         async function addcapacityUtilization(req, res) {
-            const financialYear = req.body.financialYear;
-            const shipbuildingCapacity = req.body.shipbuildingCapacity;
-            const tonnageOfVesselsBuilt = req.body.tonnageofVesselsBuilt;
-            const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-        
-            const conn = await pool;
-        
-                const checkRequest = conn.request();
-                checkRequest.input("financialYear", financialYear);
-                
-                // Check if financial year already exists
-                const checkResult = await checkRequest.query(`
-                    SELECT COUNT(*) AS count FROM tbl_csl_capacity_utilization WHERE financial_year = @financialYear
-                `);
-        
-                if (checkResult.recordset[0].count > 0) {
-                    return res.status(205).json({ error: "Data already exists for the selected financial year!" });
-                }
-        
-                // If no duplicate, proceed with insert
-                const request = conn.request();
-                request.input("financialYear", financialYear);
-                request.input("shipbuildingCapacity", shipbuildingCapacity);
-                request.input("tonnageOfVesselsBuilt", tonnageOfVesselsBuilt);
-                request.input("userID", userID);
-        
-                const result = await request.query(`
-                    INSERT INTO tbl_csl_capacity_utilization (financial_year, total_shipbuilding_capacity, tonnage_of_vessels, created_by, created_date)
-                    OUTPUT INSERTED.csl_capacity_utilization_id
-                    VALUES (@financialYear, @shipbuildingCapacity, @tonnageOfVesselsBuilt, @userID, GETDATE())
-                `);
-        
-                const insertedYPId = result.recordset[0].csl_capacity_utilization_id;
-                res.status(201).json({ insertedYPId });
-        
-         } 
+    try {
+                const financialYear = req.body.financialYear;
+                const shipbuildingCapacity = req.body.shipbuildingCapacity;
+                const tonnageOfVesselsBuilt = req.body.tonnageofVesselsBuilt;
+                const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
+            
+                const conn = await pool;
+            
+                    const checkRequest = conn.request();
+                    checkRequest.input("financialYear", financialYear);
+                    
+                    // Check if financial year already exists
+                    const checkResult = await checkRequest.query(`
+                        SELECT COUNT(*) AS count FROM tbl_csl_capacity_utilization WHERE financial_year = @financialYear
+                    `);
+            
+                    if (checkResult.recordset[0].count > 0) {
+                        return res.status(205).json({ error: "Data already exists for the selected financial year!" });
+                    }
+            
+                    // If no duplicate, proceed with insert
+                    const request = conn.request();
+                    request.input("financialYear", financialYear);
+                    request.input("shipbuildingCapacity", shipbuildingCapacity);
+                    request.input("tonnageOfVesselsBuilt", tonnageOfVesselsBuilt);
+                    request.input("userID", userID);
+            
+                    const result = await request.query(`
+                        INSERT INTO tbl_csl_capacity_utilization (financial_year, total_shipbuilding_capacity, tonnage_of_vessels, created_by, created_date)
+                        OUTPUT INSERTED.csl_capacity_utilization_id
+                        VALUES (@financialYear, @shipbuildingCapacity, @tonnageOfVesselsBuilt, @userID, GETDATE())
+                    `);
+            
+                    const insertedYPId = result.recordset[0].csl_capacity_utilization_id;
+                    res.status(201).json({ insertedYPId });
+            
+             
+    } catch (err) {
+        console.error("addcapacityUtilization error:", err);
+        if (!res.headersSent) return res.sendStatus(500);
+    }
+} 
         
 
         async function getcapacityUtilizationList(req, res) {
@@ -596,7 +580,7 @@ import { checkEdit, refuseEdit, deleteKpiEntry } from "./kpiEditChecks.js";
             },
         });
     } catch (error) {
-        console.log("error", error);
+        console.error("error", error);
         return res.status(500).json({ message: 'Internal Server Error' });
     }
 } 
@@ -620,7 +604,7 @@ import { checkEdit, refuseEdit, deleteKpiEntry } from "./kpiEditChecks.js";
         
                 res.json(result.recordset);
             } catch (err) {
-                console.log(err);
+                console.error(err);
                 return res.sendStatus(500);
             }
         }
@@ -652,7 +636,7 @@ import { checkEdit, refuseEdit, deleteKpiEntry } from "./kpiEditChecks.js";
                 return res.sendStatus(200);
             }
             catch (err) {
-                console.log(err);
+                console.error(err);
                 return res.sendStatus(500);
             }
         }
@@ -665,7 +649,6 @@ import { checkEdit, refuseEdit, deleteKpiEntry } from "./kpiEditChecks.js";
                 const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         
                 // Log received data to debug
-                console.log("Received Data:", req.body);
         
                 // Check if userID is missing
                 if (!userID) {
@@ -766,7 +749,7 @@ import { checkEdit, refuseEdit, deleteKpiEntry } from "./kpiEditChecks.js";
             },
         });
     } catch (error) {
-        console.log("error", error);
+        console.error("error", error);
         return res.status(500).json({ message: 'Internal Server Error' });
     }
 } 
@@ -790,7 +773,7 @@ import { checkEdit, refuseEdit, deleteKpiEntry } from "./kpiEditChecks.js";
         
                 res.json(result.recordset);
             } catch (err) {
-                console.log(err);
+                console.error(err);
                 return res.sendStatus(500);
             }
         }
@@ -826,7 +809,7 @@ import { checkEdit, refuseEdit, deleteKpiEntry } from "./kpiEditChecks.js";
                 return res.sendStatus(200);
             }
             catch (err) {
-                console.log(err);
+                console.error(err);
                 return res.sendStatus(500);
             }
         }
@@ -870,21 +853,6 @@ import { checkEdit, refuseEdit, deleteKpiEntry } from "./kpiEditChecks.js";
                 `);
         
                 const insertedId = insertResult.recordset[0].csl_ships_reapired_id;
-               // Update or insert into tbl_csl_ships_repaired_UPDATE (cumulative table)
-                await request.query(`
-                    MERGE INTO tbl_csl_ships_repaired_UPDATE AS target
-                    USING (SELECT @financialYear AS financial_year) AS source
-                    ON target.financial_year = source.financial_year
-                    WHEN MATCHED THEN
-                        UPDATE SET 
-                            target.no_of_ships_repaired = target.no_of_ships_repaired+ @noOfshipsrepaired,
-                            target.value_of_ships_repaired = target.value_of_ships_repaired + @valueOfshipsrepaired,
-                            target.updated_by = @userID,
-                            target.updated_date = GETDATE()
-                    WHEN NOT MATCHED THEN
-                        INSERT (financial_year, no_of_ships_repaired, value_of_ships_repaired, updated_by, updated_date)
-                        VALUES (@financialYear, @noOfshipsrepaired, @valueOfshipsrepaired, @userID, GETDATE());
-                `);
     
                 res.status(201).json({ insertedId });
     
@@ -944,7 +912,7 @@ import { checkEdit, refuseEdit, deleteKpiEntry } from "./kpiEditChecks.js";
             },
         });
     } catch (error) {
-        console.log("error", error);
+        console.error("error", error);
         return res.status(500).json({ message: 'Internal Server Error' });
     }
 } 
@@ -968,7 +936,7 @@ import { checkEdit, refuseEdit, deleteKpiEntry } from "./kpiEditChecks.js";
         
                 res.json(result.recordset);
             } catch (err) {
-                console.log(err);
+                console.error(err);
                 return res.sendStatus(500);
             }
         }
@@ -1001,7 +969,7 @@ import { checkEdit, refuseEdit, deleteKpiEntry } from "./kpiEditChecks.js";
                 return res.sendStatus(200);
             }
             catch (err) {
-                console.log(err);
+                console.error(err);
                 return res.sendStatus(500);
             }
         }

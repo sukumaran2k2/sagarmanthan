@@ -5,7 +5,6 @@ import { checkEdit, refuseEdit, deleteKpiEntry } from "./kpiEditChecks.js";
 async function addVesselAvailabiltydata(req, res) {
     const { scifinancialYear, operatedShips, shipUtilization } = req.body;
     const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-    console.log("Received data:", req.body);
 
     try {
         const conn = await pool;
@@ -43,16 +42,22 @@ async function addVesselAvailabiltydata(req, res) {
 
        
 async function getsciVesselList(req, res) {
-
-    const conn = await pool;
-    const request = conn.request();
-
-    const result = await request.query(`
-        SELECT * FROM tbl_sci_vessel_availability
-        ORDER BY financial_year DESC;
-    `);
-
-    res.json(result.recordset);
+    try {
+    
+        const conn = await pool;
+        const request = conn.request();
+    
+        const result = await request.query(`
+            SELECT * FROM tbl_sci_vessel_availability
+            ORDER BY financial_year DESC;
+        `);
+    
+        res.json(result.recordset);
+    
+    } catch (err) {
+        console.error("getsciVesselList error:", err);
+        if (!res.headersSent) return res.sendStatus(500);
+    }
 } 
 
 
@@ -75,7 +80,7 @@ async function getUpdatesciVesseldata(req, res)
         
                 res.json(result.recordset);
             } catch (err) {
-                console.log(err);
+                console.error(err);
                 return res.sendStatus(500);
             }
         }
@@ -111,7 +116,7 @@ async function getUpdatesciVesseldata(req, res)
                 return res.sendStatus(200);
             }
             catch (err) {
-                console.log(err);
+                console.error(err);
                 return res.sendStatus(500);
             }
         }
@@ -124,7 +129,6 @@ async function getUpdatesciVesseldata(req, res)
 async function addscitimeVoyageydata(req, res) {
     const { financialYear, bulkCarriers, timeCharter, voyageCharter, revenue, earnings } = req.body;
     const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-    console.log("Received data:", req.body);
 
     try {
         const conn = await pool;
@@ -165,16 +169,22 @@ async function addscitimeVoyageydata(req, res) {
 
        
 async function getscitimeVoyageList(req, res) {
-
-    const conn = await pool;
-    const request = conn.request();
-
-    const result = await request.query(`
-        SELECT * FROM tbl_sci_time_voyage_bulk
-        ORDER BY financial_year DESC;
-    `);
-
-    res.json(result.recordset);
+    try {
+    
+        const conn = await pool;
+        const request = conn.request();
+    
+        const result = await request.query(`
+            SELECT * FROM tbl_sci_time_voyage_bulk
+            ORDER BY financial_year DESC;
+        `);
+    
+        res.json(result.recordset);
+    
+    } catch (err) {
+        console.error("getscitimeVoyageList error:", err);
+        if (!res.headersSent) return res.sendStatus(500);
+    }
 } 
 async function getUpdatescitimeVoyageBulkdata(req, res) 
         {
@@ -195,7 +205,7 @@ async function getUpdatescitimeVoyageBulkdata(req, res)
         
                 res.json(result.recordset);
             } catch (err) {
-                console.log(err);
+                console.error(err);
                 return res.sendStatus(500);
             }
         }
@@ -233,7 +243,7 @@ async function updatescitimeVoyageBulkData(req,res){
                 return res.sendStatus(200);
             }
             catch (err) {
-                console.log(err);
+                console.error(err);
                 return res.sendStatus(500);
             }
     }
@@ -245,7 +255,6 @@ async function updatescitimeVoyageBulkData(req,res){
     async function addscitimeVoyagetankers(req, res) {
         const { financialYear, totalTankersFleet, daysTimeCharter, daysVoyageCharter, totalRevenue, averageEarnings } = req.body;
         const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-        console.log("Received data:", req.body);
     
         try {
             const conn = await pool;
@@ -282,17 +291,23 @@ async function updatescitimeVoyageBulkData(req,res){
         }
     }
     async function getscitimeList(req, res) {
-
-        const conn = await pool;
-        const request = conn.request();
+    try {
     
-        const result = await request.query(`
-            SELECT * FROM tbl_sci_time_voyage_tanker
-            ORDER BY financial_year DESC;
-        `);
-    
-        res.json(result.recordset);
-    } 
+            const conn = await pool;
+            const request = conn.request();
+        
+            const result = await request.query(`
+                SELECT * FROM tbl_sci_time_voyage_tanker
+                ORDER BY financial_year DESC;
+            `);
+        
+            res.json(result.recordset);
+        
+    } catch (err) {
+        console.error("getscitimeList error:", err);
+        if (!res.headersSent) return res.sendStatus(500);
+    }
+} 
 
     
 async function getUpdatesciVessetankerldata(req, res) 
@@ -314,7 +329,7 @@ async function getUpdatesciVessetankerldata(req, res)
 
         res.json(result.recordset);
     } catch (err) {
-        console.log(err);
+        console.error(err);
         return res.sendStatus(500);
     }
 }
@@ -355,7 +370,7 @@ async function updateTimeVoyagetankerData(req,res){
         return res.sendStatus(200);
     }
     catch (err) {
-        console.log(err);
+        console.error(err);
         return res.sendStatus(500);
     }
 }
@@ -368,7 +383,6 @@ async function deleteTimeVoyageTanker(req, res) {
     async function addscitimeVoyageoffshore(req, res) {
         const { financialYear, offshoreFleet, timeCharter, voyageCharter, revenue, average } = req.body;
         const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-        console.log("Received data:", req.body);
 
         try {
             const conn = await pool;
@@ -408,17 +422,23 @@ async function deleteTimeVoyageTanker(req, res) {
     }
         
     async function getscioffshoreList(req, res) {
-
-        const conn = await pool;
-        const request = conn.request();
-
-        const result = await request.query(`
-            SELECT * FROM tbl_sci_time_voyage_offshore
-            ORDER BY financial_year DESC;
-        `);
-
-        res.json(result.recordset);
-    } 
+    try {
+    
+            const conn = await pool;
+            const request = conn.request();
+    
+            const result = await request.query(`
+                SELECT * FROM tbl_sci_time_voyage_offshore
+                ORDER BY financial_year DESC;
+            `);
+    
+            res.json(result.recordset);
+        
+    } catch (err) {
+        console.error("getscioffshoreList error:", err);
+        if (!res.headersSent) return res.sendStatus(500);
+    }
+} 
 
     async function getUpdatesciVesseoffshoreldata(req, res) 
     {
@@ -439,7 +459,7 @@ async function deleteTimeVoyageTanker(req, res) {
 
             res.json(result.recordset);
         } catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     }
@@ -480,7 +500,7 @@ async function deleteTimeVoyageTanker(req, res) {
             return res.sendStatus(200);
         }
         catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     }
@@ -492,7 +512,6 @@ async function deleteTimeVoyageTanker(req, res) {
     async function addscilinearVesselavailability(req, res) {
         const { financialYear, totallinearfleet, totalrevenue, averageEarnings } = req.body;
         const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-        console.log("Received data:", req.body);
 
         try {
             const conn = await pool;
@@ -529,17 +548,23 @@ async function deleteTimeVoyageTanker(req, res) {
         }
     }
     async function getscilinearvesselList(req, res) {
-
-        const conn = await pool;
-        const request = conn.request();
-
-        const result = await request.query(`
-            SELECT * FROM tbl_sci_vessel_availability_linear
-            ORDER BY financial_year DESC;
-        `);
-
-        res.json(result.recordset);
+    try {
+    
+            const conn = await pool;
+            const request = conn.request();
+    
+            const result = await request.query(`
+                SELECT * FROM tbl_sci_vessel_availability_linear
+                ORDER BY financial_year DESC;
+            `);
+    
+            res.json(result.recordset);
+        
+    } catch (err) {
+        console.error("getscilinearvesselList error:", err);
+        if (!res.headersSent) return res.sendStatus(500);
     }
+}
     async function getUpdatescilinearvesseldata(req, res) 
     {
 
@@ -559,7 +584,7 @@ async function deleteTimeVoyageTanker(req, res) {
 
             res.json(result.recordset);
         } catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     }  
@@ -596,7 +621,7 @@ async function deleteTimeVoyageTanker(req, res) {
             return res.sendStatus(200);
         }
         catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     } 
@@ -609,7 +634,6 @@ async function deleteTimeVoyageTanker(req, res) {
     async function addvesselprocurementdata(req, res) {
         const { financialYear, newBuiltships, valueOfnewbuiltShips } = req.body;
         const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-        console.log("Received data:", req.body);
 
         try {
             const conn = await pool;
@@ -645,17 +669,23 @@ async function deleteTimeVoyageTanker(req, res) {
         }
     }
     async function getsciprocurementList(req, res) {
-
-        const conn = await pool;
-        const request = conn.request();
-
-        const result = await request.query(`
-            SELECT * FROM tbl_sci_vessel_procurement
-            ORDER BY financial_year DESC;
-        `);
-
-        res.json(result.recordset);
+    try {
+    
+            const conn = await pool;
+            const request = conn.request();
+    
+            const result = await request.query(`
+                SELECT * FROM tbl_sci_vessel_procurement
+                ORDER BY financial_year DESC;
+            `);
+    
+            res.json(result.recordset);
+        
+    } catch (err) {
+        console.error("getsciprocurementList error:", err);
+        if (!res.headersSent) return res.sendStatus(500);
     }
+}
 
     async function getUpdatesciVesselprocurementdata(req, res) 
     {
@@ -676,7 +706,7 @@ async function deleteTimeVoyageTanker(req, res) {
 
             res.json(result.recordset);
         } catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     }
@@ -710,7 +740,7 @@ async function deleteTimeVoyageTanker(req, res) {
             return res.sendStatus(200);
         }
         catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     } 
@@ -722,7 +752,6 @@ async function deleteTimeVoyageTanker(req, res) {
     async function addSecondhandvesselprocurementdata(req, res) {
         const { financialYear, noofSecondhandships, averageageofSecondhandships, grossvalueOfsecondhandships } = req.body;
         const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-        console.log("Received data:", req.body);
 
         try {
             const conn = await pool;
@@ -760,17 +789,23 @@ async function deleteTimeVoyageTanker(req, res) {
     }
 
     async function getsecondhandsciprocurementList(req, res) {
-
-        const conn = await pool;
-        const request = conn.request();
-
-        const result = await request.query(`
-            SELECT * FROM tbl_sci_secondhand_vessel_procurement
-            ORDER BY financial_year DESC;
-        `);
-
-        res.json(result.recordset);
+    try {
+    
+            const conn = await pool;
+            const request = conn.request();
+    
+            const result = await request.query(`
+                SELECT * FROM tbl_sci_secondhand_vessel_procurement
+                ORDER BY financial_year DESC;
+            `);
+    
+            res.json(result.recordset);
+        
+    } catch (err) {
+        console.error("getsecondhandsciprocurementList error:", err);
+        if (!res.headersSent) return res.sendStatus(500);
     }
+}
 
     async function getUpdatescisecondhandVesselprocurementdata(req, res) 
     {
@@ -791,7 +826,7 @@ async function deleteTimeVoyageTanker(req, res) {
 
             res.json(result.recordset);
         } catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     }
@@ -828,7 +863,7 @@ async function deleteTimeVoyageTanker(req, res) {
             return res.sendStatus(200);
         }
         catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     } 
@@ -840,7 +875,6 @@ async function deleteTimeVoyageTanker(req, res) {
     async function addshipDrydocking(req, res) {
         const { financialYear, dryDockingscheduled, dryDockingscompleted } = req.body;
         const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-        console.log("Received data:", req.body);
 
         try {
             const conn = await pool;
@@ -876,17 +910,23 @@ async function deleteTimeVoyageTanker(req, res) {
         }
     }
     async function getShipdrydockList(req, res) {
-
-        const conn = await pool;
-        const request = conn.request();
-
-        const result = await request.query(`
-            SELECT * FROM tbl_sci_ship_dry_docking
-            ORDER BY financial_year DESC;
-        `);
-
-        res.json(result.recordset);
+    try {
+    
+            const conn = await pool;
+            const request = conn.request();
+    
+            const result = await request.query(`
+                SELECT * FROM tbl_sci_ship_dry_docking
+                ORDER BY financial_year DESC;
+            `);
+    
+            res.json(result.recordset);
+        
+    } catch (err) {
+        console.error("getShipdrydockList error:", err);
+        if (!res.headersSent) return res.sendStatus(500);
     }
+}
     async function getUpdateshipdrydockdata(req, res) 
     {
 
@@ -906,7 +946,7 @@ async function deleteTimeVoyageTanker(req, res) {
 
             res.json(result.recordset);
         } catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     } 
@@ -940,7 +980,7 @@ async function deleteTimeVoyageTanker(req, res) {
             return res.sendStatus(200);
         }
         catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     } 
@@ -952,7 +992,6 @@ async function deleteTimeVoyageTanker(req, res) {
     async function addshipRepaiandMaintanace(req, res) {
         const { financialYear, repairCosts, operationalRevenue, repairPercentage } = req.body;
         const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-        console.log("Received data:", req.body);
 
         try {
             const conn = await pool;
@@ -988,17 +1027,23 @@ async function deleteTimeVoyageTanker(req, res) {
         }
     }
     async function getShiprepairandMaintanaceList(req, res) {
-
-        const conn = await pool;
-        const request = conn.request();
-
-        const result = await request.query(`
-            SELECT * FROM tbl_sci_repair_and_maintanace
-            ORDER BY financial_year DESC;
-        `);
-
-        res.json(result.recordset);
+    try {
+    
+            const conn = await pool;
+            const request = conn.request();
+    
+            const result = await request.query(`
+                SELECT * FROM tbl_sci_repair_and_maintanace
+                ORDER BY financial_year DESC;
+            `);
+    
+            res.json(result.recordset);
+        
+    } catch (err) {
+        console.error("getShiprepairandMaintanaceList error:", err);
+        if (!res.headersSent) return res.sendStatus(500);
     }
+}
     async function getUpdateshiprepairandMaintanacedata(req, res) 
     {
 
@@ -1018,7 +1063,7 @@ async function deleteTimeVoyageTanker(req, res) {
 
             res.json(result.recordset);
         } catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     } 
@@ -1054,7 +1099,7 @@ async function deleteTimeVoyageTanker(req, res) {
             return res.sendStatus(200);
         }
         catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     } 
@@ -1066,7 +1111,6 @@ async function deleteTimeVoyageTanker(req, res) {
     async function addsaleandRecycling(req, res) {
         const { financialYear, noOfoldvessels, valueOfsale, averageAge } = req.body;
         const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-        console.log("Received data:", req.body);
 
         try {
             const conn = await pool;
@@ -1103,17 +1147,23 @@ async function deleteTimeVoyageTanker(req, res) {
         }
     }
     async function getSaleandrecyclingList(req, res) {
-
-        const conn = await pool;
-        const request = conn.request();
-
-        const result = await request.query(`
-            SELECT * FROM tbl_sci_sale_and_recycling_oldvessels
-            ORDER BY financial_year DESC;
-        `);
-
-        res.json(result.recordset);
+    try {
+    
+            const conn = await pool;
+            const request = conn.request();
+    
+            const result = await request.query(`
+                SELECT * FROM tbl_sci_sale_and_recycling_oldvessels
+                ORDER BY financial_year DESC;
+            `);
+    
+            res.json(result.recordset);
+        
+    } catch (err) {
+        console.error("getSaleandrecyclingList error:", err);
+        if (!res.headersSent) return res.sendStatus(500);
     }
+}
     async function getUpdatescisaleandRecyclingdata(req, res) 
     {
 
@@ -1133,7 +1183,7 @@ async function deleteTimeVoyageTanker(req, res) {
 
             res.json(result.recordset);
         } catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     } 
@@ -1167,7 +1217,7 @@ async function deleteTimeVoyageTanker(req, res) {
             return res.sendStatus(200);
         }
         catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     } 
@@ -1179,7 +1229,6 @@ async function deleteTimeVoyageTanker(req, res) {
     async function addsaleandRecyclingofgreenRecycling(req, res) {
         const { financialYear, vesselssold, valueofVessels, adherencetoGreenrecycling } = req.body;
         const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-        console.log("Received data:", req.body);
 
         try {
             const conn = await pool;
@@ -1215,17 +1264,23 @@ async function deleteTimeVoyageTanker(req, res) {
         }
     }
     async function getSaleandGreenrecyclingList(req, res) {
-
-        const conn = await pool;
-        const request = conn.request();
-
-        const result = await request.query(`
-            SELECT * FROM tbl_sci_sale_and_recycling_oldvessels_green_recycling
-            ORDER BY financial_year DESC;
-        `);
-
-        res.json(result.recordset);
+    try {
+    
+            const conn = await pool;
+            const request = conn.request();
+    
+            const result = await request.query(`
+                SELECT * FROM tbl_sci_sale_and_recycling_oldvessels_green_recycling
+                ORDER BY financial_year DESC;
+            `);
+    
+            res.json(result.recordset);
+        
+    } catch (err) {
+        console.error("getSaleandGreenrecyclingList error:", err);
+        if (!res.headersSent) return res.sendStatus(500);
     }
+}
 
     async function getUpdatescisaleandGreenrecyclingdata(req, res) 
             {
@@ -1246,7 +1301,7 @@ async function deleteTimeVoyageTanker(req, res) {
             
                     res.json(result.recordset);
                 } catch (err) {
-                    console.log(err);
+                    console.error(err);
                     return res.sendStatus(500);
                 }
        }
@@ -1282,7 +1337,7 @@ async function deleteTimeVoyageTanker(req, res) {
                 return res.sendStatus(200);
             }
             catch (err) {
-                console.log(err);
+                console.error(err);
                 return res.sendStatus(500);
             }
    } 
@@ -1334,12 +1389,10 @@ async function deleteTimeVoyageTanker(req, res) {
 async function addmanningofOwnedships(req, res) {
     const { financialYear, noofVesselsaudited, noofShipsfullycomplaint } = req.body;
     const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-    console.log("Received data:", req.body);
 
     try {
         // Calculate compliance percentage
         const compliance = (noofShipsfullycomplaint / noofVesselsaudited) * 100;
-        console.log(`Calculated compliance: ${compliance}%`);
 
         const conn = await pool;
         const request = conn.request();
@@ -1358,7 +1411,6 @@ async function addmanningofOwnedships(req, res) {
         request.input("noofShipsfullycomplaint", noofShipsfullycomplaint);
         request.input("compliance", compliance);
         request.input("userID", userID);
-        console.log();
 
         const insertResult = await request.query(`
             INSERT INTO tbl_sci_manning_of_owned_ships
@@ -1377,17 +1429,23 @@ async function addmanningofOwnedships(req, res) {
 
 
     async function getscimanningdataList(req, res) {
-
-        const conn = await pool;
-        const request = conn.request();
+    try {
     
-        const result = await request.query(`
-            SELECT * FROM tbl_sci_manning_of_owned_ships
-            ORDER BY financial_year DESC;
-        `);
-    
-        res.json(result.recordset);
+            const conn = await pool;
+            const request = conn.request();
+        
+            const result = await request.query(`
+                SELECT * FROM tbl_sci_manning_of_owned_ships
+                ORDER BY financial_year DESC;
+            `);
+        
+            res.json(result.recordset);
+        
+    } catch (err) {
+        console.error("getscimanningdataList error:", err);
+        if (!res.headersSent) return res.sendStatus(500);
     }
+}
     async function getUpdatescimanningodOwnedshipsdata(req, res) 
     {
 
@@ -1407,7 +1465,7 @@ async function addmanningofOwnedships(req, res) {
 
             res.json(result.recordset);
         } catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     }
@@ -1416,11 +1474,9 @@ async function addmanningofOwnedships(req, res) {
             const { updatefinancialYear, updatenoofVesselsaudited, updatenoofShipsfullycomplaint, ScimanningIdOrg } = req.body;
             const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
             
-            console.log("Received update request:", req.body);
 
             // Calculate compliance percentage dynamically
             const updatecompliance = (updatenoofShipsfullycomplaint / updatenoofVesselsaudited) * 100;
-            console.log(`Calculated updatecompliance: ${updatecompliance}%`);
     
             const conn = await pool;
             const request = conn.request();
@@ -1432,7 +1488,6 @@ async function addmanningofOwnedships(req, res) {
             request.input("userID", userID);
             request.input("ScimanningIdOrg", ScimanningIdOrg);
     
-            console.log("Updating data in database...");
             // The entry must still exist, and its new period must not be another entry's (QC KPI-05 / KPI-09)
             const editCheck = await checkEdit({ table: "tbl_sci_manning_of_owned_ships", idColumn: "sci_manning_id", id: ScimanningIdOrg, period: { financial_year: updatefinancialYear } });
             if (editCheck) return refuseEdit(res, editCheck);
@@ -1447,7 +1502,6 @@ async function addmanningofOwnedships(req, res) {
                 WHERE sci_manning_id = @ScimanningIdOrg
             `);
     
-            console.log("Update successful.");
             return res.sendStatus(200);
         } catch (err) {
             console.error("Error updating data:", err);
@@ -1462,7 +1516,6 @@ async function addmanningofOwnedships(req, res) {
     async function addshipManagementBusiness(req, res) {
         const { financialYear, noofShipsManaged, totalManagementcost, revenue, costtoRevenueratio } = req.body;
         const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-        console.log("Received data:", req.body);
     
         try {
             const conn = await pool;
@@ -1499,17 +1552,23 @@ async function addmanningofOwnedships(req, res) {
         }
     }
     async function getshipmanagementList(req, res) {
-
-        const conn = await pool;
-        const request = conn.request();
+    try {
     
-        const result = await request.query(`
-            SELECT * FROM tbl_sci_ship_management_business
-            ORDER BY financial_year DESC;
-        `);
-    
-        res.json(result.recordset);
+            const conn = await pool;
+            const request = conn.request();
+        
+            const result = await request.query(`
+                SELECT * FROM tbl_sci_ship_management_business
+                ORDER BY financial_year DESC;
+            `);
+        
+            res.json(result.recordset);
+        
+    } catch (err) {
+        console.error("getshipmanagementList error:", err);
+        if (!res.headersSent) return res.sendStatus(500);
     }
+}
 
     async function getUpdatescishipManagementdata(req, res) 
     {
@@ -1530,7 +1589,7 @@ async function addmanningofOwnedships(req, res) {
 
             res.json(result.recordset);
         } catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     }
@@ -1569,7 +1628,7 @@ async function addmanningofOwnedships(req, res) {
             return res.sendStatus(200);
         }
         catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
     }

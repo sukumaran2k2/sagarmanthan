@@ -69,7 +69,7 @@ async function createStudentEnrollment(req,res) {
 
         }
     } catch (error) {
-         console.log("error",error)
+         console.error("error",error);
          return res.status(500).json({ message: 'Internal Server Error'});
     }
 }
@@ -125,7 +125,7 @@ async function getStudentEnrollment(req,res) {
             },
         });
     } catch (error) {
-        console.log("error",error)
+        console.error("error",error);
         return res.status(500).json({ message: 'Internal Server Error'});
     }
 }
@@ -146,7 +146,7 @@ async function getStudentEnrollmentByID(req,res) {
     
 
     } catch (error) {
-        console.log("error",error)
+        console.error("error",error);
         return res.status(500).json({ message: 'Internal Server Error'});
     }
 }
@@ -203,7 +203,7 @@ async function createimunewCourseUpgradation(req, res) {
             return res.status(201).json({ courseId: result.recordset[0].course_id });
         }
     } catch (error) {
-        console.log("Error:", error);
+        console.error("Error:", error);
         return res.status(500).json({ message: "Internal Server Error" });
     }
 }
@@ -260,7 +260,7 @@ async function getimuNewCourseUpgradation(req,res) {
             },
         });
     } catch (error) {
-        console.log("error",error)
+        console.error("error",error);
         return res.status(500).json({ message: 'Internal Server Error'});
     }
 }
@@ -281,7 +281,7 @@ async function getimuNewCourseUpgradationByID(req,res) {
         res.json(result.recordset);
 
     } catch (error) {
-        console.log("error",error)
+        console.error("error",error);
         return res.status(500).json({ message: 'Internal Server Error'});
     }
 }
@@ -362,7 +362,7 @@ async function createimuFacilities(req,res) {
             return res.status(201).json({ courseId: result.recordset[0].course_id });
         }
     } catch (error) {
-        console.log("error",error)
+        console.error("error",error);
         return res.status(500).json({ message: 'Internal Server Error'});
     }
 }
@@ -418,7 +418,7 @@ async function getimuFacilities(req,res) {
             },
         });
     } catch (error) {
-        console.log("error",error)
+        console.error("error",error);
         return res.status(500).json({ message: 'Internal Server Error'});
     }
 }
@@ -462,7 +462,7 @@ async function getimuFacilities(req,res) {
 
             res.json(result.recordset);
         } catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
         }
@@ -521,7 +521,7 @@ async function createimuPartnership(req,res) {
     return res.status(201).json({ courseId: result.recordset[0].partnership_id });
     }
     } catch (error) {
-        console.log("error",error)
+        console.error("error",error);
         return res.status(500).json({ message: 'Internal Server Error'});
     }
 }
@@ -577,7 +577,7 @@ async function getimuPartnership(req,res) {
             },
         });
     } catch (error) {
-        console.log("error",error)
+        console.error("error",error);
         return res.status(500).json({ message: 'Internal Server Error'});
     }
 }
@@ -597,7 +597,7 @@ async function getimuPartnershipByID(req,res) {
         res.json(result.recordset);
 
     } catch (error) {
-        console.log("error",error)
+        console.error("error",error);
         return res.status(500).json({ message: 'Internal Server Error'});
     }
 }
@@ -664,7 +664,7 @@ async function createImuResearch(req,res) {
     return res.status(201).json({ researchId: result.recordset[0].research_id });
     }
     } catch (error) {
-        console.log("error",error)
+        console.error("error",error);
         return res.status(500).json({ message: 'Internal Server Error'});
     }
 }
@@ -720,7 +720,7 @@ async function getImuResearch(req,res) {
             },
         });
     } catch (error) {
-        console.log("error",error)
+        console.error("error",error);
         return res.status(500).json({ message: 'Internal Server Error'});
     }
 }
@@ -740,7 +740,7 @@ async function getImuResearchByID(req,res) {
         res.json(result.recordset);
 
     } catch (error) {
-        console.log("error",error)
+        console.error("error",error);
         return res.status(500).json({ message: 'Internal Server Error'});
     }
 }
@@ -854,16 +854,22 @@ async function deleteResearch(req, res) {
 }
 
     async function getStudentfinalYearPercentage(req, res) {
-
-        const conn = await pool;
-        const request = conn.request();
-
-        const result = await request.query(`
-            SELECT * FROM tbl_imu_k_5_1_1 ORDER BY batch DESC;
-        `);
-
-        res.json(result.recordset);
-    } 
+    try {
+    
+            const conn = await pool;
+            const request = conn.request();
+    
+            const result = await request.query(`
+                SELECT * FROM tbl_imu_k_5_1_1 ORDER BY batch DESC;
+            `);
+    
+            res.json(result.recordset);
+        
+    } catch (err) {
+        console.error("getStudentfinalYearPercentage error:", err);
+        if (!res.headersSent) return res.sendStatus(500);
+    }
+} 
  async function getUpdateFinalyearPercentagedata(req, res) 
     {
 
@@ -883,7 +889,7 @@ async function deleteResearch(req, res) {
 
             res.json(result.recordset);
         } catch (err) {
-            console.log(err);
+            console.error(err);
             return res.sendStatus(500);
         }
         }

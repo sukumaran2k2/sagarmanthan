@@ -117,7 +117,7 @@ async function getLightHouseMaster(req, res) {
             },
         });
     } catch (err) {
-        console.log(err);
+        console.error(err);
         return res.status(500).json({ message: "Internal Server Error" });
     }
 };
@@ -141,7 +141,7 @@ async function getUpdatelightHouseData(req, res)
 
         res.json(result.recordset);
     } catch (err) {
-        console.log(err);
+        console.error(err);
         return res.sendStatus(500);
     }
 };
@@ -186,7 +186,7 @@ async function updateLightsHousedata(req,res){
         return res.sendStatus(200);
     }
     catch (err) {
-        console.log(err);
+        console.error(err);
         return res.sendStatus(500);
     }
 }
@@ -226,7 +226,7 @@ async function addVtmsIntegration(req, res) {
             res.sendStatus(201);
         }
     } catch (err) {
-        console.log(err);
+        console.error(err);
         return res.status(500).json({ message: "An error occurred while checking the data." });
     }
 }
@@ -281,7 +281,7 @@ async function getVtmsIntegration(req, res) {
             },
         });
     } catch (error) {
-        console.log("error", error);
+        console.error("error", error);
         return res.status(500).json({ message: "Internal Server Error" });
     }
 }
@@ -305,7 +305,7 @@ async function getUpdateVtmsdata(req, res)
 
         res.json(result.recordset);
     } catch (err) {
-        console.log(err);
+        console.error(err);
         return res.sendStatus(500);
     }
 };
@@ -313,7 +313,6 @@ async function getUpdateVtmsdata(req, res)
 async function updateVtmsData(req,res){
     
     const data = req.body;
-    console.log("data",data);
     
     const updatevtmsfinancialYear = req.body.updatevtmsfinancialYear;
     const updateVtmsSystem = req.body.updateVtmsSystem;
@@ -339,7 +338,7 @@ async function updateVtmsData(req,res){
         return res.sendStatus(200);
     }
     catch (err) {
-        console.log(err);
+        console.error(err);
         return res.sendStatus(500);
     }
 }
@@ -436,7 +435,7 @@ async function addNaisUptime(req, res) {
             },
         });
     } catch (error) {
-        console.log("error", error);
+        console.error("error", error);
         return res.status(500).json({ message: "Internal Server Error" });
     }
 }
@@ -459,7 +458,7 @@ async function addNaisUptime(req, res) {
         
                 res.json(result.recordset);
             } catch (err) {
-                console.log(err);
+                console.error(err);
                 return res.sendStatus(500);
             }
         };
@@ -467,7 +466,6 @@ async function addNaisUptime(req, res) {
         async function updateNaisData(req,res){
         
             const data = req.body;
-            console.log("data",data);
             
             const updatenaisfinancialYear = req.body.updatenaisfinancialYear;
             const updateNaisUptime = req.body.updateNaisUptime;
@@ -493,7 +491,7 @@ async function addNaisUptime(req, res) {
                 return res.sendStatus(200);
             }
             catch (err) {
-                console.log(err);
+                console.error(err);
                 return res.sendStatus(500);
             }
         }
@@ -505,7 +503,6 @@ async function addNaisUptime(req, res) {
         async function addNAISIntegration(req, res) {
             const { financialYear, NAISintegration, NAISupgraded } = req.body;
             const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-            console.log("User ID:", userID);
         
             try {
                 const conn = await pool;
@@ -590,7 +587,7 @@ async function addNaisUptime(req, res) {
             },
         });
     } catch (error) {
-        console.log("error", error);
+        console.error("error", error);
         return res.status(500).json({ message: "Internal Server Error" });
     }
 }
@@ -614,7 +611,7 @@ async function addNaisUptime(req, res) {
         
                 res.json(result.recordset);
             } catch (err) {
-                console.log(err);
+                console.error(err);
                 return res.sendStatus(500);
             }
         }
@@ -650,7 +647,7 @@ async function addNaisUptime(req, res) {
                 return res.sendStatus(200);
             }
             catch (err) {
-                console.log(err);
+                console.error(err);
                 return res.sendStatus(500);
             }
         }
@@ -662,18 +659,15 @@ async function addNaisUptime(req, res) {
         async function addTouristDestinations(req, res) {
             const { financialYears, lighthouseDeveloped, annualTourist } = req.body;
             const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-            console.log("response", financialYears);
             const conn = await pool;
             const request = conn.request();
             
             try {
-                console.log("userID", userID);
                 request.input("financialYears", financialYears);
 
                 const result = await request.query(`
                     SELECT COUNT(*) AS count FROM tbl_kpi_dgll_3_5_1 WHERE finacial_year = @financialYears
                 `);
-                    console.log('result', result);
                 
                 request.input("lighthouseDeveloped", lighthouseDeveloped);
                 request.input('annualTourist', annualTourist);
@@ -742,7 +736,7 @@ async function addNaisUptime(req, res) {
             },
         });
     } catch (error) {
-        console.log("error", error);
+        console.error("error", error);
         return res.status(500).json({ message: "Internal Server Error" });
     }
 }
@@ -752,7 +746,6 @@ async function addNaisUptime(req, res) {
        async function addTargetDetails(req, res) {
         
         const data = req.body;
-        console.log("response", data);
         
         const { year, collectionLightDue, footFallLighthouse } = req.body;
         const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
@@ -783,7 +776,7 @@ async function addNaisUptime(req, res) {
         } 
     } catch (error){
             res.status(500).json({ error: "Internal server error" });
-            console.log("err", error);
+            console.error("err", error);
         }
 
        }
@@ -840,7 +833,7 @@ async function addNaisUptime(req, res) {
             },
         });
     } catch (error) {
-        console.log("error", error);
+        console.error("error", error);
         return res.status(500).json({ message: "Internal Server Error" });
     }
 }
@@ -854,7 +847,6 @@ async function addNaisUptime(req, res) {
        async function getByIdTouristDestinations(req, res) {
         
         const TouristDestinationsId = req.params.TouristDestinationsId
-        console.log("suncheck", TouristDestinationsId);
         const conn = await pool;
         const request = conn.request();
         request.input("TouristDestinationsId",  TouristDestinationsId);
@@ -871,7 +863,7 @@ async function addNaisUptime(req, res) {
             // console.log("from update",result.recordset);
             res.json(result.recordset);
         } catch (err) {
-            console.log(err);
+            console.error(err);
             return res.status(500);
         }
        }
@@ -886,7 +878,6 @@ async function addNaisUptime(req, res) {
         const { updateFinancialYears, updateLighthouseDeveloped, updateAnnualTourist, TouristDestinationsRowId } = req.body;
         const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
-        console.log("req.body",req.body);
 
         const conn = await pool;
         const request = conn.request();
@@ -902,10 +893,9 @@ async function addNaisUptime(req, res) {
             const editCheck = await checkEdit({ table: "tbl_kpi_dgll_3_5_1", idColumn: "tourist_destination_id", id: TouristDestinationsRowId, period: { finacial_year: updateFinancialYears } });
             if (editCheck) return refuseEdit(res, editCheck);
             const result = await request.query('UPDATE tbl_kpi_dgll_3_5_1 SET finacial_year = @updateFinancialYears, no_lighthouses_developed_tourist_destination = @updateLighthouseDeveloped, annual_tourist_footfall = @updateAnnualTourist, updated_by = @userID, updated_date = getDate() WHERE tourist_destination_id  = @TouristDestinationsRowId');
-            console.log("res-sun", result);   
             return res.status(200).json({ message: "Updated successfully" });
         } catch(err) {
-            console.log(err);
+            console.error(err);
                 return res.status(500);
         }
        }
@@ -930,10 +920,9 @@ async function addNaisUptime(req, res) {
                     WHERE tourist_destination_target_id  = @TouristDestinationsId ORDER BY year ASC
             `);
                 
-            console.log("from update",result.recordset);
             res.json(result.recordset);
         } catch (err) {
-            console.log(err);
+            console.error(err);
             return res.status(500);
         }
        }
@@ -947,7 +936,6 @@ async function addNaisUptime(req, res) {
         const { TouristDestinationsRowId, updateYear, updateCollectionLightDue, updateFootFallLighthouse } = req.body;
         const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
         
-        console.log("req.body-targeted", req.body);
 
         const conn = await pool;
         const request = conn.request();
@@ -963,11 +951,10 @@ async function addNaisUptime(req, res) {
             const editCheck = await checkEdit({ table: "tbl_kpi_dgll_3_5_2", idColumn: "tourist_destination_target_id", id: TouristDestinationsRowId, period: { year: updateYear } });
             if (editCheck) return refuseEdit(res, editCheck);
             const result = await request.query('UPDATE tbl_kpi_dgll_3_5_2 SET year = @updateYear, collection_of_light_dues = @updateCollectionLightDue, footfall_in_the_lighthouses = @updateFootFallLighthouse, updated_by = @userID, updated_date = getDate() WHERE tourist_destination_target_id  = @TouristDestinationsRowId');
-            console.log("res-sun", result);    
             return res.status(200).json({message: "Updated successfully"});
                
         } catch(err) {
-            console.log(err);
+            console.error(err);
                 return res.status(500);
         }
        }
@@ -985,7 +972,6 @@ async function addNaisUptime(req, res) {
        async function checkFinancialYear(req, res) {
         const financialYears = req.params.financialYears;
         // console.log("financial year sun ", req);
-        console.log("financial year sun ", financialYears);
         const conn = await pool;
         const request = conn.request();
         request.input("financialYears", financialYears);
@@ -1004,7 +990,7 @@ async function addNaisUptime(req, res) {
                 res.sendStatus(200);
             }
         } catch (err) {
-            console.log(err);
+            console.error(err);
             return res.status(500).json({ message: "An error occurred while checking the data."});
         }
         
@@ -1032,7 +1018,7 @@ async function addNaisUptime(req, res) {
             res.sendStatus(200);
         }
         } catch(error){
-            console.log(error);
+            console.error(error);
             return res.status(500).json({ message: "An error occurred while checking the data."});
         }
     }
@@ -1104,7 +1090,7 @@ async function submitFinancialPerformance(req,res) {
             return res.status(201).json({ message: "Data successfully submitted", insertedId: result.recordset[0].financial_id });   
         }
      } catch (error) {
-            console.log("error:", error);
+            console.error("error:", error);
             return res.status(500).json({ message: "Internal Server Error" });
     }
 }
@@ -1158,7 +1144,7 @@ async function getFinancialPerfomanceData(req, res) {
             },
         });
     } catch (error) {
-        console.log("error", error);
+        console.error("error", error);
         return res.status(500).json({ message: "Internal Server Error" });
     }
 }
@@ -1166,7 +1152,6 @@ async function getFinancialPerfomanceData(req, res) {
 async function getFinancialPerformanceDataByID(req,res) {
 
     const financialId = req.params.financialId;
-    console.log("financialId",financialId)
 
     try {
         const conn = await pool;
@@ -1177,7 +1162,7 @@ async function getFinancialPerformanceDataByID(req,res) {
     
         res.json(result.recordset);
         } catch (error) {
-            console.log("error", error);
+            console.error("error", error);
             return res.status(500).json({ message: "Internal Server Error" });
         }
 }
