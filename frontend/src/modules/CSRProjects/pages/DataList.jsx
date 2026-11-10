@@ -70,11 +70,15 @@ export default function DataList({ notify, permissions, onEdit }) {
   // Filters, search and paging run on the server (QC CSR-26); it returns only the projects the
   // user may see (their organisation's, or all for the Ministry). Organisation users can't pick
   // another organisation, so that filter isn't sent for them.
+  // A clicked column header sorts on the server too, so every matching project is in order, not just
+  // the page on screen (QC R-19); null = the default order
+  const [sort, setSort] = useState(null); // { key, dir }
   const query = useMemo(() => {
-    const q = { category, financialYear: filters.financialYear, focus: filters.focus, status: filters.status, search: search.trim() };
+    const q = { category, financialYear: filters.financialYear, focus: filters.focus, status: filters.status, search: search.trim(),
+      sort: sort?.key, dir: sort?.dir };
     if (!isOrgUser) q.organisation = filters.organisation;
     return Object.fromEntries(Object.entries(q).filter(([, v]) => v !== '' && v != null));
-  }, [category, filters, search, isOrgUser]);
+  }, [category, filters, search, isOrgUser, sort]);
   const requestKey = JSON.stringify([query, currentPage, pageSize]);
   const [result, setResult] = useState(null); // { key, rows, total, counts }; null before the first answer
   useEffect(() => {
@@ -206,7 +210,7 @@ export default function DataList({ notify, permissions, onEdit }) {
     const centered = { headerClass: 'text-center', cellClass: 'text-center flex items-center justify-center' };
     return [
       {
-        headerName: 'S.No', width: 80, minWidth: 80, maxWidth: 80, pinned: 'left', hide: !show('sno'), ...centered,
+        headerName: 'S.No', width: 80, minWidth: 80, maxWidth: 80, pinned: 'left', hide: !show('sno'), sortable: false, ...centered,
         valueGetter: (p) => (page - 1) * pageSize + p.node.rowIndex + 1,
       },
       {
@@ -465,7 +469,13 @@ export default function DataList({ notify, permissions, onEdit }) {
             pagination={false}
             enableExport={false}
             color="#0f417a"
-            defaultColDef={{ minWidth: 90, filter: false, sortable: true, resizable: true }}
+            // The server sorts; the grid only shows the arrow and keeps the server's order
+            defaultColDef={{ minWidth: 90, filter: false, sortable: true, resizable: true, comparator: () => 0 }}
+            onSortChanged={(e) => {
+              const col = e.api.getColumnState().find((c) => c.sort);
+              setSort(col ? { key: col.colId, dir: col.sort } : null);
+              actions.setCurrentPage(1);
+            }}
           />
         </div>
 

@@ -13,11 +13,13 @@ DECLARE @updatedBy INT = NULL;   -- e.g. 1 for the superadmin account
 DECLARE @csr INT = (SELECT module_id FROM tbl_modules WHERE module_code = 'CSR_PROJECTS');
 IF @csr IS NULL THROW 50001, 'Module CSR_PROJECTS not found in tbl_modules.', 1;
 
+DROP TABLE IF EXISTS #reporting;
 SELECT DISTINCT o.organisation_id, o.organisation_name INTO #reporting
 FROM mmt_organisation o
 WHERE EXISTS (SELECT 1 FROM tbl_csr_projects p WHERE p.organisation_id = o.organisation_id)
    OR EXISTS (SELECT 1 FROM tbl_csr_fund f WHERE f.organisation_id = o.organisation_id);
 
+DROP TABLE IF EXISTS #toEnable;
 SELECT r.organisation_id, r.organisation_name INTO #toEnable
 FROM #reporting r
 WHERE NOT EXISTS (SELECT 1 FROM tbl_rbac_org_module_permission p
