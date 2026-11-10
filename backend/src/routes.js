@@ -115,7 +115,6 @@ import ypReportTab from "./controllers/Reports/youngProfessionalReports.js";
 import cabinetMopswReportTab from "./controllers/Reports/cabinetMopswReports.js";
 import cabinetMinistryReportTab from "./controllers/Reports/cabinetMinistryReports.js";
 import consultAppReportTab from "./controllers/Reports/consulAppointmentReports.js";
-import aditParaReportTab from "./controllers/Reports/auditParaReports.js";
 import vipReportTab from "./controllers/Reports/vipReferenceReport.js";
 import gemReportTab from "./controllers/Reports/gemReport.js";
 import mivReportTab from "./controllers/Reports/mivReport.js";
@@ -731,12 +730,14 @@ router.delete(
 // router.get("/get-vip-stage-chart", vipReferenceTab.getVipStageChartData);
 // router.get("/get-vip-deadline-chart", vipReferenceTab.getVipDeadlineChartData);
 
-// Audit Para
-router.get("/audit-para", auditParaTab.getAuditPara);
-router.post("/audit-para", auditParaTab.createAuditPara);
-router.put("/audit-para", auditParaTab.updateAuditPara);
-// router.post("/audit-para-stage", auditParaTab.createAuditParaStage);
-router.delete("/audit-para/:audit_para_id/:userID", auditParaTab.deleteAuditPara);
+// Audit Para: signed-in users with the AUDIT_PARAS rights; the user and their scope come from
+// the token, not from the request
+const auditParaRead = requireModulePermission("AUDIT_PARAS", "read");
+router.get("/audit-para-dashboard", auth, auditParaRead, auditParaTab.getAuditParaDashboard);
+router.get("/audit-para", auth, auditParaRead, auditParaTab.getAuditPara);
+router.post("/audit-para", auth, requireModulePermission("AUDIT_PARAS", "create"), auditParaTab.createAuditPara);
+router.put("/audit-para", auth, requireModulePermission("AUDIT_PARAS", "update"), auditParaTab.updateAuditPara);
+router.delete("/audit-para/:audit_para_id/:userID", auth, requireModulePermission("AUDIT_PARAS", "delete"), auditParaTab.deleteAuditPara);
 
 //Issues Tracking
 
@@ -1515,11 +1516,6 @@ router.get(
   cabinetMinistryReportTab.getDetailMinistryPendencyReport
 );
 
-// Audit Para
-router.get("/auditparawise-report", aditParaReportTab.auditParaWiseReport);
-router.get("/auditparadivision-report/:wingID/", aditParaReportTab.auditParaDivisionReport);
-router.get("/getauditpara-wingwise/:wingID/:auditParaStage", aditParaReportTab.getDetailAuditParaWingWise);
-router.get("/getauditpara-divisionwise/:divisionID/:auditParaStage", aditParaReportTab.getDetailAuditParaDivisionWise);
 
 router.get("/yp-report", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), ypReportTab.getYoungProfessionalReport);
 router.get("/ypdivision-report/:ypID/:wingID/", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), ypReportTab.ypDivisionWiseReport);

@@ -77,8 +77,8 @@ export const ROUTE_MAP = {
   'Media Outreach': 'governance/media-outreach/broadcast',
   'Parliamentary Issue': 'governance/parliamentary-issues/data-list',
   'Parliamentary Issues': 'governance/parliamentary-issues/data-list',
-  'Audit Paras': 'governance/audit-paras/input-form',
-  'Audit Para': 'governance/audit-paras/input-form',
+  'Audit Paras': 'governance/audit-paras',
+  'Audit Para': 'governance/audit-paras',
   'GEM Procurements': 'governance/gem-procurements/total',
 
   // Legal nested routes

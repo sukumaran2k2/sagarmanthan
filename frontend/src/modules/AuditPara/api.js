@@ -48,6 +48,11 @@ export function fetchAuditParas(userID) {
   return api.get('/audit-para', { params: { userID } });
 }
 
+// Dashboard figures; wingId narrows the cards, stage table and long-pending list
+export function fetchAuditParaDashboard(wingId) {
+  return api.get('/audit-para-dashboard', { params: wingId ? { wingId } : {} });
+}
+
 export function createAuditPara(payload) {
   return api.post('/audit-para', payload);
 }

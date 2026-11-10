@@ -5,337 +5,337 @@ import fs from 'fs';
 // Stage flags are BIT columns; the form sends 'Yes' / 'No' (true / 1 are accepted too).
 const toBit = (v) => (v === true || v === 1 || /^(yes|true|1)$/i.test(String(v ?? '').trim()) ? 1 : 0);
 
-async function createAuditPara (req, res) 
-{
-    const auditParaNumber = req.body.auditParaNumber;
-    const subject = req.body.subject;
-    const wing = req.body.wing;
-    const division = req.body.division;
-    const category = req.body.category;
-    let yetSentForComment = toBit(req.body.yetSentForComment);
-    let yetSentForCommentDate = req.body.yetSentForCommentDate;
-    const commentSoughtOrg = toBit(req.body.commentSoughtOrg);
-    let commentSoughtOrgDate = req.body.commentSoughtOrgDate;
-    const commentReceived = toBit(req.body.commentReceived);
-    let commentReceivedDate = req.body.commentReceivedDate;
-    const underClarification = toBit(req.body.underClarification);    
-    const commentFurnished = toBit(req.body.commentFurnished);
-    let commentFurnishedDate = req.body.commentFurnishedDate;
-    const cagAccepted = toBit(req.body.cagAccepted);
-    let cagAcceptedDate = req.body.cagAcceptedDate;
-    const disposed = toBit(req.body.disposed);
-    let disposedDate = req.body.disposedDate;
-    const remarks = req.body.remarks;
-    const userID = req.body.userID;
-    const selectedStage = req.body.selectedStage;
+// Stages (mmt_audit_para_stage): 1 Received ... 6 Accepted by CAG are open; 7 Dropped is disposed
+const DROPPED_STAGE = 7;
+// The form's categories (frontend constants.js CATEGORIES)
+const CATEGORIES = ['Audit Para', 'Draft Para', 'CAG Report Item'];
 
-    if(yetSentForCommentDate == "")
-    {
-        yetSentForCommentDate = null;
-    }
-    if(commentSoughtOrgDate == "")
-    {
-        commentSoughtOrgDate = null;
-    }
-    if(commentReceivedDate == "")
-    {
-        commentReceivedDate = null;
-    }
-    if(commentFurnishedDate == "")
-    {
-        commentFurnishedDate = null;
-    }
-    if(cagAcceptedDate == "")
-    {
-        cagAcceptedDate = null;
-    }
-    if(disposedDate == "")
-    {
-        disposedDate = null;
-    }
+// The form fields for each stage, in order: its Yes/No flag and its date (stage 4 has no date)
+const STAGE_FIELDS = [
+    { flag: 'yetSentForComment', date: 'yetSentForCommentDate' },
+    { flag: 'commentSoughtOrg', date: 'commentSoughtOrgDate' },
+    { flag: 'commentReceived', date: 'commentReceivedDate' },
+    { flag: 'underClarification', date: null },
+    { flag: 'commentFurnished', date: 'commentFurnishedDate' },
+    { flag: 'cagAccepted', date: 'cagAcceptedDate' },
+    { flag: 'disposed', date: 'disposedDate' },
+];
 
+// Date a para entered its current stage (stage 4 has no date: the last update stands in)
+const STAGE_SINCE = `COALESCE(CASE tbl_audit_para.stage_id
+        WHEN 1 THEN tbl_audit_para.date_of_receipt
+        WHEN 2 THEN tbl_audit_para.comments_sought_date
+        WHEN 3 THEN tbl_audit_para.comments_rec_date
+        WHEN 5 THEN tbl_audit_para.comments_furnished_date
+        WHEN 6 THEN tbl_audit_para.cag_accepted_date
+    END, tbl_audit_para.updated_date, tbl_audit_para.created_date)`;
+const IS_OPEN = `tbl_audit_para.stage_id < ${DROPPED_STAGE}`;
+// When a para reached the Ministry (the entry date when that is missing)
+const RECEIVED_ON = 'COALESCE(tbl_audit_para.date_of_receipt, tbl_audit_para.created_date)';
+const IS_DRAFT = "tbl_audit_para.category = 'Draft Para'";
+
+
+// Which paras the signed-in user may see, as a condition on tbl_audit_para (same rule as Bills):
+// Ministry users, the organisation nodal officer and users with no wing see every para; anyone
+// else sees their wing's paras and the ones they created.
+async function auditScope(request, userId) {
+    request.input("scopeUserId", userId);
+    const result = await request.query(`SELECT u.role_id, u.wing_id, ds.data_scope_code
+        FROM tbl_user u
+        LEFT JOIN tbl_rbac_role_data_scope rds ON rds.role_id = u.role_id
+        LEFT JOIN mmt_rbac_data_scope ds ON ds.data_scope_id = rds.data_scope_id
+        WHERE u.user_id = @scopeUserId`);
+    const { role_id, wing_id, data_scope_code } = result.recordset[0] || {};
+    if (!result.recordset.length) return '1 = 0';
+    if (data_scope_code === 'MINISTRY' || role_id === 8 || wing_id === null || wing_id === undefined) return '1 = 1';
+    request.input("userWingId", wing_id);
+    return '(tbl_audit_para.wing = @userWingId OR tbl_audit_para.created_by = @scopeUserId)';
+}
+
+const isDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(new Date(v).getTime());
+
+// Checks the form and returns the values to save, or { error }. The stage is the last step
+// reached (the browser's selectedStage isn't trusted); a dated step counts once it has a date.
+// A new para's wing and division are checked; an update keeps them.
+async function readAuditPara(body, conn, { isNew }) {
+    const paraNumber = String(body.auditParaNumber ?? '').trim();
+    const subject = String(body.subject ?? '').trim();
+    const category = String(body.category ?? '').trim();
+    if (!paraNumber) return { error: 'Para number is required.' };
+    if (paraNumber.length > 256) return { error: 'Para number can be at most 256 characters.' };
+    if (!subject) return { error: 'Subject is required.' };
+    if (subject.length > 256) return { error: 'Subject can be at most 256 characters.' };
+    if (!CATEGORIES.includes(category)) return { error: 'Category must be Audit Para, Draft Para or CAG Report Item.' };
+
+    const steps = [];
+    for (const { flag, date } of STAGE_FIELDS) {
+        const day = date ? String(body[date] ?? '').trim() : '';
+        if (day && !isDate(day)) return { error: 'A stage date is not a valid date.' };
+        steps.push({ on: toBit(body[flag]) || (day ? 1 : 0), day: day || null });
+    }
+    let stage = 1;
+    steps.forEach((s, i) => { if (s.on) stage = i + 1; });
+
+    const values = { paraNumber, subject, category, steps, stage, remarks: body.remarks ?? null };
+    if (isNew) {
+        const wing = Number(body.wing);
+        const division = Number(body.division);
+        if (!Number.isInteger(wing) || wing <= 0) return { error: 'Wing is required.' };
+        if (!Number.isInteger(division) || division <= 0) return { error: 'Division is required.' };
+        const check = conn.request();
+        check.input("wing", wing);
+        check.input("division", division);
+        const found = await check.query(`SELECT 1 AS ok FROM mmt_division WHERE division_id = @division AND wing_id = @wing`);
+        if (!found.recordset.length) return { error: 'The division does not belong to the selected wing.' };
+        Object.assign(values, { wing, division });
+    }
+    return values;
+}
+
+const STEP_COLUMNS = [
+    ['received_at_ministry', 'date_of_receipt'],
+    ['comments_sought', 'comments_sought_date'],
+    ['comments_rec', 'comments_rec_date'],
+    ['under_clarification', null],
+    ['comments_furnished', 'comments_furnished_date'],
+    ['cag_accepted', 'cag_accepted_date'],
+    ['disposed', 'disposed_date'],
+];
+
+function addStepInputs(request, steps) {
+    steps.forEach((s, i) => {
+        request.input(`flag${i}`, s.on);
+        if (STEP_COLUMNS[i][1]) request.input(`date${i}`, s.day);
+    });
+}
+
+async function createAuditPara(req, res) {
     const conn = await pool;
-    const request = conn.request();
-    request.input("auditParaNumber", auditParaNumber); 
-    request.input("subject", subject);  
-    request.input("wing", wing);
-    request.input("division", division);
-    request.input("category", category);
-    request.input("yetSentForComment", yetSentForComment);  
-    request.input("yetSentForCommentDate", yetSentForCommentDate);
-    request.input("commentSoughtOrg", commentSoughtOrg);  
-    request.input("commentSoughtOrgDate", commentSoughtOrgDate); 
-    request.input("commentReceived", commentReceived);  
-    request.input("commentReceivedDate", commentReceivedDate);
-    request.input("underClarification", underClarification); 
-    request.input("commentFurnished", commentFurnished);  
-    request.input("commentFurnishedDate", commentFurnishedDate); 
-    request.input("cagAccepted", cagAccepted);  
-    request.input("cagAcceptedDate", cagAcceptedDate); 
-    request.input("disposed", disposed);  
-    request.input("disposedDate", disposedDate); 
-    request.input("remarks", remarks);  
-    request.input("userID", userID);
-    request.input("selectedStage", selectedStage);    
-    
-    try 
-    {    
-        const result = await request.query(`INSERT INTO tbl_audit_para (para_number, subject, wing, division, category, 
-            received_at_ministry, date_of_receipt, comments_sought, comments_sought_date, comments_rec, comments_rec_date,
-            under_clarification, comments_furnished, comments_furnished_date, cag_accepted, cag_accepted_date, disposed,
-            disposed_date, remarks, stage_id, created_by, created_date)
-            OUTPUT INSERTED.audit_para_id
-            VALUES (@auditParaNumber, @subject, @wing, @division, @category, @yetSentForComment, 
-            @yetSentForCommentDate, @commentSoughtOrg, @commentSoughtOrgDate, @commentReceived, @commentReceivedDate, @underClarification,
-            @commentFurnished, @commentFurnishedDate, @cagAccepted, @cagAcceptedDate, @disposed,
-            @disposedDate, @remarks, @selectedStage, @userID, GETDATE())`);            
-            
-            const audit_para_id = result.recordset[0].audit_para_id;    
-            
-            // res.status(201).json({ audit_para_id });   
-            res.sendStatus(201);  
+    try {
+        const values = await readAuditPara(req.body, conn, { isNew: true });
+        if (values.error) return res.status(400).json({ message: values.error });
 
-    }
-    catch(err) {
-        console.log(err);
+        const request = conn.request();
+        request.input("paraNumber", values.paraNumber);
+        request.input("subject", values.subject);
+        request.input("wing", values.wing);
+        request.input("division", values.division);
+        request.input("category", values.category);
+        request.input("remarks", values.remarks);
+        request.input("stage", values.stage);
+        request.input("userID", req.user.userId); // the signed-in user, not a form value
+        addStepInputs(request, values.steps);
+
+        const columns = STEP_COLUMNS.flatMap(([flag, date]) => (date ? [flag, date] : [flag]));
+        const params = STEP_COLUMNS.flatMap(([, date], i) => (date ? [`@flag${i}`, `@date${i}`] : [`@flag${i}`]));
+        await request.query(`INSERT INTO tbl_audit_para (para_number, subject, wing, division, category,
+            ${columns.join(', ')}, remarks, stage_id, created_by, created_date)
+            VALUES (@paraNumber, @subject, @wing, @division, @category,
+            ${params.join(', ')}, @remarks, @stage, @userID, GETDATE())`);
+        return res.sendStatus(201);
+    } catch (err) {
+        console.error('Audit Para create error:', err);
         return res.sendStatus(500);
     }
-};
+}
 
-async function getAuditPara (req, res) 
-{
+async function getAuditPara(req, res) {
     const conn = await pool;
-
-    try 
-    {
-        const userID = req.query.userID;
-        let scopeClause = '';
+    try {
         const request = conn.request();
-
-        // MOPSW admin/other-user/wing-head/division-head roles see everything
-        // (matching 2.0's intended behaviour, now enforced server-side rather
-        // than only in the frontend rendering loop). Any other role
-        // (organisation-level users) is scoped to their own wing, or to
-        // records they personally created.
-        if (userID) {
-            const userResult = await request.query(`SELECT role_id, wing_id FROM tbl_user WHERE user_id = ${userID}`);
-            const { role_id, wing_id } = userResult.recordset[0] || {};
-            const isMopswRole = [2, 3, 4, 5, 8].includes(role_id);
-            if (!isMopswRole) {
-                request.input("userWingId", wing_id);
-                request.input("requestingUserId", userID);
-                scopeClause = `WHERE (tbl_audit_para.wing = @userWingId OR tbl_audit_para.created_by = @requestingUserId)`;
-            }
-        }
-
-        const result = await request.query(`SELECT audit_para_id, stage_id, para_number, subject, 
-        wing, division, wing_name, division_name, category, 
+        const scope = await auditScope(request, req.user.userId);
+        const result = await request.query(`SELECT audit_para_id, stage_id, para_number, subject,
+        wing, division, wing_name, division_name, category,
         received_at_ministry, date_of_receipt, comments_sought, comments_sought_date, comments_rec, comments_rec_date,
         under_clarification, comments_furnished, comments_furnished_date, cag_accepted, cag_accepted_date, disposed,
-        disposed_date, remarks, stage_id, created_by, audit_para_stage_name,updated_date
-        from tbl_audit_para
+        disposed_date, remarks, created_by, audit_para_stage_name, updated_date
+        FROM tbl_audit_para
         INNER JOIN mmt_division ON tbl_audit_para.division = mmt_division.division_id
         INNER JOIN mmt_wings ON tbl_audit_para.wing = mmt_wings.wing_id
         INNER JOIN mmt_audit_para_stage ON mmt_audit_para_stage.audit_para_stage_id = tbl_audit_para.stage_id
-        ${scopeClause}
-        ORDER BY audit_para_stage_id ASC
-        ;`);
-        res.json(result.recordset);
-    }
-    catch(err) {
-        console.log(err);
+        WHERE ${scope}
+        ORDER BY audit_para_stage_id ASC;`);
+        return res.json(result.recordset);
+    } catch (err) {
+        console.error('Audit Para list error:', err);
         return res.sendStatus(500);
     }
-};
+}
 
-async function updateAuditPara(req, res) 
-{   
-    const auditParaID = req.body.auditParaID;
-    const auditParaNumber = req.body.auditParaNumber;
-    const subject = req.body.subject;
-    const category = req.body.category;
-    const yetSentForComment = toBit(req.body.yetSentForComment);
-    let yetSentForCommentDate = req.body.yetSentForCommentDate;
-    const commentSoughtOrg = toBit(req.body.commentSoughtOrg);
-    let commentSoughtOrgDate = req.body.commentSoughtOrgDate;
-    const commentReceived = toBit(req.body.commentReceived);
-    let commentReceivedDate = req.body.commentReceivedDate;
-    const underClarification = toBit(req.body.underClarification);    
-    const commentFurnished = toBit(req.body.commentFurnished);        
-    let commentFurnishedDate = req.body.commentFurnishedDate;
-    const cagAccepted = toBit(req.body.cagAccepted);
-    let cagAcceptedDate = req.body.cagAcceptedDate;
-    const disposed = toBit(req.body.disposed);
-    let disposedDate = req.body.disposedDate;
-    const remarks = req.body.remarks;
-    const userID = req.body.userID;
-    const selectedStage = req.body.selectedStage;
-
-    if(yetSentForCommentDate == "")
-    {
-        yetSentForCommentDate = null;
-    }
-    if(commentSoughtOrgDate == "")
-    {
-        commentSoughtOrgDate = null;
-    }
-    if(commentReceivedDate == "")
-    {
-        commentReceivedDate = null;
-    }
-    if(commentFurnishedDate == "")
-    {
-        commentFurnishedDate = null;
-    }
-    if(cagAcceptedDate == "")
-    {
-        cagAcceptedDate = null;
-    }
-    if(disposedDate == "")
-    {
-        disposedDate = null;
-    }
-
+// Only a para the user may see can be changed (404 otherwise); its wing and division are kept
+async function updateAuditPara(req, res) {
     const conn = await pool;
-    const request = conn.request();    
-    request.input("auditParaID", auditParaID); 
-    request.input("auditParaNumber", auditParaNumber); 
-    request.input("subject", subject);  
-    request.input("category", category);  
-    request.input("yetSentForComment", yetSentForComment);
-    request.input("yetSentForCommentDate", yetSentForCommentDate);  
-    request.input("commentSoughtOrg", commentSoughtOrg); 
-    request.input("commentSoughtOrgDate", commentSoughtOrgDate);  
-    request.input("commentReceived", commentReceived);
-    request.input("commentReceivedDate", commentReceivedDate);  
-    request.input("underClarification", underClarification);  
-    request.input("commentFurnished", commentFurnished);  
-    request.input("commentFurnishedDate", commentFurnishedDate); 
-    request.input("cagAccepted", cagAccepted);  
-    request.input("cagAcceptedDate", cagAcceptedDate); 
-    request.input("disposed", disposed);
-    request.input("disposedDate", disposedDate);
-    request.input("remarks", remarks);
-    request.input("userID", userID);
-    request.input("selectedStage", selectedStage);   
+    try {
+        const id = Number(req.body.auditParaID);
+        if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ message: 'Audit Para is missing.' });
+        const values = await readAuditPara(req.body, conn, { isNew: false });
+        if (values.error) return res.status(400).json({ message: values.error });
 
-    try
-    {
-        const result = await request.query(`UPDATE tbl_audit_para SET para_number = @auditParaNumber, subject = @subject,
-        category = @category, received_at_ministry = @yetSentForComment, 
-        date_of_receipt = @yetSentForCommentDate, comments_sought = @commentSoughtOrg, comments_sought_date = @commentSoughtOrgDate,
-        comments_rec = @commentReceived,  comments_rec_date = @commentReceivedDate, 
-        under_clarification = @underClarification, comments_furnished= @commentFurnished,
-        comments_furnished_date = @commentFurnishedDate, cag_accepted = @cagAccepted, cag_accepted_date = @cagAcceptedDate, 
-        disposed = @disposed, disposed_date = @disposedDate, 
-        remarks = @remarks, stage_id = @selectedStage, updated_date = getDate(), updated_by = @userID
-        OUTPUT INSERTED.audit_para_id
-        WHERE audit_para_id = @auditParaID`);  
-        
-        const audit_para_id = result.recordset[0].audit_para_id;    
+        const request = conn.request();
+        const scope = await auditScope(request, req.user.userId);
+        request.input("auditParaID", id);
+        request.input("paraNumber", values.paraNumber);
+        request.input("subject", values.subject);
+        request.input("category", values.category);
+        request.input("remarks", values.remarks);
+        request.input("stage", values.stage);
+        request.input("userID", req.user.userId);
+        addStepInputs(request, values.steps);
 
-        // res.status(200).json({ audit_para_id }); 
-        res.sendStatus(200);
-    }
-    catch (err) 
-    {
-        console.log(err);
+        const sets = STEP_COLUMNS.flatMap(([flag, date], i) => (date ? [`${flag} = @flag${i}`, `${date} = @date${i}`] : [`${flag} = @flag${i}`]));
+        const result = await request.query(`UPDATE tbl_audit_para SET para_number = @paraNumber, subject = @subject,
+            category = @category, ${sets.join(', ')},
+            remarks = @remarks, stage_id = @stage, updated_date = GETDATE(), updated_by = @userID
+            WHERE audit_para_id = @auditParaID AND ${scope}`);
+        if (!result.rowsAffected[0]) return res.status(404).json({ message: 'Audit Para not found.' });
+        return res.sendStatus(200);
+    } catch (err) {
+        console.error('Audit Para update error:', err);
         return res.sendStatus(500);
     }
-};
+}
 
-// async function createAuditParaStage (req, res)
-// {
-//     const auditParaID = req.body.auditParaID;
-//     const stage = req.body.selectedStage;
-
-//     const conn = await pool;
-//     const request = conn.request();
-
-//     request.input("auditParaID", auditParaID);
-//     request.input("stage", stage);
-
-//     try {
-    
-//         const checkResult = await request.query(`
-//         SELECT COUNT(*) AS recordCount
-//         FROM tbl_audit_para_stage
-//         WHERE audit_para_id = @auditParaID
-//     `);
-
-//     if (checkResult.recordset[0].recordCount > 0) {
-
-//         const updateResult = await request.query(`
-//             UPDATE tbl_audit_para_stage
-//             SET stage_name = @stage
-//             WHERE audit_para_id = @auditParaID
-//         `);
-//     } else {
-  
-//         const insertResult = await request.query(`
-//             INSERT INTO tbl_audit_para_stage (audit_para_id, stage_name)
-//             VALUES (@auditParaID, @stage);
-//         `);
-//     }
-//     res.sendStatus(201); 
-// }   
-
-  
-//     catch(err) {
-//         console.log(err);
-//         return res.sendStatus(500);
-//     }
-// }
-
-async function deleteAuditPara (req, res) 
-{    
-    const auditParaID = req.params.audit_para_id;
-    console.log('audit_para_id',auditParaID);
-
-    const userID = req.params.userID;
-    console.log('userID',userID);
-
-    const now = new Date();
-    const datePart = now.toISOString().slice(0, 10).replace(/-/g, ''); 
-    const hourPart = String(now.getHours()).padStart(2, '0'); 
-    const minutePart = String(now.getMinutes()).padStart(2, '0'); 
-    const secondPart = String(now.getSeconds()).padStart(2, '0'); 
-    const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
-    const logFolder = `./delete_log/Audit_para`;
-    const logFileName = `${logFolder}/deleted_Auditpara_log_${timestamp}.txt`;
-    
+// Only a para the user may see can be deleted; a copy goes to delete_log/Audit_para first
+async function deleteAuditPara(req, res) {
+    const id = Number(req.params.audit_para_id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ message: 'Audit Para is missing.' });
+    const userID = req.user.userId; // the signed-in user, not the path value
     const conn = await pool;
-    const request = conn.request();
-    request.input("auditParaID", auditParaID);
-    request.input("userID", userID);
-    try
-    {
-        const dataToDelete = await request.query(`SELECT * FROM tbl_audit_para WHERE audit_para_id = @auditParaID;`);
-        const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
-    
-        const result = await request.query(`DELETE FROM tbl_audit_para WHERE audit_para_id = @auditParaID;`);
-        console.log('result',result);
+    try {
+        const request = conn.request();
+        const scope = await auditScope(request, userID);
+        request.input("auditParaID", id);
+        const result = await request.query(`DELETE FROM tbl_audit_para
+            OUTPUT DELETED.*
+            WHERE audit_para_id = @auditParaID AND ${scope};`);
+        if (!result.recordset.length) return res.status(404).json({ message: 'Audit Para not found.' });
 
-        if (result.rowsAffected[0] > 0) {
-            const logMessage = `User '${userID}' deleted Audit para data with Data ID '${auditParaID}'. Deleted Data: ${dataJSON}\n`;
-
-            // Append the log message to the log file
-            fs.appendFile(logFileName, logMessage, (err) => {
-                if (err) {
-                console.error('Error writing to delete_logs.txt:', err);
-                }
+        const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '_').slice(0, 15);
+        const logFolder = './delete_log/Audit_para';
+        const logMessage = `User '${userID}' deleted Audit para data with Data ID '${id}'. Deleted Data: ${JSON.stringify(result.recordset[0])}\n`;
+        fs.mkdir(logFolder, { recursive: true }, (mkdirErr) => {
+            if (mkdirErr) return console.error('Audit Para delete log folder error:', mkdirErr);
+            fs.appendFile(`${logFolder}/deleted_Auditpara_log_${timestamp}.txt`, logMessage, (err) => {
+                if (err) console.error('Audit Para delete log error:', err);
             });
-
-            return res.sendStatus(201);
-        } else {
-            return res.status(404).send("Data not found");
-        }
-    }
-    catch(err)
-    {
-        console.log(err);
+        });
+        return res.sendStatus(201);
+    } catch (err) {
+        console.error('Audit Para delete error:', err);
         return res.sendStatus(500);
     }
-};
+}
 
-export default { createAuditPara, getAuditPara, updateAuditPara, deleteAuditPara };
+// Dashboard: totals, open paras per stage with how long they have waited, paras per wing (per division of a picked wing), paras received and dropped each year, and the
+// ten longest-pending paras. ?wingId narrows everything; across wings the wing chart stays whole.
+async function getAuditParaDashboard(req, res) {
+    const conn = await pool;
+    try {
+        const wingId = Number(req.query.wingId);
+        const filterWing = Number.isInteger(wingId) && wingId > 0;
+        const query = async (sql, { byWing = true } = {}) => {
+            const request = conn.request();
+            const conditions = [await auditScope(request, req.user.userId)];
+            if (byWing && filterWing) {
+                request.input("filterWingId", wingId);
+                conditions.push('tbl_audit_para.wing = @filterWingId');
+            }
+            // Every /*SCOPE*/ in the statement gets the same conditions
+            return (await request.query(sql.split('/*SCOPE*/').join(conditions.map((c) => `AND ${c}`).join(' ')))).recordset;
+        };
+
+        const [kpi = {}] = await query(`
+            SELECT COUNT(*) AS total,
+                SUM(CASE WHEN ${IS_OPEN} THEN 1 ELSE 0 END) AS open_count,
+                SUM(CASE WHEN ${IS_OPEN} THEN 0 ELSE 1 END) AS dropped,
+                SUM(CASE WHEN ${IS_OPEN} AND tbl_audit_para.category = 'Draft Para' THEN 1 ELSE 0 END) AS open_draft,
+                CAST(AVG(CASE WHEN ${IS_OPEN} THEN CAST(DATEDIFF(day,
+                    COALESCE(tbl_audit_para.date_of_receipt, tbl_audit_para.created_date), GETDATE()) AS FLOAT) END) AS INT) AS avg_age_days,
+                MAX(COALESCE(tbl_audit_para.updated_date, tbl_audit_para.created_date)) AS last_update
+            FROM tbl_audit_para
+            WHERE 1 = 1 /*SCOPE*/`);
+
+        // Open paras per stage (every open stage listed, empty ones with 0)
+        const stages = await query(`
+            SELECT stage.audit_para_stage_id AS stage_id, stage.audit_para_stage_name AS stage_name,
+                COUNT(tbl_audit_para.audit_para_id) AS para_count,
+                CAST(AVG(CAST(DATEDIFF(day, ${STAGE_SINCE}, GETDATE()) AS FLOAT)) AS INT) AS avg_days,
+                MAX(DATEDIFF(day, ${STAGE_SINCE}, GETDATE())) AS max_days
+            FROM mmt_audit_para_stage AS stage
+            LEFT JOIN tbl_audit_para ON tbl_audit_para.stage_id = stage.audit_para_stage_id /*SCOPE*/
+            WHERE stage.audit_para_stage_id < ${DROPPED_STAGE}
+            GROUP BY stage.audit_para_stage_id, stage.audit_para_stage_name
+            ORDER BY stage.audit_para_stage_id`);
+
+        // Paras per wing (or, with a wing picked, per division of that wing): open and dropped ones,
+        // each split by category; the one with most open paras comes first. Across wings the wing
+        // filter doesn't apply (the chart compares wings).
+        const byDivision = filterWing;
+        const groupJoin = byDivision
+            ? 'INNER JOIN mmt_division AS grp ON grp.division_id = tbl_audit_para.division'
+            : 'INNER JOIN mmt_wings AS grp ON grp.wing_id = tbl_audit_para.wing';
+        const [groupId, groupName] = byDivision ? ['grp.division_id', 'grp.division_name'] : ['grp.wing_id', 'grp.wing_name'];
+        const breakdown = await query(`
+            SELECT ${groupId} AS id, ${groupName} AS name,
+                SUM(CASE WHEN ${IS_OPEN} THEN 1 ELSE 0 END) AS total_open,
+                SUM(CASE WHEN ${IS_OPEN} AND NOT ${IS_DRAFT} THEN 1 ELSE 0 END) AS audit_para,
+                SUM(CASE WHEN ${IS_OPEN} AND ${IS_DRAFT} THEN 1 ELSE 0 END) AS draft_para,
+                SUM(CASE WHEN NOT ${IS_OPEN} AND NOT ${IS_DRAFT} THEN 1 ELSE 0 END) AS dropped_audit,
+                SUM(CASE WHEN NOT ${IS_OPEN} AND ${IS_DRAFT} THEN 1 ELSE 0 END) AS dropped_draft
+            FROM tbl_audit_para
+            ${groupJoin}
+            WHERE 1 = 1 /*SCOPE*/
+            GROUP BY ${groupId}, ${groupName}
+            ORDER BY total_open DESC, COUNT(*) DESC, ${groupName}`, { byWing: byDivision });
+
+        // Paras received and dropped in each calendar year (CAG reports are numbered by year);
+        // a dropped para with no dropped date can't be placed in a year and is counted apart
+        const yearly = await query(`
+            SELECT y.[year], SUM(y.received) AS received, SUM(y.dropped) AS dropped
+            FROM (
+                SELECT YEAR(${RECEIVED_ON}) AS [year], 1 AS received, 0 AS dropped
+                FROM tbl_audit_para WHERE 1 = 1 /*SCOPE*/
+                UNION ALL
+                SELECT YEAR(tbl_audit_para.disposed_date), 0, 1
+                FROM tbl_audit_para WHERE NOT ${IS_OPEN} AND tbl_audit_para.disposed_date IS NOT NULL /*SCOPE*/
+            ) AS y
+            WHERE y.[year] IS NOT NULL
+            GROUP BY y.[year]
+            ORDER BY y.[year]`);
+        const [undated = {}] = await query(`
+            SELECT COUNT(*) AS n FROM tbl_audit_para
+            WHERE NOT ${IS_OPEN} AND tbl_audit_para.disposed_date IS NULL /*SCOPE*/`);
+
+        const longPending = await query(`
+            SELECT TOP 10 tbl_audit_para.audit_para_id, tbl_audit_para.para_number, tbl_audit_para.subject,
+                tbl_audit_para.category, wings.wing_name, tbl_audit_para.stage_id, stage.audit_para_stage_name AS current_stage,
+                ${STAGE_SINCE} AS stage_since,
+                DATEDIFF(day, ${STAGE_SINCE}, GETDATE()) AS pending_days
+            FROM tbl_audit_para
+            INNER JOIN mmt_wings AS wings ON wings.wing_id = tbl_audit_para.wing
+            LEFT JOIN mmt_audit_para_stage AS stage ON stage.audit_para_stage_id = tbl_audit_para.stage_id
+            WHERE ${IS_OPEN} /*SCOPE*/
+            ORDER BY pending_days DESC, tbl_audit_para.audit_para_id`);
+
+        return res.json({
+            kpi: {
+                total: Number(kpi.total) || 0,
+                open: Number(kpi.open_count) || 0,
+                dropped: Number(kpi.dropped) || 0,
+                openDraft: Number(kpi.open_draft) || 0,
+                avgAgeDays: kpi.avg_age_days ?? null,
+            },
+            lastDataUpdate: kpi.last_update || null,
+            stages,
+            breakdown: { by: byDivision ? 'division' : 'wing', rows: breakdown },
+            yearly,
+            droppedWithoutDate: Number(undated.n) || 0,
+            longPending,
+        });
+    } catch (err) {
+        console.error('Audit Para dashboard error:', err);
+        return res.sendStatus(500);
+    }
+}
+
+export default { createAuditPara, getAuditPara, updateAuditPara, deleteAuditPara, getAuditParaDashboard };
