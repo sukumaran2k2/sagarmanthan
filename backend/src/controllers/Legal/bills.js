@@ -139,7 +139,7 @@ async function createBill(req, res) {
         res.status(201).json({ billID: result.recordset[0]?.bill_id });
     }
     catch (err) {
-        console.log(err);
+        console.error(err);
         return res.sendStatus(500);
     }
 }
@@ -183,7 +183,7 @@ async function getBill(req, res) {
         res.json(result.recordset);
     }
     catch (err) {
-        console.log(err);
+        console.error(err);
         return res.sendStatus(500);
     }
 }
@@ -203,7 +203,7 @@ async function getUpdateBill(req, res) {
         res.json(result.recordset);
     }
     catch (err) {
-        console.log(err);
+        console.error(err);
         return res.sendStatus(500);
     }
 }
@@ -238,7 +238,7 @@ async function updateBill(req, res) {
         if (!result.rowsAffected[0]) return res.status(404).json({ message: 'Bill not found.' });
         res.sendStatus(200);
     } catch (err) {
-        console.log(err);
+        console.error(err);
         return res.sendStatus(500);
     }
 }
@@ -275,7 +275,7 @@ async function deleteBill(req, res) {
         return res.sendStatus(200);
     }
     catch (err) {
-        console.log(err);
+        console.error(err);
         return res.sendStatus(500);
     }
 }

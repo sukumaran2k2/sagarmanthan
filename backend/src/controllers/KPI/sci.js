@@ -1,7 +1,6 @@
 import { pool } from "../../db.js";
 import { checkEdit, refuseEdit, deleteKpiEntry } from "./kpiEditChecks.js";
 
-
 async function addVesselAvailabiltydata(req, res) {
     const { scifinancialYear, operatedShips, shipUtilization } = req.body;
     const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
@@ -59,7 +58,6 @@ async function getsciVesselList(req, res) {
         if (!res.headersSent) return res.sendStatus(500);
     }
 } 
-
 
 async function getUpdatesciVesseldata(req, res) 
         {
@@ -348,7 +346,6 @@ async function updateTimeVoyagetankerData(req,res){
 
     const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
-
     const conn = await pool;
     const request = conn.request();
     request.input('updatefinancialYear', updatefinancialYear);
@@ -378,7 +375,6 @@ async function updateTimeVoyagetankerData(req,res){
 async function deleteTimeVoyageTanker(req, res) {
     return deleteKpiEntry(req, res, { table: "tbl_sci_time_voyage_tanker", idColumn: "sci_time_voyage_tanker_id", idParam: "sci_time_voyage_tanker_id", logFolder: "SCI_Time_Voyage_Tanker" });
 }
-
 
     async function addscitimeVoyageoffshore(req, res) {
         const { financialYear, offshoreFleet, timeCharter, voyageCharter, revenue, average } = req.body;
@@ -477,7 +473,6 @@ async function deleteTimeVoyageTanker(req, res) {
         const ScitimeVoyageoffshoreIdOrg  = req.body.ScitimeVoyageoffshoreIdOrg ;
 
         const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-
 
         const conn = await pool;
         const request = conn.request();
@@ -601,7 +596,6 @@ async function deleteTimeVoyageTanker(req, res) {
 
         const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
-
         const conn = await pool;
         const request = conn.request();
         request.input('updatefinancialYear', updatefinancialYear);
@@ -629,7 +623,6 @@ async function deleteTimeVoyageTanker(req, res) {
     async function deleteVesselAvailabilityLiner(req, res) {
     return deleteKpiEntry(req, res, { table: "tbl_sci_vessel_availability_linear", idColumn: "sci_vessel_availability_bulk_id", idParam: "sci_vessel_availability_bulk_id", logFolder: "SCI_Vessel_Availability_Liner" });
 }
-
 
     async function addvesselprocurementdata(req, res) {
         const { financialYear, newBuiltships, valueOfnewbuiltShips } = req.body;
@@ -720,7 +713,6 @@ async function deleteTimeVoyageTanker(req, res) {
         const SciProcurementIdOrg  = req.body.SciProcurementIdOrg ;
 
         const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-
 
         const conn = await pool;
         const request = conn.request();
@@ -843,7 +835,6 @@ async function deleteTimeVoyageTanker(req, res) {
 
         const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
-
         const conn = await pool;
         const request = conn.request();
         request.input('updateFinancialyear', updateFinancialyear);
@@ -961,7 +952,6 @@ async function deleteTimeVoyageTanker(req, res) {
 
         const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
-
         const conn = await pool;
         const request = conn.request();
         request.input('updatefinancialYear', updatefinancialYear);
@@ -1078,7 +1068,6 @@ async function deleteTimeVoyageTanker(req, res) {
         const ScirepairandMaintanaceIdOrg  = req.body.ScirepairandMaintanaceIdOrg ;
 
         const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-
 
         const conn = await pool;
         const request = conn.request();
@@ -1198,7 +1187,6 @@ async function deleteTimeVoyageTanker(req, res) {
         const ScisaleRecyclingIdOrg  = req.body.ScisaleRecyclingIdOrg;
 
         const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-
 
         const conn = await pool;
         const request = conn.request();
@@ -1346,46 +1334,9 @@ async function deleteTimeVoyageTanker(req, res) {
     return deleteKpiEntry(req, res, { table: "tbl_sci_sale_and_recycling_oldvessels_green_recycling", idColumn: "sci_sale_green_recycling_id", idParam: "sci_sale_green_recycling_id", logFolder: "SCI_Sale_Green_Recycling" });
 }
   
-//     async function addmanningofOwnedships(req, res) {
-
-//             const {  financialYear, noofVesselsaudited, noofShipsfullycomplaint,compliance, userID } = req.body;
-//             console.log("Received data:", req.body);
-        
-//             try {
-//                 const conn = await pool;
-//                 const request = conn.request();
-//                 request.input("financialYear", financialYear);
-        
-//                 // Check if financial year already exists
-//                 const result = await request.query(`
-//                     SELECT COUNT(*) AS count FROM tbl_sci_manning_of_owned_ships WHERE financial_year = @financialYear
-//                 `);
-        
-//                 if (result.recordset[0].count > 0) {
-//                     return res.status(205).json({ error: "Data already exists for the selected financial year!" });
-//                 }
         
                 
               
-//                 request.input("noofVesselsaudited", noofVesselsaudited);
-//                 request.input("noofShipsfullycomplaint",noofShipsfullycomplaint);
-//                 request.input("compliance", compliance);
-//                 request.input("userID", userID);
-        
-//                 const insertResult = await request.query(`
-//                     INSERT INTO tbl_sci_manning_of_owned_ships
-//                     (financial_year, no_of_old_vessels_audited_compliance, no_of_ships_fully_complaint_stwc_and_mlc,compliance, created_by)
-//                     OUTPUT INSERTED.sci_manning_id
-//                     VALUES (@financialYear, @noofVesselsaudited, @noofShipsfullycomplaint,@compliance, @userID)
-//                 `);
-        
-//                 res.status(201).json({ insertedYPId: insertResult.recordset[0].sci_manning_id });
-        
-//             } catch (error) {
-//                 console.error("Error inserting data:", error);
-//                 res.status(500).json({ error: "Internal server error" });
-//             }
-//    }
 async function addmanningofOwnedships(req, res) {
     const { financialYear, noofVesselsaudited, noofShipsfullycomplaint } = req.body;
     const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
@@ -1426,7 +1377,6 @@ async function addmanningofOwnedships(req, res) {
         res.status(500).json({ error: "Internal server error" });
     }
 }
-
 
     async function getscimanningdataList(req, res) {
     try {

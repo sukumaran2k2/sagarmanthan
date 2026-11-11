@@ -32,176 +32,6 @@ const upload = multer({
 });
 const uploadSingleFile = singleSpreadsheet(upload);
 
-// async function addFilePendancy(req, res) {
-//     try {
-//         const conn = await pool;
-//         const request = conn.request();
-
-//         const Year = req.body.Year;
-//         const month = req.body.month;
-//         const userID = req.body.userID;
-//         const uniqueFileName = req.uniqueFileName;
-
-        // const checkResult = await conn.query(`
-        //     SELECT COUNT(*) AS count 
-        //     FROM tbl_file_pendancy 
-        //     WHERE Month = '${month}' AND Year = ${Year}
-        // `);
-
-        // const storedFileID = await conn.query(`
-        //     SELECT MAX(File_Id) AS File_Id 
-        //     FROM tbl_file_pendancy  
-        //     WHERE Month = '${month}' AND Year = ${Year}
-        // `);
-        // const replaceFileID = storedFileID.recordset[0].File_Id;
-
-        // if (checkResult.recordset[0].count > 0) {
-        //     deleteFile(req.file, req.uniqueFileName);
-        //     return res.status(409).json({ error: "Record already exists for the specified financial year and month. Do you want to replace it ?", replaceFileID: replaceFileID });
-        // }
-
-//         const workbook = xlsx.readFile(req.file.path);
-//         const sheetName = workbook.SheetNames[0]; 
-//         const sheet = workbook.Sheets[sheetName];
-//         const data = xlsx.utils.sheet_to_json(sheet);
-
-//         const requiredHeaders = ['Emp Id', 'Emp Name', 'Designation', 'Wing', 'Division', '0 - 3 Days', '4 - 6 Days', '7 - 15 Days', '16 - 30 Days', '> 30 days', 'Total Pendency'];
-//         // const headers = Object.keys(data[0]);
-
-//         const headers = Object.keys(data[0]).map(header => header.trim());
-
-//         // Check for missing headers
-//         const missingHeaders = requiredHeaders.filter(header => !headers.includes(header));
-//         if (missingHeaders.length > 0) {
-//             deleteFile(req.file, req.uniqueFileName);
-//             return res.status(400).json({ error: `Missing  or Mismatched headers: ${missingHeaders.join(', ')}` });
-//         }
-
-//         let rowIndex = 0;
-
-//         // Trim all header names in data
-//         const trimmedData = data.map(row => {
-//             const trimmedRow = {};
-//             Object.keys(row).forEach(header => {
-//                 trimmedRow[header.trim()] = row[header];
-//             });
-//             return trimmedRow;
-//         });
-
-
-//         // Process each row in trimmedData
-//         for (const row of trimmedData) {
-//             console.log("row",row);
-//             rowIndex++;
-//             // Destructure row object properties
-//             const {
-//                 'Emp Id': EmpId,
-//                 'Emp Name': EmpName,
-//                 'Designation': Designation,
-//                 'Wing': Wing,
-//                 'Division': Division,
-//                 '0 - 3 Days': ZeroToThreeDays,
-//                 '4 - 6 Days': FourToSixDays,
-//                 '7 - 15 Days': SevenToFifteenDays,
-//                 '16 - 30 Days': SixteenToThirtyDays,
-//                 '> 30 days': MoreThanThirtyDays,
-//                 'Total Pendency': TotalPendency
-//             } = row;
-        
-//             if (!EmpName || typeof EmpName !== 'string') {
-//                 deleteFile(req.uniqueFileName);
-//                 return res.status(400).json({ error: 'Invalid Emp Name' });
-//             }
-//             if (!Wing || typeof Wing !== 'string') {
-//                 deleteFile(req.uniqueFileName);
-//                 return res.status(400).json({ error: 'Invalid Wing' });
-//             }
-//             if (!Division || typeof Division !== 'string') {
-//                 deleteFile(req.uniqueFileName);
-//                 return res.status(400).json({ error: 'Invalid Division' });
-//             }
-//             if (!Designation || typeof Designation !== 'string') {
-//                 deleteFile(req.uniqueFileName);
-//                 return res.status(400).json({ error: 'Invalid Designation' });
-//             }
-            
-//             if (
-//                 !Number.isInteger(EmpId)||
-//                 !Number.isInteger(ZeroToThreeDays) || 
-//                 !Number.isInteger(FourToSixDays) || 
-//                 !Number.isInteger(SevenToFifteenDays) || 
-//                 !Number.isInteger(SixteenToThirtyDays) || 
-//                 !Number.isInteger(MoreThanThirtyDays) || 
-//                 !Number.isInteger(TotalPendency)
-//             ) {
-//                 deleteFile(req.uniqueFileName);
-//                 return res.status(400).json({ error: 'Invalid value for one or more fields in number' });
-//             }   
-            
-//         }
-       
-//         const currentDate = new Date();
-//         const formattedDate = currentDate.toISOString().slice(0, 19).replace('T', ' ');
-//         await request.query(`
-//             INSERT INTO tbl_eoffice_file_pendancy_file 
-//             (File_name, uploaded_by ,date_of_upload ) 
-//             VALUES ('${uniqueFileName}', ${userID},'${formattedDate}')
-//         `);
-
-//         // Retrieve the ID of the inserted record
-//         const fileIdQuery = await conn.query(`
-//             SELECT TOP (1) ID
-//             FROM tbl_eoffice_file_pendancy_file
-//             WHERE File_name = '${uniqueFileName}' 
-//             ORDER BY ID DESC
-//         `);
-
-//         const fileId = fileIdQuery.recordset[0].ID;
-
-//         for (const row of trimmedData) {
-//             console.log("row",row);
-
-//             const { 'Emp Id': EmpId, 'Emp Name': EmpName, 'Designation': Designation, 'Wing': Wing, 'Division': Division, '0 - 3 Days': ZeroToThreeDays, '4 - 6 Days': FourToSixDays, '7 - 15 Days': SevenToFifteenDays, '16 - 30 Days': SixteenToThirtyDays, '> 30 days': MoreThanThirtyDays, 'Total Pendency': TotalPendency } = row;
-        
-//             const request = conn.request();
-        
-//             request.input("Emp_Id", EmpId);
-//             request.input("Emp_Name", EmpName);
-//             request.input("Designation", Designation);
-//             request.input("Wing", Wing);
-//             request.input("Division", Division);
-//             request.input("ZeroToThreeDays", ZeroToThreeDays);
-//             request.input("FourToSixDays", FourToSixDays);
-//             request.input("SevenToFifteenDays", SevenToFifteenDays);
-//             request.input("SixteenToThirtyDays", SixteenToThirtyDays);
-//             request.input("MoreThanThirtyDays", MoreThanThirtyDays);
-//             request.input("Total_Pendency", TotalPendency);
-//             request.input("month", month);
-//             request.input("Year", Year);
-//             request.input("fileId", fileId);
-
-//             if (!EmpId || EmpId === 'Total') {
-//                 deleteFile(req.uniqueFileName);
-//                 return res.status(400).json({ error: 'Invalid Emp Id' });
-//             }
-        
-//             await request.query(`
-//                 INSERT INTO tbl_file_pendancy 
-//                 ([Emp_Id],[Emp_Name],[Designation],[Wing],[Division],[0-3Days],[4-6Days],[7-15Days],[16-30Days],[>30days],[Total Pendency],[Year],[Month],[File_ID]) 
-//                 VALUES (@Emp_Id, @Emp_Name, @Designation, @Wing, @Division, @ZeroToThreeDays, @FourToSixDays, @SevenToFifteenDays, @SixteenToThirtyDays, @MoreThanThirtyDays, @Total_Pendency, @Year, @month, @fileId)
-//             `);
-//         }
-               
-//         res.status(200).json({
-//             message: "Data Stored Successfully",
-//         });
-//     } catch (err) {
-//         deleteFile(req.uniqueFileName);
-//         console.error(err);
-//         res.status(500).json({ error: "Internal server error" });
-//     }
-// }
-
 async function addFilePendancy(req, res) {
     let transaction;
     try {
@@ -242,7 +72,6 @@ async function addFilePendancy(req, res) {
             deleteFile(req.uniqueFileName);
             return res.status(409).json({ error: "Record already exists for the specified financial year, month and week. Do you want to replace it ?", replaceFileID: replaceFileID });
         }
-
 
         const workbook = xlsx.readFile(req.file.path);
         const sheetName = workbook.SheetNames[0];
@@ -439,7 +268,6 @@ async function updateFilePendancy(req, res) {
         const sheetName = workbook.SheetNames[0]; 
         const sheet = workbook.Sheets[sheetName];
         const data = xlsx.utils.sheet_to_json(sheet);
-
 
         // 'Emp Name', 'Designation', 'Wing', 'Division', 
         const requiredHeaders = ['Emp Id','0 - 3 Days', '4 - 6 Days', '7 - 15 Days', '16 - 30 Days', '> 30 days', 'Total Pendency'];
@@ -673,8 +501,6 @@ function deleteFile(fileName) {
         fs.unlinkSync(fileName.path); 
     }
 }
-
-
 
 const EofficeFilePendancyTab = { addFilePendancy, upload, uploadSingleFile,
     updateFilePendancy };

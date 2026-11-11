@@ -224,11 +224,6 @@ import KRTab from "./controllers/KnowledgeRepository/knowledgeRep.js";
 import OVDTab from "./controllers/LongTermStrategies/oneVision.js";
 import OVDDataTab from "./controllers/LongTermStrategies/ovodGet.js";
 
-//Form Builder tab
-// import formBuilderTab from "./controllers/formBuilder/formBuilderV1.js";
-// import formBuilderInputTab from "./controllers/formBuilder/formBuilderInput.js";
-// import formBuilderReportTab from "./controllers/formBuilder/formBuilderOutput.js";
-
 import marineTab from "./controllers/KPI/marineCasualty.js";
 import momOfPswMeetingsTab from "./controllers/Governance/addminutesofmeeting.js";
 
@@ -397,11 +392,6 @@ router.post("/employee-attendance-data", auth, ministryOnly, attCreate, empAtten
 router.get("/employee-org-units", auth, ministryOnly, attRead, empAttendanceTab.getEmployeeOrgUnits);
 router.get("/employee-attendance/download/:id", auth, ministryOnly, attRead, empAttendanceTab.downloadEmpAttendanceFile);
 router.delete("/employee-attendance/:id", auth, ministryOnly, attDelete, empAttendanceTab.deleteEmpAttendanceFile);
-// router.post("/employee-attendance/storecsv/:id",empAttendanceTab.storeEMPAttendanceData);
-// router.get("/employee-attendance/downloadSampleDocument", empAttendanceTab.downloadEmpSampleDocument);
-
-//view Data - Attendance
-// router.get("/employee-excelData", empAttendanceTab.getEmpExcelData);
 
 //attendance
 router.get("/attendance", auth, attRead, attendanceTab.getAttendance);
@@ -848,7 +838,6 @@ router.post("/bill", auth, billsCreate, billTab.createBill);
 router.get("/bill/:billID", auth, billsRead, billTab.getUpdateBill);
 router.put("/bill", auth, billsUpdate, billTab.updateBill);
 router.delete("/delete-bill/:billID", auth, billsDelete, billTab.deleteBill);
-// router.post("/bill-stage", billTab.createBillStage);
 
 //Court cases
 
@@ -3334,10 +3323,6 @@ router.put('/update-entry-exit-data-by-id', entryExitTab.updateEntryExitData);
 router.get('/get-abstract-entry-exit-report', entryExitTab.getAbstractEntryExitReport);
 router.get('/get-monthly-entry-exit-report', entryExitTab.getMonthlyEntryExitReport);
 router.get('/get-yearly-entry-exit-report', entryExitTab.getYearlyEntryExitReport);
-
-//Form Builder Fields
-// router.post('/store-form-builder-input-form', formBuilderTab.storeFormBuilderInputForm); //req
-// router.get('/get-created-form-data', formBuilderTab.getCreatedFormData); //req //get created forms
 
 
 // rbac
