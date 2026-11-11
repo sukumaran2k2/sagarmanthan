@@ -196,6 +196,12 @@ export const ROUTE_MAP = {
   'CSR Input Form': 'projects/csr-projects/input-form',
   'CSR Reports': 'projects/csr-projects/reports',
 
+  // Finance / NMP routes
+  'National Monetization Plan': 'finance/nmp/dashboard',
+  'NMP Dashboard': 'finance/nmp/dashboard',
+  'NMP Data List': 'finance/nmp/data-list',
+  'NMP Input Form': 'finance/nmp/input-form',
+
   // Finance / Capex routes
   'Capex': 'finance/capex/data-list',
   'Capex Dashboard': 'finance/capex/dashboard',
@@ -241,6 +247,7 @@ export const getTabFromSlug = (slug) => {
   if (cleanSlug.startsWith('strategies/gmis-mou')) return 'GMIS & IMW MoUs';
   if (cleanSlug.startsWith('strategies/miv-2030')) return 'MIV 2030';
   if (cleanSlug.startsWith('strategies/drishti-portal') || cleanSlug.startsWith('strategies/ovod') || cleanSlug.startsWith('strategies/one-vision-one-document')) return 'Drishti Portal';
+  if (cleanSlug.startsWith('finance/nmp')) return 'National Monetization Plan';
   if (cleanSlug.startsWith('finance/capex')) return 'Capex';
   if (cleanSlug.startsWith('governance/gem-procurements')) return 'GEM Procurements';
   if (cleanSlug.startsWith('governance/vip-reference')) return 'VIP Reference';
@@ -366,6 +373,9 @@ const getBreadcrumbs = (tab) => {
   ];
   if (tab === 'Media Outreach') return ['Home', 'Media Outreach - (Input Form)'];
   if (governanceItems.includes(tab)) return ['Home', 'Governance', tab];
+
+  const nmpItems = ['National Monetization Plan', 'NMP Dashboard', 'NMP Data List', 'NMP Input Form'];
+  if (nmpItems.includes(tab)) return ['Home', 'Finance', 'National Monetization Plan', tab === 'National Monetization Plan' ? 'Dashboard' : tab];
 
   const legalItems = ['Courtcases', 'Bills/PreConstitutions Act', 'Acts & Rules'];
   if (legalItems.includes(tab)) return ['Home', 'Legal', tab];

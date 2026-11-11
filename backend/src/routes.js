@@ -3508,4 +3508,15 @@ router.delete("/delete-form-builder-data/:data", auth, requireModulePermission("
 import reportCopilotTab from "./controllers/ai/reportCopilot.js";
 router.post('/ai/report-copilot', reportCopilotTab.chatReportCopilot);
 
+// ── NMP (National Monetization Plan) ─────────────────────────────────────────
+import nmpTab from "./controllers/Finance/nmp.js";
+router.get("/nmp/dashboard", auth, nmpTab.getNmpDashboard);
+router.get("/nmp/land-abstract", auth, nmpTab.getLandAbstractList);
+router.get("/nmp/past-land", auth, nmpTab.getPastLandList);
+router.get("/nmp/future-land", auth, nmpTab.getFutureLandList);
+router.get("/nmp/:id", auth, nmpTab.getNmpById);
+router.post("/nmp", auth, nmpTab.createNmpEntry);
+router.put("/nmp", auth, nmpTab.updateNmpEntry);
+router.delete("/nmp/:id/:userId", auth, nmpTab.deleteNmpEntry);
+
 export default router;
