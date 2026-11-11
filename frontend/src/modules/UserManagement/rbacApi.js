@@ -61,9 +61,15 @@ const MMT_INSERT_MAP = {
   mmt_output: { name: 'project_output_name', extras: { units: 'project_output_units' } },
   mmt_mp_constituency: { name: 'mpc_name', extras: { stateId: 'state_id' } },
   mmt_district: { name: 'district_name', extras: { stateId: 'state_id' } },
+  mmt_section: { name: 'section_name', extras: { divId: 'division_id', sectionCode: 'section_code' } }, 
+  mmt_department: { name: 'department_name', extras: { departmentCode: 'department_code' } }, 
   mmt_post: {
   name: null,
   extras: { postName: 'post_name', postCode: 'post_code', departmentId: 'department_id' },
+},
+mmt_outcome: {
+  name: 'project_outcome_name',
+  extras: { units: 'project_outcome_units', projectOutputId: 'project_output_id' },
 },
   mmt_implementing_agency: { name: 'ia_name', extras: { iaCode: 'ia_code' } },
   mmt_organisation: {
@@ -120,6 +126,7 @@ export const rbacApi = {
     const v = payload[formKey];
     body[backendKey] = v === '' || v === undefined ? null : v;
   });
+  if (payload.status !== undefined) body.status = Number(payload.status); 
   console.log('PUT body →', body);
   return api.put('/mmt', body);
 },

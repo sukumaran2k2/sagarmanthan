@@ -7,7 +7,11 @@ const ORGANISATION_FIELDS = [
   { name: 'organisation_code', label: 'Organisation Code', type: 'text', required: true, placeholder: 'Enter organisation code', maxLength: 10, uppercase: true },
   { name: 'organisation_category_id', label: 'Organisation Category', type: 'select', required: true,
     optionsFrom: 'mmt_organisation_category', optionValue: 'organisation_category_id', optionLabel: 'organisation_category_name', placeholder: '--Select Category--' },
-  
+  { name: 'wing_id', label: 'Wing', type: 'select', required: true,
+    optionsFrom: 'mmt_wings', optionValue: 'wing_id', optionLabel: 'wing_name', placeholder: '--Select Wing--' },
+  { name: 'division_id', label: 'Division', type: 'select', required: true,
+    optionsFrom: 'mmt_division', optionValue: 'division_id', optionLabel: 'division_name', placeholder: '--Select Division--',
+    dependsOn: 'wing_id', filterBy: 'wing_id' },
 ];
 const OUTPUT_FIELDS = [
   { name: 'project_output_name', label: 'Project Output Name', type: 'text', required: true, placeholder: 'Enter project output name' },
@@ -61,6 +65,7 @@ export default function InputForm({
   triggerNotification,
 }) {
   const isEdit = !!initialForm;
+  console.log(isEdit,"isEdit")
 
 
   const [values, setValues] = useState(() => {
@@ -89,7 +94,7 @@ export default function InputForm({
 
   // Explicit fields if the master defines them, otherwise derive from columns
 const fields = useMemo(() => {
-  // if (meta?.table === 'mmt_state') return STATE_FIELDS;   // ADD THIS FIRST
+ console.log('EDIT initialForm →', initialForm);
 
   let base = meta?.fields
     ? meta.fields
@@ -231,11 +236,16 @@ const handleSubmit = async (e) => {
     const table = resolveTable();
 
     if (isEdit) {
-      const pkField = idField ?? Object.keys(initialForm)[0];
-      const updatePayload = Object.fromEntries(
+    const pkField = idField ?? Object.keys(initialForm)[0];
+    const updatePayload = {
+      ...(initialForm.status != null && initialForm.status !== ''
+        ? { status: initialForm.status }
+        : {}),
+      ...Object.fromEntries(
         fields.map((f) => [f.name, String(values[f.name] ?? '').trim()])
-      );
-      await rbacApi.updateMmtData(table, initialForm[pkField], updatePayload);
+      ),
+    };
+    await rbacApi.updateMmtData(table, initialForm[pkField], updatePayload);
       notifyRef.current?.(`${meta.label} updated`, 'success');
       onSuccess?.();
     } else {
