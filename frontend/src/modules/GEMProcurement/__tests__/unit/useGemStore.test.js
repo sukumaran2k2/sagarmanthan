@@ -2,6 +2,7 @@
 import { useGemStore } from '../../store/useGemStore';
 import { resetAllStores } from '../../../../stores/resetRegistry';
 import { fetchOrganisationsDropdown } from '../../api';
+import { getCurrentFinancialYear } from '../../utils/gemUtils';
 
 jest.mock('../../api', () => ({
   fetchOrganisationsDropdown: jest.fn(),
@@ -22,7 +23,7 @@ describe('GEM Procurement store', () => {
       debouncedSearch: '',
       page: 1,
       pageSize: 10,
-      filterYear: '2026-2027',
+      filterYear: getCurrentFinancialYear(),
       filterOrg: '',
       showFilterPanel: false,
       visibleCols: {},
@@ -66,6 +67,6 @@ describe('GEM Procurement store', () => {
     state().setSearchTerm('goods');
     state().setActiveReport('yoy');
     resetAllStores();
-    expect(state()).toMatchObject({ filterYear: '2026-2027', searchTerm: '', activeReport: 'detailed' });
+    expect(state()).toMatchObject({ filterYear: getCurrentFinancialYear(), searchTerm: '', activeReport: 'detailed' });
   });
 });

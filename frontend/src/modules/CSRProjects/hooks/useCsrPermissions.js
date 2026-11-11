@@ -4,7 +4,8 @@ import { isOrganisationUser, getSessionOrganisationId, getSessionOrganisationNam
 const MODULE_CODE = 'CSR_PROJECTS';
 
 // Organisations record their own CSR projects and funds; the Ministry reviews them (as in 2.0).
-// Adding and editing also need the CSR create / update permission the server checks.
+// Any organisation login can add and edit, as its CSR create / update permission allows
+// (QC R-14); Ministry users only view (QC CSR-18 / CSR-34). The server applies the same rule.
 export function useCsrPermissions() {
   const crud = getModuleCrud(MODULE_CODE);
   const isOrgUser = isOrganisationUser();

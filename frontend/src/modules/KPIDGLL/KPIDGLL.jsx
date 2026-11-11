@@ -3,6 +3,7 @@ import { useLocation, useSearchParams } from 'react-router-dom';
 import { Lightbulb, Radio, Activity, Wifi, MapPin, IndianRupee } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
+import ConfirmModal from '../../components/ConfirmModal';
 import LightHouseMasterDataList from './components/LightHouseMasterDataList';
 import VTMSIntegrationDataList from './components/VTMSIntegrationDataList';
 import NAISUptimeDataList from './components/NAISUptimeDataList';
@@ -23,7 +24,6 @@ import FinancialPerformanceInputForm from './pages/FinancialPerformance/InputFor
 import FinancialPerformanceReports from './pages/FinancialPerformance/Reports';
 import { useKPIDGLLPermissions } from './hooks/useKPIDGLLPermissions';
 import { useDgllStore } from './store/useDgllStore';
-import { getCurrentUserId } from '../../utils/authSession';
 import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../utils/notify';
 import { DGLL_TOASTS } from './toastMessages';
 import {
@@ -41,17 +41,17 @@ const byYear = (r) => r.financial_year;
 // delete confirmation. The list endpoints take a userID but don't filter by it.
 // Tourist Destinations shows two lists (destinations and their yearly targets) in one section.
 const LISTS = {
-  lightHouseMaster: { name: 'Light House Master', fetchList: (p) => fetchLightHouseMaster(1, p), remove: deleteLightHouseMaster,
+  lightHouseMaster: { name: 'Light House Master', fetchList: fetchLightHouseMaster, remove: deleteLightHouseMaster,
     idField: 'lights_house_id', period: (r) => r.light_house_name },
-  vtmsIntegration: { name: 'VTMS Integration', fetchList: (p) => fetchVtmsIntegration(1, p), remove: deleteVtmsIntegration,
+  vtmsIntegration: { name: 'VTMS Integration', fetchList: fetchVtmsIntegration, remove: deleteVtmsIntegration,
     idField: 'vtms_id', period: byYear },
-  naisUptime: { name: 'NAIS Uptime', fetchList: (p) => fetchNaisUptime(1, p), remove: deleteNaisUptime,
+  naisUptime: { name: 'NAIS Uptime', fetchList: fetchNaisUptime, remove: deleteNaisUptime,
     idField: 'nais_id', period: byYear },
-  naisIntegration: { name: 'NAIS Integration', fetchList: (p) => fetchNaisIntegration(1, p), remove: deleteNaisIntegration,
+  naisIntegration: { name: 'NAIS Integration', fetchList: fetchNaisIntegration, remove: deleteNaisIntegration,
     idField: 'nais_integration_id', period: byYear },
-  touristDestinations: { name: 'Tourist Destination', fetchList: (p) => fetchTouristDestinations(1, p), remove: deleteTouristDestination,
+  touristDestinations: { name: 'Tourist Destination', fetchList: fetchTouristDestinations, remove: deleteTouristDestination,
     idField: 'tourist_destination_id', period: (r) => r.finacial_year },
-  touristTargets: { name: 'Target Details', fetchList: (p) => fetchTargetDetails(1, p), remove: deleteTargetDetail,
+  touristTargets: { name: 'Target Details', fetchList: fetchTargetDetails, remove: deleteTargetDetail,
     idField: 'tourist_destination_target_id', period: (r) => r.year },
   financialPerformance: { name: 'Financial Performance', fetchList: fetchFinancialPerformance, remove: deleteFinancialPerformance,
     idField: 'financial_id', period: (r) => r.financialyear },
@@ -191,10 +191,16 @@ export default function KPIDGLLView({ activeTab: menuTab, triggerNotification })
     go(sectionId, 'add', { section: sectionId, list: listId, item: row });
   }, [go, sectionId, listId]);
 
-  const handleDelete = useCallback((row) => {
-    const period = list.period(row);
-    if (!window.confirm(`Delete the ${list.name} entry for ${period}? This cannot be undone.`)) return;
-    list.remove(row[list.idField], getCurrentUserId())
+  // The row waiting for the user to confirm its delete
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = useCallback((row) => setPendingDelete(row), []);
+
+  const confirmDelete = useCallback(() => {
+    const period = list.period(pendingDelete);
+    setDeleting(true);
+    list.remove(pendingDelete[list.idField])
       .then(() => {
         notify(DGLL_TOASTS.deleted(list.name, period));
         setReloadKey((k) => k + 1);
@@ -202,8 +208,12 @@ export default function KPIDGLLView({ activeTab: menuTab, triggerNotification })
       .catch((err) => {
         console.error(`Error deleting DGLL ${list.name} entry:`, err);
         notify(DGLL_TOASTS.deleteFailed(getErrorMessage(err)));
+      })
+      .finally(() => {
+        setDeleting(false);
+        setPendingDelete(null);
       });
-  }, [list, notify]);
+  }, [list, pendingDelete, notify]);
 
   // Replace the form entry so browser Back can't reopen the pre-save snapshot
   const handleSuccess = useCallback(() => {
@@ -309,6 +319,15 @@ export default function KPIDGLLView({ activeTab: menuTab, triggerNotification })
           notify={notify}
         />
       )}
+
+      <ConfirmModal
+        isOpen={!!pendingDelete}
+        onClose={() => !deleting && setPendingDelete(null)}
+        onConfirm={confirmDelete}
+        loading={deleting}
+        title={`Delete ${list.name}`}
+        message={pendingDelete ? `The ${list.name} entry for ${list.period(pendingDelete)} will be deleted. This cannot be undone.` : ''}
+      />
     </div>
   );
 }

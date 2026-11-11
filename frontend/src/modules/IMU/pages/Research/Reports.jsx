@@ -121,6 +121,10 @@ export default function ResearchReports({ notify }) {
         })
       );
       series.columns.template.setAll({ fill: am5.color(color), stroke: am5.color(color), width: am5.percent(80) });
+      series.bullets.push((root) => {
+        const label = am5.Label.new(root, { fill: am5.color(0x475569), centerX: am5.p50, centerY: am5.p100, dy: -6, fontSize: 10, fontWeight: '600', populateText: true, text: '{valueY}' });
+        return am5.Bullet.new(root, { sprite: label, locationY: 1 });
+      });
       series.data.setAll(chartData);
     });
 

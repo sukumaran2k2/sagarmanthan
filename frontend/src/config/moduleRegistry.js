@@ -103,23 +103,23 @@ export const MODULE_PAGES = {
   },
 
   KPI_DGLL: {
-    tabs: ['DGLL Input Form', 'DGLL Reports'],
-    uiTabs: ['DGLL Input Form', 'DGLL Reports'],
+    tabs: ['DGLL Input Form', 'DGLL Data List', 'DGLL Reports'],
+    uiTabs: ['DGLL Input Form', 'DGLL Data List', 'DGLL Reports'],
   },
 
   KPI_CSL: {
-    tabs: ['CSL Input Form', 'CSL Reports'],
-    uiTabs: ['CSL Input Form', 'CSL Reports'],
+    tabs: ['CSL Input Form', 'CSL Data List', 'CSL Reports'],
+    uiTabs: ['CSL Input Form', 'CSL Data List', 'CSL Reports'],
   },
 
   KPI_IMU: {
-    tabs: ['IMU Input Form', 'IMU Reports'],
-    uiTabs: ['IMU Input Form', 'IMU Reports'],
+    tabs: ['IMU Input Form', 'IMU Data List', 'IMU Reports'],
+    uiTabs: ['IMU Input Form', 'IMU Data List', 'IMU Reports'],
   },
 
   KPI_SCI: {
-    tabs: ['SCI Input Form', 'SCI Reports'],
-    uiTabs: ['SCI Input Form', 'SCI Reports'],
+    tabs: ['SCI Input Form', 'SCI Data List', 'SCI Reports'],
+    uiTabs: ['SCI Input Form', 'SCI Data List', 'SCI Reports'],
   },
 
   KPI_CMEC: {

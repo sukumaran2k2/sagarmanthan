@@ -97,7 +97,9 @@ export default function UserPermissionsTab({
               className="empty"
               style={{ padding: "30px 16px", fontSize: ".82rem" }}
             >
-              No users found.
+              {selectedCategory === "all" || selectedOrg === "all"
+                ? "Select a category and an organisation to see its users."
+                : "No users found."}
             </div>
           )}
         </div>

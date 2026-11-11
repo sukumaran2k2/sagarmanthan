@@ -47,7 +47,7 @@ export const useCslStore = create((set, get) => ({
     if (!fetcher || get().years[sectionId]) return;
     set((state) => ({ years: { ...state.years, [sectionId]: [] } })); // marks it as loading
     try {
-      const res = await fetcher(1, { page: 1, limit: 100 });
+      const res = await fetcher({ page: 1, limit: 100 });
       const years = [...new Set((res.data?.data || []).map((r) => r.financial_year).filter(Boolean))].sort().reverse();
       set((state) => ({ years: { ...state.years, [sectionId]: years } }));
     } catch (err) {

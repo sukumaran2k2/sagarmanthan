@@ -1,51 +1,103 @@
-import { axiosInstance, API_BASE } from '../../api';
+import axios from 'axios';
 
-export { API_BASE };
+export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+
+const api = axios.create({ baseURL: API_BASE });
+
+// Automatically attach Authorization Bearer token to all outgoing requests
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('accessToken');
+  if (token) {
+    config.headers = config.headers || {};
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+let refreshPromise = null;
+
+async function refreshAccessToken() {
+  // Refresh token is stored in an httpOnly cookie — the browser sends it automatically.
+  const res = await axios.get(`${API_BASE}/refresh-token`, {
+    withCredentials: true,
+  });
+  const next = res.data?.accessToken;
+  if (!next) throw new Error('Refresh failed');
+  localStorage.setItem('accessToken', next);
+  return next;
+}
+
+// Intercept 401 Unauthorized responses to silently refresh token and retry
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const original = error.config;
+    if (error.response?.status !== 401 || !original || original._retry) {
+      return Promise.reject(error);
+    }
+    original._retry = true;
+    try {
+      if (!refreshPromise) {
+        refreshPromise = refreshAccessToken().finally(() => {
+          refreshPromise = null;
+        });
+      }
+      const token = await refreshPromise;
+      original.headers = original.headers || {};
+      original.headers.Authorization = `Bearer ${token}`;
+      return api(original);
+    } catch {
+      localStorage.removeItem('accessToken');
+      // refreshToken lives in an httpOnly cookie — the server clears it on logout
+      return Promise.reject(error);
+    }
+  }
+);
 
 // ── YP Module CRUD Endpoints ──
 
 export function fetchYoungProfessionals(params = {}) {
-  return axiosInstance.get('/young-professional', { params });
+  return api.get('/young-professional', { params });
 }
 
 export function createYoungProfessional(payload) {
-  return axiosInstance.post('/young-professional', payload);
+  return api.post('/young-professional', payload);
 }
 
 export function updateYoungProfessional(id, payload) {
-  return axiosInstance.put(`/young-professional/${id}`, payload);
+  return api.put(`/young-professional/${id}`, payload);
 }
 
 export function fetchYpWingCandidates(wingId) {
-  return axiosInstance.get(`/wingwise-ypcandidate/0/${wingId}`);
+  return api.get(`/wingwise-ypcandidate/0/${wingId}`);
 }
 
 export function uploadYPDocument(candidateId, formData) {
-  return axiosInstance.post(`/upload-yp-document/${candidateId}`, formData, {
+  return api.post(`/upload-yp-document/${candidateId}`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
 }
 
 export function relieveYoungProfessional(payload) {
-  return axiosInstance.put('/relieve-young-professional', payload);
+  return api.put('/relieve-young-professional', payload);
 }
 
 // ── Dropdowns ──
 
 export function fetchWings() {
-  return axiosInstance.get('/mmt-dropdown/mmt_wings');
+  return api.get('/mmt-dropdown/mmt_wings');
 }
 
 export function fetchDivisions() {
-  return axiosInstance.get('/mmt-dropdown/mmt_division');
+  return api.get('/mmt-dropdown/mmt_division');
 }
 
 // ── Reports ──
 
 export function fetchYpReport() {
-  return axiosInstance.get('/yp-report');
+  return api.get('/yp-report');
 }
 
 export function fetchYPDivisionWiseCandidates(divisionId) {
-  return axiosInstance.get(`/divisionwise-ypcandidate/0/${divisionId}`);
+  return api.get(`/divisionwise-ypcandidate/0/${divisionId}`);
 }

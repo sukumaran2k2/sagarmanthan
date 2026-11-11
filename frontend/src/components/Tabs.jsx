@@ -232,6 +232,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           icon: Compass,
           items: [
             m('KPI_DGLL', { label: 'DGLL Input Form', icon: FileEdit }),
+            m('KPI_DGLL', { label: 'DGLL Data List', icon: ClipboardList }),
             m('KPI_DGLL', { label: 'DGLL Reports', icon: FilePieChart }),
           ]
         },
@@ -240,6 +241,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           icon: Layers,
           items: [
             m('KPI_CSL', { label: 'CSL Input Form', icon: FileEdit }),
+            m('KPI_CSL', { label: 'CSL Data List', icon: ClipboardList }),
             m('KPI_CSL', { label: 'CSL Reports', icon: FilePieChart }),
           ]
         },
@@ -248,6 +250,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           icon: GraduationCap,
           items: [
             m('KPI_IMU', { label: 'IMU Input Form', icon: FileEdit }),
+            m('KPI_IMU', { label: 'IMU Data List', icon: ClipboardList }),
             m('KPI_IMU', { label: 'IMU Reports', icon: FilePieChart }),
           ]
         },
@@ -256,6 +259,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           icon: Ship,
           items: [
             m('KPI_SCI', { label: 'SCI Input Form', icon: FileEdit }),
+            m('KPI_SCI', { label: 'SCI Data List', icon: ClipboardList }),
             m('KPI_SCI', { label: 'SCI Reports', icon: FilePieChart }),
           ]
         },

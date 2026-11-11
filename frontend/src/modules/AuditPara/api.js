@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { refreshAccessToken } from '../../utils/sessionRefresh';
 
 export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
@@ -15,19 +16,7 @@ api.interceptors.request.use((config) => {
 
 let refreshPromise = null;
 
-async function refreshAccessToken() {
-  const refreshToken = localStorage.getItem('refreshToken');
-  if (!refreshToken) {
-    throw new Error('No refresh token');
-  }
-  const res = await axios.get(`${API_BASE}/refresh-token`, {
-    headers: { Authorization: `Bearer ${refreshToken}` },
-  });
-  const next = res.data?.accessToken;
-  if (!next) throw new Error('Refresh failed');
-  localStorage.setItem('accessToken', next);
-  return next;
-}
+// A new access token comes from the shared session refresh (cookie-based)
 
 api.interceptors.response.use(
   (response) => response,
@@ -59,6 +48,14 @@ export function fetchAuditParas(userID) {
   return api.get('/audit-para', { params: { userID } });
 }
 
+// Dashboard figures; wingId and category ('' = all) narrow them
+export function fetchAuditParaDashboard(wingId, category) {
+  const params = {};
+  if (wingId) params.wingId = wingId;
+  if (category) params.category = category;
+  return api.get('/audit-para-dashboard', { params });
+}
+
 export function createAuditPara(payload) {
   return api.post('/audit-para', payload);
 }
@@ -67,8 +64,8 @@ export function updateAuditPara(payload) {
   return api.put('/audit-para', payload);
 }
 
-export function deleteAuditPara(auditParaId, userId) {
-  return api.delete(`/audit-para/${auditParaId}/${userId}`);
+export function deleteAuditPara(auditParaId) {
+  return api.delete(`/audit-para/${auditParaId}`);
 }
 
 export function fetchWings() {

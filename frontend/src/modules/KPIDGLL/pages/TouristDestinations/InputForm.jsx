@@ -86,7 +86,7 @@ export default function TouristDestinationsInputForm({
         // Legacy behaviour: create does not self-check for duplicate years,
         // so a pre-flight check call is required first.
         const check = await checkTouristDestinationYear(destFinancialYear);
-        if (check.status === 205) {
+        if (check.data?.exists) {
           notify(DGLL_TOASTS.duplicate('financial year'));
           setSubmitting(false);
           return;
@@ -141,7 +141,7 @@ export default function TouristDestinationsInputForm({
           footFallLighthouse: footfall,
           userID: getCurrentUserId(),
         });
-        if (response.status === 205) {
+        if (response.status === 409) {
           notify(DGLL_TOASTS.duplicate('year'));
           setSubmitting(false);
           return;

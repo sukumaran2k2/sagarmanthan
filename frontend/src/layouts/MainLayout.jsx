@@ -16,6 +16,7 @@ import {
   TAB_USER_MASTER_MANAGEMENT
 } from '../utils/moduleAccess';
 import { isOrganisationUser } from '../utils/authSession';
+import { endSession } from '../utils/sessionRefresh';
 import { Home } from 'lucide-react';
 
 export const ROUTE_MAP = {
@@ -52,14 +53,19 @@ export const ROUTE_MAP = {
   'Major Ports Input Form': 'kpi/major-ports/major-ports-input-form',
   'Major Ports Entry Access': 'kpi/major-ports/major-ports-entry-access',
   'Major Ports Reports': 'kpi/major-ports/major-ports-reports',
-  'DGLL Input Form': 'kpi/dgll',
-  'DGLL Reports': 'kpi/dgll',
-  'CSL Input Form': 'kpi/csl',
-  'CSL Reports': 'kpi/csl',
-  'IMU Input Form': 'kpi/imu',
-  'IMU Reports': 'kpi/imu',
-  'SCI Input Form': 'kpi/sci',
-  'SCI Reports': 'kpi/sci',
+  // These four modules pick their tab from ?tab= (add / list / report), so each menu item names it
+  'DGLL Input Form': 'kpi/dgll?tab=add',
+  'DGLL Data List': 'kpi/dgll?tab=list',
+  'DGLL Reports': 'kpi/dgll?tab=report',
+  'CSL Input Form': 'kpi/csl?tab=add',
+  'CSL Data List': 'kpi/csl?tab=list',
+  'CSL Reports': 'kpi/csl?tab=report',
+  'IMU Input Form': 'kpi/imu?tab=add',
+  'IMU Data List': 'kpi/imu?tab=list',
+  'IMU Reports': 'kpi/imu?tab=report',
+  'SCI Input Form': 'kpi/sci?tab=add',
+  'SCI Data List': 'kpi/sci?tab=list',
+  'SCI Reports': 'kpi/sci?tab=report',
 
   // Governance nested routes
   'E Office': 'governance/e-office',
@@ -76,8 +82,8 @@ export const ROUTE_MAP = {
   'Media Outreach': 'governance/media-outreach/broadcast',
   'Parliamentary Issue': 'governance/parliamentary-issues/data-list',
   'Parliamentary Issues': 'governance/parliamentary-issues/data-list',
-  'Audit Paras': 'governance/audit-paras/input-form',
-  'Audit Para': 'governance/audit-paras/input-form',
+  'Audit Paras': 'governance/audit-paras',
+  'Audit Para': 'governance/audit-paras',
   'GEM Procurements': 'governance/gem-procurements/total',
 
   // Legal nested routes
@@ -318,12 +324,16 @@ const getBreadcrumbs = (tab) => {
     'DSG Input Form': ['KPI', 'DSG'],
     'DSG Reports': ['KPI', 'DSG'],
     'DGLL Input Form': ['KPI', 'DGLL'],
+    'DGLL Data List': ['KPI', 'DGLL'],
     'DGLL Reports': ['KPI', 'DGLL'],
     'CSL Input Form': ['KPI', 'CSL'],
+    'CSL Data List': ['KPI', 'CSL'],
     'CSL Reports': ['KPI', 'CSL'],
     'IMU Input Form': ['KPI', 'IMU'],
+    'IMU Data List': ['KPI', 'IMU'],
     'IMU Reports': ['KPI', 'IMU'],
     'SCI Input Form': ['KPI', 'SCI'],
+    'SCI Data List': ['KPI', 'SCI'],
     'SCI Reports': ['KPI', 'SCI'],
     'CMEC Input Form': ['KPI', 'CMEC'],
     'CMEC Reports': ['KPI', 'CMEC'],
@@ -460,6 +470,7 @@ export default function MainLayout({
           isManual={isManualNetworkCheck}
           onContinue={() => setShowNetworkCheck(false)}
           onCancel={() => {
+            endSession();
             localStorage.removeItem('accessToken');
             localStorage.removeItem('refreshToken');
             setIsLoggedIn(false);

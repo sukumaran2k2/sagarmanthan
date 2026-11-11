@@ -68,7 +68,7 @@ describe('DGLL store', () => {
     await state().loadYears('touristTargets');
     await state().loadYears('touristTargets');
     expect(fetchTargetDetails).toHaveBeenCalledTimes(1);
-    expect(fetchTargetDetails).toHaveBeenCalledWith(1, { page: 1, limit: 100 });
+    expect(fetchTargetDetails).toHaveBeenCalledWith({ page: 1, limit: 100 });
     expect(state().years.touristTargets).toEqual(['2027-2028', '2025-2026']);
 
     fetchFinancialPerformance.mockResolvedValue({ data: { data: [{ financialyear: '2023-2024' }] } });

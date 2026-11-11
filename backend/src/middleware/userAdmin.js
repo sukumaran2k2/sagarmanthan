@@ -46,9 +46,17 @@ async function isOwnNodalOfficer(actor, userId) {
 
 // Creating or changing one user. `userIdOf(req)` gives the existing user (none when creating);
 // `checkNewRole` also checks the role and organisation being set from the body.
+// Nobody manages their own account here (own details are changed on the Profile page), so the
+// superadmin can't deactivate or demote themselves, and no one is given the superadmin role.
 export function guardManagedUser({ userIdOf = null, checkNewRole = false } = {}) {
     return async (req, res, next) => {
         try {
+            if (userIdOf && Number(userIdOf(req)) === Number(req.user?.userId)) {
+                return deny(res, 'Use your Profile page to change your own account');
+            }
+            if (checkNewRole && (await roleCodeById(req.body?.role)) === 'SUPERADMIN') {
+                return deny(res, 'The superadmin role cannot be given from here');
+            }
             if (isSuperAdminUser(req.user)) return next();
             if (!isSeniorOfficerUser(req.user)) return deny(res, 'You cannot manage users');
             if (userIdOf && !(await isOwnNodalOfficer(req.user, userIdOf(req)))) {
@@ -73,9 +81,10 @@ export function guardManagedUser({ userIdOf = null, checkNewRole = false } = {})
 // Permission matrix changes for a list of users (body.userIds)
 export async function guardManagedUserList(req, res, next) {
     try {
+        const ids = Array.isArray(req.body?.userIds) ? req.body.userIds : [];
+        if (!ids.length) return res.status(400).json({ status: 'fail', message: 'userIds required' });
         if (isSuperAdminUser(req.user)) return next();
         if (!isSeniorOfficerUser(req.user)) return deny(res, 'You cannot manage users');
-        const ids = Array.isArray(req.body?.userIds) ? req.body.userIds : [];
         for (const id of ids) {
             if (!(await isOwnNodalOfficer(req.user, id))) {
                 return deny(res, 'You can only manage Nodal Officers in your organisation');

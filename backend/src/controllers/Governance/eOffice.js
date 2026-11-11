@@ -112,7 +112,7 @@ async function downloadFilePendancySample(req, res) {
     sendSampleDocument("File_Pendency_Sample.xlsx", res);
   } catch (err) {
     console.error(err);
-    res.status(500).send({ message: err.message });
+    res.status(500).json({ message: "The sample file could not be sent. Please try again." });
   }
 }
 
@@ -121,7 +121,7 @@ async function downloadReceiptPendencySample(req, res) {
     sendSampleDocument("Receipt_Pendency_Sample.xlsx", res);
   } catch (err) {
     console.error(err);
-    res.status(500).send({ message: err.message });
+    res.status(500).json({ message: "The sample file could not be sent. Please try again." });
   }
 }
 
@@ -130,12 +130,14 @@ async function downloadFileDisposalSample(req, res) {
     sendSampleDocument("File_Disposal_Sample.xlsx", res);
   } catch (err) {
     console.error(err);
-    res.status(500).send({ message: err.message });
+    res.status(500).json({ message: "The sample file could not be sent. Please try again." });
   }
 }
 
 // Deletes an uploaded sheet: its rows and its file record together (one transaction), then
-// the stored spreadsheet itself, so nothing is left behind in the upload folder.
+// the stored spreadsheet itself, so nothing is left behind in the upload folder. Who deleted which
+// sheet, its period and a copy of every row go to tbl_eoffice_delete_log in the same transaction
+// (QC EO-02); until sql/governance/01 has created that table, to a text file under ./delete_log.
 async function handleEofficeDelete(sheet, req, res) {
   let transaction;
   try {
@@ -157,8 +159,36 @@ async function handleEofficeDelete(sheet, req, res) {
     await transaction.begin();
     const request = transaction.request();
     request.input('id', sql.Int, id);
-    await request.query(`DELETE FROM ${detailTable} WHERE File_ID = @id; DELETE FROM ${fileTable} WHERE id = @id;`);
+    request.input('sheet', sql.VarChar(30), sheet);
+    request.input('fileName', sql.NVarChar(500), record.File_name || null);
+    request.input('userId', sql.Int, req.user.userId); // the signed-in user
+    const result = await request.query(`
+      DECLARE @rows NVARCHAR(MAX) = (SELECT * FROM ${detailTable} WHERE File_ID = @id FOR JSON PATH, INCLUDE_NULL_VALUES);
+      DECLARE @rowCount INT = (SELECT COUNT(*) FROM ${detailTable} WHERE File_ID = @id);
+      DECLARE @year INT, @month VARCHAR(20), @week INT;
+      SELECT TOP 1 @year = [Year], @month = [Month], @week = [week] FROM ${detailTable} WHERE File_ID = @id;
+      DECLARE @logged BIT = 0;
+      IF OBJECT_ID('dbo.tbl_eoffice_delete_log', 'U') IS NOT NULL
+      BEGIN
+        INSERT INTO dbo.tbl_eoffice_delete_log (sheet, file_id, file_name, period_year, period_month, period_week, row_count, rows_json, deleted_by)
+        VALUES (@sheet, @id, @fileName, @year, @month, @week, @rowCount, @rows, @userId);
+        SET @logged = 1;
+      END
+      DELETE FROM ${detailTable} WHERE File_ID = @id;
+      DELETE FROM ${fileTable} WHERE id = @id;
+      SELECT @logged AS logged, @rowCount AS row_count, @year AS y, @month AS m, @week AS w, @rows AS rows_json;`);
     await transaction.commit();
+
+    const deleted = result.recordset[0];
+    if (!deleted.logged) {
+      const stamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '_').slice(0, 15);
+      const folder = './delete_log/E_Office';
+      const text = `User '${req.user.userId}' deleted ${sheet} file ${id} (${record.File_name}), ${deleted.m} ${deleted.y} week ${deleted.w}, ${deleted.row_count} rows: ${deleted.rows_json}\n`;
+      fs.mkdir(folder, { recursive: true }, (mkdirErr) => {
+        if (mkdirErr) return console.error('E-Office delete log folder error:', mkdirErr);
+        fs.appendFile(`${folder}/deleted_${sheet}_log_${stamp}.txt`, text, (err) => { if (err) console.error('E-Office delete log error:', err); });
+      });
+    }
 
     // path.basename keeps a stored name from pointing outside the folder
     const fileName = path.basename(record.File_name || '');
@@ -698,157 +728,11 @@ async function getFileDisposalAll(req, res) {
   }
 }
 
-async function getReceiptPendancyChart(req, res) {
-  try {
-    const { Month, Year } = req.params;
-    
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input("month", Month);
-    request.input("year", Year);
-
-    let query = `
-      SELECT
-        SUM([Total Pendency]) AS [Total Pendency],
-        [Year],
-        [Month],
-        CASE
-          WHEN week = 1 THEN 'Week 1'
-          WHEN week = 2 THEN 'Week 2'
-          WHEN week = 3 THEN 'Week 3'
-          WHEN week = 4 THEN 'Week 4'
-          WHEN week = 5 THEN 'Week 5'
-          ELSE 'Unknown Week'
-        END AS [Week]
-      FROM tbl_receipt_pendency
-      WHERE tbl_receipt_pendency.Year = @year AND tbl_receipt_pendency.Month = @month
-      GROUP BY 
-        [Year], [Month], 
-        CASE
-          WHEN week = 1 THEN 'Week 1'
-          WHEN week = 2 THEN 'Week 2'
-          WHEN week = 3 THEN 'Week 3'
-          WHEN week = 4 THEN 'Week 4'
-          WHEN week = 5 THEN 'Week 5'
-          ELSE 'Unknown Week'
-        END
-      ORDER BY 
-        [Year], [Week];`;
-
-    const results = await request.query(query);
-
-    res.json(results.recordset);
-
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Internal Server Error');
-  }
-}
-
-async function getFilePendancyChart(req, res) {
-  try {
-    const { Month, Year } = req.params;
-    
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input("month", Month);
-    request.input("year", Year);
-
-    let query = `
-      SELECT
-        SUM([Total Pendency]) AS [Total Pendency],
-        [Year],
-        [Month],
-        CASE
-          WHEN week = 1 THEN 'Week 1'
-          WHEN week = 2 THEN 'Week 2'
-          WHEN week = 3 THEN 'Week 3'
-          WHEN week = 4 THEN 'Week 4'
-          WHEN week = 5 THEN 'Week 5'
-          ELSE 'Unknown Week'
-        END AS [Week]
-      FROM tbl_file_pendancy
-      WHERE tbl_file_pendancy.Year = @year AND tbl_file_pendancy.Month = @month
-      GROUP BY 
-        [Year], [Month], 
-        CASE
-          WHEN week = 1 THEN 'Week 1'
-          WHEN week = 2 THEN 'Week 2'
-          WHEN week = 3 THEN 'Week 3'
-          WHEN week = 4 THEN 'Week 4'
-          WHEN week = 5 THEN 'Week 5'
-          ELSE 'Unknown Week'
-        END
-      ORDER BY 
-        [Year], [Week];`;
-
-    const results = await request.query(query);
-
-    res.json(results.recordset);
-
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Internal Server Error');
-  }
-}
-
-async function getFileDisposalChart(req, res) {
-  try {
-    const { Month, Year } = req.params;
-    
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input("month", Month);
-    request.input("year", Year);
-
-    let query = `
-      SELECT
-        SUM(CAST([Count of Transactions] AS INT)) AS [Count of Transactions],
-        SUM(CAST([Counts of Files] AS INT)) AS [Counts of Files],
-        [Year],
-        [Month],
-        CASE
-          WHEN week = 1 THEN 'Week 1'
-          WHEN week = 2 THEN 'Week 2'
-          WHEN week = 3 THEN 'Week 3'
-          WHEN week = 4 THEN 'Week 4'
-          WHEN week = 5 THEN 'Week 5'
-          ELSE 'Unknown Week'
-        END AS [Week]
-      FROM tbl_file_disposal
-      WHERE tbl_file_disposal.Year = @year AND tbl_file_disposal.Month = @month
-      GROUP BY 
-        [Year], [Month], 
-        CASE
-          WHEN week = 1 THEN 'Week 1'
-          WHEN week = 2 THEN 'Week 2'
-          WHEN week = 3 THEN 'Week 3'
-          WHEN week = 4 THEN 'Week 4'
-          WHEN week = 5 THEN 'Week 5'
-          ELSE 'Unknown Week'
-        END
-      ORDER BY 
-        [Year], [Week];`;
-
-    const results = await request.query(query);
-
-    res.json(results.recordset);
-
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Internal Server Error');
-  }
-}
-
 export default {
   getFilePendenceReport, getReceiptPendenceReport, getFileDisposalReport,
   getFilePendenceCheck, getReceiptPendenceCheck, getFileDisposalCheck,
   getFilePendenceAll, getReceiptPendenceAll, getFileDisposalAll,
   getFilePendencyHistory, getReceiptPendencyHistory, getFileDisposalHistory,
-  getFilePendancyChart, getReceiptPendancyChart, getFileDisposalChart,
   downloadFilePendancy, downloadReceiptPendency, downloadFileDisposal,
   downloadFilePendancySample, downloadReceiptPendencySample, downloadFileDisposalSample,
   deleteFilePendency, deleteReceiptPendency, deleteFileDisposal

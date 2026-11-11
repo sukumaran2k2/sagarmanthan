@@ -123,7 +123,7 @@ async function getStudentEnrollmentReport(req, res) {
         const rowData = result.recordset;
 
         if (rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available' });
+            return res.json({ columnDefs: [], rowData: [] }); // nothing entered yet: an empty report, not an error (QC KPI-15)
         }
 
         // Define columns
@@ -196,7 +196,7 @@ async function getNewCoursesUpgradationReport(req,res) {
         const rowData = result.recordset;
 
         if (rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available' });
+            return res.json({ columnDefs: [], rowData: [] }); // nothing entered yet: an empty report, not an error (QC KPI-15)
         }
 
         // Define columns
@@ -364,7 +364,7 @@ async function getFacilitiesClassroomsReport(req,res) {
         const rowData = result.recordset;
 
         if (rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available' });
+            return res.json({ columnDefs: [], rowData: [] }); // nothing entered yet: an empty report, not an error (QC KPI-15)
         }
 
         // Define columns
@@ -464,7 +464,7 @@ async function getPartnershipsMoUsAcadamicReport(req,res) {
         const rowData = result.recordset;
 
         if (rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available' });
+            return res.json({ columnDefs: [], rowData: [] }); // nothing entered yet: an empty report, not an error (QC KPI-15)
         }
 
         // Define columns
@@ -591,7 +591,7 @@ async function getResearchInnovationsReport(req,res) {
         const rowData = result.recordset;
 
         if (rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available' });
+            return res.json({ columnDefs: [], rowData: [] }); // nothing entered yet: an empty report, not an error (QC KPI-15)
         }
 
         // Define columns
@@ -664,7 +664,7 @@ async function getStudentEnrollmentLinegraphReport(req, res) {
         const rowData = result.recordset;
 
         if (rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available' });
+            return res.json({ columnDefs: [], rowData: [] }); // nothing entered yet: an empty report, not an error (QC KPI-15)
         }
 
         // Define columns
@@ -708,7 +708,7 @@ async function getfinalYearpassPercentageReport(req, res) {
         const rowData = result.recordset || [];
 
         if (rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available' });
+            return res.json({ columnDefs: [], rowData: [] }); // nothing entered yet: an empty report, not an error (QC KPI-15)
         }
 
         // Build columnDefs for ag-Grid

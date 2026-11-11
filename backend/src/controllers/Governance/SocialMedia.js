@@ -237,12 +237,23 @@ async function updateSocialMedia(req, res) {
 async function deleteSocialMedia(req, res) {
     try {
         const id = Number(req.params.mediaOutreachId);
-        if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ message: "Invalid record" });
+        const mediaType = req.query.type;
+        if (!Number.isInteger(id) || id <= 0 || !SECTIONS[mediaType]) {
+            return res.status(400).json({ message: "Invalid record or media type" });
+        }
+        const deletedBy = currentUserId(req);
+        if (!deletedBy) return res.sendStatus(403);
 
         const conn = await pool;
-        const request = conn.request().input("id", id);
+        const request = conn.request().input("id", id).input("mediaType", mediaType).input("deletedBy", deletedBy);
+        // The delete and its log row are written by one statement, so both happen or neither does
         const result = await request.query(`
-            DELETE sm FROM tbl_social_media sm
+            DELETE sm
+            OUTPUT deleted.media_outreach_id, deleted.organisation_id, @mediaType,
+                   deleted.financial_year, deleted.month, @deletedBy, GETDATE()
+            INTO tbl_social_media_delete_log
+                (media_outreach_id, organisation_id, media_type, financial_year, month, deleted_by, deleted_date)
+            FROM tbl_social_media sm
             WHERE sm.media_outreach_id = @id ${scopeSql(req, request)}
         `);
         if (result.rowsAffected[0] === 0) return res.sendStatus(404);

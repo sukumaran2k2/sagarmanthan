@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
-import { Home, Users, ListTodo, Boxes, LayoutList, Bot } from 'lucide-react';
+import { Home, Users, ListTodo, Boxes, LayoutList, ChevronLeft } from 'lucide-react';
 import api, { rbacApi } from './rbacApi';
 import './UserMatrix.css';
 import { colorFromString } from './utils';
@@ -14,7 +14,8 @@ import ModulePermissionsTab from './components/ModulePermissionsTab';
 import ModulePermissionListTab from './components/ModulePermissionListTab';
 import UserListTab from './components/UserListTab';
 import UserFormModal from './components/UserFormModal';
-import SagarBotPermissionsTab from './components/SagarBotPermissionsTab';
+import ResetPasswordModal from './components/ResetPasswordModal';
+import { encryptPassword } from '../Login/utils';
 import {
   draftFromCrudRows,
   emptyCrudDraft,
@@ -27,12 +28,15 @@ import {
 
 const PERMISSIONS_BASE = '/admin/user-module-permission';
 
+const EMAIL_PATTERN = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+// Indian mobile number: 10 digits starting 6-9
+const MOBILE_PATTERN = /^[6-9]\d{9}$/;
+
 const TAB_PATHS = {
   users: 'users',
   userlist: 'user-list',
   modules: 'modules',
   module_permission_list: 'module-permission-list',
-  sagarbot_permissions: 'sagarbot-permissions',
 };
 
 const PERMISSION_TABS = [
@@ -40,7 +44,6 @@ const PERMISSION_TABS = [
   { id: 'userlist', label: 'Users List', icon: ListTodo },
   { id: 'modules', label: 'Modules Update', icon: Boxes },
   { id: 'module_permission_list', label: 'Modules List', icon: LayoutList },
-  { id: 'sagarbot_permissions', label: 'SagarBot AI', icon: Bot },
 ];
 
 const TAB_META = {
@@ -60,16 +63,11 @@ const TAB_META = {
     title: 'User Directory',
     note: 'Filter by organisation or role. Use Access to view permissions, or Edit for profile details.',
   },
-  sagarbot_permissions: {
-    title: 'SagarBot AI Copilot Permissions',
-    note: 'Enable or disable SagarBot AI Assistant for the Main Dashboard and specific modules.',
-  },
 };
 
 function getTabKeyFromPath(pathname = '') {
   const path = pathname.toLowerCase();
   if (path.includes('/module-permission-list')) return 'module_permission_list';
-  if (path.includes('/sagarbot-permissions')) return 'sagarbot_permissions';
   if (path.includes('/user-list') || path.endsWith('/userlist')) return 'userlist';
   if (path.includes('/modules')) return 'modules';
   if (path.includes('/users')) return 'users';
@@ -154,7 +152,12 @@ export default function UserMatrix({ onGoHome, mode = 'permissions', triggerNoti
   const [formModules, setFormModules] = useState([]);
   const [formCrudDraft, setFormCrudDraft] = useState({});
   const [formCrudLoading, setFormCrudLoading] = useState(false);
+  // The user's saved permissions could not be loaded: the form must not overwrite them
+  const [formCrudLoadFailed, setFormCrudLoadFailed] = useState(false);
   const [formError, setFormError] = useState('');
+
+  const [resetPasswordUser, setResetPasswordUser] = useState(null);
+  const [resetPasswordSaving, setResetPasswordSaving] = useState(false);
 
   const [masterWings, setMasterWings] = useState([]);
   const [masterDivisions, setMasterDivisions] = useState([]);
@@ -191,8 +194,11 @@ export default function UserMatrix({ onGoHome, mode = 'permissions', triggerNoti
       })
       .catch(() => showToast('Failed to load organisations', '#EF4444'));
 
+    // The superadmin role is never given or filtered on here (the server refuses it too)
     api.get('/mmt-dropdown/tbl_role')
-      .then((res) => setMasterRoles(res.data || []))
+      .then((res) => setMasterRoles(
+        (res.data || []).filter((r) => String(r.role_code || '').toUpperCase() !== 'SUPERADMIN')
+      ))
       .catch(() => {});
 
     api.get('/mmt-dropdown/mmt_wings')
@@ -212,16 +218,16 @@ export default function UserMatrix({ onGoHome, mode = 'permissions', triggerNoti
   }, [organisations, selectedCategory]);
 
   useEffect(() => {
-    if (selectedCategory === 'all') {
+    // Users are listed only once an organisation is chosen: permissions are set per
+    // organisation, so its modules are needed to edit them
+    if (selectedCategory === 'all' || selectedOrg === 'all') {
       setMatrixUsers([]);
       setSelectedIds(new Set());
-      setActiveModules([]);
       return;
     }
 
     setUsersLoading(true);
-    const params = { categoryId: selectedCategory };
-    if (selectedOrg !== 'all') params.organisationId = selectedOrg;
+    const params = { categoryId: selectedCategory, organisationId: selectedOrg };
     if (selectedRole !== 'all') params.roleId = selectedRole;
 
     rbacApi
@@ -229,7 +235,8 @@ export default function UserMatrix({ onGoHome, mode = 'permissions', triggerNoti
       .then((res) => {
         const mapped = (res.data || []).map(mapUser);
         setMatrixUsers(mapped);
-        setSelectedIds(new Set(mapped.map((u) => u.id)));
+        // Nobody is pre-selected, so a Save only changes the users the admin picked
+        setSelectedIds(new Set());
       })
       .catch(() => {
         showToast('Failed to load users', '#EF4444');
@@ -314,25 +321,34 @@ export default function UserMatrix({ onGoHome, mode = 'permissions', triggerNoti
       .catch(() => showToast('Failed to load user permissions', '#EF4444'));
   }, [selectedUsers, activeModules, selectedOrg, showToast]);
 
+  // Loads only organisations not loaded yet, so unsaved toggles on the ones already selected
+  // are kept when another organisation is added
   const loadOrgModuleState = useCallback(
     async (orgIds) => {
-      if (!orgIds.length || !masterModules.length) return;
+      const missing = orgIds.filter((id) => !orgModuleState[id]);
+      if (!missing.length || !masterModules.length) return;
       try {
-        const res = await rbacApi.getOrgModulePermissions(orgIds);
-        const next = { ...orgModuleState };
+        const res = await rbacApi.getOrgModulePermissions(missing);
+        const loaded = {};
         (res.data || []).forEach((orgBlock) => {
-          next[orgBlock.organisationId] = {};
+          loaded[orgBlock.organisationId] = {};
           orgBlock.modules.forEach((m) => {
-            next[orgBlock.organisationId][m.module_id] = !!m.is_allowed;
+            loaded[orgBlock.organisationId][m.module_id] = !!m.is_allowed;
           });
         });
-        orgIds.forEach((id) => {
-          if (!next[id]) next[id] = {};
+        missing.forEach((id) => {
+          if (!loaded[id]) loaded[id] = {};
           masterModules.forEach((m) => {
-            if (next[id][m.module_id] === undefined) next[id][m.module_id] = false;
+            if (loaded[id][m.module_id] === undefined) loaded[id][m.module_id] = false;
           });
         });
-        setOrgModuleState(next);
+        setOrgModuleState((prev) => {
+          const next = { ...prev };
+          Object.keys(loaded).forEach((id) => {
+            next[id] = { ...loaded[id], ...(prev[id] || {}) };
+          });
+          return next;
+        });
       } catch {
         showToast('Failed to load module permissions', '#EF4444');
       }
@@ -451,10 +467,16 @@ export default function UserMatrix({ onGoHome, mode = 'permissions', triggerNoti
         permissions: cleanPermissions,
         updatedBy: getCurrentUserId(),
       });
-      showToast(
+      const savedFor =
         selectedUsers.length === 1
           ? `Saved for ${selectedUsers[0].name.split(' ')[0]}`
-          : `Saved for ${selectedUsers.length} users`,
+          : `Saved for ${selectedUsers.length} users`;
+      // Rows still showing "mixed" are not saved; say so instead of reporting a full save
+      const skipped = activeModules.length - cleanPermissions.length;
+      showToast(
+        skipped > 0
+          ? `${savedFor} (${skipped} module${skipped === 1 ? '' : 's'} with mixed values not changed)`
+          : savedFor,
         '#10B981'
       );
     } catch (err) {
@@ -614,6 +636,7 @@ export default function UserMatrix({ onGoHome, mode = 'permissions', triggerNoti
     setFormModules([]);
     setFormCrudDraft({});
     setFormCrudLoading(false);
+    setFormCrudLoadFailed(false);
     setFormError('');
     setEditingUser(null);
   };
@@ -628,6 +651,7 @@ export default function UserMatrix({ onGoHome, mode = 'permissions', triggerNoti
 
     let cancelled = false;
     setFormCrudLoading(true);
+    setFormCrudLoadFailed(false);
 
     rbacApi
       .getAllowedModules(formOrg)
@@ -651,6 +675,7 @@ export default function UserMatrix({ onGoHome, mode = 'permissions', triggerNoti
             }
           } catch {
             if (!cancelled) {
+              setFormCrudLoadFailed(true);
               showToast('Failed to load user module permissions', '#EF4444');
             }
           }
@@ -702,9 +727,13 @@ export default function UserMatrix({ onGoHome, mode = 'permissions', triggerNoti
     setFormDesignation(u.designation || '');
     setFormOrg(u.organisation_id || (isSeniorOfficer ? seniorOrgId : '') || '');
     setFormRole(u.role_id || '');
-    setFormWing(u.wing_id || '');
+    // Older rows may have a division without its wing: take the wing from the division
+    const userDivision = masterDivisions.find((d) => String(d.division_id) === String(u.division_id));
+    setFormWing(u.wing_id || userDivision?.wing_id || '');
     setFormDivision(u.division_id || '');
-    setFormPhone(u.phone || '');
+    // Older numbers may be stored as "+91 98765 43210": keep the last 10 digits
+    const phoneDigits = String(u.phone || '').replace(/\D/g, '');
+    setFormPhone(phoneDigits.length > 10 ? phoneDigits.slice(-10) : phoneDigits);
     setFormEmail(u.email || '');
     setIsUserFormOpen(true);
   };
@@ -722,13 +751,16 @@ export default function UserMatrix({ onGoHome, mode = 'permissions', triggerNoti
     });
   };
 
+  // Returns false when the permissions were left unchanged because they could not be loaded
   const saveFormModuleCrud = async (userId) => {
-    if (!userId || formModules.length === 0) return;
+    if (formCrudLoadFailed) return false;
+    if (!userId || formModules.length === 0) return true;
     await rbacApi.saveUserModuleCrud({
       userIds: [userId],
       permissions: permissionsFromDraft(formModules, formCrudDraft),
       updatedBy: getCurrentUserId(),
     });
+    return true;
   };
 
   const handleUserFormSubmit = (e) => {
@@ -739,6 +771,27 @@ export default function UserMatrix({ onGoHome, mode = 'permissions', triggerNoti
       setFormError(msg);
       showToast(msg, '#F59E0B');
       return;
+    }
+
+    {
+      const email = formEmail.trim().toLowerCase();
+      const isAdd = userFormMode === 'add';
+      let msg = '';
+      if (!EMAIL_PATTERN.test(email)) {
+        msg = 'Please enter a valid email address';
+      } else if (!MOBILE_PATTERN.test(String(formPhone).trim())) {
+        msg = 'Please enter a valid 10-digit mobile number';
+      } else if (dbUserList.some((u) =>
+        String(u.email || '').trim().toLowerCase() === email &&
+        (isAdd || Number(u.user_id) !== Number(editingUser?.user_id))
+      )) {
+        msg = isAdd ? 'Email already exists. User cannot be created.' : 'Email already exists for another user';
+      }
+      if (msg) {
+        setFormError(msg);
+        showToast(msg, '#F59E0B');
+        return;
+      }
     }
 
     if (isSeniorOfficer) {
@@ -797,7 +850,12 @@ export default function UserMatrix({ onGoHome, mode = 'permissions', triggerNoti
             : editingUser?.user_id;
 
         try {
-          await saveFormModuleCrud(userId);
+          if (!(await saveFormModuleCrud(userId))) {
+            showToast('User updated. Module permissions were not changed, as they could not be loaded', '#F59E0B');
+            setIsUserFormOpen(false);
+            resetUserForm();
+            return refreshUserList();
+          }
         } catch {
           showToast(
             userFormMode === 'add'
@@ -855,24 +913,31 @@ export default function UserMatrix({ onGoHome, mode = 'permissions', triggerNoti
       .catch(() => showToast('Failed to update status', '#EF4444'));
   };
 
-  const handleResetPassword = (u) => {
-    const newPass = window.prompt(
-      `Reset password for ${u.name}. Enter new password:`,
-      'Sagarmanthan@123'
-    );
-    if (newPass === null) return;
-    if (!newPass.trim()) {
-      showToast('Password cannot be empty', '#F59E0B');
+  // No default password is offered: the admin types a new one for this user
+  const handleResetPassword = (u) => setResetPasswordUser(u);
+
+  const submitResetPassword = (newPass) => {
+    const u = resetPasswordUser;
+    if (!u) return;
+    let encrypted;
+    try {
+      encrypted = encryptPassword(newPass);
+    } catch {
+      showToast('Failed to reset password', '#EF4444');
       return;
     }
+    setResetPasswordSaving(true);
     api
       .post('/changepassword', {
         userID: u.user_id,
-        confirmPassword: newPass,
-        loginUser: getCurrentUserId() || 'Admin',
+        newPassword: encrypted,
       })
-      .then(() => showToast('Password reset', '#10B981'))
-      .catch(() => showToast('Failed to reset password', '#EF4444'));
+      .then(() => {
+        showToast(`Password reset for ${u.name}`, '#10B981');
+        setResetPasswordUser(null);
+      })
+      .catch((err) => showToast(err?.response?.data?.message || 'Failed to reset password', '#EF4444'))
+      .finally(() => setResetPasswordSaving(false));
   };
 
   const activeRoles = useMemo(
@@ -1043,19 +1108,27 @@ export default function UserMatrix({ onGoHome, mode = 'permissions', triggerNoti
     />
   );
 
-  const sagarBotPanel = (
-    <SagarBotPermissionsTab triggerNotification={triggerNotification || showToast} />
-  );
-
   const renderWorkbench = (panel) => (
     <div className="user-matrix-container w-full h-[85vh] bg-[#F8FAFC] dark:bg-[#0b0f19] text-[#1E293B] dark:text-slate-100 flex flex-col font-sans relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
       <div className="topbar">
-        <div className="topbar-left">
-          <div className="topbar-brand">
-            <div className="dot"></div>
-            <h1>{TAB_META[activeMainTab]?.title}</h1>
+        <div className="flex items-center gap-3 min-w-0">
+          {/* Same back button as the other modules' report pages */}
+          <button
+            type="button"
+            onClick={goHome}
+            className="inline-flex items-center justify-center w-9 h-9 shrink-0 rounded-[9px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[#0f417a] dark:text-slate-300 hover:border-[#0f417a] dark:hover:border-blue-400 transition cursor-pointer"
+            aria-label="Back"
+            title="Back"
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <div className="topbar-left">
+            <div className="topbar-brand">
+              <div className="dot"></div>
+              <h1>{TAB_META[activeMainTab]?.title}</h1>
+            </div>
+            <p className="topbar-note">{TAB_META[activeMainTab]?.note}</p>
           </div>
-          <p className="topbar-note">{TAB_META[activeMainTab]?.note}</p>
         </div>
         {usersFilters}
       </div>
@@ -1098,9 +1171,8 @@ export default function UserMatrix({ onGoHome, mode = 'permissions', triggerNoti
           <Route path="user-list" element={renderWorkbench(userListPanel)} />
           <Route path="modules" element={renderWorkbench(modulePermissionsPanel)} />
           <Route path="module-permission-list" element={renderWorkbench(modulePermissionListPanel)} />
-          <Route path="sagarbot-permissions" element={renderWorkbench(sagarBotPanel)} />
           <Route index element={<Navigate to="users" replace />} />
-          <Route path="*" element={<Navigate to="users" replace />} />
+          <Route path="*" element={<Navigate to={`${PERMISSIONS_BASE}/users`} replace />} />
         </Routes>
       )}
 
@@ -1141,6 +1213,15 @@ export default function UserMatrix({ onGoHome, mode = 'permissions', triggerNoti
         formCrudLoading={formCrudLoading}
         formError={formError}
         lockOrganisation={isSeniorOfficer}
+      />
+
+      {/* Keyed by user so the fields start empty for each user */}
+      <ResetPasswordModal
+        key={resetPasswordUser?.user_id ?? 'none'}
+        user={resetPasswordUser}
+        onClose={() => setResetPasswordUser(null)}
+        onSubmit={submitResetPassword}
+        saving={resetPasswordSaving}
       />
 
       {toastVisible && (

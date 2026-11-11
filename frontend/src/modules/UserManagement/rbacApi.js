@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { refreshAccessToken } from '../../utils/sessionRefresh';
 
 export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
@@ -15,19 +16,7 @@ api.interceptors.request.use((config) => {
 
 let refreshPromise = null;
 
-async function refreshAccessToken() {
-  const refreshToken = localStorage.getItem('refreshToken');
-  if (!refreshToken) {
-    throw new Error('No refresh token');
-  }
-  const res = await axios.get(`${API_BASE}/refresh-token`, {
-    headers: { Authorization: `Bearer ${refreshToken}` },
-  });
-  const next = res.data?.accessToken;
-  if (!next) throw new Error('Refresh failed');
-  localStorage.setItem('accessToken', next);
-  return next;
-}
+// A new access token comes from the shared session refresh (cookie-based)
 
 api.interceptors.response.use(
   (response) => response,
@@ -102,10 +91,6 @@ export const rbacApi = {
       },
     }),
   saveUserModuleCrud: (payload) => api.put('/rbac/user-module-crud', payload),
-  getPermissionAudit: (params) => api.get('/rbac/permission-audit', { params }),
-  getSagarbotPermissions: () => api.get('/rbac/sagarbot-permissions'),
-  saveSagarbotPermissions: (payload) => api.put('/rbac/sagarbot-permissions', payload),
-  resetSagarbotPermissions: () => api.post('/rbac/sagarbot-permissions/reset'),
 
   getMmtData: (table) => api.get(`/mmt-dropdown/${table}`),
   insertMmtData: (table, payload) => {

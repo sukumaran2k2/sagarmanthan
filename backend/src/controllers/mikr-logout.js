@@ -1,6 +1,7 @@
 import axios from 'axios';
 import jwt from 'jsonwebtoken';
 import { addToBlacklist, getUserTokens, removeUserTokens } from "../utils/tokenStore.js";
+import { clearRefreshCookie } from "../utils/refreshCookie.js";
 
 export const mikrLogout = async (req, res) => {
     try {
@@ -69,11 +70,7 @@ export const mikrLogout = async (req, res) => {
         }
 
         // Clear the httpOnly refresh token cookie
-        res.clearCookie('refreshToken', {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'Strict',
-        });
+        clearRefreshCookie(res);
 
         return res.status(200).json({
             success: true,

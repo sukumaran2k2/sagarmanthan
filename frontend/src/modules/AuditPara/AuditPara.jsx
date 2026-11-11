@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
+import ConfirmModal from '../../components/ConfirmModal';
+import Dashboard from './pages/Dashboard';
 import DataList from './pages/DataList';
 import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
@@ -75,6 +77,7 @@ export default function AuditParaView({ triggerNotification }) {
 
   const tabs = useMemo(() => {
     const list = [];
+    if (canView) list.push({ id: 'dashboard', label: 'Dashboard' });
     if (canAdd) list.push({ id: 'input-form', label: 'Input Form' });
     if (canView) list.push({ id: 'list-view', label: 'Data List' });
     if (canView) list.push({ id: 'report', label: 'Reports' });
@@ -83,6 +86,7 @@ export default function AuditParaView({ triggerNotification }) {
 
   const currentTab = useMemo(() => {
     const path = location.pathname.toLowerCase();
+    if (path.includes('/dashboard')) return 'dashboard';
     if (path.includes('/input-form')) return 'input-form';
     if (path.includes('/report')) return 'report';
     return 'list-view';
@@ -125,9 +129,16 @@ export default function AuditParaView({ triggerNotification }) {
     navigate(`${BASE}/input-form`, { state: { item: para } });
   }, [navigate]);
 
-  const handleDelete = useCallback((para) => {
-    if (!window.confirm(`Delete Audit Para "${para.paraNumber}"? This cannot be undone.`)) return;
-    deleteAuditPara(para.id, getCurrentUserId())
+  // The para waiting for the user to confirm its delete
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = useCallback((para) => setPendingDelete(para), []);
+
+  const confirmDelete = useCallback(() => {
+    const para = pendingDelete;
+    setDeleting(true);
+    deleteAuditPara(para.id)
       .then(() => {
         notify(AUDIT_PARA_TOASTS.deleted(para.paraNumber));
         fetchData();
@@ -135,14 +146,31 @@ export default function AuditParaView({ triggerNotification }) {
       .catch((err) => {
         console.error('Error deleting Audit Para:', err);
         notify(AUDIT_PARA_TOASTS.deleteFailed(getErrorMessage(err)));
+      })
+      .finally(() => {
+        setDeleting(false);
+        setPendingDelete(null);
       });
-  }, [notify, fetchData]);
+  }, [pendingDelete, notify, fetchData]);
 
   // Replace the form entry so browser Back can't reopen the pre-save snapshot
   const handleSuccess = useCallback(() => {
     fetchData();
     navigate(canView ? `${BASE}/list-view` : `${BASE}/input-form`, { replace: true });
   }, [fetchData, navigate, canView]);
+
+  // Dashboard links: the Data List with only the given filters (and search) set, filter panel open
+  const openListWith = useCallback(({ wing = '', division = '', category = '', status = '', search = '' } = {}) => {
+    const store = useAuditParaStore.getState();
+    store.resetFilters();
+    store.setSelectedWing(wing);
+    store.setSelectedDivision(division);
+    store.setSelectedCategory(category);
+    store.setSelectedStatus(status);
+    store.setSearchTerm(search);
+    store.setShowFilterPanel(Boolean(wing || division || category || status));
+    navigate(`${BASE}/list-view`);
+  }, [navigate]);
 
   const handleBack = useCallback(() => {
     navigate(`${BASE}/list-view`);
@@ -153,7 +181,8 @@ export default function AuditParaView({ triggerNotification }) {
     return <RestrictedAccess moduleName="Audit Paras" />;
   }
 
-  const defaultTab = canAdd ? 'input-form' : 'list-view';
+  // Opening the module shows the dashboard to those who can view, as in Bills
+  const defaultTab = canView ? 'dashboard' : 'input-form';
 
   return (
     <div className="module-page-container space-y-6 animate-fade-in">
@@ -173,6 +202,10 @@ export default function AuditParaView({ triggerNotification }) {
 
       <div className="space-y-8">
         <Routes>
+          <Route path="dashboard" element={canView ? (
+            <Dashboard notify={notify} wings={wings} onOpenList={openListWith} />
+          ) : <Navigate to={`${BASE}/input-form`} replace />} />
+
           <Route path="list-view" element={canView ? (
             <DataList
               rowData={rowData}
@@ -210,6 +243,15 @@ export default function AuditParaView({ triggerNotification }) {
           <Route path="*" element={<Navigate to={defaultTab} replace />} />
         </Routes>
       </div>
+
+      <ConfirmModal
+        isOpen={!!pendingDelete}
+        onClose={() => !deleting && setPendingDelete(null)}
+        onConfirm={confirmDelete}
+        loading={deleting}
+        title="Delete Audit Para"
+        message={pendingDelete ? `Audit Para "${pendingDelete.paraNumber}" will be deleted. This cannot be undone.` : ''}
+      />
     </div>
   );
 }

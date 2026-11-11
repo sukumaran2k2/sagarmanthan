@@ -111,14 +111,16 @@ export default function CSRProjects({ triggerNotification }) {
         />
       </div>
 
+      {/* Redirects use absolute paths: a relative one inside this splat route resolves against the
+          current URL, so an unknown sub-path kept redirecting to itself (QC CSR-05) */}
       <Routes>
-        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route index element={<Navigate to={`${BASE}/dashboard`} replace />} />
         <Route path="dashboard" element={<Dashboard notify={notify} isOrgUser={isOrgUser} />} />
         <Route path="fund-details" element={<FundDetails notify={notify} permissions={permissions} />} />
         <Route path="project-list" element={
           <DataList notify={notify} permissions={permissions} onEdit={handleEdit} />
         } />
-        <Route path="data-list" element={<Navigate to="../project-list" replace />} />
+        <Route path="data-list" element={<Navigate to={`${BASE}/project-list`} replace />} />
         <Route path="input-form/*" element={formAllowed ? (
           <InputForm
             key={formType === 'project' ? (editData?.csr_project_id ?? 'new') : 'fund'}
@@ -131,13 +133,13 @@ export default function CSRProjects({ triggerNotification }) {
             onFundSaved={handleFundSaved}
             notify={notify}
           />
-        ) : <Navigate to="../project-list" replace />} />
+        ) : <Navigate to={`${BASE}/project-list`} replace />} />
         {/* Old edit links: the project now travels with the route state */}
-        <Route path="edit/*" element={<Navigate to="../project-list" replace />} />
+        <Route path="edit/*" element={<Navigate to={`${BASE}/project-list`} replace />} />
         <Route path="reports" element={
           <Reports notify={notify} triggerNotification={triggerNotification} isOrgUser={isOrgUser} />
         } />
-        <Route path="*" element={<Navigate to="dashboard" replace />} />
+        <Route path="*" element={<Navigate to={`${BASE}/dashboard`} replace />} />
       </Routes>
     </div>
   );

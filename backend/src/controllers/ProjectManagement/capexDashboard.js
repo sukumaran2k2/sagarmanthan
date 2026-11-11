@@ -222,9 +222,16 @@ async function getCapexDashboardYoy(req, res) {
     const pick = (r, prefix) => ({
       gbs: crore(r[`${prefix}_gbs`]), iebr: crore(r[`${prefix}_iebr`]), ppp: crore(r[`${prefix}_ppp`]), total: crore(r[`${prefix}_total`]),
     });
+    // A year with nothing planned and nothing spent (e.g. next year, set up early) is left out,
+    // so the actual line does not drop to zero; the current financial year (April-March, IST)
+    // is marked, since it is only part of a year (QC D-04)
+    const today = new Date(Date.now() + 5.5 * 3600 * 1000);
+    const startYear = today.getUTCMonth() >= 3 ? today.getUTCFullYear() : today.getUTCFullYear() - 1;
+    const currentFy = `${startYear}-${startYear + 1}`;
     res.json(recordset
       .filter((r) => FY_PATTERN.test(r.fy))
-      .map((r) => ({ financialYear: r.fy, planned: pick(r, 'planned'), actual: pick(r, 'actual') }))
+      .filter((r) => crore(r.planned_total) !== 0 || crore(r.actual_total) !== 0)
+      .map((r) => ({ financialYear: r.fy, planned: pick(r, 'planned'), actual: pick(r, 'actual'), current: r.fy === currentFy }))
       .sort((a, b) => a.financialYear.localeCompare(b.financialYear)));
   } catch (err) {
     console.error('getCapexDashboardYoy error:', err);

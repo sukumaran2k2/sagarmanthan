@@ -150,6 +150,10 @@ function flattenColumns(cols = []) {
   return cols.flatMap((col) => (col.children ? flattenColumns(col.children) : [col]));
 }
 
+function isNumericValue(val) {
+  return typeof val === 'number' || (typeof val === 'string' && val.trim() !== '' && !isNaN(Number(val)));
+}
+
 // `notify` takes the standard toasts; ReportTable still calls the plain triggerNotification
 export default function ParliamentaryIssuesReports({ notify, triggerNotification }) {
   // Stages come from the module store (loaded once by the shell); the tab and view choices are kept there too
@@ -272,7 +276,7 @@ export default function ParliamentaryIssuesReports({ notify, triggerNotification
             suppressMovable: true,
             width: col.width || 70,
             minWidth: 60,
-            cellRenderer: (p) => (
+            cellRenderer: (p) => (p.node?.rowPinned ? '' : (
               <span
                 style={{
                   fontWeight: 800,
@@ -283,7 +287,7 @@ export default function ParliamentaryIssuesReports({ notify, triggerNotification
               >
                 {p.value}
               </span>
-            ),
+            )),
           };
         }
 
@@ -342,6 +346,8 @@ export default function ParliamentaryIssuesReports({ notify, triggerNotification
             if (!Number.isFinite(countVal) || countVal <= 0) {
               return <span className="text-slate-400 dark:text-slate-500">-</span>;
             }
+            // The Total row has no wing / division to drill into
+            if (p.node?.rowPinned) return <strong>{countVal}</strong>;
             const wingId = wingIdOf(p.data) ?? currentView.wingId;
             const divisionId = divisionIdOf(p.data);
             const label = field;
@@ -479,6 +485,25 @@ export default function ParliamentaryIssuesReports({ notify, triggerNotification
     return [...serial, ...rest];
   }, [currentView, stageMap, reportCols, isSummary, reportView, setDrillDownPath]);
 
+  // Old portal pinned a Total row under the wing / division abstracts (not the issue-level detail)
+  const pinnedBottomRowData = useMemo(() => {
+    if (currentView?.type === 'detail' || viewData.length === 0) return undefined;
+    const labelField = columns
+      .map((col) => col.field)
+      .find((field) => WING_FIELDS.has(field) || DIVISION_FIELDS.has(field));
+    const totalRow = {};
+    Object.keys(viewData[0]).forEach((key) => {
+      if (!isNumericKey(key)) {
+        totalRow[key] = '';
+        return;
+      }
+      if (!viewData.some((row) => isNumericValue(row[key]))) return;
+      totalRow[key] = viewData.reduce((sum, row) => sum + (Number(row[key]) || 0), 0);
+    });
+    if (labelField) totalRow[labelField] = 'Total';
+    return [totalRow];
+  }, [currentView, viewData, columns]);
+
   const reportTitle = isSummary
     ? form82Title(abstractLevel(reportView), currentView?.family, currentView?.issueType)
     : currentView?.title;
@@ -584,6 +609,7 @@ export default function ParliamentaryIssuesReports({ notify, triggerNotification
           onBack={() => setDrillDownPath((prev) => prev.slice(0, -1))}
           rawData={viewData}
           viewData={viewData}
+          pinnedBottomRowData={pinnedBottomRowData}
           columns={columns}
           loading={loading}
           onRefresh={() => setReloadKey((k) => k + 1)}

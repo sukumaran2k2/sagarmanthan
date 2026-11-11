@@ -202,23 +202,26 @@ export default function GEMProcurementView({
     };
   }, [loadOrganisations, notify]);
 
+  const buildFilterParams = useCallback(() => {
+    const params = {
+      financialYear: filterYear || undefined,
+      search: debouncedSearch.trim() || undefined,
+    };
+    if (viewMode === 'org' && selectedOrgId) {
+      params.organisationId = selectedOrgId;
+    } else if (filterOrg) {
+      params.organisationId = filterOrg;
+    }
+    return params;
+  }, [filterYear, debouncedSearch, viewMode, selectedOrgId, filterOrg]);
+
   const fetchList = useCallback(
     async (signal) => {
       if (!permissions.canView || activeTab === 'report') return;
       setLoading(true);
       try {
         const category = listCategoryForTab(activeTab);
-        const params = {
-          page,
-          limit: pageSize,
-          financialYear: filterYear || undefined,
-          search: debouncedSearch.trim() || undefined,
-        };
-        if (viewMode === 'org' && selectedOrgId) {
-          params.organisationId = selectedOrgId;
-        } else if (filterOrg) {
-          params.organisationId = filterOrg;
-        }
+        const params = { ...buildFilterParams(), page, limit: pageSize };
 
         const res = await fetchGemList(category, params, { signal });
         const payload = res.data || {};
@@ -250,11 +253,7 @@ export default function GEMProcurementView({
       activeTab,
       page,
       pageSize,
-      filterYear,
-      debouncedSearch,
-      viewMode,
-      selectedOrgId,
-      filterOrg,
+      buildFilterParams,
       notify,
     ]
   );
@@ -517,14 +516,25 @@ export default function GEMProcurementView({
     );
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     if (!rows.length) {
       notify(COMMON_TOASTS.nothingToExport());
       return;
     }
     const category = listCategoryForTab(activeTab);
-    const sheet = rows.map((r, idx) => ({
-      'Sl.No': (pagination.page - 1) * pagination.limit + idx + 1,
+    // Export every row matching the filters, not just the page on screen.
+    let allRows;
+    try {
+      const res = await fetchGemList(category, { ...buildFilterParams(), all: true, limit: 2000 });
+      const payload = res.data || {};
+      allRows = Array.isArray(payload.data) ? payload.data : Array.isArray(payload) ? payload : [];
+    } catch (err) {
+      console.error('Failed to fetch GEM rows for export:', err);
+      notify(COMMON_TOASTS.loadFailed('GEM procurement data'));
+      return;
+    }
+    const sheet = allRows.map((r, idx) => ({
+      'Sl.No': idx + 1,
       Organisation: r.organisation_name || '',
       'Financial Year': getGemFinancialYear(r),
       'Planned Procurement': getGemPotential(r, category),

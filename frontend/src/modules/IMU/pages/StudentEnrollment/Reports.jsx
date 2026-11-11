@@ -120,6 +120,12 @@ export default function StudentEnrollmentReports({ notify }) {
       })
     );
     enrolledSeries.columns.template.setAll({ fill: am5.color(0x20b2aa), stroke: am5.color(0x20b2aa), cornerRadiusTL: 3, cornerRadiusTR: 3, width: am5.percent(30) });
+    // Bar values sit inside the bars, written upwards, so they stay clear of the capacity line
+    const barValueLabel = (fill) => (root) => am5.Bullet.new(root, {
+      locationY: 1,
+      sprite: am5.Label.new(root, { fill: am5.color(fill), rotation: -90, centerX: am5.p100, centerY: am5.p50, dy: 4, paddingTop: 0, paddingBottom: 0, paddingLeft: 0, paddingRight: 0, fontSize: 10, fontWeight: '700', populateText: true, text: '{valueY}' }),
+    });
+    enrolledSeries.bullets.push(barValueLabel(0xffffff));
     enrolledSeries.data.setAll(chartData);
 
     const placedSeries = chart.series.push(
@@ -131,6 +137,7 @@ export default function StudentEnrollmentReports({ notify }) {
       })
     );
     placedSeries.columns.template.setAll({ fill: am5.color(0xd4e157), stroke: am5.color(0xd4e157), cornerRadiusTL: 3, cornerRadiusTR: 3, width: am5.percent(30) });
+    placedSeries.bullets.push(barValueLabel(0x1e293b));
     placedSeries.data.setAll(chartData);
 
     const capacitySeries = chart.series.push(
@@ -145,6 +152,10 @@ export default function StudentEnrollmentReports({ notify }) {
     capacitySeries.bullets.push(() => am5.Bullet.new(root, {
       sprite: am5.Circle.new(root, { radius: 4, fill: am5.color(0xff5733), stroke: am5.color(0xffffff), strokeWidth: 2 })
     }));
+    capacitySeries.bullets.push((root) => {
+      const label = am5.Label.new(root, { fill: am5.color(0xff5733), centerX: am5.p50, centerY: am5.p100, dy: -8, fontSize: 10, fontWeight: '700', populateText: true, text: '{valueY}' });
+      return am5.Bullet.new(root, { sprite: label });
+    });
     capacitySeries.data.setAll(chartData);
 
     const legend = chart.children.push(am5.Legend.new(root, { centerX: am5.p50, x: am5.p50, marginTop: 12 }));
@@ -182,6 +193,15 @@ export default function StudentEnrollmentReports({ notify }) {
     yRenderer.grid.template.setAll({ stroke: am5.color(0xe2e8f0), strokeWidth: 1, strokeDasharray: [4, 4] });
     const yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, { renderer: yRenderer, min: 0, max: 115, strictMinMax: true }));
 
+    // For each year the higher line's value goes above its point and the lower one's below, so they never overlap
+    const pctValueLabel = (field, other, fill) => (root, series, dataItem) => {
+      const ctx = dataItem.dataContext;
+      const above = field === 'admission' ? ctx[field] >= ctx[other] : ctx[field] > ctx[other];
+      return am5.Bullet.new(root, {
+        sprite: am5.Label.new(root, { fill: am5.color(fill), centerX: am5.p50, centerY: above ? am5.p100 : am5.p0, dy: above ? -7 : 7, paddingTop: 0, paddingBottom: 0, fontSize: 10, fontWeight: '700', populateText: true, text: '{valueY}%' }),
+      });
+    };
+
     const admissionSeries = chart.series.push(
       am5xy.LineSeries.new(root, {
         name: '% of Admission', xAxis, yAxis,
@@ -194,10 +214,7 @@ export default function StudentEnrollmentReports({ notify }) {
     admissionSeries.bullets.push(() => am5.Bullet.new(root, {
       sprite: am5.Circle.new(root, { radius: 4, fill: am5.color(0xff5733), stroke: am5.color(0xffffff), strokeWidth: 2 })
     }));
-    admissionSeries.bullets.push((root) => {
-      const label = am5.Label.new(root, { fill: am5.color(0xff5733), centerX: am5.p50, centerY: am5.p0, dy: -20, fontSize: 10, fontWeight: '700', populateText: true, text: '{valueY}%' });
-      return am5.Bullet.new(root, { sprite: label });
-    });
+    admissionSeries.bullets.push(pctValueLabel('admission', 'placement', 0xff5733));
     admissionSeries.data.setAll(pctChartData);
 
     const placementSeries = chart.series.push(
@@ -212,10 +229,7 @@ export default function StudentEnrollmentReports({ notify }) {
     placementSeries.bullets.push(() => am5.Bullet.new(root, {
       sprite: am5.Circle.new(root, { radius: 4, fill: am5.color(0x20b2aa), stroke: am5.color(0xffffff), strokeWidth: 2 })
     }));
-    placementSeries.bullets.push((root) => {
-      const label = am5.Label.new(root, { fill: am5.color(0x20b2aa), centerX: am5.p50, centerY: am5.p100, dy: 18, fontSize: 10, fontWeight: '700', populateText: true, text: '{valueY}%' });
-      return am5.Bullet.new(root, { sprite: label });
-    });
+    placementSeries.bullets.push(pctValueLabel('placement', 'admission', 0x20b2aa));
     placementSeries.data.setAll(pctChartData);
 
     const legend = chart.children.push(am5.Legend.new(root, { centerX: am5.p50, x: am5.p50, marginTop: 12 }));

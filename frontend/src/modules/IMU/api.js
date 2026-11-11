@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { refreshAccessToken } from '../../utils/sessionRefresh';
 
 export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
@@ -15,19 +16,7 @@ api.interceptors.request.use((config) => {
 
 let refreshPromise = null;
 
-async function refreshAccessToken() {
-  const refreshToken = localStorage.getItem('refreshToken');
-  if (!refreshToken) {
-    throw new Error('No refresh token');
-  }
-  const res = await axios.get(`${API_BASE}/refresh-token`, {
-    headers: { Authorization: `Bearer ${refreshToken}` },
-  });
-  const next = res.data?.accessToken;
-  if (!next) throw new Error('Refresh failed');
-  localStorage.setItem('accessToken', next);
-  return next;
-}
+// A new access token comes from the shared session refresh (cookie-based)
 
 api.interceptors.response.use(
   (response) => response,
@@ -79,8 +68,8 @@ export function fetchStudentEnrollmentLinegraphReport() {
   return api.get('/get-imu-k-5-1-linegraph-report');
 }
 
-export function deleteStudentEnrollment(studentId, userId) {
-  return api.delete(`/delete-imu-k-5-1/${studentId}/${userId}`);
+export function deleteStudentEnrollment(studentId) {
+  return api.delete(`/delete-imu-k-5-1/${studentId}`);
 }
 
 // ---- Final Year Pass Percentage (K-5.1.1) ----
@@ -102,8 +91,8 @@ export function fetchFinalYearPassPercentageReport() {
   return api.get('/get-imu-k-5-1-1-report');
 }
 
-export function deleteFinalYearPassPercentage(studentId, userId) {
-  return api.delete(`/delete-imu-k-5-1-1/${studentId}/${userId}`);
+export function deleteFinalYearPassPercentage(studentId) {
+  return api.delete(`/delete-imu-k-5-1-1/${studentId}`);
 }
 
 // ---- New Course Upgradation (K-5.2) ----
@@ -124,8 +113,8 @@ export function fetchNewCourseUpgradationReport() {
   return api.get('/get-imu-k-5-2-report');
 }
 
-export function deleteNewCourseUpgradation(courseId, userId) {
-  return api.delete(`/delete-imu-k-5-2/${courseId}/${userId}`);
+export function deleteNewCourseUpgradation(courseId) {
+  return api.delete(`/delete-imu-k-5-2/${courseId}`);
 }
 
 // ---- Facilities (K-5.3) ----
@@ -146,8 +135,8 @@ export function fetchFacilitiesReport() {
   return api.get('/get-imu-k-5-3-report');
 }
 
-export function deleteFacilities(facilitiesId, userId) {
-  return api.delete(`/delete-imu-k-5-3/${facilitiesId}/${userId}`);
+export function deleteFacilities(facilitiesId) {
+  return api.delete(`/delete-imu-k-5-3/${facilitiesId}`);
 }
 
 // ---- Partnership (K-5.4) ----
@@ -168,8 +157,8 @@ export function fetchPartnershipReport() {
   return api.get('/get-imu-k-5-4-report');
 }
 
-export function deletePartnership(partnershipId, userId) {
-  return api.delete(`/delete-imu-k-5-4/${partnershipId}/${userId}`);
+export function deletePartnership(partnershipId) {
+  return api.delete(`/delete-imu-k-5-4/${partnershipId}`);
 }
 
 // ---- Research, Innovation & Startups (K-5.5) ----
@@ -190,8 +179,8 @@ export function fetchResearchReport() {
   return api.get('/get-imu-k-5-5-report');
 }
 
-export function deleteResearch(researchId, userId) {
-  return api.delete(`/delete-imu-k-5-5/${researchId}/${userId}`);
+export function deleteResearch(researchId) {
+  return api.delete(`/delete-imu-k-5-5/${researchId}`);
 }
 
 export default api;

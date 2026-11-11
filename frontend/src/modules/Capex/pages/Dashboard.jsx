@@ -353,7 +353,8 @@ function YoyTrendSection({ filters, orgScoped, dark, className = 'pt-4' }) {
   const organisationOptions = (filters?.organisations || []).filter((o) => groupId === ALL || String(o.groupId) === groupId);
   const chartData = useMemo(() => (result?.data || []).map((r) => {
     const p = percent(r.actual.total, r.planned.total);
-    return { financialYear: r.financialYear, planned: r.planned.total, actual: r.actual.total, percentLabel: p === null ? 'No target' : formatPercent(p) };
+    // The current year is only part of a year: its label says so (QC D-04)
+    return { financialYear: r.current ? `${r.financialYear} (to date)` : r.financialYear, planned: r.planned.total, actual: r.actual.total, percentLabel: p === null ? 'No target' : formatPercent(p) };
   }), [result]);
 
   return (
