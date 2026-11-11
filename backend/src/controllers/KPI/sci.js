@@ -16,7 +16,7 @@ async function addVesselAvailabiltydata(req, res) {
         `);
 
         if (result.recordset[0].count > 0) {
-            return res.status(205).json({ error: "Data already exists for the selected financial year!" });
+            return res.status(409).json({ error: "An entry for this period already exists." });
         }
 
         
@@ -139,7 +139,7 @@ async function addscitimeVoyageydata(req, res) {
         `);
 
         if (result.recordset[0].count > 0) {
-            return res.status(205).json({ error: "Data already exists for the selected financial year!" });
+            return res.status(409).json({ error: "An entry for this period already exists." });
         }
 
         
@@ -265,7 +265,7 @@ async function updatescitimeVoyageBulkData(req,res){
             `);
     
             if (result.recordset[0].count > 0) {
-                return res.status(205).json({ error: "Data already exists for the selected financial year!" });
+                return res.status(409).json({ error: "An entry for this period already exists." });
             }
             request.input("totalTankersFleet", totalTankersFleet);
             request.input("daysTimeCharter", daysTimeCharter);
@@ -391,7 +391,7 @@ async function deleteTimeVoyageTanker(req, res) {
             `);
 
             if (result.recordset[0].count > 0) {
-                return res.status(205).json({ error: "Data already exists for the selected financial year!" });
+                return res.status(409).json({ error: "An entry for this period already exists." });
             }
 
             
@@ -519,7 +519,7 @@ async function deleteTimeVoyageTanker(req, res) {
             `);
 
             if (result.recordset[0].count > 0) {
-                return res.status(205).json({ error: "Data already exists for the selected financial year!" });
+                return res.status(409).json({ error: "An entry for this period already exists." });
             }
 
             
@@ -639,7 +639,7 @@ async function deleteTimeVoyageTanker(req, res) {
             `);
 
             if (result.recordset[0].count > 0) {
-                return res.status(205).json({ error: "Data already exists for the selected financial year!" });
+                return res.status(409).json({ error: "An entry for this period already exists." });
             }
 
             
@@ -756,7 +756,7 @@ async function deleteTimeVoyageTanker(req, res) {
             `);
 
             if (result.recordset[0].count > 0) {
-                return res.status(205).json({ error: "Data already exists for the selected financial year!" });
+                return res.status(409).json({ error: "An entry for this period already exists." });
             }
 
             
@@ -878,7 +878,7 @@ async function deleteTimeVoyageTanker(req, res) {
             `);
 
             if (result.recordset[0].count > 0) {
-                return res.status(205).json({ error: "Data already exists for the selected financial year!" });
+                return res.status(409).json({ error: "An entry for this period already exists." });
             }
 
             
@@ -994,7 +994,7 @@ async function deleteTimeVoyageTanker(req, res) {
             `);
 
             if (result.recordset[0].count > 0) {
-                return res.status(205).json({ error: "Data already exists for the selected financial year!" });
+                return res.status(409).json({ error: "An entry for this period already exists." });
             }
         
             request.input("repairCosts", repairCosts);
@@ -1112,7 +1112,7 @@ async function deleteTimeVoyageTanker(req, res) {
             `);
 
             if (result.recordset[0].count > 0) {
-                return res.status(205).json({ error: "Data already exists for the selected financial year!" });
+                return res.status(409).json({ error: "An entry for this period already exists." });
             }
 
             
@@ -1229,7 +1229,7 @@ async function deleteTimeVoyageTanker(req, res) {
             `);
 
             if (result.recordset[0].count > 0) {
-                return res.status(205).json({ error: "Data already exists for the selected financial year!" });
+                return res.status(409).json({ error: "An entry for this period already exists." });
             }     
         
             request.input("vesselssold", vesselssold);
@@ -1355,7 +1355,7 @@ async function addmanningofOwnedships(req, res) {
         `);
 
         if (result.recordset[0].count > 0) {
-            return res.status(205).json({ error: "Data already exists for the selected financial year!" });
+            return res.status(409).json({ error: "An entry for this period already exists." });
         }
 
         request.input("noofVesselsaudited", noofVesselsaudited);
@@ -1478,7 +1478,7 @@ async function addmanningofOwnedships(req, res) {
             `);
     
             if (result.recordset[0].count > 0) {
-                return res.status(205).json({ error: "Data already exists for the selected financial year!" });
+                return res.status(409).json({ error: "An entry for this period already exists." });
             } 
         
             request.input("noofShipsManaged", noofShipsManaged);

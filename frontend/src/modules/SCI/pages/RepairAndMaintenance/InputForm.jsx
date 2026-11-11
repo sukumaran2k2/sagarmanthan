@@ -73,7 +73,7 @@ export default function RepairAndMaintenanceInputForm({
           repairPercentage: numericValues[2],
           userID: getCurrentUserId(),
         });
-        if (response.status === 205) {
+        if (response.status === 409) {
           notify(SCI_TOASTS.duplicate());
           setSubmitting(false);
           return;

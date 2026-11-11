@@ -78,7 +78,7 @@ export default function TimeVoyageTankerInputForm({
           averageEarnings: numericValues[4],
           userID: getCurrentUserId(),
         });
-        if (response.status === 205) {
+        if (response.status === 409) {
           notify(SCI_TOASTS.duplicate());
           setSubmitting(false);
           return;

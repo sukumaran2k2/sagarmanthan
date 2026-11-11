@@ -138,7 +138,7 @@ export default function AuditParaView({ triggerNotification }) {
   const confirmDelete = useCallback(() => {
     const para = pendingDelete;
     setDeleting(true);
-    deleteAuditPara(para.id, getCurrentUserId())
+    deleteAuditPara(para.id)
       .then(() => {
         notify(AUDIT_PARA_TOASTS.deleted(para.paraNumber));
         fetchData();

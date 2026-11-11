@@ -1,6 +1,5 @@
 import axios from 'axios';
 import { refreshAccessToken } from '../../utils/sessionRefresh';
-import { getCurrentUserId } from '../../utils/authSession';
 
 export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
@@ -53,14 +52,10 @@ api.interceptors.response.use(
   }
 );
 
-// The server scopes CSR data by the signed token; the user id some routes still carry in
-// their path (from 2.0) is ignored there.
-const pathUserId = () => getCurrentUserId() || 0;
-
 // --- CSR Projects APIs ---
 // With page / pageSize: { rows, total, counts } for that page; without: every matching row (QC CSR-26)
 export const fetchCsrProjectsList = async (params = {}) => {
-  const response = await api.get(`/csr-projects-list/${pathUserId()}`, { params });
+  const response = await api.get(`/csr-projects-list`, { params });
   return response.data;
 };
 
@@ -113,8 +108,8 @@ export const uploadCsrGalleryFiles = async (csrProjectId, formData) => {
 };
 
 // --- CSR Fund Details APIs ---
-export const fetchCsrFundList = async (userId = pathUserId()) => {
-  const response = await api.get(`/csr-Fund-list/${userId}`);
+export const fetchCsrFundList = async () => {
+  const response = await api.get(`/csr-Fund-list`);
   return response.data;
 };
 

@@ -207,8 +207,7 @@ async function addVtmsIntegration(req, res) {
         `);
 
         if (result.recordset[0].count > 0) {
-            // If data already exists, return a 205 response
-            res.sendStatus(205);
+            return res.status(409).json({ error: "An entry for this period already exists." });
         } else {
             // If no data exists, proceed with insertion
             request.input("vtmsIntegration", vtmsIntegration);
@@ -358,7 +357,7 @@ async function addNaisUptime(req, res) {
         `);
 
         if (result.recordset[0].count > 0) {
-            return res.sendStatus(205); // Data already exists
+            return res.status(409).json({ error: "An entry for this period already exists." });
         }
 
         // Proceed with insert if no conflict
@@ -510,7 +509,7 @@ async function addNaisUptime(req, res) {
                 `);
         
                 if (result.recordset[0].count > 0) {
-                    return res.sendStatus(205); // Data already exists
+                    return res.status(409).json({ error: "An entry for this period already exists." });
                 }
         
                 // Proceed with insert if no conflict
@@ -751,7 +750,7 @@ async function addNaisUptime(req, res) {
             `);
                 
             if (result.recordset[0].count > 0) {
-              res.sendStatus(205); // Data already exists
+              return res.status(409).json({ error: "An entry for this period already exists." });
             }
             else{
             request.input("collectionLightDue", collectionLightDue);
@@ -947,42 +946,14 @@ async function addNaisUptime(req, res) {
                 WHERE finacial_year = @financialYears 
             `);
         
-            if (result.recordset[0].count > 0) {
-                // If data already exists, return a 205 response
-                res.sendStatus(205);
-            } else {
-                res.sendStatus(200);
-            }
+            // Whether an entry for that year exists (QC KPI-12: was 205 / 200)
+            res.json({ exists: result.recordset[0].count > 0 });
         } catch (err) {
             console.error(err);
             return res.status(500).json({ message: "An error occurred while checking the data."});
         }
         
        }
-
-       async function checkYear(req, res) {
-        
-        const year = req.params.year;
-        const conn = await pool;
-        const request = conn.request();
-        request.input("year", year);
-
-        try {
-            const result = await request.query (`
-                SELECT COUNT(*) as count 
-                FROM tbl_kpi_dgll_3_5_2
-                WHERE year=@year`);
-
-        if(result.recordset[0].count > 0) {
-            res.sendStatus(205);
-        } else {
-            res.sendStatus(200);
-        }
-        } catch(error){
-            console.error(error);
-            return res.status(500).json({ message: "An error occurred while checking the data."});
-        }
-    }
 
     
 async function submitFinancialPerformance(req,res) {
@@ -1138,5 +1109,5 @@ export default {addLightsHouseMaster,getLightHouseMaster,getUpdatelightHouseData
     getUpdateNaisIntegrationdata, updateNaisIntegrationData, deleteNaisIntegration, addTouristDestinations, getTouristDestinations, addTargetDetails, 
     getTargetDetails, getByIdTouristDestinations, UpdateTouristDestinations,getByIdTargetDestinations, updateTargetDestinationData, 
     deleteTouristDestination, deleteTargetDetail,
-    checkFinancialYear, checkYear,submitFinancialPerformance,getFinancialPerfomanceData,getFinancialPerformanceDataByID,deleteFinancialPerformance
+    checkFinancialYear, submitFinancialPerformance,getFinancialPerfomanceData,getFinancialPerformanceDataByID,deleteFinancialPerformance
 };
