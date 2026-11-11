@@ -38,7 +38,7 @@ export default function AttendanceKpiHeader({ totalEmployeesStat, avgWorkingHour
           <div>
             <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">Punctual Arrival Rate</span>
             <span className="text-2xl font-black text-emerald-700 block mt-1">{punctualArrivalRate}</span>
-            <span className="text-[10px] text-emerald-600 font-semibold block mt-0.5">Check-in before 09:30 AM</span>
+            <span className="text-[10px] text-emerald-600 font-semibold block mt-0.5">Check-in by 09:30 AM</span>
           </div>
           <div className="p-3.5 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100">
             <UserCheck className="h-5 w-5" />
