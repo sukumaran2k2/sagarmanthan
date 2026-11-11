@@ -79,7 +79,7 @@ export default function ShipBuildingOrdersInputForm({
           valueOfshipOrder: numericValues[1],
           userID: getCurrentUserId(),
         });
-        if (response.status === 205) {
+        if (response.status === 409) {
           notify(CSL_TOASTS.duplicate('financial year and quarter'));
           setSubmitting(false);
           return;

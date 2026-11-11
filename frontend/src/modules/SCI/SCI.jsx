@@ -45,7 +45,6 @@ import ShipManagementBusinessInputForm from './pages/ShipManagementBusiness/Inpu
 import ShipManagementBusinessReports from './pages/ShipManagementBusiness/Reports';
 import { useSCIPermissions } from './hooks/useSCIPermissions';
 import { useSciStore } from './store/useSciStore';
-import { getCurrentUserId } from '../../utils/authSession';
 import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../utils/notify';
 import { SCI_TOASTS } from './toastMessages';
 import {
@@ -169,7 +168,7 @@ export default function SCIView({ activeTab: menuTab, triggerNotification }) {
     const requestId = ++latestRequestRef.current;
     const isStale = () => requestId !== latestRequestRef.current;
     // The list endpoints take a userID but don't filter by it
-    section.fetchList(1)
+    section.fetchList()
       .then((res) => {
         if (isStale()) return;
         setResult({ key: requestKey, rows: res.data || [] });
@@ -198,7 +197,7 @@ export default function SCIView({ activeTab: menuTab, triggerNotification }) {
   const confirmDelete = useCallback(() => {
     const year = pendingDelete.financial_year;
     setDeleting(true);
-    section.remove(pendingDelete[section.idField], getCurrentUserId())
+    section.remove(pendingDelete[section.idField])
       .then(() => {
         notify(SCI_TOASTS.deleted(section.name, year));
         setReloadKey((k) => k + 1);

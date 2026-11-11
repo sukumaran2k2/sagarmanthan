@@ -64,8 +64,8 @@ export function updateAuditPara(payload) {
   return api.put('/audit-para', payload);
 }
 
-export function deleteAuditPara(auditParaId, userId) {
-  return api.delete(`/audit-para/${auditParaId}/${userId}`);
+export function deleteAuditPara(auditParaId) {
+  return api.delete(`/audit-para/${auditParaId}`);
 }
 
 export function fetchWings() {

@@ -93,8 +93,8 @@ export default function FabricationOfSteelsInputForm({
           fabrigationinTonns: numericValues[1],
           userID: getCurrentUserId(),
         });
-        // 205: this year and month (or this year, for a yearly entry) is already entered
-        if (response.status === 205) {
+        // 409: this year and month (or this year, for a yearly entry) is already entered
+        if (response.status === 409) {
           notify(CSL_TOASTS.duplicate(fabricationmonth ? 'financial year and month' : 'financial year'));
           setSubmitting(false);
           return;

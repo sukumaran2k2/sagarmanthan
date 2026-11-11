@@ -24,7 +24,6 @@ import FinancialPerformanceInputForm from './pages/FinancialPerformance/InputFor
 import FinancialPerformanceReports from './pages/FinancialPerformance/Reports';
 import { useKPIDGLLPermissions } from './hooks/useKPIDGLLPermissions';
 import { useDgllStore } from './store/useDgllStore';
-import { getCurrentUserId } from '../../utils/authSession';
 import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../utils/notify';
 import { DGLL_TOASTS } from './toastMessages';
 import {
@@ -42,17 +41,17 @@ const byYear = (r) => r.financial_year;
 // delete confirmation. The list endpoints take a userID but don't filter by it.
 // Tourist Destinations shows two lists (destinations and their yearly targets) in one section.
 const LISTS = {
-  lightHouseMaster: { name: 'Light House Master', fetchList: (p) => fetchLightHouseMaster(1, p), remove: deleteLightHouseMaster,
+  lightHouseMaster: { name: 'Light House Master', fetchList: fetchLightHouseMaster, remove: deleteLightHouseMaster,
     idField: 'lights_house_id', period: (r) => r.light_house_name },
-  vtmsIntegration: { name: 'VTMS Integration', fetchList: (p) => fetchVtmsIntegration(1, p), remove: deleteVtmsIntegration,
+  vtmsIntegration: { name: 'VTMS Integration', fetchList: fetchVtmsIntegration, remove: deleteVtmsIntegration,
     idField: 'vtms_id', period: byYear },
-  naisUptime: { name: 'NAIS Uptime', fetchList: (p) => fetchNaisUptime(1, p), remove: deleteNaisUptime,
+  naisUptime: { name: 'NAIS Uptime', fetchList: fetchNaisUptime, remove: deleteNaisUptime,
     idField: 'nais_id', period: byYear },
-  naisIntegration: { name: 'NAIS Integration', fetchList: (p) => fetchNaisIntegration(1, p), remove: deleteNaisIntegration,
+  naisIntegration: { name: 'NAIS Integration', fetchList: fetchNaisIntegration, remove: deleteNaisIntegration,
     idField: 'nais_integration_id', period: byYear },
-  touristDestinations: { name: 'Tourist Destination', fetchList: (p) => fetchTouristDestinations(1, p), remove: deleteTouristDestination,
+  touristDestinations: { name: 'Tourist Destination', fetchList: fetchTouristDestinations, remove: deleteTouristDestination,
     idField: 'tourist_destination_id', period: (r) => r.finacial_year },
-  touristTargets: { name: 'Target Details', fetchList: (p) => fetchTargetDetails(1, p), remove: deleteTargetDetail,
+  touristTargets: { name: 'Target Details', fetchList: fetchTargetDetails, remove: deleteTargetDetail,
     idField: 'tourist_destination_target_id', period: (r) => r.year },
   financialPerformance: { name: 'Financial Performance', fetchList: fetchFinancialPerformance, remove: deleteFinancialPerformance,
     idField: 'financial_id', period: (r) => r.financialyear },
@@ -201,7 +200,7 @@ export default function KPIDGLLView({ activeTab: menuTab, triggerNotification })
   const confirmDelete = useCallback(() => {
     const period = list.period(pendingDelete);
     setDeleting(true);
-    list.remove(pendingDelete[list.idField], getCurrentUserId())
+    list.remove(pendingDelete[list.idField])
       .then(() => {
         notify(DGLL_TOASTS.deleted(list.name, period));
         setReloadKey((k) => k + 1);

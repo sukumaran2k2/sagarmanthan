@@ -24,7 +24,6 @@ import ShipsRepairedInputForm from './pages/ShipsRepaired/InputForm';
 import ShipsRepairedReports from './pages/ShipsRepaired/Reports';
 import { useCSLPermissions } from './hooks/useCSLPermissions';
 import { useCslStore } from './store/useCslStore';
-import { getCurrentUserId } from '../../utils/authSession';
 import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../utils/notify';
 import { CSL_TOASTS } from './toastMessages';
 import {
@@ -125,7 +124,7 @@ export default function CSLView({ triggerNotification }) {
     if (!canView || activeTab !== 'list') return;
     const requestId = ++latestRequestRef.current;
     const isStale = () => requestId !== latestRequestRef.current;
-    section.fetchList(1, { page: currentPage, limit: pageSize, search: debouncedSearch, financialYear })
+    section.fetchList({ page: currentPage, limit: pageSize, search: debouncedSearch, financialYear })
       .then((res) => {
         if (isStale()) return;
         setResult({ key: requestKey, rows: res.data?.data || [], pagination: res.data?.pagination || { ...EMPTY_PAGINATION, limit: pageSize } });
@@ -160,7 +159,7 @@ export default function CSLView({ triggerNotification }) {
   const confirmDelete = useCallback(() => {
     const period = section.period(pendingDelete);
     setDeleting(true);
-    section.remove(pendingDelete[section.idField], getCurrentUserId())
+    section.remove(pendingDelete[section.idField])
       .then(() => {
         notify(CSL_TOASTS.deleted(section.name, period));
         setReloadKey((k) => k + 1);

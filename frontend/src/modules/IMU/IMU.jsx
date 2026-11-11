@@ -24,7 +24,6 @@ import ResearchInputForm from './pages/Research/InputForm';
 import ResearchReports from './pages/Research/Reports';
 import { useIMUPermissions } from './hooks/useIMUPermissions';
 import { useImuStore } from './store/useImuStore';
-import { getCurrentUserId } from '../../utils/authSession';
 import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../utils/notify';
 import { IMU_TOASTS } from './toastMessages';
 import {
@@ -166,7 +165,7 @@ export default function IMUView({ triggerNotification }) {
   const confirmDelete = useCallback(() => {
     const period = section.period(pendingDelete);
     setDeleting(true);
-    section.remove(pendingDelete[section.idField], getCurrentUserId())
+    section.remove(pendingDelete[section.idField])
       .then(() => {
         notify(IMU_TOASTS.deleted(section.name, period));
         setReloadKey((k) => k + 1);

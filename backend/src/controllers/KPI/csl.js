@@ -20,7 +20,7 @@ import { checkEdit, refuseEdit, deleteKpiEntry } from "./kpiEditChecks.js";
             `);
 
             if (result.recordset[0].count > 0) {
-                return res.sendStatus(205); // Data already exists
+                return res.status(409).json({ error: "An entry for this period already exists." });
             }
 
             // If no duplicate, proceed with insert
@@ -182,7 +182,7 @@ import { checkEdit, refuseEdit, deleteKpiEntry } from "./kpiEditChecks.js";
             `);
     
             if (checkDuplicate.recordset[0].count > 0) {
-                return res.sendStatus(205); // Data already exists
+                return res.status(409).json({ error: "An entry for this period already exists." });
             }
     
             const insertResult = await request.query(`
@@ -343,7 +343,7 @@ import { checkEdit, refuseEdit, deleteKpiEntry } from "./kpiEditChecks.js";
             `);
     
             if (checkDuplicate.recordset[0].count > 0) {
-                return res.sendStatus(205); // Data already exists
+                return res.status(409).json({ error: "An entry for this period already exists." });
             }
     
             const insertResult = await request.query(`
@@ -504,7 +504,7 @@ import { checkEdit, refuseEdit, deleteKpiEntry } from "./kpiEditChecks.js";
                     `);
             
                     if (checkResult.recordset[0].count > 0) {
-                        return res.status(205).json({ error: "Data already exists for the selected financial year!" });
+                        return res.status(409).json({ error: "An entry for this period already exists." });
                     }
             
                     // If no duplicate, proceed with insert
@@ -669,7 +669,7 @@ import { checkEdit, refuseEdit, deleteKpiEntry } from "./kpiEditChecks.js";
                     ? `SELECT COUNT(*) AS count FROM tbl_csl_fabrication_of_steels WHERE financial_year = @financialYear AND month = @fabricationmonth`
                     : `SELECT COUNT(*) AS count FROM tbl_csl_fabrication_of_steels_update WHERE financial_year = @financialYear`);
                 if (taken.recordset[0].count > 0) {
-                    return res.sendStatus(205); // Data already exists
+                    return res.status(409).json({ error: "An entry for this period already exists." });
                 }
 
                 if (fabricationmonth) {
@@ -840,7 +840,7 @@ import { checkEdit, refuseEdit, deleteKpiEntry } from "./kpiEditChecks.js";
                 `);
         
                 if (checkDuplicate.recordset[0].count > 0) {
-                    return res.sendStatus(205); // Data already exists
+                    return res.status(409).json({ error: "An entry for this period already exists." });
                 }
         
                 // Insert into tbl_csl_ship_building_orders
