@@ -146,11 +146,9 @@ async function getUpdatelightHouseData(req, res)
     }
 };
 
-
 async function updateLightsHousedata(req,res){
     
     const data = req.body;
-    // console.log("data",data);
     
     const alolName = req.body.alolName;
     const lightHouseName = req.body.lightHouseName;
@@ -162,7 +160,6 @@ async function updateLightsHousedata(req,res){
     const updateLongitude = req.body.updateLongitude;
     const lightHouseIdIdOrg = req.body.lightHouseIdIdOrg;
     const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-
 
     const conn = await pool;
     const request = conn.request();
@@ -320,7 +317,6 @@ async function updateVtmsData(req,res){
 
     const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
-
     const conn = await pool;
     const request = conn.request();
     request.input('updatevtmsfinancialYear', updatevtmsfinancialYear);
@@ -346,7 +342,6 @@ async function updateVtmsData(req,res){
 async function deleteVtmsIntegration(req, res) {
     return deleteKpiEntry(req, res, { table: "tbl_vtms_integration", idColumn: "vtms_id", idParam: "vtms_id", logFolder: "VTMS_Integration" });
 }
-
 
 async function addNaisUptime(req, res) {
     const { financialYear, naisAvailability } = req.body;
@@ -685,8 +680,6 @@ async function addNaisUptime(req, res) {
             }
         }
 
-
-
        async function getTouristDestinations(req, res) {
     try {
         const conn = await pool;
@@ -741,8 +734,6 @@ async function addNaisUptime(req, res) {
     }
 }
 
-
-
        async function addTargetDetails(req, res) {
         
         const data = req.body;
@@ -780,9 +771,6 @@ async function addNaisUptime(req, res) {
         }
 
        }
-
-
-
 
        async function getTargetDetails(req, res) {
     try {
@@ -838,12 +826,6 @@ async function addNaisUptime(req, res) {
     }
 }
 
-
-
-
-
-
-
        async function getByIdTouristDestinations(req, res) {
         
         const TouristDestinationsId = req.params.TouristDestinationsId
@@ -860,7 +842,6 @@ async function addNaisUptime(req, res) {
                     WHERE tourist_destination_id  = @TouristDestinationsId ORDER BY finacial_year ASC
             `);
                 
-            // console.log("from update",result.recordset);
             res.json(result.recordset);
         } catch (err) {
             console.error(err);
@@ -868,16 +849,10 @@ async function addNaisUptime(req, res) {
         }
        }
 
-
-
-
-
-
        async function UpdateTouristDestinations(req, res) {
 
         const { updateFinancialYears, updateLighthouseDeveloped, updateAnnualTourist, TouristDestinationsRowId } = req.body;
         const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
-
 
         const conn = await pool;
         const request = conn.request();
@@ -899,10 +874,6 @@ async function addNaisUptime(req, res) {
                 return res.status(500);
         }
        }
-
-
-
-
 
        async function getByIdTargetDestinations(req, res) {
         
@@ -926,10 +897,6 @@ async function addNaisUptime(req, res) {
             return res.status(500);
         }
        }
-
-
-
-
 
        async function updateTargetDestinationData(req, res) {
         
@@ -967,11 +934,8 @@ async function addNaisUptime(req, res) {
     return deleteKpiEntry(req, res, { table: "tbl_kpi_dgll_3_5_2", idColumn: "tourist_destination_target_id", idParam: "tourist_destination_target_id", logFolder: "Target_Details" });
 }
 
-
-
        async function checkFinancialYear(req, res) {
         const financialYears = req.params.financialYears;
-        // console.log("financial year sun ", req);
         const conn = await pool;
         const request = conn.request();
         request.input("financialYears", financialYears);
@@ -995,9 +959,6 @@ async function addNaisUptime(req, res) {
         }
         
        }
-
-
-
 
        async function checkYear(req, res) {
         

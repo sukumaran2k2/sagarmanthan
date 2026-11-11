@@ -62,7 +62,7 @@ async function billWingWiseData (req, res) {
         ORDER BY wing_id;`);
         sendGrid(res, result.recordset, ['wing_id', 'Wing', TOTAL_COLUMN, ...STAGE_COLUMNS]);
     } catch (err) {
-        console.log(err);
+        console.error(err);
         return res.sendStatus(500);
     }
 }
@@ -86,7 +86,7 @@ async function billDivisionWiseData (req, res) {
         ORDER BY division_id;`);
         sendGrid(res, result.recordset, ['division_id', 'Division', TOTAL_COLUMN, ...STAGE_COLUMNS]);
     } catch (err) {
-        console.log(err);
+        console.error(err);
         return res.sendStatus(500);
     }
 }
@@ -111,7 +111,7 @@ async function billAbstractData (req, res) {
         ORDER BY mmt_wings.wing_name, mmt_division.division_name;`);
         sendGrid(res, result.recordset, ['wing_id', 'Wing', 'division_id', 'Division', TOTAL_COLUMN, ...STAGE_COLUMNS]);
     } catch (err) {
-        console.log(err);
+        console.error(err);
         return res.sendStatus(500);
     }
 }
@@ -132,7 +132,7 @@ async function getDetailBillWingWise (req, res) {
             ORDER BY subject;`);
         sendGrid(res, result.recordset, DETAIL_FIELDS);
     } catch (err) {
-        console.log(err);
+        console.error(err);
         return res.sendStatus(500);
     }
 }
@@ -153,7 +153,7 @@ async function getDetailBillDivisionWise (req, res) {
             ORDER BY subject;`);
         sendGrid(res, result.recordset, DETAIL_FIELDS);
     } catch (err) {
-        console.log(err);
+        console.error(err);
         return res.sendStatus(500);
     }
 }

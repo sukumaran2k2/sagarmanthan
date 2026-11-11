@@ -208,7 +208,6 @@ async function createimunewCourseUpgradation(req, res) {
     }
 }
 
-
 async function getimuNewCourseUpgradation(req,res) {
     try {
         const conn = await pool;
@@ -422,26 +421,6 @@ async function getimuFacilities(req,res) {
         return res.status(500).json({ message: 'Internal Server Error'});
     }
 }
-
-// async function getimuFacilitiesByID(req,res) {
-//     try {
-//         const facilitiesId = req.params.facilitiesId;
-//         const conn = await pool; 
-//         const request = conn.request();
-
-//         request.input("facilitiesId",facilitiesId);
-
-//         const getQuery = `SELECT facilities_id,financial_year,no_of_classrooms,no_of_lab_simulator,no_of_database FROM tbl_imu_k_5_3 WHERE facilities_id = @facilitiesId`;
-
-//         const result = await request.query(getQuery);
-
-//         res.json(result.recordset);
-
-//     } catch (error) {
-//         console.log("error",error)
-//         return res.status(500).json({ message: 'Internal Server Error'});
-//     }
-// }
 
     async function getimuFacilitiesByID(req,res) 
     {
@@ -749,39 +728,6 @@ async function deleteResearch(req, res) {
     return deleteKpiEntry(req, res, { table: "tbl_imu_k_5_5", idColumn: "research_id", idParam: "research_id", logFolder: "IMU_Research" });
 }
 
-// async function createimuFinalYearpassPercentage(req,res) {
-//     const {programme,Batch,appeared,passed,passPercentage,userID} = req.body;
-
-//     if (!programme || !Batch || !appeared ||!passed || !passPercentage || !userID) {
-//         return res.status(400).json({ message: "All fields are required" });
-//     }
-
-//         const conn = await pool;
-
-//         try {
-//             const request = conn.request();
-
-//             // If no duplicate, proceed with insert
-//             request.input("programme", programme);
-//             request.input("Batch", Batch);
-//             request.input("appeared", appeared);
-//             request.input("passed", passed);
-//              request.input("passPercentage", passPercentage);
-//             request.input("userID", userID);
-
-//             const insertResult = await request.query(`
-//                 INSERT INTO tbl_imu_k_5_1_1 (programme, batch, appeared, passed,pass_percentage, created_by)
-//                 OUTPUT INSERTED.id
-//                 VALUES (@programme, @Batch, @appeared, @passed,@passPercentage,@userID)
-//             `);
-
-//             res.status(201).json({ insertedYPId: insertResult.recordset[0].id });
-
-//         } catch (error) {
-//             console.error(error);
-//             res.status(500).json({ error: "Internal server error" });
-//         }
-//     }
    async function createimuFinalYearpassPercentage(req, res) {
     const { programme, Batch, appeared, passed, passPercentage } = req.body;
     const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)

@@ -93,7 +93,7 @@ async function getEmpAttendance(req, res) {
     ;`);
         res.json(result.recordset);
     } catch (err) {
-        console.log(err);
+        console.error(err);
         return res.sendStatus(500);
     }
 }
