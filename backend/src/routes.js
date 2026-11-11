@@ -111,7 +111,6 @@ import completionTab from "./controllers/ProjectManagement/addCompletionDateActi
 // REPORTS
 import parlimentaryReportTab from "./controllers/Reports/parliamentaryReports.js";
 import billReportTab from "./controllers/Reports/billPreConstitutionReports.js";
-import attendanceReportTab from "./controllers/Reports/attendanceReports.js";
 import empAttendanceReportTab from "./controllers/Reports/empAttendanceReports.js";
 import ypReportTab from "./controllers/Reports/youngProfessionalReports.js";
 import cabinetMopswReportTab from "./controllers/Reports/cabinetMopswReports.js";
@@ -394,11 +393,6 @@ router.get("/employee-attendance/download/:id", auth, ministryOnly, attRead, emp
 router.delete("/employee-attendance/:id", auth, ministryOnly, attDelete, empAttendanceTab.deleteEmpAttendanceFile);
 
 //attendance
-router.get("/attendance", auth, attRead, attendanceTab.getAttendance);
-router.post("/attendance", auth, attCreate, attendanceTab.uploadSingleFile, attendanceTab.createAttendance);
-router.get("/attendance/download/:id", auth, attRead, attendanceTab.downloadAttendance);
-router.delete("/attendance/:id", auth, attDelete, attendanceTab.deleteAttendance);
-router.post("/attendance/storecsv/:id", auth, attCreate, attendanceTab.storeCsvData);
 router.get("/attendance/downloadSampleDocument", auth, attRead, attendanceTab.downloadSampleDocument);
 
 //view Data - Attendance
@@ -1438,10 +1432,9 @@ router.get("/getbill-wingwise/:wingID/:billStage", auth, billsRead, billReportTa
 router.get("/getbill-divisionwise/:divisionID/:billStage", auth, billsRead, billReportTab.getDetailBillDivisionWise);
 
 //Attendance Report
-router.get("/attendance-weekone-report/:attendanceMonth/:attendanceYear", auth, attRead, attendanceReportTab.attendanceWeekOneReport);
-router.get("/employee-attendance-weekone-report/:attendanceMonth/:attendanceYear/:week", auth, attRead, empAttendanceReportTab.empAttendanceWeekOneReport);
-router.get("/employee-attendance-weekone-detail/:Year/:Month/:Wing/:Division/:type/:week", auth, attRead, empAttendanceReportTab.getDetailAttendanceWeekOneReport);
-router.get("/employee-attendance-check", auth, attRead, empAttendanceReportTab.getEmpAttendanceCheck);
+router.get("/employee-attendance-weekone-report/:attendanceMonth/:attendanceYear/:week", auth, ministryOnly, attRead, empAttendanceReportTab.empAttendanceWeekOneReport);
+router.get("/employee-attendance-weekone-detail/:Year/:Month/:Wing/:Division/:type/:week", auth, ministryOnly, attRead, empAttendanceReportTab.getDetailAttendanceWeekOneReport);
+router.get("/employee-attendance-check", auth, ministryOnly, attRead, empAttendanceReportTab.getEmpAttendanceCheck);
 
 //Court Case Report
 // router.get("/all-court-case-report", arbitCourtCaseTab.getCourtCaseReport),

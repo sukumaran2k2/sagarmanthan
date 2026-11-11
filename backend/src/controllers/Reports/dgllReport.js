@@ -337,7 +337,6 @@ async function getLightHouseMasterReport(req, res) {
   
 async function getLighthouseTouristDestinationReport(req, res) {
 
-    console.log("welcome to report");
     try {
       const conn = await pool;
       const request = conn.request();
@@ -384,7 +383,6 @@ EXEC sp_executesql @sql;
   // Execute the dynamic query
   let result = await request.query(sqlQuery);
   const rowData = result.recordset;
-  console.log("sunrowdata",result);
 
   if (!rowData || rowData.length == 0) {
     return res.json({ columnDefs: [], rowData: [] }); // nothing entered yet: an empty report, not an error (QC KPI-15)
