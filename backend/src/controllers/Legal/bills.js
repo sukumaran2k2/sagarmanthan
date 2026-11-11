@@ -337,7 +337,7 @@ async function getBillDashboard(req, res) {
             GROUP BY stage.bill_stage_id, stage.bill_stage_name
             ORDER BY stage.bill_stage_id`);
 
-        // Every active wing is listed, those with no active bills with 0
+        // Only wings with active bills are listed, as on the other governance dashboards (QC D-06)
         const wingWise = await query(`
             SELECT wings.wing_id, wings.wing_name,
                 COUNT(tbl_bill.bill_id) AS total_active,
@@ -349,6 +349,7 @@ async function getBillDashboard(req, res) {
             LEFT JOIN tbl_bill ON ${BILL_WING} = wings.wing_id AND NOT ${IS_DISPOSED} /*SCOPE*/
             WHERE wings.status = 1
             GROUP BY wings.wing_id, wings.wing_name
+            HAVING COUNT(tbl_bill.bill_id) > 0
             ORDER BY total_active DESC, wings.wing_name`, { byWing: false });
 
         const longPending = await query(`
