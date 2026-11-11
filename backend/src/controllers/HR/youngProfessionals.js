@@ -4,7 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
 import { applyDataScope } from "../../middleware/dataScope.js";
-import { getClam } from '../../utils/clamav.js';
+import { scanFile } from '../../utils/clamav.js';
 import { Readable } from 'stream';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -506,31 +506,21 @@ async function uploadYPDocument(req, res) {
             return res.status(400).json({ error: 'Invalid young professional id' });
         }
 
-        // ---- 1. Validate content and scan for viruses BEFORE touching the DB ----
         try {
             if (!(await isRealPdf(quarantinePath))) {
                 await removeFile(quarantinePath);
                 return res.status(400).json({ error: 'Invalid file. Only genuine PDF files are allowed.' });
             }
 
-            const clam = await getClam();
-            // scanStream sends the bytes over TCP, so it works with ClamAV in Docker
-            const { isInfected, viruses } = await clam.scanStream(fs.createReadStream(quarantinePath));
-
-            if (isInfected === true) {
+            const scan = await scanFile(quarantinePath);
+            if (scan.status === 'infected') {
                 await removeFile(quarantinePath);
-                console.warn('Infected upload rejected:', req.file.originalname, viruses);
-                return res.status(422).json({
-                    error: 'The uploaded file was rejected because a virus was detected.'
-                });
+                console.warn('Infected upload rejected:', req.file.originalname, scan.threat);
+                return res.status(422).json({ error: 'File rejected: a virus was detected.' });
             }
-
-            // isInfected can be null when the scan could not complete -> fail closed
-            if (isInfected !== false) {
-                await removeFile(quarantinePath);
-                return res.status(503).json({
-                    error: 'File scanning could not be completed. Please try again later.'
-                });
+            if (scan.status !== 'clean') {
+                await removeFile(quarantinePath); // fail closed
+                return res.status(503).json({ error: 'File scanning is unavailable. Please try again later.' });
             }
         } catch (scanErr) {
             console.error('ClamAV scan error:', scanErr);
