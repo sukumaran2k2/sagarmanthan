@@ -28,11 +28,11 @@ async function empAttendanceWeekOneReport(req, res) {
           SUM(CASE WHEN CAST([Out_Time_Avg] AS TIME) < '17:30:00' THEN 1 ELSE 0 END) AS [Number Of Employees OutTime before 5:30PM],
           mmt_organization_info.wing_id AS [WingID]
           --mmt_organization_info.division_id AS [DivisionID]
-          FROM [sagarmanthan_revamp].[dbo].[tbl_employee_attendance]
+          FROM [tbl_employee_attendance]
         INNER JOIN 
-          sagarmanthan_revamp.dbo.mmt_employee_info ON tbl_employee_attendance.Emp_Id = mmt_employee_info.Emp_Id
+          mmt_employee_info ON tbl_employee_attendance.Emp_Id = mmt_employee_info.Emp_Id
         INNER JOIN 
-          sagarmanthan_revamp.dbo.mmt_organization_info ON mmt_employee_info.organization_id = mmt_organization_info.organization_id
+          mmt_organization_info ON mmt_employee_info.organization_id = mmt_organization_info.organization_id
         WHERE
           tbl_employee_attendance.Year = @year AND tbl_employee_attendance.Month = @month AND tbl_employee_attendance.week = @week
         GROUP BY [wing_name], 
@@ -42,8 +42,9 @@ async function empAttendanceWeekOneReport(req, res) {
         
       const rowData = result.recordset;  
 
+      // No sheet for that week: an empty report, not an error (QC AT-10)
       if (rowData.length === 0) {
-          return res.status(404).json({ error: 'No data available for this selection' });
+          return res.json({ columnDefs: [], rowData: [] });
       }
  
       const columnDefs = Object.keys(rowData[0]).map(key => ({
@@ -88,11 +89,11 @@ async function getDetailAttendanceWeekOneReport(req, res) {
                   tbl_employee_attendance.Year,
                   tbl_employee_attendance.week AS Week
                 FROM 
-                  sagarmanthan_revamp.dbo.tbl_employee_attendance
+                  tbl_employee_attendance
                 INNER JOIN 
-                  sagarmanthan_revamp.dbo.mmt_employee_info ON tbl_employee_attendance.Emp_Id = mmt_employee_info.Emp_Id
+                  mmt_employee_info ON tbl_employee_attendance.Emp_Id = mmt_employee_info.Emp_Id
                 INNER JOIN 
-                  sagarmanthan_revamp.dbo.mmt_organization_info ON mmt_employee_info.organization_id = mmt_organization_info.organization_id
+                  mmt_organization_info ON mmt_employee_info.organization_id = mmt_organization_info.organization_id
                 WHERE 
                   mmt_organization_info.wing_id = @WingName
                   --AND mmt_organization_info.division_id = @DivisionName
@@ -120,11 +121,11 @@ async function getDetailAttendanceWeekOneReport(req, res) {
                 tbl_employee_attendance.Year,
                 tbl_employee_attendance.week AS Week
               FROM 
-                sagarmanthan_revamp.dbo.tbl_employee_attendance
+                tbl_employee_attendance
               INNER JOIN 
-                sagarmanthan_revamp.dbo.mmt_employee_info ON tbl_employee_attendance.Emp_Id = mmt_employee_info.Emp_Id
+                mmt_employee_info ON tbl_employee_attendance.Emp_Id = mmt_employee_info.Emp_Id
               INNER JOIN 
-                sagarmanthan_revamp.dbo.mmt_organization_info ON mmt_employee_info.organization_id = mmt_organization_info.organization_id
+                mmt_organization_info ON mmt_employee_info.organization_id = mmt_organization_info.organization_id
               WHERE 
                 mmt_organization_info.wing_id = @WingName
                 --AND mmt_organization_info.division_id = @DivisionName
@@ -151,11 +152,11 @@ async function getDetailAttendanceWeekOneReport(req, res) {
                   tbl_employee_attendance.Year,
                   tbl_employee_attendance.week AS Week
                 FROM 
-                  sagarmanthan_revamp.dbo.tbl_employee_attendance
+                  tbl_employee_attendance
                 INNER JOIN 
-                  sagarmanthan_revamp.dbo.mmt_employee_info ON tbl_employee_attendance.Emp_Id = mmt_employee_info.Emp_Id
+                  mmt_employee_info ON tbl_employee_attendance.Emp_Id = mmt_employee_info.Emp_Id
                 INNER JOIN 
-                  sagarmanthan_revamp.dbo.mmt_organization_info ON mmt_employee_info.organization_id = mmt_organization_info.organization_id
+                  mmt_organization_info ON mmt_employee_info.organization_id = mmt_organization_info.organization_id
                 WHERE 
                   mmt_organization_info.wing_id = @WingName
                   --AND mmt_organization_info.division_id = @DivisionName
@@ -182,11 +183,11 @@ async function getDetailAttendanceWeekOneReport(req, res) {
                   tbl_employee_attendance.Year,
                   tbl_employee_attendance.week AS Week
                 FROM 
-                  sagarmanthan_revamp.dbo.tbl_employee_attendance
+                  tbl_employee_attendance
                 INNER JOIN 
-                  sagarmanthan_revamp.dbo.mmt_employee_info ON tbl_employee_attendance.Emp_Id = mmt_employee_info.Emp_Id
+                  mmt_employee_info ON tbl_employee_attendance.Emp_Id = mmt_employee_info.Emp_Id
                 INNER JOIN 
-                  sagarmanthan_revamp.dbo.mmt_organization_info ON mmt_employee_info.organization_id = mmt_organization_info.organization_id
+                  mmt_organization_info ON mmt_employee_info.organization_id = mmt_organization_info.organization_id
                 WHERE 
                   mmt_organization_info.wing_id = @WingName
                   --AND mmt_organization_info.division_id = @DivisionName
@@ -210,11 +211,11 @@ async function getDetailAttendanceWeekOneReport(req, res) {
                   tbl_employee_attendance.Year,
                   tbl_employee_attendance.week AS Week
                 FROM 
-                  sagarmanthan_revamp.dbo.tbl_employee_attendance
+                  tbl_employee_attendance
                 INNER JOIN 
-                  sagarmanthan_revamp.dbo.mmt_employee_info ON tbl_employee_attendance.Emp_Id = mmt_employee_info.Emp_Id
+                  mmt_employee_info ON tbl_employee_attendance.Emp_Id = mmt_employee_info.Emp_Id
                 INNER JOIN 
-                  sagarmanthan_revamp.dbo.mmt_organization_info ON mmt_employee_info.organization_id = mmt_organization_info.organization_id
+                  mmt_organization_info ON mmt_employee_info.organization_id = mmt_organization_info.organization_id
                 WHERE 
                   mmt_organization_info.wing_id = @WingName
                   --AND mmt_organization_info.division_id = @DivisionName
@@ -237,11 +238,11 @@ async function getDetailAttendanceWeekOneReport(req, res) {
                   tbl_employee_attendance.Year,
                   tbl_employee_attendance.week AS Week
                 FROM 
-                  sagarmanthan_revamp.dbo.tbl_employee_attendance
+                  tbl_employee_attendance
                 INNER JOIN 
-                  sagarmanthan_revamp.dbo.mmt_employee_info ON tbl_employee_attendance.Emp_Id = mmt_employee_info.Emp_Id
+                  mmt_employee_info ON tbl_employee_attendance.Emp_Id = mmt_employee_info.Emp_Id
                 INNER JOIN 
-                  sagarmanthan_revamp.dbo.mmt_organization_info ON mmt_employee_info.organization_id = mmt_organization_info.organization_id
+                  mmt_organization_info ON mmt_employee_info.organization_id = mmt_organization_info.organization_id
                 WHERE 
                   mmt_organization_info.wing_id = @WingName
                   --AND mmt_organization_info.division_id = @DivisionName
@@ -273,7 +274,7 @@ async function getDetailAttendanceWeekOneReport(req, res) {
     const rowData = result.recordset;
 
     if (rowData.length === 0) {
-        return res.status(404).json({ error: 'No data available for this.' });
+        return res.json({ columnDefs: [], rowData: [] });
     }
 
     const columnDefs = Object.keys(rowData[0]).map(key => ({
@@ -302,7 +303,7 @@ async function getEmpAttendanceCheck(req,res){
         `);
         res.json(result.recordset);
     } catch (err) {
-        console.log(err);
+        console.error(err);
         return res.sendStatus(500);
     }
 }

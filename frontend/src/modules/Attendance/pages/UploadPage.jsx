@@ -112,7 +112,8 @@ export default function UploadPage({ notify, onUploaded }) {
         return;
       }
       // Unknown Emp Ids: ask for their details (filled in from the sheet), create them, upload again
-      const missingIds = err.response?.status === 402 ? (err.response.data?.missingEmpIds || [err.response.data?.EmpId].filter(Boolean)) : [];
+      // 422: the sheet names employees the portal doesn't know yet (was 402 - QC AT-09)
+      const missingIds = err.response?.status === 422 ? (err.response.data?.missingEmpIds || [err.response.data?.EmpId].filter(Boolean)) : [];
       if (missingIds.length) {
         const pick = (row, keys) => keys.map((k) => row?.[k]).find((v) => v !== undefined && v !== null && String(v).trim() !== '');
         const employees = missingIds.map((id) => {

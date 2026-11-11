@@ -53,11 +53,17 @@ export default {
   applyDataScope,
 };
 
+// The Ministry of Ports, Shipping and Waterways in mmt_organisation (2.0 numbering)
+export const MOPSW_ORGANISATION_ID = 14;
+
 // Ministry-internal modules (Audit Paras, E-Office, Attendance) hold MoPSW data with no
-// organisation column, so only Ministry and master scope may use them, whatever rights are
-// ticked for an organisation login (QC AP-01).
+// organisation column, so only Ministry / master scope and MoPSW's own staff may use them -
+// not another organisation's login, whatever rights are ticked for it (QC AP-01). MoPSW staff
+// with an organisation-level role (e.g. Organisation-Senior Officers) are let in (QC G-04).
 export function ministryOnly(req, res, next) {
-  const { isWide } = getDataScope(req.user);
-  if (!isWide) return res.status(403).json({ message: 'This module is for Ministry users only.' });
+  const { isWide, organisationId } = getDataScope(req.user);
+  if (!isWide && organisationId !== MOPSW_ORGANISATION_ID) {
+    return res.status(403).json({ message: 'This module is for Ministry users only.' });
+  }
   return next();
 }
