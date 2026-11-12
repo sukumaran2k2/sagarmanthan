@@ -6,6 +6,7 @@ import sql from 'mssql';
 import { promisify } from 'util';
 import { fileURLToPath } from 'url';
 import { scanFile } from '../../utils/clamScan.js';
+import { isWideRole } from "../../middleware/dataScope.js";
 
 const uploadDestination = './fileuploads/One_vision_one_doc';
 
@@ -111,14 +112,14 @@ async function getAllResultOVDData(req, res) {
 
         let whereCatgeoryCondition;
 
-         if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id === 8) {
+         if (await isWideRole(role_id)) {
             whereCatgeoryCondition = whereClause.length > 0 ? 'WHERE tbl_one_vision_doc.delete_status = 0 AND ' + whereClause.join(' AND ') : 'WHERE tbl_one_vision_doc.delete_status = 0';
         } else {
             whereCatgeoryCondition = whereClause.length > 0 ? 'WHERE tbl_one_vision_doc.goal_b1 IS NOT NULL AND tbl_one_vision_doc.imp_agency = @organisation_id AND  tbl_one_vision_doc.delete_status = 0 AND ' + whereClause.join(' AND ') : 'WHERE tbl_one_vision_doc.goal_b1 IS NOT NULL AND tbl_one_vision_doc.imp_agency = @organisation_id AND tbl_one_vision_doc.delete_status = 0';
         }
 
         let result;
-        if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id === 8) {
+        if (await isWideRole(role_id)) {
             result = await request.query(`
             with cte as (
             SELECT 
@@ -293,7 +294,7 @@ async function getAllResultOVDData(req, res) {
         }
 
         let rowData;
-        if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id === 8) {
+        if (await isWideRole(role_id)) {
             rowData = rawData.map(item => {
                 return {
                     orgHierarchy: [
@@ -1520,7 +1521,7 @@ async function getOvdCount(req,res){
 
         let whereCatgeoryCondition;
 
-         if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id === 8) {
+         if (await isWideRole(role_id)) {
             whereCatgeoryCondition = whereClause.length > 0 ? 'WHERE d.delete_status = 0 AND ' + whereClause.join(' AND ') : 'WHERE d.delete_status = 0 ';
         } else {
             whereCatgeoryCondition = whereClause.length > 0 ? 'WHERE (d.goal_b1 IS NOT NULL OR d.intervention_b2 IS NOT NULL) AND d.imp_agency = @organisation_id AND d.delete_status = 0 AND ' + whereClause.join(' AND ') : 'WHERE (d.goal_b1 IS NOT NULL OR d.intervention_b2 IS NOT NULL) AND d.imp_agency = @organisation_id AND d.delete_status = 0 ';
@@ -1528,7 +1529,7 @@ async function getOvdCount(req,res){
 
         let getQuery;
 
-        if(role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id === 8){
+        if(await isWideRole(role_id)){
             getQuery = `SELECT 
                 COUNT(DISTINCT a1.a1_code) AS goals,
                 COUNT(DISTINCT a2.a2_code) AS intervention,

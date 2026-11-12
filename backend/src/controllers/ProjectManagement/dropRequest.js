@@ -3,6 +3,7 @@ import { pool } from "../../db.js";
 import { supportMailer } from "../../utils/mailer.js";
 import moment from 'moment';
 import { sendEmail } from "../sendNotification.js";
+import { isWideRole } from "../../middleware/dataScope.js";
 
 
 // --------------------------------------------- Drop Project ---------------------------------------------
@@ -109,7 +110,7 @@ async function viewDropProjectList(req, res) {
         const userResult = await request.query(` SELECT role_id FROM tbl_user WHERE user_id = @userID `);
         const { role_id } = userResult.recordset[0];
 
-        if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8) 
+        if (await isWideRole(role_id)) 
         {
             const result = await conn.query(`SELECT tbl_project.project_id,
                 ISNULL(tbl_sub_project.sub_organisation_id, tbl_project.organisation_id) AS organisation_id, organisation_name,

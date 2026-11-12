@@ -1,5 +1,6 @@
 import { pool } from "../../db.js";
 import sql from 'mssql';
+import { isWideRole } from "../../middleware/dataScope.js";
 
 async function createHrReportInput1_5(req, res) {
     const {
@@ -2865,7 +2866,7 @@ async function getHrreportInputformList(req, res) {
         const { role_id,organisation_id  } = userResult.recordset[0];
         
         let result;
-        if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8) {
+        if (await isWideRole(role_id)) {
             result = await conn.query(`
         SELECT DISTINCT 
             org.organisation_id,

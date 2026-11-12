@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
 import { fileURLToPath } from 'url';
+import { isWideRole } from "../../middleware/dataScope.js";
 
 
 async function getLastLitigationCaseNumber(req,res){
@@ -2258,7 +2259,7 @@ async function getAllLitigationData(req,res) {
         const userResult = await conn.query(` SELECT role_id,organisation_id FROM tbl_user WHERE user_id = ${userID} `);
         const { role_id,organisation_id  } = userResult.recordset[0];
         let result;
-        if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8) {
+        if (await isWideRole(role_id)) {
             result = await conn.query(`SELECT
             ROW_NUMBER() OVER (ORDER BY org.organisation_id) AS [S No],
             org.organisation_id AS [organisation_id],

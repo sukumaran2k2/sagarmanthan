@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { getDataScope } from "../../middleware/dataScope.js";
+import { isWideRole } from "../../middleware/dataScope.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -815,7 +816,7 @@ async function getProjectListLegacy(req, res) {
         const userResult = await conn.query(` SELECT role_id FROM tbl_user WHERE user_id = ${userID} `);
         const { role_id } = userResult.recordset[0];
 
-        if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8) {
+        if (await isWideRole(role_id)) {
             const result = await conn.query(`SELECT 
             tbl_project.project_id,
             tbl_project.sagarmala_project_id,
@@ -1277,7 +1278,7 @@ async function getProjectAllData(req, res) {
 
         let organisationId = null;
 
-        if (!(role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8)) {
+        if (!(await isWideRole(role_id))) {
             const orgRequest = conn.request();
             orgRequest.input("userID", userID);
             const orgResult = await orgRequest.query(
@@ -1384,7 +1385,7 @@ async function getExpLogsData(req, res) {
 
         let organisationId = null;
 
-        if (!(role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8)) {
+        if (!(await isWideRole(role_id))) {
             const dataScope = getDataScope(req.user || {});
             const jwtOrgId = Number(dataScope.organisationId);
             const effectiveOrgId = Number.isFinite(jwtOrgId) && jwtOrgId > 0

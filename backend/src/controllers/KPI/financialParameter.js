@@ -1,4 +1,5 @@
 import { pool } from "../../db.js";
+import { isWideRole } from "../../middleware/dataScope.js";
 
 
 const getFinancialYear = (year, month) => {
@@ -107,7 +108,7 @@ async function getFinancialParameter(req, res) {
        
         let query;
 
-        if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8) {
+        if (await isWideRole(role_id)) {
             query = `SELECT * from tbl_financial_parameter ORDER BY year DESC`;
         } else {
             const orgResult = await request.query(`SELECT organisation_id FROM tbl_user WHERE user_id = @userID`);
@@ -156,7 +157,7 @@ async function getFinancialParameter(req, res) {
             request.input('offset', offset);
             request.input('limit', limit);
 
-            if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8) {
+            if (await isWideRole(role_id)) {
                 query = `
                     SELECT 
                         tf.*, 
@@ -199,7 +200,7 @@ async function getFinancialParameter(req, res) {
                 }
             });
         } else {
-            if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8) {
+            if (await isWideRole(role_id)) {
                 query = `
                     SELECT 
                         tf.*, 
@@ -250,7 +251,7 @@ async function getMonthlyFinancialParameter(req, res) {
       
         let query;
 
-        if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8 || organisation_id == 16) {
+        if (await isWideRole(role_id) || organisation_id == 16) {
             query = `
             SELECT
                 organisation_id,
@@ -333,7 +334,7 @@ async function getQuarterlyFinancialParameter(req, res) {
 
         let query;
 
-        if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8 || organisation_id == 16) {
+        if (await isWideRole(role_id) || organisation_id == 16) {
             query = `SELECT
             annually_financial_year, organisation_id,month,
             CASE
@@ -433,7 +434,7 @@ async function getAnnuallyFinancialParameter(req, res) {
 
         let query;
 
-        if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8 || organisation_id == 16) {
+        if (await isWideRole(role_id) || organisation_id == 16) {
             query = `
                 SELECT
                     annually_financial_year, organisation_id,month,
@@ -586,7 +587,7 @@ async function getFilteredFinancialReport(req, res) {
   
       let query1, query2;
   
-      if (role_id == 2 || role_id == 3 || role_id == 4|| role_id == 5 || role_id == 8) {
+      if (await isWideRole(role_id)) {
         console.log('Query worked 1');
         query1 = `
           SELECT
