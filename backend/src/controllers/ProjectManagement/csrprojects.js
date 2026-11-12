@@ -1246,7 +1246,7 @@ async function getCsrDashboard(req, res) {
 
       -- Expenditure booked in the year on the filtered projects (any project year). As in Fund
       -- Details and the fund summary, only years the organisation has a fund entry for count;
-      -- spending in a year with no fund entry is returned apart (Manisha, 12-Nov-2026)
+      -- spending in a year with no fund entry is returned apart (CSR retest, 12-Nov-2026)
       SELECT
         SUM(CASE WHEN funded.organisation_id IS NOT NULL THEN e.csr_expenditure_cost ELSE 0 END) AS expenditure,
         SUM(CASE WHEN funded.organisation_id IS NULL THEN e.csr_expenditure_cost ELSE 0 END) AS unfunded_expenditure
