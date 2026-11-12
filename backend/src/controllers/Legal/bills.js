@@ -33,8 +33,11 @@ const SUBJECT_MAX = 256;       // tbl_bill.subject nvarchar(256)
 const STAGE_REMARK_MAX = 250;  // the *_remarks columns, nvarchar(250)
 const REMARKS_MAX_WORDS = 250;
 
+// tbl_bill keeps only the division; a bill's wing is its division's wing in mmt_division
+export const BILL_WING = '(SELECT mmt_division.wing_id FROM mmt_division WHERE mmt_division.division_id = tbl_bill.division)';
+
 // A bill as the API returns it: tbl_bill's columns under 3.0's field names
-const BILL_COLUMNS = `tbl_bill.bill_id, subject, wing, division, stage_id,
+const BILL_COLUMNS = `tbl_bill.bill_id, subject, ${BILL_WING} AS wing, division, stage_id,
             ${STAGES.map((s) => `${s.column}_date AS ${s.field}, ${s.remark}`).join(',\n            ')},
             remarks, tbl_bill.created_by, tbl_bill.updated_by, tbl_bill.created_date, tbl_bill.updated_date`;
 
@@ -44,21 +47,25 @@ const todayInIndia = () => new Date().toLocaleDateString('en-CA', { timeZone: 'A
 
 // Reads a bill from the request body. Returns { bill } or { error } (a message for a 400).
 // The current stage is the highest stage with a date (0 = no status). The client's
-// selectedBillStage is not trusted.
-async function readBill(body, conn) {
+// selectedBillStage is not trusted. A new bill's wing and division are checked; an update
+// keeps the bill's division (its wing follows), so they are not read.
+async function readBill(body, conn, { isNew }) {
     const subject = blank(body.subject) ? '' : String(body.subject).trim();
     if (!subject) return { error: 'Subject is required.' };
     if (subject.length > SUBJECT_MAX) return { error: `Subject can be at most ${SUBJECT_MAX} characters.` };
 
-    const wing = Number(body.wing);
-    const division = Number(body.division);
-    if (!Number.isInteger(wing) || wing <= 0) return { error: 'Wing is required.' };
-    if (!Number.isInteger(division) || division <= 0) return { error: 'Division is required.' };
-    const check = conn.request();
-    check.input("wing", wing);
-    check.input("division", division);
-    const found = await check.query(`SELECT 1 AS ok FROM mmt_division WHERE division_id = @division AND wing_id = @wing`);
-    if (!found.recordset.length) return { error: 'The division does not belong to the selected wing.' };
+    let division = null;
+    if (isNew) {
+        const wing = Number(body.wing);
+        division = Number(body.division);
+        if (!Number.isInteger(wing) || wing <= 0) return { error: 'Wing is required.' };
+        if (!Number.isInteger(division) || division <= 0) return { error: 'Division is required.' };
+        const check = conn.request();
+        check.input("wing", wing);
+        check.input("division", division);
+        const found = await check.query(`SELECT 1 AS ok FROM mmt_division WHERE division_id = @division AND wing_id = @wing`);
+        if (!found.recordset.length) return { error: 'The division does not belong to the selected wing.' };
+    }
 
     const remarks = blank(body.remarks) ? '' : String(body.remarks).trim();
     if (remarks && remarks.split(/\s+/).length > REMARKS_MAX_WORDS) return { error: `Remarks can be at most ${REMARKS_MAX_WORDS} words.` };
@@ -77,7 +84,9 @@ async function readBill(body, conn) {
         let date = null;
         if (!blank(rawDate)) {
             date = String(rawDate).slice(0, 10);
-            if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(new Date(date).getTime())) return { error: `${label}: the date is not valid.` };
+            // A day that isn't on the calendar (e.g. 30 Feb) rolls over in new Date(), so it must read back the same
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(new Date(date).getTime())
+                || new Date(date).toISOString().slice(0, 10) !== date) return { error: `${label}: the date is not valid.` };
             if (date > today) return { error: `${label}: the date cannot be in the future.` };
             if (lastDate && date < lastDate) return { error: `${label}: the date is before an earlier stage's date. Dates must be in stage order.` };
             lastDate = date;
@@ -88,13 +97,12 @@ async function readBill(body, conn) {
         if (date) stageId = i + 1;
         stages.push({ ...st, date, remark });
     }
-    return { bill: { subject, wing, division, remarks, stageId, stages } };
+    return { bill: { subject, division, remarks, stageId, stages } };
 }
 
 // Binds a bill read by readBill on a request
 function bindBill(request, bill) {
     request.input("subject", bill.subject);
-    request.input("wing", bill.wing);
     request.input("division", bill.division);
     request.input("remarks", bill.remarks);
     request.input("stageId", bill.stageId);
@@ -113,25 +121,25 @@ const toId = (v) => {
 async function createBill(req, res) {
     const conn = await pool;
     try {
-        const { bill, error } = await readBill(req.body, conn);
+        const { bill, error } = await readBill(req.body, conn, { isNew: true });
         if (error) return res.status(400).json({ message: error });
 
         const request = conn.request();
         bindBill(request, bill);
         request.input("userID", req.user.userId); // the signed-in user, not a form value
         const result = await request.query(`INSERT INTO tbl_bill (
-            subject, wing, division,
+            subject, division,
             ${STAGES.map((st) => `${st.column}_date, ${st.remark}`).join(', ')},
             remarks, stage_id, created_by, created_date, updated_by, updated_date
         ) OUTPUT INSERTED.bill_id VALUES (
-            @subject, @wing, @division,
+            @subject, @division,
             ${STAGES.map((st) => `@${st.param}Date, @${st.param}Remark`).join(', ')},
             @remarks, @stageId, @userID, GETDATE(), @userID, GETDATE()
         )`);
         res.status(201).json({ billID: result.recordset[0]?.bill_id });
     }
     catch (err) {
-        console.log(err);
+        console.error(err);
         return res.sendStatus(500);
     }
 }
@@ -155,7 +163,7 @@ export async function billScope(request, userID) {
     if (data_scope_code === 'MINISTRY' || role_id === 8 || wing_id === null || wing_id === undefined) return notDeleted;
     request.input("userWingId", wing_id);
     request.input("requestingUserId", userID);
-    return `${notDeleted} AND (tbl_bill.wing = @userWingId OR tbl_bill.created_by = @requestingUserId)`;
+    return `${notDeleted} AND (${BILL_WING} = @userWingId OR tbl_bill.created_by = @requestingUserId)`;
 }
 
 async function getBill(req, res) {
@@ -168,14 +176,14 @@ async function getBill(req, res) {
             wing_name, division_name, bill_stage_name
             FROM tbl_bill
             INNER JOIN mmt_division ON tbl_bill.division = mmt_division.division_id
-            INNER JOIN mmt_wings ON tbl_bill.wing = mmt_wings.wing_id
+            INNER JOIN mmt_wings ON mmt_division.wing_id = mmt_wings.wing_id
             LEFT JOIN mmt_bill_stage ON mmt_bill_stage.bill_stage_id = tbl_bill.stage_id
             WHERE ${scope}
             ORDER BY tbl_bill.bill_id DESC;`);
         res.json(result.recordset);
     }
     catch (err) {
-        console.log(err);
+        console.error(err);
         return res.sendStatus(500);
     }
 }
@@ -195,7 +203,7 @@ async function getUpdateBill(req, res) {
         res.json(result.recordset);
     }
     catch (err) {
-        console.log(err);
+        console.error(err);
         return res.sendStatus(500);
     }
 }
@@ -211,7 +219,7 @@ async function updateBill(req, res) {
     if (!billID) return res.status(400).json({ message: 'Invalid bill id.' });
     const conn = await pool;
     try {
-        const { bill, error } = await readBill(req.body, conn);
+        const { bill, error } = await readBill(req.body, conn, { isNew: false });
         if (error) return res.status(400).json({ message: error });
 
         const request = conn.request();
@@ -221,8 +229,6 @@ async function updateBill(req, res) {
         const scope = await billScope(request, req.user.userId);
         const result = await request.query(`UPDATE tbl_bill SET
             subject = @subject,
-            wing = @wing,
-            division = @division,
             ${STAGES.map((st) => `${st.column}_date = @${st.param}Date, ${st.remark} = @${st.param}Remark`).join(',\n            ')},
             remarks = @remarks,
             stage_id = ${KEEP_UNDATED_STAGE},
@@ -232,13 +238,14 @@ async function updateBill(req, res) {
         if (!result.rowsAffected[0]) return res.status(404).json({ message: 'Bill not found.' });
         res.sendStatus(200);
     } catch (err) {
-        console.log(err);
+        console.error(err);
         return res.sendStatus(500);
     }
 }
 
 // Soft delete: the bill is kept, marked deleted with who deleted it and when, and no longer
-// shown anywhere (2.0 has no delete; the record stays for audit)
+// shown anywhere. tbl_bill_delete_log (sql/bills/06) also gets a copy of the bill as it was;
+// until that table exists the log is skipped. Both happen together or not at all.
 async function deleteBill(req, res) {
     const billID = toId(req.params.billID);
     if (!billID) return res.status(400).json({ message: 'Invalid bill id.' });
@@ -250,14 +257,25 @@ async function deleteBill(req, res) {
     request.input("userID", userID);
     try {
         const scope = await billScope(request, userID);
-        const result = await request.query(`UPDATE tbl_bill
-            SET is_deleted = 1, deleted_by = @userID, deleted_date = GETDATE()
-            WHERE bill_id = @billID AND ${scope};`);
-        if (!result.rowsAffected[0]) return res.status(404).json({ message: 'Bill not found.' });
+        const result = await request.query(`SET XACT_ABORT ON;
+            BEGIN TRANSACTION;
+            IF OBJECT_ID('dbo.tbl_bill_delete_log', 'U') IS NOT NULL
+                INSERT INTO tbl_bill_delete_log (bill_id, subject, bill_json, deleted_by, deleted_date)
+                SELECT tbl_bill.bill_id, tbl_bill.subject,
+                    (SELECT b.* FROM tbl_bill b WHERE b.bill_id = tbl_bill.bill_id FOR JSON PATH, WITHOUT_ARRAY_WRAPPER, INCLUDE_NULL_VALUES),
+                    @userID, GETDATE()
+                FROM tbl_bill WHERE bill_id = @billID AND ${scope};
+            UPDATE tbl_bill
+                SET is_deleted = 1, deleted_by = @userID, deleted_date = GETDATE()
+                WHERE bill_id = @billID AND ${scope};
+            DECLARE @deleted INT = @@ROWCOUNT;
+            COMMIT TRANSACTION;
+            SELECT @deleted AS deleted;`);
+        if (!result.recordset[0]?.deleted) return res.status(404).json({ message: 'Bill not found.' });
         return res.sendStatus(200);
     }
     catch (err) {
-        console.log(err);
+        console.error(err);
         return res.sendStatus(500);
     }
 }
@@ -290,7 +308,7 @@ async function getBillDashboard(req, res) {
             const conditions = [await billScope(request, req.user.userId)];
             if (byWing && filterWing) {
                 request.input("filterWingId", wingId);
-                conditions.push('tbl_bill.wing = @filterWingId');
+                conditions.push(`${BILL_WING} = @filterWingId`);
             }
             const where = conditions.filter(Boolean).map((c) => `AND ${c}`).join(' ');
             return (await request.query(sql.replace('/*SCOPE*/', where))).recordset;
@@ -319,7 +337,7 @@ async function getBillDashboard(req, res) {
             GROUP BY stage.bill_stage_id, stage.bill_stage_name
             ORDER BY stage.bill_stage_id`);
 
-        // Every active wing is listed, those with no active bills with 0
+        // Only wings with active bills are listed, as on the other governance dashboards (QC D-06)
         const wingWise = await query(`
             SELECT wings.wing_id, wings.wing_name,
                 COUNT(tbl_bill.bill_id) AS total_active,
@@ -328,9 +346,10 @@ async function getBillDashboard(req, res) {
                 SUM(CASE WHEN tbl_bill.bill_id IS NULL OR tbl_bill.stage_id = ${CABINET_STAGE}
                     OR tbl_bill.stage_id IN (${PARLIAMENT_STAGES}) THEN 0 ELSE 1 END) AS in_progress
             FROM mmt_wings AS wings
-            LEFT JOIN tbl_bill ON tbl_bill.wing = wings.wing_id AND NOT ${IS_DISPOSED} /*SCOPE*/
+            LEFT JOIN tbl_bill ON ${BILL_WING} = wings.wing_id AND NOT ${IS_DISPOSED} /*SCOPE*/
             WHERE wings.status = 1
             GROUP BY wings.wing_id, wings.wing_name
+            HAVING COUNT(tbl_bill.bill_id) > 0
             ORDER BY total_active DESC, wings.wing_name`, { byWing: false });
 
         const longPending = await query(`
@@ -338,7 +357,8 @@ async function getBillDashboard(req, res) {
                 stage.bill_stage_name AS current_stage, tbl_bill.updated_date,
                 DATEDIFF(day, ${STAGE_SINCE}, GETDATE()) AS pending_days
             FROM tbl_bill
-            INNER JOIN mmt_wings AS wings ON wings.wing_id = tbl_bill.wing
+            INNER JOIN mmt_division ON mmt_division.division_id = tbl_bill.division
+            INNER JOIN mmt_wings AS wings ON wings.wing_id = mmt_division.wing_id
             LEFT JOIN mmt_bill_stage AS stage ON stage.bill_stage_id = tbl_bill.stage_id
             WHERE NOT ${IS_DISPOSED} /*SCOPE*/
             ORDER BY pending_days DESC`);

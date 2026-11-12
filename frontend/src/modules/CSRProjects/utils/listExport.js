@@ -16,7 +16,7 @@ export function exportCsrList(type, { columns, rows, fileName, title, notify }) 
       .map((line) => line.map(clean).join('\t'))
       .join('\n');
     navigator.clipboard.writeText(tsv).then(
-      () => notify(COMMON_TOASTS.copySuccess(rows.length)),
+      () => notify(COMMON_TOASTS.copySuccess(rows.length, 'matching the filters')),
       () => notify(COMMON_TOASTS.copyFailed()),
     );
     return;

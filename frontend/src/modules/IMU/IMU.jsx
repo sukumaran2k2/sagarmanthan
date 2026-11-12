@@ -3,6 +3,7 @@ import { useLocation, useSearchParams } from 'react-router-dom';
 import { GraduationCap, BookOpen, Building2, Handshake, FlaskConical, Users } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
+import ConfirmModal from '../../components/ConfirmModal';
 import StudentEnrollmentDataList from './components/StudentEnrollmentDataList';
 import FinalYearPassPercentageDataList from './components/FinalYearPassPercentageDataList';
 import NewCourseUpgradationDataList from './components/NewCourseUpgradationDataList';
@@ -23,7 +24,6 @@ import ResearchInputForm from './pages/Research/InputForm';
 import ResearchReports from './pages/Research/Reports';
 import { useIMUPermissions } from './hooks/useIMUPermissions';
 import { useImuStore } from './store/useImuStore';
-import { getCurrentUserId } from '../../utils/authSession';
 import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../utils/notify';
 import { IMU_TOASTS } from './toastMessages';
 import {
@@ -156,10 +156,16 @@ export default function IMUView({ triggerNotification }) {
     go(sectionId, 'add', { section: sectionId, item: row });
   }, [go, sectionId]);
 
-  const handleDelete = useCallback((row) => {
-    const period = section.period(row);
-    if (!window.confirm(`Delete the ${section.name} entry for ${period}? This cannot be undone.`)) return;
-    section.remove(row[section.idField], getCurrentUserId())
+  // The row waiting for the user to confirm its delete
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = useCallback((row) => setPendingDelete(row), []);
+
+  const confirmDelete = useCallback(() => {
+    const period = section.period(pendingDelete);
+    setDeleting(true);
+    section.remove(pendingDelete[section.idField])
       .then(() => {
         notify(IMU_TOASTS.deleted(section.name, period));
         setReloadKey((k) => k + 1);
@@ -167,8 +173,12 @@ export default function IMUView({ triggerNotification }) {
       .catch((err) => {
         console.error(`Error deleting IMU ${section.name} entry:`, err);
         notify(IMU_TOASTS.deleteFailed(getErrorMessage(err)));
+      })
+      .finally(() => {
+        setDeleting(false);
+        setPendingDelete(null);
       });
-  }, [section, notify]);
+  }, [section, pendingDelete, notify]);
 
   // Replace the form entry so browser Back can't reopen the pre-save snapshot
   const handleSuccess = useCallback(() => {
@@ -264,6 +274,15 @@ export default function IMUView({ triggerNotification }) {
           notify={notify}
         />
       )}
+
+      <ConfirmModal
+        isOpen={!!pendingDelete}
+        onClose={() => !deleting && setPendingDelete(null)}
+        onConfirm={confirmDelete}
+        loading={deleting}
+        title={`Delete ${section.name}`}
+        message={pendingDelete ? `The ${section.name} entry for ${section.period(pendingDelete)} will be deleted. This cannot be undone.` : ''}
+      />
     </div>
   );
 }

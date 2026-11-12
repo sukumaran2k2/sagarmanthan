@@ -1,63 +1,12 @@
-import axios from 'axios';
+import { API_BASE, createApiClient } from '../../api';
 
-export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+export { API_BASE };
 
-const api = axios.create({ baseURL: API_BASE });
-
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('accessToken');
-  if (token) {
-    config.headers = config.headers || {};
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-let refreshPromise = null;
-
-async function refreshAccessToken() {
-  const refreshToken = localStorage.getItem('refreshToken');
-  if (!refreshToken) {
-    throw new Error('No refresh token');
-  }
-  const res = await axios.get(`${API_BASE}/refresh-token`, {
-    headers: { Authorization: `Bearer ${refreshToken}` },
-  });
-  const next = res.data?.accessToken;
-  if (!next) throw new Error('Refresh failed');
-  localStorage.setItem('accessToken', next);
-  return next;
-}
-
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const original = error.config;
-    if (error.response?.status !== 401 || !original || original._retry) {
-      return Promise.reject(error);
-    }
-    original._retry = true;
-    try {
-      if (!refreshPromise) {
-        refreshPromise = refreshAccessToken().finally(() => {
-          refreshPromise = null;
-        });
-      }
-      const token = await refreshPromise;
-      original.headers = original.headers || {};
-      original.headers.Authorization = `Bearer ${token}`;
-      return api(original);
-    } catch {
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      return Promise.reject(error);
-    }
-  }
-);
+const api = createApiClient();
 
 // ---- Vessels Built (K-4.1) ----
-export function fetchVesselsBuilt(userId, params = {}) {
-  return api.get(`/vessel-list/${userId}`, { params });
+export function fetchVesselsBuilt(params = {}) {
+  return api.get(`/vessel-list`, { params });
 }
 
 export function fetchVesselsBuiltById(cslVesselId) {
@@ -65,15 +14,15 @@ export function fetchVesselsBuiltById(cslVesselId) {
 }
 
 export function createVesselsBuilt(payload) {
-  return api.post('/vessels-built', payload, { validateStatus: (s) => s === 201 || s === 205 });
+  return api.post('/vessels-built', payload, { validateStatus: (s) => s === 201 || s === 409 });
 }
 
 export function updateVesselsBuilt(payload) {
   return api.put('/csl-vessel-Built-edit', payload);
 }
 
-export function deleteVesselsBuilt(cslVesselId, userId) {
-  return api.delete(`/csl-vessels-built/${cslVesselId}/${userId}`);
+export function deleteVesselsBuilt(cslVesselId) {
+  return api.delete(`/csl-vessels-built/${cslVesselId}`);
 }
 
 export function fetchVesselsBuiltReport() {
@@ -81,8 +30,8 @@ export function fetchVesselsBuiltReport() {
 }
 
 // ---- Ship Building Orders (K-4.2) ----
-export function fetchShipBuildingOrders(userId, params = {}) {
-  return api.get(`/shipbuilding-list/${userId}`, { params });
+export function fetchShipBuildingOrders(params = {}) {
+  return api.get(`/shipbuilding-list`, { params });
 }
 
 export function fetchShipBuildingOrdersById(cslShipbuildingId) {
@@ -90,7 +39,7 @@ export function fetchShipBuildingOrdersById(cslShipbuildingId) {
 }
 
 export function createShipBuildingOrders(payload) {
-  return api.post('/csl-ship-building', payload, { validateStatus: (s) => s === 201 || s === 205 });
+  return api.post('/csl-ship-building', payload, { validateStatus: (s) => s === 201 || s === 409 });
 }
 
 export function updateShipBuildingOrders(payload) {
@@ -101,13 +50,13 @@ export function fetchShipBuildingOrdersReport() {
   return api.get('/get-csl-shipbuilding-year-wise-report');
 }
 
-export function deleteShipBuildingOrders(cslShipbuildingId, userId) {
-  return api.delete(`/csl-ship-building/${cslShipbuildingId}/${userId}`);
+export function deleteShipBuildingOrders(cslShipbuildingId) {
+  return api.delete(`/csl-ship-building/${cslShipbuildingId}`);
 }
 
 // ---- Ship Delivery Performance (K-4.3) ----
-export function fetchShipDeliveryPerformance(userId, params = {}) {
-  return api.get(`/shipdelivery-list/${userId}`, { params });
+export function fetchShipDeliveryPerformance(params = {}) {
+  return api.get(`/shipdelivery-list`, { params });
 }
 
 export function fetchShipDeliveryPerformanceById(cslShipdeliveryId) {
@@ -115,7 +64,7 @@ export function fetchShipDeliveryPerformanceById(cslShipdeliveryId) {
 }
 
 export function createShipDeliveryPerformance(payload) {
-  return api.post('/csl-ship-delivery', payload, { validateStatus: (s) => s === 201 || s === 205 });
+  return api.post('/csl-ship-delivery', payload, { validateStatus: (s) => s === 201 || s === 409 });
 }
 
 export function updateShipDeliveryPerformance(payload) {
@@ -126,13 +75,13 @@ export function fetchShipDeliveryPerformanceReport() {
   return api.get('/get-csl-delivery-year-wise-report');
 }
 
-export function deleteShipDeliveryPerformance(cslShipdeliveryId, userId) {
-  return api.delete(`/csl-ship-delivery/${cslShipdeliveryId}/${userId}`);
+export function deleteShipDeliveryPerformance(cslShipdeliveryId) {
+  return api.delete(`/csl-ship-delivery/${cslShipdeliveryId}`);
 }
 
 // ---- Capacity Utilization (K-4.4) ----
-export function fetchCapacityUtilization(userId, params = {}) {
-  return api.get(`/capacityUtilization-list/${userId}`, { params });
+export function fetchCapacityUtilization(params = {}) {
+  return api.get(`/capacityUtilization-list`, { params });
 }
 
 export function fetchCapacityUtilizationById(cslCapacityUtilizationId) {
@@ -140,7 +89,7 @@ export function fetchCapacityUtilizationById(cslCapacityUtilizationId) {
 }
 
 export function createCapacityUtilization(payload) {
-  return api.post('/csl-capacity-utilization', payload, { validateStatus: (s) => s === 201 || s === 205 });
+  return api.post('/csl-capacity-utilization', payload, { validateStatus: (s) => s === 201 || s === 409 });
 }
 
 export function updateCapacityUtilization(payload) {
@@ -151,13 +100,13 @@ export function fetchCapacityUtilizationReport() {
   return api.get('/get-csl-capacity-utilization-report');
 }
 
-export function deleteCapacityUtilization(cslCapacityUtilizationId, userId) {
-  return api.delete(`/csl-capacity-utilization/${cslCapacityUtilizationId}/${userId}`);
+export function deleteCapacityUtilization(cslCapacityUtilizationId) {
+  return api.delete(`/csl-capacity-utilization/${cslCapacityUtilizationId}`);
 }
 
 // ---- Fabrication of Steels (K-4.5) ----
-export function fetchFabricationOfSteels(userId, params = {}) {
-  return api.get(`/fabrication-list/${userId}`, { params });
+export function fetchFabricationOfSteels(params = {}) {
+  return api.get(`/fabrication-list`, { params });
 }
 
 export function fetchFabricationOfSteelsById(cslFabricationId) {
@@ -165,7 +114,7 @@ export function fetchFabricationOfSteelsById(cslFabricationId) {
 }
 
 export function createFabricationOfSteels(payload) {
-  return api.post('/csl-fabrication-steels', payload, { validateStatus: (s) => s === 201 || s === 205 });
+  return api.post('/csl-fabrication-steels', payload, { validateStatus: (s) => s === 201 || s === 409 });
 }
 
 export function updateFabricationOfSteels(payload) {
@@ -176,13 +125,13 @@ export function fetchFabricationOfSteelsReport() {
   return api.get('/get-csl-fabrication-of-steels-report');
 }
 
-export function deleteFabricationOfSteels(cslFabricationId, userId) {
-  return api.delete(`/csl-fabrication-steels/${cslFabricationId}/${userId}`);
+export function deleteFabricationOfSteels(cslFabricationId) {
+  return api.delete(`/csl-fabrication-steels/${cslFabricationId}`);
 }
 
 // ---- Ships Repaired (K-4.6) ----
-export function fetchShipsRepaired(userId, params = {}) {
-  return api.get(`/ships-reapired-list/${userId}`, { params });
+export function fetchShipsRepaired(params = {}) {
+  return api.get(`/ships-reapired-list`, { params });
 }
 
 export function fetchShipsRepairedById(cslReapiredId) {
@@ -190,7 +139,7 @@ export function fetchShipsRepairedById(cslReapiredId) {
 }
 
 export function createShipsRepaired(payload) {
-  return api.post('/csl-ships-repaired', payload, { validateStatus: (s) => s === 201 || s === 205 });
+  return api.post('/csl-ships-repaired', payload, { validateStatus: (s) => s === 201 || s === 409 });
 }
 
 export function updateShipsRepaired(payload) {
@@ -201,8 +150,8 @@ export function fetchShipsRepairedReport() {
   return api.get('/get-csl-ships-repaired-report');
 }
 
-export function deleteShipsRepaired(cslShipsRepairedId, userId) {
-  return api.delete(`/csl-ships-repaired/${cslShipsRepairedId}/${userId}`);
+export function deleteShipsRepaired(cslShipsRepairedId) {
+  return api.delete(`/csl-ships-repaired/${cslShipsRepairedId}`);
 }
 
 export default api;

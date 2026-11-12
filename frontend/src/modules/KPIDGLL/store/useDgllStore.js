@@ -20,11 +20,11 @@ import {
 // Each list's fetcher and the field holding its year (used here only for the year dropdown).
 // Light House Master has no year; it filters by status instead.
 const YEAR_SOURCES = {
-  vtmsIntegration: { fetch: (p) => fetchVtmsIntegration(1, p), field: 'financial_year' },
-  naisUptime: { fetch: (p) => fetchNaisUptime(1, p), field: 'financial_year' },
-  naisIntegration: { fetch: (p) => fetchNaisIntegration(1, p), field: 'financial_year' },
-  touristDestinations: { fetch: (p) => fetchTouristDestinations(1, p), field: 'finacial_year' },
-  touristTargets: { fetch: (p) => fetchTargetDetails(1, p), field: 'year' },
+  vtmsIntegration: { fetch: fetchVtmsIntegration, field: 'financial_year' },
+  naisUptime: { fetch: fetchNaisUptime, field: 'financial_year' },
+  naisIntegration: { fetch: fetchNaisIntegration, field: 'financial_year' },
+  touristDestinations: { fetch: fetchTouristDestinations, field: 'finacial_year' },
+  touristTargets: { fetch: fetchTargetDetails, field: 'year' },
   financialPerformance: { fetch: (p) => fetchFinancialPerformance(p), field: 'financialyear' },
 };
 

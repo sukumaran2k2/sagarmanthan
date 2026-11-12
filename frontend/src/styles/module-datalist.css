@@ -262,3 +262,82 @@
 .module-datalist-grid .ag-row-hover {
   background-color: var(--datalist-table-row-hover-bg) !important;
 }
+
+/* ==============================================================================
+ * CA DRILLDOWN GRID — Consultant Appointment candidate table
+ * Blue (#0f417a → #1a5ba3) gradient header + light/dark paging overrides.
+ * Applied via class `ca-drilldown-grid` on the wrapper div.
+ * ==============================================================================*/
+.ca-drilldown-grid.ag-theme-quartz.rounded-xl,
+.ca-drilldown-grid.ag-theme-quartz.rounded-2xl,
+.ca-drilldown-grid .ag-theme-quartz.rounded-xl,
+.ca-drilldown-grid .ag-theme-quartz.rounded-2xl {
+  border-radius: 16px !important;
+}
+
+.ca-drilldown-grid .ag-root-wrapper {
+  border-radius: 16px !important;
+}
+
+.ca-drilldown-grid .ag-header {
+  background: linear-gradient(to right, #0f417a, #1a5ba3) !important;
+  border-bottom: 1px solid rgba(10, 45, 85, 0.2) !important;
+}
+
+.ca-drilldown-grid .ag-header-cell-text {
+  color: #ffffff !important;
+  font-weight: 900 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  font-size: 11px !important;
+}
+
+.ca-drilldown-grid .ag-header-cell .ag-icon,
+.ca-drilldown-grid .ag-header-cell-label {
+  color: #ffffff !important;
+}
+
+.ca-drilldown-grid .ag-paging-panel {
+  color: #1e293b !important;
+  font-weight: 700 !important;
+  opacity: 1 !important;
+}
+
+.dark .ca-drilldown-grid .ag-paging-panel {
+  color: #f1f5f9 !important;
+}
+
+.ca-drilldown-grid .ag-paging-button,
+.ca-drilldown-grid .ag-paging-panel .ag-icon {
+  color: #0f417a !important;
+  opacity: 1 !important;
+}
+
+.dark .ca-drilldown-grid .ag-paging-button,
+.dark .ca-drilldown-grid .ag-paging-panel .ag-icon {
+  color: #3b82f6 !important;
+}
+
+.ca-drilldown-grid .ag-paging-row-summary-panel select {
+  color: #1e293b !important;
+  background-color: #fff !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 4px !important;
+  opacity: 1 !important;
+}
+
+.dark .ca-drilldown-grid .ag-paging-row-summary-panel select {
+  color: #f1f5f9 !important;
+  background-color: #1f2937 !important;
+  border: 1px solid #4b5563 !important;
+}
+
+.ca-drilldown-grid select option {
+  color: #1e293b !important;
+  background-color: #ffffff !important;
+}
+
+.dark .ca-drilldown-grid select option {
+  color: #f1f5f9 !important;
+  background-color: #1f2937 !important;
+}

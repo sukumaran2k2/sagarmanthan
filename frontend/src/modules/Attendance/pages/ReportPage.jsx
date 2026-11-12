@@ -19,7 +19,8 @@ const asRows = (data) => (Array.isArray(data) ? data : data?.rowData || []);
 // Which employees a report column counts, as the server's detail endpoint names it
 const detailType = (column) => {
   const c = column.toLowerCase();
-  if (c.includes('intime before')) return 'beforeIn';
+  if (c.includes('absent')) return 'absent';
+  if (c.includes('intime at or before') || c.includes('intime before')) return 'beforeIn';
   if (c.includes('intime after')) return 'afterIn';
   if (c.includes('outtime before')) return 'beforeOut';
   if (c.includes('less than')) return 'avgWorkCount';

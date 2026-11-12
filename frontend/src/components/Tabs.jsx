@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { axiosInstance as api } from '../api';
-import { getCurrentUserId, isSuperAdmin, getDataScopeCode } from '../utils/authSession';
+import { getCurrentUserId, isSuperAdmin, getDataScopeCode, getSessionClaims } from '../utils/authSession';
 import sagarmanthanLogo from '../assets/sagarmanthan_logo.png';
 import {
   canAccessTab,
@@ -64,23 +64,8 @@ import {
 } from 'lucide-react';
 
 function getLoggedInUserRole() {
-  try {
-    const token = localStorage.getItem("accessToken") || localStorage.getItem("token");
-    if (!token) return 1;
-    const base64Url = token.split(".")[1];
-    if (!base64Url) return 1;
-    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split("")
-        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-        .join("")
-    );
-    const decoded = JSON.parse(jsonPayload);
-    return Number(decoded.roleId || decoded.role_id || decoded.role || 1);
-  } catch {
-    return 1;
-  }
+  const decoded = getSessionClaims();
+  return decoded ? Number(decoded.roleId || decoded.role_id || decoded.role || 1) : 1;
 }
 
 export default function Tabs({ activeTab, setActiveTab }) {
@@ -134,15 +119,11 @@ export default function Tabs({ activeTab, setActiveTab }) {
   const { hrView, canViewVacancy: canViewHrVacancy, canViewAdministration: canViewHrAdmin } = useHRPermissions();
 
   const accessKey = (() => {
-    try {
-      const t = localStorage.getItem('accessToken');
-      if (!t) return '';
-      const payload = JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-      const codes = payload?.allowedModuleCodes;
-      return `${payload?.roleCode || ''}|${Array.isArray(codes) ? codes.join(',') : ''}|piCreate:${canCreateParliamentary ? 1 : 0}|cnCreate:${canCreateCabinetMopsw ? 1 : 0}|caCreate:${canCreateConsultant ? 1 : 0}|ypCreate:${canCreateYp ? 1 : 0}|cxCreate:${canCreateCapex ? 1 : 0}`;
-    } catch {
-      return `piCreate:${canCreateParliamentary ? 1 : 0}|cnCreate:${canCreateCabinetMopsw ? 1 : 0}|caCreate:${canCreateConsultant ? 1 : 0}|ypCreate:${canCreateYp ? 1 : 0}|cxCreate:${canCreateCapex ? 1 : 0}`;
-    }
+    const createFlags = `piCreate:${canCreateParliamentary ? 1 : 0}|cnCreate:${canCreateCabinetMopsw ? 1 : 0}|caCreate:${canCreateConsultant ? 1 : 0}|ypCreate:${canCreateYp ? 1 : 0}|cxCreate:${canCreateCapex ? 1 : 0}`;
+    const claims = getSessionClaims();
+    if (!claims) return createFlags;
+    const codes = claims.allowedModuleCodes;
+    return `${claims.roleCode || ''}|${Array.isArray(codes) ? codes.join(',') : ''}|${createFlags}`;
   })();
 
   const m = (moduleCode, item) => ({ ...item, moduleCode });
@@ -232,6 +213,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           icon: Compass,
           items: [
             m('KPI_DGLL', { label: 'DGLL Input Form', icon: FileEdit }),
+            m('KPI_DGLL', { label: 'DGLL Data List', icon: ClipboardList }),
             m('KPI_DGLL', { label: 'DGLL Reports', icon: FilePieChart }),
           ]
         },
@@ -240,6 +222,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           icon: Layers,
           items: [
             m('KPI_CSL', { label: 'CSL Input Form', icon: FileEdit }),
+            m('KPI_CSL', { label: 'CSL Data List', icon: ClipboardList }),
             m('KPI_CSL', { label: 'CSL Reports', icon: FilePieChart }),
           ]
         },
@@ -248,6 +231,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           icon: GraduationCap,
           items: [
             m('KPI_IMU', { label: 'IMU Input Form', icon: FileEdit }),
+            m('KPI_IMU', { label: 'IMU Data List', icon: ClipboardList }),
             m('KPI_IMU', { label: 'IMU Reports', icon: FilePieChart }),
           ]
         },
@@ -256,6 +240,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           icon: Ship,
           items: [
             m('KPI_SCI', { label: 'SCI Input Form', icon: FileEdit }),
+            m('KPI_SCI', { label: 'SCI Data List', icon: ClipboardList }),
             m('KPI_SCI', { label: 'SCI Reports', icon: FilePieChart }),
           ]
         },
@@ -399,6 +384,18 @@ export default function Tabs({ activeTab, setActiveTab }) {
           ]
         }),
         m('ACTS_AND_RULES', { label: 'Acts & Rules', icon: Scale }),
+      ]
+    },
+    {
+      id: 'nmp',
+      label: 'National Monetization Plan',
+      icon: DollarSign,
+      align: 'left-0',
+      width: 'w-[280px]',
+      items: [
+        { label: 'NMP Dashboard', icon: LayoutDashboard, tab: 'NMP Dashboard' },
+        { label: 'NMP Data List', icon: ClipboardList, tab: 'NMP Data List' },
+        { label: 'NMP Input Form', icon: FileEdit, tab: 'NMP Input Form' },
       ]
     },
     {

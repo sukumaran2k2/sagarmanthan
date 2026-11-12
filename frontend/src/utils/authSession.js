@@ -1,3 +1,5 @@
+import { getAccessToken } from './tabSession';
+
 export function decodeAccessToken(token) {
   if (!token) return null;
   try {
@@ -15,7 +17,7 @@ export function decodeAccessToken(token) {
 }
 
 export function getSessionClaims() {
-  const token = localStorage.getItem('accessToken');
+  const token = getAccessToken();
   return decodeAccessToken(token);
 }
 
@@ -62,10 +64,8 @@ export function getSessionOrganisationName() {
 export function isOrgSeniorOfficer() {
   const claims = getSessionClaims();
   if (!claims || isSuperAdmin()) return false;
-  const code = String(claims.roleCode || '').toUpperCase();
-  const name = String(claims.roleName || '').toLowerCase();
-  if (code.includes('SENIOR')) return true;
-  return name.includes('senior officer');
+  // The same exact role the server checks (middleware/userAdmin.js)
+  return String(claims.roleCode || '').toUpperCase() === 'ORG_SENIOR_OFFICER';
 }
 
 export function isNodalOfficerRole(role) {

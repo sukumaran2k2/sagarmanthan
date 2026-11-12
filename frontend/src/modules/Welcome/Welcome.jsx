@@ -161,6 +161,51 @@ export default function Welcome({ onContinue }) {
           60%    {box-shadow:0 0 0 7px rgba(90,40,0,0)}
         }
 
+        /* ── RESPONSIVE ── */
+        @media (max-width: 1024px) {
+          .wm-ship-wrap { width: clamp(200px,30vw,400px) !important; opacity:.55; right:0 !important; }
+          .wm-pg { overflow-y: auto !important; }
+          .wm-layout { overflow-y: visible !important; min-height: min-content !important; flex: unset !important; }
+          .wm-hero-section { padding-top: 28px !important; padding-bottom: 18px !important; }
+          .wm-body { flex: unset !important; padding-top: 18px !important; padding-bottom: 24px !important; min-height: unset !important; }
+          .wm-left-col { gap: 14px !important; }
+        }
+        @media (max-width: 768px) {
+          .wm-ship-wrap  { display: none !important; }
+          .wm-layout     { padding: 0 5vw !important; }
+          .wm-hdr-row    { flex-wrap: wrap !important; gap: 10px !important; padding-top: 16px !important; padding-bottom: 14px !important; }
+          .wm-hdr-extra  { display: none !important; }
+          .wm-hdr-live   { margin-left: 0 !important; }
+          .wm-body       { flex-direction: column !important; gap: 20px !important; padding-bottom: 20px !important; }
+          .wm-right-col  { align-items: flex-start !important; flex-shrink: 1 !important; width: 100% !important; }
+        }
+        @media (max-width: 480px) {
+          .wm-layout { padding: 0 4vw !important; }
+          .wm-emblem { height: 36px !important; }
+          .wm-ministry-name { font-size: 12px !important; }
+          .wm-iitm-logo  { height: 48px !important; }
+          .wm-ntcpwc-logo{ height: 42px !important; }
+        }
+        @media (max-width: 400px) {
+          .wm-pg { overflow-y: auto !important; }
+          .wm-layout { padding: 0 3.5vw !important; overflow-y: visible !important; min-height: min-content !important; }
+          .wm-hdr-row { padding-top: 12px !important; padding-bottom: 10px !important; gap: 8px !important; }
+          .wm-emblem { height: 30px !important; }
+          .wm-ministry-name { font-size: 11px !important; }
+          .wm-ministry-govt { font-size: 8px !important; }
+          .wm-hdr-live { padding: 4px 10px !important; }
+          .wm-hdr-live span { font-size: 9px !important; }
+          .wm-hero-section { padding-top: 20px !important; padding-bottom: 16px !important; }
+          .wm-body { gap: 14px !important; padding-top: 14px !important; padding-bottom: 14px !important; }
+          .wm-left-col { gap: 10px !important; }
+          .wm-know-heading { margin-bottom: 10px !important; }
+          .wm-chk-list { gap: 8px !important; }
+          .wm-tagline { margin-bottom: 8px !important; }
+          .wm-wave { display: none !important; }
+          .wm-vignette { display: none !important; }
+          .wm-footer { padding-top: 8px !important; padding-bottom: 10px !important; }
+        }
+
         /* ── film-grain noise overlay ── */
         .wm-noise::after {
           content:'';
@@ -216,13 +261,13 @@ export default function Welcome({ onContinue }) {
         </div>
 
         {/* ── subtle vignette ── */}
-        <div style={{
+        <div className="wm-vignette" style={{
           position:'absolute', inset:0, pointerEvents:'none',
           background:'radial-gradient(ellipse 100% 100% at 50% 50%, transparent 40%, rgba(0,0,0,0.55) 100%)',
         }}/>
 
         {/* ── bottom wave ── */}
-        <div style={{position:'absolute',bottom:0,left:0,right:0,height:120,pointerEvents:'none',overflow:'hidden'}}>
+        <div className="wm-wave" style={{position:'absolute',bottom:0,left:0,right:0,height:120,pointerEvents:'none',overflow:'hidden'}}>
           <div className="wm-wa" style={{position:'absolute',bottom:0,width:'200%',height:'100%'}}>
             {[0,1].map(k=>(
               <svg key={k} viewBox="0 0 1440 120" preserveAspectRatio="none"
@@ -244,7 +289,7 @@ export default function Welcome({ onContinue }) {
         </div>
 
         {/* ── interactive ship ── */}
-        <div style={{
+        <div className="wm-ship-wrap" style={{
           position:'absolute', right:'2vw', top:'50%', transform:'translateY(-48%)',
           zIndex:2, width:'clamp(340px,42vw,620px)',
         }}>
@@ -263,10 +308,10 @@ export default function Welcome({ onContinue }) {
           flex:1, display:'flex', flexDirection:'column',
           padding:'0 7vw',
           overflow:'hidden',
-        }}>
+        }} className="wm-layout">
 
           {/* ▌ HEADER */}
-          <div className="wm-hdr" style={{
+          <div className="wm-hdr wm-hdr-row" style={{
             display:'flex', alignItems:'center', justifyContent:'space-between',
             paddingTop:26, paddingBottom:22,
             borderBottom:`1px solid ${C.lineB}`,
@@ -274,34 +319,34 @@ export default function Welcome({ onContinue }) {
           }}>
             {/* emblem + ministry */}
             <div style={{display:'flex', alignItems:'center', gap:14}}>
-              <img src="/emblem.svg" alt="Emblem of India"
+              <img src="/emblem.svg" alt="Emblem of India" className="wm-emblem"
                 style={{height:44, objectFit:'contain', filter:'brightness(0) sepia(1) saturate(0.8) brightness(0.4)', flexShrink:0}}/>
               <div style={{borderLeft:`1px solid ${C.lineB}`, paddingLeft:16}}>
-                <p style={{margin:0, fontSize:9.5, letterSpacing:'0.14em', color:C.muted, fontWeight:700, textTransform:'uppercase'}}>
+                <p className="wm-ministry-govt" style={{margin:0, fontSize:9.5, letterSpacing:'0.14em', color:C.muted, fontWeight:700, textTransform:'uppercase'}}>
                   Government of India
                 </p>
-                <p style={{margin:'3px 0 0', fontSize:14.5, fontWeight:700, color:C.cream, letterSpacing:'0.005em'}}>
+                <p className="wm-ministry-name" style={{margin:'3px 0 0', fontSize:14.5, fontWeight:700, color:C.cream, letterSpacing:'0.005em'}}>
                   Ministry of Ports, Shipping and Waterways
                 </p>
               </div>
 
               {/* divider */}
-              <div style={{width:1, height:40, background:C.lineB, marginLeft:8}}/>
+              <div className="wm-hdr-extra" style={{width:1, height:40, background:C.lineB, marginLeft:8}}/>
 
               {/* IIT Madras logo */}
-              <img src="/iitm-logo.png" alt="IIT Madras"
+              <img src="/iitm-logo.png" alt="IIT Madras" className="wm-iitm-logo wm-hdr-extra"
                 style={{height:64, width:'auto', objectFit:'contain', flexShrink:0}}/>
 
               {/* divider */}
-              <div style={{width:1, height:40, background:C.lineB}}/>
+              <div className="wm-hdr-extra" style={{width:1, height:40, background:C.lineB}}/>
 
               {/* NTCPWC logo */}
-              <img src="/ntcpwc-logo.png" alt="NTCPWC"
+              <img src="/ntcpwc-logo.png" alt="NTCPWC" className="wm-ntcpwc-logo wm-hdr-extra"
                 style={{height:56, width:'auto', objectFit:'contain', flexShrink:0}}/>
             </div>
 
             {/* live pill */}
-            <div style={{
+            <div className="wm-hdr-live" style={{
               display:'inline-flex', alignItems:'center', gap:8,
               borderRadius:50, padding:'6px 16px',
               background:'rgba(22,101,52,0.06)',
@@ -318,7 +363,7 @@ export default function Welcome({ onContinue }) {
           </div>
 
           {/* ▌ HERO */}
-          <div className="wm-hero" style={{
+          <div className="wm-hero wm-hero-section" style={{
             paddingTop:38, paddingBottom:26,
             borderBottom:`1px solid ${C.lineB}`,
             flexShrink:0,
@@ -363,7 +408,7 @@ export default function Welcome({ onContinue }) {
           </div>
 
           {/* ▌ MAIN BODY — two columns, both bottom-aligned */}
-          <div style={{
+          <div className="wm-body" style={{
             flex:1, display:'flex', flexDirection:'row',
             alignItems:'stretch',
             gap:'6vw',
@@ -372,7 +417,7 @@ export default function Welcome({ onContinue }) {
           }}>
 
             {/* ── LEFT COLUMN ── */}
-            <div style={{flex:1, display:'flex', flexDirection:'column', justifyContent:'flex-start', gap:24, minWidth:0}}>
+            <div className="wm-left-col" style={{flex:1, display:'flex', flexDirection:'column', justifyContent:'flex-start', gap:16, minWidth:0}}>
 
               {/* description */}
               <p className="wm-desc" style={{
@@ -388,7 +433,7 @@ export default function Welcome({ onContinue }) {
 
               {/* what you need to know */}
               <div className="wm-know">
-                <div style={{display:'flex', alignItems:'center', gap:18, marginBottom:18}}>
+                <div className="wm-know-heading" style={{display:'flex', alignItems:'center', gap:18, marginBottom:18}}>
                   <div style={{height:'1px', width:32, background:C.gold, opacity:0.5}}/>
                   <span style={{fontSize:10.5, fontWeight:700, color:C.muted, textTransform:'uppercase', letterSpacing:'0.14em', whiteSpace:'nowrap'}}>
                     What you need to know
@@ -396,7 +441,7 @@ export default function Welcome({ onContinue }) {
                   <div style={{height:'1px', flex:1, background:`linear-gradient(90deg,rgba(200,146,74,0.2),transparent)`}}/>
                 </div>
 
-                <div style={{display:'flex', flexDirection:'column', gap:13}}>
+                <div className="wm-chk-list" style={{display:'flex', flexDirection:'column', gap:13}}>
                   {CHECK_ITEMS.map((item, i) => (
                     <div
                       key={i}
@@ -426,7 +471,7 @@ export default function Welcome({ onContinue }) {
               </div>
 
               {/* tagline strip */}
-              <div style={{display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginTop:'auto', marginBottom:14, paddingLeft:'2.5%'}}>
+              <div className="wm-tagline" style={{display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginTop:8, marginBottom:14, paddingLeft:'2.5%'}}>
                 {['Same Data.', 'Active Modules.', 'Better Experience.'].map((txt, i, arr) => (
                   <React.Fragment key={txt}>
                     <span className={`wm-tag-${i}`} style={{fontSize:'clamp(12px,1.1vw,14px)', fontWeight:700, color:C.cream2}}>{txt}</span>
@@ -452,7 +497,7 @@ export default function Welcome({ onContinue }) {
             </div>{/* /left col */}
 
             {/* ── RIGHT COLUMN ── tagline + CTA */}
-            <div className="wm-cta" style={{flexShrink:0, display:'flex', flexDirection:'column', justifyContent:'flex-end', gap:22, alignItems:'flex-end'}}>
+            <div className="wm-cta wm-right-col" style={{flexShrink:0, display:'flex', flexDirection:'column', justifyContent:'flex-end', gap:22, alignItems:'flex-end'}}>
 
               {/* button — BakerStreet style: light fill dark text */}
               <button
@@ -489,7 +534,7 @@ export default function Welcome({ onContinue }) {
           </div>{/* /body */}
 
           {/* ▌ FOOTER */}
-          <div style={{
+          <div className="wm-footer" style={{
             paddingTop:12, paddingBottom:14,
             borderTop:`1px solid ${C.lineB}`,
             flexShrink:0,

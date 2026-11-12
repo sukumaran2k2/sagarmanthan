@@ -16,7 +16,7 @@ import { useCsrStore } from '../store/useCsrStore';
 import { lakhToCrore } from '../utils/amounts';
 import { COMMON_TOASTS } from '../../../utils/notify';
 
-// Utilisation % colour tiers, as in the CAPEX reports: >100% blue (above allotted),
+// Utilisation % colour tiers, as in the CAPEX reports: >100% blue (above the funds available),
 // 75-100% emerald (good), 50-<75% amber (moderate), <50% red (low).
 const getUtilisationColor = (value) => {
   if (value == null) return '#475569';
@@ -572,51 +572,66 @@ export default function Reports({ notify, triggerNotification, isOrgUser }) {
     return [];
   }, [reportType]);
 
+  // Fund report totals: allotted and expenditure add up; the balance is each organisation's latest
+  // year only (a year's opening balance already carries earlier unspent funds, so adding every
+  // year's balance counted that money twice), and utilisation = expenditure / funds available
+  // (expenditure + that balance), as in the rows (QC CSR-14 / CSR-45)
+  const utilisation = (exp, bal) => (exp + bal > 0 ? Number(((exp / (exp + bal)) * 100).toFixed(2)) : null);
+  const sumOf = (rows, key) => rows.reduce((acc, r) => acc + (Number(r[key]) || 0), 0);
+  // The earliest-year row of each organisation (rows carry Organisation_Id and Financial_Year)
+  const firstYearRows = (rows) => Object.values(rows.reduce((acc, r) => {
+    const key = r.Organisation_Id ?? r.Organisation_Name;
+    if (!acc[key] || String(r.Financial_Year) < String(acc[key].Financial_Year)) acc[key] = r;
+    return acc;
+  }, {}));
+
   const pinnedBottomRowData = useMemo(() => {
     if (!reportData || reportData.length === 0) return undefined;
 
     if (reportType === 'fund-year-wise-report') {
-      const totalAllotted = reportData.reduce((acc, r) => acc + (Number(r.CSR_Fund_Allotted_Lakh) || 0), 0);
-      const totalExp = reportData.reduce((acc, r) => acc + (Number(r.Project_Expenditure_Lakh) || 0), 0);
-      const totalBal = reportData.reduce((acc, r) => acc + (Number(r.CSR_Fund_Balance_Lakh) || 0), 0);
+      const totalExp = sumOf(reportData, 'Project_Expenditure_Lakh');
+      const totalBal = sumOf(reportData, 'Latest_Balance_Lakh');
       return [{
         'S No': 'Total',
         Financial_Year: '',
-        No_of_Organisations: '',
-        CSR_Fund_Allotted_Lakh: totalAllotted,
+        // Organisations can't be added across years (the same one reports every year); a blank
+        // cell, not '' - the grid shows 'Invalid Number' for text in a number column (QC R-13)
+        No_of_Organisations: null,
+        CSR_Fund_Allotted_Lakh: sumOf(reportData, 'CSR_Fund_Allotted_Lakh'),
         Project_Expenditure_Lakh: totalExp,
         CSR_Fund_Balance_Lakh: totalBal,
-        Utilisation_Percent: totalAllotted ? Number(((totalExp / totalAllotted) * 100).toFixed(2)) : null,
+        Utilisation_Percent: utilisation(totalExp, totalBal),
       }];
     }
 
     if (reportType === 'fund-org-wise-report') {
-      const totalOpening = reportData.reduce((acc, r) => acc + (Number(r.Opening_CSR_Balance_Lakh) || 0), 0);
-      const totalAllotted = reportData.reduce((acc, r) => acc + (Number(r.CSR_Fund_Allotted_Lakh) || 0), 0);
-      const totalExp = reportData.reduce((acc, r) => acc + (Number(r.Project_Expenditure_Lakh) || 0), 0);
-      const totalBal = reportData.reduce((acc, r) => acc + (Number(r.CSR_Fund_Balance_Lakh) || 0), 0);
+      const latest = reportData.filter((r) => Number(r.Is_Latest_Year) === 1);
+      const totalExp = sumOf(reportData, 'Project_Expenditure_Lakh');
+      const totalBal = sumOf(latest, 'CSR_Fund_Balance_Lakh');
       return [{
         'S No': 'Total',
         Organisation_Name: '',
-        Opening_CSR_Balance_Lakh: totalOpening,
-        CSR_Fund_Allotted_Lakh: totalAllotted,
+        // Each organisation's opening balance once - its earliest year shown: a later year's opening
+        // is the earlier years' unspent money, so adding every year counted it again (QC CSR-14)
+        Opening_CSR_Balance_Lakh: sumOf(firstYearRows(reportData), 'Opening_CSR_Balance_Lakh'),
+        CSR_Fund_Allotted_Lakh: sumOf(reportData, 'CSR_Fund_Allotted_Lakh'),
         Project_Expenditure_Lakh: totalExp,
         CSR_Fund_Balance_Lakh: totalBal,
-        Utilisation_Percent: totalAllotted ? Number(((totalExp / totalAllotted) * 100).toFixed(2)) : null,
+        Utilisation_Percent: utilisation(totalExp, totalBal),
       }];
     }
 
     if (reportType === 'fund-org-trend-report') {
-      const totalAllotted = reportData.reduce((acc, r) => acc + (Number(r.CSR_Fund_Allotted_Lakh) || 0), 0);
-      const totalExp = reportData.reduce((acc, r) => acc + (Number(r.Project_Expenditure_Lakh) || 0), 0);
-      const totalBal = reportData.reduce((acc, r) => acc + (Number(r.CSR_Fund_Balance_Lakh) || 0), 0);
+      // One organisation, newest year first: its balance is the first row's
+      const totalExp = sumOf(reportData, 'Project_Expenditure_Lakh');
+      const totalBal = Number(reportData[0].CSR_Fund_Balance_Lakh) || 0;
       return [{
         'S No': 'Total',
         Financial_Year: '',
-        CSR_Fund_Allotted_Lakh: totalAllotted,
+        CSR_Fund_Allotted_Lakh: sumOf(reportData, 'CSR_Fund_Allotted_Lakh'),
         Project_Expenditure_Lakh: totalExp,
         CSR_Fund_Balance_Lakh: totalBal,
-        Utilisation_Percent: totalAllotted ? Number(((totalExp / totalAllotted) * 100).toFixed(2)) : null,
+        Utilisation_Percent: utilisation(totalExp, totalBal),
       }];
     }
 
@@ -755,7 +770,7 @@ export default function Reports({ notify, triggerNotification, isOrgUser }) {
       )}
 
       <ReportTable
-        title={(isOrgUser && report.orgTitle) || report.title}
+        title={report.title}
         subtitle={null}
         eyebrow={report.label}
         showBackButton={false}
@@ -783,7 +798,8 @@ export default function Reports({ notify, triggerNotification, isOrgUser }) {
           <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> 75–100% Good</span>
           <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-amber-600" /> 50–&lt;75% Moderate</span>
           <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-red-500" /> &lt;50% Low</span>
-          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-blue-500" /> &gt;100% Above Fund Allotted</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-blue-500" /> &gt;100% Above Funds Available</span>
+          <span>Utilisation = expenditure ÷ (opening balance + fund allotted). The total balance is each organisation&apos;s latest year.</span>
         </div>
       )}
     </div>

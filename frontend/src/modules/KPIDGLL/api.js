@@ -1,59 +1,8 @@
-import axios from 'axios';
+import { API_BASE, createApiClient } from '../../api';
 
-export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+export { API_BASE };
 
-const api = axios.create({ baseURL: API_BASE });
-
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('accessToken');
-  if (token) {
-    config.headers = config.headers || {};
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-let refreshPromise = null;
-
-async function refreshAccessToken() {
-  const refreshToken = localStorage.getItem('refreshToken');
-  if (!refreshToken) {
-    throw new Error('No refresh token');
-  }
-  const res = await axios.get(`${API_BASE}/refresh-token`, {
-    headers: { Authorization: `Bearer ${refreshToken}` },
-  });
-  const next = res.data?.accessToken;
-  if (!next) throw new Error('Refresh failed');
-  localStorage.setItem('accessToken', next);
-  return next;
-}
-
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const original = error.config;
-    if (error.response?.status !== 401 || !original || original._retry) {
-      return Promise.reject(error);
-    }
-    original._retry = true;
-    try {
-      if (!refreshPromise) {
-        refreshPromise = refreshAccessToken().finally(() => {
-          refreshPromise = null;
-        });
-      }
-      const token = await refreshPromise;
-      original.headers = original.headers || {};
-      original.headers.Authorization = `Bearer ${token}`;
-      return api(original);
-    } catch {
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      return Promise.reject(error);
-    }
-  }
-);
+const api = createApiClient();
 
 // ---- Shared dropdowns ----
 export function fetchStates() {
@@ -65,8 +14,8 @@ export function fetchDistricts() {
 }
 
 // ---- Light House Master (K-3.1) ----
-export function fetchLightHouseMaster(userId, params = {}) {
-  return api.get(`/light-house-list/${userId}`, { params });
+export function fetchLightHouseMaster(params = {}) {
+  return api.get(`/light-house-list`, { params });
 }
 
 export function fetchLightHouseMasterById(lightHouseId) {
@@ -81,8 +30,8 @@ export function updateLightHouseMaster(payload) {
   return api.put('/Light-House-edit', payload);
 }
 
-export function deleteLightHouseMaster(lightsHouseId, userId) {
-  return api.delete(`/light-house-master/${lightsHouseId}/${userId}`);
+export function deleteLightHouseMaster(lightsHouseId) {
+  return api.delete(`/light-house-master/${lightsHouseId}`);
 }
 
 export function fetchLightHouseMasterReport() {
@@ -90,8 +39,8 @@ export function fetchLightHouseMasterReport() {
 }
 
 // ---- VTMS Integration (K-3.2) ----
-export function fetchVtmsIntegration(userId, params = {}) {
-  return api.get(`/vtms-list/${userId}`, { params });
+export function fetchVtmsIntegration(params = {}) {
+  return api.get(`/vtms-list`, { params });
 }
 
 export function fetchVtmsIntegrationById(vtmsId) {
@@ -99,15 +48,15 @@ export function fetchVtmsIntegrationById(vtmsId) {
 }
 
 export function createVtmsIntegration(payload) {
-  return api.post('/vtms-Integration', payload, { validateStatus: (s) => s === 201 || s === 205 });
+  return api.post('/vtms-Integration', payload, { validateStatus: (s) => s === 201 || s === 409 });
 }
 
 export function updateVtmsIntegration(payload) {
   return api.put('/vtms-edit', payload);
 }
 
-export function deleteVtmsIntegration(vtmsId, userId) {
-  return api.delete(`/vtms-integration/${vtmsId}/${userId}`);
+export function deleteVtmsIntegration(vtmsId) {
+  return api.delete(`/vtms-integration/${vtmsId}`);
 }
 
 export function fetchVtmsIntegrationReport() {
@@ -115,8 +64,8 @@ export function fetchVtmsIntegrationReport() {
 }
 
 // ---- NAIS Uptime (K-3.3) ----
-export function fetchNaisUptime(userId, params = {}) {
-  return api.get(`/nais-list/${userId}`, { params });
+export function fetchNaisUptime(params = {}) {
+  return api.get(`/nais-list`, { params });
 }
 
 export function fetchNaisUptimeById(naisId) {
@@ -124,15 +73,15 @@ export function fetchNaisUptimeById(naisId) {
 }
 
 export function createNaisUptime(payload) {
-  return api.post('/nais-uptime', payload, { validateStatus: (s) => s === 201 || s === 205 });
+  return api.post('/nais-uptime', payload, { validateStatus: (s) => s === 201 || s === 409 });
 }
 
 export function updateNaisUptime(payload) {
   return api.put('/nais-edit', payload);
 }
 
-export function deleteNaisUptime(naisId, userId) {
-  return api.delete(`/nais-uptime/${naisId}/${userId}`);
+export function deleteNaisUptime(naisId) {
+  return api.delete(`/nais-uptime/${naisId}`);
 }
 
 export function fetchNaisUptimeReport() {
@@ -140,8 +89,8 @@ export function fetchNaisUptimeReport() {
 }
 
 // ---- NAIS Integration (K-3.4) ----
-export function fetchNaisIntegration(userId, params = {}) {
-  return api.get(`/nais-integration-list/${userId}`, { params });
+export function fetchNaisIntegration(params = {}) {
+  return api.get(`/nais-integration-list`, { params });
 }
 
 export function fetchNaisIntegrationById(naisIntegrationId) {
@@ -149,15 +98,15 @@ export function fetchNaisIntegrationById(naisIntegrationId) {
 }
 
 export function createNaisIntegration(payload) {
-  return api.post('/nais-integration', payload, { validateStatus: (s) => s === 201 || s === 205 });
+  return api.post('/nais-integration', payload, { validateStatus: (s) => s === 201 || s === 409 });
 }
 
 export function updateNaisIntegration(payload) {
   return api.put('/nais-integration-edit', payload);
 }
 
-export function deleteNaisIntegration(naisIntegrationId, userId) {
-  return api.delete(`/nais-integration/${naisIntegrationId}/${userId}`);
+export function deleteNaisIntegration(naisIntegrationId) {
+  return api.delete(`/nais-integration/${naisIntegrationId}`);
 }
 
 export function fetchNaisIntegrationReport() {
@@ -165,8 +114,8 @@ export function fetchNaisIntegrationReport() {
 }
 
 // ---- Lighthouse as Tourist Destinations (K-3.5) ----
-export function fetchTouristDestinations(userId, params = {}) {
-  return api.get(`/lighthouse-tourist-destination/${userId}`, { params });
+export function fetchTouristDestinations(params = {}) {
+  return api.get(`/lighthouse-tourist-destination`, { params });
 }
 
 export function fetchTouristDestinationById(touristDestinationId) {
@@ -175,9 +124,9 @@ export function fetchTouristDestinationById(touristDestinationId) {
 
 // Legacy behaviour: creation itself does not reject duplicate years, so the
 // frontend must call checkTouristDestinationYear first and block submission
-// if it returns 205 -- unlike VTMS/NAIS which self-check on create.
+// if it answers { exists: true } -- unlike VTMS/NAIS which self-check on create.
 export function checkTouristDestinationYear(financialYear) {
-  return api.get(`/check-financialYears/${financialYear}`, { validateStatus: (s) => s === 200 || s === 205 });
+  return api.get(`/check-financialYears/${financialYear}`);
 }
 
 export function createTouristDestination(payload) {
@@ -188,8 +137,8 @@ export function updateTouristDestination(payload) {
   return api.put('/edit-lighthouse-tourist-destination', payload);
 }
 
-export function deleteTouristDestination(touristDestinationId, userId) {
-  return api.delete(`/lighthouse-tourist-destination/${touristDestinationId}/${userId}`);
+export function deleteTouristDestination(touristDestinationId) {
+  return api.delete(`/lighthouse-tourist-destination/${touristDestinationId}`);
 }
 
 export function fetchTouristDestinationReport() {
@@ -197,28 +146,24 @@ export function fetchTouristDestinationReport() {
 }
 
 // ---- Target Details (K-3.5 sub-entity) ----
-export function fetchTargetDetails(userId, params = {}) {
-  return api.get(`/target-Details-lighthouse/${userId}`, { params });
+export function fetchTargetDetails(params = {}) {
+  return api.get(`/target-Details-lighthouse`, { params });
 }
 
 export function fetchTargetDetailById(targetId) {
   return api.get(`/update-target-Details-destination/${targetId}`);
 }
 
-export function checkTargetDetailYear(year) {
-  return api.get(`/check-targetYears/${year}`, { validateStatus: (s) => s === 200 || s === 205 });
-}
-
 export function createTargetDetail(payload) {
-  return api.post('/target-Details-lighthouse', payload, { validateStatus: (s) => s === 201 || s === 205 });
+  return api.post('/target-Details-lighthouse', payload, { validateStatus: (s) => s === 201 || s === 409 });
 }
 
 export function updateTargetDetail(payload) {
   return api.put('/edit-target-Details-lighthouse', payload);
 }
 
-export function deleteTargetDetail(targetId, userId) {
-  return api.delete(`/target-Details-lighthouse/${targetId}/${userId}`);
+export function deleteTargetDetail(targetId) {
+  return api.delete(`/target-Details-lighthouse/${targetId}`);
 }
 
 // ---- Financial Performance (K-3.6) ----
@@ -240,8 +185,8 @@ export function fetchFinancialPerformanceReport() {
   return api.get('/get-dgll-financial-performance-report');
 }
 
-export function deleteFinancialPerformance(financialId, userId) {
-  return api.delete(`/dgll-financial-performance/${financialId}/${userId}`);
+export function deleteFinancialPerformance(financialId) {
+  return api.delete(`/dgll-financial-performance/${financialId}`);
 }
 
 export default api;

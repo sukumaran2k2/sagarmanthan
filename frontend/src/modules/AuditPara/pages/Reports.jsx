@@ -1,5 +1,5 @@
-import { useMemo, useRef } from 'react';
-import { Search, RefreshCw, X, TrendingUp, Building2, Tag } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import { Search, RefreshCw, X, TrendingUp, Building2, Tag, ArrowLeft } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
@@ -7,8 +7,23 @@ import CopyButton from '../../../components/CopyButton';
 import { CATEGORIES } from '../constants';
 import { useAuditParaStore } from '../store/useAuditParaStore';
 
+// Report columns -> stage (as in 2.0, each para is counted once, in its current stage)
+const STAGE_OF = { received: 1, sought: 2, receivedOrg: 3, clarification: 4, cag: 5, accepted: 6, dropped: 7 };
+const STAGE_LABEL = {
+  received: 'Received at Ministry', sought: 'Comments Sought', receivedOrg: 'Comments Received', clarification: 'Under Clarification',
+  cag: 'Furnished to CAG', accepted: 'Accepted by CAG', dropped: 'Dropped',
+};
+// A para's current stage: the last step reached (0 when none is)
+const currentStage = (p) => [7, 6, 5, 4, 3, 2, 1].find((i) => p.statusSteps?.[i] === 'Yes') || 0;
+const sameName = (a, b) => (a || '').toLowerCase() === (b || '').toLowerCase();
+const formatDay = (v) => (v ? v.split('-').reverse().join('/') : '—');
+
 export default function Reports({ rowData = [], wings = [], divisions = [], loading = false, onRefresh }) {
   const gridRef = useRef(null);
+  // Drill-down, as in 2.0: a wing name opens that wing's divisions; a count opens the list of those
+  // paras. drillWing: the wing whose divisions are shown; detail: { title, wing, division, column }.
+  const [drillWing, setDrillWing] = useState(null);
+  const [detail, setDetail] = useState(null);
   // View, category and search are kept in the store across tab switches
   const {
     reportView, setReportView,
@@ -26,16 +41,11 @@ export default function Reports({ rowData = [], wings = [], divisions = [], load
   // Title (and export file name) names the selected category, e.g. "... - Draft Paras".
   const title = `Report No. 4.2A - Abstract ( Wing & Division Wise ) - ${category === 'all' ? 'Audit Paras (All Categories)' : `${category}s`}`;
 
-  const computeCounts = (paras) => ({
-    total: paras.length,
-    received: paras.filter((p) => p.statusSteps[1] === 'Yes').length,
-    sought: paras.filter((p) => p.statusSteps[2] === 'Yes').length,
-    receivedOrg: paras.filter((p) => p.statusSteps[3] === 'Yes').length,
-    clarification: paras.filter((p) => p.statusSteps[4] === 'Yes').length,
-    cag: paras.filter((p) => p.statusSteps[5] === 'Yes').length,
-    accepted: paras.filter((p) => p.statusSteps[6] === 'Yes').length,
-    dropped: paras.filter((p) => p.statusSteps[7] === 'Yes').length,
-  });
+  const computeCounts = (paras) => {
+    const counts = { total: paras.length };
+    Object.entries(STAGE_OF).forEach(([key, stage]) => { counts[key] = paras.filter((p) => currentStage(p) === stage).length; });
+    return counts;
+  };
 
   // Paras of the selected category ('all' = every category).
   const categoryParas = useMemo(
@@ -54,7 +64,9 @@ export default function Reports({ rowData = [], wings = [], divisions = [], load
         .sort((a, b) => a.Wing.localeCompare(b.Wing));
     }
     if (reportView === 'division') {
+      const drillWingId = drillWing && wings.find((w) => sameName(w.wing_name, drillWing))?.wing_id;
       return divisions
+        .filter((d) => !drillWing || String(d.wing_id) === String(drillWingId))
         .map((d) => {
           const paras = categoryParas.filter((p) => (p.division || '').toLowerCase() === d.division_name.toLowerCase());
           return { Division: d.division_name, ...computeCounts(paras) };
@@ -73,7 +85,35 @@ export default function Reports({ rowData = [], wings = [], divisions = [], load
       })
       .sort((a, b) => a.Wing.localeCompare(b.Wing) || a.Division.localeCompare(b.Division))
       .map((r, idx) => ({ ...r, 'S No': idx + 1 }));
-  }, [categoryParas, wings, divisions, reportView]);
+  }, [categoryParas, wings, divisions, reportView, drillWing]);
+
+  // The paras behind a clicked count
+  const detailRows = useMemo(() => {
+    if (!detail) return [];
+    return categoryParas
+      .filter((p) => (!detail.wing || sameName(p.wing, detail.wing))
+        && (!detail.division || sameName(p.division, detail.division))
+        && (detail.column === 'total' || currentStage(p) === STAGE_OF[detail.column]))
+      .sort((a, b) => (a.subject || '').localeCompare(b.subject || ''))
+      .map((p, i) => ({ ...p, sno: i + 1 }));
+  }, [detail, categoryParas]);
+
+  const openDetail = (row, column) => {
+    const where = row.Division ? `${row.Division}${row.Wing ? ` (${row.Wing})` : ''}` : row.Wing;
+    setDetail({
+      wing: row.Wing || (reportView === 'division' ? drillWing : null),
+      division: row.Division || null,
+      column,
+      title: `${where} - ${column === 'total' ? 'All Audit Paras' : STAGE_LABEL[column]}`,
+    });
+  };
+  const changeView = (view) => { setDrillWing(null); setDetail(null); setReportView(view); };
+  const openWing = (wing) => { setDetail(null); setDrillWing(wing); setReportView('division'); };
+  const back = () => {
+    if (detail) { setDetail(null); return; }
+    setDrillWing(null);
+    setReportView('wing');
+  };
 
   const pinnedBottomRowData = useMemo(() => {
     const sum = (key) => aggregatedData.reduce((acc, r) => acc + (r[key] || 0), 0);
@@ -90,9 +130,19 @@ export default function Reports({ rowData = [], wings = [], divisions = [], load
     if (reportView === 'wing' || reportView === 'all') {
       cols.push({
         field: 'Wing', headerName: 'Wing', flex: 1.5, minWidth: 180, pinned: 'left',
-        cellRenderer: (p) => p.data?.isTotalRow
-          ? <span style={{ fontWeight: 850 }} className="text-slate-900 dark:text-white">Total</span>
-          : <span style={{ fontWeight: 600 }} className="text-slate-800 dark:text-slate-200">{p.value || '—'}</span>
+        cellRenderer: (p) => {
+          if (p.data?.isTotalRow) return <span style={{ fontWeight: 850 }} className="text-slate-900 dark:text-white">Total</span>;
+          // Wing view: the wing name opens its divisions
+          if (reportView === 'wing' && p.value) {
+            return (
+              <button type="button" onClick={() => openWing(p.value)} title="Show this wing's divisions"
+                className="font-semibold text-[#4b2424] dark:text-blue-400 underline decoration-dotted underline-offset-2 hover:decoration-solid cursor-pointer bg-transparent border-none p-0">
+                {p.value}
+              </button>
+            );
+          }
+          return <span style={{ fontWeight: 600 }} className="text-slate-800 dark:text-slate-200">{p.value || '—'}</span>;
+        }
       });
     }
     if (reportView === 'division' || reportView === 'all') {
@@ -104,11 +154,19 @@ export default function Reports({ rowData = [], wings = [], divisions = [], load
       });
     }
 
+    // A count opens the list of those paras (not on the Total row, as in 2.0)
     const numCol = (field, headerName, minWidth) => ({
       field, headerName, minWidth,
-      cellRenderer: (p) => (p.value || 0) > 0
-        ? <span style={{ fontWeight: p.data?.isTotalRow ? 850 : 700 }} className="text-[#4b2424] dark:text-blue-400">{p.value}</span>
-        : <span style={{ color: '#94a3b8', fontWeight: 600 }}>—</span>
+      cellRenderer: (p) => {
+        if (!((p.value || 0) > 0)) return <span style={{ color: '#94a3b8', fontWeight: 600 }}>—</span>;
+        if (p.data?.isTotalRow) return <span style={{ fontWeight: 850 }} className="text-[#4b2424] dark:text-blue-400">{p.value}</span>;
+        return (
+          <button type="button" onClick={() => openDetail(p.data, field)} title="Show these paras"
+            className="font-bold text-[#4b2424] dark:text-blue-400 underline decoration-dotted underline-offset-2 hover:decoration-solid cursor-pointer bg-transparent border-none p-0">
+            {p.value}
+          </button>
+        );
+      }
     });
 
     cols.push(
@@ -122,7 +180,26 @@ export default function Reports({ rowData = [], wings = [], divisions = [], load
       numCol('dropped', 'Dropped', 110),
     );
     return cols;
-  }, [reportView]);
+    // openWing / openDetail only use state setters and the current view
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reportView, drillWing]);
+
+  // The list of paras behind a count (2.0's getAuditPara pages)
+  const detailColumns = useMemo(() => [
+    { field: 'sno', headerName: 'S No', maxWidth: 80 },
+    { field: 'paraNumber', headerName: 'Audit Para No', minWidth: 140, wrapText: true, autoHeight: true },
+    { field: 'subject', headerName: 'Subject', minWidth: 260, flex: 2, wrapText: true, autoHeight: true, cellStyle: { textAlign: 'left' } },
+    { field: 'category', headerName: 'Category', minWidth: 120 },
+    { field: 'wing', headerName: 'Wing', minWidth: 120 },
+    { field: 'division', headerName: 'Division', minWidth: 120 },
+    ...[[1, 'Received at Ministry'], [2, 'Comments Sought'], [3, 'Comments Received'], [5, 'Furnished to CAG'], [6, 'Accepted by CAG'], [7, 'Dropped']]
+      .map(([i, name]) => ({ colId: `d${i}`, headerName: name, minWidth: 130, valueGetter: (p) => formatDay(p.data?.statusDates?.[i]) })),
+    { field: 'lastUpdated', headerName: 'Last Updated', minWidth: 120, valueFormatter: (p) => formatDay(p.value) },
+  ], []);
+
+  // What the grid, Copy and Excel show: the summary or the para list
+  const gridColumns = detail ? detailColumns : columns;
+  const gridRows = detail ? detailRows : aggregatedData;
 
   const defaultColDef = useMemo(() => ({
     sortable: true, filter: true, resizable: true,
@@ -130,16 +207,17 @@ export default function Reports({ rowData = [], wings = [], divisions = [], load
   }), []);
 
   const handleCopy = () => {
-    let tsv = columns.map((c) => c.headerName).join('\t') + '\n';
-    aggregatedData.forEach((row) => {
-      tsv += columns.map((c) => row[c.field] ?? '').join('\t') + '\n';
+    const cell = (c, row) => (c.valueGetter ? c.valueGetter({ data: row }) : c.valueFormatter ? c.valueFormatter({ value: row[c.field] }) : row[c.field] ?? '');
+    let tsv = gridColumns.map((c) => c.headerName).join('\t') + '\n';
+    gridRows.forEach((row) => {
+      tsv += gridColumns.map((c) => cell(c, row)).join('\t') + '\n';
     });
     navigator.clipboard.writeText(tsv);
   };
 
   const handleExport = (type) => {
     if (type === 'Excel' && gridRef.current?.api) {
-      gridRef.current.api.exportDataAsCsv({ fileName: `${title.replace(/\s+/g, '_')}_export.csv` });
+      gridRef.current.api.exportDataAsCsv({ fileName: `${(detail ? `${title} - ${detail.title}` : title).replace(/\s+/g, '_')}_export.csv` });
     } else if (type === 'PDF') {
       window.print();
     }
@@ -205,7 +283,7 @@ export default function Reports({ rowData = [], wings = [], divisions = [], load
               </div>
               <select
                 value={reportView}
-                onChange={(e) => setReportView(e.target.value)}
+                onChange={(e) => changeView(e.target.value)}
                 className="bg-transparent border-none text-xs font-extrabold text-indigo-950 dark:text-indigo-100 outline-none cursor-pointer pr-1 max-w-[200px]"
               >
                 <option value="wing">Wing</option>
@@ -231,12 +309,25 @@ export default function Reports({ rowData = [], wings = [], divisions = [], load
         </div>
       </div>
 
+      {(detail || drillWing) && (
+        <div className="flex flex-wrap items-center gap-3 px-5 py-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+          <button type="button" onClick={back}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+            <ArrowLeft size={14} /> {detail ? 'Back to the report' : 'Back to wing-wise'}
+          </button>
+          <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+            {detail ? <>{detail.title} <span className="text-slate-500 dark:text-slate-400">({detailRows.length} {detailRows.length === 1 ? 'para' : 'paras'})</span></> : <>Divisions of <strong>{drillWing}</strong></>}
+          </span>
+        </div>
+      )}
+
       <div className="ag-theme-quartz module-report-grid" style={{ width: '100%' }}>
         <Table
+          key={detail ? 'detail' : 'summary'}
           ref={gridRef}
           theme="legacy"
-          rowData={aggregatedData}
-          columnDefs={columns}
+          rowData={gridRows}
+          columnDefs={gridColumns}
           defaultColDef={defaultColDef}
           pagination={true}
           paginationPageSize={15}
@@ -246,7 +337,7 @@ export default function Reports({ rowData = [], wings = [], divisions = [], load
           animateRows={true}
           headerHeight={46}
           autoSizeStrategy={{ type: 'fitCellContents', skipHeader: false, scaleUpToFitGridWidth: true }}
-          pinnedBottomRowData={pinnedBottomRowData}
+          pinnedBottomRowData={detail ? undefined : pinnedBottomRowData}
           enableExport={false}
           color="#4b2424"
         />

@@ -103,23 +103,23 @@ export const MODULE_PAGES = {
   },
 
   KPI_DGLL: {
-    tabs: ['DGLL Input Form', 'DGLL Reports'],
-    uiTabs: ['DGLL Input Form', 'DGLL Reports'],
+    tabs: ['DGLL Input Form', 'DGLL Data List', 'DGLL Reports'],
+    uiTabs: ['DGLL Input Form', 'DGLL Data List', 'DGLL Reports'],
   },
 
   KPI_CSL: {
-    tabs: ['CSL Input Form', 'CSL Reports'],
-    uiTabs: ['CSL Input Form', 'CSL Reports'],
+    tabs: ['CSL Input Form', 'CSL Data List', 'CSL Reports'],
+    uiTabs: ['CSL Input Form', 'CSL Data List', 'CSL Reports'],
   },
 
   KPI_IMU: {
-    tabs: ['IMU Input Form', 'IMU Reports'],
-    uiTabs: ['IMU Input Form', 'IMU Reports'],
+    tabs: ['IMU Input Form', 'IMU Data List', 'IMU Reports'],
+    uiTabs: ['IMU Input Form', 'IMU Data List', 'IMU Reports'],
   },
 
   KPI_SCI: {
-    tabs: ['SCI Input Form', 'SCI Reports'],
-    uiTabs: ['SCI Input Form', 'SCI Reports'],
+    tabs: ['SCI Input Form', 'SCI Data List', 'SCI Reports'],
+    uiTabs: ['SCI Input Form', 'SCI Data List', 'SCI Reports'],
   },
 
   KPI_CMEC: {
@@ -390,6 +390,21 @@ export const MODULE_PAGES = {
     ],
   },
 
+  NMP: {
+    tabs: [
+      'NMP Dashboard',
+      'NMP Data List',
+      'NMP Input Form',
+      'National Monetization Plan',
+    ],
+    uiTabs: [
+      'NMP Dashboard',
+      'NMP Data List',
+      'NMP Input Form',
+      'National Monetization Plan',
+    ],
+  },
+
   KNOWLEDGE_REPOSITORY: {
     tabs: ['Research Papers', 'Policy Documents', 'Guidelines'],
   },
@@ -419,6 +434,10 @@ export const PUBLIC_UI_TABS = [
   'Contact Us',
   'Ministry Contacts',
   'Helpdesk Support',
+  'NMP Dashboard',
+  'NMP Data List',
+  'NMP Input Form',
+  'National Monetization Plan',
 ];
 
 export const TAB_TO_MODULE = (() => {

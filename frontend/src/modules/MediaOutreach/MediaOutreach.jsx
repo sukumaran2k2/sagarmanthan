@@ -4,7 +4,7 @@ import ConfirmModal from '../../components/ConfirmModal';
 import InputForm from './pages/InputForm';
 import { useMediaOutreachPermissions } from './hooks/useMediaOutreachPermissions';
 import { resolveMediaOutreachListView } from './views';
-import { fetchSocialMediaData, deleteSocialMedia } from './api';
+import { fetchSocialMediaData, deleteSocialMedia, friendlyErrorMessage } from './api';
 import { MEDIA_TABS_ALL } from './utils/constants';
 import { normaliseFinancialYear } from './utils/dataTransformers';
 import { MEDIA_LIST_TABS, useMediaOutreachStore } from './store/useMediaOutreachStore';
@@ -44,7 +44,15 @@ export default function MediaOutreachView({ triggerNotification }) {
   const [rowData, setRowData] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const organisationsError = useMediaOutreachStore((state) => state.organisationsError);
+
   useEffect(() => { loadOrganisations(); }, [loadOrganisations]);
+
+  useEffect(() => {
+    if (organisationsError) {
+      triggerNotification?.('Could not load the organisation list. Please refresh the page.', 'warning');
+    }
+  }, [organisationsError, triggerNotification]);
 
   const loadRecords = useCallback(() => {
     fetchSocialMediaData()
@@ -54,7 +62,7 @@ export default function MediaOutreachView({ triggerNotification }) {
       })
       .catch((err) => {
         console.error('Error fetching media outreach records:', err);
-        triggerNotification?.('Could not load media outreach records. Please try again.', 'error');
+        triggerNotification?.(friendlyErrorMessage(err, 'Could not load media outreach records. Please try again.'), 'error');
       })
       .finally(() => setLoading(false));
   }, [triggerNotification]);
@@ -110,7 +118,7 @@ export default function MediaOutreachView({ triggerNotification }) {
     if (!row?.media_outreach_id) return;
     setDeleteModal(prev => ({ ...prev, loading: true }));
     try {
-      await deleteSocialMedia(row.media_outreach_id);
+      await deleteSocialMedia(row.media_outreach_id, mediaTab);
       triggerNotification?.('Record deleted successfully.', 'success');
     } catch (err) {
       console.error('Delete error:', err);
@@ -118,7 +126,7 @@ export default function MediaOutreachView({ triggerNotification }) {
       if (status === 404) {
         triggerNotification?.('This record was already deleted.', 'info');
       } else {
-        triggerNotification?.(status === 403 ? 'You do not have permission to delete this record.' : 'Could not delete the record. Please try again.', 'error');
+        triggerNotification?.(friendlyErrorMessage(err, 'Could not delete the record. Please try again.'), 'error');
         setDeleteModal(prev => ({ ...prev, loading: false }));
         return;
       }
@@ -189,7 +197,7 @@ export default function MediaOutreachView({ triggerNotification }) {
         onConfirm={handleConfirmDelete}
         loading={deleteModal.loading}
         title="Delete Media Outreach Record"
-        message="Deleting the record will also delete the stored data. Are you sure you want to delete?"
+        message="This deletes the organisation's whole record for this month, including Broadcast, Print, Online and Social Media figures. Are you sure you want to delete?"
         confirmText="Delete"
         cancelText="Cancel"
       />

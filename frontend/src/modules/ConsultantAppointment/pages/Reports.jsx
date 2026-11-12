@@ -1,22 +1,88 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { fetchConsultantReport, fetchConsultantDivisionReport, fetchCaWingWiseCandidates, fetchCaDivisionWiseCandidates, fetchWings } from '../api';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { fetchConsultantReport, fetchConsultantDivisionReport, fetchCaWingWiseCandidates, fetchCaDivisionWiseCandidates } from '../api';
 import ReportTable from '../../../components/ReportTable';
 
-export default function Reports({ wings = [], triggerNotification }) {
-  const [localWings, setLocalWings] = useState(wings);
+const ABSTRACT_TITLE = 'Report No.: 2.3A - Abstract ( Wing Wise ) - Consultant Appointment';
 
-  useEffect(() => {
-    if (wings && wings.length > 0) {
-      setLocalWings(wings);
-    } else {
-      fetchWings()
-        .then(res => setLocalWings(res.data || []))
-        .catch(err => console.error("Error loading wings in report:", err));
+const lower = (value) => String(value ?? '').toLowerCase();
+const isWingNameField = (f) => lower(f) === 'wing name' || lower(f) === 'wing';
+const isDivisionNameField = (f) => lower(f) === 'division name';
+const isCountField = (f) => lower(f) === 'no of consultant officer';
+const isSNoField = (f) => ['s no', 's.no', 'sno'].includes(lower(f));
+const isHiddenIdField = (f) => ['wing id', 'wing_id', 'division id', 'division_id'].includes(lower(f));
+
+/**
+ * Renders a drill-down link in a grid cell. Declared at module scope rather than inside the
+ * component so the recursive call for grouped columns refers to an already-declared binding.
+ */
+function DrillLink({ value, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className="bg-transparent border-none text-[#4b2424] font-extrabold underline cursor-pointer text-[13px] hover:opacity-70 transition-opacity"
+    >
+      {value}
+    </button>
+  );
+}
+
+function decorateColumn(col, currentView, drillTo) {
+  if (col.children) {
+    return { ...col, children: col.children.filter(c => !isHiddenIdField(c.field)).map(c => decorateColumn(c, currentView, drillTo)) };
+  }
+
+  const field = col.field;
+  const pinned = (isSNoField(field) || isWingNameField(field)) ? 'left' : undefined;
+
+  return {
+    ...col,
+    pinned,
+    filter: true,
+    sortable: true,
+    resizable: true,
+    wrapText: true,
+    autoHeight: true,
+    cellClass: 'yp-wrap-cell',
+    minWidth: col.width || 120,
+    cellRenderer: (params) => {
+      if (params.value === null || params.value === undefined) return '';
+      if (params.node && params.node.rowPinned) {
+        return <strong className="font-extrabold text-[#4b2424]">{params.value}</strong>;
+      }
+
+      const row = params.data || {};
+      const wingId = row['Wing ID'] ?? row['wing_id'] ?? 0;
+      const divisionId = row['Division ID'] ?? row['division_id'] ?? 0;
+
+      // Wing name on the abstract -> that wing's divisions
+      if (isWingNameField(field) && currentView.type === 'abstract') {
+        return <DrillLink value={params.value} onClick={() => drillTo({
+          type: 'division', wingId, title: `Division Wise Report - ${params.value}`
+        })} />;
+      }
+
+      // Appointment count on the abstract -> the candidates appointed in that wing
+      if (isCountField(field) && currentView.type === 'abstract' && Number(params.value) > 0) {
+        return <DrillLink value={params.value} onClick={() => drillTo({
+          type: 'candidates_wing', wingId, title: `Candidates - ${row['Wing Name'] ?? ''}`
+        })} />;
+      }
+
+      // Division name on a division report -> the candidates appointed in that division
+      if (isDivisionNameField(field) && currentView.type === 'division') {
+        return <DrillLink value={params.value} onClick={() => drillTo({
+          type: 'candidates_div', divisionId, title: `Candidates - ${params.value}`
+        })} />;
+      }
+
+      return params.value;
     }
-  }, [wings]);
+  };
+}
 
+export default function Reports({ triggerNotification }) {
   const [drillDownPath, setDrillDownPath] = useState([
-    { type: 'abstract', title: 'Report No.: 2.3A - Abstract ( Wing Wise ) - Consultant Appointment' }
+    { type: 'abstract', title: ABSTRACT_TITLE }
   ]);
   const [drillDownData, setDrillDownData] = useState([]);
   const [drillDownColDefs, setDrillDownColDefs] = useState([]);
@@ -30,81 +96,16 @@ export default function Reports({ wings = [], triggerNotification }) {
     }
   };
 
-  const mapColDefs = useCallback((cols) => {
-    return cols
-      .filter(col => {
-        const fieldLower = col.field?.toLowerCase() || '';
-        return fieldLower !== 'wing id' && fieldLower !== 'wing_id';
-      })
-      .map((col) => {
-        if (col.children) {
-          return { ...col, children: mapColDefs(col.children) };
-        }
+  const drillTo = useCallback((view) => {
+    setDrillDownPath(prev => [...prev, view]);
+  }, []);
 
-        const fieldLower = col.field?.toLowerCase() || '';
-        const isWingName = fieldLower === 'wing name' || fieldLower === 'wing';
-        const isSNo = fieldLower === 's no' || fieldLower === 's.no' || fieldLower === 'sno';
-
-        const pinned = (isSNo || isWingName) ? 'left' : undefined;
-
-        return {
-          ...col,
-          pinned,
-          filter: true,
-          sortable: true,
-          resizable: true,
-          wrapText: true,
-          autoHeight: true,
-          cellClass: 'yp-wrap-cell',
-          minWidth: col.width || 120,
-          cellRenderer: (params) => {
-            if (params.value === null || params.value === undefined) return '';
-
-            // 1. Click Wing Name -> go to Division Report
-            if (isWingName && currentView.type === 'abstract') {
-              if (params.node && params.node.rowPinned) {
-                return <strong style={{ fontWeight: 800, color: '#4b2424' }}>{params.value}</strong>;
-              }
-              return (
-                <button
-                  onClick={() => {
-                    const wingId = params.data["Wing ID"] || params.data["wing_id"] || 0;
-                    setDrillDownPath(prev => [...prev, {
-                      type: 'division',
-                      wingId,
-                      title: `Division Wise Report - ${params.value}`
-                    }]);
-                  }}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#4b2424',
-                    fontWeight: 800,
-                    textDecoration: 'underline',
-                    cursor: 'pointer',
-                    fontSize: '13px'
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.opacity = '0.7'; }}
-                  onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
-                >
-                  {params.value}
-                </button>
-              );
-            }
-
-            if (params.node && params.node.rowPinned) {
-              return <strong style={{ fontWeight: 800, color: '#4b2424' }}>{params.value}</strong>;
-            }
-
-            return params.value;
-          }
-        };
-      });
-  }, [currentView]);
+  const mapColDefs = useCallback(
+    (cols) => cols.filter(col => !isHiddenIdField(col.field)).map(col => decorateColumn(col, currentView, drillTo)),
+    [currentView, drillTo]
+  );
 
   const fetchDrillDownData = useCallback(() => {
-    setDrillDownLoading(true);
-    setDrillDownError(null);
     let fetchFn;
     if (currentView.type === 'abstract') {
       fetchFn = fetchConsultantReport;
@@ -116,51 +117,35 @@ export default function Reports({ wings = [], triggerNotification }) {
       fetchFn = () => fetchCaDivisionWiseCandidates(currentView.divisionId);
     }
 
-    if (!fetchFn) return;
+    // Guard before the loading flag is raised, so an unknown view cannot leave the page spinning
+    if (!fetchFn) {
+      setDrillDownData([]);
+      setDrillDownColDefs([]);
+      setDrillDownLoading(false);
+      return;
+    }
+
+    setDrillDownLoading(true);
+    setDrillDownError(null);
 
     fetchFn()
       .then(res => {
         const fetchedData = res.data?.rowData || res.data?.value || res.data?.data || (Array.isArray(res.data) ? res.data : []);
         setDrillDownData(fetchedData);
 
-        if (res.data?.columnDefs) {
+        if (res.data?.columnDefs?.length) {
           setDrillDownColDefs(mapColDefs(res.data.columnDefs));
+        } else if (fetchedData.length > 0) {
+          const fallbackDefs = Object.keys(fetchedData[0])
+            .filter(key => !isHiddenIdField(key))
+            .map((key) => decorateColumn(
+              { field: key, headerName: key.replace(/_/g, ' ').toUpperCase(), width: 150 },
+              currentView,
+              drillTo
+            ));
+          setDrillDownColDefs(fallbackDefs);
         } else {
-          if (fetchedData.length > 0) {
-            const fallbackDefs = Object.keys(fetchedData[0])
-              .filter(key => {
-                const keyLower = key.toLowerCase();
-                return keyLower !== 'wing id' && keyLower !== 'wing_id';
-              })
-              .map((key) => {
-                const isNumerical = fetchedData.some(row => typeof row[key] === 'number');
-                const isIdColumn = key.toLowerCase().includes('id');
-
-                const keyLower = key.toLowerCase();
-                const isWingName = keyLower === 'wing name' || keyLower === 'wing';
-                const isSNo = keyLower === 's no' || keyLower === 's.no' || keyLower === 'sno';
-                const pinned = (isSNo || isWingName) ? 'left' : undefined;
-
-                return {
-                  field: key,
-                  headerName: key.replace(/_/g, ' ').toUpperCase(),
-                  minWidth: 150,
-                  filter: true,
-                  sortable: true,
-                  pinned,
-                  wrapText: true,
-                  autoHeight: true,
-                  cellClass: 'yp-wrap-cell',
-                  cellRenderer: (isNumerical && !isIdColumn) ? (params) => {
-                    if (params.value === null || params.value === undefined) return '';
-                    return params.value;
-                  } : undefined
-                };
-              });
-            setDrillDownColDefs(fallbackDefs);
-          } else {
-            setDrillDownColDefs([]);
-          }
+          setDrillDownColDefs([]);
         }
       })
       .catch(err => {
@@ -168,11 +153,11 @@ export default function Reports({ wings = [], triggerNotification }) {
         setDrillDownError("Failed to load report data.");
       })
       .finally(() => setDrillDownLoading(false));
-  }, [currentView, mapColDefs]);
+  }, [currentView, mapColDefs, drillTo]);
 
   useEffect(() => {
     fetchDrillDownData();
-  }, [drillDownPath, fetchDrillDownData]);
+  }, [fetchDrillDownData]);
 
   const viewData = drillDownData;
 
@@ -184,8 +169,8 @@ export default function Reports({ wings = [], triggerNotification }) {
     let firstTextKeySet = false;
 
     keys.forEach(key => {
-      const keyLower = key.toLowerCase();
-      const isIdCol = keyLower.includes('id') || keyLower === 's no' || keyLower === 's.no' || keyLower === 'sno';
+      const keyLower = lower(key);
+      const isIdCol = keyLower.includes('id') || isSNoField(key);
       const isNumeric = viewData.some(row => typeof row[key] === 'number');
 
       if (isNumeric && !isIdCol) {
@@ -194,8 +179,6 @@ export default function Reports({ wings = [], triggerNotification }) {
       } else if (!firstTextKeySet && (keyLower.includes('wing') || keyLower.includes('division') || keyLower.includes('name') || keyLower.includes('subject') || keyLower.includes('officer'))) {
         totalRow[key] = 'Total';
         firstTextKeySet = true;
-      } else if (keyLower === 's no' || keyLower === 's.no' || keyLower === 'sno') {
-        totalRow[key] = '';
       } else {
         totalRow[key] = '';
       }
@@ -231,17 +214,39 @@ export default function Reports({ wings = [], triggerNotification }) {
     const monthStr = now.toLocaleString('en-IN', { month: 'long', year: 'numeric' });
     return (
       <>
-        <span>As on date: <strong style={{ color: '#4b2424' }}>{dateStr}</strong></span>
-        <span style={{ color: '#eadede' }}>•</span>
-        <span>Report for the month — <strong style={{ color: '#4b2424' }}>{monthStr}</strong></span>
+        <span>As on date: <strong className="text-[#4b2424]">{dateStr}</strong></span>
+        <span className="text-[#eadede]">•</span>
+        <span>Report for the month — <strong className="text-[#4b2424]">{monthStr}</strong></span>
       </>
     );
   }, []);
 
+  // Only a genuine request failure reaches this. A report with no rows renders as an empty
+  // table below, which is what an empty result means.
   if (drillDownError) {
     return (
-      <div className="text-red-500 font-bold p-4 bg-red-50 rounded-xl border border-red-200 animate-fade-in">
-        {drillDownError}
+      <div className="space-y-3 animate-fade-in">
+        <div className="text-red-500 font-bold p-4 bg-red-50 rounded-xl border border-red-200">
+          {drillDownError}
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={fetchDrillDownData}
+            className="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider text-white bg-[#4b2424] hover:bg-[#6b3535] transition cursor-pointer"
+          >
+            Retry
+          </button>
+          {drillDownPath.length > 1 && (
+            <button
+              type="button"
+              onClick={handleBack}
+              className="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider text-[#4b2424] bg-[#f7f3f3] border border-[#eadede] hover:bg-[#eadede] transition cursor-pointer"
+            >
+              Back
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -249,7 +254,7 @@ export default function Reports({ wings = [], triggerNotification }) {
   return (
     <div className="space-y-6">
       <ReportTable
-        title={currentView.type === 'abstract' ? 'Report No.: 2.3A - Abstract ( Wing Wise ) - Consultant Appointment' : currentView.title}
+        title={currentView.type === 'abstract' ? ABSTRACT_TITLE : currentView.title}
         subtitle={subtitle}
         onBack={handleBack}
         showBackButton={drillDownPath.length > 1}

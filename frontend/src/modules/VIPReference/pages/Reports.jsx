@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import ReportTable from '../../../components/ReportTable';
-import  {axiosInstance, fetchWings } from '../api.js';
+import { fetchVipReportByUrl, fetchWings } from '../api';
 import { STAGE_MAPPING, PENDENCY_AGE_MAPPING } from '../utils/constants';
 import { FileText, Clock, Filter } from 'lucide-react';
 
@@ -58,7 +58,7 @@ export default function Reports({ triggerNotification }) {
   const fetchReportData = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await axiosInstance.get(currentView.url);
+      const response = await fetchVipReportByUrl(currentView.url);
       const data = response.data || {};
       
       const rawRows = Array.isArray(data.rowData) ? data.rowData : (Array.isArray(data) ? data : []);
@@ -175,11 +175,14 @@ export default function Reports({ triggerNotification }) {
         const isStageCount = STAGE_MAPPING[fieldName] !== undefined;
 
         if (isStageCount) {
+          const isLongCol = fieldName === 'Received but yet to be sent for Comments';
           return {
             ...col,
-            flex: 1,
-            minWidth: 100,
-            cellStyle: { textAlign: 'center' },
+            flex: isLongCol ? 2.5 : 1.5,
+            minWidth: isLongCol ? 220 : 140,
+            wrapText: true,
+            autoHeight: true,
+            cellStyle: { textAlign: 'center', whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.5', padding: '8px 12px' },
             cellRenderer: (p) => {
               const countVal = parseInt(p.value, 10);
               if (isNaN(countVal) || countVal <= 0) {
@@ -244,7 +247,9 @@ export default function Reports({ triggerNotification }) {
             ...col,
             flex: 1.2,
             minWidth: 140,
-            cellStyle: { textAlign: 'center' },
+            wrapText: true,
+            autoHeight: true,
+            cellStyle: { textAlign: 'center', whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.5', padding: '8px 12px' },
             cellRenderer: (p) => (
               <span style={{ fontWeight: 700, color: '#1e293b', fontSize: '12px' }}>
                 {p.value || '0'}
@@ -264,7 +269,9 @@ export default function Reports({ triggerNotification }) {
             ...col,
             flex: 1.5,
             minWidth: 120,
-            cellStyle: { textAlign: 'center' },
+            wrapText: true,
+            autoHeight: true,
+            cellStyle: { textAlign: 'center', whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.5', padding: '8px 12px' },
             cellRenderer: (p) => {
               const countVal = parseInt(p.value, 10);
               if (isNaN(countVal) || countVal <= 0) {
@@ -327,7 +334,9 @@ export default function Reports({ triggerNotification }) {
             ...col,
             flex: 2,
             minWidth: 160,
-            cellStyle: { textAlign: 'center' },
+            wrapText: true,
+            autoHeight: true,
+            cellStyle: { textAlign: 'center', whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.5', padding: '8px 12px' },
             cellRenderer: (p) => (
               <span style={{ fontWeight: 700, color: '#1e293b', fontSize: '12px' }}>
                 {p.value || '0'}
@@ -354,6 +363,17 @@ export default function Reports({ triggerNotification }) {
         };
       }
 
+      if (fieldName === 'Eoffice File Number' || fieldName === 'Reference Letter Number' || fieldName === 'Received From') {
+        return {
+          ...col,
+          flex: 2,
+          minWidth: 200,
+          wrapText: true,
+          autoHeight: true,
+          cellStyle: { whiteSpace: 'normal', lineHeight: '1.5', padding: '8px 12px' }
+        };
+      }
+
       // Wrap text for subjects in detail view
       if (fieldName === 'Subject') {
         return {
@@ -369,7 +389,9 @@ export default function Reports({ triggerNotification }) {
       return {
         ...col,
         flex: col.flex || 1,
-        minWidth: col.minWidth || 120
+        minWidth: col.minWidth || 120,
+        wrapText: true,
+        autoHeight: true
       };
     });
   }, [currentView, reportType, setDrillDownPath]);
@@ -451,6 +473,10 @@ export default function Reports({ triggerNotification }) {
     };
   }, []);
 
+  const exportSubtitle = useMemo(() =>
+    `As on date: ${currentDateText.asOn} | Report for the month — ${currentDateText.monthName}`,
+  [currentDateText]);
+
   const subtitle = useMemo(() => (
     <>
       <span>As on date: <strong style={{ color: '#4b2424' }}>{currentDateText.asOn}</strong></span>
@@ -465,7 +491,14 @@ export default function Reports({ triggerNotification }) {
     resizable: true,
     flex: 1,
     minWidth: 100,
-    cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' }
+    wrapText: true,
+    autoHeight: true,
+    cellStyle: {
+      whiteSpace: 'normal',
+      wordBreak: 'break-word',
+      lineHeight: '1.5',
+      padding: '8px 12px'
+    }
   }), []);
 
   return (
@@ -522,6 +555,8 @@ export default function Reports({ triggerNotification }) {
           loading={loading}
           onRefresh={fetchReportData}
           triggerNotification={triggerNotification}
+          exportSubtitle={exportSubtitle}
+          autoHeaderHeight={true}
           toolbarExtra={
             currentView.type === 'summary' && (
               <div className="flex items-center space-x-2">

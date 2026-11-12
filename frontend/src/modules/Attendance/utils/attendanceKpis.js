@@ -17,7 +17,7 @@ export function kpisFromRows(rows) {
   return {
     employees: { empCount: ids.size || rows.length, wingCount: wingsLabel(wings.size) },
     avgWorkingHours: work.length ? secondsToTime(work.reduce((a, b) => a + b, 0) / work.length) : '—',
-    punctualRate: percent(ins.filter((s) => s < NINE_THIRTY).length, ins.length),
+    punctualRate: percent(ins.filter((s) => s <= NINE_THIRTY).length, ins.length), // 09:30 is on time (QC AT-05)
     earlyCheckoutRate: percent(outs.filter((s) => s < FIVE_THIRTY).length, outs.length),
   };
 }
@@ -30,12 +30,18 @@ export function kpisFromReport(rows) {
   if (!total) {
     return { employees: { empCount: 0, wingCount: wingsLabel(0) }, avgWorkingHours: '—', punctualRate: '—', earlyCheckoutRate: '—' };
   }
-  // Wing averages weighted by each wing's employees; the report gives hours as a decimal
-  const hours = rows.reduce((acc, r) => acc + num(r, /^Average Working Hours$/i) * num(r, /^Number Of Employees$/i), 0) / total;
+  // Times and hours count only employees who attended (QC AT-05): those in by 9:30 plus those
+  // in after it. Wing averages are weighted by each wing's attended employees; the report
+  // gives hours as a decimal.
+  const attendedIn = (r) => num(r, /InTime (At or )?Before 9:30/i) + num(r, /InTime After 9:30/i);
+  const attended = rows.reduce((acc, r) => acc + attendedIn(r), 0);
+  const hours = attended
+    ? rows.reduce((acc, r) => acc + num(r, /^Average Working Hours$/i) * attendedIn(r), 0) / attended
+    : null;
   return {
     employees: { empCount: total, wingCount: wingsLabel(rows.length) },
-    avgWorkingHours: secondsToTime(hours * 3600),
-    punctualRate: percent(rows.reduce((acc, r) => acc + num(r, /InTime Before 9:30/i), 0), total),
-    earlyCheckoutRate: percent(rows.reduce((acc, r) => acc + num(r, /OutTime before 5:30/i), 0), total),
+    avgWorkingHours: hours === null ? '—' : secondsToTime(hours * 3600),
+    punctualRate: percent(rows.reduce((acc, r) => acc + num(r, /InTime (At or )?Before 9:30/i), 0), attended),
+    earlyCheckoutRate: percent(rows.reduce((acc, r) => acc + num(r, /OutTime before 5:30/i), 0), attended),
   };
 }

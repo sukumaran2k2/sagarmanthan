@@ -30,7 +30,7 @@ export default function ForgotCard({
 
       {forgotStep === 1 && (
         /* Step 1: Send OTP to Email */
-        <form onSubmit={handleSendOtp} className="space-y-5 text-left">
+        <form onSubmit={handleSendOtp} className="space-y-3 sm:space-y-5 text-left">
           <div className="space-y-2">
             <label className="text-xs font-semibold text-white tracking-wide block">
               Registered Email Address
@@ -47,7 +47,7 @@ export default function ForgotCard({
 
           {/* Google reCAPTCHA Widget for Password Reset */}
           <div className="w-full flex justify-center bg-white/5 p-2 rounded-lg border border-white/10 shadow-inner overflow-hidden animate-fade-in">
-            <div className="scale-95 origin-center flex justify-center w-full py-1">
+            <div className="scale-[0.82] xs:scale-90 sm:scale-95 origin-center flex justify-center w-full py-1">
               <ReCAPTCHA
                 sitekey={RECAPTCHA_SITE_KEY}
                 onChange={(val) => {
@@ -86,7 +86,7 @@ export default function ForgotCard({
 
       {forgotStep === 2 && (
         /* Step 2: Input OTP & New Password */
-        <form onSubmit={handleVerifyOtpAndReset} className="space-y-5 text-left">
+        <form onSubmit={handleVerifyOtpAndReset} className="space-y-3 sm:space-y-5 text-left">
           {/* OTP Notification Banner */}
           <div className="text-[11px] text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-2 rounded-xl font-medium flex items-center space-x-2">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>

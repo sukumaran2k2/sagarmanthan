@@ -3,7 +3,7 @@ import { TrendingUp, Search, X, BarChart3, List } from 'lucide-react';
 import * as am5 from '@amcharts/amcharts5';
 import * as am5xy from '@amcharts/amcharts5/xy';
 import am5themes_Animated from '@amcharts/amcharts5/themes/Animated';
-import { newChartRoot } from '../../../../utils/amCharts';
+import { newChartRoot, lineValueBullet } from '../../../../utils/amCharts';
 import { fetchFacilitiesReport } from '../../api';
 import Table from '../../../../components/Table';
 import ExportDropdown from '../../../../components/ExportDropdown';
@@ -106,6 +106,10 @@ export default function FacilitiesReports({ notify }) {
       { name: 'Workshops', field: 'workshops', color: 0x9c27b0 },
     ];
 
+    // Labels need about a tenth of the axis height between lines (the axis tops out ~20% over the largest value)
+    const fields = seriesConfig.map((s) => s.field);
+    const gap = 0.12 * Math.max(0, ...chartData.flatMap((d) => fields.map((f) => Number(d[f]) || 0)));
+
     seriesConfig.forEach(({ name, field, color }) => {
       const series = chart.series.push(
         am5xy.LineSeries.new(root, {
@@ -119,6 +123,7 @@ export default function FacilitiesReports({ notify }) {
       series.bullets.push(() => am5.Bullet.new(root, {
         sprite: am5.Circle.new(root, { radius: 4, fill: am5.color(color), stroke: am5.color(0xffffff), strokeWidth: 2 })
       }));
+      series.bullets.push((root, s, dataItem) => lineValueBullet(root, dataItem, { field, fields, color, gap }));
       series.data.setAll(chartData);
     });
 

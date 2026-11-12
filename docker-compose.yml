@@ -3,8 +3,6 @@ services:
     image: clamav/clamav:stable
     container_name: sagarmanthan-clamav
     restart: unless-stopped
-    ports:
-      - "3310:3310"
     volumes:
       - clamav_data:/var/lib/clamav
     healthcheck:
@@ -12,7 +10,7 @@ services:
       interval: 60s
       timeout: 10s
       retries: 3
-      start_period: 120s
+      start_period: 300s
 
   backend:
     build: ./backend
@@ -24,15 +22,20 @@ services:
       - PORT=3000
       - CLAMAV_HOST=clamav
       - CLAMAV_PORT=3310
+      - CLAMD_HOST=clamav
+      - CLAMD_PORT=3310
     env_file:
       - ./backend/.env
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./backend/fileuploads:/app/fileuploads
+      - ./backend/demoFiles:/app/demoFiles
+      - ./backend/formbuilder_Files:/app/formbuilder_Files
+      - ./backend/delete_log:/app/delete_log
     depends_on:
       clamav:
-        condition: service_healthy
+        condition: service_started
 
   frontend:
     build:

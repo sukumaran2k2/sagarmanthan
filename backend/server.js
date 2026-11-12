@@ -1,11 +1,9 @@
 import express from "express";
 import router from "./src/routes.js";
-import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import cors from "cors";
 import cookieParser from 'cookie-parser';
-import bodyParser from 'body-parser';
 import cron from 'node-cron';
 import { sendEmail } from './src/controllers/Dashboard/emailService.js';
 import { fileURLToPath } from 'url';
@@ -17,17 +15,6 @@ const __dirname = dirname(__filename);
 
 const app = express();
 
-// Enable CORS as the first middleware
-app.use(cors({
-  origin: "*",
-  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
-}));
-app.options("*", cors());
-
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ limit: "50mb", extended: true, parameterLimit: 50000 }));
-
 // Credentials: true is required so the browser sends the httpOnly refreshToken cookie.
 // ALLOWED_ORIGIN must not be "*" when credentials are enabled.
 const ALLOWED_ORIGIN = process.env.FRONTEND_URL || 'http://localhost:5173';
@@ -35,10 +22,14 @@ const corsOptions = {
   origin: ALLOWED_ORIGIN,
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
+  // Cache-Control: the network speed test asks for an uncached answer (QC R-26)
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin", "Cache-Control"],
 };
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
+
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true, parameterLimit: 50000 }));
 app.use(cookieParser());
 
 // cron.schedule('0 9 * * *', async () => {
@@ -93,12 +84,6 @@ app.get("/", (req, res) => {
 
 app.use(router);
 
-const port = process.env.PORT || 3000;
-app.listen(port, () => console.log(`Sagarmanthan Backend started successfully on port ${port}`));
-
-// chatbot email
-app.use(bodyParser.json());
-
 app.post('/send-email', async (req, res) => {
     const { to, subject, text, cc } = req.body;
     console.log('Recipient:', to);
@@ -112,6 +97,9 @@ app.post('/send-email', async (req, res) => {
     }
 });
 
+const port = process.env.PORT || 3000;
+app.listen(port, () => console.log(`Sagarmanthan Backend started successfully on port ${port}`));
+
 const mainProjectDir = path.join(__dirname, 'fileuploads', 'Project_Documents', 'project_images', 'mainProject');
 const subProjectDir = path.join(__dirname, 'fileuploads', 'Project_Documents', 'project_images', 'subProject');
 
@@ -122,70 +110,7 @@ if (!fs.existsSync(subProjectDir)) {
     fs.mkdirSync(subProjectDir, { recursive: true });
 }
 
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        const [baseName] = file.originalname.split('.');
-        const [projectID, subprojectId] = baseName.split('_');
-        if (subprojectId!='-1') {
-            cb(null, subProjectDir);
-        } else {
-            cb(null, mainProjectDir); 
-        }
-    },
-    filename: (req, file, cb) => {
-        cb(null, file.originalname);
-    }
-});
-const upload = multer({ storage: storage });
-app.post('/upload', upload.array('files', 10), (req, res) => {
-    if (!req.files) {
-        return res.status(400).json({ error: 'No files uploaded' });
-    }
-    res.status(200).json({ message: 'Files uploaded successfully' });
-});
-
-app.use('/fileuploads', express.static(path.join(__dirname, 'fileuploads')));
-app.use('/fileuploads/Project_Documents/project_images', express.static(path.join(__dirname, 'fileuploads', 'Project_Documents', 'project_images')));
-
-// Fetch images endpoint
-app.get('/getImages', async (req, res) => {
-  const { projectId, subProjectId } = req.query;
-
-  if (!projectId) {
-    return res.status(400).send('Project ID is required.');
-  }
-
-  try {
-    const mainProjectImages = [];
-    const subProjectImages = [];
-
-    if (fs.existsSync(mainProjectDir)) {
-      mainProjectImages.push(
-        ...fs.readdirSync(mainProjectDir)
-          .filter(file => file.startsWith(`${projectId}_`)) 
-          .map(file => ({
-            documentName: `https://ntcpwcit.in/sagarmanthan/api/fileuploads/Project_Documents/project_images/mainProject/${file}` // Corrected line
-          }))
-      )
-    }
-
-    // Fetch images from subProject directory if subProjectId is provided
-    if (subProjectId && fs.existsSync(subProjectDir)) {
-      subProjectImages.push(
-        ...fs.readdirSync(subProjectDir)
-          .filter(file => file.startsWith(`${projectId}_${subProjectId}`)) // Corrected line
-          .map(file => ({
-            documentName: `https://ntcpwcit.in/sagarmanthan/api/fileuploads/Project_Documents/project_images/subProject/${file}` // Corrected line
-          }))
-      );
-    }
-
-    // Combine the images from both directories
-    const allImages = [...mainProjectImages, ...subProjectImages];
-
-    res.status(200).json(allImages);
-  } catch (err) {
-    console.error(err);
-    res.status(500).send('Error fetching images.');
-  }
-});
+// The old /upload (saved files under the name the browser sent, overwriting others) and
+// /getImages (returned links to the 2.0 server's public folder) were unused and are removed (QC R-12).
+// Uploaded files are not served publicly (QC CSR-01): each module downloads them through its own
+// signed-in, scoped route (e.g. /download-csrfile/:name).

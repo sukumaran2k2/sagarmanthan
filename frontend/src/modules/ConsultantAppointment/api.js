@@ -1,56 +1,8 @@
-import axios from 'axios';
+import { createApiClient } from '../../api';
 
-export const API_BASE = import.meta.env.VITE_API_BASE_URL;
+const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
-const api = axios.create({ baseURL: API_BASE });
-
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('accessToken');
-  if (token) {
-    config.headers = config.headers || {};
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-let refreshPromise = null;
-
-async function refreshAccessToken() {
-  // Refresh token is stored in an httpOnly cookie — the browser sends it automatically.
-  const res = await axios.get(`${API_BASE}/refresh-token`, {
-    withCredentials: true,
-  });
-  const next = res.data?.accessToken;
-  if (!next) throw new Error('Refresh failed');
-  localStorage.setItem('accessToken', next);
-  return next;
-}
-
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const original = error.config;
-    if (error.response?.status !== 401 || !original || original._retry) {
-      return Promise.reject(error);
-    }
-    original._retry = true;
-    try {
-      if (!refreshPromise) {
-        refreshPromise = refreshAccessToken().finally(() => {
-          refreshPromise = null;
-        });
-      }
-      const token = await refreshPromise;
-      original.headers = original.headers || {};
-      original.headers.Authorization = `Bearer ${token}`;
-      return api(original);
-    } catch {
-      localStorage.removeItem('accessToken');
-      // refreshToken lives in an httpOnly cookie — the server clears it on logout
-      return Promise.reject(error);
-    }
-  }
-);
+const api = createApiClient({ baseURL: API_BASE });
 
 export function fetchConsultantAppointmentDashboard() {
   return api.get('/consultant-appointment-dashboard');
@@ -58,10 +10,6 @@ export function fetchConsultantAppointmentDashboard() {
 
 export function fetchConsultantAppointments(params = {}) {
   return api.get('/consultant-appointment', { params });
-}
-
-export function fetchConsultantAppointmentById(id) {
-  return api.get(`/edit-consultant-appointment/${id}`);
 }
 
 export function createConsultantAppointment(payload) {
@@ -82,6 +30,12 @@ export function fetchWings() {
 
 export function fetchDivisions() {
   return api.get('/mmt-dropdown/mmt_division');
+}
+
+// The Data List's Stage filter matches stage_name on the server, so the options have to come
+// from the same master table rather than a list hardcoded in the page.
+export function fetchConsultantStages() {
+  return api.get('/mmt-dropdown/mmt_consultant_appointment_stage');
 }
 
 export function fetchConsultantReport() {

@@ -1,3 +1,6 @@
+import { ministryOnly } from "./middleware/dataScope.js";
+import { validateKpiBody } from "./middleware/kpiValidation.js";
+import { rejectPathTraversal } from "./middleware/pathGuard.js";
 import express from "express";
 
 import auth from "./authenticate.js";
@@ -12,7 +15,6 @@ import userTable from "./controllers/UserManagement/createUser.js";
 import orgModulePermission from "./controllers/RBAC/orgModulePermission.js";
 import userModuleCrud from "./controllers/RBAC/userModuleCrud.js";
 import { getOrgModulePermissionLog, getUserModuleCrudLog } from "./controllers/RBAC/rbacAudit.js";
-import * as sagarbotPermissionTab from "./controllers/RBAC/sagarbotPermission.js";
 
 
 import terminalImageUploaderTab from "./controllers/MasterManagement/terminalImageUploader.js";
@@ -109,13 +111,11 @@ import completionTab from "./controllers/ProjectManagement/addCompletionDateActi
 // REPORTS
 import parlimentaryReportTab from "./controllers/Reports/parliamentaryReports.js";
 import billReportTab from "./controllers/Reports/billPreConstitutionReports.js";
-import attendanceReportTab from "./controllers/Reports/attendanceReports.js";
 import empAttendanceReportTab from "./controllers/Reports/empAttendanceReports.js";
 import ypReportTab from "./controllers/Reports/youngProfessionalReports.js";
 import cabinetMopswReportTab from "./controllers/Reports/cabinetMopswReports.js";
 import cabinetMinistryReportTab from "./controllers/Reports/cabinetMinistryReports.js";
 import consultAppReportTab from "./controllers/Reports/consulAppointmentReports.js";
-import aditParaReportTab from "./controllers/Reports/auditParaReports.js";
 import vipReportTab from "./controllers/Reports/vipReferenceReport.js";
 import gemReportTab from "./controllers/Reports/gemReport.js";
 import mivReportTab from "./controllers/Reports/mivReport.js";
@@ -223,25 +223,16 @@ import KRTab from "./controllers/KnowledgeRepository/knowledgeRep.js";
 import OVDTab from "./controllers/LongTermStrategies/oneVision.js";
 import OVDDataTab from "./controllers/LongTermStrategies/ovodGet.js";
 
-//Form Builder tab
-// import formBuilderTab from "./controllers/formBuilder/formBuilderV1.js";
-// import formBuilderInputTab from "./controllers/formBuilder/formBuilderInput.js";
-// import formBuilderReportTab from "./controllers/formBuilder/formBuilderOutput.js";
-
 import marineTab from "./controllers/KPI/marineCasualty.js";
 import momOfPswMeetingsTab from "./controllers/Governance/addminutesofmeeting.js";
 
 import entryExitTab from "./controllers/KPI/entryExitPerformance.js"
 import conciliationCourtCaseTab from "./controllers/Legal/conciliationCourtCase.js"
 
-//Module Management
-import ModuleControllerTab from "./controllers/UserManagement/moduleManagement.js";
-// old module controller (prefer /rbac/*)
-
 //API - MIKR
 import { getAuthCode, getToken } from "./controllers/mikr-authcode-token-generation.js";
 import { getVerifyToken } from "./controllers/verify-api-token.js";
-import { getRefreshToken } from "./controllers/refresh-token.js";
+import { getRefreshToken, endSession } from "./controllers/refresh-token.js";
 import { requireSuperAdmin, requireUserAdmin, guardManagedUser, guardManagedUserList, guardOrganisation, requireSelf, ownOrganisationQuery, guardUserIdsQuery } from "./middleware/userAdmin.js";
 import { getKrDocumentData } from "./controllers/fetch-kr-document-data.js";
 import { getUpdateDocStatus } from "./controllers/update-document-status.js";
@@ -274,11 +265,10 @@ import { acceptFormFiles } from "./controllers/formBuilder/formBuilderFiles.js";
 const router = express.Router();
 
 // Every request needs a signed-in user, except logging in, the password reset steps (they check
-// the emailed code / current password), refreshing the session (it carries the refresh token),
-// MIKR's token routes (they check their own token), the external KPI / project data feed (it
-// checks an email and password sent with each request) and the chatbot reading its
-// permissions. Uploaded files under /fileuploads are served by express.static after the router
-// and stay as they are.
+// the emailed code / current password), refreshing or ending the session (they use the refresh cookie),
+// MIKR's token routes (they check their own token) and the external KPI / project data feed (it
+// checks an email and password sent with each request). Uploaded files are only reachable
+// through each module's signed-in download route.
 const EXTERNAL_DATA_FEED = [
     '/project-proposal', '/project-clearance', '/traffic-kpi-targets', '/traffic-kpi-actual',
     '/cruise-and-passenger-traffic-actual', '/cruise-and-passenger-traffic-target', '/kpi-port-performance-actual',
@@ -288,20 +278,21 @@ const EXTERNAL_DATA_FEED = [
 ];
 const PUBLIC_ROUTES = new Set([
     ...EXTERNAL_DATA_FEED.map((p) => `GET ${p}`),
-    'GET /api/sagarbot-permissions',
     'POST /login-validation',
     'POST /password-reset-validation',
     'PUT /edit-password',
     'GET /refresh-token',
+    'POST /logout',
     'GET /token',
     'GET /verify-api-token',
     'GET /fetch-kr-document-data',
     'PUT /update-document-status',
     'GET /download-document',
 ]);
+router.use(rejectPathTraversal);
 router.use((req, res, next) => {
     const path = req.path.length > 1 ? req.path.replace(/\/+$/, '') : req.path;
-    if (req.method === 'OPTIONS' || PUBLIC_ROUTES.has(`${req.method} ${path}`) || path.startsWith('/fileuploads/')) {
+    if (req.method === 'OPTIONS' || PUBLIC_ROUTES.has(`${req.method} ${path}`)) {
         return next();
     }
     return auth(req, res, next);
@@ -315,6 +306,7 @@ router.get('/authorize', auth, getAuthCode);
 router.get('/token', getToken);
 router.get("/verify-api-token", mikrAuth, getVerifyToken);
 router.get("/refresh-token", getRefreshToken);
+router.post("/logout", endSession);
 router.get("/fetch-kr-document-data", mikrAuth, getKrDocumentData);
 router.put("/update-document-status", mikrAuth, getUpdateDocStatus);
 router.get("/download-document", mikrAuth, getDownloadDocument);
@@ -326,30 +318,26 @@ router.get("/mmt/:tid", masterTable.getMmt);
 router.get("/mmt-dropdown/:tid", masterTable.getDropDownData);
 router.get("/mmt-dependecy-dropdown/:tid", masterTable.getFilterDependecyDropDown);
 
-router.post("/mmt", masterTable.createMmt);
-router.put("/mmt", masterTable.updateMmt);
-router.put("/mmt-status", masterTable.toggleStatusMmt);
+router.post("/mmt", requireSuperAdmin, masterTable.createMmt); // master data: superadmin only, as in Master Management
+router.put("/mmt", requireSuperAdmin, masterTable.updateMmt);
+router.put("/mmt-status", requireSuperAdmin, masterTable.toggleStatusMmt);
 // router.delete("/mmt", masterTable.deleteMmt);
 
 router.get("/allvalue-dropdown/:tid", masterTable.getDropDownAllValues);
 
 //Terminal/Jetty image uploader
-router.post("/terminal-image-uploader", terminalImageUploaderTab.upload.single('imageFile'), terminalImageUploaderTab.terminalImageUploader);
+router.post("/terminal-image-uploader", requireSuperAdmin, terminalImageUploaderTab.upload.single('imageFile'), terminalImageUploaderTab.terminalImageUploader);
 
 router.post("/createuser", auth, guardManagedUser({ checkNewRole: true }), userTable.createuser);
-router.post("/createnodaluser", auth, requireSuperAdmin, userTable.createNodalUser);
 router.get("/userlist", auth, requireSuperAdmin, userTable.getUserData);
 router.get("/my-profile", auth, userTable.getMyProfile);
 router.get("/org-userlist/:organisation", auth, guardOrganisation((req) => req.params.organisation), userTable.getOrgUserData);
 router.put("/edituser", auth, guardManagedUser({ userIdOf: (req) => req.body.userID, checkNewRole: true }), userTable.updateUser);
-router.put("/editnodaluser", auth, requireSuperAdmin, userTable.updateNodalUser);
 router.put("/edit-user-profile", auth, requireSelf((req) => req.body.userID), userTable.editUserProfileData);
 router.put("/user-status", auth, guardManagedUser({ userIdOf: (req) => req.body.userID }), userTable.toggleUserStatusData);
 router.post("/changepassword", auth, guardManagedUser({ userIdOf: (req) => req.body.userID }), userTable.changePasswordAction);
 router.put("/edit-password", userTable.updatePassword); // checks the current password; used by Forgot Password before login
 // router.get("/user/:userId", userTable.getUpdateUser);
-router.get("/get-user-permission-modules/:userId/:organisationId", auth, requireSuperAdmin, userTable.getPermissionModulesData);
-router.put("/update-user-permission", auth, requireSuperAdmin, userTable.updatePermissions);
 router.get("/get-user-data/:userId", auth, requireSelf((req) => req.params.userId), userTable.getUserDetails);
 
 //Dashboard Data Entry Status
@@ -395,28 +383,17 @@ const billsDelete = requireModulePermission("BILLS_PRE_CONSTITUTION", "delete");
 
 //attendance
 //check
-router.get("/employee-attendance-file", auth, attRead, empAttendanceTab.getEmployeeAttendance);
-router.get("/employee-attendance-sample", auth, attRead, empAttendanceTab.agSample);
+router.get("/employee-attendance-file", auth, ministryOnly, attRead, empAttendanceTab.getEmployeeAttendance);
 
-router.get("/employee-attendance-view", auth, attRead, empAttendanceTab.getEmpAttendance);
-router.post("/employee-attendance", auth, attCreate, empAttendanceTab.uploadSingleFile, empAttendanceTab.createEmpAttendance);
-router.put("/attend-employee", auth, attUpdate, empAttendanceTab.uploadSingleFile, empAttendanceTab.updateEmpAttendance);
-router.post("/employee-attendance-data", auth, attCreate, empAttendanceTab.addEmpDataAttendance);
-router.get("/employee-org-units", auth, attRead, empAttendanceTab.getEmployeeOrgUnits);
-router.get("/employee-attendance/download/:id", auth, attRead, empAttendanceTab.downloadEmpAttendanceFile);
-router.delete("/employee-attendance/:id", auth, attDelete, empAttendanceTab.deleteEmpAttendanceFile);
-// router.post("/employee-attendance/storecsv/:id",empAttendanceTab.storeEMPAttendanceData);
-// router.get("/employee-attendance/downloadSampleDocument", empAttendanceTab.downloadEmpSampleDocument);
-
-//view Data - Attendance
-// router.get("/employee-excelData", empAttendanceTab.getEmpExcelData);
+router.get("/employee-attendance-view", auth, ministryOnly, attRead, empAttendanceTab.getEmpAttendance);
+router.post("/employee-attendance", auth, ministryOnly, attCreate, empAttendanceTab.uploadSingleFile, empAttendanceTab.createEmpAttendance);
+router.put("/attend-employee", auth, ministryOnly, attUpdate, empAttendanceTab.uploadSingleFile, empAttendanceTab.updateEmpAttendance);
+router.post("/employee-attendance-data", auth, ministryOnly, attCreate, empAttendanceTab.addEmpDataAttendance);
+router.get("/employee-org-units", auth, ministryOnly, attRead, empAttendanceTab.getEmployeeOrgUnits);
+router.get("/employee-attendance/download/:id", auth, ministryOnly, attRead, empAttendanceTab.downloadEmpAttendanceFile);
+router.delete("/employee-attendance/:id", auth, ministryOnly, attDelete, empAttendanceTab.deleteEmpAttendanceFile);
 
 //attendance
-router.get("/attendance", auth, attRead, attendanceTab.getAttendance);
-router.post("/attendance", auth, attCreate, attendanceTab.uploadSingleFile, attendanceTab.createAttendance);
-router.get("/attendance/download/:id", auth, attRead, attendanceTab.downloadAttendance);
-router.delete("/attendance/:id", auth, attDelete, attendanceTab.deleteAttendance);
-router.post("/attendance/storecsv/:id", auth, attCreate, attendanceTab.storeCsvData);
 router.get("/attendance/downloadSampleDocument", auth, attRead, attendanceTab.downloadSampleDocument);
 
 //view Data - Attendance
@@ -740,13 +717,14 @@ router.delete(
 // router.get("/get-vip-stage-chart", vipReferenceTab.getVipStageChartData);
 // router.get("/get-vip-deadline-chart", vipReferenceTab.getVipDeadlineChartData);
 
-// Audit Para
-router.get("/audit-para", auditParaTab.getAuditPara);
-router.post("/audit-para", auditParaTab.createAuditPara);
-router.get("/edit-audit-para/:auditParaID", auditParaTab.getUpdateAuditData);
-router.put("/audit-para", auditParaTab.updateAuditPara);
-// router.post("/audit-para-stage", auditParaTab.createAuditParaStage);
-router.delete("/audit-para/:audit_para_id/:userID", auditParaTab.deleteAuditPara);
+// Audit Para: signed-in users with the AUDIT_PARAS rights; the user and their scope come from
+// the token, not from the request
+const auditParaRead = requireModulePermission("AUDIT_PARAS", "read");
+router.get("/audit-para-dashboard", auth, ministryOnly, auditParaRead, auditParaTab.getAuditParaDashboard);
+router.get("/audit-para", auth, ministryOnly, auditParaRead, auditParaTab.getAuditPara);
+router.post("/audit-para", auth, ministryOnly, requireModulePermission("AUDIT_PARAS", "create"), auditParaTab.createAuditPara);
+router.put("/audit-para", auth, ministryOnly, requireModulePermission("AUDIT_PARAS", "update"), auditParaTab.updateAuditPara);
+router.delete("/audit-para/:audit_para_id", auth, ministryOnly, requireModulePermission("AUDIT_PARAS", "delete"), auditParaTab.deleteAuditPara);
 
 //Issues Tracking
 
@@ -772,50 +750,43 @@ router.get("/decision-implement/:ID", decisionController.getUpdateDecisionImplem
 
 // E-OFFICE
 //File pendancy
-router.get('/file-pendancy-report/:Year/:Month/:Week', auth, eofficeRead, eOfficeTab.getFilePendenceReport);
-router.get("/file-pendancy-all", auth, eofficeRead, eOfficeTab.getFilePendenceAll);
-router.get("/file-pendancy-check", auth, eofficeRead, eOfficeTab.getFilePendenceCheck);
-router.get("/file-pendancy-History", auth, eofficeRead, eOfficeTab.getFilePendencyHistory);
-router.get("/file-pendancy/download/:id", auth, eofficeRead, eOfficeTab.downloadFilePendancy);
-router.get("/file-pendancy/download-sample", auth, eofficeRead, eOfficeTab.downloadFilePendancySample);
-router.delete("/file-pendancy/delete/:id", auth, eofficeDelete, eOfficeTab.deleteFilePendency);
+router.get('/file-pendancy-report/:Year/:Month/:Week', auth, ministryOnly, eofficeRead, eOfficeTab.getFilePendenceReport);
+router.get("/file-pendancy-all", auth, ministryOnly, eofficeRead, eOfficeTab.getFilePendenceAll);
+router.get("/file-pendancy-check", auth, ministryOnly, eofficeRead, eOfficeTab.getFilePendenceCheck);
+router.get("/file-pendancy-History", auth, ministryOnly, eofficeRead, eOfficeTab.getFilePendencyHistory);
+router.get("/file-pendancy/download/:id", auth, ministryOnly, eofficeRead, eOfficeTab.downloadFilePendancy);
+router.get("/file-pendancy/download-sample", auth, ministryOnly, eofficeRead, eOfficeTab.downloadFilePendancySample);
+router.delete("/file-pendancy/delete/:id", auth, ministryOnly, eofficeDelete, eOfficeTab.deleteFilePendency);
 // Unknown Emp Ids in an E-Office sheet: create them (same as Attendance, under E-Office rights)
-router.post("/eoffice-employee-data", auth, eofficeCreate, empAttendanceTab.addEmpDataAttendance);
-router.get("/eoffice-employee-org-units", auth, eofficeRead, empAttendanceTab.getEmployeeOrgUnits);
-router.post("/file-pendancy-create", auth, eofficeCreate, EofficeFilePendancyTab.upload.single('file'), EofficeFilePendancyTab.addFilePendancy);
-router.put("/file-pendancy-update", auth, eofficeUpdate, EofficeFilePendancyTab.upload.single('file'), EofficeFilePendancyTab.updateFilePendancy);
+router.post("/eoffice-employee-data", auth, ministryOnly, eofficeCreate, empAttendanceTab.addEmpDataAttendance);
+router.get("/eoffice-employee-org-units", auth, ministryOnly, eofficeRead, empAttendanceTab.getEmployeeOrgUnits);
+router.post("/file-pendancy-create", auth, ministryOnly, eofficeCreate, EofficeFilePendancyTab.uploadSingleFile, EofficeFilePendancyTab.addFilePendancy);
+router.put("/file-pendancy-update", auth, ministryOnly, eofficeUpdate, EofficeFilePendancyTab.uploadSingleFile, EofficeFilePendancyTab.updateFilePendancy);
 
-//File disposal Chart
-router.get('/file-pendancy-chart/:Year/:Month/:Hierarchy', auth, eofficeRead, eOfficeTab.getFilePendancyChart);
 
 //Receipt pendancy
-router.get('/receipt-pendancy-report/:Year/:Month/:Week', auth, eofficeRead, eOfficeTab.getReceiptPendenceReport);
-router.get("/receipt-pendancy-all", auth, eofficeRead, eOfficeTab.getReceiptPendenceAll);
-router.get("/receipt-pendancy-check", auth, eofficeRead, eOfficeTab.getReceiptPendenceCheck);
-router.get("/receipt-pendancy-History", auth, eofficeRead, eOfficeTab.getReceiptPendencyHistory);
-router.get("/receipt-pendancy/download/:id", auth, eofficeRead, eOfficeTab.downloadReceiptPendency);
-router.get("/receipt-pendancy/download-sample", auth, eofficeRead, eOfficeTab.downloadReceiptPendencySample);
-router.delete("/receipt-pendancy/delete/:id", auth, eofficeDelete, eOfficeTab.deleteReceiptPendency);
-router.post("/receipt-pendancy-create", auth, eofficeCreate, EofficeReceiptPendancyTab.upload.single('file'), EofficeReceiptPendancyTab.addReceiptPendancy);
-router.put("/receipt-pendancy-update", auth, eofficeUpdate, EofficeReceiptPendancyTab.upload.single('file'), EofficeReceiptPendancyTab.updateReceiptPendancy);
+router.get('/receipt-pendancy-report/:Year/:Month/:Week', auth, ministryOnly, eofficeRead, eOfficeTab.getReceiptPendenceReport);
+router.get("/receipt-pendancy-all", auth, ministryOnly, eofficeRead, eOfficeTab.getReceiptPendenceAll);
+router.get("/receipt-pendancy-check", auth, ministryOnly, eofficeRead, eOfficeTab.getReceiptPendenceCheck);
+router.get("/receipt-pendancy-History", auth, ministryOnly, eofficeRead, eOfficeTab.getReceiptPendencyHistory);
+router.get("/receipt-pendancy/download/:id", auth, ministryOnly, eofficeRead, eOfficeTab.downloadReceiptPendency);
+router.get("/receipt-pendancy/download-sample", auth, ministryOnly, eofficeRead, eOfficeTab.downloadReceiptPendencySample);
+router.delete("/receipt-pendancy/delete/:id", auth, ministryOnly, eofficeDelete, eOfficeTab.deleteReceiptPendency);
+router.post("/receipt-pendancy-create", auth, ministryOnly, eofficeCreate, EofficeReceiptPendancyTab.uploadSingleFile, EofficeReceiptPendancyTab.addReceiptPendancy);
+router.put("/receipt-pendancy-update", auth, ministryOnly, eofficeUpdate, EofficeReceiptPendancyTab.uploadSingleFile, EofficeReceiptPendancyTab.updateReceiptPendancy);
 
-//Receipt pendancy Chart
-router.get('/receipt-pendancy-chart/:Year/:Month/:Hierarchy', auth, eofficeRead, eOfficeTab.getReceiptPendancyChart);
 
 //File disposal
-router.get('/file-disposal-report/:Year/:Month/:Week', auth, eofficeRead, eOfficeTab.getFileDisposalReport);
-router.get("/file-disposal-all", auth, eofficeRead, eOfficeTab.getFileDisposalAll);
-router.get("/file-disposal-check", auth, eofficeRead, eOfficeTab.getFileDisposalCheck);
-router.get("/file-disposal-History", auth, eofficeRead, eOfficeTab.getFileDisposalHistory);
-router.get("/file-disposal/download/:id", auth, eofficeRead, eOfficeTab.downloadFileDisposal);
-router.get("/file-disposal/download-sample", auth, eofficeRead, eOfficeTab.downloadFileDisposalSample);
-router.delete("/file-disposal/delete/:id", auth, eofficeDelete, eOfficeTab.deleteFileDisposal);
-router.delete("/delete-employee/:empID", auth, eofficeDelete, EofficeFileDisposalTab.deleteEmployee);
-router.post("/file-disposal-create", auth, eofficeCreate, EofficeFileDisposalTab.upload.single('file'), EofficeFileDisposalTab.addFileDisposal);
-router.put("/file-disposal-update", auth, eofficeUpdate, EofficeFileDisposalTab.upload.single('file'), EofficeFileDisposalTab.updateFileDisposal);
+router.get('/file-disposal-report/:Year/:Month/:Week', auth, ministryOnly, eofficeRead, eOfficeTab.getFileDisposalReport);
+router.get("/file-disposal-all", auth, ministryOnly, eofficeRead, eOfficeTab.getFileDisposalAll);
+router.get("/file-disposal-check", auth, ministryOnly, eofficeRead, eOfficeTab.getFileDisposalCheck);
+router.get("/file-disposal-History", auth, ministryOnly, eofficeRead, eOfficeTab.getFileDisposalHistory);
+router.get("/file-disposal/download/:id", auth, ministryOnly, eofficeRead, eOfficeTab.downloadFileDisposal);
+router.get("/file-disposal/download-sample", auth, ministryOnly, eofficeRead, eOfficeTab.downloadFileDisposalSample);
+router.delete("/file-disposal/delete/:id", auth, ministryOnly, eofficeDelete, eOfficeTab.deleteFileDisposal);
+router.post("/file-disposal-create", auth, ministryOnly, eofficeCreate, EofficeFileDisposalTab.uploadSingleFile, EofficeFileDisposalTab.addFileDisposal);
+router.put("/file-disposal-update", auth, ministryOnly, eofficeUpdate, EofficeFileDisposalTab.uploadSingleFile, EofficeFileDisposalTab.updateFileDisposal);
 
-//File disposal Chart
-router.get('/file-disposal-chart/:Year/:Month/:Hierarchy', auth, eofficeRead, eOfficeTab.getFileDisposalChart);
 
 // Official Foreign Visit
 router.get("/OFV-data/:userID/:organisationID", officialForeignVisitTab.getOFVData);
@@ -862,7 +833,6 @@ router.post("/bill", auth, billsCreate, billTab.createBill);
 router.get("/bill/:billID", auth, billsRead, billTab.getUpdateBill);
 router.put("/bill", auth, billsUpdate, billTab.updateBill);
 router.delete("/delete-bill/:billID", auth, billsDelete, billTab.deleteBill);
-// router.post("/bill-stage", billTab.createBillStage);
 
 //Court cases
 
@@ -946,46 +916,36 @@ router.get("/get-litigation-detailed-case-report/:organisationID/:stageID", arbi
 
 // CSR Projects: login and CSR access required on every route (2.0 had neither); the handlers
 // scope records by the signed token. Uploads happen while adding or editing, so either is enough.
-const csrRead = requireModulePermission("CSR_PROJECTS", "read");
-const csrCreate = requireModulePermission("CSR_PROJECTS", "create");
-const csrUpdate = requireModulePermission("CSR_PROJECTS", "update");
-const csrWrite = requireAnyModulePermission("CSR_PROJECTS", ["create", "update"]);
-router.post("/csr-gallery-upload", auth, csrWrite, csrProjectTab.handleUploadErrors(csrProjectTab.upload.array('file')), csrProjectTab.addNewCsrFileGallery);
+// Strict: an account without a data scope is refused instead of seeing every organisation (QC CSR-17).
+const csrRead = requireStrictModulePermission("CSR_PROJECTS", "read");
+// Writes are made by organisation users only, for their own organisation (QC CSR-18 / CSR-34 /
+// R-14); arrays of middleware run in order
+const csrCreate = [requireStrictModulePermission("CSR_PROJECTS", "create"), csrProjectTab.organisationWriter];
+const csrUpdate = [requireStrictModulePermission("CSR_PROJECTS", "update"), csrProjectTab.organisationWriter];
+const csrWrite = [requireAnyModulePermission("CSR_PROJECTS", ["create", "update"], { strict: true }), csrProjectTab.organisationWriter];
 router.post('/add-csr-projects', auth, csrCreate, csrProjectTab.createCsrProjects);
-router.get('/csr-projects-list/:userID', auth, csrRead, csrProjectTab.getCsrProjectslist);
+router.get('/csr-projects-list', auth, csrRead, csrProjectTab.getCsrProjectslist);
 router.put("/update-csr-list", auth, csrUpdate, csrProjectTab.updateCsrProjects);
 router.get("/csr-list/:csrProjectId", auth, csrRead, csrProjectTab.getUpdateCsrProjectsData);
 router.post("/csrprojectdocument", auth, csrWrite, csrProjectTab.handleUploadErrors(csrProjectTab.upload.single('file')), csrProjectTab.csrProjectDocumentUploader);
 router.get("/download-csrfile/:fileName", auth, csrRead, csrProjectTab.csrfileDownload);
-router.delete("/delete-csrfile", auth, csrUpdate, csrProjectTab.csrfileDelete);
 router.get("/get-csr-expenditure/:csrProjectId", auth, csrRead, csrProjectTab.getCsrExpenditureCost);
-router.post('/add-csr-expenditure', auth, csrCreate, csrProjectTab.addCsrExpenditure);
 router.get("/get-csr-project-files/:csrProjectId", auth, csrRead, csrProjectTab.getCsrFileUploadDocument);
-router.delete("/delete-csr-gallery-file/:csrProjectId/:filename", auth, csrUpdate, csrProjectTab.deleteGalleryFile);
-router.put("/update-csr-gallery-file", auth, csrUpdate, csrProjectTab.handleUploadErrors(csrProjectTab.fileUpload.single('file')),csrProjectTab.updateGalleryFile);
-router.post("/update-csr-gallery-upload/:csrProjectId", auth, csrWrite, csrProjectTab.handleUploadErrors(csrProjectTab.fileUpload.array('file')),csrProjectTab.uploadMediaGalleryFile)
-router.get("/download-csrfile-pdf-document", auth, csrRead, csrProjectTab.csrPdfFileDownload);
-router.get("/get-csr-project-overview-reports/:userID", auth, csrRead, csrProjectTab.csrProjectsAbstractReport);
-router.get("/get-csr-projects-detailed-reports/:organisationID/:OrganisationName", auth, csrRead, csrProjectTab.csrProjectsDetailedReport)
+// The project is checked before any file is written (QC CSR-19)
+router.post("/update-csr-gallery-upload/:csrProjectId", auth, csrWrite, csrProjectTab.projectAccess, csrProjectTab.galleryAccess, csrProjectTab.handleUploadErrors(csrProjectTab.fileUpload.array('file')),csrProjectTab.uploadMediaGalleryFile)
 
 // CSR Fund Detail
-router.get('/csr-Fund-list/:userID', auth, csrRead, csrProjectTab.getCsrFundList);
+router.get('/csr-Fund-list', auth, csrRead, csrProjectTab.getCsrFundList);
 router.get("/csr-update-fundlist/:csrFundId", auth, csrRead, csrProjectTab.getUpdateFundData);
 router.post('/csrFund-edit', auth, csrUpdate, csrProjectTab.editCsrFund);
 router.post('/add-csr-Fund', auth, csrCreate, csrProjectTab.addCsrFundDetails);
-router.get('/get-csr-fund-expenditure-report/:userID', auth, csrRead, csrProjectTab.csrExpenditureReport);
 router.get('/get-csr-dashboard', auth, csrRead, csrProjectTab.getCsrDashboard);
-router.get('/get-csr-project-dashboard/:clusterID/:organisationID/:fy/:focusID', auth, csrRead, csrProjectTab.getCSRProjectDashboard);
-router.get('/get-csr-fund-allocatted/:clusterID/:organisationID/:fy/:focusID', auth, csrRead, csrProjectTab.getCsrFundAllocatted);
 router.get('/get-csr-fund-year-wise-report/:fy', auth, csrRead, csrProjectTab.getCsrFundYearWiseReport);
 router.get('/get-csr-fund-org-wise-report/:fy', auth, csrRead, csrProjectTab.getCsrFundOrgWiseReport);
 router.get('/get-csr-fund-org-trend-report/:orgId', auth, csrRead, csrProjectTab.getCsrFundOrgTrendReport);
 router.get('/get-csr-projects-year-wise-summary/:orgId', auth, csrRead, csrProjectTab.getCsrProjectsYearWiseSummary);
 router.get('/get-csr-projects-org-wise-summary', auth, csrRead, csrProjectTab.getCsrProjectsOrgWiseSummary);
 router.get('/get-csr-projects-focus-wise-summary/:orgId', auth, csrRead, csrProjectTab.getCsrProjectsFocusWiseSummary);
-router.get('/get-csr-project-stage-wise/:clusterID/:organisationID/:fy/:focusID', auth, csrRead, csrProjectTab.getCsrProjectStageWise);
-router.get('/get-csr-project-count-wise/:clusterID/:organisationID/:fy/:focusID', auth, csrRead, csrProjectTab.getCSRProjectCountWise);
-router.get('/get-detailed-csr-projects/:clusterID/:organisationID/:fy/:stage/:focusID', auth, csrRead, csrProjectTab.getDetailedCSRProjects);
 // Drop Project (soft-drop workflow — not CRUD delete)
 router.post("/dropproject-request", auth, requireModulePermission("PROJECTS", "update"), dropRequestTab.deleteProjectRequest);
 router.get("/viewdrop-projectlist/:userID", auth, requireModulePermission("PROJECTS", "read"), dropRequestTab.viewDropProjectList);
@@ -1115,7 +1075,6 @@ router.get("/consultant-appointment-dashboard", auth, requireModulePermission("C
 router.get("/consultant-appointment", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentTab.getConsultantAppointment);
 router.post("/consultant-appointment", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "create"), consultantAppointmentTab.createConsultantAppointment);
 router.put("/consultant-appointment", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "update"), consultantAppointmentTab.updateConsultantAppointment);
-router.post("/consultant-appointment-stage", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "create"), consultantAppointmentTab.createConsultantAppointmentStage);
 router.get("/edit-consultant-appointment/:consultantAppointmentID", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentTab.getUpdateConsultantAppointmentData);
 router.get("/get-candidate-id/:consultantAppointmentID", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentTab.getCandidateID);
 
@@ -1126,10 +1085,12 @@ router.post("/ca-candidate-uploader", auth, requireAnyModulePermission("CONSULTA
 router.get("/ca-candidate-detail/:Id", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentTab.getCandidateDetail);
 router.get("/ca-candidate-detail-document/:Id", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentTab.getCandidateDetailDocument);
 router.get("/get-ca-candidates/:consultantAppointmentID", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentTab.getCandidatesByConsultantAppointmentId);
-router.get("/ca-candidate-document-download/:fileName", candidateCaDocumentTab.downloadCandidateDocument);
+router.get("/ca-candidate-document-download/:fileName", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), candidateCaDocumentTab.downloadCandidateDocument);
 router.post("/add-consultant-id", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "create"), consultantAppointmentTab.addConsultantID);
 
 //delete consultant appoinment and candidate details
+// The :userID segment is legacy. The handlers identify the actor from the auth token, so the
+// value in the URL is ignored; it is kept only so existing clients keep matching the route.
 router.delete("/consultant-candidate-all-data/:consultant_appointment_id/:userID", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "delete"), consultantAppointmentTab.deleteCACandidateData);
 router.delete("/ca-candidate-single/:candidate_id/:userID", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "delete"), consultantAppointmentTab.deleteCACandidateSingle);
 
@@ -1471,10 +1432,9 @@ router.get("/getbill-wingwise/:wingID/:billStage", auth, billsRead, billReportTa
 router.get("/getbill-divisionwise/:divisionID/:billStage", auth, billsRead, billReportTab.getDetailBillDivisionWise);
 
 //Attendance Report
-router.get("/attendance-weekone-report/:attendanceMonth/:attendanceYear", auth, attRead, attendanceReportTab.attendanceWeekOneReport);
-router.get("/employee-attendance-weekone-report/:attendanceMonth/:attendanceYear/:week", auth, attRead, empAttendanceReportTab.empAttendanceWeekOneReport);
-router.get("/employee-attendance-weekone-detail/:Year/:Month/:Wing/:Division/:type/:week", auth, attRead, empAttendanceReportTab.getDetailAttendanceWeekOneReport);
-router.get("/employee-attendance-check", auth, attRead, empAttendanceReportTab.getEmpAttendanceCheck);
+router.get("/employee-attendance-weekone-report/:attendanceMonth/:attendanceYear/:week", auth, ministryOnly, attRead, empAttendanceReportTab.empAttendanceWeekOneReport);
+router.get("/employee-attendance-weekone-detail/:Year/:Month/:Wing/:Division/:type/:week", auth, ministryOnly, attRead, empAttendanceReportTab.getDetailAttendanceWeekOneReport);
+router.get("/employee-attendance-check", auth, ministryOnly, attRead, empAttendanceReportTab.getEmpAttendanceCheck);
 
 //Court Case Report
 // router.get("/all-court-case-report", arbitCourtCaseTab.getCourtCaseReport),
@@ -1540,11 +1500,6 @@ router.get(
   cabinetMinistryReportTab.getDetailMinistryPendencyReport
 );
 
-// Audit Para
-router.get("/auditparawise-report", aditParaReportTab.auditParaWiseReport);
-router.get("/auditparadivision-report/:wingID/", aditParaReportTab.auditParaDivisionReport);
-router.get("/getauditpara-wingwise/:wingID/:auditParaStage", aditParaReportTab.getDetailAuditParaWingWise);
-router.get("/getauditpara-divisionwise/:divisionID/:auditParaStage", aditParaReportTab.getDetailAuditParaDivisionWise);
 
 router.get("/yp-report", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), ypReportTab.getYoungProfessionalReport);
 router.get("/ypdivision-report/:ypID/:wingID/", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), ypReportTab.ypDivisionWiseReport);
@@ -1583,18 +1538,6 @@ router.get(
   requireModulePermission("MEDIA_OUTREACH", "read"),
   socialmediaTab.getSocialMediaList
 );
-router.get(
-  "/quarterly-socialmedia-parameter/:platform",
-  auth,
-  requireModulePermission("MEDIA_OUTREACH", "read"),
-  socialmediaTab.getQuarterlySummary
-);
-router.get(
-  "/annually-socialmedia-parameter/:platform",
-  auth,
-  requireModulePermission("MEDIA_OUTREACH", "read"),
-  socialmediaTab.getAnnualSummary
-);
 router.put(
   "/media-outreach-data-edit",
   auth,
@@ -1606,26 +1549,6 @@ router.delete(
   auth,
   requireModulePermission("MEDIA_OUTREACH", "delete"),
   socialmediaTab.deleteSocialMedia
-);
-
-// Social media monthly reports
-router.get(
-  "/monthly-onlinemedia-report-parameter/:currentMonth/:currentFinYear",
-  auth,
-  requireModulePermission("MEDIA_OUTREACH", "read"),
-  socialmediaTab.getMonthlyOnlineReport
-);
-router.get(
-  "/monthly-socialmedia-report-parameter/:currentMonth/:currentFinYear",
-  auth,
-  requireModulePermission("MEDIA_OUTREACH", "read"),
-  socialmediaTab.getMonthlySocialReport
-);
-router.get(
-  "/monthly-BroadPrint-report-parameter/:platform/:currentMonth/:currentFinYear",
-  auth,
-  requireModulePermission("MEDIA_OUTREACH", "read"),
-  socialmediaTab.getMonthlyBroadPrintReport
 );
 
 // Gem Procurement
@@ -2339,10 +2262,11 @@ router.post(
   "/light-house-master",
   auth,
   requireModulePermission("KPI_DGLL", "create"),
+  validateKpiBody,
   dgllTab.addLightsHouseMaster
 );
 router.get(
-  "/light-house-list/:userID",
+  "/light-house-list",
   auth,
   requireModulePermission("KPI_DGLL", "read"),
   dgllTab.getLightHouseMaster
@@ -2357,10 +2281,11 @@ router.put(
   "/Light-House-edit",
   auth,
   requireModulePermission("KPI_DGLL", "update"),
+  validateKpiBody,
   dgllTab.updateLightsHousedata
 );
 router.delete(
-  "/light-house-master/:lights_house_id/:userID",
+  "/light-house-master/:lights_house_id",
   auth,
   requireModulePermission("KPI_DGLL", "delete"),
   dgllTab.deleteLightHouseMaster
@@ -2370,10 +2295,11 @@ router.post(
   "/vtms-Integration",
   auth,
   requireModulePermission("KPI_DGLL", "create"),
+  validateKpiBody,
   dgllTab.addVtmsIntegration
 );
 router.get(
-  "/vtms-list/:userID",
+  "/vtms-list",
   auth,
   requireModulePermission("KPI_DGLL", "read"),
   dgllTab.getVtmsIntegration
@@ -2388,10 +2314,11 @@ router.put(
   "/vtms-edit",
   auth,
   requireModulePermission("KPI_DGLL", "update"),
+  validateKpiBody,
   dgllTab.updateVtmsData
 );
 router.delete(
-  "/vtms-integration/:vtms_id/:userID",
+  "/vtms-integration/:vtms_id",
   auth,
   requireModulePermission("KPI_DGLL", "delete"),
   dgllTab.deleteVtmsIntegration
@@ -2401,10 +2328,11 @@ router.post(
   "/nais-uptime",
   auth,
   requireModulePermission("KPI_DGLL", "create"),
+  validateKpiBody,
   dgllTab.addNaisUptime
 );
 router.get(
-  "/nais-list/:userID",
+  "/nais-list",
   auth,
   requireModulePermission("KPI_DGLL", "read"),
   dgllTab.getnaisList
@@ -2419,10 +2347,11 @@ router.put(
   "/nais-edit",
   auth,
   requireModulePermission("KPI_DGLL", "update"),
+  validateKpiBody,
   dgllTab.updateNaisData
 );
 router.delete(
-  "/nais-uptime/:nais_id/:userID",
+  "/nais-uptime/:nais_id",
   auth,
   requireModulePermission("KPI_DGLL", "delete"),
   dgllTab.deleteNaisUptime
@@ -2432,10 +2361,11 @@ router.post(
   "/nais-integration",
   auth,
   requireModulePermission("KPI_DGLL", "create"),
+  validateKpiBody,
   dgllTab.addNAISIntegration
 );
 router.get(
-  "/nais-integration-list/:userID",
+  "/nais-integration-list",
   auth,
   requireModulePermission("KPI_DGLL", "read"),
   dgllTab.getnaisIntegrationList
@@ -2450,10 +2380,11 @@ router.put(
   "/nais-integration-edit",
   auth,
   requireModulePermission("KPI_DGLL", "update"),
+  validateKpiBody,
   dgllTab.updateNaisIntegrationData
 );
 router.delete(
-  "/nais-integration/:nais_integration_id/:userID",
+  "/nais-integration/:nais_integration_id",
   auth,
   requireModulePermission("KPI_DGLL", "delete"),
   dgllTab.deleteNaisIntegration
@@ -2488,10 +2419,11 @@ router.post(
   "/lighthose-tourist-destination",
   auth,
   requireModulePermission("KPI_DGLL", "create"),
+  validateKpiBody,
   dgllTab.addTouristDestinations
 );
 router.get(
-  "/lighthouse-tourist-destination/:userID",
+  "/lighthouse-tourist-destination",
   auth,
   requireModulePermission("KPI_DGLL", "read"),
   dgllTab.getTouristDestinations
@@ -2506,10 +2438,11 @@ router.put(
   "/edit-lighthouse-tourist-destination",
   auth,
   requireModulePermission("KPI_DGLL", "update"),
+  validateKpiBody,
   dgllTab.UpdateTouristDestinations
 );
 router.delete(
-  "/lighthouse-tourist-destination/:tourist_destination_id/:userID",
+  "/lighthouse-tourist-destination/:tourist_destination_id",
   auth,
   requireModulePermission("KPI_DGLL", "delete"),
   dgllTab.deleteTouristDestination
@@ -2538,10 +2471,11 @@ router.post(
   "/target-Details-lighthouse",
   auth,
   requireModulePermission("KPI_DGLL", "create"),
+  validateKpiBody,
   dgllTab.addTargetDetails
 );
 router.get(
-  "/target-Details-lighthouse/:userID",
+  "/target-Details-lighthouse",
   auth,
   requireModulePermission("KPI_DGLL", "read"),
   dgllTab.getTargetDetails
@@ -2556,25 +2490,20 @@ router.put(
   "/edit-target-Details-lighthouse",
   auth,
   requireModulePermission("KPI_DGLL", "update"),
+  validateKpiBody,
   dgllTab.updateTargetDestinationData
 );
 router.delete(
-  "/target-Details-lighthouse/:tourist_destination_target_id/:userID",
+  "/target-Details-lighthouse/:tourist_destination_target_id",
   auth,
   requireModulePermission("KPI_DGLL", "delete"),
   dgllTab.deleteTargetDetail
 );
-router.get(
-  "/check-targetYears/:year",
-  auth,
-  requireModulePermission("KPI_DGLL", "read"),
-  dgllTab.checkYear
-);
-
 router.post(
   "/dgll-submit-financial-performance",
   auth,
   requireModulePermission("KPI_DGLL", "create"),
+  validateKpiBody,
   dgllTab.submitFinancialPerformance
 );
 router.get(
@@ -2590,7 +2519,7 @@ router.get(
   dgllTab.getFinancialPerformanceDataByID
 );
 router.delete(
-  "/dgll-financial-performance/:financial_id/:userID",
+  "/dgll-financial-performance/:financial_id",
   auth,
   requireModulePermission("KPI_DGLL", "delete"),
   dgllTab.deleteFinancialPerformance
@@ -2601,10 +2530,11 @@ router.post(
   "/vessels-built",
   auth,
   requireModulePermission("KPI_CSL", "create"),
+  validateKpiBody,
   cslTab.addVesselsBuilt
 );
 router.get(
-  "/vessel-list/:userID",
+  "/vessel-list",
   auth,
   requireModulePermission("KPI_CSL", "read"),
   cslTab.getVesselBuiltList
@@ -2619,10 +2549,11 @@ router.put(
   "/csl-vessel-Built-edit",
   auth,
   requireModulePermission("KPI_CSL", "update"),
+  validateKpiBody,
   cslTab.updatecslVesselBuiltData
 );
 router.delete(
-  "/csl-vessels-built/:csl_vessel_id/:userID",
+  "/csl-vessels-built/:csl_vessel_id",
   auth,
   requireModulePermission("KPI_CSL", "delete"),
   cslTab.deleteVesselsBuilt
@@ -2632,10 +2563,11 @@ router.post(
   "/csl-ship-building",
   auth,
   requireModulePermission("KPI_CSL", "create"),
+  validateKpiBody,
   cslTab.addShipBuildingOrders
 );
 router.get(
-  "/shipbuilding-list/:userID",
+  "/shipbuilding-list",
   auth,
   requireModulePermission("KPI_CSL", "read"),
   cslTab.getshipbildingList
@@ -2650,10 +2582,11 @@ router.put(
   "/csl-ship-Built-edit",
   auth,
   requireModulePermission("KPI_CSL", "update"),
+  validateKpiBody,
   cslTab.updatecslShipbuildingData
 );
 router.delete(
-  "/csl-ship-building/:csl_shipbuilding_id/:userID",
+  "/csl-ship-building/:csl_shipbuilding_id",
   auth,
   requireModulePermission("KPI_CSL", "delete"),
   cslTab.deleteShipBuildingOrders
@@ -2663,10 +2596,11 @@ router.post(
   "/csl-ship-delivery",
   auth,
   requireModulePermission("KPI_CSL", "create"),
+  validateKpiBody,
   cslTab.addShipdelivery
 );
 router.get(
-  "/shipdelivery-list/:userID",
+  "/shipdelivery-list",
   auth,
   requireModulePermission("KPI_CSL", "read"),
   cslTab.getdeliveryList
@@ -2681,10 +2615,11 @@ router.put(
   "/csl-ship-delivery-edit",
   auth,
   requireModulePermission("KPI_CSL", "update"),
+  validateKpiBody,
   cslTab.updatecslShipdeliveryData
 );
 router.delete(
-  "/csl-ship-delivery/:csl_shipdelivery_id/:userID",
+  "/csl-ship-delivery/:csl_shipdelivery_id",
   auth,
   requireModulePermission("KPI_CSL", "delete"),
   cslTab.deleteShipDeliveryPerformance
@@ -2694,10 +2629,11 @@ router.post(
   "/csl-capacity-utilization",
   auth,
   requireModulePermission("KPI_CSL", "create"),
+  validateKpiBody,
   cslTab.addcapacityUtilization
 );
 router.get(
-  "/capacityUtilization-list/:userID",
+  "/capacityUtilization-list",
   auth,
   requireModulePermission("KPI_CSL", "read"),
   cslTab.getcapacityUtilizationList
@@ -2712,10 +2648,11 @@ router.put(
   "/csl-capacity-utilization-edit",
   auth,
   requireModulePermission("KPI_CSL", "update"),
+  validateKpiBody,
   cslTab.updatecslCapacityutilizationgData
 );
 router.delete(
-  "/csl-capacity-utilization/:csl_capacity_utilization_id/:userID",
+  "/csl-capacity-utilization/:csl_capacity_utilization_id",
   auth,
   requireModulePermission("KPI_CSL", "delete"),
   cslTab.deleteCapacityUtilization
@@ -2725,10 +2662,11 @@ router.post(
   "/csl-fabrication-steels",
   auth,
   requireModulePermission("KPI_CSL", "create"),
+  validateKpiBody,
   cslTab.addfabricationofsteels
 );
 router.get(
-  "/fabrication-list/:userID",
+  "/fabrication-list",
   auth,
   requireModulePermission("KPI_CSL", "read"),
   cslTab.getfabricationList
@@ -2743,10 +2681,11 @@ router.put(
   "/csl-fabrication-edit",
   auth,
   requireModulePermission("KPI_CSL", "update"),
+  validateKpiBody,
   cslTab.updatecslFabricationupdateData
 );
 router.delete(
-  "/csl-fabrication-steels/:csl_fabrication_id/:userID",
+  "/csl-fabrication-steels/:csl_fabrication_id",
   auth,
   requireModulePermission("KPI_CSL", "delete"),
   cslTab.deleteFabricationOfSteels
@@ -2756,10 +2695,11 @@ router.post(
   "/csl-ships-repaired",
   auth,
   requireModulePermission("KPI_CSL", "create"),
+  validateKpiBody,
   cslTab.addShipRepaired
 );
 router.get(
-  "/ships-reapired-list/:userID",
+  "/ships-reapired-list",
   auth,
   requireModulePermission("KPI_CSL", "read"),
   cslTab.getshipRepairedList
@@ -2774,10 +2714,11 @@ router.put(
   "/csl-repaired-edit",
   auth,
   requireModulePermission("KPI_CSL", "update"),
+  validateKpiBody,
   cslTab.updatecslshipData
 );
 router.delete(
-  "/csl-ships-repaired/:csl_ships_reapired_id/:userID",
+  "/csl-ships-repaired/:csl_ships_reapired_id",
   auth,
   requireModulePermission("KPI_CSL", "delete"),
   cslTab.deleteShipRepaired
@@ -2821,114 +2762,119 @@ router.get(
   CslreportTab.getCslshipRepairedYearWiseReport
 );
 
-// SCI
-router.post("/add-vessel-avail-ability",sciTabList.addVesselAvailabiltydata);
-router.get("/sci-Vessel-list/:userID", sciTabList.getsciVesselList);
-router.get("/update-sci-vessel-data/:SciVesselId", sciTabList.getUpdatesciVesseldata);
-router.put('/sci-vessel-built-edit',sciTabList.updatesciVesselData);
-router.delete("/delete-sci-vessel-availability/:sci_vessel_id/:userID", sciTabList.deleteVesselAvailabilityOwnShips);
+// SCI: signed-in users with the matching KPI_SCI right (QC KPI-01)
+const sciRead = requireModulePermission("KPI_SCI", "read");
+const sciCreate = requireModulePermission("KPI_SCI", "create");
+const sciUpdate = requireModulePermission("KPI_SCI", "update");
+const sciDelete = requireModulePermission("KPI_SCI", "delete");
+router.post("/add-vessel-avail-ability", auth, sciCreate, validateKpiBody, sciTabList.addVesselAvailabiltydata);
+router.get("/sci-Vessel-list", auth, sciRead, sciTabList.getsciVesselList);
+router.get("/update-sci-vessel-data/:SciVesselId", auth, sciRead, sciTabList.getUpdatesciVesseldata);
+router.put('/sci-vessel-built-edit', auth, sciUpdate, validateKpiBody, sciTabList.updatesciVesselData);
+router.delete("/delete-sci-vessel-availability/:sci_vessel_id", auth, sciDelete, sciTabList.deleteVesselAvailabilityOwnShips);
 
 
-router.post("/add-sci-time-voyage",sciTabList.addscitimeVoyageydata);
-router.get("/sci-time-voyage-bulk-list/:userID", sciTabList.getscitimeVoyageList);
-router.get("/update-sci-time-voyage-data/:ScitimeVoyageBuiklId", sciTabList.getUpdatescitimeVoyageBulkdata);
-router.put('/sci-time-voyage-bulk-edit',sciTabList.updatescitimeVoyageBulkData);
-router.delete("/delete-sci-time-voyage-bulk/:sci_time_voyage_bulk_id/:userID", sciTabList.deleteTimeVoyageBulk);
+router.post("/add-sci-time-voyage", auth, sciCreate, validateKpiBody, sciTabList.addscitimeVoyageydata);
+router.get("/sci-time-voyage-bulk-list", auth, sciRead, sciTabList.getscitimeVoyageList);
+router.get("/update-sci-time-voyage-data/:ScitimeVoyageBuiklId", auth, sciRead, sciTabList.getUpdatescitimeVoyageBulkdata);
+router.put('/sci-time-voyage-bulk-edit', auth, sciUpdate, validateKpiBody, sciTabList.updatescitimeVoyageBulkData);
+router.delete("/delete-sci-time-voyage-bulk/:sci_time_voyage_bulk_id", auth, sciDelete, sciTabList.deleteTimeVoyageBulk);
 
 
-router.post("/add-sci-time-voyage-tanker",sciTabList.addscitimeVoyagetankers);
-router.get("/sci-time-voyage-tanker-list/:userID", sciTabList.getscitimeList);
-router.get("/update-sci-time-voyage-tanker-data/:ScitimeVoyageTankerlId", sciTabList.getUpdatesciVessetankerldata);
-router.put('/sci-time-voyage-tanker-edit',sciTabList.updateTimeVoyagetankerData);
-router.delete("/delete-sci-time-voyage-tanker/:sci_time_voyage_tanker_id/:userID", sciTabList.deleteTimeVoyageTanker);
+router.post("/add-sci-time-voyage-tanker", auth, sciCreate, validateKpiBody, sciTabList.addscitimeVoyagetankers);
+router.get("/sci-time-voyage-tanker-list", auth, sciRead, sciTabList.getscitimeList);
+router.get("/update-sci-time-voyage-tanker-data/:ScitimeVoyageTankerlId", auth, sciRead, sciTabList.getUpdatesciVessetankerldata);
+router.put('/sci-time-voyage-tanker-edit', auth, sciUpdate, validateKpiBody, sciTabList.updateTimeVoyagetankerData);
+router.delete("/delete-sci-time-voyage-tanker/:sci_time_voyage_tanker_id", auth, sciDelete, sciTabList.deleteTimeVoyageTanker);
 
 
 
-router.post("/add-sci-time-voyage-offshore",sciTabList.addscitimeVoyageoffshore);
-router.get("/sci-time-voyage-offshore-list/:userID", sciTabList.getscioffshoreList);
-router.get("/update-sci-time-voyage-offshore-data/:ScitimeVoyageoffshorelId", sciTabList.getUpdatesciVesseoffshoreldata);
-router.put('/sci-time-voyage-offshore-edit',sciTabList.updateTimeVoyageoffshoreData);
-router.delete("/delete-sci-time-voyage-offshore/:sci_time_voyage_offshore_id/:userID", sciTabList.deleteTimeVoyageOffshore);
+router.post("/add-sci-time-voyage-offshore", auth, sciCreate, validateKpiBody, sciTabList.addscitimeVoyageoffshore);
+router.get("/sci-time-voyage-offshore-list", auth, sciRead, sciTabList.getscioffshoreList);
+router.get("/update-sci-time-voyage-offshore-data/:ScitimeVoyageoffshorelId", auth, sciRead, sciTabList.getUpdatesciVesseoffshoreldata);
+router.put('/sci-time-voyage-offshore-edit', auth, sciUpdate, validateKpiBody, sciTabList.updateTimeVoyageoffshoreData);
+router.delete("/delete-sci-time-voyage-offshore/:sci_time_voyage_offshore_id", auth, sciDelete, sciTabList.deleteTimeVoyageOffshore);
 
 
-router.post("/add-sci-vessel-availability-linear",sciTabList.addscilinearVesselavailability);
-router.get("/sci-linear-vessel-list/:userID", sciTabList.getscilinearvesselList);
-router.get("/update-sci-linear-vessel-data/:SciLinearvesselId", sciTabList.getUpdatescilinearvesseldata);
-router.put('/sci-linear-vessel-edit',sciTabList.updatescilinearvesselAvailabilityData);
-router.delete("/delete-sci-vessel-availability-linear/:sci_vessel_availability_bulk_id/:userID", sciTabList.deleteVesselAvailabilityLiner);
+router.post("/add-sci-vessel-availability-linear", auth, sciCreate, validateKpiBody, sciTabList.addscilinearVesselavailability);
+router.get("/sci-linear-vessel-list", auth, sciRead, sciTabList.getscilinearvesselList);
+router.get("/update-sci-linear-vessel-data/:SciLinearvesselId", auth, sciRead, sciTabList.getUpdatescilinearvesseldata);
+router.put('/sci-linear-vessel-edit', auth, sciUpdate, validateKpiBody, sciTabList.updatescilinearvesselAvailabilityData);
+router.delete("/delete-sci-vessel-availability-linear/:sci_vessel_availability_bulk_id", auth, sciDelete, sciTabList.deleteVesselAvailabilityLiner);
 
-router.post("/add-sci-vessel-procurement",sciTabList.addvesselprocurementdata);
-router.get("/sci-vessel-procurement-list/:userID", sciTabList.getsciprocurementList);
-router.get("/update-sci-vessel-procurement-data/:SciProcurementId", sciTabList.getUpdatesciVesselprocurementdata);
-router.put('/sci-vessel-procurement-edit',sciTabList.submitVesselProcurementdata);
-router.delete("/delete-sci-vessel-procurement/:sci_procurement_id/:userID", sciTabList.deleteVesselProcurement);
-
-
-router.post("/add-sci-vessel-procurement-secondhand",sciTabList.addSecondhandvesselprocurementdata);
-router.get("/sci-secondhand-vessel-procurement-list/:userID", sciTabList.getsecondhandsciprocurementList);
-router.get("/update-sci-secondhand-vessel-procurement-data/:ScisecondhandProcurementId", sciTabList.getUpdatescisecondhandVesselprocurementdata);
-router.put('/sci-secondhand-vessel-procurement-edit',sciTabList.updatesecondhandVesselProcurementdata);
-router.delete("/delete-sci-secondhand-vessel-procurement/:sci_secondhand_procurement_id/:userID", sciTabList.deleteSecondhandVesselProcurement);
-
-router.post("/add-sci-ship-dry-docking",sciTabList.addshipDrydocking);
-router.get("/sci-ship-dry-dock-list/:userID", sciTabList.getShipdrydockList);
-router.get("/update-sci-ship-dry-docking-data/:SciDrydockId", sciTabList.getUpdateshipdrydockdata);
-router.put('/sci-dry-docking-edit',sciTabList.updatesciDrydockingtData);
-router.delete("/delete-sci-ship-dry-docking/:sci_ship_dry_docking_id/:userID", sciTabList.deleteShipDryDocking);
-
-router.post("/add-sci-ship-repair-maintanace",sciTabList.addshipRepaiandMaintanace);
-router.get("/sci-ship-repair-list/:userID", sciTabList.getShiprepairandMaintanaceList);
-router.get("/update-sci-ship-repair-maintanace-data/:ScirepairandMaintanaceId", sciTabList.getUpdateshiprepairandMaintanacedata);
-router.put('/sci-repair-maintance-edit',sciTabList.updaterepairandMaintanceData);
-router.delete("/delete-sci-ship-repair-maintanace/:sci_repair_and_maintanace_id/:userID", sciTabList.deleteRepairAndMaintenance);
-
-router.post("/add-sci-sale-recycling-oldvessels",sciTabList.addsaleandRecycling);
-router.get("/sci-sale-and-recycling-list/:userID", sciTabList.getSaleandrecyclingList);
-router.get("/update-sci-sale-recycling-data/:ScisaleRecyclingId", sciTabList.getUpdatescisaleandRecyclingdata);
-router.put('/sci-sale-recycling-edit',sciTabList.updatesaleandRecyclingData);
-router.delete("/delete-sci-sale-recycling-oldvessels/:sci_sale_recycling_id/:userID", sciTabList.deleteSaleAndRecycling);
+router.post("/add-sci-vessel-procurement", auth, sciCreate, validateKpiBody, sciTabList.addvesselprocurementdata);
+router.get("/sci-vessel-procurement-list", auth, sciRead, sciTabList.getsciprocurementList);
+router.get("/update-sci-vessel-procurement-data/:SciProcurementId", auth, sciRead, sciTabList.getUpdatesciVesselprocurementdata);
+router.put('/sci-vessel-procurement-edit', auth, sciUpdate, validateKpiBody, sciTabList.submitVesselProcurementdata);
+router.delete("/delete-sci-vessel-procurement/:sci_procurement_id", auth, sciDelete, sciTabList.deleteVesselProcurement);
 
 
-router.post("/add-sci-sale-recycling-oldvessels-green-recycling",sciTabList.addsaleandRecyclingofgreenRecycling);
-router.get("/sci-sale-and-green-recycling-list/:userID", sciTabList.getSaleandGreenrecyclingList);
-router.get("/update-sci-sale-recycling-green-data/:ScisaleGreenrecyclingId", sciTabList.getUpdatescisaleandGreenrecyclingdata);
-router.put('/sci-sale-greenrecycling-edit',sciTabList.updatesaleandGreenrecyclingData);
-router.delete("/delete-sci-sale-recycling-oldvessels-green-recycling/:sci_sale_green_recycling_id/:userID", sciTabList.deleteGreenRecycling);
+router.post("/add-sci-vessel-procurement-secondhand", auth, sciCreate, validateKpiBody, sciTabList.addSecondhandvesselprocurementdata);
+router.get("/sci-secondhand-vessel-procurement-list", auth, sciRead, sciTabList.getsecondhandsciprocurementList);
+router.get("/update-sci-secondhand-vessel-procurement-data/:ScisecondhandProcurementId", auth, sciRead, sciTabList.getUpdatescisecondhandVesselprocurementdata);
+router.put('/sci-secondhand-vessel-procurement-edit', auth, sciUpdate, validateKpiBody, sciTabList.updatesecondhandVesselProcurementdata);
+router.delete("/delete-sci-secondhand-vessel-procurement/:sci_secondhand_procurement_id", auth, sciDelete, sciTabList.deleteSecondhandVesselProcurement);
 
-router.post("/add-sci-manning-of-owned-ships",sciTabList.addmanningofOwnedships);
-router.get("/sci-manning-list/:userID", sciTabList.getscimanningdataList);
-router.get("/update-sci-manning-of-old-ships-data/:ScimanningId", sciTabList.getUpdatescimanningodOwnedshipsdata);
-router.put('/sci-manning-of-ownedships-edit',sciTabList.updatemanningofOwnedshipsData);
-router.delete("/delete-sci-manning-of-owned-ships/:sci_manning_id/:userID", sciTabList.deleteManningOfOwnedShips);
+router.post("/add-sci-ship-dry-docking", auth, sciCreate, validateKpiBody, sciTabList.addshipDrydocking);
+router.get("/sci-ship-dry-dock-list", auth, sciRead, sciTabList.getShipdrydockList);
+router.get("/update-sci-ship-dry-docking-data/:SciDrydockId", auth, sciRead, sciTabList.getUpdateshipdrydockdata);
+router.put('/sci-dry-docking-edit', auth, sciUpdate, validateKpiBody, sciTabList.updatesciDrydockingtData);
+router.delete("/delete-sci-ship-dry-docking/:sci_ship_dry_docking_id", auth, sciDelete, sciTabList.deleteShipDryDocking);
 
-router.post("/add-sci-ship-management-business",sciTabList.addshipManagementBusiness);
-router.get("/sci-ship-management-list/:userID", sciTabList.getshipmanagementList);
-router.get("/update-sci-ship-management-data/:ScishipmanagementId",sciTabList.getUpdatescishipManagementdata);
-router.put('/sci-ship-management-business',sciTabList.updateshipManagementbusinessData);
-router.delete("/delete-sci-ship-management-business/:sci_ship_management_id/:userID", sciTabList.deleteShipManagementBusiness);
+router.post("/add-sci-ship-repair-maintanace", auth, sciCreate, validateKpiBody, sciTabList.addshipRepaiandMaintanace);
+router.get("/sci-ship-repair-list", auth, sciRead, sciTabList.getShiprepairandMaintanaceList);
+router.get("/update-sci-ship-repair-maintanace-data/:ScirepairandMaintanaceId", auth, sciRead, sciTabList.getUpdateshiprepairandMaintanacedata);
+router.put('/sci-repair-maintance-edit', auth, sciUpdate, validateKpiBody, sciTabList.updaterepairandMaintanceData);
+router.delete("/delete-sci-ship-repair-maintanace/:sci_repair_and_maintanace_id", auth, sciDelete, sciTabList.deleteRepairAndMaintenance);
+
+router.post("/add-sci-sale-recycling-oldvessels", auth, sciCreate, validateKpiBody, sciTabList.addsaleandRecycling);
+router.get("/sci-sale-and-recycling-list", auth, sciRead, sciTabList.getSaleandrecyclingList);
+router.get("/update-sci-sale-recycling-data/:ScisaleRecyclingId", auth, sciRead, sciTabList.getUpdatescisaleandRecyclingdata);
+router.put('/sci-sale-recycling-edit', auth, sciUpdate, validateKpiBody, sciTabList.updatesaleandRecyclingData);
+router.delete("/delete-sci-sale-recycling-oldvessels/:sci_sale_recycling_id", auth, sciDelete, sciTabList.deleteSaleAndRecycling);
+
+
+router.post("/add-sci-sale-recycling-oldvessels-green-recycling", auth, sciCreate, validateKpiBody, sciTabList.addsaleandRecyclingofgreenRecycling);
+router.get("/sci-sale-and-green-recycling-list", auth, sciRead, sciTabList.getSaleandGreenrecyclingList);
+router.get("/update-sci-sale-recycling-green-data/:ScisaleGreenrecyclingId", auth, sciRead, sciTabList.getUpdatescisaleandGreenrecyclingdata);
+router.put('/sci-sale-greenrecycling-edit', auth, sciUpdate, validateKpiBody, sciTabList.updatesaleandGreenrecyclingData);
+router.delete("/delete-sci-sale-recycling-oldvessels-green-recycling/:sci_sale_green_recycling_id", auth, sciDelete, sciTabList.deleteGreenRecycling);
+
+router.post("/add-sci-manning-of-owned-ships", auth, sciCreate, validateKpiBody, sciTabList.addmanningofOwnedships);
+router.get("/sci-manning-list", auth, sciRead, sciTabList.getscimanningdataList);
+router.get("/update-sci-manning-of-old-ships-data/:ScimanningId", auth, sciRead, sciTabList.getUpdatescimanningodOwnedshipsdata);
+router.put('/sci-manning-of-ownedships-edit', auth, sciUpdate, validateKpiBody, sciTabList.updatemanningofOwnedshipsData);
+router.delete("/delete-sci-manning-of-owned-ships/:sci_manning_id", auth, sciDelete, sciTabList.deleteManningOfOwnedShips);
+
+router.post("/add-sci-ship-management-business", auth, sciCreate, validateKpiBody, sciTabList.addshipManagementBusiness);
+router.get("/sci-ship-management-list", auth, sciRead, sciTabList.getshipmanagementList);
+router.get("/update-sci-ship-management-data/:ScishipmanagementId", auth, sciRead, sciTabList.getUpdatescishipManagementdata);
+router.put('/sci-ship-management-business', auth, sciUpdate, validateKpiBody, sciTabList.updateshipManagementbusinessData);
+router.delete("/delete-sci-ship-management-business/:sci_ship_management_id", auth, sciDelete, sciTabList.deleteShipManagementBusiness);
 
 //sci report
-router.get('/kpi-sci-6-1-1-report',sciReportTab.getsciVesselAvailabilityReport);
-router.get('/kpi-sci-6-1-2-report',sciReportTab.sciVeslAvailUtilTimeandVoyageChartShipsReport)
-router.get('/kpi-sci-6-1-3-report',sciReportTab.sciVeslAvailUtilTimeandVoyageTankerReport)
-router.get('/kpi-sci-6-1-4-report',sciReportTab.sciVesselAvailabilityOffshoreReport)
-router.get('/kpi-sci-6-1-5-report',sciReportTab.sciVessellAvailabilityLinerReport)
+router.get('/kpi-sci-6-1-1-report', auth, sciRead, sciReportTab.getsciVesselAvailabilityReport);
+router.get('/kpi-sci-6-1-2-report', auth, sciRead, sciReportTab.sciVeslAvailUtilTimeandVoyageChartShipsReport);
+router.get('/kpi-sci-6-1-3-report', auth, sciRead, sciReportTab.sciVeslAvailUtilTimeandVoyageTankerReport);
+router.get('/kpi-sci-6-1-4-report', auth, sciRead, sciReportTab.sciVesselAvailabilityOffshoreReport);
+router.get('/kpi-sci-6-1-5-report', auth, sciRead, sciReportTab.sciVessellAvailabilityLinerReport);
 
 //SCI Report
-router.get('/get-sci-vessel-procurement-year-wise-report',sciReportTab.getsciVesselprocurementReport);
-router.get('/get-sci-vessel-procurement-secondhand-year-wise-report',sciReportTab.getsciVesselprocurementsecondhandReport);
-router.get('/get-sci-ship-dry-docking-year-wise-report',sciReportTab.getsciShipdrydockingReport);
-router.get('/get-sci-repair-maintance-report',sciReportTab.getsciRepairandMaintanceReport);
-router.get('/get-sci-sale-recycling-old-vessels-report',sciReportTab.getscisaleandRecyclingofvesselsReport);
-router.get('/get-sci-sale-green-recycling-old-vessels-report',sciReportTab.getsciSaleandGreenrecyclingodoldvesselsReport);
-router.get('/get-sci-manning-of-owned-ships-report',sciReportTab.getsciManningofownedshipsReport);
-router.get('/get-sci-ship-management-business-report',sciReportTab.getsciShipmanagementbusinessReport);
+router.get('/get-sci-vessel-procurement-year-wise-report', auth, sciRead, sciReportTab.getsciVesselprocurementReport);
+router.get('/get-sci-vessel-procurement-secondhand-year-wise-report', auth, sciRead, sciReportTab.getsciVesselprocurementsecondhandReport);
+router.get('/get-sci-ship-dry-docking-year-wise-report', auth, sciRead, sciReportTab.getsciShipdrydockingReport);
+router.get('/get-sci-repair-maintance-report', auth, sciRead, sciReportTab.getsciRepairandMaintanceReport);
+router.get('/get-sci-sale-recycling-old-vessels-report', auth, sciRead, sciReportTab.getscisaleandRecyclingofvesselsReport);
+router.get('/get-sci-sale-green-recycling-old-vessels-report', auth, sciRead, sciReportTab.getsciSaleandGreenrecyclingodoldvesselsReport);
+router.get('/get-sci-manning-of-owned-ships-report', auth, sciRead, sciReportTab.getsciManningofownedshipsReport);
+router.get('/get-sci-ship-management-business-report', auth, sciRead, sciReportTab.getsciShipmanagementbusinessReport);
 
 // imuTab
 router.post(
   "/add-imu-k-5-1",
   auth,
   requireModulePermission("KPI_IMU", "create"),
+  validateKpiBody,
   imuTab.createStudentEnrollment
 );
 router.get(
@@ -2944,22 +2890,17 @@ router.get(
   imuTab.getStudentEnrollmentByID
 );
 router.delete(
-  "/delete-imu-k-5-1/:student_id/:userID",
+  "/delete-imu-k-5-1/:student_id",
   auth,
   requireModulePermission("KPI_IMU", "delete"),
   imuTab.deleteStudentEnrollment
-);
-router.get(
-  "/get-imu-k-5-1-year",
-  auth,
-  requireModulePermission("KPI_IMU", "read"),
-  imuTab.getStudentEnrollmentYear
 );
 
 router.post(
   "/add-imu-k-5-2",
   auth,
   requireModulePermission("KPI_IMU", "create"),
+  validateKpiBody,
   imuTab.createimunewCourseUpgradation
 );
 router.get(
@@ -2969,7 +2910,7 @@ router.get(
   imuTab.getimuNewCourseUpgradationByID
 );
 router.delete(
-  "/delete-imu-k-5-2/:course_id/:userID",
+  "/delete-imu-k-5-2/:course_id",
   auth,
   requireModulePermission("KPI_IMU", "delete"),
   imuTab.deleteNewCourseUpgradation
@@ -2980,17 +2921,12 @@ router.get(
   requireModulePermission("KPI_IMU", "read"),
   imuTab.getimuNewCourseUpgradation
 );
-router.get(
-  "/get-imu-k-5-2-year",
-  auth,
-  requireModulePermission("KPI_IMU", "read"),
-  imuTab.getimuNewCourseUpgradationYear
-);
 
 router.post(
   "/add-imu-k-5-3",
   auth,
   requireModulePermission("KPI_IMU", "create"),
+  validateKpiBody,
   imuTab.createimuFacilities
 );
 router.get(
@@ -3006,22 +2942,17 @@ router.get(
   imuTab.getimuFacilitiesByID
 );
 router.delete(
-  "/delete-imu-k-5-3/:facilities_id/:userID",
+  "/delete-imu-k-5-3/:facilities_id",
   auth,
   requireModulePermission("KPI_IMU", "delete"),
   imuTab.deleteFacilities
-);
-router.get(
-  "/get-imu-k-5-3-year",
-  auth,
-  requireModulePermission("KPI_IMU", "read"),
-  imuTab.getimuFacilitiesYear
 );
 
 router.post(
   "/add-imu-k-5-4",
   auth,
   requireModulePermission("KPI_IMU", "create"),
+  validateKpiBody,
   imuTab.createimuPartnership
 );
 router.get(
@@ -3037,22 +2968,17 @@ router.get(
   imuTab.getimuPartnershipByID
 );
 router.delete(
-  "/delete-imu-k-5-4/:partnership_id/:userID",
+  "/delete-imu-k-5-4/:partnership_id",
   auth,
   requireModulePermission("KPI_IMU", "delete"),
   imuTab.deletePartnership
-);
-router.get(
-  "/get-imu-k-5-4-year",
-  auth,
-  requireModulePermission("KPI_IMU", "read"),
-  imuTab.getimuPartnershipYear
 );
 
 router.post(
   "/add-imu-k-5-5",
   auth,
   requireModulePermission("KPI_IMU", "create"),
+  validateKpiBody,
   imuTab.createImuResearch
 );
 router.get(
@@ -3068,16 +2994,10 @@ router.get(
   imuTab.getImuResearchByID
 );
 router.delete(
-  "/delete-imu-k-5-5/:research_id/:userID",
+  "/delete-imu-k-5-5/:research_id",
   auth,
   requireModulePermission("KPI_IMU", "delete"),
   imuTab.deleteResearch
-);
-router.get(
-  "/get-imu-k-5-5-year",
-  auth,
-  requireModulePermission("KPI_IMU", "read"),
-  imuTab.getimuResearchYear
 );
 
 router.get(
@@ -3115,10 +3035,11 @@ router.post(
   "/add-imu-k-5-1-1",
   auth,
   requireModulePermission("KPI_IMU", "create"),
+  validateKpiBody,
   imuTab.createimuFinalYearpassPercentage
 );
 router.get(
-  "/get-student-perecntage-list/:userID",
+  "/get-student-perecntage-list",
   auth,
   requireModulePermission("KPI_IMU", "read"),
   imuTab.getStudentfinalYearPercentage
@@ -3130,16 +3051,10 @@ router.get(
   imuTab.getUpdateFinalyearPercentagedata
 );
 router.delete(
-  "/delete-imu-k-5-1-1/:student_id/:userID",
+  "/delete-imu-k-5-1-1/:student_id",
   auth,
   requireModulePermission("KPI_IMU", "delete"),
   imuTab.deleteFinalYearPassPercentage
-);
-router.get(
-  "/get-imu-k-5-1-1-program",
-  auth,
-  requireModulePermission("KPI_IMU", "read"),
-  imuTab.checkProgramalreadyExists
 );
 
 // Report
@@ -3363,20 +3278,12 @@ router.get('/get-abstract-entry-exit-report', entryExitTab.getAbstractEntryExitR
 router.get('/get-monthly-entry-exit-report', entryExitTab.getMonthlyEntryExitReport);
 router.get('/get-yearly-entry-exit-report', entryExitTab.getYearlyEntryExitReport);
 
-//Form Builder Fields
-// router.post('/store-form-builder-input-form', formBuilderTab.storeFormBuilderInputForm); //req
-// router.get('/get-created-form-data', formBuilderTab.getCreatedFormData); //req //get created forms
-
-// old category-based module perms
-router.get('/module-permissions', ModuleControllerTab.getModulePermissions);
-router.post('/update-module-permission', ModuleControllerTab.updateModulePermission);
-router.get("/organisation-modules/:organisationId", ModuleControllerTab.getModulesByOrganisationCategory);
 
 // rbac
 router.get('/rbac/usermatrix-categories', auth, requireUserAdmin, orgModulePermission.getUsermatrixCategories);
 router.get('/rbac/organisations', auth, requireUserAdmin, orgModulePermission.getOrganisationsByCategory);
 router.get('/rbac/modules', auth, requireUserAdmin, orgModulePermission.getActiveModules);
-router.get('/rbac/org-module-permissions', auth, requireUserAdmin, orgModulePermission.getOrgModulePermissions);
+router.get('/rbac/org-module-permissions', auth, requireSuperAdmin, orgModulePermission.getOrgModulePermissions);
 router.put('/rbac/org-module-permissions', auth, requireSuperAdmin, orgModulePermission.saveOrgModulePermissions);
 router.get('/rbac/org-allowed-modules/:organisationId', auth, guardOrganisation((req) => req.params.organisationId), orgModulePermission.getAllowedModulesForOrganisation);
 router.get('/rbac/matrix-users', auth, requireUserAdmin, ownOrganisationQuery, userModuleCrud.getMatrixUsers);
@@ -3384,13 +3291,6 @@ router.get('/rbac/user-module-crud', auth, guardUserIdsQuery, userModuleCrud.get
 router.put('/rbac/user-module-crud', auth, guardManagedUserList, userModuleCrud.saveUserModuleCrud);
 router.get('/rbac/org-module-permission-log', auth, requireSuperAdmin, getOrgModulePermissionLog);
 router.get('/rbac/user-module-crud-log', auth, requireSuperAdmin, getUserModuleCrudLog);
-
-// SagarBot AI Copilot Permissions (Super Admin CRUD)
-router.get('/rbac/sagarbot-permissions', auth, sagarbotPermissionTab.getSagarbotPermissions);
-router.put('/rbac/sagarbot-permissions', auth, requireSuperAdmin, sagarbotPermissionTab.updateSagarbotPermissions);
-router.post('/rbac/sagarbot-permissions/reset', auth, requireSuperAdmin, sagarbotPermissionTab.resetSagarbotPermissions);
-router.get('/api/sagarbot-permissions', sagarbotPermissionTab.getSagarbotPermissions);
-router.put('/api/sagarbot-permissions', auth, requireSuperAdmin, sagarbotPermissionTab.updateSagarbotPermissions);
 
 router.get("/project-proposal", getProjectProposal);
 router.get("/project-clearance", getProjectClearance);
@@ -3506,5 +3406,16 @@ router.delete("/delete-form-builder-data/:data", auth, requireModulePermission("
 // AI Report Copilot (OpenAI / Vercel AI SDK)
 import reportCopilotTab from "./controllers/ai/reportCopilot.js";
 router.post('/ai/report-copilot', reportCopilotTab.chatReportCopilot);
+
+// ── NMP (National Monetization Plan) ─────────────────────────────────────────
+import nmpTab from "./controllers/Finance/nmp.js";
+router.get("/nmp/dashboard", auth, nmpTab.getNmpDashboard);
+router.get("/nmp/land-abstract", auth, nmpTab.getLandAbstractList);
+router.get("/nmp/past-land", auth, nmpTab.getPastLandList);
+router.get("/nmp/future-land", auth, nmpTab.getFutureLandList);
+router.get("/nmp/:id", auth, nmpTab.getNmpById);
+router.post("/nmp", auth, nmpTab.createNmpEntry);
+router.put("/nmp", auth, nmpTab.updateNmpEntry);
+router.delete("/nmp/:id/:userId", auth, nmpTab.deleteNmpEntry);
 
 export default router;

@@ -3,7 +3,7 @@ import { Search, ChevronLeft, ChevronRight, Edit, Trash2, ChevronDown, Filter, C
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import { useShallow } from 'zustand/react/shallow';
-import { STATUS_STEPS, CATEGORIES, getParaStatusText } from '../constants';
+import { STATUS_STEPS, CATEGORIES, ACTIVE_STATUS, getParaStatusText } from '../constants';
 import { useAuditParaStore } from '../store/useAuditParaStore';
 import CopyButton from '../../../components/CopyButton';
 import ExportDropdown from '../../../components/ExportDropdown';
@@ -86,7 +86,9 @@ export default function DataList({
       (!selectedWing || sameText(p.wing, selectedWing))
       && (!selectedDivision || sameText(p.division, selectedDivision))
       && (!selectedCategory || sameText(p.category, selectedCategory))
-      && (!selectedStatus || sameText(getParaStatusText(p.statusSteps), selectedStatus))
+      && (!selectedStatus || (selectedStatus === ACTIVE_STATUS
+        ? !sameText(getParaStatusText(p.statusSteps), STATUS_STEPS[7])
+        : sameText(getParaStatusText(p.statusSteps), selectedStatus)))
       && (!q
         || (p.paraNumber || '').toLowerCase().includes(q)
         || (p.subject || '').toLowerCase().includes(q)
@@ -354,6 +356,7 @@ export default function DataList({
               <label className={filterLabelClass}>Status</label>
               <select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)} className={filterSelectClass}>
                 <option value="">All Statuses</option>
+                <option value={ACTIVE_STATUS}>{ACTIVE_STATUS}</option>
                 {Object.values(STATUS_STEPS).map((status) => <option key={status} value={status}>{status}</option>)}
               </select>
             </div>

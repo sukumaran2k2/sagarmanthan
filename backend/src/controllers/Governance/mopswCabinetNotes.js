@@ -99,10 +99,9 @@ function parseDate(val) {
   const month = Number.parseInt(parts[1], 10) - 1;
   const day = Number.parseInt(parts[2], 10);
   if (Number.isNaN(year) || Number.isNaN(month) || Number.isNaN(day)) return null;
-  const d = new Date();
-  d.setFullYear(year, month, day);
-  d.setHours(0, 0, 0, 0);
-  return d;
+  // UTC midnight: the driver writes sql.Date from the UTC parts, so a local-midnight Date
+  // saved one day early on a server running ahead of UTC (e.g. IST)
+  return new Date(Date.UTC(year, month, day));
 }
 
 function bindNoteFields(request, body) {

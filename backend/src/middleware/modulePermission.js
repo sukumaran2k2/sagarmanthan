@@ -96,9 +96,8 @@ export function checkModulePermission(user, moduleCode, action, { strict = false
     if (perm) break;
   }
 
-  // No user matrix row for the module is still allowed (also in strict mode) until the
-  // matrix is filled in for every user
-  if (perm && !hasAction(perm, normalizedAction)) {
+  // No user matrix row for the module means no access, as the User Matrix screen shows it
+  if (!hasAction(perm, normalizedAction)) {
     return { ok: false, status: 403, message: `Missing ${normalizedAction} permission for ${code}` };
   }
 
@@ -125,8 +124,8 @@ export function requireStrictModulePermission(moduleCode, action) {
   return permissionMiddleware(moduleCode, action, { strict: true });
 }
 
-/** Allow if the user has any one of the listed actions. */
-export function requireAnyModulePermission(moduleCode, actions = []) {
+/** Allow if the user has any one of the listed actions. { strict: true } adds the data scope check. */
+export function requireAnyModulePermission(moduleCode, actions = [], { strict = false } = {}) {
   const code = String(moduleCode || '').toUpperCase();
   const normalized = (Array.isArray(actions) ? actions : [actions])
     .map(normalizeAction)
@@ -145,13 +144,19 @@ export function requireAnyModulePermission(moduleCode, actions = []) {
     // Superadmin has full access
     if (isSuperAdmin(user)) return next();
 
+    if (strict && !['MASTER', 'MINISTRY', 'ORGANISATION'].includes(String(user.dataScopeCode || '').toUpperCase())) {
+      return res.status(403).json({ status: 'fail', message: 'No data scope is set for this account' });
+    }
+
     const candidates = getCodeCandidates(code);
     const allowedCodes = Array.isArray(user.allowedModuleCodes)
       ? user.allowedModuleCodes.map((c) => String(c).toUpperCase())
       : [];
     const moduleAllowed = candidates.some((c) => allowedCodes.includes(c));
 
+    // View Only Admin: read on the organisation's modules, as in checkModulePermission
     if (user.roleCode === 'VIEW_ONLY_ADMIN') {
+      if (moduleAllowed && normalized.includes('read')) return next();
       return res.status(403).json({
         status: 'fail',
         message: 'View Only Admin has read-only access',
@@ -171,7 +176,8 @@ export function requireAnyModulePermission(moduleCode, actions = []) {
       if (perm) break;
     }
 
-    const ok = !perm || normalized.some((action) => hasAction(perm, action));
+    // No user matrix row for the module means no access
+    const ok = normalized.some((action) => hasAction(perm, action));
     if (!ok) {
       return res.status(403).json({
         status: 'fail',

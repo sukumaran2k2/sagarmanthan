@@ -93,10 +93,65 @@ async function loadRecordOrganisationId(cfg, gemId) {
   return result.recordset.length ? result.recordset[0].organisationId : null;
 }
 
+// Blank stays null; anything else must be a finite, non-negative number (NaN = invalid).
+function parseAmount(value) {
+  if (value == null || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : NaN;
+}
+
 function resolveUserId(req, fallback) {
   const raw = req.user?.userId ?? req.user?.user_id ?? fallback;
   const n = Number(raw);
   return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+// ---------------------------------------------------------------------------
+// Change log (dbo.tbl_gem_procurement_log, see sql/gem/01_tbl_gem_procurement_log.sql)
+// ---------------------------------------------------------------------------
+
+const CATEGORY_LABELS = { goods: "Goods", service: "Service", works: "Works" };
+
+// Full copies of the rows matching whereSql, read on the caller's transaction.
+// UPDLOCK / HOLDLOCK keep them as read until the change and its log commit.
+async function loadLogSnapshots(transaction, table, whereSql, bind) {
+  const request = transaction.request();
+  bind(request);
+  const result = await request.query(`
+    SELECT * FROM ${table} WITH (UPDLOCK, HOLDLOCK) WHERE ${whereSql}
+  `);
+  return result.recordset || [];
+}
+
+// Writes one log row on the caller's transaction, so the log and the change commit together.
+async function writeGemLog(transaction, cfg, {
+  recordType, action, gemId, organisationId, financialYear, userId, summary, previous, next,
+}) {
+  const request = transaction.request();
+  request.input("logCategory", sql.NVarChar(10), cfg.key);
+  request.input("logRecordType", sql.NVarChar(10), recordType);
+  request.input("logAction", sql.NVarChar(10), action);
+  request.input("logGemId", sql.Int, gemId ?? null);
+  request.input("logOrganisationId", sql.Int, organisationId == null ? null : Number(organisationId));
+  request.input("logFinancialYear", sql.NVarChar(100), financialYear ?? null);
+  request.input("logSummary", sql.NVarChar(500), String(summary).slice(0, 500));
+  request.input("logPayload", sql.NVarChar(sql.MAX), JSON.stringify({
+    previous: previous ?? null,
+    new: next ?? null,
+  }));
+  request.input("logUserId", sql.Int, userId);
+  await request.query(`
+    INSERT INTO dbo.tbl_gem_procurement_log
+      (category, record_type, action, gem_id, organisation_id, financial_year,
+       target_summary, payload_json, created_by, created_date)
+    VALUES
+      (@logCategory, @logRecordType, @logAction, @logGemId, @logOrganisationId, @logFinancialYear,
+       @logSummary, @logPayload, @logUserId, GETDATE())
+  `);
+}
+
+function logRecordLabel(cfg, gemId) {
+  return `GeM ${CATEGORY_LABELS[cfg.key]} #${gemId}`;
 }
 
 const TABLE_COLUMNS_CACHE = new Map();
@@ -276,25 +331,32 @@ async function addCategory(req, res, cfg) {
   if (!userId || !financialYear || !organisationId || !Number.isFinite(potential)) {
     return res.status(400).json({ error: "Missing required fields." });
   }
+  if (potential < 0) {
+    return res.status(400).json({ error: "Planned procurement cannot be negative." });
+  }
 
   if (!isOrganisationInScope(req, organisationId)) {
     return res.status(403).json({ error: "Organisation outside your data scope." });
   }
 
   const conn = await pool;
+  let transaction;
 
   try {
     const columns = await getTableColumns(cfg.table);
-    const check = conn.request();
+    transaction = conn.transaction();
+    await transaction.begin();
+    const check = transaction.request();
     check.input("financialYear", sql.NVarChar(50), financialYear);
     check.input("organisationId", sql.Int, Number(organisationId));
     const exists = await check.query(`
       SELECT COUNT(*) AS count
-      FROM ${cfg.table}
+      FROM ${cfg.table} WITH (UPDLOCK, HOLDLOCK)
       WHERE ${cfg.fyCol} = @financialYear
         AND ${cfg.orgCol} = @organisationId
     `);
     if (exists.recordset[0].count > 0) {
+      await transaction.rollback();
       return res.status(400).json({
         error: "Record already exists for the specified financialYear and organisationId.",
       });
@@ -324,22 +386,42 @@ async function addCategory(req, res, cfg) {
       insertVals.push("@eightMonthsProportionalTarget");
     }
 
-    const insert = conn.request();
+    const insert = transaction.request();
     insert.input("userId", sql.Int, userId);
     insert.input("financialYear", sql.NVarChar(50), financialYear);
     insert.input("organisationId", sql.Int, Number(organisationId));
     insert.input("potential", sql.Float, potential);
     insert.input("eightMonthsProportionalTarget", sql.Float, eightMonthsProportionalTarget);
 
-    await insert.query(`
+    const inserted = await insert.query(`
       INSERT INTO ${cfg.table} (${insertCols.join(", ")})
+      OUTPUT INSERTED.*
       VALUES (${insertVals.join(", ")})
     `);
+    const created = inserted.recordset[0];
+    const gemId = created[cfg.idCol];
+
+    await writeGemLog(transaction, cfg, {
+      recordType: "TARGET",
+      action: "CREATE",
+      gemId,
+      organisationId,
+      financialYear,
+      userId,
+      summary: `${logRecordLabel(cfg, gemId)} — target added (${potential})`,
+      previous: null,
+      next: created,
+    });
+
+    await transaction.commit();
     return res.status(201).json({ message: "GeM planned procurement created successfully." });
   } catch (err) {
+    try {
+      await transaction?.rollback();
+    } catch (_) {}
     console.error(`addCategory(${cfg.key}):`, err);
     return res.status(500).json({
-      error: err?.message || "Failed to create GeM planned procurement.",
+      error: "Failed to create GeM planned procurement.",
     });
   }
 }
@@ -361,15 +443,39 @@ async function updateCategory(req, res, cfg) {
   if (!userId || !financialYear || !organisationId || !Number.isFinite(potential)) {
     return res.status(400).json({ error: "Missing required fields." });
   }
+  if (potential < 0) {
+    return res.status(400).json({ error: "Planned procurement cannot be negative." });
+  }
 
   if (!isOrganisationInScope(req, organisationId)) {
     return res.status(403).json({ error: "Organisation outside your data scope." });
   }
 
   const conn = await pool;
+  let transaction;
 
   try {
     const columns = await getTableColumns(cfg.table);
+    transaction = conn.transaction();
+    await transaction.begin();
+
+    const bindRecord = (request) => {
+      request.input("financialYear", sql.NVarChar(50), financialYear);
+      request.input("organisationId", sql.Int, Number(organisationId));
+    };
+    const previousRows = await loadLogSnapshots(
+      transaction,
+      cfg.table,
+      `${cfg.fyCol} = @financialYear AND ${cfg.orgCol} = @organisationId`,
+      bindRecord
+    );
+    if (!previousRows.length) {
+      await transaction.rollback();
+      return res.status(404).json({
+        error: "Record not found for the specified financialYear and organisationId.",
+      });
+    }
+
     const setParts = [
       `${cfg.potentialCol} = @potential`,
       "updated_by = @userId",
@@ -380,10 +486,9 @@ async function updateCategory(req, res, cfg) {
       setParts.push("eight_months_proportional_target = @eightMonthsProportionalTarget");
     }
 
-    const request = conn.request();
+    const request = transaction.request();
     request.input("userId", sql.Int, userId);
-    request.input("financialYear", sql.NVarChar(50), financialYear);
-    request.input("organisationId", sql.Int, Number(organisationId));
+    bindRecord(request);
     request.input("potential", sql.Float, potential);
     request.input("eightMonthsProportionalTarget", sql.Float, eightMonthsProportionalTarget);
 
@@ -391,30 +496,46 @@ async function updateCategory(req, res, cfg) {
       UPDATE ${cfg.table}
       SET
         ${setParts.join(",\n        ")}
+      OUTPUT INSERTED.*
       WHERE ${cfg.fyCol} = @financialYear
         AND ${cfg.orgCol} = @organisationId
     `);
-    const affected = Array.isArray(result.rowsAffected)
-      ? Number(result.rowsAffected[0] || 0)
-      : Number(result.rowsAffected || 0);
-    if (!affected) {
-      return res.status(404).json({
-        error: "Record not found for the specified financialYear and organisationId.",
+
+    // One log row per updated record (older data can hold more than one per year / organisation)
+    for (const updated of result.recordset) {
+      const gemId = updated[cfg.idCol];
+      const previous = previousRows.find((row) => row[cfg.idCol] === gemId) || null;
+      await writeGemLog(transaction, cfg, {
+        recordType: "TARGET",
+        action: "UPDATE",
+        gemId,
+        organisationId,
+        financialYear,
+        userId,
+        summary: `${logRecordLabel(cfg, gemId)} — target updated (${previous?.[cfg.potentialCol] ?? "—"} → ${potential})`,
+        previous,
+        next: updated,
       });
     }
+
+    await transaction.commit();
     return res.status(200).json({ message: "GeM planned procurement updated successfully." });
   } catch (err) {
+    try {
+      await transaction?.rollback();
+    } catch (_) {}
     console.error(`updateCategory(${cfg.key}):`, err);
     return res.status(500).json({
-      error: err?.message || "Failed to update GeM planned procurement.",
+      error: "Failed to update GeM planned procurement.",
     });
   }
 }
 
 async function deleteCategory(req, res, cfg) {
+  const userId = resolveUserId(req, req.body.userID ?? req.body.userId);
   const financialYear = req.body.financialYear;
   const organisationId = req.body.organisationId;
-  if (!financialYear || !organisationId) {
+  if (!userId || !financialYear || !organisationId) {
     return res.status(400).json({ error: "Missing required fields." });
   }
 
@@ -426,29 +547,51 @@ async function deleteCategory(req, res, cfg) {
   const transaction = conn.transaction();
   try {
     await transaction.begin();
-    const request = transaction.request();
-    request.input("financialYear", sql.NVarChar(50), financialYear);
-    request.input("organisationId", sql.Int, Number(organisationId));
 
-    const idResult = await request.query(`
-      SELECT ${cfg.idCol} AS id
-      FROM ${cfg.table}
-      WHERE ${cfg.fyCol} = @financialYear
-        AND ${cfg.orgCol} = @organisationId
-    `);
-    if (!idResult.recordset.length) {
+    const targets = await loadLogSnapshots(
+      transaction,
+      cfg.table,
+      `${cfg.fyCol} = @financialYear AND ${cfg.orgCol} = @organisationId`,
+      (request) => {
+        request.input("financialYear", sql.NVarChar(50), financialYear);
+        request.input("organisationId", sql.Int, Number(organisationId));
+      }
+    );
+    if (!targets.length) {
       await transaction.rollback();
       return res.status(404).json({
         error: "Record not found for the specified financialYear and organisationId.",
       });
     }
 
-    const gemId = idResult.recordset[0].id;
-    const delMonthly = transaction.request();
-    delMonthly.input("gemId", sql.Int, gemId);
-    await delMonthly.query(`
-      DELETE FROM ${cfg.monthlyTable} WHERE ${cfg.idCol} = @gemId
-    `);
+    // Log each target with its monthly row before anything is removed, then delete the
+    // monthly rows of every matched target so none are left without a parent
+    for (const target of targets) {
+      const gemId = target[cfg.idCol];
+      const [monthly = null] = await loadLogSnapshots(
+        transaction,
+        cfg.monthlyTable,
+        `${cfg.idCol} = @gemId`,
+        (request) => request.input("gemId", sql.Int, gemId)
+      );
+      await writeGemLog(transaction, cfg, {
+        recordType: "TARGET",
+        action: "DELETE",
+        gemId,
+        organisationId,
+        financialYear,
+        userId,
+        summary: `${logRecordLabel(cfg, gemId)} — target deleted (${target[cfg.potentialCol]})${monthly ? " with its monthly data" : ""}`,
+        previous: { target, monthly },
+        next: null,
+      });
+
+      const delMonthly = transaction.request();
+      delMonthly.input("gemId", sql.Int, gemId);
+      await delMonthly.query(`
+        DELETE FROM ${cfg.monthlyTable} WHERE ${cfg.idCol} = @gemId
+      `);
+    }
 
     const delParent = transaction.request();
     delParent.input("financialYear", sql.NVarChar(50), financialYear);
@@ -503,17 +646,31 @@ async function saveMonthly(req, res, cfg) {
     return res.status(400).json({ error: `Invalid ${cfg.idBodyKey}.` });
   }
 
-  const recordOrgId = await loadRecordOrganisationId(cfg, gemId);
-  if (recordOrgId == null) {
-    return res.status(404).json({ error: "GeM record not found." });
-  }
-  if (!isOrganisationInScope(req, recordOrgId)) {
-    return res.status(403).json({ error: "Record outside your data scope." });
+  const values = {};
+  for (const month of MONTHS) {
+    const through = parseAmount(readMonthlyField(req.body, month, "through"));
+    const outside = parseAmount(readMonthlyField(req.body, month, "outside"));
+    if (Number.isNaN(through) || Number.isNaN(outside)) {
+      return res.status(400).json({
+        error: `Invalid amount for ${monthCap(month)}. Enter a number that is 0 or more.`,
+      });
+    }
+    const reason = readMonthlyField(req.body, month, "reason");
+    values[month] = { through, outside, reason: reason == null ? null : String(reason) };
   }
 
-  const conn = await pool;
-  const transaction = conn.transaction();
+  let transaction;
   try {
+    const recordOrgId = await loadRecordOrganisationId(cfg, gemId);
+    if (recordOrgId == null) {
+      return res.status(404).json({ error: "GeM record not found." });
+    }
+    if (!isOrganisationInScope(req, recordOrgId)) {
+      return res.status(403).json({ error: "Record outside your data scope." });
+    }
+
+    const conn = await pool;
+    transaction = conn.transaction();
     await transaction.begin();
     const request = transaction.request();
     request.input("gemId", sql.Int, gemId);
@@ -521,19 +678,23 @@ async function saveMonthly(req, res, cfg) {
 
     for (const month of MONTHS) {
       const cap = monthCap(month);
-      const through = readMonthlyField(req.body, month, "through");
-      const outside = readMonthlyField(req.body, month, "outside");
-      const reason = readMonthlyField(req.body, month, "reason");
-      request.input(`through${cap}`, sql.Float, through == null || through === "" ? null : Number(through));
-      request.input(`outside${cap}`, sql.Float, outside == null || outside === "" ? null : Number(outside));
-      request.input(`reason${cap}`, sql.NVarChar(sql.MAX), reason == null ? null : String(reason));
+      request.input(`through${cap}`, sql.Float, values[month].through);
+      request.input(`outside${cap}`, sql.Float, values[month].outside);
+      request.input(`reason${cap}`, sql.NVarChar(sql.MAX), values[month].reason);
     }
 
-    const exists = await request.query(`
-      SELECT ${cfg.idCol}
-      FROM ${cfg.monthlyTable}
-      WHERE ${cfg.idCol} = @gemId
-    `);
+    const [previous = null] = await loadLogSnapshots(
+      transaction,
+      cfg.monthlyTable,
+      `${cfg.idCol} = @gemId`,
+      (snapshotRequest) => snapshotRequest.input("gemId", sql.Int, gemId)
+    );
+    const [target] = await loadLogSnapshots(
+      transaction,
+      cfg.table,
+      `${cfg.idCol} = @gemId`,
+      (snapshotRequest) => snapshotRequest.input("gemId", sql.Int, gemId)
+    );
 
     const setParts = [
       ...MONTHS.flatMap((month) => {
@@ -573,24 +734,36 @@ async function saveMonthly(req, res, cfg) {
       insertVals.push(`@reason${cap}`);
     }
 
-    if (exists.recordset.length > 0) {
-      await request.query(`
+    const saved = previous
+      ? await request.query(`
         UPDATE ${cfg.monthlyTable}
         SET ${setParts.join(",\n        ")}
+        OUTPUT INSERTED.*
         WHERE ${cfg.idCol} = @gemId
-      `);
-    } else {
-      await request.query(`
+      `)
+      : await request.query(`
         INSERT INTO ${cfg.monthlyTable} (${insertCols.join(", ")})
+        OUTPUT INSERTED.*
         VALUES (${insertVals.join(", ")})
       `);
-    }
+
+    await writeGemLog(transaction, cfg, {
+      recordType: "ACTUAL",
+      action: "SAVE",
+      gemId,
+      organisationId: recordOrgId,
+      financialYear: target?.[cfg.fyCol] ?? null,
+      userId,
+      summary: `${logRecordLabel(cfg, gemId)} — monthly save (${previous ? "updated" : "first entry"})`,
+      previous,
+      next: saved.recordset[0] ?? null,
+    });
 
     await transaction.commit();
     return res.sendStatus(201);
   } catch (err) {
     try {
-      await transaction.rollback();
+      await transaction?.rollback();
     } catch (_) {}
     console.error(`saveMonthly(${cfg.key}):`, err);
     return res.sendStatus(500);
@@ -602,14 +775,14 @@ async function getMonthly(req, res, cfg, paramName) {
   if (!Number.isFinite(gemId) || gemId <= 0) {
     return res.status(400).json({ error: `Invalid ${paramName}.` });
   }
-  const recordOrgId = await loadRecordOrganisationId(cfg, gemId);
-  if (recordOrgId != null && !isOrganisationInScope(req, recordOrgId)) {
-    return res.status(403).json({ error: "Record outside your data scope." });
-  }
-  const conn = await pool;
-  const request = conn.request();
-  request.input("gemId", sql.Int, gemId);
   try {
+    const recordOrgId = await loadRecordOrganisationId(cfg, gemId);
+    if (recordOrgId != null && !isOrganisationInScope(req, recordOrgId)) {
+      return res.status(403).json({ error: "Record outside your data scope." });
+    }
+    const conn = await pool;
+    const request = conn.request();
+    request.input("gemId", sql.Int, gemId);
     const result = await request.query(`
       SELECT * FROM ${cfg.monthlyTable} WHERE ${cfg.idCol} = @gemId
     `);
@@ -625,14 +798,14 @@ async function getPotential(req, res, cfg, paramName) {
   if (!Number.isFinite(gemId) || gemId <= 0) {
     return res.status(400).json({ error: `Invalid ${paramName}.` });
   }
-  const recordOrgId = await loadRecordOrganisationId(cfg, gemId);
-  if (recordOrgId != null && !isOrganisationInScope(req, recordOrgId)) {
-    return res.status(403).json({ error: "Record outside your data scope." });
-  }
-  const conn = await pool;
-  const request = conn.request();
-  request.input("gemId", sql.Int, gemId);
   try {
+    const recordOrgId = await loadRecordOrganisationId(cfg, gemId);
+    if (recordOrgId != null && !isOrganisationInScope(req, recordOrgId)) {
+      return res.status(403).json({ error: "Record outside your data scope." });
+    }
+    const conn = await pool;
+    const request = conn.request();
+    request.input("gemId", sql.Int, gemId);
     const result = await request.query(`
       SELECT ${cfg.potentialCol}
       FROM ${cfg.table}
@@ -890,16 +1063,23 @@ async function getOrganisationName(req, res) {
 
 async function getGemProcurementDataEntry(req, res) {
   const currentYear = new Date().getFullYear();
+  // getMonth() is 0-based, so April (3) starts the new financial year.
   const financialYear =
-    new Date().getMonth() > 3
+    new Date().getMonth() >= 3
       ? `${currentYear}-${currentYear + 1}`
       : `${currentYear - 1}-${currentYear}`;
 
-  const conn = await pool;
-  const request = conn.request();
-  request.input("financialYear", sql.NVarChar(50), financialYear);
-
   try {
+    const conn = await pool;
+    const request = conn.request();
+    request.input("financialYear", sql.NVarChar(50), financialYear);
+    // Organisation users see only their own row; ministry/master see all.
+    const { whereSql } = applyDataScope(request, req.user, {
+      strategy: "directOrgColumn",
+      alias: "mmt",
+      orgColumn: "organisation_id",
+    });
+
     const result = await request.query(`
       SELECT TOP (1000)
         g.goods_gem_id,
@@ -932,7 +1112,8 @@ async function getGemProcurementDataEntry(req, res) {
        AND g.goods_financial_year = @financialYear
       LEFT JOIN tbl_gem_procurement_goods_monthly gm
         ON g.goods_gem_id = gm.goods_gem_id
-      WHERE mmt.organisation_category_id = 1 OR mmt.organisation_id IN (25, 15, 18, 19, 21, 17)
+      WHERE (mmt.organisation_category_id = 1 OR mmt.organisation_id IN (25, 15, 18, 19, 21, 17))
+      ${whereSql}
       ORDER BY updated_month
     `);
     return res.json(result.recordset);

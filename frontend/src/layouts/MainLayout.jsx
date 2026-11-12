@@ -16,6 +16,7 @@ import {
   TAB_USER_MASTER_MANAGEMENT
 } from '../utils/moduleAccess';
 import { isOrganisationUser } from '../utils/authSession';
+import { signOut } from '../utils/sessionRefresh';
 import { Home } from 'lucide-react';
 
 export const ROUTE_MAP = {
@@ -52,14 +53,19 @@ export const ROUTE_MAP = {
   'Major Ports Input Form': 'kpi/major-ports/major-ports-input-form',
   'Major Ports Entry Access': 'kpi/major-ports/major-ports-entry-access',
   'Major Ports Reports': 'kpi/major-ports/major-ports-reports',
-  'DGLL Input Form': 'kpi/dgll',
-  'DGLL Reports': 'kpi/dgll',
-  'CSL Input Form': 'kpi/csl',
-  'CSL Reports': 'kpi/csl',
-  'IMU Input Form': 'kpi/imu',
-  'IMU Reports': 'kpi/imu',
-  'SCI Input Form': 'kpi/sci',
-  'SCI Reports': 'kpi/sci',
+  // These four modules pick their tab from ?tab= (add / list / report), so each menu item names it
+  'DGLL Input Form': 'kpi/dgll?tab=add',
+  'DGLL Data List': 'kpi/dgll?tab=list',
+  'DGLL Reports': 'kpi/dgll?tab=report',
+  'CSL Input Form': 'kpi/csl?tab=add',
+  'CSL Data List': 'kpi/csl?tab=list',
+  'CSL Reports': 'kpi/csl?tab=report',
+  'IMU Input Form': 'kpi/imu?tab=add',
+  'IMU Data List': 'kpi/imu?tab=list',
+  'IMU Reports': 'kpi/imu?tab=report',
+  'SCI Input Form': 'kpi/sci?tab=add',
+  'SCI Data List': 'kpi/sci?tab=list',
+  'SCI Reports': 'kpi/sci?tab=report',
 
   // Governance nested routes
   'E Office': 'governance/e-office',
@@ -76,8 +82,8 @@ export const ROUTE_MAP = {
   'Media Outreach': 'governance/media-outreach/broadcast',
   'Parliamentary Issue': 'governance/parliamentary-issues/data-list',
   'Parliamentary Issues': 'governance/parliamentary-issues/data-list',
-  'Audit Paras': 'governance/audit-paras/input-form',
-  'Audit Para': 'governance/audit-paras/input-form',
+  'Audit Paras': 'governance/audit-paras',
+  'Audit Para': 'governance/audit-paras',
   'GEM Procurements': 'governance/gem-procurements/total',
 
   // Legal nested routes
@@ -196,6 +202,12 @@ export const ROUTE_MAP = {
   'CSR Input Form': 'projects/csr-projects/input-form',
   'CSR Reports': 'projects/csr-projects/reports',
 
+  // Finance / NMP routes
+  'National Monetization Plan': 'finance/nmp/dashboard',
+  'NMP Dashboard': 'finance/nmp/dashboard',
+  'NMP Data List': 'finance/nmp/data-list',
+  'NMP Input Form': 'finance/nmp/input-form',
+
   // Finance / Capex routes
   'Capex': 'finance/capex/data-list',
   'Capex Dashboard': 'finance/capex/dashboard',
@@ -241,6 +253,7 @@ export const getTabFromSlug = (slug) => {
   if (cleanSlug.startsWith('strategies/gmis-mou')) return 'GMIS & IMW MoUs';
   if (cleanSlug.startsWith('strategies/miv-2030')) return 'MIV 2030';
   if (cleanSlug.startsWith('strategies/drishti-portal') || cleanSlug.startsWith('strategies/ovod') || cleanSlug.startsWith('strategies/one-vision-one-document')) return 'Drishti Portal';
+  if (cleanSlug.startsWith('finance/nmp')) return 'National Monetization Plan';
   if (cleanSlug.startsWith('finance/capex')) return 'Capex';
   if (cleanSlug.startsWith('governance/gem-procurements')) return 'GEM Procurements';
   if (cleanSlug.startsWith('governance/vip-reference')) return 'VIP Reference';
@@ -311,12 +324,16 @@ const getBreadcrumbs = (tab) => {
     'DSG Input Form': ['KPI', 'DSG'],
     'DSG Reports': ['KPI', 'DSG'],
     'DGLL Input Form': ['KPI', 'DGLL'],
+    'DGLL Data List': ['KPI', 'DGLL'],
     'DGLL Reports': ['KPI', 'DGLL'],
     'CSL Input Form': ['KPI', 'CSL'],
+    'CSL Data List': ['KPI', 'CSL'],
     'CSL Reports': ['KPI', 'CSL'],
     'IMU Input Form': ['KPI', 'IMU'],
+    'IMU Data List': ['KPI', 'IMU'],
     'IMU Reports': ['KPI', 'IMU'],
     'SCI Input Form': ['KPI', 'SCI'],
+    'SCI Data List': ['KPI', 'SCI'],
     'SCI Reports': ['KPI', 'SCI'],
     'CMEC Input Form': ['KPI', 'CMEC'],
     'CMEC Reports': ['KPI', 'CMEC'],
@@ -366,6 +383,9 @@ const getBreadcrumbs = (tab) => {
   ];
   if (tab === 'Media Outreach') return ['Home', 'Media Outreach - (Input Form)'];
   if (governanceItems.includes(tab)) return ['Home', 'Governance', tab];
+
+  const nmpItems = ['National Monetization Plan', 'NMP Dashboard', 'NMP Data List', 'NMP Input Form'];
+  if (nmpItems.includes(tab)) return ['Home', 'Finance', 'National Monetization Plan', tab === 'National Monetization Plan' ? 'Dashboard' : tab];
 
   const legalItems = ['Courtcases', 'Bills/PreConstitutions Act', 'Acts & Rules'];
   if (legalItems.includes(tab)) return ['Home', 'Legal', tab];
@@ -450,8 +470,7 @@ export default function MainLayout({
           isManual={isManualNetworkCheck}
           onContinue={() => setShowNetworkCheck(false)}
           onCancel={() => {
-            localStorage.removeItem('accessToken');
-            localStorage.removeItem('refreshToken');
+            signOut();
             setIsLoggedIn(false);
             setShowNetworkCheck(false);
           }}

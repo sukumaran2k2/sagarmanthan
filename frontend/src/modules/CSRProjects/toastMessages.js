@@ -17,9 +17,7 @@ export const CSR_TOASTS = {
     toastWarning('Photos Not Uploaded',
       withReason('The project was saved, but the gallery files could not be uploaded. Open the project and add them again.', reason)),
   stageIncomplete: (stage) =>
-    toastWarning('Required Fields Missing', `Fill in the mandatory fields in Stage ${stage}, highlighted in red, before moving on.`),
-  completedBeforeCommenced: () =>
-    toastWarning('Check the Dates', 'The completed date cannot be earlier than the commenced date.'),
+    toastWarning('Check Stage ' + stage, `Fill in or correct the fields in Stage ${stage}, highlighted in red, before moving on.`),
 
   fundCreated: (fy) =>
     toastSuccess('Fund Added', fy ? `The CSR fund for ${fy} has been registered.` : 'The CSR fund has been registered.'),

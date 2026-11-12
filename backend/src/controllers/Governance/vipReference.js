@@ -10,19 +10,11 @@ async function createVipReference(req, res) {
     const division = req.body.division;
     const refLetterNum = req.body.referenceLetterNumber;
     const receivedFrom = req.body.receivedFrom;
-    const receivedAtMinistry = req.body.vipReceivedMinistry;
-    
     let receivedAtMinistryDate = req.body.vipReceivedMinistryDate;
-    const submittedForApproval = req.body.vipSubmittedForApproval;
     let submittedForApprovalDate = req.body.vipSubmittedForApprovalDate;
-
-    const commentsReceived = req.body.vipCommentsReceived;
     let commentsReceivedDate = req.body.vipCommentsReceivedDate;
-    const commentsSought = req.body.vipCommentsSought;
     let commentsSoughtDate = req.body.vipCommentsSoughtDate;
-    const replyFurnished = req.body.vipReplyFurnished;
     let replyFurnishedDate = req.body.vipReplyFurnishedDate;
-    const disposed = req.body.vipDisposed;
     let disposedDate = req.body.vipDisposedDate;
 
     const remarks = req.body.vipRemarks;
@@ -69,17 +61,11 @@ async function createVipReference(req, res) {
     request.input("division", division);
     request.input("refLetterNum", refLetterNum);
     request.input("receivedFrom", receivedFrom);
-    request.input("receivedAtMinistry", receivedAtMinistry);
     request.input("receivedAtMinistryDate", receivedAtMinistryDate);
-    request.input("submittedForApproval", submittedForApproval);
     request.input("submittedForApprovalDate", submittedForApprovalDate);
-    request.input("commentsReceived", commentsReceived);
     request.input("commentsReceivedDate", commentsReceivedDate);
-    request.input("commentsSought", commentsSought);
     request.input("commentsSoughtDate", commentsSoughtDate);
-    request.input("replyFurnished", replyFurnished);
     request.input("replyFurnishedDate", replyFurnishedDate);
-    request.input("disposed", disposed);
     request.input("disposedDate", disposedDate);
     request.input("selectedStage", selectedStage);
     request.input("remarks", remarks);
@@ -95,19 +81,19 @@ async function createVipReference(req, res) {
     request.input("userID", userID);
 
     try {
-        const result = await request.query(`INSERT INTO tbl_vip_reference_change (subject, eoffice_file_number, stage_id, wing, division, ref_letter_num, 
-            received_from, received_at_ministry_date, submitted_for_approval_date, 
-            comments_received_date, comments_sought_date, reply_furnished_date, 
-            disposed_date, remarks,vip_received_ministry_remark,vip_submitted_for_approval_remark ,vip_comments_sought_remark,
-            vip_comments_received_remark,vip_reply_furnished_remark,vip_disposed_remark,
+        const result = await request.query(`INSERT INTO tbl_vip_reference (subject, eoffice_file_number, stage_id, wing, division, ref_letter_num,
+            received_from, received_at_ministry_date, submitted_for_approval_date,
+            comments_received_date, comments_sought_date, reply_furnished_date, disposed_date,
+            remarks, vip_received_ministry_remark, vip_submitted_for_approval_remark, vip_comments_sought_remark,
+            vip_comments_received_remark, vip_reply_furnished_remark, vip_disposed_remark,
             deadline, created_by, created_date)
             OUTPUT INSERTED.vip_reference_id
-            VALUES (@subject, @eofficeFileNumber, @selectedStage, @wing, @division, @refLetterNum, @receivedFrom, @receivedAtMinistryDate, 
-            @submittedForApprovalDate, @commentsReceivedDate, 
-            @commentsSoughtDate, @replyFurnishedDate, @disposedDate,  @remarks,
-            @vipReceivedMinistryRemark,@vipSubmittedForApprovalRemark,@vipCommentsSoughtRemark,@vipCommentsReceivedRemark,
-            @vipReplyFurnishedRemark,@vipDisposedRemark,
-           @deadline, @userID, getDate());
+            VALUES (@subject, @eofficeFileNumber, @selectedStage, @wing, @division, @refLetterNum, @receivedFrom,
+            @receivedAtMinistryDate, @submittedForApprovalDate,
+            @commentsReceivedDate, @commentsSoughtDate, @replyFurnishedDate, @disposedDate,
+            @remarks, @vipReceivedMinistryRemark, @vipSubmittedForApprovalRemark, @vipCommentsSoughtRemark,
+            @vipCommentsReceivedRemark, @vipReplyFurnishedRemark, @vipDisposedRemark,
+            @deadline, @userID, getDate());
         `);
 
         const vip_reference_id = result.recordset[0].vip_reference_id;
@@ -127,17 +113,11 @@ async function updateVipReference(req, res) {
     const division = req.body.division;
     const refLetterNum = req.body.referenceLetterNumber;
     const receivedFrom = req.body.receivedFrom;
-    const receivedAtMinistry = req.body.vipReceivedMinistry;
     let receivedAtMinistryDate = req.body.vipReceivedMinistryDate;
-    const submittedForApproval = req.body.vipSubmittedForApproval;
     let submittedForApprovalDate = req.body.vipSubmittedForApprovalDate;
-    const commentsReceived = req.body.vipCommentsReceived;
     let commentsReceivedDate = req.body.vipCommentsReceivedDate;
-    const commentsSought = req.body.vipCommentsSought;
     let commentsSoughtDate = req.body.vipCommentsSoughtDate;
-    const replyFurnished = req.body.vipReplyFurnished;
     let replyFurnishedDate = req.body.vipReplyFurnishedDate;
-    const disposed = req.body.vipDisposed;
     let disposedDate = req.body.vipDisposedDate;
     
     const remarks = req.body.vipRemarks;
@@ -184,17 +164,11 @@ async function updateVipReference(req, res) {
     request.input("division", division);
     request.input("refLetterNum", refLetterNum);
     request.input("receivedFrom", receivedFrom);
-    request.input("receivedAtMinistry", receivedAtMinistry);
     request.input("receivedAtMinistryDate", receivedAtMinistryDate);
-    request.input("submittedForApproval", submittedForApproval);
     request.input("submittedForApprovalDate", submittedForApprovalDate);
-    request.input("commentsReceived", commentsReceived);
     request.input("commentsReceivedDate", commentsReceivedDate);
-    request.input("commentsSought", commentsSought);
     request.input("commentsSoughtDate", commentsSoughtDate);
-    request.input("replyFurnished", replyFurnished);
     request.input("replyFurnishedDate", replyFurnishedDate);
-    request.input("disposed", disposed);
     request.input("disposedDate", disposedDate);
     request.input("remarks", remarks);
 
@@ -211,7 +185,7 @@ async function updateVipReference(req, res) {
 
     try {
         const result = await request.query(`
-            UPDATE tbl_vip_reference_change
+            UPDATE tbl_vip_reference
             SET
             subject = @subject,
             eoffice_file_number = @eofficeFileNumber,
@@ -257,14 +231,14 @@ async function getVipReference (req, res)
     try {
      
         // const result = await conn.query(`SELECT subject, status, ref_letter_num, received_date, received_from,
-        //  disposal_date, remarks from tbl_vip_reference_change;`);
+        //  disposal_date, remarks from tbl_vip_reference;`);
         // res.json(result.recordset);
 
 
-        const result = await conn.query(`SELECT * from tbl_vip_reference_change
-        INNER JOIN mmt_division ON tbl_vip_reference_change.division = mmt_division.division_id
-        INNER JOIN mmt_wings ON tbl_vip_reference_change.wing = mmt_wings.wing_id
-        INNER JOIN mmt_vip_stage ON tbl_vip_reference_change.stage_id = mmt_vip_stage.vip_stage_id
+        const result = await conn.query(`SELECT * from tbl_vip_reference
+        INNER JOIN mmt_division ON tbl_vip_reference.division = mmt_division.division_id
+        INNER JOIN mmt_wings ON tbl_vip_reference.wing = mmt_wings.wing_id
+        INNER JOIN mmt_vip_stage ON tbl_vip_reference.stage_id = mmt_vip_stage.vip_stage_id
         ORDER BY stage_id;`);
             res.json(result.recordset);
     }
@@ -292,10 +266,10 @@ async function getVipReference(req, res) {
 
             const result = await request.query(`
                 SELECT *, COUNT(*) OVER() AS total_count 
-                FROM tbl_vip_reference_change
-                INNER JOIN mmt_division ON tbl_vip_reference_change.division = mmt_division.division_id
-                INNER JOIN mmt_wings ON tbl_vip_reference_change.wing = mmt_wings.wing_id
-                INNER JOIN mmt_vip_stage ON tbl_vip_reference_change.stage_id = mmt_vip_stage.vip_stage_id
+                FROM tbl_vip_reference
+                INNER JOIN mmt_division ON tbl_vip_reference.division = mmt_division.division_id
+                INNER JOIN mmt_wings ON tbl_vip_reference.wing = mmt_wings.wing_id
+                INNER JOIN mmt_vip_stage ON tbl_vip_reference.stage_id = mmt_vip_stage.vip_stage_id
                 ORDER BY stage_id
                 OFFSET @offset ROWS
                 FETCH NEXT @limit ROWS ONLY;
@@ -313,10 +287,10 @@ async function getVipReference(req, res) {
             });
         } else {
             const result = await conn.query(`
-                SELECT * from tbl_vip_reference_change
-                INNER JOIN mmt_division ON tbl_vip_reference_change.division = mmt_division.division_id
-                INNER JOIN mmt_wings ON tbl_vip_reference_change.wing = mmt_wings.wing_id
-                INNER JOIN mmt_vip_stage ON tbl_vip_reference_change.stage_id = mmt_vip_stage.vip_stage_id
+                SELECT * from tbl_vip_reference
+                INNER JOIN mmt_division ON tbl_vip_reference.division = mmt_division.division_id
+                INNER JOIN mmt_wings ON tbl_vip_reference.wing = mmt_wings.wing_id
+                INNER JOIN mmt_vip_stage ON tbl_vip_reference.stage_id = mmt_vip_stage.vip_stage_id
                 ORDER BY stage_id;
             `);
             res.json(result.recordset);
@@ -352,10 +326,10 @@ async function getVipReference(req, res) {
 
             const result = await request.query(`
                 SELECT *, COUNT(*) OVER() AS total_count 
-                FROM tbl_vip_reference_change
-                INNER JOIN mmt_division ON tbl_vip_reference_change.division = mmt_division.division_id
-                INNER JOIN mmt_wings ON tbl_vip_reference_change.wing = mmt_wings.wing_id
-                INNER JOIN mmt_vip_stage ON tbl_vip_reference_change.stage_id = mmt_vip_stage.vip_stage_id
+                FROM tbl_vip_reference
+                INNER JOIN mmt_division ON tbl_vip_reference.division = mmt_division.division_id
+                INNER JOIN mmt_wings ON tbl_vip_reference.wing = mmt_wings.wing_id
+                INNER JOIN mmt_vip_stage ON tbl_vip_reference.stage_id = mmt_vip_stage.vip_stage_id
                 WHERE 
                     (@wing IS NULL OR @wing = 'All' OR mmt_wings.wing_name = @wing)
                     AND (@division IS NULL OR @division = 'All' OR mmt_division.division_name = @division)
@@ -371,9 +345,9 @@ async function getVipReference(req, res) {
                     )
                     AND (
                         @search IS NULL OR @search = '' 
-                        OR tbl_vip_reference_change.subject LIKE '%' + @search + '%'
-                        OR tbl_vip_reference_change.ref_letter_num LIKE '%' + @search + '%'
-                        OR tbl_vip_reference_change.received_from LIKE '%' + @search + '%'
+                        OR tbl_vip_reference.subject LIKE '%' + @search + '%'
+                        OR tbl_vip_reference.ref_letter_num LIKE '%' + @search + '%'
+                        OR tbl_vip_reference.received_from LIKE '%' + @search + '%'
                         OR mmt_wings.wing_name LIKE '%' + @search + '%'
                         OR mmt_division.division_name LIKE '%' + @search + '%'
                     )
@@ -400,10 +374,10 @@ async function getVipReference(req, res) {
             request.input('search', search);
 
             const result = await request.query(`
-                SELECT * from tbl_vip_reference_change
-                INNER JOIN mmt_division ON tbl_vip_reference_change.division = mmt_division.division_id
-                INNER JOIN mmt_wings ON tbl_vip_reference_change.wing = mmt_wings.wing_id
-                INNER JOIN mmt_vip_stage ON tbl_vip_reference_change.stage_id = mmt_vip_stage.vip_stage_id
+                SELECT * from tbl_vip_reference
+                INNER JOIN mmt_division ON tbl_vip_reference.division = mmt_division.division_id
+                INNER JOIN mmt_wings ON tbl_vip_reference.wing = mmt_wings.wing_id
+                INNER JOIN mmt_vip_stage ON tbl_vip_reference.stage_id = mmt_vip_stage.vip_stage_id
                 WHERE 
                     (@wing IS NULL OR @wing = 'All' OR mmt_wings.wing_name = @wing)
                     AND (@division IS NULL OR @division = 'All' OR mmt_division.division_name = @division)
@@ -419,9 +393,9 @@ async function getVipReference(req, res) {
                     )
                     AND (
                         @search IS NULL OR @search = '' 
-                        OR tbl_vip_reference_change.subject LIKE '%' + @search + '%'
-                        OR tbl_vip_reference_change.ref_letter_num LIKE '%' + @search + '%'
-                        OR tbl_vip_reference_change.received_from LIKE '%' + @search + '%'
+                        OR tbl_vip_reference.subject LIKE '%' + @search + '%'
+                        OR tbl_vip_reference.ref_letter_num LIKE '%' + @search + '%'
+                        OR tbl_vip_reference.received_from LIKE '%' + @search + '%'
                         OR mmt_wings.wing_name LIKE '%' + @search + '%'
                         OR mmt_division.division_name LIKE '%' + @search + '%'
                     )
@@ -448,49 +422,49 @@ async function getVipReference(req, res) {
 
     // Explicit column list — avoids SELECT * collisions across joined tables
     const selectColumns = `
-        tbl_vip_reference_change.vip_reference_id,
-        tbl_vip_reference_change.stage_id,
-        tbl_vip_reference_change.subject,
-        tbl_vip_reference_change.eoffice_file_number,
-        tbl_vip_reference_change.ref_letter_num,
-        tbl_vip_reference_change.received_from,
-        tbl_vip_reference_change.remarks,
-        tbl_vip_reference_change.deadline,
-        tbl_vip_reference_change.wing            AS wing_id,
-        tbl_vip_reference_change.division        AS division_id,
+        tbl_vip_reference.vip_reference_id,
+        tbl_vip_reference.stage_id,
+        tbl_vip_reference.subject,
+        tbl_vip_reference.eoffice_file_number,
+        tbl_vip_reference.ref_letter_num,
+        tbl_vip_reference.received_from,
+        tbl_vip_reference.remarks,
+        tbl_vip_reference.deadline,
+        tbl_vip_reference.wing            AS wing_id,
+        tbl_vip_reference.division        AS division_id,
         mmt_wings.wing_name,
         mmt_division.division_name,
         mmt_vip_stage.vip_stage_id,
         mmt_vip_stage.vip_stage_name,
 
-        --tbl_vip_reference_change.received_at_ministry,
-        tbl_vip_reference_change.received_at_ministry_date,
-        tbl_vip_reference_change.vip_received_ministry_remark,
+        --tbl_vip_reference.received_at_ministry,
+        tbl_vip_reference.received_at_ministry_date,
+        tbl_vip_reference.vip_received_ministry_remark,
 
-        --tbl_vip_reference_change.submitted_for_approval,
-        tbl_vip_reference_change.submitted_for_approval_date,
-        tbl_vip_reference_change.vip_submitted_for_approval_remark,
+        --tbl_vip_reference.submitted_for_approval,
+        tbl_vip_reference.submitted_for_approval_date,
+        tbl_vip_reference.vip_submitted_for_approval_remark,
 
-        --tbl_vip_reference_change.comments_sought,
-        tbl_vip_reference_change.comments_sought_date,
-        tbl_vip_reference_change.vip_comments_sought_remark,
+        --tbl_vip_reference.comments_sought,
+        tbl_vip_reference.comments_sought_date,
+        tbl_vip_reference.vip_comments_sought_remark,
 
-        --tbl_vip_reference_change.comments_received,
-        tbl_vip_reference_change.comments_received_date,
-        tbl_vip_reference_change.vip_comments_received_remark,
+        --tbl_vip_reference.comments_received,
+        tbl_vip_reference.comments_received_date,
+        tbl_vip_reference.vip_comments_received_remark,
 
-        --tbl_vip_reference_change.reply_furnished,
-        tbl_vip_reference_change.reply_furnished_date,
-        tbl_vip_reference_change.vip_reply_furnished_remark,
+        --tbl_vip_reference.reply_furnished,
+        tbl_vip_reference.reply_furnished_date,
+        tbl_vip_reference.vip_reply_furnished_remark,
 
-        --tbl_vip_reference_change.disposed,
-        tbl_vip_reference_change.disposed_date,
-        tbl_vip_reference_change.vip_disposed_remark,
+        --tbl_vip_reference.disposed,
+        tbl_vip_reference.disposed_date,
+        tbl_vip_reference.vip_disposed_remark,
 
-        tbl_vip_reference_change.created_by,
-        tbl_vip_reference_change.updated_by,
-        tbl_vip_reference_change.created_date,
-        tbl_vip_reference_change.updated_date
+        tbl_vip_reference.created_by,
+        tbl_vip_reference.updated_by,
+        tbl_vip_reference.created_date,
+        tbl_vip_reference.updated_date
     `;
 
     try {
@@ -525,9 +499,9 @@ async function getVipReference(req, res) {
         }
         if (search) {
             whereClauses.push(`(
-                tbl_vip_reference_change.subject LIKE '%' + @search + '%'
-                OR tbl_vip_reference_change.ref_letter_num LIKE '%' + @search + '%'
-                OR tbl_vip_reference_change.received_from LIKE '%' + @search + '%'
+                tbl_vip_reference.subject LIKE '%' + @search + '%'
+                OR tbl_vip_reference.ref_letter_num LIKE '%' + @search + '%'
+                OR tbl_vip_reference.received_from LIKE '%' + @search + '%'
                 OR mmt_wings.wing_name LIKE '%' + @search + '%'
                 OR mmt_division.division_name LIKE '%' + @search + '%'
             )`);
@@ -543,10 +517,10 @@ async function getVipReference(req, res) {
 
             const result = await request.query(`
                 SELECT ${selectColumns}, COUNT(*) OVER() AS total_count
-                FROM tbl_vip_reference_change
-                INNER JOIN mmt_division ON tbl_vip_reference_change.division = mmt_division.division_id
-                INNER JOIN mmt_wings ON tbl_vip_reference_change.wing = mmt_wings.wing_id
-                INNER JOIN mmt_vip_stage ON tbl_vip_reference_change.stage_id = mmt_vip_stage.vip_stage_id
+                FROM tbl_vip_reference
+                INNER JOIN mmt_division ON tbl_vip_reference.division = mmt_division.division_id
+                INNER JOIN mmt_wings ON tbl_vip_reference.wing = mmt_wings.wing_id
+                INNER JOIN mmt_vip_stage ON tbl_vip_reference.stage_id = mmt_vip_stage.vip_stage_id
                 ${whereSql}
                 ORDER BY stage_id
                 OFFSET @offset ROWS
@@ -566,10 +540,10 @@ async function getVipReference(req, res) {
         } else {
             const query = `
                 SELECT ${selectColumns}
-                FROM tbl_vip_reference_change
-                INNER JOIN mmt_division ON tbl_vip_reference_change.division = mmt_division.division_id
-                INNER JOIN mmt_wings ON tbl_vip_reference_change.wing = mmt_wings.wing_id
-                INNER JOIN mmt_vip_stage ON tbl_vip_reference_change.stage_id = mmt_vip_stage.vip_stage_id
+                FROM tbl_vip_reference
+                INNER JOIN mmt_division ON tbl_vip_reference.division = mmt_division.division_id
+                INNER JOIN mmt_wings ON tbl_vip_reference.wing = mmt_wings.wing_id
+                INNER JOIN mmt_vip_stage ON tbl_vip_reference.stage_id = mmt_vip_stage.vip_stage_id
                 ${whereSql}
                 ORDER BY stage_id;
             `;
@@ -577,7 +551,7 @@ async function getVipReference(req, res) {
             res.json(result.recordset);
         }
     } catch (err) {
-        console.log(err);
+        console.error("getVipReference error:", err.message);
         return res.sendStatus(500);
     }
 }
@@ -596,19 +570,19 @@ async function createVipReferenceStage(req, res) {
     try {
         const checkResult = await request.query(`
             SELECT COUNT(*) AS recordCount
-            FROM tbl_vip_reference_change_stage
+            FROM tbl_vip_reference_stage
             WHERE vip_reference_id = @vipReferenceID
         `);
 
         if (checkResult.recordset[0].recordCount > 0) {
             const updateResult = await request.query(`
-                UPDATE tbl_vip_reference_change_stage
+                UPDATE tbl_vip_reference_stage
                 SET stage_name = @selectedStage
                 WHERE vip_reference_id = @vipReferenceID
             `);
         } else {
             const insertResult = await request.query(`
-                INSERT INTO tbl_vip_reference_change_stage (vip_reference_id, stage_name)
+                INSERT INTO tbl_vip_reference_stage (vip_reference_id, stage_name)
                 VALUES (@vipReferenceID, @selectedStage);
             `);
         }
@@ -630,7 +604,7 @@ async function getUpdateVipReferenceData (req, res)
 
     try
     {
-        const result = await request.query(`SELECT * FROM tbl_vip_reference_change WHERE tbl_vip_reference_change.vip_reference_id = @vipReferenceID;`);
+        const result = await request.query(`SELECT * FROM tbl_vip_reference WHERE tbl_vip_reference.vip_reference_id = @vipReferenceID;`);
         res.json(result.recordset);
     }
     catch(err)
@@ -665,10 +639,10 @@ async function deleteVipReference (req, res)
     try
     {
 
-        const dataToDelete = await request.query(`SELECT * FROM tbl_vip_reference_change WHERE vip_reference_id = @vipReferenceID;`);
+        const dataToDelete = await request.query(`SELECT * FROM tbl_vip_reference WHERE vip_reference_id = @vipReferenceID;`);
         const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
     
-        const result = await request.query(`DELETE FROM tbl_vip_reference_change WHERE vip_reference_id = @vipReferenceID;`);
+        const result = await request.query(`DELETE FROM tbl_vip_reference WHERE vip_reference_id = @vipReferenceID;`);
         // return res.sendStatus(201);
         console.log('result',result);
         if (result.rowsAffected[0] > 0) {

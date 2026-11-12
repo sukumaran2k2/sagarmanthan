@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { openBackendFile } from '../../../utils/openBackendFile';
 import { Building2 } from 'lucide-react';
-import { API_BASE, fetchYpReport, fetchYpWingCandidates, fetchYPDivisionWiseCandidates, fetchYoungProfessionals } from '../api';
+import { fetchYpReport, fetchYpWingCandidates, fetchYPDivisionWiseCandidates, fetchYoungProfessionals } from '../api';
 import { useNotifier, getErrorMessage, toastError } from '../../../utils/notify';
 import ReportTable from '../../../components/ReportTable';
 import { useAICopilot } from '../../../context/AICopilotContext';

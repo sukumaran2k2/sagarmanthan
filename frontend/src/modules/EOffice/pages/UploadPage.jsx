@@ -113,7 +113,8 @@ export default function UploadPage({ category, notify, onUploaded }) {
       }
       // Unknown Emp Ids: ask for their details, create them, upload again (the sheets carry
       // only the Emp Id)
-      const missingIds = err.response?.status === 402 ? (err.response.data?.missingEmpIds || [err.response.data?.EmpId].filter(Boolean)) : [];
+      // 422: the sheet names employees the portal doesn't know yet (was 402 - QC EO-04)
+      const missingIds = err.response?.status === 422 ? (err.response.data?.missingEmpIds || [err.response.data?.EmpId].filter(Boolean)) : [];
       if (missingIds.length) {
         setMissingAsk({ fileId, employees: missingIds.map((id) => ({ empId: String(id) })) });
         notify(EOFFICE_TOASTS.employeesMissing(missingIds.length));

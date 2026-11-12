@@ -5,6 +5,7 @@ import { Search, X, Edit, Trash2, ChevronDown, Filter } from 'lucide-react';
 import { deleteBill } from '../api';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
+import ConfirmModal from '../../../components/ConfirmModal';
 import { exportDataListToCsv } from '../../../utils/exportDataListCsv';
 import { COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
 import { useBillsStore } from '../store/useBillsStore';
@@ -34,7 +35,7 @@ const EXPORT_COLUMNS = [
   { key: 'subject', field: 'subject', label: 'Name of the Subject' },
   { key: 'wing', field: 'wing_name', label: 'Wing' },
   { key: 'division', field: 'division_name', label: 'Division' },
-  { key: 'stage', field: 'stage', label: 'Stage' },
+  { key: 'stage', field: 'stage', label: 'Status' },
 ];
 
 // The bill's current stage is tbl_bill.stage_id (as in 2.0, the Dashboard and Reports), not
@@ -121,7 +122,7 @@ export default function DataList({
   // Every stage of the tab (active: up to Introduced in Parliament; disposed: Passed onwards)
   const stageOptions = useMemo(() => Object.entries(STAGES)
     .filter(([id]) => (activeCategory === 'disposed') === (Number(id) >= DISPOSED_FROM_STAGE))
-    .map(([id, label]) => ({ value: id, label: `${Number(id) ? `${id}. ` : ''}${label}` })), [activeCategory]);
+    .map(([id, label]) => ({ value: id, label })), [activeCategory]);
 
   const filteredData = useMemo(() => {
     return rowData.filter(item => {
@@ -163,8 +164,15 @@ export default function DataList({
 
   // Every filtered row goes to the grid, which pages it, so a column sort covers the whole list
 
-  const handleDelete = useCallback(async (bill) => {
-    if (!window.confirm("Are you sure you want to delete this Bill?")) return;
+  // The bill waiting for the user to confirm its delete
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = useCallback((bill) => setPendingDelete(bill), []);
+
+  const confirmDelete = async () => {
+    const bill = pendingDelete;
+    setDeleting(true);
     try {
       await deleteBill(bill.id || bill.bill_id);
       notify?.(BILLS_TOASTS.deleted(bill.subject));
@@ -172,8 +180,11 @@ export default function DataList({
     } catch (err) {
       console.error("Error deleting bill:", err);
       notify?.(BILLS_TOASTS.deleteFailed(getErrorMessage(err)));
+    } finally {
+      setDeleting(false);
+      setPendingDelete(null);
     }
-  }, [notify, onDeleted]);
+  };
 
   // Rows as exported: the stage is computed, not a field
   const exportRows = () => filteredData.map((row) => ({ ...row, stage: getBillStageText(row) }));
@@ -220,10 +231,9 @@ export default function DataList({
       hide: !visibleCols.division
     },
     {
-      headerName: 'Stage',
+      headerName: 'Status',
       flex: 1.2,
       minWidth: 180,
-      pinned: 'left',
       cellClass: 'font-bold text-center flex items-center justify-center',
       hide: !visibleCols.stage,
       cellRenderer: (params) => {
@@ -531,14 +541,14 @@ export default function DataList({
 
               <div>
                 <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
-                  Stage
+                  Status
                 </label>
                 <select
                   value={selectedStage}
                   onChange={(e) => actions.setFilters({ stage: e.target.value })}
                   className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200 cursor-pointer"
                 >
-                  <option value="">Show all Stages</option>
+                  <option value="">Show all Status</option>
                   {stageOptions.map(s => (
                     <option key={s.value} value={s.value}>{s.label}</option>
                   ))}
@@ -573,6 +583,15 @@ export default function DataList({
         </div>
 
       </div>
+
+      <ConfirmModal
+        isOpen={!!pendingDelete}
+        onClose={() => !deleting && setPendingDelete(null)}
+        onConfirm={confirmDelete}
+        loading={deleting}
+        title="Delete Bill"
+        message={pendingDelete ? `The bill "${pendingDelete.subject}" will be deleted. This cannot be undone.` : ''}
+      />
     </div>
   );
 }

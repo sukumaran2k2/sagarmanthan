@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { openBackendFile } from '../../../utils/openBackendFile';
 import {
   ArrowLeft,
   Download,
   Upload,
-  FileText,
   User,
   Calendar,
   Search,
@@ -14,7 +13,6 @@ import {
   Loader2,
   RefreshCw,
   File,
-  CheckCircle,
   ChevronDown,
   Trash2
 } from 'lucide-react';
@@ -25,6 +23,7 @@ import { fetchCandidatesByConsultantAppointmentId, fetchCandidateDetail, fetchCa
 import { getCurrentUserId } from '../../../utils/authSession';
 import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
 import { CA_TOASTS } from '../toastMessages';
+import { toInputDate, formatDate, csvCell, tsvCell } from '../formatters';
 
 export default function CandidateDrilldownView({
   appointment,
@@ -75,59 +74,40 @@ export default function CandidateDrilldownView({
   const inPlaceFileInputRef = useRef(null);
   const visDropdownRef = useRef(null);
 
+  // Candidates linked only through the legacy comma-separated list have to be fetched one at
+  // a time. Shared by the primary path and the error fallback, which held three copies of it.
+  const loadCandidatesByIds = async (candIdsStr) => {
+    const idList = String(candIdsStr || '').split(',').map(s => s.trim()).filter(Boolean);
+    if (!idList.length) return [];
+    return Promise.all(
+      idList.map(async (cid) => {
+        try {
+          const cres = await fetchCandidateDetail(cid);
+          const docRes = await fetchCandidateDocument(cid).catch(() => ({ data: [] }));
+          const cdata = cres.data?.[0] || {};
+          const docName = docRes.data?.[0]?.appointment_order_document || '';
+          return { ...cdata, appointment_order_document: docName, documentName: docName };
+        } catch {
+          return { candidate_id: cid };
+        }
+      })
+    );
+  };
+
   const loadCandidates = async () => {
     if (!appointment?.id) return;
     setLoading(true);
+    const legacyIds = appointment.raw?.candidate_id || '';
     try {
       const res = await fetchCandidatesByConsultantAppointmentId(appointment.id);
-      if (res.data && res.data.length > 0) {
-        setCandidates(res.data);
-      } else {
-        const candIdsStr = appointment.raw?.candidate_id || '';
-        if (candIdsStr) {
-          const idList = String(candIdsStr).split(',').map(s => s.trim()).filter(Boolean);
-          const loaded = await Promise.all(
-            idList.map(async (cid) => {
-              try {
-                const cres = await fetchCandidateDetail(cid);
-                const docRes = await fetchCandidateDocument(cid).catch(() => ({ data: [] }));
-                const cdata = cres.data?.[0] || {};
-                const docName = docRes.data?.[0]?.appointment_order_document || '';
-                return { ...cdata, appointment_order_document: docName, documentName: docName };
-              } catch {
-                return { candidate_id: cid };
-              }
-            })
-          );
-          setCandidates(loaded);
-        } else {
-          setCandidates([]);
-        }
-      }
+      setCandidates(res.data?.length ? res.data : await loadCandidatesByIds(legacyIds));
     } catch (err) {
       console.error('Error fetching candidates for drilldown:', err);
-      const candIdsStr = appointment.raw?.candidate_id || '';
-      if (candIdsStr) {
-        try {
-          const idList = String(candIdsStr).split(',').map(s => s.trim()).filter(Boolean);
-          const loaded = await Promise.all(
-            idList.map(async (cid) => {
-              try {
-                const cres = await fetchCandidateDetail(cid);
-                const docRes = await fetchCandidateDocument(cid).catch(() => ({ data: [] }));
-                const cdata = cres.data?.[0] || {};
-                const docName = docRes.data?.[0]?.appointment_order_document || '';
-                return { ...cdata, appointment_order_document: docName, documentName: docName };
-              } catch {
-                return { candidate_id: cid };
-              }
-            })
-          );
-          setCandidates(loaded);
-        } catch {
-          notify(CA_TOASTS.candidatesLoadFailed());
-        }
-      } else {
+      try {
+        const fallback = await loadCandidatesByIds(legacyIds);
+        setCandidates(fallback);
+        if (!fallback.length) notify(CA_TOASTS.candidatesLoadFailed());
+      } catch {
         notify(CA_TOASTS.candidatesLoadFailed());
       }
     } finally {
@@ -180,11 +160,7 @@ export default function CandidateDrilldownView({
         cand.salary !== undefined && cand.salary !== null ? String(cand.salary) : ''
       );
       setCandCategory(cand.category || 'Direct Contract');
-      setCandAppointmentDate(
-        cand.date_of_appointment
-          ? new Date(cand.date_of_appointment).toISOString().split('T')[0]
-          : ''
-      );
+      setCandAppointmentDate(toInputDate(cand.date_of_appointment));
       setCandSkillSet(cand.skill_set || '');
       setCandFileName(cand.appointment_order_document || '');
       setCandFile(null);
@@ -261,8 +237,8 @@ export default function CandidateDrilldownView({
         await uploadCandidateDocument(formData);
       }
 
-      // Link candidate to this appointment
-      if (appointment.id && candidateId) {
+      // Link candidate to this appointment (only for new candidates)
+      if (appointment.id && candidateId && !existingCand) {
         try {
           await addConsultantID({
             candidateID: candidateId,
@@ -353,16 +329,7 @@ export default function CandidateDrilldownView({
     notify(CA_TOASTS.orderDownloading(documentName));
   };
 
-  const formatDateDisplay = (dateVal) => {
-    if (!dateVal) return '-';
-    try {
-      const d = new Date(dateVal);
-      if (isNaN(d.getTime())) return String(dateVal);
-      return d.toLocaleDateString('en-GB');
-    } catch {
-      return String(dateVal);
-    }
-  };
+  const formatDateDisplay = (dateVal) => formatDate(dateVal, '-');
 
   const handleExport = (type) => {
     const exportHeaders = ['S.No', 'Candidate Name', 'Qualification', 'Experience (Years)', 'Salary (LPA)', 'Category', 'Appointment Date', 'Skill Set', 'Appointment Order File'];
@@ -371,32 +338,34 @@ export default function CandidateDrilldownView({
       filteredCandidates.forEach((c, idx) => {
         tsv += [
           idx + 1,
-          c.name || '',
-          c.qualification || '',
-          c.work_experience || '',
-          c.salary || '',
-          c.category || '',
-          c.date_of_appointment ? new Date(c.date_of_appointment).toLocaleDateString('en-GB') : '',
-          c.skill_set || '',
-          c.appointment_order_document || ''
+          tsvCell(c.name),
+          tsvCell(c.qualification),
+          tsvCell(c.work_experience),
+          tsvCell(c.salary),
+          tsvCell(c.category),
+          formatDate(c.date_of_appointment),
+          tsvCell(c.skill_set),
+          tsvCell(c.appointment_order_document)
         ].join('\t') + '\n';
       });
       navigator.clipboard.writeText(tsv)
         .then(() => notify(CA_TOASTS.candidatesCopied(filteredCandidates.length)))
         .catch(() => notify(COMMON_TOASTS.copyFailed()));
     } else if (type === 'Excel') {
+      // Every text field goes through csvCell: Excel executes a cell that opens with = + - @,
+      // and candidate names and skill sets are free text
       let csv = exportHeaders.map(h => `"${h}"`).join(',') + '\n';
       filteredCandidates.forEach((c, idx) => {
         csv += [
           idx + 1,
-          `"${(c.name || '').replace(/"/g, '""')}"`,
-          `"${(c.qualification || '').replace(/"/g, '""')}"`,
-          c.work_experience || '',
-          c.salary || '',
-          `"${(c.category || '').replace(/"/g, '""')}"`,
-          c.date_of_appointment ? new Date(c.date_of_appointment).toLocaleDateString('en-GB') : '',
-          `"${(c.skill_set || '').replace(/"/g, '""')}"`,
-          `"${(c.appointment_order_document || '').replace(/"/g, '""')}"`
+          csvCell(c.name),
+          csvCell(c.qualification),
+          csvCell(c.work_experience),
+          csvCell(c.salary),
+          csvCell(c.category),
+          csvCell(formatDate(c.date_of_appointment)),
+          csvCell(c.skill_set),
+          csvCell(c.appointment_order_document)
         ].join(',') + '\n';
       });
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -425,7 +394,7 @@ export default function CandidateDrilldownView({
           <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px; text-align: center;">${escHtml(c.work_experience) || '-'}</td>
           <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px; text-align: center;">${c.salary ? '₹ ' + escHtml(c.salary) + ' L' : '-'}</td>
           <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px;">${escHtml(c.category) || '-'}</td>
-          <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px; text-align: center;">${c.date_of_appointment ? new Date(c.date_of_appointment).toLocaleDateString('en-GB') : '-'}</td>
+          <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px; text-align: center;">${escHtml(formatDate(c.date_of_appointment, '-'))}</td>
           <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px;">${escHtml(c.skill_set) || '-'}</td>
           <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px;">${escHtml(c.appointment_order_document) || 'Pending'}</td>
         </tr>
@@ -694,7 +663,7 @@ export default function CandidateDrilldownView({
     const isNew = editingIndex === null || editingIndex >= candidates.length;
     return (
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in">
-        <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
+        <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -727,7 +696,7 @@ export default function CandidateDrilldownView({
                 onChange={(e) => setCandName(e.target.value)}
                 placeholder="Enter candidate name"
                 className={`w-full text-xs p-2.5 bg-slate-50 dark:bg-slate-950 border ${
-                  formErrors.name ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'
+                  formErrors.name ? 'border-red-500' : 'border-slate-200 dark:border-slate-800'
                 } rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-semibold text-slate-800 dark:text-slate-100`}
               />
               {formErrors.name && <p className="text-[10px] text-red-500 font-bold">{formErrors.name}</p>}
@@ -743,7 +712,7 @@ export default function CandidateDrilldownView({
                 onChange={(e) => setCandQualification(e.target.value)}
                 placeholder="e.g. B.Tech / MBA / Post Graduate"
                 className={`w-full text-xs p-2.5 bg-slate-50 dark:bg-slate-950 border ${
-                  formErrors.qualification ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'
+                  formErrors.qualification ? 'border-red-500' : 'border-slate-200 dark:border-slate-800'
                 } rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-semibold text-slate-800 dark:text-slate-100`}
               />
               {formErrors.qualification && <p className="text-[10px] text-red-500 font-bold">{formErrors.qualification}</p>}
@@ -761,7 +730,7 @@ export default function CandidateDrilldownView({
                 onChange={(e) => setCandWorkExperience(e.target.value)}
                 placeholder="e.g. 5"
                 className={`w-full text-xs p-2.5 bg-slate-50 dark:bg-slate-950 border ${
-                  formErrors.workExperience ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'
+                  formErrors.workExperience ? 'border-red-500' : 'border-slate-200 dark:border-slate-800'
                 } rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-semibold text-slate-800 dark:text-slate-100`}
               />
               {formErrors.workExperience && <p className="text-[10px] text-red-500 font-bold">{formErrors.workExperience}</p>}
@@ -779,7 +748,7 @@ export default function CandidateDrilldownView({
                 onChange={(e) => setCandSalary(e.target.value)}
                 placeholder="e.g. 12"
                 className={`w-full text-xs p-2.5 bg-slate-50 dark:bg-slate-950 border ${
-                  formErrors.salary ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'
+                  formErrors.salary ? 'border-red-500' : 'border-slate-200 dark:border-slate-800'
                 } rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-semibold text-slate-800 dark:text-slate-100`}
               />
               {formErrors.salary && <p className="text-[10px] text-red-500 font-bold">{formErrors.salary}</p>}
@@ -827,7 +796,7 @@ export default function CandidateDrilldownView({
                   value={candAppointmentDate}
                   onChange={(e) => setCandAppointmentDate(e.target.value)}
                   className={`w-full text-xs pl-8 pr-3 py-2.5 bg-slate-50 dark:bg-slate-950 border ${
-                    formErrors.appointmentDate ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'
+                    formErrors.appointmentDate ? 'border-red-500' : 'border-slate-200 dark:border-slate-800'
                   } rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-semibold text-slate-800 dark:text-slate-100`}
                 />
                 <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
@@ -845,7 +814,7 @@ export default function CandidateDrilldownView({
                 onChange={(e) => setCandSkillSet(e.target.value)}
                 placeholder="e.g. Policy, Legal, Finance"
                 className={`w-full text-xs p-2.5 bg-slate-50 dark:bg-slate-950 border ${
-                  formErrors.skillSet ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'
+                  formErrors.skillSet ? 'border-red-500' : 'border-slate-200 dark:border-slate-800'
                 } rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-semibold text-slate-800 dark:text-slate-100`}
               />
               {formErrors.skillSet && <p className="text-[10px] text-red-500 font-bold">{formErrors.skillSet}</p>}
@@ -948,7 +917,7 @@ export default function CandidateDrilldownView({
             <button
               type="button"
               onClick={onBack}
-              className="p-2 rounded-xl border border-slate-250 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition cursor-pointer shadow-sm group shrink-0"
+              className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition cursor-pointer shadow-sm group shrink-0"
               title="Back to Consultant Appointments"
             >
               <ArrowLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
@@ -1105,7 +1074,7 @@ export default function CandidateDrilldownView({
         )}
 
         {/* Ag Grid Table */}
-        <div className="ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
+        <div className="ca-drilldown-grid ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
           <Table
             rowData={filteredCandidates}
             columnDefs={columnDefs}
@@ -1123,72 +1092,6 @@ export default function CandidateDrilldownView({
               resizable: true
             }}
           />
-          <style dangerouslySetInnerHTML={{
-            __html: `
-            .ag-theme-quartz.rounded-xl,
-            .ag-theme-quartz.rounded-2xl {
-              border-radius: 16px !important;
-            }
-            .ag-theme-quartz .ag-root-wrapper {
-              border-radius: 16px !important;
-            }
-            .ag-theme-quartz .ag-header {
-              background: linear-gradient(to right, #0f417a, #1a5ba3) !important;
-              border-bottom: 1px solid rgba(10, 45, 85, 0.2) !important;
-            }
-            .ag-theme-quartz .ag-header-cell-text {
-              color: #ffffff !important;
-              font-weight: 900 !important;
-              text-transform: uppercase !important;
-              letter-spacing: 0.05em !important;
-              font-size: 11px !important;
-            }
-            .ag-theme-quartz .ag-header-icon {
-              color: #ffffff !important;
-            }
-            .ag-theme-quartz .ag-paging-panel {
-              color: #1e293b !important;
-              font-weight: 700 !important;
-              opacity: 1 !important;
-            }
-            .dark .ag-theme-quartz .ag-paging-panel {
-              color: #f1f5f9 !important;
-            }
-            .ag-theme-quartz .ag-paging-button {
-              color: #0f417a !important;
-              opacity: 1 !important;
-            }
-            .dark .ag-theme-quartz .ag-paging-button {
-              color: #3b82f6 !important;
-            }
-            .ag-theme-quartz .ag-paging-panel .ag-icon {
-              color: #0f417a !important;
-              opacity: 1 !important;
-            }
-            .dark .ag-theme-quartz .ag-paging-panel .ag-icon {
-              color: #3b82f6 !important;
-            }
-            .ag-theme-quartz .ag-paging-row-summary-panel select {
-              color: #1e293b !important;
-              background-color: #fff !important;
-              opacity: 1 !important;
-              border: 1px solid #cbd5e1 !important;
-              border-radius: 4px !important;
-            }
-            .dark .ag-theme-quartz .ag-paging-row-summary-panel select {
-              color: #f1f5f9 !important;
-              background-color: #1f2937 !important;
-              border: 1px solid #4b5563 !important;
-            }
-            .ag-theme-quartz select option {
-              color: #1e293b !important;
-              background-color: #ffffff !important;
-            }
-            .dark .ag-theme-quartz select option {
-              color: #f1f5f9 !important;
-              background-color: #1f2937 !important;
-            }
-          `}} />
         </div>
       </div>
     </div>

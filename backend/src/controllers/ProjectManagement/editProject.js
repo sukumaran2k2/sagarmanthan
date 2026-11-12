@@ -6,6 +6,7 @@ import path from 'path';
 import { pool } from "../../db.js";
 import { fileURLToPath } from 'url';
 import { CONNREFUSED } from 'dns';
+import { escapesFolder } from '../../middleware/pathGuard.js';
 
 /** Bind empty/invalid FK ids as SQL NULL (avoids `col = ,` when interpolated/empty). */
 function bindNullableInt(request, name, value) {
@@ -600,6 +601,9 @@ async function addProjectDocumentUploader(req, res) {
         if (!projectID) {
             return res.status(400).json({ error: 'Project ID is required to upload documents' });
         }
+        if (escapesFolder(folderName)) {
+            return res.status(400).json({ error: 'Invalid folder name' });
+        }
 
         const subfolder = isMainProject ? 'mainProject' : 'subProject';
         const targetDir = path.resolve(uploadDestinationBase, folderName, subfolder);
@@ -781,6 +785,9 @@ async function editProjectDocumentUploader(req, res) {
 
         if (!projectID) {
             return res.status(400).json({ error: 'Project ID is required to edit documents' });
+        }
+        if (escapesFolder(folderName)) {
+            return res.status(400).json({ error: 'Invalid folder name' });
         }
 
         const subfolder = isMainProject ? 'mainProject' : 'subProject';

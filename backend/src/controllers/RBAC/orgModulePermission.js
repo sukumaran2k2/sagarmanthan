@@ -216,7 +216,6 @@ async function saveOrgModulePermissions(req, res) {
     console.error('saveOrgModulePermissions:', error);
     res.status(500).json({
       message: 'Failed to save org module permissions',
-      detail: error.message,
     });
   }
 }

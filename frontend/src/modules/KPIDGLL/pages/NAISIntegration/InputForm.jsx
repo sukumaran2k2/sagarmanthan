@@ -85,7 +85,7 @@ export default function NAISIntegrationInputForm({
           userID: getCurrentUserId(),
         });
 
-        if (response.status === 205) {
+        if (response.status === 409) {
           notify(DGLL_TOASTS.duplicate('financial year'));
           return;
         }
