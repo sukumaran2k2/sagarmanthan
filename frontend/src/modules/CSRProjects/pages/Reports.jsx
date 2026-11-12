@@ -45,6 +45,10 @@ const filterKind = (reportType, isOrgUser) => {
   return null;
 };
 
+// S.No: on screen the row's position in the grid (it follows sorting); the Total row and the
+// exports (called without a grid row) use the row's own 'S No'
+const serialNo = (params) => (params.node && !params.node.rowPinned ? params.node.rowIndex + 1 : params.data?.['S No']);
+
 export default function Reports({ notify, triggerNotification, isOrgUser }) {
   const { storedType, reportFY, reportOrg, organisations } = useCsrStore(useShallow((state) => ({
     storedType: state.reportType,
@@ -86,12 +90,16 @@ export default function Reports({ notify, triggerNotification, isOrgUser }) {
   }, [requestKey, reportType, reportFY, reportOrg, needsOrg, report.label, notify]);
   const loading = !needsOrg && result?.key !== requestKey;
   // The server returns amounts in lakh (the *_Lakh fields); they are shown in crore, so the
-  // grid, the totals row and the exports all read the same figures
+  // grid, the totals row and the exports all read the same figures. Each row also carries its
+  // S.No, which the Excel / PDF exports read (they have no grid row position).
   const reportData = useMemo(() => {
     if (needsOrg || result?.key !== requestKey) return [];
-    return result.rows.map((row) => Object.fromEntries(Object.entries(row).map(([k, v]) => (
-      k.endsWith('_Lakh') && v != null ? [k, lakhToCrore(v)] : [k, v]
-    ))));
+    return result.rows.map((row, i) => ({
+      ...Object.fromEntries(Object.entries(row).map(([k, v]) => (
+        k.endsWith('_Lakh') && v != null ? [k, lakhToCrore(v)] : [k, v]
+      ))),
+      'S No': i + 1,
+    }));
   }, [needsOrg, result, requestKey]);
 
   const hasActiveFilters = filter === 'fy' ? reportFY !== 'all' : filter === 'org' ? !!reportOrg : false;
@@ -110,7 +118,7 @@ export default function Reports({ notify, triggerNotification, isOrgUser }) {
           width: 75,
           pinned: 'left',
           cellStyle: { textAlign: 'center', fontWeight: 700 },
-          valueGetter: (params) => params.node.rowPinned ? params.data['S No'] : params.node.rowIndex + 1
+          valueGetter: serialNo
         },
         {
           headerName: "Financial Year",
@@ -188,7 +196,7 @@ export default function Reports({ notify, triggerNotification, isOrgUser }) {
           width: 75,
           pinned: 'left',
           cellStyle: { textAlign: 'center', fontWeight: 700 },
-          valueGetter: (params) => params.node.rowPinned ? params.data['S No'] : params.node.rowIndex + 1
+          valueGetter: serialNo
         },
         {
           headerName: "Organisation",
@@ -269,7 +277,7 @@ export default function Reports({ notify, triggerNotification, isOrgUser }) {
           width: 75,
           pinned: 'left',
           cellStyle: { textAlign: 'center', fontWeight: 700 },
-          valueGetter: (params) => params.node.rowPinned ? params.data['S No'] : params.node.rowIndex + 1
+          valueGetter: serialNo
         },
         {
           headerName: "Financial Year",
@@ -339,7 +347,7 @@ export default function Reports({ notify, triggerNotification, isOrgUser }) {
           width: 75,
           pinned: 'left',
           cellStyle: { textAlign: 'center', fontWeight: 700 },
-          valueGetter: (params) => params.node.rowPinned ? params.data['S No'] : params.node.rowIndex + 1
+          valueGetter: serialNo
         },
         {
           headerName: "Financial Year",
@@ -420,7 +428,7 @@ export default function Reports({ notify, triggerNotification, isOrgUser }) {
           width: 75,
           pinned: 'left',
           cellStyle: { textAlign: 'center', fontWeight: 700 },
-          valueGetter: (params) => params.node.rowPinned ? params.data['S No'] : params.node.rowIndex + 1
+          valueGetter: serialNo
         },
         {
           headerName: "Organisation",
@@ -492,7 +500,7 @@ export default function Reports({ notify, triggerNotification, isOrgUser }) {
           width: 75,
           pinned: 'left',
           cellStyle: { textAlign: 'center', fontWeight: 700 },
-          valueGetter: (params) => params.node.rowPinned ? params.data['S No'] : params.node.rowIndex + 1
+          valueGetter: serialNo
         },
         {
           headerName: "CSR Focus/Project Area",

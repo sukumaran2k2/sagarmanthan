@@ -139,6 +139,10 @@ const hexToRgb = (hex) => {
   return match ? [1, 2, 3].map((i) => parseInt(match[i], 16)) : null;
 };
 
+// jsPDF's built-in font has no ₹: a string containing it is drawn letter-spaced and cut off
+// (e.g. the header "CSR Fund Allotted (₹ Cr)"), so the PDF writes "Rs." instead. Excel keeps ₹.
+const pdfText = (v) => String(v ?? '').replace(/₹\s?/g, 'Rs. ');
+
 /** Downloads a landscape A4 PDF and returns its name. brand: header colour as "#rrggbb". */
 export function exportGridToPdf({ title, subtitle, columns, rows = [], pinnedRows = [], fileName, brand = '#0f417a' }) {
   const tree = visibleTree(columns);
@@ -152,12 +156,12 @@ export function exportGridToPdf({ title, subtitle, columns, rows = [], pinnedRow
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
-  doc.text(String(title || 'Report'), pageWidth / 2, y, { align: 'center', maxWidth: pageWidth - margin * 2 });
+  doc.text(pdfText(title || 'Report'), pageWidth / 2, y, { align: 'center', maxWidth: pageWidth - margin * 2 });
   y += 16;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
   if (subtitle) {
-    doc.text(String(subtitle), pageWidth / 2, y, { align: 'center', maxWidth: pageWidth - margin * 2 });
+    doc.text(pdfText(subtitle), pageWidth / 2, y, { align: 'center', maxWidth: pageWidth - margin * 2 });
     y += 14;
   }
   doc.setTextColor(110);
@@ -167,10 +171,10 @@ export function exportGridToPdf({ title, subtitle, columns, rows = [], pinnedRow
   y += 12;
 
   const head = header.map((cells) => cells.map((cell) => ({
-    content: cell.text, colSpan: cell.colSpan, rowSpan: cell.rowSpan,
+    content: pdfText(cell.text), colSpan: cell.colSpan, rowSpan: cell.rowSpan,
   })));
   const all = [...rows, ...pinnedRows];
-  const body = all.map((row) => cols.map((col) => String(cellText(col, row))));
+  const body = all.map((row) => cols.map((col) => pdfText(cellText(col, row))));
 
   autoTable(doc, {
     head,
