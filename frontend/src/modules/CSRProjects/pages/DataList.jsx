@@ -174,7 +174,7 @@ export default function DataList({ notify, permissions, onEdit }) {
     }
   };
 
-  // Tab counts: everything the user may see, before filters (the last answer's, kept while loading)
+  // Tab counts follow the filters and search (the last answer's, kept while loading)
   const countFor = result?.counts || { all: '…', active: '…', completed: '…' };
 
   const availableStatuses = category === 'active'
