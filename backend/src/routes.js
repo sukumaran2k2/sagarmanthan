@@ -212,6 +212,7 @@ import MIVTab from "./controllers/LongTermStrategies/miv.js";
 import AKVTab from "./controllers/LongTermStrategies/amritKaal.js";
 import gmisMouTab from "./controllers/LongTermStrategies/gmisMou.js";
 import gmisMouDashboard from "./controllers/LongTermStrategies/gmisMouDashboard.js";
+import mivDashboard from "./controllers/LongTermStrategies/mivDashboard.js";
 
 //User manuals
 import userManualMenu from "./controllers/UserManuals/userManual.js";
@@ -3081,6 +3082,8 @@ router.get('/get-target-date/:initiativeID', auth, requireModulePermission("MIV_
 router.get('/meetinglogs-mopsw/:organisationId', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getLogMeetingMopsw);
 
 router.get('/get-miv-dashboard', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getMIVDashboard);
+// MIV 2030 dashboard (themes, statuses, organisations, overdue); organisation users see their own
+router.get('/miv-dashboard', auth, requireModulePermission("MIV_2030", "read"), mivDashboard.getMivDashboard);
 router.get('/get-miv-activity-status-wise', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getMIVactivityStatusWise);
 router.get('/get-miv-activity-current-status-port-wise', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getMIVactivityCurrentStatusPortWise);
 router.get('/get-miv-category-count-wise', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getMIVCategoryCountWise);
