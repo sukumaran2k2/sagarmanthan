@@ -1,5 +1,6 @@
 import { ministryOnly } from "./middleware/dataScope.js";
 import { validateKpiBody } from "./middleware/kpiValidation.js";
+import { rejectPathTraversal } from "./middleware/pathGuard.js";
 import express from "express";
 
 import auth from "./authenticate.js";
@@ -288,6 +289,7 @@ const PUBLIC_ROUTES = new Set([
     'PUT /update-document-status',
     'GET /download-document',
 ]);
+router.use(rejectPathTraversal);
 router.use((req, res, next) => {
     const path = req.path.length > 1 ? req.path.replace(/\/+$/, '') : req.path;
     if (req.method === 'OPTIONS' || PUBLIC_ROUTES.has(`${req.method} ${path}`)) {
