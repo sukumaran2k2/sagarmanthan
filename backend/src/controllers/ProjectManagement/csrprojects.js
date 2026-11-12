@@ -1244,11 +1244,17 @@ async function getCsrDashboard(req, res) {
         SUM(CASE WHEN project_status = 'Completed' THEN 1 ELSE 0 END) AS completed
       FROM Projects;
 
-      -- Expenditure booked in the year on the filtered projects (any project year)
-      SELECT SUM(e.csr_expenditure_cost) AS expenditure
+      -- Expenditure booked in the year on the filtered projects (any project year). As in Fund
+      -- Details and the fund summary, only years the organisation has a fund entry for count;
+      -- spending in a year with no fund entry is returned apart (Manisha, 12-Nov-2026)
+      SELECT
+        SUM(CASE WHEN funded.organisation_id IS NOT NULL THEN e.csr_expenditure_cost ELSE 0 END) AS expenditure,
+        SUM(CASE WHEN funded.organisation_id IS NULL THEN e.csr_expenditure_cost ELSE 0 END) AS unfunded_expenditure
       FROM tbl_csr_expenditure e
       INNER JOIN tbl_csr_projects p ON p.csr_project_id = e.csr_project_id
       INNER JOIN mmt_organisation o ON o.organisation_id = p.organisation_id
+      LEFT JOIN (SELECT DISTINCT organisation_id, financial_year FROM tbl_csr_fund) funded
+        ON funded.organisation_id = p.organisation_id AND funded.financial_year = e.year
       WHERE ${inOrgs('p.organisation_id')}
         AND (@focusId = 0 OR p.csr_focus = @focusId)
         AND (@fy IS NULL OR e.year = @fy);
@@ -1377,6 +1383,7 @@ async function getCsrDashboard(req, res) {
         projects: n(kpi[0]?.projects),
         projectValue: n(kpi[0]?.project_value),
         expenditure: n(spent[0]?.expenditure),
+        unfundedExpenditure: n(spent[0]?.unfunded_expenditure),
         underImplementation: n(kpi[0]?.under_implementation),
         completed: n(kpi[0]?.completed),
       },
@@ -1514,9 +1521,11 @@ async function getCsrProjectsYearWiseSummary(req, res) {
     // no projects yet, or vice versa.
     // organisationId scopes both sides when provided (used for the
     // Organisation-sheet's auto-scoped version of this same report).
+    // A project saved without a financial year is counted under "Not specified" (last row);
+    // it used to make a blank row of zeros and was missing from the total.
     const sqlQuery = `
       WITH AllYears AS (
-        SELECT DISTINCT financial_year FROM tbl_csr_projects
+        SELECT DISTINCT ISNULL(NULLIF(LTRIM(RTRIM(financial_year)), ''), 'Not specified') AS financial_year FROM tbl_csr_projects
         WHERE (@organisationId IS NULL OR organisation_id = @organisationId)
         UNION
         SELECT DISTINCT financial_year FROM tbl_csr_fund
@@ -1524,7 +1533,7 @@ async function getCsrProjectsYearWiseSummary(req, res) {
       ),
       ProjectCounts AS (
         SELECT
-          financial_year,
+          ISNULL(NULLIF(LTRIM(RTRIM(financial_year)), ''), 'Not specified') AS financial_year,
           COUNT(*) AS total_projects,
           SUM(CASE WHEN project_status = 'Approved by Board' THEN 1 ELSE 0 END) AS approved_count,
           SUM(CASE WHEN project_status = 'Project yet to start' THEN 1 ELSE 0 END) AS yet_to_start_count,
@@ -1532,7 +1541,7 @@ async function getCsrProjectsYearWiseSummary(req, res) {
           SUM(CASE WHEN project_status = 'Completed' THEN 1 ELSE 0 END) AS completed_count
         FROM tbl_csr_projects
         WHERE (@organisationId IS NULL OR organisation_id = @organisationId)
-        GROUP BY financial_year
+        GROUP BY ISNULL(NULLIF(LTRIM(RTRIM(financial_year)), ''), 'Not specified')
       ),
       FundByYear AS (
         SELECT financial_year, SUM(csr_fund_alloted_year) AS total_allotted
@@ -1551,7 +1560,7 @@ async function getCsrProjectsYearWiseSummary(req, res) {
       FROM AllYears ay
       LEFT JOIN ProjectCounts pc ON pc.financial_year = ay.financial_year
       LEFT JOIN FundByYear fby ON fby.financial_year = ay.financial_year
-      ORDER BY ay.financial_year DESC;
+      ORDER BY CASE WHEN ay.financial_year = 'Not specified' THEN 1 ELSE 0 END, ay.financial_year DESC;
     `;
 
     const { recordset } = await request.query(sqlQuery);
