@@ -12,7 +12,7 @@ const SUB_TABS = [
   { id: 'future-land', label: 'FUTURE LAND' },
 ];
 
-const LAND_ABSTRACT_COLS = [
+const LAND_ABSTRACT_BASE_COLS = [
   { field: 'sNo', headerName: 'S.No', minWidth: 80, maxWidth: 80, pinned: 'left', suppressSizeToFit: true, cellClass: 'text-slate-600 dark:text-slate-400 text-center font-bold', headerClass: 'text-center' },
   { field: 'port_name', headerName: 'Port Name', minWidth: 160, pinned: 'left', cellRenderer: (p) => <span className="font-semibold text-slate-800 dark:text-slate-200">{p.value || '-'}</span> },
   { field: 'total_land_acres', headerName: 'Total Land (Acres)', minWidth: 140, cellRenderer: (p) => <span className="text-slate-600 dark:text-slate-300 font-medium">{p.value ?? '-'}</span> },
@@ -21,6 +21,10 @@ const LAND_ABSTRACT_COLS = [
   { field: 'land_under_litigation_acres', headerName: 'Litigation/Encumbered (Acres)', minWidth: 190, cellRenderer: (p) => <span className="text-slate-600 dark:text-slate-300">{p.value ?? '-'}</span> },
   { field: 'land_not_developable', headerName: 'Not Developable (Acres)', minWidth: 170, cellRenderer: (p) => <span className="text-slate-600 dark:text-slate-300">{p.value ?? '-'}</span> },
 ];
+
+function buildLandAbstractCols(actions) {
+  return [...LAND_ABSTRACT_BASE_COLS, buildActionCol(actions)];
+}
 
 const fmtDate = (v) => {
   if (!v) return '-';
@@ -33,6 +37,43 @@ const dateCellRenderer = (p) => <span className="text-slate-600 dark:text-slate-
 const textCell = (p) => <span className="text-slate-600 dark:text-slate-300">{p.value || '-'}</span>;
 const numCell = (p) => <span className="text-slate-600 dark:text-slate-300">{p.value ?? '-'}</span>;
 const boldCell = (p) => <span className="font-semibold text-slate-800 dark:text-slate-200">{p.value || '-'}</span>;
+
+function buildActionCol({ onEditRow, onDeleteRow, canEdit, canRemove }) {
+  return {
+    headerName: 'Action',
+    width: 110,
+    pinned: 'right',
+    headerClass: 'text-center',
+    cellClass: 'text-center flex items-center justify-center',
+    cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' },
+    cellRenderer: (params) => {
+      const item = params.data;
+      if (!item) return null;
+      return (
+        <div className="flex items-center justify-center space-x-1.5 w-full h-full py-1">
+          {canEdit && (
+            <button
+              onClick={() => onEditRow(item)}
+              title="Edit"
+              className="p-1.5 text-orange-500 hover:text-orange-600 hover:bg-orange-50 dark:text-orange-400 dark:hover:bg-slate-800 rounded-lg transition cursor-pointer"
+            >
+              <Edit className="h-4 w-4" />
+            </button>
+          )}
+          {canRemove && (
+            <button
+              onClick={() => onDeleteRow(item)}
+              title="Delete"
+              className="p-1.5 text-rose-600 hover:text-rose-800 hover:bg-rose-50 dark:hover:bg-slate-800 rounded-lg transition cursor-pointer"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      );
+    },
+  };
+}
 
 function buildNmpPlanCols({ onEditRow, onDeleteRow, canEdit, canRemove }) {
   return [
@@ -61,40 +102,7 @@ function buildNmpPlanCols({ onEditRow, onDeleteRow, canEdit, canRemove }) {
     { field: 'actual_completion_date', headerName: 'Construction Actual Date', minWidth: 180, cellRenderer: dateCellRenderer },
     { field: 'remarks', headerName: 'Remarks', minWidth: 180, cellRenderer: textCell },
     { field: 'created_date', headerName: 'Last Updated', minWidth: 150, cellRenderer: dateCellRenderer },
-    {
-      headerName: 'Action',
-      width: 110,
-      pinned: 'right',
-      headerClass: 'text-center',
-      cellClass: 'text-center flex items-center justify-center',
-      cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' },
-      cellRenderer: (params) => {
-        const item = params.data;
-        if (!item) return null;
-        return (
-          <div className="flex items-center justify-center space-x-1.5 w-full h-full py-1">
-            {canEdit && (
-              <button
-                onClick={() => onEditRow(item)}
-                title="Edit"
-                className="p-1.5 text-orange-500 hover:text-orange-600 hover:bg-orange-50 dark:text-orange-400 dark:hover:bg-slate-800 rounded-lg transition cursor-pointer"
-              >
-                <Edit className="h-4 w-4" />
-              </button>
-            )}
-            {canRemove && (
-              <button
-                onClick={() => onDeleteRow(item)}
-                title="Delete"
-                className="p-1.5 text-rose-600 hover:text-rose-800 hover:bg-rose-50 dark:hover:bg-slate-800 rounded-lg transition cursor-pointer"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            )}
-          </div>
-        );
-      },
-    },
+    buildActionCol({ onEditRow, onDeleteRow, canEdit, canRemove }),
   ];
 }
 
@@ -184,8 +192,9 @@ export default function NmpDataList({ onEdit, onAddNew, triggerNotification, can
   }, [data, debouncedSearch]);
 
   const columnDefs = useMemo(() => {
-    if (subTab === 'land-abstract') return LAND_ABSTRACT_COLS;
-    return buildNmpPlanCols({ onEditRow: handleEdit, onDeleteRow: handleDelete, canEdit, canRemove });
+    const actions = { onEditRow: handleEdit, onDeleteRow: handleDelete, canEdit, canRemove };
+    if (subTab === 'land-abstract') return buildLandAbstractCols(actions);
+    return buildNmpPlanCols(actions);
   }, [subTab, handleEdit, handleDelete, canEdit, canRemove]);
 
   const escHtml = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');

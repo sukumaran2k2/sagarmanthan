@@ -6,10 +6,26 @@ import { getCurrentUserId } from '../../../utils/authSession';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
+const NMP_STATUS_OPTIONS = ['Identified', 'NIT issued', 'Land allotted', 'Agreement signed/leased', 'Completion of construction'];
+
+const PAST_LEASE_STATUS_OPTIONS = ['Planned', 'Active', 'Expired', 'Renewed'];
+
+const FUTURE_LEASE_STATUS_OPTIONS = ['Planned', 'Active', 'Expired'];
+
+const NMP_PURPOSE_OPTIONS = ['Commercial', 'Industrial', 'Residential', 'Others'];
+
+const NMP_LESSEE_TYPE_OPTIONS = ['Government', 'PSU', 'Autonomous', 'Private', 'Others'];
+
+const NMP_SECTOR_OPTIONS = ['Connectivity', 'Warehousing & Storage', 'Oil, Gas & Energy', 'Manufacturing', 'Logistics Parks & Trade Zones', 'Shops', 'Office', 'Plazas', 'Hotels', 'Mercantile buildings', 'Other'];
+
 const FY_OPTIONS = Array.from({ length: 15 }, (_, i) => {
   const s = 2018 + i;
   return `FY${String(s).slice(2)}-${String(s + 1).slice(2)}`;
 });
+
+const MAX_REVISED_DATES = 3;
+
+const revisedKeysFor = (keyPrefix) => [`${keyPrefix}_revised`, `${keyPrefix}_revised_2`, `${keyPrefix}_revised_3`];
 
 const PARCEL_STAGES = [
   { id: 1, title: 'Basic Details', desc: 'Parcel info & allotment' },
@@ -17,6 +33,32 @@ const PARCEL_STAGES = [
   { id: 3, title: 'Agreements', desc: 'Lessee & milestones' },
   { id: 4, title: 'Review & Submit', desc: 'Remarks & final check' },
 ];
+
+// Land Abstract list/table column names → form field keys
+const ABSTRACT_FIELD_MAP = {
+  total_land_acres: 'total_land_held',
+  total_land_by_pa: 'total_land_held',
+  port_operation: 'cat_A_acres',
+  connectivity: 'cat_B_acres',
+  warehousing_storage: 'cat_C_acres',
+  oil_gas_energy: 'cat_D_acres',
+  manufacturing: 'cat_E_acres',
+  commercial: 'cat_F_acres',
+  residential: 'cat_G_acres',
+  logistics_parks_trade_zones: 'cat_H_acres',
+  other_uses: 'cat_J_acres',
+  salt_land_acquired: 'cat_I_acres',
+  vacant_land_acres: 'cat_K_acres',
+  vacant_land_encumbrance_free: 'cat_K_acres',
+  land_under_litigation_acres: 'cat_L_acres',
+  vacant_land_litigated_encumbered: 'cat_L_acres',
+  land_not_developable: 'cat_M_acres',
+  land_likely_freed_by_rationalisation: 'unlock_rationalisation_acres',
+  land_reclaimable_from_sea_backwater_identified: 'unlock_reclamation_acres',
+  salt_land_identified_for_acquisition: 'unlock_salt_land_acres',
+  additional_land_identified: 'unlock_state_govt_acres',
+  marshy_land_development_plan: 'unlock_marshy_acres',
+};
 
 function normalizeEditData(data) {
   if (!data) return data;
@@ -28,7 +70,7 @@ function normalizeEditData(data) {
   };
   const out = { ...data };
   const formType = out.form_type;
-  const map = {
+  const map = formType === 'land-abstract' ? ABSTRACT_FIELD_MAP : {
     ...(formType === 'past-land' ? { target_year: 'year_of_allotment' } : { target_year: 'target_yr_monetisation' }),
     annual_base_lease_rental: 'annual_base_lease_rental',
     lease_tenure_years: 'lease_tenure',
@@ -49,7 +91,8 @@ function normalizeEditData(data) {
       delete out[from];
     }
   }
-  const dateKeys = ['nit_original', 'nit_actual', 'nit_revised', 'agreement_original', 'agreement_actual', 'agreement_revised', 'construction_original', 'construction_actual', 'construction_revised'];
+  const dateKeys = ['nit_original', 'nit_actual', 'agreement_original', 'agreement_actual', 'construction_original', 'construction_actual',
+    ...['nit', 'agreement', 'construction'].flatMap((prefix) => revisedKeysFor(prefix))];
   for (const k of dateKeys) {
     if (out[k]) out[k] = fmtDate(out[k]);
   }
@@ -236,7 +279,23 @@ function Section({ number, title, desc, colRef, children, id }) {
 // ── Milestone row (matches screenshot layout) ────────────────────────────────
 
 function MilestoneRow({ title, keyPrefix, formData, onChange }) {
-  const [showRevised, setShowRevised] = useState(false);
+  const revisedKeys = useMemo(() => revisedKeysFor(keyPrefix), [keyPrefix]);
+  const [revisedCount, setRevisedCount] = useState(() => {
+    const lastFilled = revisedKeys.reduce((acc, k, i) => (formData[k] ? i + 1 : acc), 0);
+    return lastFilled;
+  });
+
+  const addRevised = () => setRevisedCount((c) => Math.min(c + 1, MAX_REVISED_DATES));
+  const removeRevised = (idx) => {
+    const values = revisedKeys.map((k) => formData[k] || '');
+    values.splice(idx, 1);
+    values.push('');
+    revisedKeys.forEach((k, i) => onChange(k, values[i]));
+    setRevisedCount((c) => Math.max(0, c - 1));
+  };
+
+  const limitReached = revisedCount >= MAX_REVISED_DATES;
+
   return (
     <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
       <div className="bg-slate-50 dark:bg-slate-800/60 px-4 py-2.5 border-b border-slate-200 dark:border-slate-700">
@@ -248,21 +307,34 @@ function MilestoneRow({ title, keyPrefix, formData, onChange }) {
             <FLabel label="Original Target Date" required />
             <input type="date" value={formData[`${keyPrefix}_original`] || ''} onChange={(e) => onChange(`${keyPrefix}_original`, e.target.value)} className={inputCls} />
           </div>
-          <div className="flex-shrink-0">
-            <button type="button" onClick={() => setShowRevised(!showRevised)} className="flex items-center gap-1.5 px-3 h-[34px] text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition cursor-pointer shadow-sm">
-              <Pencil className="h-3 w-3" /> Revise
-            </button>
-          </div>
           <div className="flex-1 min-w-[180px]">
-            <FLabel label="Actual Date" required />
+            <FLabel label="Actual Date" />
             <input type="date" value={formData[`${keyPrefix}_actual`] || ''} onChange={(e) => onChange(`${keyPrefix}_actual`, e.target.value)} className={inputCls} />
           </div>
         </div>
-        {showRevised && (
-          <div className="max-w-xs">
-            <FLabel label="Revised Target Date" />
-            <input type="date" value={formData[`${keyPrefix}_revised`] || ''} onChange={(e) => onChange(`${keyPrefix}_revised`, e.target.value)} className={inputCls} />
-          </div>
+        <div className="flex flex-wrap items-end gap-4">
+          {revisedCount === 0 && (
+            <button type="button" onClick={addRevised} title="Add a revised target date" className="flex items-center gap-1.5 px-3 h-[34px] flex-shrink-0 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition cursor-pointer shadow-sm">
+              <Pencil className="h-3 w-3" /> Revise
+            </button>
+          )}
+          {revisedKeys.slice(0, revisedCount).map((key, idx) => (
+            <div key={key} className={`flex-1 min-w-[180px] ${idx === revisedCount - 1 && !limitReached ? 'max-w-sm' : 'max-w-xs'}`}>
+              <FLabel label={`Revised Target Date ${idx + 1}`} />
+              <div className="flex items-center gap-1.5">
+                <input type="date" value={formData[key] || ''} onChange={(e) => onChange(key, e.target.value)} className={inputCls} />
+                <button type="button" onClick={() => removeRevised(idx)} title="Remove this revised date" className="text-rose-500 hover:text-rose-700 font-extrabold text-base cursor-pointer leading-none px-1">×</button>
+                {idx === revisedCount - 1 && !limitReached && (
+                  <button type="button" onClick={addRevised} title="Add another revised target date" className="flex items-center gap-1 px-2.5 h-[34px] flex-shrink-0 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition cursor-pointer shadow-sm">
+                    <Pencil className="h-3 w-3" /> Revise
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+        {limitReached && (
+          <div className="text-[11px] font-bold text-slate-400">Maximum of {MAX_REVISED_DATES} revised dates reached.</div>
         )}
       </div>
     </div>
@@ -285,12 +357,12 @@ const ABSTRACT_ROWS_1 = [
   { letter: 'H', label: 'Logistics Parks & Trade Zones', sub: 'ECY, SEZ, FTWZ, MMLP, ICD, CFS, logistics parks and yards', key: 'cat_H_acres' },
   { letter: 'J', label: 'Other Uses', sub: 'Hospital, School & other social infrastructure', key: 'cat_J_acres' },
   { letter: 'I', label: 'Salt Land Acquired', key: 'cat_I_acres' },
+  { letter: 'K', label: 'Vacant Land - Developable and Encumbrance Free', key: 'cat_K_acres' },
+  { letter: 'L', label: 'Vacant Land - Encroached, Litigated or Otherwise Encumbered', key: 'cat_L_acres' },
+  { letter: 'M', label: 'Land Not Developable - CRZ-I, Marshy, Defence, Heritage', key: 'cat_M_acres' },
 ];
 
 const ABSTRACT_ROWS_2 = [
-  { label: 'Vacant Land - Developable and Encumbrance Free', key: 'cat_K_acres' },
-  { label: 'Vacant Land - Encroached, Litigated or Otherwise Encumbered', key: 'cat_L_acres' },
-  { label: 'Land Not Developable - CRZ-I, Marshy, Defence, Heritage', key: 'cat_M_acres' },
   { label: 'Land Likely To Be Freed by Rationalisation / Vertical Development / Removal of Encroachment', key: 'unlock_rationalisation_acres' },
   { label: 'Land Reclaimable from Sea / Backwater - Identified', key: 'unlock_reclamation_acres' },
   { label: 'Salt Land Identified for Acquisition', key: 'unlock_salt_land_acres' },
@@ -299,9 +371,21 @@ const ABSTRACT_ROWS_2 = [
 ];
 
 function LandAbstractForm({ formData, onChange }) {
+  const sumRows = (rows) => rows.reduce((acc, row) => acc + (parseFloat(formData[row.key]) || 0), 0);
+
+  const totalSection1 = useMemo(
+    () => sumRows(ABSTRACT_ROWS_1.filter((row) => !row.bold)),
+    [formData], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const totalSection2 = useMemo(
+    () => sumRows(ABSTRACT_ROWS_2),
+    [formData], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const fmtAcres = (v) => v.toFixed(2);
+
   return (
     <div className="space-y-6">
-      <Section number={1} title="Existing Land Holding and its Disposition As On 31.08.2026" desc="Landuse Details As per Masterplan in Acres" id="section-1">
+      <Section number={1} title="Existing Land Holding and its Disposition" desc="Landuse Details As per Masterplan in Acres" id="section-1">
         <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
           <table className="w-full text-xs">
             <thead>
@@ -334,6 +418,18 @@ function LandAbstractForm({ formData, onChange }) {
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr className="bg-slate-100 dark:bg-slate-800 font-extrabold text-slate-800 dark:text-slate-100">
+                <td className="px-4 py-2.5 border-t-2 border-slate-300 dark:border-slate-600" />
+                <td className="px-4 py-2.5 border-t-2 border-slate-300 dark:border-slate-600">Total (A to M)</td>
+                <td className="px-4 py-2.5 border-t-2 border-slate-300 dark:border-slate-600">
+                  <div className="flex items-center gap-1">
+                    <div className={`${autoCls} w-36`}>{fmtAcres(totalSection1)}</div>
+                    <span className="text-[10px] text-slate-400 flex-shrink-0">acres</span>
+                  </div>
+                </td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       </Section>
@@ -362,6 +458,17 @@ function LandAbstractForm({ formData, onChange }) {
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr className="bg-slate-100 dark:bg-slate-800 font-extrabold text-slate-800 dark:text-slate-100">
+                <td className="px-4 py-2.5 border-t-2 border-slate-300 dark:border-slate-600">Total</td>
+                <td className="px-4 py-2.5 border-t-2 border-slate-300 dark:border-slate-600">
+                  <div className="flex items-center gap-1">
+                    <div className={`${autoCls} w-36`}>{fmtAcres(totalSection2)}</div>
+                    <span className="text-[10px] text-slate-400 flex-shrink-0">acres</span>
+                  </div>
+                </td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       </Section>
@@ -377,26 +484,13 @@ function LandAbstractForm({ formData, onChange }) {
 function ParcelForm({ formType, formData, onChange, stage }) {
   const isFuture = formType === 'future-land';
 
-  const npvValue = useMemo(() => {
-    const rental = parseFloat(formData.annual_base_lease_rental) || 0;
-    const tenure = parseFloat(formData.lease_tenure) || 0;
-    const esc = parseFloat(formData.escalation_rate) || 0;
-    const freq = parseFloat(formData.frequency_of_escalation) || 1;
-    if (!rental || !tenure || !freq) return null;
-    let npv = 0;
-    for (let t = 1; t <= Math.round(tenure); t++) {
-      npv += rental * Math.pow(1 + esc / 100, Math.floor((t - 1) / freq)) / Math.pow(1.12, t);
-    }
-    return npv.toFixed(2);
-  }, [formData.annual_base_lease_rental, formData.lease_tenure, formData.escalation_rate, formData.frequency_of_escalation]);
-
   const totalValue = useMemo(() => {
     const a = parseFloat(formData.upfront_premium) || 0;
-    const b = parseFloat(npvValue) || 0;
+    const b = parseFloat(formData.npv_lease_rental) || 0;
     const c = parseFloat(formData.estimated_private_investment) || 0;
     if (!a && !b && !c) return null;
     return (a + b + c).toFixed(2);
-  }, [formData.upfront_premium, npvValue, formData.estimated_private_investment]);
+  }, [formData.upfront_premium, formData.npv_lease_rental, formData.estimated_private_investment]);
 
   return (
     <div>
@@ -416,7 +510,7 @@ function ParcelForm({ formType, formData, onChange, stage }) {
               <FLabel label="Lease Status" required />
               <select value={formData.lease_status || ''} onChange={(e) => onChange('lease_status', e.target.value)} className={inputCls}>
                 <option value="">Show All</option>
-                {['Active', 'Expired', 'Pending', 'Under Negotiation', 'Not yet leased'].map((o) => <option key={o} value={o}>{o}</option>)}
+                {(formData.lease_status && !FUTURE_LEASE_STATUS_OPTIONS.includes(formData.lease_status) ? [...FUTURE_LEASE_STATUS_OPTIONS, formData.lease_status] : FUTURE_LEASE_STATUS_OPTIONS).map((o) => <option key={o} value={o}>{o}</option>)}
               </select>
             </div>
           </div>
@@ -425,14 +519,14 @@ function ParcelForm({ formType, formData, onChange, stage }) {
               <FLabel label="Purpose" required />
               <select value={formData.purpose || ''} onChange={(e) => onChange('purpose', e.target.value)} className={inputCls}>
                 <option value="">Show All</option>
-                {['Commercial', 'Industrial', 'Port Operations', 'Logistics', 'Residential', 'Tourism', 'Energy'].map((o) => <option key={o} value={o}>{o}</option>)}
+                {(formData.purpose && !NMP_PURPOSE_OPTIONS.includes(formData.purpose) ? [...NMP_PURPOSE_OPTIONS, formData.purpose] : NMP_PURPOSE_OPTIONS).map((o) => <option key={o} value={o}>{o}</option>)}
               </select>
             </div>
             <div>
               <FLabel label="Sector" required />
               <select value={formData.sector || ''} onChange={(e) => onChange('sector', e.target.value)} className={inputCls}>
                 <option value="">Show All</option>
-                {['Port operations', 'Connectivity', 'Warehousing & Storage', 'Oil, Gas & Energy', 'Manufacturing', 'Commercial', 'Residential', 'Logistics Parks & Trade Zones', 'Other'].map((o) => <option key={o} value={o}>{o}</option>)}
+                {(formData.sector && !NMP_SECTOR_OPTIONS.includes(formData.sector) ? [...NMP_SECTOR_OPTIONS, formData.sector] : NMP_SECTOR_OPTIONS).map((o) => <option key={o} value={o}>{o}</option>)}
               </select>
             </div>
             <div>
@@ -449,10 +543,10 @@ function ParcelForm({ formType, formData, onChange, stage }) {
               </select>
             </div>
             <div>
-              <FLabel label="Status" required />
+              <FLabel label="Land Allotment Status" required />
               <select value={formData.status || ''} onChange={(e) => onChange('status', e.target.value)} className={inputCls}>
                 <option value="">Show All</option>
-                {['Planned', 'In Progress', 'Completed', 'On Hold', 'Cancelled'].map((o) => <option key={o} value={o}>{o}</option>)}
+                {(formData.status && !NMP_STATUS_OPTIONS.includes(formData.status) ? [...NMP_STATUS_OPTIONS, formData.status] : NMP_STATUS_OPTIONS).map((o) => <option key={o} value={o}>{o}</option>)}
               </select>
             </div>
             <div>
@@ -493,8 +587,8 @@ function ParcelForm({ formType, formData, onChange, stage }) {
               <input type="number" step="any" value={formData.frequency_of_escalation || ''} onChange={(e) => onChange('frequency_of_escalation', e.target.value)} className={inputCls} />
             </div>
             <div>
-              <FLabel label="NPV of Lease Rentals @12% [B] (INR Cr)" required auto />
-              <div className={autoCls}>{npvValue ?? '—'}</div>
+              <FLabel label="NPV of Lease Rentals @12% [B] (INR Cr)" required />
+              <input type="number" step="any" value={formData.npv_lease_rental || ''} onChange={(e) => onChange('npv_lease_rental', e.target.value)} className={inputCls} />
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -527,7 +621,7 @@ function ParcelForm({ formType, formData, onChange, stage }) {
                 <FLabel label="Type of Agency/Lessee" required />
                 <select value={formData.type_of_lessee || ''} onChange={(e) => onChange('type_of_lessee', e.target.value)} className={inputCls}>
                   <option value="">Show All</option>
-                  {['PSU', 'Private', 'JV', 'Government Body', 'Others'].map((o) => <option key={o} value={o}>{o}</option>)}
+                  {(formData.type_of_lessee && !NMP_LESSEE_TYPE_OPTIONS.includes(formData.type_of_lessee) ? [...NMP_LESSEE_TYPE_OPTIONS, formData.type_of_lessee] : NMP_LESSEE_TYPE_OPTIONS).map((o) => <option key={o} value={o}>{o}</option>)}
                 </select>
               </div>
             </div>
@@ -571,7 +665,7 @@ function ParcelForm({ formType, formData, onChange, stage }) {
             </div>
             <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700">
               <div className="text-[10px] text-slate-400 uppercase font-bold mb-1">NPV of Lease Rentals [B]</div>
-              <div className="text-lg font-extrabold text-teal-700 dark:text-teal-400">{npvValue ?? '—'} <span className="text-xs font-normal text-slate-400">₹ Cr</span></div>
+              <div className="text-lg font-extrabold text-teal-700 dark:text-teal-400">{formData.npv_lease_rental || '—'} <span className="text-xs font-normal text-slate-400">₹ Cr</span></div>
             </div>
             <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700">
               <div className="text-[10px] text-slate-400 uppercase font-bold mb-1">Total [A+B+C]</div>
@@ -589,31 +683,17 @@ function ParcelForm({ formType, formData, onChange, stage }) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 function PastLandForm({ formData, onChange, stage = 1 }) {
-  const defaultRow = { sor_from: '', sor_to: '', year_of_applicability: '', annual_base_lease_rental: '', escalation_rate: '', frequency_of_escalation: '', lease_tenure: '' };
+  const defaultRow = { sor_from: '', sor_to: '', year_of_applicability: '', annual_base_lease_rental: '', escalation_rate: '', frequency_of_escalation: '', lease_tenure: '', npv: '' };
 
   const [sorRows, setSorRows] = useState(() => {
     if (formData.sor_rows?.length) return formData.sor_rows;
     if (formData.annual_base_lease_rental || formData.lease_tenure) {
-      return [{ ...defaultRow, annual_base_lease_rental: formData.annual_base_lease_rental || '', escalation_rate: formData.escalation_rate || '', frequency_of_escalation: formData.frequency_of_escalation || '', lease_tenure: formData.lease_tenure || '' }];
+      return [{ ...defaultRow, annual_base_lease_rental: formData.annual_base_lease_rental || '', escalation_rate: formData.escalation_rate || '', frequency_of_escalation: formData.frequency_of_escalation || '', lease_tenure: formData.lease_tenure || '', npv: formData.npv_lease_rental || '' }];
     }
     return [{ ...defaultRow }];
   });
 
-  const rowsWithNpv = useMemo(() => sorRows.map(row => {
-    const rental = parseFloat(row.annual_base_lease_rental) || 0;
-    const tenure = parseFloat(row.lease_tenure) || 0;
-    const esc = parseFloat(row.escalation_rate) || 0;
-    const freq = parseFloat(row.frequency_of_escalation) || 1;
-    let npv = 0;
-    if (rental && tenure) {
-      for (let t = 1; t <= Math.round(tenure); t++) {
-        npv += rental * Math.pow(1 + esc / 100, Math.floor((t - 1) / freq)) / Math.pow(1.12, t);
-      }
-    }
-    return { ...row, npv: npv > 0 ? parseFloat(npv.toFixed(2)) : '' };
-  }), [sorRows]);
-
-  const totalNpv = useMemo(() => rowsWithNpv.reduce((s, r) => s + (parseFloat(r.npv) || 0), 0), [rowsWithNpv]);
+  const totalNpv = useMemo(() => sorRows.reduce((s, r) => s + (parseFloat(r.npv) || 0), 0), [sorRows]);
 
   const totalValue = useMemo(() => {
     const a = parseFloat(formData.upfront_premium) || 0;
@@ -645,10 +725,10 @@ function PastLandForm({ formData, onChange, stage = 1 }) {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div><FLabel label="Parcel Detail" required /><input type="text" value={formData.parcel_detail || ''} onChange={e => onChange('parcel_detail', e.target.value)} className={inputCls} /></div>
             <div><FLabel label="Area (Acres)" required /><input type="number" step="any" value={formData.area_acres || ''} onChange={e => onChange('area_acres', e.target.value)} className={inputCls} /></div>
-            <div><FLabel label="Purpose" required /><select value={formData.purpose || ''} onChange={e => onChange('purpose', e.target.value)} className={inputCls}><option value="">--Select--</option>{['Commercial','Industrial','Port Operations','Logistics','Residential','Tourism','Energy'].map(o => <option key={o}>{o}</option>)}</select></div>
+            <div><FLabel label="Purpose" required /><select value={formData.purpose || ''} onChange={e => onChange('purpose', e.target.value)} className={inputCls}><option value="">--Select--</option>{(formData.purpose && !NMP_PURPOSE_OPTIONS.includes(formData.purpose) ? [...NMP_PURPOSE_OPTIONS, formData.purpose] : NMP_PURPOSE_OPTIONS).map(o => <option key={o}>{o}</option>)}</select></div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div><FLabel label="Sector" required /><select value={formData.sector || ''} onChange={e => onChange('sector', e.target.value)} className={inputCls}><option value="">--Select--</option>{['Port operations','Connectivity','Warehousing & Storage','Oil, Gas & Energy','Manufacturing','Commercial','Residential','Logistics Parks & Trade Zones','Other'].map(o => <option key={o}>{o}</option>)}</select></div>
+            <div><FLabel label="Sector" required /><select value={formData.sector || ''} onChange={e => onChange('sector', e.target.value)} className={inputCls}><option value="">--Select--</option>{(formData.sector && !NMP_SECTOR_OPTIONS.includes(formData.sector) ? [...NMP_SECTOR_OPTIONS, formData.sector] : NMP_SECTOR_OPTIONS).map(o => <option key={o}>{o}</option>)}</select></div>
             <div><FLabel label="Name of Specific Industry/Commercial Activities" required /><input type="text" value={formData.industry_name || ''} onChange={e => onChange('industry_name', e.target.value)} className={inputCls} /></div>
           </div>
         </Section>
@@ -656,10 +736,10 @@ function PastLandForm({ formData, onChange, stage = 1 }) {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div><FLabel label="Year of allotment (FY)" required /><select value={formData.year_of_allotment || ''} onChange={e => onChange('year_of_allotment', e.target.value)} className={inputCls}><option value="">--Select Year--</option>{FY_OPTIONS.map(y => <option key={y}>{y}</option>)}</select></div>
             <div><FLabel label="Mode of Allotment" required /><select value={formData.mode_of_allotment || ''} onChange={e => onChange('mode_of_allotment', e.target.value)} className={inputCls}><option value="">--Select--</option>{['Nomination','Tender cum Auction'].map(o => <option key={o}>{o}</option>)}</select></div>
-            <div><FLabel label="Status" required /><select value={formData.status || ''} onChange={e => onChange('status', e.target.value)} className={inputCls}><option value="">--Select--</option>{['Planned','In Progress','Completed','On Hold','Cancelled'].map(o => <option key={o}>{o}</option>)}</select></div>
+            <div><FLabel label="Land Allotment Status" required /><select value={formData.status || ''} onChange={e => onChange('status', e.target.value)} className={inputCls}><option value="">--Select--</option>{(formData.status && !NMP_STATUS_OPTIONS.includes(formData.status) ? [...NMP_STATUS_OPTIONS, formData.status] : NMP_STATUS_OPTIONS).map(o => <option key={o}>{o}</option>)}</select></div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div><FLabel label="Lease Status" /><select value={formData.lease_status || ''} onChange={e => onChange('lease_status', e.target.value)} className={inputCls}><option value="">--Select--</option>{['Active','Expired','Pending','Under Negotiation','Not yet leased'].map(o => <option key={o}>{o}</option>)}</select></div>
+            <div><FLabel label="Lease Status" /><select value={formData.lease_status || ''} onChange={e => onChange('lease_status', e.target.value)} className={inputCls}><option value="">--Select--</option>{(formData.lease_status && !PAST_LEASE_STATUS_OPTIONS.includes(formData.lease_status) ? [...PAST_LEASE_STATUS_OPTIONS, formData.lease_status] : PAST_LEASE_STATUS_OPTIONS).map(o => <option key={o}>{o}</option>)}</select></div>
           </div>
         </Section>
       </>)}
@@ -669,7 +749,6 @@ function PastLandForm({ formData, onChange, stage = 1 }) {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div><FLabel label="Upfront Premium Received in Year of Allotment [A] (INR Cr)" /><input type="number" step="any" value={formData.upfront_premium || ''} onChange={e => onChange('upfront_premium', e.target.value)} className={inputCls} /></div>
             <div><FLabel label="Investment Done by Private Player [C] (INR Cr)" /><input type="number" step="any" value={formData.estimated_private_investment || ''} onChange={e => onChange('estimated_private_investment', e.target.value)} className={inputCls} /></div>
-            <div><FLabel label="Lease Rental Received in FY2025-26 (INR Cr)" /><input type="number" step="any" value={formData.lease_rental_received || ''} onChange={e => onChange('lease_rental_received', e.target.value)} className={inputCls} /></div>
           </div>
         </Section>
         <Section number={4} title="Lease and Rental Details" id="pl-s4">
@@ -689,7 +768,7 @@ function PastLandForm({ formData, onChange, stage = 1 }) {
                 </tr>
               </thead>
               <tbody>
-                {rowsWithNpv.map((row, idx) => (
+                {sorRows.map((row, idx) => (
                   <tr key={idx} className={idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'}>
                     <td className="px-3 py-2 text-center font-bold text-slate-500">{idx + 1}</td>
                     <td className="px-3 py-2">
@@ -704,7 +783,7 @@ function PastLandForm({ formData, onChange, stage = 1 }) {
                     <td className="px-3 py-2"><input type="number" step="any" value={row.escalation_rate || ''} onChange={e => updateRow(idx, 'escalation_rate', e.target.value)} className={`${inputCls} w-24`} /></td>
                     <td className="px-3 py-2"><input type="number" step="any" value={row.frequency_of_escalation || ''} onChange={e => updateRow(idx, 'frequency_of_escalation', e.target.value)} className={`${inputCls} w-24`} /></td>
                     <td className="px-3 py-2"><input type="number" step="any" value={row.lease_tenure || ''} onChange={e => updateRow(idx, 'lease_tenure', e.target.value)} className={`${inputCls} w-24`} /></td>
-                    <td className="px-3 py-2"><div className={`${autoCls} w-28`}>{row.npv || '—'}</div></td>
+                    <td className="px-3 py-2"><input type="number" step="any" value={row.npv || ''} onChange={e => updateRow(idx, 'npv', e.target.value)} className={`${inputCls} w-28`} /></td>
                     <td className="px-3 py-2 text-center">{sorRows.length > 1 && <button type="button" onClick={() => removeRow(idx)} className="text-rose-500 hover:text-rose-700 font-extrabold text-base cursor-pointer leading-none">×</button>}</td>
                   </tr>
                 ))}
@@ -727,7 +806,7 @@ function PastLandForm({ formData, onChange, stage = 1 }) {
         <Section number={5} title="Lessee and Milestone Details" id="pl-s5">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div><FLabel label="Lessee Name" /><input type="text" value={formData.lessee_name || ''} onChange={e => onChange('lessee_name', e.target.value)} className={inputCls} /></div>
-            <div><FLabel label="Type of Lessee" /><select value={formData.type_of_lessee || ''} onChange={e => onChange('type_of_lessee', e.target.value)} className={inputCls}><option value="">--Select--</option>{['PSU','Private','JV','Government Body','Others'].map(o => <option key={o}>{o}</option>)}</select></div>
+            <div><FLabel label="Type of Lessee" /><select value={formData.type_of_lessee || ''} onChange={e => onChange('type_of_lessee', e.target.value)} className={inputCls}><option value="">--Select--</option>{(formData.type_of_lessee && !NMP_LESSEE_TYPE_OPTIONS.includes(formData.type_of_lessee) ? [...NMP_LESSEE_TYPE_OPTIONS, formData.type_of_lessee] : NMP_LESSEE_TYPE_OPTIONS).map(o => <option key={o}>{o}</option>)}</select></div>
             <div><FLabel label="Date of Lease Expiration" /><input type="date" value={formData.lease_expiration_date || ''} onChange={e => onChange('lease_expiration_date', e.target.value)} className={inputCls} /></div>
           </div>
         </Section>
@@ -824,17 +903,7 @@ export default function NmpInputForm({ editData, onSuccess, onCancel, triggerNot
       const userId = getCurrentUserId();
       const payload = { ...formData, form_type: subTab, user_id: userId };
       if (isFuture) {
-        const rental = parseFloat(formData.annual_base_lease_rental) || 0;
-        const tenure = parseFloat(formData.lease_tenure) || 0;
-        const esc = parseFloat(formData.escalation_rate) || 0;
-        const freq = parseFloat(formData.frequency_of_escalation) || 1;
-        let npv = 0;
-        if (rental && tenure && freq) {
-          for (let t = 1; t <= Math.round(tenure); t++) {
-            npv += rental * Math.pow(1 + esc / 100, Math.floor((t - 1) / freq)) / Math.pow(1.12, t);
-          }
-        }
-        payload.npv_lease_rental = parseFloat(npv.toFixed(2));
+        payload.npv_lease_rental = parseFloat(parseFloat(formData.npv_lease_rental || 0).toFixed(2));
         const a = parseFloat(formData.upfront_premium) || 0;
         const c = parseFloat(formData.estimated_private_investment) || 0;
         payload.total_monetization_value = parseFloat((a + payload.npv_lease_rental + c).toFixed(2));

@@ -123,12 +123,18 @@ async function getPastLandList(req, res) {
         p.original_nit_date AS nit_original_target_date,
         p.actual_nit_date AS nit_actual_date,
         p.nit_reversed_date AS nit_revised,
+        p.nit_reversed_date_2 AS nit_revised_2,
+        p.nit_reversed_date_3 AS nit_revised_3,
         p.original_agreement_date AS agreement_original_target_date,
         p.actual_agreement_date,
         p.agreement_revised_date AS agreement_revised,
+        p.agreement_revised_date_2 AS agreement_revised_2,
+        p.agreement_revised_date_3 AS agreement_revised_3,
         p.original_completion_date,
         p.actual_completion_date,
         p.completion_revised_date AS construction_revised,
+        p.completion_revised_date_2 AS construction_revised_2,
+        p.completion_revised_date_3 AS construction_revised_3,
         p.lease_expiration_date,
         p.remarks,
         p.created_date
@@ -303,8 +309,14 @@ async function createNmpEntry(req, res) {
       request.input("original_completion_date", sql.Date, dateOrNull(b.construction_original));
       request.input("actual_completion_date", sql.Date, dateOrNull(b.construction_actual));
       request.input("nit_reversed_date", sql.Date, dateOrNull(b.nit_revised));
+      request.input("nit_reversed_date_2", sql.Date, dateOrNull(b.nit_revised_2));
+      request.input("nit_reversed_date_3", sql.Date, dateOrNull(b.nit_revised_3));
       request.input("agreement_revised_date", sql.Date, dateOrNull(b.agreement_revised));
+      request.input("agreement_revised_date_2", sql.Date, dateOrNull(b.agreement_revised_2));
+      request.input("agreement_revised_date_3", sql.Date, dateOrNull(b.agreement_revised_3));
       request.input("completion_revised_date", sql.Date, dateOrNull(b.construction_revised));
+      request.input("completion_revised_date_2", sql.Date, dateOrNull(b.construction_revised_2));
+      request.input("completion_revised_date_3", sql.Date, dateOrNull(b.construction_revised_3));
       request.input("remarks", sql.NVarChar(256), nullIfEmpty(b.remarks));
       request.input("created_by", sql.Int, userId);
 
@@ -315,9 +327,9 @@ async function createNmpEntry(req, res) {
           upfront_premium, npv_lease_rental, extimated_private_investment,
           total_monetization_value, lease_rental_received,
           agency_name, type_of_agency, agreement_signed,
-          original_nit_date, actual_nit_date, nit_reversed_date,
-          original_agreement_date, actual_agreement_date, agreement_revised_date,
-          original_completion_date, actual_completion_date, completion_revised_date,
+          original_nit_date, actual_nit_date, nit_reversed_date, nit_reversed_date_2, nit_reversed_date_3,
+          original_agreement_date, actual_agreement_date, agreement_revised_date, agreement_revised_date_2, agreement_revised_date_3,
+          original_completion_date, actual_completion_date, completion_revised_date, completion_revised_date_2, completion_revised_date_3,
           remarks, created_date, created_by
         ) VALUES (
           @organisation_id, @parcel_details, @area, @lease_status, @purpose, @sector,
@@ -325,9 +337,9 @@ async function createNmpEntry(req, res) {
           @upfront_premium, @npv_lease_rental, @extimated_private_investment,
           @total_monetization_value, @lease_rental_received,
           @agency_name, @type_of_agency, @agreement_signed,
-          @original_nit_date, @actual_nit_date, @nit_reversed_date,
-          @original_agreement_date, @actual_agreement_date, @agreement_revised_date,
-          @original_completion_date, @actual_completion_date, @completion_revised_date,
+          @original_nit_date, @actual_nit_date, @nit_reversed_date, @nit_reversed_date_2, @nit_reversed_date_3,
+          @original_agreement_date, @actual_agreement_date, @agreement_revised_date, @agreement_revised_date_2, @agreement_revised_date_3,
+          @original_completion_date, @actual_completion_date, @completion_revised_date, @completion_revised_date_2, @completion_revised_date_3,
           @remarks, GETDATE(), @created_by
         );
         SELECT SCOPE_IDENTITY() AS id;
@@ -476,12 +488,18 @@ async function updateNmpEntry(req, res) {
       request.input("original_nit_date", sql.Date, dateOrNull(b.nit_original));
       request.input("actual_nit_date", sql.Date, dateOrNull(b.nit_actual));
       request.input("nit_reversed_date", sql.Date, dateOrNull(b.nit_revised));
+      request.input("nit_reversed_date_2", sql.Date, dateOrNull(b.nit_revised_2));
+      request.input("nit_reversed_date_3", sql.Date, dateOrNull(b.nit_revised_3));
       request.input("original_agreement_date", sql.Date, dateOrNull(b.agreement_original));
       request.input("actual_agreement_date", sql.Date, dateOrNull(b.agreement_actual));
       request.input("agreement_revised_date", sql.Date, dateOrNull(b.agreement_revised));
+      request.input("agreement_revised_date_2", sql.Date, dateOrNull(b.agreement_revised_2));
+      request.input("agreement_revised_date_3", sql.Date, dateOrNull(b.agreement_revised_3));
       request.input("original_completion_date", sql.Date, dateOrNull(b.construction_original));
       request.input("actual_completion_date", sql.Date, dateOrNull(b.construction_actual));
       request.input("completion_revised_date", sql.Date, dateOrNull(b.construction_revised));
+      request.input("completion_revised_date_2", sql.Date, dateOrNull(b.construction_revised_2));
+      request.input("completion_revised_date_3", sql.Date, dateOrNull(b.construction_revised_3));
       request.input("remarks", sql.NVarChar(256), nullIfEmpty(b.remarks));
       request.input("updated_by", userId);
 
@@ -497,11 +515,11 @@ async function updateNmpEntry(req, res) {
           agency_name = @agency_name, type_of_agency = @type_of_agency,
           agreement_signed = @agreement_signed,
           original_nit_date = @original_nit_date, actual_nit_date = @actual_nit_date,
-          nit_reversed_date = @nit_reversed_date,
+          nit_reversed_date = @nit_reversed_date, nit_reversed_date_2 = @nit_reversed_date_2, nit_reversed_date_3 = @nit_reversed_date_3,
           original_agreement_date = @original_agreement_date, actual_agreement_date = @actual_agreement_date,
-          agreement_revised_date = @agreement_revised_date,
+          agreement_revised_date = @agreement_revised_date, agreement_revised_date_2 = @agreement_revised_date_2, agreement_revised_date_3 = @agreement_revised_date_3,
           original_completion_date = @original_completion_date, actual_completion_date = @actual_completion_date,
-          completion_revised_date = @completion_revised_date,
+          completion_revised_date = @completion_revised_date, completion_revised_date_2 = @completion_revised_date_2, completion_revised_date_3 = @completion_revised_date_3,
           remarks = @remarks, updated_date = GETDATE(), updated_by = @updated_by
         WHERE nmp_past_id = @nmp_past_id
       `);
