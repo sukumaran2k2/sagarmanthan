@@ -19,6 +19,7 @@ import {
   Compass,
   ChevronDown
 } from 'lucide-react';
+import { getAccessToken } from '../../utils/tabSession';
 
 const PUBLIC_KEY_PEM = (import.meta.env.VITE_RSA_PUBLIC_KEY || "").replace(/\\n/g, "\n");
 
@@ -94,7 +95,7 @@ export default function ProfileView({ triggerNotification }) {
   });
 
   useEffect(() => {
-    if (!localStorage.getItem('accessToken')) return;
+    if (!getAccessToken()) return;
 
     // The signed-in user's own details
     api.get('/my-profile')

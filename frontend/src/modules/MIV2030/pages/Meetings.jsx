@@ -9,6 +9,8 @@ import Loader from '../../../components/Loader';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import { fetchMIVMeetingsData, fetchOrganisations, fetchMeetingLogsByOrg, createMeeting as apiCreateMeeting, deleteMeeting as apiDeleteMeeting } from '../api';
+import { getCurrentUserId } from '../../../utils/authSession';
+
 
 export default function MIVMeetings({ triggerNotification }) {
   const [meetingSummary, setMeetingSummary] = useState([]);
@@ -44,9 +46,12 @@ export default function MIVMeetings({ triggerNotification }) {
   const [file, setFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const userId = getCurrentUserId() || 1;
+
   const fetchMeetingSummary = () => {
+    if (!userId) return;
     setLoading(true);
-    fetchMIVMeetingsData()
+    fetchMIVMeetingsData(userId)
       .then(res => {
         setMeetingSummary(res.data || []);
       })

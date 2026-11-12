@@ -6,6 +6,9 @@ import './api' // token and session refresh for every backend call
 import App from './App.jsx'
 import { ThemeProvider } from './context/ThemeContext.jsx'
 import { AICopilotProvider } from './context/AICopilotContext.jsx'
+import { dropSharedTokens } from './utils/tabSession'
+
+dropSharedTokens()
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

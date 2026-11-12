@@ -1,56 +1,11 @@
-import axios from 'axios';
-import { refreshAccessToken } from '../../utils/sessionRefresh';
+import { API_BASE, createApiClient } from '../../api';
 
-export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+export { API_BASE };
 
 // A stalled request fails after 30 s, so the page shows its error instead of loading forever
 // (QC CSR-06); file uploads get longer
-const api = axios.create({ baseURL: API_BASE, timeout: 30000 });
+const api = createApiClient({ timeout: 30000 });
 const UPLOAD_TIMEOUT = 180000;
-
-// Request Interceptor: Automatically attach Bearer token
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('accessToken');
-    if (token) {
-      config.headers = config.headers || {};
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-// Response Interceptor: Auto-refresh on 401 Unauthorized
-let refreshPromise = null;
-
-// A new access token comes from the shared session refresh (cookie-based)
-
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const original = error.config;
-    if (error.response?.status !== 401 || !original || original._retry) {
-      return Promise.reject(error);
-    }
-    original._retry = true;
-    try {
-      if (!refreshPromise) {
-        refreshPromise = refreshAccessToken().finally(() => {
-          refreshPromise = null;
-        });
-      }
-      const token = await refreshPromise;
-      original.headers = original.headers || {};
-      original.headers.Authorization = `Bearer ${token}`;
-      return api(original);
-    } catch {
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      return Promise.reject(error);
-    }
-  }
-);
 
 // --- CSR Projects APIs ---
 // With page / pageSize: { rows, total, counts } for that page; without: every matching row (QC CSR-26)

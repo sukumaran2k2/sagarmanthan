@@ -8,6 +8,7 @@ import BackgroundRotator from "./components/BackgroundRotator";
 import LeftBranding from "./components/LeftBranding";
 import LoginCard from "./components/LoginCard";
 import ForgotCard from "./components/ForgotCard";
+import { setAccessToken } from '../../utils/tabSession';
 
 const initialState = {
   email: "",
@@ -121,9 +122,7 @@ export default function LoginView({ onLogin, notice = '' }) {
       .then((res) => {
         dispatch({ type: 'SUBMIT_SUCCESS' });
         if (res.data.accessToken) {
-          localStorage.setItem("accessToken", res.data.accessToken);
-          // The refresh token is only in the httpOnly cookie now; drop any old stored copy
-          localStorage.removeItem("refreshToken");
+          setAccessToken(res.data.accessToken);
           onLogin();
         } else {
           let errMsg = res.data.message || "Invalid credentials.";

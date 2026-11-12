@@ -1,8 +1,15 @@
 import axios from 'axios';
+import { decodeAccessToken } from './authSession';
+import { getAccessToken, setAccessToken, clearAccessToken } from './tabSession';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
 let pending = null;
+
+const sessionUserId = (token) => {
+  const claims = decodeAccessToken(token);
+  return claims ? String(claims.userId ?? claims.user_id ?? claims.id ?? '') : '';
+};
 
 // Fired on window when the server refuses to renew the session (refresh cookie expired, signed
 // out elsewhere, or the account deactivated). App signs out and shows the login page.
@@ -19,12 +26,22 @@ export const SESSION_EXPIRED_EVENT = 'sagarmanthan:session-expired';
  */
 export function refreshAccessToken() {
   if (!pending) {
+    // A signed-out tab must not sign in from another tab's cookie
+    const current = getAccessToken();
+    if (!current) return Promise.reject(new Error('This tab is not signed in'));
+    const userId = sessionUserId(current);
+
     pending = axios
       .get(`${API_BASE}/refresh-token`, { withCredentials: true })
       .then((res) => {
         const next = res.data?.accessToken;
         if (!next) throw new Error('Refresh failed');
-        localStorage.setItem('accessToken', next);
+        // The cookie now belongs to another user signed in elsewhere
+        if (sessionUserId(next) !== userId) {
+          window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT, { detail: { keepServerSession: true } }));
+          throw new Error('Signed in as another user in another tab');
+        }
+        setAccessToken(next);
         return next;
       })
       .catch((err) => {
@@ -47,12 +64,18 @@ export function refreshAccessToken() {
  * so the signed-out browser can't be signed back in by a refresh. Never throws; the local
  * sign-out goes ahead even if the server can't be reached.
  */
-export function endSession() {
-  const token = localStorage.getItem('accessToken');
+function endSession() {
+  const token = getAccessToken();
   return axios
     .post(`${API_BASE}/logout`, null, {
       withCredentials: true,
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
     .catch(() => {});
+}
+
+// keepServerSession: sign out this tab only
+export function signOut({ keepServerSession = false } = {}) {
+  if (!keepServerSession) endSession();
+  clearAccessToken();
 }

@@ -7,7 +7,7 @@ import Loader from './components/Loader';
 import { Activity, Sparkles } from 'lucide-react';
 import { TAB_USER_MODULE_PERMISSION, TAB_USER_MASTER_MANAGEMENT, TAB_USER_LIST, normalizeTab } from './utils/moduleAccess';
 import { resetAllStores } from './stores/resetRegistry';
-import { endSession, SESSION_EXPIRED_EVENT } from './utils/sessionRefresh';
+import { signOut, SESSION_EXPIRED_EVENT } from './utils/sessionRefresh';
 
 // Lazy-loaded feature modules for code splitting and instant initial page load
 const LandingView = lazy(() => import('./modules/Landing/Landing'));
@@ -45,6 +45,9 @@ const ContactUs = lazy(() => import('./modules/Contact/Contact'));
 
 // Major Ports Components
 import { PortsDashboardView, PortsEntryAccessView, PortsInputFormView, PortsReportsView } from './modules/MajorPorts/MajorPorts';
+import { getAccessToken, watchForCopiedTab } from './utils/tabSession';
+import useIdleSignOut from './utils/useIdleSignOut';
+import IdleWarningDialog from './components/IdleWarningDialog';
 
 const INITIAL_PROJECTS = [
   {
@@ -160,7 +163,7 @@ export default function App() {
   const [projects, setProjects] = useState(INITIAL_PROJECTS);
   const [toasts, setToasts] = useState([]);
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    return !!localStorage.getItem('accessToken');
+    return !!getAccessToken();
   });
   const [showWelcome, setShowWelcome] = useState(() => {
     // Show welcome page each session (cleared on tab close)
@@ -210,26 +213,38 @@ export default function App() {
   }, [isLoggedIn]);
 
   const handleLogout = () => {
-    endSession();
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
+    signOut();
     setIsLoggedIn(false);
   };
 
   // The session could not be renewed: sign out and say so on the login page, instead of
   // staying "signed in" without a token (which showed Access Restricted)
-  const [sessionExpired, setSessionExpired] = useState(false);
+  const [loginNotice, setLoginNotice] = useState('');
   useEffect(() => {
-    const onExpired = () => {
-      endSession();
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      setSessionExpired(true);
+    const onExpired = (event) => {
+      signOut({ keepServerSession: event.detail?.keepServerSession });
+      setLoginNotice('Your session has expired. Please log in again.');
       setIsLoggedIn(false);
     };
     window.addEventListener(SESSION_EXPIRED_EVENT, onExpired);
     return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
   }, []);
+
+  // A duplicated tab must sign in on its own
+  useEffect(() => watchForCopiedTab(() => {
+    if (!getAccessToken()) return;
+    signOut({ keepServerSession: true });
+    setLoginNotice('');
+    setIsLoggedIn(false);
+  }), []);
+
+  // Idle sign-out ends this tab only; other signed-in tabs keep the server session
+  const handleIdle = useCallback(() => {
+    signOut({ keepServerSession: true });
+    setLoginNotice('');
+    setIsLoggedIn(false);
+  }, []);
+  const { warningDeadline, stayActive } = useIdleSignOut({ enabled: isLoggedIn, onIdle: handleIdle });
 
   if (!isLoggedIn) {
     if (showWelcome) {
@@ -245,10 +260,10 @@ export default function App() {
     return (
       <LoginView
         onLogin={() => {
-          setSessionExpired(false);
+          setLoginNotice('');
           handleLoginSuccess();
         }}
-        notice={sessionExpired ? 'Your session has expired. Please log in again.' : ''}
+        notice={loginNotice}
       />
     );
   }
@@ -601,6 +616,10 @@ export default function App() {
           </Route>
         </Routes>
       </Suspense>
+
+      {warningDeadline && (
+        <IdleWarningDialog deadline={warningDeadline} onStay={stayActive} onSignOut={handleLogout} />
+      )}
 
       {/* Floating Network Check FAB (Positioned at bottom-6 below SagarBot) */}
       <div className="fixed bottom-6 right-6 z-40 flex items-center space-x-3 select-none">

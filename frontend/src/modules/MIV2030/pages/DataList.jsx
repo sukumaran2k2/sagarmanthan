@@ -9,6 +9,7 @@ import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import MIVDetailView from '../components/MIVDetailView';
 import { fetchMIVData, fetchOrganisations } from '../api';
+import { getCurrentUserId } from '../../../utils/authSession';
 
 const STATUS_COLORS = {
   'Under Implementation': '#0284c7',
@@ -65,6 +66,8 @@ export default function MIVDataList({
     updatedDate: true,
   });
 
+  const userId = getCurrentUserId() || 1;
+
   // Debounce search input
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -108,9 +111,11 @@ export default function MIVDataList({
 
   // Fetch paginated initiatives from server
   const fetchData = useCallback(async () => {
+    if (!userId) return;
     setLoading(true);
     try {
       const res = await fetchMIVData({
+        userId,
         page: currentPage,
         limit: pageSize,
         search: debouncedSearch,

@@ -300,55 +300,6 @@ async function getMeeting(req, res) {
     }
 }
 
-// async function createMeeting(req, res) {
-//     try {
-//         const conn = await pool;
-//         const request = conn.request();
-
-//         // Extract data from the request body
-//         const meetingDate = req.body.date_of_upload;
-//         const organisationID = req.body.organisationID;
-//         console.log(organisationID)
-
-//         if (!meetingDate) {
-//             return res.status(400).json({ error: "Meeting date is required" });
-//         }
-//         if (!organisationID) {
-//             return res.status(400).json({ error: "organisationID is required" });
-//         }
-
-//         if (!req.file) {
-//             return res.status(400).json({ error: "No file uploaded" });
-//         }
-
-//         const originalFileName = req.file.originalname;
-//         const uniqueFileName = req.file.filename;
-
-//         request.input("file_name", sql.NVarChar, uniqueFileName);
-//         request.input("date_of_meeting", sql.Date, new Date(meetingDate));
-//         request.input("organisationID", sql.Int, organisationID);
-
-
-//         // Execute the INSERT operation and get the ID of the newly inserted record
-//         const result = await request.query(`
-//             INSERT INTO tbl_meeting_document (file_name, date_of_meeting, organisation_id)
-//             OUTPUT INSERTED.meeting_document_id
-//             VALUES (@file_name, @date_of_meeting, @organisationID)
-//         `);
-
-//         const insertedId = result.recordset[0].id; // Get the ID from the result
-
-//         // Include the ID in the response
-//         res.status(201).json({
-//             message: "Meeting record created successfully",
-//             id: insertedId,
-//         });
-//     } catch (err) {
-//         console.error(err);
-//         res.status(500).json({ error: "Internal server error" });
-//     }
-// }
-
 async function createMeeting(req, res) {
 
     const conn = await pool;
@@ -389,114 +340,316 @@ async function createMeeting(req, res) {
     });
 }
 
-
-
-
-
 //-------------------------------------------------- miv data (Server-Side Pagination, Filtering & Search) --------------------------------------------------
+
 async function getMIVData(req, res) {
-    const conn = await pool;
-    const request = conn.request();
-
-    const {
-        page,
-        limit,
-        search,
-        organisation,
-        organisationId,
-        category,
-        status,
-        all
-    } = req.query;
-
-    const isFetchAll = all === 'true' || limit === 'all' || (!page && !limit && !search && !organisation && !organisationId && !category && !status);
-    const pageNum = parseInt(page) || 1;
-    const pageSize = parseInt(limit) || 10;
-    const offset = (pageNum - 1) * pageSize;
-
-    let baseWhereClauses = [];
-
-    // Search filter
-    if (search && search.trim() !== '') {
-        request.input('searchTerm', `%${search.trim()}%`);
-        baseWhereClauses.push(`(
-            tbl_initiative.initiative_id LIKE @searchTerm OR 
-            tbl_initiative.initiative_name LIKE @searchTerm OR 
-            tbl_initiative.project_detail LIKE @searchTerm OR 
-            tbl_initiative.category LIKE @searchTerm OR 
-            mmt_organisation.organisation_name LIKE @searchTerm
-        )`);
-    }
-
-    // Organisation filter
-    const orgParam = organisationId || organisation;
-    if (orgParam && orgParam !== 'All' && orgParam !== 'all' && orgParam !== '') {
-        if (!isNaN(orgParam)) {
-            request.input('orgId', parseInt(orgParam));
-            baseWhereClauses.push(`tbl_initiative.organisation_id = @orgId`);
-        } else {
-            request.input('orgName', orgParam.trim());
-            baseWhereClauses.push(`mmt_organisation.organisation_name = @orgName`);
-        }
-    }
-
-    // Category filter
-    if (category && category !== 'All' && category !== 'all' && category !== '') {
-        request.input('categoryFilter', category.trim());
-        baseWhereClauses.push(`tbl_initiative.category = @categoryFilter`);
-    }
-
-    // Status filter
-    let filteredWhereClauses = [...baseWhereClauses];
-    if (status && status !== 'All' && status !== 'all' && status !== '') {
-        const lowerStatus = status.toLowerCase();
-        if (lowerStatus === 'under_implementation' || lowerStatus === 'under implementation') {
-            filteredWhereClauses.push(`(LOWER(ISNULL(tbl_initiative.status_current, tbl_initiative.status_on)) LIKE '%under implementation%')`);
-        } else if (lowerStatus === 'completed') {
-            filteredWhereClauses.push(`(LOWER(ISNULL(tbl_initiative.status_current, tbl_initiative.status_on)) LIKE '%completed%')`);
-        } else if (lowerStatus === 'yet_to_start' || lowerStatus === 'yet to be started' || lowerStatus === 'yet to start') {
-            filteredWhereClauses.push(`(LOWER(ISNULL(tbl_initiative.status_current, tbl_initiative.status_on)) LIKE '%yet to be started%' OR LOWER(ISNULL(tbl_initiative.status_current, tbl_initiative.status_on)) LIKE '%yet to start%')`);
-        } else if (lowerStatus === 'dropped') {
-            filteredWhereClauses.push(`(LOWER(ISNULL(tbl_initiative.status_current, tbl_initiative.status_on)) LIKE '%dropped%')`);
-        }
-    }
-
-    const filteredWhereSql = filteredWhereClauses.length > 0 ? `WHERE ${filteredWhereClauses.join(' AND ')}` : '';
-    const baseWhereSql = baseWhereClauses.length > 0 ? `WHERE ${baseWhereClauses.join(' AND ')}` : '';
-
     try {
+        const conn = await pool;
+
+        const {
+            userId,
+            page,
+            limit,
+            search,
+            organisation,
+            organisationId,
+            category,
+            status,
+            all
+        } = req.query;
+
+        const parsedUserId = Number(userId);
+
+        if (!Number.isInteger(parsedUserId) || parsedUserId <= 0) {
+            return res.status(400).json({
+                message: "Valid userId is required"
+            });
+        }
+
+        const userResult = await conn.request()
+            .input("userID", sql.Int, parsedUserId)
+            .query(`
+                SELECT
+                    user_id,
+                    role_id,
+                    organisation_id
+                FROM tbl_user
+                WHERE user_id = @userID
+            `);
+
+        if (!userResult.recordset.length) {
+            return res.status(404).json({
+                message: "User not found"
+            });
+        }
+
+        const user = userResult.recordset[0];
+
+        const roleId = Number(user.role_id);
+        const userOrganisationId = Number(user.organisation_id);
+
+        const adminRoles = [2, 3, 4, 5, 8];
+        const isAdmin = adminRoles.includes(roleId);
+
+        const isFetchAll =
+            all === "true" ||
+            limit === "all" ||
+            (!page && !limit && !search &&
+             !organisation && !organisationId &&
+             !category && !status);
+
+        const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+        const requestedLimit = parseInt(limit, 10) || 10;
+        const pageSize = Math.min(Math.max(requestedLimit, 1), 500);
+        const offset = (pageNum - 1) * pageSize;
+
+        const request = conn.request();
+        const baseWhereClauses = [];
+
+        if (!isAdmin) {
+            if (
+                !Number.isInteger(userOrganisationId) ||
+                userOrganisationId <= 0
+            ) {
+                return res.status(403).json({
+                    message: "User organisation is not configured"
+                });
+            }
+
+            request.input(
+                "userOrganisationID",
+                sql.Int,
+                userOrganisationId
+            );
+
+            baseWhereClauses.push(`
+                tbl_initiative.organisation_id = @userOrganisationID
+            `);
+        }
+
+        if (search && search.trim() !== "") {
+            request.input(
+                "searchTerm",
+                sql.NVarChar(4000),
+                `%${search.trim()}%`
+            );
+
+            baseWhereClauses.push(`
+                (
+                    CAST(tbl_initiative.initiative_id AS NVARCHAR(100))
+                        LIKE @searchTerm
+                    OR tbl_initiative.initiative_name LIKE @searchTerm
+                    OR tbl_initiative.project_detail LIKE @searchTerm
+                    OR tbl_initiative.category LIKE @searchTerm
+                    OR mmt_organisation.organisation_name LIKE @searchTerm
+                )
+            `);
+        }
+
+        const orgParam = organisationId || organisation;
+
+        if (
+            orgParam &&
+            orgParam !== "All" &&
+            orgParam !== "all" &&
+            orgParam !== ""
+        ) {
+            const parsedOrgId = Number(orgParam);
+
+            if (Number.isInteger(parsedOrgId) && parsedOrgId > 0) {
+                request.input("orgId", sql.Int, parsedOrgId);
+
+                baseWhereClauses.push(`
+                    tbl_initiative.organisation_id = @orgId
+                `);
+            } else {
+                request.input(
+                    "orgName",
+                    sql.NVarChar(255),
+                    orgParam.trim()
+                );
+
+                baseWhereClauses.push(`
+                    mmt_organisation.organisation_name = @orgName
+                `);
+            }
+        }
+
+        if (
+            category &&
+            category !== "All" &&
+            category !== "all" &&
+            category !== ""
+        ) {
+            request.input(
+                "categoryFilter",
+                sql.NVarChar(255),
+                category.trim()
+            );
+
+            baseWhereClauses.push(`
+                tbl_initiative.category = @categoryFilter
+            `);
+        }
+
+        const filteredWhereClauses = [...baseWhereClauses];
+
+        if (
+            status &&
+            status !== "All" &&
+            status !== "all" &&
+            status !== ""
+        ) {
+            const lowerStatus = status.toLowerCase();
+
+            if (
+                lowerStatus === "under_implementation" ||
+                lowerStatus === "under implementation"
+            ) {
+                filteredWhereClauses.push(`
+                    LOWER(ISNULL(
+                        tbl_initiative.status_current,
+                        tbl_initiative.status_on
+                    )) LIKE '%under implementation%'
+                `);
+            } else if (lowerStatus === "completed") {
+                filteredWhereClauses.push(`
+                    LOWER(ISNULL(
+                        tbl_initiative.status_current,
+                        tbl_initiative.status_on
+                    )) LIKE '%completed%'
+                `);
+            } else if (
+                lowerStatus === "yet_to_start" ||
+                lowerStatus === "yet to be started" ||
+                lowerStatus === "yet to start"
+            ) {
+                filteredWhereClauses.push(`
+                    (
+                        LOWER(ISNULL(
+                            tbl_initiative.status_current,
+                            tbl_initiative.status_on
+                        )) LIKE '%yet to be started%'
+                        OR
+                        LOWER(ISNULL(
+                            tbl_initiative.status_current,
+                            tbl_initiative.status_on
+                        )) LIKE '%yet to start%'
+                    )
+                `);
+            } else if (lowerStatus === "dropped") {
+                filteredWhereClauses.push(`
+                    LOWER(ISNULL(
+                        tbl_initiative.status_current,
+                        tbl_initiative.status_on
+                    )) LIKE '%dropped%'
+                `);
+            }
+        }
+
+        const baseWhereSql = baseWhereClauses.length
+            ? `WHERE ${baseWhereClauses.join(" AND ")}`
+            : "";
+
+        const filteredWhereSql = filteredWhereClauses.length
+            ? `WHERE ${filteredWhereClauses.join(" AND ")}`
+            : "";
+
+        const selectColumns = `
+            tbl_initiative.ID,
+            tbl_initiative.initiative_id,
+            tbl_initiative.initiative_name,
+            tbl_initiative.total_cost,
+            tbl_initiative.project_detail,
+            tbl_initiative.category,
+            tbl_initiative.outcomes,
+            tbl_initiative.source_of_funding,
+            tbl_initiative.status_on,
+            tbl_initiative.status_current,
+            tbl_initiative.physical_progress,
+            tbl_initiative.reasons_for_drop,
+            tbl_initiative.reasons_for_delay,
+            tbl_initiative.start_date,
+            tbl_initiative.completion_date,
+            tbl_initiative.actual_date,
+            tbl_initiative.updated_date,
+            tbl_initiative.Feedback,
+            tbl_initiative.Response,
+            tbl_initiative.organisation_id,
+            mmt_organisation.organisation_name
+        `;
+
+        const fromClause = `
+            FROM tbl_initiative
+            INNER JOIN mmt_organisation
+                ON mmt_organisation.organisation_id =
+                   tbl_initiative.organisation_id
+        `;
+
         if (isFetchAll) {
             const result = await request.query(`
-                SELECT 
-                    ID, initiative_id, initiative_name, total_cost, project_detail,
-                    category, outcomes, source_of_funding, status_on, status_current, physical_progress, reasons_for_drop, 
-                    reasons_for_delay, start_date, completion_date, actual_date, updated_date, tbl_initiative.organisation_id,
-                    organisation_name   
-                FROM tbl_initiative
-                INNER JOIN mmt_organisation ON mmt_organisation.organisation_id = tbl_initiative.organisation_id
+                SELECT ${selectColumns}
+                ${fromClause}
                 ${filteredWhereSql}
-                ORDER BY ID DESC;
+                ORDER BY tbl_initiative.ID DESC;
             `);
+
             return res.json(result.recordset);
         }
 
-        request.input('offset', offset);
-        request.input('pageSize', pageSize);
+        request.input("offset", sql.Int, offset);
+        request.input("pageSize", sql.Int, pageSize);
 
-        // Fetch counts for status tabs based on current search & org filters
         const countQuery = `
-            SELECT 
+            SELECT
                 COUNT(*) AS total_count,
-                SUM(CASE WHEN LOWER(ISNULL(tbl_initiative.status_current, tbl_initiative.status_on)) LIKE '%under implementation%' THEN 1 ELSE 0 END) AS ui_count,
-                SUM(CASE WHEN LOWER(ISNULL(tbl_initiative.status_current, tbl_initiative.status_on)) LIKE '%completed%' THEN 1 ELSE 0 END) AS completed_count,
-                SUM(CASE WHEN LOWER(ISNULL(tbl_initiative.status_current, tbl_initiative.status_on)) LIKE '%yet to be started%' OR LOWER(ISNULL(tbl_initiative.status_current, tbl_initiative.status_on)) LIKE '%yet to start%' THEN 1 ELSE 0 END) AS yet_to_start_count,
-                SUM(CASE WHEN LOWER(ISNULL(tbl_initiative.status_current, tbl_initiative.status_on)) LIKE '%dropped%' THEN 1 ELSE 0 END) AS dropped_count
-            FROM tbl_initiative
-            INNER JOIN mmt_organisation ON mmt_organisation.organisation_id = tbl_initiative.organisation_id
-            ${baseWhereSql}
+
+                SUM(CASE
+                    WHEN LOWER(ISNULL(
+                        tbl_initiative.status_current,
+                        tbl_initiative.status_on
+                    )) LIKE '%under implementation%'
+                    THEN 1 ELSE 0
+                END) AS ui_count,
+
+                SUM(CASE
+                    WHEN LOWER(ISNULL(
+                        tbl_initiative.status_current,
+                        tbl_initiative.status_on
+                    )) LIKE '%completed%'
+                    THEN 1 ELSE 0
+                END) AS completed_count,
+
+                SUM(CASE
+                    WHEN (
+                        LOWER(ISNULL(
+                            tbl_initiative.status_current,
+                            tbl_initiative.status_on
+                        )) LIKE '%yet to be started%'
+                        OR
+                        LOWER(ISNULL(
+                            tbl_initiative.status_current,
+                            tbl_initiative.status_on
+                        )) LIKE '%yet to start%'
+                    )
+                    THEN 1 ELSE 0
+                END) AS yet_to_start_count,
+
+                SUM(CASE
+                    WHEN LOWER(ISNULL(
+                        tbl_initiative.status_current,
+                        tbl_initiative.status_on
+                    )) LIKE '%dropped%'
+                    THEN 1 ELSE 0
+                END) AS dropped_count
+
+            ${fromClause}
+            ${baseWhereSql};
         `;
+
         const countResult = await request.query(countQuery);
         const countRow = countResult.recordset[0] || {};
+
         const counts = {
             all: countRow.total_count || 0,
             ui: countRow.ui_count || 0,
@@ -505,27 +658,25 @@ async function getMIVData(req, res) {
             dropped: countRow.dropped_count || 0
         };
 
-        // Query paginated rows with filtered total count
-        const query = `
-            SELECT 
-                ID, initiative_id, initiative_name, total_cost, project_detail,
-                category, outcomes, source_of_funding, status_on, status_current, physical_progress, reasons_for_drop, 
-                reasons_for_delay, start_date, completion_date, actual_date, updated_date, tbl_initiative.organisation_id,
-                organisation_name,
+        const dataQuery = `
+            SELECT
+                ${selectColumns},
                 COUNT(*) OVER() AS total_count
-            FROM tbl_initiative
-            INNER JOIN mmt_organisation ON mmt_organisation.organisation_id = tbl_initiative.organisation_id
+            ${fromClause}
             ${filteredWhereSql}
-            ORDER BY ID DESC
+            ORDER BY tbl_initiative.ID DESC
             OFFSET @offset ROWS
             FETCH NEXT @pageSize ROWS ONLY;
         `;
 
-        const result = await request.query(query);
-        const rows = result.recordset || [];
-        const total = rows.length > 0 ? rows[0].total_count : 0;
+        const result = await request.query(dataQuery);
 
-        res.json({
+        const rows = result.recordset || [];
+        const total = rows.length > 0
+            ? rows[0].total_count
+            : 0;
+
+        return res.json({
             data: rows,
             pagination: {
                 total,
@@ -535,38 +686,16 @@ async function getMIVData(req, res) {
                 counts
             }
         });
+
     } catch (err) {
         console.error("Error fetching MIV data:", err);
-        return res.sendStatus(500);
+
+        return res.status(500).json({
+            message: "Error fetching MIV data",
+            error: err.message
+        });
     }
 }
-
-// async function getMIVData(req, res) 
-// {
-//     const conn = await pool;
-
-//     try {
-//         const orgResult = await conn.query(`SELECT organisation_id FROM tbl_user WHERE user_id = ${userID}`);
-//         const organisationID = orgResult.recordset[0].organisation_id;
-
-//         const usersResult = await conn.query(`SELECT user_id FROM tbl_user WHERE organisation_id = ${organisationID}`);
-//         const userIDs = usersResult.recordset.map(user => user.user_id);
-
-// const result = await conn.query(`SELECT ID, initiative_id, initiative_name, total_cost, category, 
-//     source_of_funding, status_on, status_current, physical_progress, reasons_for_drop, 
-//     reasons_for_delay, start_date, completion_date, actual_date, tbl_initiative.organisation_id,
-//     organisation_name   
-
-// FROM tbl_initiative
-// INNER JOIN mmt_organisation ON mmt_organisation.organisation_id = tbl_initiative.organisation_id
-// WHERE created_by IN (${userIDs.join(',')});`);
-//         res.json(result.recordset);
-//     } catch (err) {
-//         console.error(err);
-//         return res.sendStatus(500);
-//     }
-// }
-
 
 async function editMIVData(req, res) {
     try {
@@ -730,68 +859,48 @@ function isImage(file) {
 
 //------------------------------------------------------------ NO OF MEETING ------------------------------------------------------------
 
-
 // async function getNoOfMeetings(req, res) {
+//     const organisationID = req.query.organisationID;
 //     const conn = await pool;
-//     try {
-//         const result = await conn.query('SELECT no_of_meetings FROM tbl_no_of_meeting WHERE no_of_meeting_id = 1;');
+//     const request = conn.request();
 
-//         if (result.recordset && result.recordset.length > 0) {
-//           const noOfMeetings = result.recordset[0].no_of_meetings ?? 0;
-//           res.json({ no_of_meetings: noOfMeetings });
-//         } else {
-//           res.status(500).json({ error: 'No data found in the result set' });
-//         }
-//       } catch (err) {
-//         console.error(err);
-//         res.status(500).json({ error: 'Internal Server Error' });
-//       } finally {
-//         conn.release(); // Release the connection back to the pool
-//       }
-// }
-
-async function getNoOfMeetings(req, res) {
-    const organisationID = req.query.organisationID;
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input('organisationID', organisationID);
+//     request.input('organisationID', organisationID);
     
 
-    try {
-        const result = await request.query(`SELECT count(meeting_document_id) as meeting_document_id ,
-            tbl_meeting_document.organisation_id,
-            organisation_name 
-            FROM tbl_meeting_document      
+//     try {
+//         const result = await request.query(`SELECT count(meeting_document_id) as meeting_document_id ,
+//             tbl_meeting_document.organisation_id,
+//             organisation_name 
+//             FROM tbl_meeting_document      
           
-            INNER JOIN mmt_organisation ON mmt_organisation.organisation_id = tbl_meeting_document.organisation_id
+//             INNER JOIN mmt_organisation ON mmt_organisation.organisation_id = tbl_meeting_document.organisation_id
            
-            where tbl_meeting_document.organisation_id = @organisationID
+//             where tbl_meeting_document.organisation_id = @organisationID
           
-            Group by tbl_meeting_document.organisation_id,
-            organisation_name  
-            ;`);
-        // res.json(result.recordset);
-        if (result.recordset && result.recordset.length > 0) {
-            const noOfMeetings = result.recordset[0].meeting_document_id ?? 0;
-            const organisationID = result.recordset[0].organisation_id;
-            res.json({ meeting_document_id: noOfMeetings, organisation_id: organisationID });
-            // res.json({ meeting_document_id: noOfMeetings });
+//             Group by tbl_meeting_document.organisation_id,
+//             organisation_name  
+//             ;`);
+//         // res.json(result.recordset);
+//         if (result.recordset && result.recordset.length > 0) {
+//             const noOfMeetings = result.recordset[0].meeting_document_id ?? 0;
+//             const organisationID = result.recordset[0].organisation_id;
+//             res.json({ meeting_document_id: noOfMeetings, organisation_id: organisationID });
+//             // res.json({ meeting_document_id: noOfMeetings });
 
-            //   res.json({ proposalID });        
-        }
-        else {
-            res.status(500).json({ error: 'No data found in the result set' });
-        }
-    }
-    catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Internal Server Error' });
-    }
-    finally {
-        conn.release(); 
-    }
-}
+//             //   res.json({ proposalID });        
+//         }
+//         else {
+//             res.status(500).json({ error: 'No data found in the result set' });
+//         }
+//     }
+//     catch (err) {
+//         console.error(err);
+//         res.status(500).json({ error: 'Internal Server Error' });
+//     }
+//     finally {
+//         conn.release(); 
+//     }
+// }
 // ---------------------------------------------------- meeting document download -----------------------------------------------
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -845,28 +954,84 @@ async function getUpdateMIV(req, res) {
 
 };
 
-async function getMIVMeeting(req, res) {
-    const conn = await pool;
 
+async function getMIVMeeting(req, res) {
     try {
-        const result = await conn.query(`
-        SELECT 
-            COUNT(tbl_meeting_document.meeting_document_id) as meeting_document_count,
-            tbl_meeting_document.organisation_id,
-            mmt_organisation.organisation_name
-        FROM 
-            tbl_meeting_document
-        INNER JOIN 
-            mmt_organisation ON mmt_organisation.organisation_id = tbl_meeting_document.organisation_id
-        GROUP BY 
-            tbl_meeting_document.organisation_id, mmt_organisation.organisation_name;
-    `);
-        res.json(result.recordset);
-    } catch (err) {
-        console.error(err);
-        return res.sendStatus(500);
+        const conn = await pool;
+        const userID = Number(req.params.userId);
+
+        if (!Number.isInteger(userID)) {
+            return res.status(400).json({
+                message: "Invalid user ID"
+            });
+        }
+
+        const userResult = await conn.request()
+            .input("userID", sql.Int, userID)
+            .query(`
+                SELECT user_id, role_id, organisation_id
+                FROM tbl_user
+                WHERE user_id = @userID
+            `);
+
+        if (!userResult.recordset.length) {
+            return res.status(404).json({
+                message: "User not found"
+            });
+        }
+
+        const user = userResult.recordset[0];
+
+        const roleID = Number(user.role_id);
+        const organisationID = user.organisation_id;
+
+        const isAdmin = [2, 3, 4, 5, 8].includes(roleID);
+
+        if (!isAdmin && !organisationID) {
+            return res.status(400).json({
+                message: "Organisation ID not assigned to this user"
+            });
+        }
+
+        const request = conn.request();
+
+        let query = `
+            SELECT
+                COUNT(md.meeting_document_id) AS meeting_document_count,
+                md.organisation_id,
+                org.organisation_name
+            FROM tbl_meeting_document md
+            INNER JOIN mmt_organisation org
+                ON org.organisation_id = md.organisation_id
+        `;
+
+        if (!isAdmin) {
+            query += `
+                WHERE md.organisation_id = @organisation_id
+            `;
+
+            request.input(
+                "organisation_id",
+                sql.Int,
+                Number(organisationID)
+            );
+        }
+
+        query += `
+            GROUP BY
+                md.organisation_id,
+                org.organisation_name
+            ORDER BY org.organisation_name;
+        `;
+
+        const result = await request.query(query);
+        return res.status(200).json(result.recordset);
+
+    } catch (error) {
+        return res.status(500).json({error: "Internal Server Error"});
     }
 }
+
 
 async function getInitiativeMopswData(req, res) {
     const conn = await pool;
@@ -1479,7 +1644,7 @@ async function getNewInitiatives(req, res) {
 const MIVTab = {
     getMIVData, createMIVData,
     createMeeting, getMeeting,
-    getNoOfMeetings, editMIVData, uploadMeeting: uploadMeeting,
+    editMIVData, uploadMeeting: uploadMeeting,
     uploadFiles, downloadMeeting, getUpdateMIV, getMIVMeeting, getInitiativeMopswData, 
     getLogMeetingMopsw, getInitiativeName, getInitiativeTargetDate,getMIVDashboard,
     getMIVactivityStatusWise,getMIVactivityCurrentStatusPortWise,getMIVCategoryCountWise,detailedMivDashboard,

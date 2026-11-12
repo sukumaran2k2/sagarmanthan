@@ -16,7 +16,7 @@ import {
   TAB_USER_MASTER_MANAGEMENT
 } from '../utils/moduleAccess';
 import { isOrganisationUser } from '../utils/authSession';
-import { endSession } from '../utils/sessionRefresh';
+import { signOut } from '../utils/sessionRefresh';
 import { Home } from 'lucide-react';
 
 export const ROUTE_MAP = {
@@ -479,9 +479,7 @@ export default function MainLayout({
           isManual={isManualNetworkCheck}
           onContinue={() => setShowNetworkCheck(false)}
           onCancel={() => {
-            endSession();
-            localStorage.removeItem('accessToken');
-            localStorage.removeItem('refreshToken');
+            signOut();
             setIsLoggedIn(false);
             setShowNetworkCheck(false);
           }}
