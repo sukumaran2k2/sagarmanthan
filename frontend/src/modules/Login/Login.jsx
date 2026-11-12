@@ -290,11 +290,18 @@ export default function LoginView({ onLogin, notice = '' }) {
           {/* Footer Host Agency Reference */}
           <div className="flex flex-col items-center justify-center text-center text-[10px] text-slate-300 font-semibold pt-4 border-t border-white/10 mt-4 select-none">
             <span className="mb-1 text-slate-400">Developed and hosted by</span>
-            <div className="flex items-center space-x-1.5">
+            <div className="flex items-center gap-3">
+              <img
+                src="/iitm-logo.png"
+                alt="IIT Madras"
+                className="h-16 w-auto object-contain"
+              />
+              <span className="h-9 w-px bg-white/20" aria-hidden="true" />
+              {/* logo-01.png carries ~half its width as empty space, so pull it back to keep the pair visually centred */}
               <img
                 src="/logo-01.png"
-                alt="Logo"
-                className="h-14 w-auto object-contain"
+                alt="NTCPWC"
+                className="h-14 w-auto object-contain -mr-14"
               />
             </div>
           </div>

@@ -24,7 +24,6 @@ import {
   TrendingUp,
   BookMarked,
   FileEdit,
-  LineChart,
   UserCheck,
   PhoneCall,
   ChevronDown,
@@ -47,14 +46,11 @@ import {
   UserX,
   UserPlus,
   BookOpen,
-  FileCheck,
   ClipboardList,
   Network,
   Globe,
-  Milestone,
   CheckCircle,
   HelpCircle,
-  Gavel,
   Shield,
   Menu,
   Target,
@@ -219,15 +215,6 @@ export default function Tabs({ activeTab, setActiveTab }) {
           ]
         },
         {
-          title: 'DSG',
-          icon: ShieldCheck,
-          items: [
-            m('KPI_DGS', { label: 'MMD Master', icon: ClipboardList }),
-            m('KPI_DGS', { label: 'DSG Input Form', icon: FileEdit }),
-            m('KPI_DGS', { label: 'DSG Reports', icon: FilePieChart }),
-          ]
-        },
-        {
           title: 'DGLL',
           icon: Compass,
           items: [
@@ -297,11 +284,11 @@ export default function Tabs({ activeTab, setActiveTab }) {
           icon: Scale,
           targetTab: 'Parliamentary Issue',
           subItems: [
-            { label: 'Data List', tab: 'Parliamentary Issue', targetSubTab: 'Data List', icon: ClipboardList },
+            { label: 'Data List', tab: 'Parliamentary Issue - Data List', targetSubTab: 'Data List', icon: ClipboardList },
             ...(canCreateParliamentary
-              ? [{ label: 'Input Form', tab: 'Parliamentary Issue', targetSubTab: 'Input Form', icon: FileEdit }]
+              ? [{ label: 'Input Form', tab: 'Parliamentary Issue - Input Form', targetSubTab: 'Input Form', icon: FileEdit }]
               : []),
-            { label: 'Reports', tab: 'Parliamentary Issue', targetSubTab: 'Reports', icon: FilePieChart },
+            { label: 'Reports', tab: 'Parliamentary Issue - Reports', targetSubTab: 'Reports', icon: FilePieChart },
           ],
         }),
         m('GEM_PROCUREMENT', { label: 'GEM Procurements', icon: Coins }),
@@ -309,20 +296,20 @@ export default function Tabs({ activeTab, setActiveTab }) {
           label: 'Cabinet Notes - MoPSW', icon: FileText,
           targetTab: 'Cabinet Notes - MoPSW',
           subItems: [
-            { label: 'Data List', tab: 'Cabinet Notes - MoPSW', targetSubTab: 'Data List', icon: ClipboardList },
+            { label: 'Data List', tab: 'Cabinet Notes - MoPSW - Data List', targetSubTab: 'Data List', icon: ClipboardList },
             ...(canCreateCabinetMopsw
-              ? [{ label: 'Input Form', tab: 'Cabinet Notes - MoPSW', targetSubTab: 'Input Form', icon: FileEdit }]
+              ? [{ label: 'Input Form', tab: 'Cabinet Notes - MoPSW - Input Form', targetSubTab: 'Input Form', icon: FileEdit }]
               : []),
-            { label: 'Reports', tab: 'Cabinet Notes - MoPSW', targetSubTab: 'Reports', icon: FilePieChart },
+            { label: 'Reports', tab: 'Cabinet Notes - MoPSW - Reports', targetSubTab: 'Reports', icon: FilePieChart },
           ]
         }),
         m('VIP_REFERENCE', {
           label: 'VIP Reference', icon: Users,
           targetTab: 'VIP Reference',
           subItems: [
-            { label: 'Data List', tab: 'VIP Reference', targetSubTab: 'Data List', icon: ClipboardList },
-            { label: 'Input Form', tab: 'VIP Reference', targetSubTab: 'Input Form', icon: FileEdit },
-            { label: 'Reports', tab: 'VIP Reference', targetSubTab: 'Reports', icon: FilePieChart },
+            { label: 'Data List', tab: 'VIP Reference - Data List', targetSubTab: 'Data List', icon: ClipboardList },
+            { label: 'Input Form', tab: 'VIP Reference - Input Form', targetSubTab: 'Input Form', icon: FileEdit },
+            { label: 'Reports', tab: 'VIP Reference - Reports', targetSubTab: 'Reports', icon: FilePieChart },
           ]
         }),
         m('MEDIA_OUTREACH', {
@@ -337,8 +324,6 @@ export default function Tabs({ activeTab, setActiveTab }) {
           ]
         }),
         m('AUDIT_PARAS', { label: 'Audit Paras', icon: CheckCircle }),
-        m('INTERSTATE_INTERMINISTERIAL', { label: 'Inter State & Inter Ministerial', icon: Network }),
-        m('FOREIGN_VISIT', { label: 'Foreign Visit', icon: Globe }),
       ]
     },
     {
@@ -391,7 +376,6 @@ export default function Tabs({ activeTab, setActiveTab }) {
       align: 'left-0',
       width: 'w-[260px]',
       items: [
-        m('COURT_CASES', { label: 'Courtcases', icon: Gavel }),
         m('BILLS_PRE_CONSTITUTION', {
           label: 'Bills/PreConstitutions Act', icon: BookMarked,
           targetTab: 'Bills/PreConstitutions Act',
@@ -454,27 +438,12 @@ export default function Tabs({ activeTab, setActiveTab }) {
           targetTab: 'Drishti Portal',
           subItems: [
             { label: 'Dashboard', tab: 'Drishti Portal', targetSubTab: 'Dashboard', icon: LayoutDashboard },
-            { label: 'Intervention List', tab: 'Drishti Portal', targetSubTab: 'Interventions', icon: ClipboardList },
-            { label: 'Input Form', tab: 'Drishti Portal', targetSubTab: 'Input-Form', icon: FileEdit },
-            { label: 'Data List', tab: 'Drishti Portal', targetSubTab: 'Data-List', icon: Layers },
-            { label: 'Report', tab: 'Drishti Portal', targetSubTab: 'Report', icon: FilePieChart },
+            { label: 'Intervention List', tab: 'Intervention List', targetSubTab: 'Interventions', icon: ClipboardList },
+            { label: 'Input Form', tab: 'Drishti Portal - Input Form', targetSubTab: 'Input-Form', icon: FileEdit },
+            { label: 'Data List', tab: 'Drishti Portal - Data List', targetSubTab: 'Data-List', icon: Layers },
+            { label: 'Report', tab: 'Drishti Portal - Report', targetSubTab: 'Report', icon: FilePieChart },
           ]
         }),
-        m('AKV_2047', { label: 'Vision 2047', icon: Milestone }),
-        m('MIV_2030', { label: 'Maritime India Summit', icon: Anchor }),
-        m('AKV_2047', { label: 'Blue Economy Policy', icon: Globe }),
-      ]
-    },
-    {
-      id: 'knowledge',
-      label: 'Knowledge',
-      icon: BookMarked,
-      align: 'left-0',
-      width: 'w-[220px]',
-      items: [
-        m('KNOWLEDGE_REPOSITORY', { label: 'Research Papers', icon: FileText }),
-        m('KNOWLEDGE_REPOSITORY', { label: 'Policy Documents', icon: BookOpen }),
-        m('KNOWLEDGE_REPOSITORY', { label: 'Guidelines', icon: FileCheck }),
       ]
     },
     {
@@ -489,29 +458,6 @@ export default function Tabs({ activeTab, setActiveTab }) {
         ...(!isOrgUser ? [m('FORM_BUILDER', { label: 'Form Studio', tab: 'Form Studio', icon: FileEdit })] : []),
         m('FORM_BUILDER', { label: 'Form Directory', tab: 'Form Directory', icon: FileText }),
         m('FORM_BUILDER', { label: 'Inbox Forms', tab: 'Inbox Forms', icon: ClipboardList }),
-      ]
-    },
-    {
-      id: 'tracker',
-      label: 'Tracker',
-      icon: LineChart,
-      align: 'right-0',
-      width: 'w-[220px]',
-      items: [
-        m('MOPSW_TRACKER', { label: 'Project Milestones', icon: Milestone }),
-        m('MOPSW_TRACKER', { label: 'Delay Analysis', icon: LineChart }),
-      ]
-    },
-    {
-      id: 'meetings',
-      label: 'Meetings',
-      icon: UserCheck,
-      align: 'right-0',
-      width: 'w-[240px]',
-      items: [
-        m('SENIOR_OFFICE_MEETINGS', { label: 'Meeting Schedule', icon: ClipboardList }),
-        m('SENIOR_OFFICE_MEETINGS', { label: 'Minutes of Meeting', icon: FileText }),
-        m('SENIOR_OFFICE_MEETINGS', { label: 'Action Taken Report', icon: CheckCircle }),
       ]
     },
     ...(isSuperAdmin()
@@ -545,6 +491,27 @@ export default function Tabs({ activeTab, setActiveTab }) {
   ]),
     [accessKey, isOrgUser, canCreateParliamentary, canCreateCabinetMopsw, canCreateConsultant, canCreateYp, canCreateCapex, canViewHrVacancy, canViewHrAdmin, hrView]
   );
+
+  // Modules that keep their sub-tab in a store rather than in the URL read the opening tab from
+  // session storage on a first visit, and from an event when they are already on screen.
+  // URL-driven modules need none of this: their menu items carry their own tab/route instead.
+  const SUBTAB_HINTS = {
+    'Cabinet Notes - Other Ministries': ['cabinetNotesOtherInitTab', 'cabinet-notes-other-subtab'],
+    'Cabinet Notes-Other Ministry': ['cabinetNotesOtherInitTab', 'cabinet-notes-other-subtab'],
+    'GMIS & IMW MoUs': ['gmisMouInitTab', 'gmis-mou-subtab'],
+    'GMIS-MoU': ['gmisMouInitTab', 'gmis-mou-subtab'],
+    'Bills/PreConstitutions Act': ['billsPreConstitutionsInitTab', 'bills-preconstitutions-subtab'],
+  };
+
+  const applySubTabHint = (mainTab, sub) => {
+    if (sub.mediaType) sessionStorage.setItem('mediaOutreachInitTab', sub.mediaType);
+    if (!sub.targetSubTab) return;
+    const hint = SUBTAB_HINTS[mainTab];
+    if (!hint) return;
+    const [key, event] = hint;
+    sessionStorage.setItem(key, sub.targetSubTab);
+    window.dispatchEvent(new CustomEvent(event, { detail: sub.targetSubTab }));
+  };
 
   const handleItemClick = (tabOrLabel) => {
     const tab = normalizeTab(tabOrLabel);
@@ -779,80 +746,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
                                           const mainTab = sub.tab || item.targetTab || item.label;
                                           setActiveTab(mainTab);
                                           setIsOpen(false);
-                                          if (sub.mediaType) {
-                                            sessionStorage.setItem('mediaOutreachInitTab', sub.mediaType);
-                                          }
-                                          if (
-                                            sub.targetSubTab &&
-                                            mainTab === 'Parliamentary Issue'
-                                          ) {
-                                            sessionStorage.setItem(
-                                              'parliamentaryIssueInitTab',
-                                              sub.targetSubTab
-                                            );
-                                            window.dispatchEvent(
-                                              new CustomEvent('parliamentary-issue-subtab', {
-                                                detail: sub.targetSubTab,
-                                              })
-                                            );
-                                          }
-                                          if (
-                                            sub.targetSubTab &&
-                                            (mainTab === 'Cabinet Notes - MoPSW' ||
-                                              mainTab === 'Cabinet Notes-MoPSW')
-                                          ) {
-                                            sessionStorage.setItem(
-                                              'cabinetNotesMopswInitTab',
-                                              sub.targetSubTab
-                                            );
-                                            window.dispatchEvent(
-                                              new CustomEvent('cabinet-notes-mopsw-subtab', {
-                                                detail: sub.targetSubTab,
-                                              })
-                                            );
-                                          }
-                                          if (
-                                            sub.targetSubTab &&
-                                            (mainTab === 'MIV 2030' || mainTab === 'MIV2030')
-                                          ) {
-                                            sessionStorage.setItem(
-                                              'miv2030InitTab',
-                                              sub.targetSubTab
-                                            );
-                                            window.dispatchEvent(
-                                              new CustomEvent('miv-2030-subtab', {
-                                                detail: sub.targetSubTab,
-                                              })
-                                            );
-                                          }
-                                          if (
-                                            sub.targetSubTab &&
-                                            (mainTab === 'GMIS & IMW MoUs' || mainTab === 'GMIS-MoU' || mainTab === 'GMISMOU')
-                                          ) {
-                                            sessionStorage.setItem(
-                                              'gmisMouInitTab',
-                                              sub.targetSubTab
-                                            );
-                                            window.dispatchEvent(
-                                              new CustomEvent('gmis-mou-subtab', {
-                                                detail: sub.targetSubTab,
-                                              })
-                                            );
-                                          }
-                                          if (
-                                            sub.targetSubTab &&
-                                            mainTab === 'Bills/PreConstitutions Act'
-                                          ) {
-                                            sessionStorage.setItem(
-                                              'billsPreConstitutionsInitTab',
-                                              sub.targetSubTab
-                                            );
-                                            window.dispatchEvent(
-                                              new CustomEvent('bills-preconstitutions-subtab', {
-                                                detail: sub.targetSubTab,
-                                              })
-                                            );
-                                          }
+                                          applySubTabHint(mainTab, sub);
                                         }}
                                         className="flex items-center space-x-2 w-full text-left text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all py-1.5 px-2.5 rounded-lg border border-transparent hover:border-slate-100 dark:hover:border-slate-700 cursor-pointer"
                                       >
@@ -1130,67 +1024,8 @@ export default function Tabs({ activeTab, setActiveTab }) {
                                             onClick={() => {
                                               const mainTab = sub.tab || item.targetTab || item.label;
                                               setActiveTab(mainTab);
-                                              if (sub.mediaType) {
-                                                sessionStorage.setItem('mediaOutreachInitTab', sub.mediaType);
-                                              }
-                                              if (
-                                                sub.targetSubTab &&
-                                                mainTab === 'Parliamentary Issue'
-                                              ) {
-                                                sessionStorage.setItem(
-                                                  'parliamentaryIssueInitTab',
-                                                  sub.targetSubTab
-                                                );
-                                                window.dispatchEvent(
-                                                  new CustomEvent('parliamentary-issue-subtab', {
-                                                    detail: sub.targetSubTab,
-                                                  })
-                                                );
-                                              }
-                                              if (
-                                                sub.targetSubTab &&
-                                                (mainTab === 'Cabinet Notes - MoPSW' ||
-                                                  mainTab === 'Cabinet Notes-MoPSW')
-                                              ) {
-                                                sessionStorage.setItem(
-                                                  'cabinetNotesMopswInitTab',
-                                                  sub.targetSubTab
-                                                );
-                                                window.dispatchEvent(
-                                                  new CustomEvent('cabinet-notes-mopsw-subtab', {
-                                                    detail: sub.targetSubTab,
-                                                  })
-                                                );
-                                              }
-                                              if (
-                                                sub.targetSubTab &&
-                                                (mainTab === 'MIV 2030' || mainTab === 'MIV2030')
-                                              ) {
-                                                sessionStorage.setItem(
-                                                  'miv2030InitTab',
-                                                  sub.targetSubTab
-                                                );
-                                                window.dispatchEvent(
-                                                  new CustomEvent('miv2030-subtab', {
-                                                    detail: sub.targetSubTab,
-                                                  })
-                                                );
-                                              }
-                                              if (
-                                                sub.targetSubTab &&
-                                                mainTab === 'Bills/PreConstitutions Act'
-                                              ) {
-                                                sessionStorage.setItem(
-                                                  'billsPreConstitutionsInitTab',
-                                                  sub.targetSubTab
-                                                );
-                                                window.dispatchEvent(
-                                                  new CustomEvent('bills-preconstitutions-subtab', {
-                                                    detail: sub.targetSubTab,
-                                                  })
-                                                );
-                                              }
                                               setIsOpen(false);
+                                              applySubTabHint(mainTab, sub);
                                             }}
                                             className="flex items-center space-x-2 text-left text-[11px] font-semibold transition-all py-1.5 px-2 rounded-md text-slate-500 hover:text-blue-600 hover:bg-slate-100"
                                           >
