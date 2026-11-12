@@ -1,10 +1,11 @@
 import axios from 'axios';
 import { decodeAccessToken } from '../../utils/authSession';
+import { getAccessToken } from '../../utils/tabSession';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 const getAuthHeaders = () => {
-  const token = localStorage.getItem('token') || localStorage.getItem('accessToken');
+  const token = getAccessToken();
   return {
     headers: {
       Authorization: token ? `Bearer ${token}` : '',
@@ -13,7 +14,7 @@ const getAuthHeaders = () => {
 };
 
 export const getUserIdFromToken = () => {
-  const token = localStorage.getItem('token') || localStorage.getItem('accessToken');
+  const token = getAccessToken();
   if (!token) return '1';
   try {
     const decoded = decodeAccessToken(token);
@@ -228,7 +229,7 @@ export const updateOvdFullItem = async (payload) => {
  */
 export const uploadOvdDocument = async (formData) => {
   const url = `${API_BASE_URL}/ovd-document`;
-  const token = localStorage.getItem('token') || localStorage.getItem('accessToken');
+  const token = getAccessToken();
   const response = await axios.post(url, formData, {
     headers: {
       Authorization: token ? `Bearer ${token}` : '',

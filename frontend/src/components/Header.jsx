@@ -3,25 +3,9 @@ import { axiosInstance as api } from '../api';
 import { ChevronDown, Globe, Type, Sun, Moon, Bell } from 'lucide-react';
 import sagarmanthanLogo from '../assets/sagarmanthan_logo.png';
 import { useTheme } from '../context/ThemeContext.jsx';
-import { isOrgSeniorOfficer, getCurrentUserId, isOrganisationUser } from '../utils/authSession';
+import { isOrgSeniorOfficer, getCurrentUserId, isOrganisationUser, getSessionClaims } from '../utils/authSession';
 import { TAB_USER_MODULE_PERMISSION } from '../utils/moduleAccess';
 import NotificationPanel from './NotificationPanel';
-
-function decodeToken(token) {
-  try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-    );
-    return JSON.parse(jsonPayload);
-  } catch {
-    return null;
-  }
-}
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -53,9 +37,7 @@ export default function Header({ onLogout, onProfileClick, onUserManagementClick
   }, [fontSize]);
 
   useEffect(() => {
-    const token = localStorage.getItem('accessToken');
-    if (!token) return;
-    const decoded = decodeToken(token);
+    const decoded = getSessionClaims();
     if (!decoded || !decoded.email) return;
 
     if (decoded.roleCode === 'SUPERADMIN') {

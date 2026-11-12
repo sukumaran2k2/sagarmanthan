@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, Save, AlertCircle, CheckCircle2, Calendar, FileText } from 'lucide-react';
 import { createVIPReference, updateVIPReference } from '../api';
 import { STAGE_STEPS as STATUS_STEPS } from '../utils/constants';
+import { getCurrentUserId } from '../../../utils/authSession';
 
 // Schema Constraints Definitions
 const SCHEMA_LIMITS = {
@@ -32,19 +33,6 @@ export default function InputForm({
 }) {
   const isEdit = !!editData;
   const [submitting, setSubmitting] = useState(false);
-
-  const getUserIdFromToken = () => {
-    const token = localStorage.getItem('accessToken');
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        return Number(payload.userId) || 1;
-      } catch (e) {
-        console.error("Error parsing token", e);
-      }
-    }
-    return 1;
-  };
 
   // Form Fields matching tbl_vip_reference_change schema types
   const [subject, setSubject] = useState(''); // nvarchar(MAX)
@@ -520,7 +508,7 @@ export default function InputForm({
       vipRemarks: remarks.trim(),
       selectedStage: Number(selectedStage), // int
       deadline: deadline || null, // date
-      userID: getUserIdFromToken() // int
+      userID: getCurrentUserId() || 1 // int
     };
 
     try {

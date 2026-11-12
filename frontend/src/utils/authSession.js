@@ -1,3 +1,5 @@
+import { getAccessToken } from './tabSession';
+
 export function decodeAccessToken(token) {
   if (!token) return null;
   try {
@@ -15,7 +17,7 @@ export function decodeAccessToken(token) {
 }
 
 export function getSessionClaims() {
-  const token = localStorage.getItem('accessToken');
+  const token = getAccessToken();
   return decodeAccessToken(token);
 }
 

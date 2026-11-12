@@ -1,48 +1,12 @@
-import axios from 'axios';
-import { refreshAccessToken } from '../../utils/sessionRefresh';
+import { API_BASE, createApiClient } from '../../api';
 
-export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+export { API_BASE };
 
-const api = axios.create({
-  baseURL: API_BASE,
+const api = createApiClient({
   headers: {
     'Content-Type': 'application/json',
   },
 });
-
-// Attach Authorization Bearer token to all outgoing requests
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('accessToken');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-// Auto-refresh expired access token on 401 response
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-      try {
-        // Shared session refresh (cookie-based; the old POST with a stored token never worked)
-        const newAccessToken = await refreshAccessToken();
-        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
-        return api(originalRequest);
-      } catch (refreshErr) {
-        localStorage.clear();
-        window.location.href = '/';
-        return Promise.reject(refreshErr);
-      }
-    }
-    return Promise.reject(error);
-  }
-);
 
 // GMIS & IMW API Endpoints
 export function fetchGmisMouPaginated(params = {}) {
