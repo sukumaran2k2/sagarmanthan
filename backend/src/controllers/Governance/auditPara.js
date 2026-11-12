@@ -22,17 +22,31 @@ const STAGE_FIELDS = [
 ];
 
 // Date a para entered its current stage (stage 4 has no date: the last update stands in)
-const STAGE_SINCE = `COALESCE(CASE tbl_audit_para.stage_id
+// The para's current stage as the Data List and the report work it out: the last step marked
+// Yes (0 = none). The dashboard uses it too, so the three always agree even when a stored
+// stage_id is missing or out of step with the flags (e.g. a para from 2.0).
+const CURRENT_STAGE = `(CASE
+        WHEN tbl_audit_para.disposed = 1 THEN 7
+        WHEN tbl_audit_para.cag_accepted = 1 THEN 6
+        WHEN tbl_audit_para.comments_furnished = 1 THEN 5
+        WHEN tbl_audit_para.under_clarification = 1 THEN 4
+        WHEN tbl_audit_para.comments_rec = 1 THEN 3
+        WHEN tbl_audit_para.comments_sought = 1 THEN 2
+        WHEN tbl_audit_para.received_at_ministry = 1 THEN 1
+        ELSE 0 END)`;
+const STAGE_SINCE = `COALESCE(CASE ${CURRENT_STAGE}
         WHEN 1 THEN tbl_audit_para.date_of_receipt
         WHEN 2 THEN tbl_audit_para.comments_sought_date
         WHEN 3 THEN tbl_audit_para.comments_rec_date
         WHEN 5 THEN tbl_audit_para.comments_furnished_date
         WHEN 6 THEN tbl_audit_para.cag_accepted_date
     END, tbl_audit_para.updated_date, tbl_audit_para.created_date)`;
-const IS_OPEN = `tbl_audit_para.stage_id < ${DROPPED_STAGE}`;
+const IS_OPEN = `${CURRENT_STAGE} < ${DROPPED_STAGE}`;
 // When a para reached the Ministry (the entry date when that is missing)
 const RECEIVED_ON = 'COALESCE(tbl_audit_para.date_of_receipt, tbl_audit_para.created_date)';
 const IS_DRAFT = "tbl_audit_para.category = 'Draft Para'";
+// The category as the Data List shows it (no category = Audit Para), for the dashboard splits
+const CATEGORY_OF = "ISNULL(NULLIF(LTRIM(RTRIM(tbl_audit_para.category)), ''), 'Audit Para')";
 
 
 // Which paras the signed-in user may see, as a condition on tbl_audit_para (same rule as Bills):
@@ -154,17 +168,20 @@ async function getAuditPara(req, res) {
     try {
         const request = conn.request();
         const scope = await auditScope(request, req.user.userId);
-        const result = await request.query(`SELECT audit_para_id, stage_id, para_number, subject,
-        wing, division, wing_name, division_name, category,
+        // A para whose wing, division or stage is missing (or not in the master) is still listed,
+        // as "Not specified" / "No Status", as on the dashboard (inner joins used to drop it)
+        const result = await request.query(`SELECT audit_para_id, tbl_audit_para.stage_id, para_number, subject,
+        wing, division, ISNULL(mmt_wings.wing_name, 'Not specified') AS wing_name,
+        ISNULL(mmt_division.division_name, 'Not specified') AS division_name, category,
         received_at_ministry, date_of_receipt, comments_sought, comments_sought_date, comments_rec, comments_rec_date,
         under_clarification, comments_furnished, comments_furnished_date, cag_accepted, cag_accepted_date, disposed,
-        disposed_date, remarks, created_by, audit_para_stage_name, updated_date
+        disposed_date, remarks, created_by, ISNULL(mmt_audit_para_stage.audit_para_stage_name, 'No Status') AS audit_para_stage_name, updated_date
         FROM tbl_audit_para
-        INNER JOIN mmt_division ON tbl_audit_para.division = mmt_division.division_id
-        INNER JOIN mmt_wings ON tbl_audit_para.wing = mmt_wings.wing_id
-        INNER JOIN mmt_audit_para_stage ON mmt_audit_para_stage.audit_para_stage_id = tbl_audit_para.stage_id
+        LEFT JOIN mmt_division ON tbl_audit_para.division = mmt_division.division_id
+        LEFT JOIN mmt_wings ON tbl_audit_para.wing = mmt_wings.wing_id
+        LEFT JOIN mmt_audit_para_stage ON mmt_audit_para_stage.audit_para_stage_id = tbl_audit_para.stage_id
         WHERE ${scope}
-        ORDER BY audit_para_stage_id ASC;`);
+        ORDER BY ISNULL(tbl_audit_para.stage_id, 0) ASC;`);
         return res.json(result.recordset);
     } catch (err) {
         console.error('Audit Para list error:', err);
@@ -303,7 +320,7 @@ async function getAuditParaDashboard(req, res) {
                 CAST(AVG(CAST(DATEDIFF(day, ${STAGE_SINCE}, GETDATE()) AS FLOAT)) AS INT) AS avg_days,
                 MAX(DATEDIFF(day, ${STAGE_SINCE}, GETDATE())) AS max_days
             FROM mmt_audit_para_stage AS stage
-            LEFT JOIN tbl_audit_para ON tbl_audit_para.stage_id = stage.audit_para_stage_id /*SCOPE*/
+            LEFT JOIN tbl_audit_para ON ${CURRENT_STAGE} = stage.audit_para_stage_id /*SCOPE*/
             WHERE stage.audit_para_stage_id < ${DROPPED_STAGE}
             GROUP BY stage.audit_para_stage_id, stage.audit_para_stage_name
             ORDER BY stage.audit_para_stage_id`);
@@ -312,17 +329,24 @@ async function getAuditParaDashboard(req, res) {
         // each split by category; the one with most open paras comes first. Across wings the wing
         // filter doesn't apply (the chart compares wings).
         const byDivision = filterWing;
+        // A para whose wing / division is missing (or not in the master) is listed as "Not specified"
+        // rather than left out of the chart. Each bar is one category, as the Data List filters by.
         const groupJoin = byDivision
-            ? 'INNER JOIN mmt_division AS grp ON grp.division_id = tbl_audit_para.division'
-            : 'INNER JOIN mmt_wings AS grp ON grp.wing_id = tbl_audit_para.wing';
-        const [groupId, groupName] = byDivision ? ['grp.division_id', 'grp.division_name'] : ['grp.wing_id', 'grp.wing_name'];
+            ? 'LEFT JOIN mmt_division AS grp ON grp.division_id = tbl_audit_para.division'
+            : 'LEFT JOIN mmt_wings AS grp ON grp.wing_id = tbl_audit_para.wing';
+        const [groupId, groupName] = byDivision
+            ? ['grp.division_id', "ISNULL(grp.division_name, 'Not specified')"]
+            : ['grp.wing_id', "ISNULL(grp.wing_name, 'Not specified')"];
+        const split = (open, category) => `SUM(CASE WHEN ${open ? '' : 'NOT '}${IS_OPEN} AND ${CATEGORY_OF} = '${category}' THEN 1 ELSE 0 END)`;
         const breakdown = await query(`
             SELECT ${groupId} AS id, ${groupName} AS name,
                 SUM(CASE WHEN ${IS_OPEN} THEN 1 ELSE 0 END) AS total_open,
-                SUM(CASE WHEN ${IS_OPEN} AND NOT ${IS_DRAFT} THEN 1 ELSE 0 END) AS audit_para,
-                SUM(CASE WHEN ${IS_OPEN} AND ${IS_DRAFT} THEN 1 ELSE 0 END) AS draft_para,
-                SUM(CASE WHEN NOT ${IS_OPEN} AND NOT ${IS_DRAFT} THEN 1 ELSE 0 END) AS dropped_audit,
-                SUM(CASE WHEN NOT ${IS_OPEN} AND ${IS_DRAFT} THEN 1 ELSE 0 END) AS dropped_draft
+                ${split(true, 'Audit Para')} AS audit_para,
+                ${split(true, 'Draft Para')} AS draft_para,
+                ${split(true, 'CAG Report Item')} AS cag_item,
+                ${split(false, 'Audit Para')} AS dropped_audit,
+                ${split(false, 'Draft Para')} AS dropped_draft,
+                ${split(false, 'CAG Report Item')} AS dropped_cag
             FROM tbl_audit_para
             ${groupJoin}
             WHERE 1 = 1 /*SCOPE*/
@@ -349,12 +373,12 @@ async function getAuditParaDashboard(req, res) {
 
         const longPending = await query(`
             SELECT TOP 10 tbl_audit_para.audit_para_id, tbl_audit_para.para_number, tbl_audit_para.subject,
-                tbl_audit_para.category, wings.wing_name, tbl_audit_para.stage_id, stage.audit_para_stage_name AS current_stage,
+                tbl_audit_para.category, ISNULL(wings.wing_name, 'Not specified') AS wing_name, ${CURRENT_STAGE} AS stage_id, stage.audit_para_stage_name AS current_stage,
                 ${STAGE_SINCE} AS stage_since,
                 DATEDIFF(day, ${STAGE_SINCE}, GETDATE()) AS pending_days
             FROM tbl_audit_para
-            INNER JOIN mmt_wings AS wings ON wings.wing_id = tbl_audit_para.wing
-            LEFT JOIN mmt_audit_para_stage AS stage ON stage.audit_para_stage_id = tbl_audit_para.stage_id
+            LEFT JOIN mmt_wings AS wings ON wings.wing_id = tbl_audit_para.wing
+            LEFT JOIN mmt_audit_para_stage AS stage ON stage.audit_para_stage_id = ${CURRENT_STAGE}
             WHERE ${IS_OPEN} /*SCOPE*/
             ORDER BY pending_days DESC, tbl_audit_para.audit_para_id`);
 
