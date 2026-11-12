@@ -552,7 +552,7 @@ const filteredRows = useMemo(() => {
         <InternalNavigation tabs={TABS} currentTab={currentTab} onTabChange={goTab} />
       </div>
 
-      <div className="user-matrix-container w-full h-[85vh] bg-[#F8FAFC] dark:bg-[#0b0f19] text-[#1E293B] dark:text-slate-100 flex flex-col font-sans relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
+      <div className={`user-matrix-container w-full ${currentTab === 'data-list' ? 'h-[85vh]' : 'h-auto'} bg-[#F8FAFC] dark:bg-[#0b0f19] text-[#1E293B] dark:text-slate-100 flex flex-col font-sans relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700`}>
         <div className="topbar">
           <div className="topbar-left">
             <div className="topbar-brand">
