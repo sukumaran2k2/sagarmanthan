@@ -563,7 +563,6 @@ async function getCsrProjectslist(req, res)
             request.input("organisationID", scope.orgId);
             where.push('p.organisation_id = @organisationID');
         }
-        const scopeSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
         if (!scope.orgId && /^\d+$/.test(String(q.organisation || ''))) {
             request.input('fOrg', Number(q.organisation));
@@ -577,9 +576,7 @@ async function getCsrProjectslist(req, res)
             request.input('fFocus', Number(q.focus));
             where.push('p.csr_focus = @fFocus');
         }
-        if (q.category === 'completed') where.push(`${STATUS_SQL} = 'Completed'`);
-        else if (q.category === 'active') where.push(`${STATUS_SQL} <> 'Completed'`);
-        if (q.status && q.category !== 'completed') {
+        if (q.status) {
             request.input('fStatus', String(q.status).slice(0, 100));
             where.push(`${STATUS_SQL} = @fStatus`);
         }
@@ -589,6 +586,10 @@ async function getCsrProjectslist(req, res)
             where.push(`(${['p.project_name', 'o.organisation_name', 'p.project_received_from', 'p.target_beneficiaries', 'p.remarks']
                 .map((c) => `${c} LIKE @fSearch ESCAPE '\\'`).join(' OR ')})`);
         }
+        // The tab counts use every filter and the search, but not the tab itself
+        const countWhereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+        if (q.category === 'completed') where.push(`${STATUS_SQL} = 'Completed'`);
+        else if (q.category === 'active') where.push(`${STATUS_SQL} <> 'Completed'`);
         const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
         const sortColumn = LIST_SORTS[q.sort];
@@ -623,10 +624,10 @@ async function getCsrProjectslist(req, res)
             ${paged ? `
             SELECT COUNT(*) AS total FROM tbl_csr_projects p
             JOIN mmt_organisation o ON o.organisation_id = p.organisation_id ${whereSql};
-            -- Category tab counts: everything the user may see, before filters
+            -- Category tab counts: the filtered projects, split by tab
             SELECT COUNT(*) AS [all], ISNULL(SUM(CASE WHEN ${STATUS_SQL} = 'Completed' THEN 1 ELSE 0 END), 0) AS completed
             FROM tbl_csr_projects p
-            JOIN mmt_organisation o ON o.organisation_id = p.organisation_id ${scopeSql};` : ''}
+            JOIN mmt_organisation o ON o.organisation_id = p.organisation_id ${countWhereSql};` : ''}
         `);
         if (!paged) return res.json(result.recordsets[0]);
         const counts = result.recordsets[2][0];
