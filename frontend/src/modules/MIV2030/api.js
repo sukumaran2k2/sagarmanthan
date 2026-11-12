@@ -32,6 +32,12 @@ export function fetchMIVDashboard(params = {}) {
   return api.get('/get-miv-dashboard', { params });
 }
 
+// The dashboard: themes, statuses, organisations and overdue initiatives in one call
+// (params: themeId, organisationId; organisation users always get their own organisation)
+export function fetchMivDashboardSummary(params = {}) {
+  return api.get('/miv-dashboard', { params });
+}
+
 export function fetchMIVActivityStatusWise(params = {}) {
   return api.get('/get-miv-activity-status-wise', { params });
 }
