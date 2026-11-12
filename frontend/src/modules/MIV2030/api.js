@@ -61,7 +61,7 @@ export function fetchMIVData(params = {}) {
 }
 
 export function fetchMIVById(id) {
-  return api.get(`/miv-datas/${id}`);
+  return api.get(`/miv-data/${id}`);
 }
 
 export function createMIVData(payload) {
@@ -96,8 +96,8 @@ export function fetchMIVCategoryCountWise(params = {}) {
 }
 
 // MIV Meetings
-export function fetchMIVMeetingsData() {
-  return api.get('/miv-meetingsdata');
+export function fetchMIVMeetingsData(userId) {
+  return api.get(`/miv-meetingsdata/${userId}`);
 }
 
 export function fetchMeetingLogsByOrg(orgId) {

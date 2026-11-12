@@ -3158,7 +3158,7 @@ router.get(
 
 //Long Term Strategies
 //MIV data
-router.get('/miv-meetingsdata', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getMIVMeeting);
+router.get('/miv-meetingsdata/:userId', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getMIVMeeting);
 router.get('/mopsw-initiative-data', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getInitiativeMopswData);
 router.get('/miv-new-initiatives', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getNewInitiatives);
 router.get('/get-initiative-name/:initiativeID', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getInitiativeName);
@@ -3175,17 +3175,17 @@ router.get("/get-details-miv-activity-status-wise", auth, requireModulePermissio
 
 router.get('/miv-data', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getMIVData);
 router.post('/miv-data', auth, requireModulePermission("MIV_2030", "create"), MIVTab.createMIVData);
-router.get('/miv', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getMIVData);
-router.post('/miv', auth, requireModulePermission("MIV_2030", "create"), MIVTab.createMIVData);
-router.get("/miv-datas/:ID", auth, requireModulePermission("MIV_2030", "read"), MIVTab.getUpdateMIV);
-router.get("/miv/:ID", auth, requireModulePermission("MIV_2030", "read"), MIVTab.getUpdateMIV);
+// router.get('/miv', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getMIVData);
+// router.post('/miv', auth, requireModulePermission("MIV_2030", "create"), MIVTab.createMIVData);
+router.get("/miv-data/:ID", auth, requireModulePermission("MIV_2030", "read"), MIVTab.getUpdateMIV);
+// router.get("/miv/:ID", auth, requireModulePermission("MIV_2030", "read"), MIVTab.getUpdateMIV);
 router.post('/miv-data/upload-files', auth, requireAnyModulePermission("MIV_2030", ["create", "update"]), MIVTab.uploadFiles);
 router.put('/miv-data/:id', auth, requireModulePermission("MIV_2030", "update"), MIVTab.editMIVData);
-router.put('/miv/:id', auth, requireModulePermission("MIV_2030", "update"), MIVTab.editMIVData);
+// router.put('/miv/:id', auth, requireModulePermission("MIV_2030", "update"), MIVTab.editMIVData);
 router.get('/meeting', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getMeeting);
 router.post("/meeting", auth, requireModulePermission("MIV_2030", "create"), MIVTab.uploadMeeting.single('file'), MIVTab.createMeeting);
 router.get("/meeting/download/:id", MIVTab.downloadMeeting);
-router.get('/meeting-no', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getNoOfMeetings);
+// router.get('/meeting-no', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getNoOfMeetings);
 
 router.post("/mom-of-psw-meeting", momOfPswMeetingsTab.createMOM);
 router.post("/mom-of-psw-meeting-edit", momOfPswMeetingsTab.createMOMedit);
