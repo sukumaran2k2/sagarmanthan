@@ -6,6 +6,20 @@ import { Search, X, ChevronDown, Edit, Trash2 } from 'lucide-react';
 import { fetchLandAbstractList, fetchPastLandList, fetchFutureLandList, deleteNmpEntry } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
 
+
+// ── Dropdown options (keep in sync with the add form) ──
+const OPT = {
+  leasePast: [[1, 'Planned'], [2, 'Active'], [3, 'Expired'], [4, 'Renewed']],
+  leaseFuture: [[1, 'Planned'], [2, 'Active'], [3, 'Expired']],
+  status: [[1, 'Identified'], [2, 'NIT issued'], [3, 'Land allotted'], [4, 'Agreement signed/leased'], [5, 'Completion of construction']],
+  mode: [[1, 'Nomination'], [2, 'Tender cum Auction']],
+  purpose: [[1, 'Commercial'], [2, 'Industrial'], [3, 'Residential'], [4, 'Others']],
+  lessee: [[1, 'Government'], [2, 'PSU'], [3, 'Autonomous'], [4, 'Private'], [5, 'Others']],
+  sector: [[1, 'Connectivity'], [2, 'Warehousing & Storage'], [3, 'Oil, Gas & Energy'], [4, 'Manufacturing'], [5, 'Logistics Parks & Trade Zones'], [6, 'Shops'], [7, 'Office'], [8, 'Plazas'], [9, 'Hotels'], [10, 'Mercantile buildings'], [11, 'Other']],
+  agreement: [[1, 'Yes'], [2, 'No'], [3, 'In Progress']],
+};
+
+
 const SUB_TABS = [
   { id: 'land-abstract', label: 'LAND ABSTRACT' },
   { id: 'past-land', label: 'PAST LAND' },
@@ -105,7 +119,33 @@ function buildNmpPlanCols({ onEditRow, onDeleteRow, canEdit, canRemove }) {
     buildActionCol({ onEditRow, onDeleteRow, canEdit, canRemove }),
   ];
 }
+// Returns the label for a row's dropdown value.
+// Handles a numeric id, a numeric string, or an old text label, under any of the given keys.
+// Works for a numeric id, a numeric string, or an old text label, under any of the given keys.
+const toLabel = (options, row, keys) => {
+  for (const k of keys) {
+    const v = row[k];
+    if (v == null || v === '') continue;
+    if (typeof v === 'string' && isNaN(Number(v))) return v; // already a label
+    const m = options.find(([id]) => id === Number(v));
+    if (m) return m[1];
+  }
+  return '-';
+};
 
+const enrichRow = (row, tab) => {
+  if (tab === 'land-abstract') return row;
+  return {
+    ...row,
+    lease_status: toLabel(tab === 'past-land' ? OPT.leasePast : OPT.leaseFuture, row, ['lease_status_id', 'lease_status']),
+    purpose: toLabel(OPT.purpose, row, ['purpose_id', 'purpose']),
+    sector: toLabel(OPT.sector, row, ['sector_id', 'sector']),
+    status: toLabel(OPT.status, row, ['status_id', 'status']),
+    mode_of_allotment: toLabel(OPT.mode, row, ['mode_of_allotment_id', 'mode_of_allotment']),
+    type_of_agency_lessee: toLabel(OPT.lessee, row, ['type_of_lessee_id', 'type_of_agency_lessee_id', 'type_of_agency_lessee', 'type_of_lessee']),
+    agreement_signed: toLabel(OPT.agreement, row, ['agreement_signed_id', 'agreement_signed']),
+  };
+};
 const FETCH_MAP = {
   'land-abstract': fetchLandAbstractList,
   'past-land': fetchPastLandList,
@@ -137,7 +177,11 @@ export default function NmpDataList({ onEdit, onAddNew, triggerNotification, can
       const res = await fetcher();
       if (isStale()) return;
       const rows = Array.isArray(res.data) ? res.data : [];
-      setData(rows.map((item, idx) => ({ ...item, sNo: idx + 1 })));
+      if (subTab === 'past-land') {
+  console.log('PAST raw API rows:', rows);
+  console.table(rows);   // easy-to-read table in the console
+}
+      setData(rows.map((item, idx) => ({ ...enrichRow(item, subTab), sNo: idx + 1 })));
       setTabCounts(prev => ({ ...prev, [subTab]: rows.length }));
     } catch {
       if (!latestRequestRef.current) return;
