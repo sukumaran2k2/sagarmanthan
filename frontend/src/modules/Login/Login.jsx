@@ -233,15 +233,31 @@ export default function LoginView({ onLogin, notice = '' }) {
   };
 
   return (
-    <div className="relative min-h-screen w-full flex items-center justify-center overflow-hidden font-sans">
+    <div className="relative min-h-screen w-full flex items-center justify-center overflow-y-auto font-sans py-6 lg:py-0">
       <BackgroundRotator />
 
       {/* Main Container */}
-      <div className="relative w-full max-w-7xl mx-auto pl-1 pr-6 sm:pl-2 sm:pr-12 lg:pl-0 lg:pr-16 flex flex-col lg:flex-row items-center justify-between gap-12 z-10">
-        <LeftBranding />
+      <div className="relative w-full max-w-7xl mx-auto px-5 sm:px-10 lg:pl-0 lg:pr-16 flex flex-col lg:flex-row items-center justify-between gap-6 lg:gap-12 z-10">
+
+        {/* Mobile compact header — hidden on lg+ where LeftBranding shows */}
+        <div className="flex lg:hidden flex-col items-center text-center text-white select-none w-full mb-1">
+          <div className="flex items-center gap-2.5 mb-2">
+            <img src="/emblem.svg" alt="Emblem of India" className="h-9 w-auto object-contain brightness-0 invert" />
+            <div className="text-left leading-tight">
+              <p className="text-[9px] uppercase tracking-wider text-slate-300 font-extrabold">Government of India</p>
+              <p className="text-xs font-black text-white tracking-tight mt-0.5">Ministry of Ports, Shipping and Waterways</p>
+            </div>
+          </div>
+          <p className="text-sm font-black text-cyan-300 tracking-wide">Sagarmanthan 3.0</p>
+        </div>
+
+        {/* Left branding — only on lg+ */}
+        <div className="hidden lg:block">
+          <LeftBranding />
+        </div>
 
         {/* Floating Glassmorphism Input Card */}
-        <div className="w-full max-w-md bg-white/10 backdrop-blur-md rounded-3xl p-8 border border-white/20 shadow-2xl animate-fade-in">
+        <div className="w-full max-w-md bg-white/10 backdrop-blur-md rounded-3xl p-5 sm:p-8 border border-white/20 shadow-2xl animate-fade-in">
           {view === "forgot" ? (
             <ForgotCard
               forgotStep={forgotStep}

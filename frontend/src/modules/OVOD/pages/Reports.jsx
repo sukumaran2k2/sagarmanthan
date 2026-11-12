@@ -349,7 +349,8 @@ export default function Reports({ triggerNotification }) {
     if (activeTab === 'wing') {
       return BASELINE_WINGS_REPORT.map((w) => {
         const matched = allRows.filter((r) => {
-          const rw = String(r.Wing || r.wing || '').toLowerCase();
+          const rw = String(r.Wing || r.wing || '').toLowerCase().trim();
+          if (!rw) return false;
           const target = w.name.toLowerCase();
           if (!rw.includes(target) && !target.includes(rw)) return false;
 
@@ -361,7 +362,7 @@ export default function Reports({ triggerNotification }) {
           return true;
         });
 
-        if (matched.length > 0 && selectedVision !== '0') {
+        if (matched.length > 0) {
           let yts = 0, onTime = 0, del = 0, comp = 0, na = 0, drop = 0, ytu = 0, cost = 0;
           matched.forEach((item) => {
             const st = String(item['Current Status'] || item.current_status || '').toLowerCase();
@@ -401,9 +402,10 @@ export default function Reports({ triggerNotification }) {
 
     if (activeTab === 'port') {
       return MAJOR_PORTS_NAMES.map((portName, idx) => {
+        const portKey = portName.toLowerCase().split(' ').slice(0, 2).join(' ');
         const matched = allRows.filter((r) => {
           const org = String(r.ia_name || r.organisation_name || '').toLowerCase();
-          return org.includes(portName.toLowerCase().split(' ')[0]);
+          return org.includes(portKey) || portKey.includes(org.split(' ').slice(0, 2).join(' '));
         });
 
         let yts = 0, onTime = 0, del = 0, comp = 0, na = 0, drop = 0, ytu = 0, cost = 0;
@@ -443,9 +445,10 @@ export default function Reports({ triggerNotification }) {
 
     if (activeTab !== 'org') return [];
     return OTHER_ORGS_NAMES.map((orgName, idx) => {
+      const orgKey = orgName.toLowerCase().split(' ').slice(0, 2).join(' ');
       const matched = allRows.filter((r) => {
         const org = String(r.ia_name || r.organisation_name || '').toLowerCase();
-        return org.includes(orgName.toLowerCase().split(' ')[0]);
+        return org.includes(orgKey) || orgKey.includes(org.split(' ').slice(0, 2).join(' '));
       });
 
       let yts = 0, onTime = 0, del = 0, comp = 0, na = 0, drop = 0, ytu = 0, cost = 0;
@@ -488,25 +491,33 @@ export default function Reports({ triggerNotification }) {
     const count = row[statusKey];
     if (!count || count === 0) return;
 
-    let items = (row.matchedItems && row.matchedItems.length > 0) 
-      ? row.matchedItems 
+    const nameKey = row.name.toLowerCase().split(' ').slice(0, 2).join(' ');
+    let items = (row.matchedItems && row.matchedItems.length > 0)
+      ? row.matchedItems
       : allRows.filter((r) => {
           const rw = String(r.Wing || r.wing || r.ia_name || r.organisation_name || '').toLowerCase();
-          return rw.includes(row.name.toLowerCase().split(' ')[0]);
+          return rw.includes(nameKey) || nameKey.includes(rw.split(' ').slice(0, 2).join(' '));
         });
 
+    const getStatus = (i) => String(i['Current Status'] || i.current_status || '').toLowerCase();
     if (statusKey === 'completed') {
-      items = items.filter((i) => String(i['Current Status'] || i.current_status || '').toLowerCase().includes('completed'));
+      items = items.filter((i) => getStatus(i).includes('completed'));
     } else if (statusKey === 'on_time') {
-      items = items.filter((i) => String(i['Current Status'] || i.current_status || '').toLowerCase().includes('on time'));
+      items = items.filter((i) => getStatus(i).includes('on time'));
     } else if (statusKey === 'delayed') {
-      items = items.filter((i) => String(i['Current Status'] || i.current_status || '').toLowerCase().includes('delayed'));
+      items = items.filter((i) => getStatus(i).includes('delayed'));
     } else if (statusKey === 'yet_to_start') {
-      items = items.filter((i) => String(i['Current Status'] || i.current_status || '').toLowerCase().includes('yet to be started'));
+      items = items.filter((i) => getStatus(i).includes('yet to be started'));
     } else if (statusKey === 'not_applicable') {
-      items = items.filter((i) => String(i['Current Status'] || i.current_status || '').toLowerCase().includes('not applicable'));
+      items = items.filter((i) => getStatus(i).includes('not applicable'));
     } else if (statusKey === 'dropped') {
-      items = items.filter((i) => String(i['Current Status'] || i.current_status || '').toLowerCase().includes('dropped'));
+      items = items.filter((i) => getStatus(i).includes('dropped'));
+    } else if (statusKey === 'yet_to_update') {
+      items = items.filter((i) => {
+        const st = getStatus(i);
+        return !st.includes('completed') && !st.includes('on time') && !st.includes('delayed') &&
+               !st.includes('yet to be started') && !st.includes('not applicable') && !st.includes('dropped');
+      });
     }
 
     setDrilldownTarget({
@@ -1028,214 +1039,84 @@ export default function Reports({ triggerNotification }) {
     ];
   }, [reportRows]);
 
-  /* ── Drilldown Columns ─────────────────────────────────────── */
   /* ── Drilldown Columns (Performance Detailed Report) ──────── */
   const drilldownColumns = useMemo(() => {
-    const cols = [
+    const wrap = { wrapText: true, autoHeight: true, wrapHeaderText: true, autoHeaderHeight: true, cellClass: 'yp-wrap-cell', cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4' } };
+    const cell = (content) => <div className="py-2.5 whitespace-normal break-words leading-relaxed text-xs text-slate-700 dark:text-slate-300">{content}</div>;
+
+    return [
       {
-        headerName: "S.No",
-        field: "sno",
-        width: 75,
-        minWidth: 70,
-        maxWidth: 85,
-        pinned: 'left',
-        headerClass: "text-center",
-        cellClass: "text-center font-bold font-mono text-slate-800 dark:text-white yp-wrap-cell",
-        wrapText: true,
-        autoHeight: true,
-        wrapHeaderText: true,
-        autoHeaderHeight: true,
-        cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4' },
+        headerName: 'S.No', field: 'sno', width: 75, minWidth: 70, maxWidth: 85, pinned: 'left',
+        headerClass: 'text-center', cellClass: 'text-center font-bold font-mono yp-wrap-cell',
+        ...wrap,
         valueGetter: (p) => (p.node?.rowIndex != null ? p.node.rowIndex + 1 : (p.data?.sno || '-')),
-        cellRenderer: (p) => (
-          <div className="py-2.5 whitespace-normal break-words leading-relaxed text-center w-full font-mono font-bold text-xs text-slate-800 dark:text-slate-200">
-            {p.value}
-          </div>
-        )
+        cellRenderer: (p) => <div className="py-2.5 text-center font-mono font-bold text-xs text-slate-800 dark:text-slate-200">{p.value}</div>
       },
       {
-        headerName: activeTab === 'wing' ? "Wing" : activeTab === 'port' ? "Major Port" : "Organisation",
-        field: "ia_name",
-        minWidth: 190,
-        flex: 1.3,
-        pinned: 'left',
-        wrapText: true,
-        autoHeight: true,
-        wrapHeaderText: true,
-        autoHeaderHeight: true,
-        cellClass: "yp-wrap-cell",
-        cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4' },
-        valueGetter: (p) => p.data?.ia_name || p.data?.organisation_name || p.data?.name || p.data?.Wing || '-',
-        cellRenderer: (p) => (
-          <div className="py-2.5 whitespace-normal break-words leading-relaxed font-bold text-xs text-slate-800 dark:text-slate-100">
-            {p.value}
-          </div>
-        )
-      },
-      {
-        headerName: "Goal (A1)",
-        field: "goal_a1",
-        minWidth: 200,
-        flex: 1.4,
-        wrapText: true,
-        autoHeight: true,
-        wrapHeaderText: true,
-        autoHeaderHeight: true,
-        cellClass: "yp-wrap-cell",
-        cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4' },
+        headerName: 'Goal (A1)', field: 'goal_a1', minWidth: 200, flex: 1.4, ...wrap,
         valueGetter: (p) => p.data?.['Goal (A1)'] || p.data?.goal_a1 || '-',
-        cellRenderer: (p) => (
-          <div className="py-2.5 whitespace-normal break-words leading-relaxed font-medium text-xs text-slate-700 dark:text-slate-300">
-            {p.value}
-          </div>
-        )
+        cellRenderer: (p) => cell(p.value)
       },
       {
-        headerName: "Intervention (A2)",
-        field: "intervention_a2",
-        minWidth: 200,
-        flex: 1.4,
-        wrapText: true,
-        autoHeight: true,
-        wrapHeaderText: true,
-        autoHeaderHeight: true,
-        cellClass: "yp-wrap-cell",
-        cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4' },
+        headerName: 'Intervention (A2)', field: 'intervention_a2', minWidth: 200, flex: 1.4, ...wrap,
         valueGetter: (p) => p.data?.['Intervention (A2)'] || p.data?.intervention_a2 || '-',
-        cellRenderer: (p) => (
-          <div className="py-2.5 whitespace-normal break-words leading-relaxed text-xs text-slate-700 dark:text-slate-300">
-            {p.value}
-          </div>
-        )
-      }
-    ];
-
-    if (activeTab === 'wing') {
-      cols.push({
-        headerName: "Action (A3)",
-        field: "action_a3",
-        minWidth: 240,
-        flex: 1.6,
-        wrapText: true,
-        autoHeight: true,
-        wrapHeaderText: true,
-        autoHeaderHeight: true,
-        cellClass: "yp-wrap-cell",
-        cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4' },
-        valueGetter: (p) => p.data?.['Action (A3)'] || p.data?.action_a3 || p.data?.['Action (B3)'] || p.data?.action_b3 || '-',
-        cellRenderer: (p) => (
-          <div className="py-2.5 whitespace-normal break-words leading-relaxed font-semibold text-xs text-slate-800 dark:text-slate-200">
-            {p.value}
-          </div>
-        )
-      });
-    } else {
-      cols.push(
-        {
-          headerName: "Goal (B1)",
-          field: "goal_b1",
-          minWidth: 190,
-          flex: 1.3,
-          wrapText: true,
-          autoHeight: true,
-          wrapHeaderText: true,
-          autoHeaderHeight: true,
-          cellClass: "yp-wrap-cell",
-          cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4' },
-          valueGetter: (p) => p.data?.['Goal (B1)'] || p.data?.goal_b1 || '-',
-          cellRenderer: (p) => (
-            <div className="py-2.5 whitespace-normal break-words leading-relaxed text-xs text-slate-700 dark:text-slate-300">
-              {p.value}
-            </div>
-          )
-        },
-        {
-          headerName: "Intervention (B2)",
-          field: "intervention_b2",
-          minWidth: 200,
-          flex: 1.4,
-          wrapText: true,
-          autoHeight: true,
-          wrapHeaderText: true,
-          autoHeaderHeight: true,
-          cellClass: "yp-wrap-cell",
-          cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4' },
-          valueGetter: (p) => p.data?.['Intervention (B2)'] || p.data?.intervention_b2 || '-',
-          cellRenderer: (p) => (
-            <div className="py-2.5 whitespace-normal break-words leading-relaxed text-xs text-slate-700 dark:text-slate-300">
-              {p.value}
-            </div>
-          )
-        },
-        {
-          headerName: "Action (B3)",
-          field: "action_b3",
-          minWidth: 240,
-          flex: 1.6,
-          wrapText: true,
-          autoHeight: true,
-          wrapHeaderText: true,
-          autoHeaderHeight: true,
-          cellClass: "yp-wrap-cell",
-          cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4' },
-          valueGetter: (p) => p.data?.['Action (B3)'] || p.data?.action_b3 || p.data?.['Action (A3)'] || p.data?.action_a3 || '-',
-          cellRenderer: (p) => (
-            <div className="py-2.5 whitespace-normal break-words leading-relaxed font-semibold text-xs text-slate-800 dark:text-slate-200">
-              {p.value}
-            </div>
-          )
-        }
-      );
-    }
-
-    cols.push(
-      {
-        headerName: "Current Status",
-        field: "current_status",
-        width: 170,
-        minWidth: 150,
-        headerClass: "text-center",
-        cellClass: "text-center font-semibold text-[#4b2424] dark:text-amber-300 text-xs yp-wrap-cell",
-        wrapText: true,
-        autoHeight: true,
-        wrapHeaderText: true,
-        autoHeaderHeight: true,
-        cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4' },
-        valueGetter: (p) => p.data?.['Current Status'] || p.data?.current_status || p.value || 'Under Implementation',
-        cellRenderer: (p) => (
-          <div className="py-2.5 leading-snug whitespace-normal break-words text-center w-full">
-            <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-[#f7f3f3] text-[#4b2424] dark:bg-amber-950/40 dark:text-amber-300 border border-[#8c4242]/30 dark:border-amber-700/50 inline-block">
-              {p.value}
-            </span>
-          </div>
-        )
+        cellRenderer: (p) => cell(p.value)
       },
       {
-        headerName: "Total Cost (₹ Cr)",
-        field: "total_cost",
-        width: 140,
-        minWidth: 130,
-        headerClass: "text-right",
-        cellClass: "text-right font-bold text-amber-800 dark:text-amber-300 text-xs font-mono yp-wrap-cell",
-        wrapText: true,
-        autoHeight: true,
-        wrapHeaderText: true,
-        autoHeaderHeight: true,
+        headerName: 'Action (A3)', field: 'action_a3', minWidth: 240, flex: 1.6, ...wrap,
+        cellClass: 'yp-wrap-cell',
+        cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4' },
+        valueGetter: (p) => p.data?.['Action (A3)'] || p.data?.action_a3 || '-',
+        cellRenderer: (p) => <div className="py-2.5 whitespace-normal break-words leading-relaxed font-semibold text-xs text-slate-800 dark:text-slate-200">{p.value}</div>
+      },
+      {
+        headerName: 'Goal (B1)', field: 'goal_b1', minWidth: 190, flex: 1.3, ...wrap,
+        valueGetter: (p) => p.data?.['Goal (B1)'] || p.data?.goal_b1 || '-',
+        cellRenderer: (p) => cell(p.value)
+      },
+      {
+        headerName: 'Intervention (B2)', field: 'intervention_b2', minWidth: 200, flex: 1.4, ...wrap,
+        valueGetter: (p) => p.data?.['Intervention (B2)'] || p.data?.intervention_b2 || '-',
+        cellRenderer: (p) => cell(p.value)
+      },
+      {
+        headerName: 'Action (B3)', field: 'action_b3', minWidth: 240, flex: 1.6, ...wrap,
+        cellClass: 'yp-wrap-cell',
+        cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4' },
+        valueGetter: (p) => p.data?.['Action (B3)'] || p.data?.action_b3 || '-',
+        cellRenderer: (p) => <div className="py-2.5 whitespace-normal break-words leading-relaxed font-semibold text-xs text-slate-800 dark:text-slate-200">{p.value}</div>
+      },
+      {
+        headerName: 'Expected Date', field: 'expected_date', minWidth: 130, width: 140, ...wrap,
+        headerClass: 'text-center', cellClass: 'text-center yp-wrap-cell',
         cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4' },
         valueGetter: (p) => {
-          const val = p.data?.total_cost != null ? p.data.total_cost : p.data?.['Total Cost'];
-          return val != null ? Number(val) : 0;
+          const v = p.data?.['Expected Date'] || p.data?.expected_date;
+          if (!v) return '-';
+          const d = new Date(v);
+          return isNaN(d) ? v : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
         },
-        cellRenderer: (p) => (
-          <div className="py-2.5 whitespace-normal break-words leading-relaxed text-right w-full font-mono font-bold text-xs">
-            ₹{Number(p.value || 0).toFixed(2)} Cr
-          </div>
-        )
+        cellRenderer: (p) => <div className="py-2.5 text-center text-xs text-slate-700 dark:text-slate-300">{p.value}</div>
+      },
+      {
+        headerName: 'Physical Progress (%)', field: 'progress', minWidth: 130, width: 140, ...wrap,
+        headerClass: 'text-center', cellClass: 'text-center font-semibold yp-wrap-cell',
+        cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4' },
+        valueGetter: (p) => {
+          const v = p.data?.['Progress'] ?? p.data?.progress;
+          return v != null ? Number(v) : '-';
+        },
+        cellRenderer: (p) => <div className="py-2.5 text-center text-xs font-bold text-slate-800 dark:text-slate-200">{p.value !== '-' ? `${p.value}%` : '-'}</div>
+      },
+      {
+        headerName: 'Total Cost (₹ Cr)', field: 'total_cost', width: 140, minWidth: 130, ...wrap,
+        headerClass: 'text-right', cellClass: 'text-right font-bold text-amber-800 dark:text-amber-300 text-xs font-mono yp-wrap-cell',
+        cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4' },
+        valueGetter: (p) => { const v = p.data?.total_cost != null ? p.data.total_cost : p.data?.['Total Cost']; return v != null ? Number(v) : 0; },
+        cellRenderer: (p) => <div className="py-2.5 text-right w-full font-mono font-bold text-xs">₹{Number(p.value || 0).toFixed(2)} Cr</div>
       }
-    );
-
-    return cols;
-  }, [activeTab]);
+    ];
+  }, []);
 
   const handleBack = () => {
     setDrilldownTarget(null);

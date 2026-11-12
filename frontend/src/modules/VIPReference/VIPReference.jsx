@@ -1,27 +1,31 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
 import InternalNavigation from '../../components/InternalNavigation';
+import RestrictedAccess from '../../components/RestrictedAccess';
 import Dashboard from './pages/Dashboard';
 import DataList from './pages/DataList';
 import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
-import { fetchWings, fetchDivisions, fetchVIPReferences } from './api';
+import { useVipPermissions } from './hooks/useVipPermissions';
+import { useVipStore } from './store/useVipStore';
 
 export default function VIPReference({ triggerNotification }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const permissions = useVipPermissions();
+  const { canAdd, canEdit, canRemove, canView } = permissions;
 
-  const [vipReferences, setVipReferences] = useState([]);
-  const [wings, setWings] = useState([]);
-  const [divisions, setDivisions] = useState([]);
-  const [editData, setEditData] = useState(null);
+  const loadWingsAndDivisions = useVipStore(state => state.loadWingsAndDivisions);
 
-  const tabs = [
-    { id: 'dashboard', label: 'Dashboard' },
-    { id: 'input-form', label: 'Input Form' },
-    { id: 'data-list', label: 'Data List' },
-    { id: 'reports', label: 'Report' }
-  ];
+  const editData = location.state?.item ?? null;
+
+  const tabs = useMemo(() => {
+    const list = [{ id: 'dashboard', label: 'Dashboard' }];
+    if (canAdd) list.push({ id: 'input-form', label: 'Input Form' });
+    if (canView) list.push({ id: 'data-list', label: 'Data List' });
+    if (canView) list.push({ id: 'reports', label: 'Report' });
+    return list;
+  }, [canAdd, canView]);
 
   const currentTab = useMemo(() => {
     const path = location.pathname.toLowerCase();
@@ -31,80 +35,34 @@ export default function VIPReference({ triggerNotification }) {
     return 'data-list';
   }, [location.pathname]);
 
-  // Fetch wings and divisions on mount using centralized API service
   useEffect(() => {
-    fetchWings()
-      .then(res => setWings(res.data || []))
-      .catch(err => console.error("Error loading wings:", err));
+    loadWingsAndDivisions();
+  }, [loadWingsAndDivisions]);
 
-    fetchDivisions()
-      .then(res => setDivisions(res.data || []))
-      .catch(err => console.error("Error loading divisions:", err));
-  }, []);
-
-  const fetchData = () => {
-    fetchVIPReferences()
-      .then(res => {
-        const dataArray = Array.isArray(res.data) ? res.data : (res.data.data || []);
-        const mapped = dataArray.map(r => {
-          const steps = {
-            1: r.received_at_ministry || 'No',
-            2: r.submitted_for_approval || 'No',
-            3: r.comments_sought || 'No',
-            4: r.comments_received || 'No',
-            5: r.reply_furnished || 'No',
-            6: r.disposed || 'No'
-          };
-          const dates = {
-            1: r.received_at_ministry_date ? new Date(r.received_at_ministry_date).toISOString().split('T')[0] : '',
-            2: r.submitted_for_approval_date ? new Date(r.submitted_for_approval_date).toISOString().split('T')[0] : '',
-            3: r.comments_sought_date ? new Date(r.comments_sought_date).toISOString().split('T')[0] : '',
-            4: r.comments_received_date ? new Date(r.comments_received_date).toISOString().split('T')[0] : '',
-            5: r.reply_furnished_date ? new Date(r.reply_furnished_date).toISOString().split('T')[0] : '',
-            6: r.disposed_date ? new Date(r.disposed_date).toISOString().split('T')[0] : ''
-          };
-          return {
-            id: r.vip_reference_id,
-            vipName: r.name_of_vip || '',
-            vipType: r.vip_type || '',
-            vipDesignation: r.vip_designation || '',
-            subject: r.subject || '',
-            wing: r.wing_name || '',
-            division: r.division_name || '',
-            statusSteps: steps,
-            statusDates: dates,
-            remarks: r.remarks || '',
-            lastUpdated: r.updated_date ? new Date(r.updated_date).toISOString().split('T')[0] : ''
-          };
-        });
-        setVipReferences(mapped);
-      })
-      .catch(err => console.error("Error fetching VIP References:", err));
-  };
-
-
-  useEffect(() => {
-    fetchData();
-  }, [location.pathname]);
-
-  const handleEdit = (row) => {
-    setEditData(row);
+  const handleEdit = useCallback((row) => {
     navigate('/governance/vip-reference/input-form', { state: { item: row } });
-  };
+  }, [navigate]);
 
-  const handleBack = () => {
-    setEditData(null);
+  const handleSuccess = useCallback(() => {
+    navigate('/governance/vip-reference/data-list', { replace: true });
+  }, [navigate]);
+
+  const handleBack = useCallback(() => {
     navigate('/governance/vip-reference/data-list');
-  };
+  }, [navigate]);
+
+  if (!canAdd && !canView && !canEdit) {
+    return <RestrictedAccess moduleName="VIP References" />;
+  }
 
   return (
-    <div className="space-y-6 animate-fade-in text-slate-800">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 pb-4 mb-6 select-none">
+    <div className="module-page-container space-y-6 animate-fade-in">
+      <div className="module-header-container">
         <div>
-          <h1 className="text-xl font-black text-[#0f417a] tracking-wide uppercase font-display">
+          <h1 className="module-header-title">
             VIP References
           </h1>
-          <p className="text-xs text-slate-500 mt-1 font-medium font-sans">
+          <p className="module-header-subtitle">
             Track and manage VIP communications, queries, and action status across departments.
           </p>
         </div>
@@ -113,7 +71,6 @@ export default function VIPReference({ triggerNotification }) {
           tabs={tabs}
           currentTab={currentTab}
           onTabChange={(tabId) => {
-            if (tabId !== 'input-form') setEditData(null);
             if (tabId === 'dashboard') navigate('/governance/vip-reference/dashboard');
             else if (tabId === 'input-form') navigate('/governance/vip-reference/input-form');
             else if (tabId === 'reports') navigate('/governance/vip-reference/reports');
@@ -122,43 +79,40 @@ export default function VIPReference({ triggerNotification }) {
         />
       </div>
 
-      <Routes>
-        <Route path="dashboard" element={<Dashboard />} />
-        <Route path="data-list" element={
-          <DataList
-            wings={wings}
-            divisions={divisions}
-            vipReferences={vipReferences}
-            onEdit={handleEdit}
-            fetchData={fetchData}
-            triggerNotification={triggerNotification}
-          />
-        } />
+      <div className="space-y-8">
+        <Routes>
+          <Route path="dashboard" element={<Dashboard />} />
 
-        <Route path="input-form" element={
-          <InputForm
-            onBack={handleBack}
-            editData={editData}
-            fetchData={fetchData}
-            wings={wings}
-            divisions={divisions}
-            triggerNotification={triggerNotification}
-          />
-        } />
+          <Route path="data-list" element={
+            <DataList
+              onEdit={handleEdit}
+              triggerNotification={triggerNotification}
+              canEdit={canEdit}
+              canAdd={canAdd}
+              canRemove={canRemove}
+            />
+          } />
 
-        <Route path="reports" element={
-          <Reports
-            vipReferences={vipReferences}
-            wings={wings}
-            divisions={divisions}
-            fetchData={fetchData}
-            triggerNotification={triggerNotification}
-          />
-        } />
+          <Route path="input-form" element={
+            <InputForm
+              key={editData?.id ?? 'new'}
+              onBack={handleBack}
+              onSuccess={handleSuccess}
+              triggerNotification={triggerNotification}
+              editData={editData}
+              canEdit={canEdit}
+              canAdd={canAdd}
+            />
+          } />
 
-        <Route index element={<Navigate to="dashboard" replace />} />
-        <Route path="*" element={<Navigate to="dashboard" replace />} />
-      </Routes>
+          <Route path="reports" element={
+            <Reports triggerNotification={triggerNotification} />
+          } />
+
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="*" element={<Navigate to="dashboard" replace />} />
+        </Routes>
+      </div>
     </div>
   );
 }

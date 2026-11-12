@@ -387,6 +387,18 @@ export default function Tabs({ activeTab, setActiveTab }) {
       ]
     },
     {
+      id: 'nmp',
+      label: 'National Monetization Plan',
+      icon: DollarSign,
+      align: 'left-0',
+      width: 'w-[280px]',
+      items: [
+        { label: 'NMP Dashboard', icon: LayoutDashboard, tab: 'NMP Dashboard' },
+        { label: 'NMP Data List', icon: ClipboardList, tab: 'NMP Data List' },
+        { label: 'NMP Input Form', icon: FileEdit, tab: 'NMP Input Form' },
+      ]
+    },
+    {
       id: 'vision',
       label: 'Long Term Strategies',
       icon: TrendingUp,

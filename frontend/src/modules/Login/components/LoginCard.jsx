@@ -16,7 +16,7 @@ export default function LoginCard({
   onForgotPasswordClick
 }) {
   return (
-    <form onSubmit={onSubmit} className="space-y-5">
+    <form onSubmit={onSubmit} className="space-y-3 sm:space-y-5">
       {/* SAGARMANTHAN Portal Branding (Top Center) */}
       <div className="flex items-center justify-center space-x-3 pb-3 select-none border-b border-white/10 w-full">
         <img
@@ -101,7 +101,7 @@ export default function LoginCard({
 
       {/* Google reCAPTCHA Widget */}
       <div className="w-full flex justify-center bg-white/5 p-2 rounded-lg border border-white/10 shadow-inner overflow-hidden">
-        <div className="scale-100 sm:scale-105 origin-center flex justify-center w-full py-1">
+        <div className="scale-[0.82] xs:scale-90 sm:scale-100 origin-center flex justify-center w-full py-1">
           <ReCAPTCHA
             sitekey={RECAPTCHA_SITE_KEY}
             onChange={(val) => {

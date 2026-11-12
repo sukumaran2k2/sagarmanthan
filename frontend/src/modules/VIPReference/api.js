@@ -77,4 +77,9 @@ export function fetchVIPPendencyDivisionDetail(divisionId, countDate) {
   return axiosInstance.get(`/getvippendency-divisionwise/${divisionId}/${countDate}`);
 }
 
-export {axiosInstance}
+// ── Generic Report Fetch ──
+
+export function fetchVipReportByUrl(url) {
+  return axiosInstance.get(url);
+}
+

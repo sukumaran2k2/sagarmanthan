@@ -1,15 +1,15 @@
 
 import { pool } from "../../db.js";
 
-// SELECT tbl_vip_reference_change.wing, tbl_vip_reference_change.division, 
+// SELECT tbl_vip_reference.wing, tbl_vip_reference.division, 
 //         mmt_wings.wing_name, mmt_division.division_name, count(received_at_ministry) as received_at_ministry, 
 //         count(submitted_for_approval) as submitted_for_approval, count(comments_received) as comments_received, 
 //         count(comments_sought) as comments_sought, count(reply_furnished) as reply_furnished, count(disposed) as disposed
-//         FROM tbl_vip_reference_change 
-//         INNER JOIN mmt_wings on mmt_wings.wing_id = tbl_vip_reference_change.wing
-//         INNER JOIN mmt_division on mmt_division.division_id = tbl_vip_reference_change.division
+//         FROM tbl_vip_reference 
+//         INNER JOIN mmt_wings on mmt_wings.wing_id = tbl_vip_reference.wing
+//         INNER JOIN mmt_division on mmt_division.division_id = tbl_vip_reference.division
 
-//         GROUP BY mmt_wings.wing_name, mmt_division.division_name, tbl_vip_reference_change.wing, tbl_vip_reference_change.division
+//         GROUP BY mmt_wings.wing_name, mmt_division.division_name, tbl_vip_reference.wing, tbl_vip_reference.division
 
 async function vipWingWiseReport (req, res) 
 {
@@ -21,7 +21,7 @@ async function vipWingWiseReport (req, res)
             ROW_NUMBER() OVER (ORDER BY mmt_wings.wing_id) AS [S No],
 			mmt_wings.wing_id AS [Wing Id], 
             mmt_wings.wing_name AS [Wing Name], 
-            COUNT(tbl_vip_reference_change.vip_reference_id) AS [No of VIP Reference],
+            COUNT(tbl_vip_reference.vip_reference_id) AS [No of VIP Reference],
 			COUNT(CASE WHEN mmt_vip_stage.vip_stage_id = 0 THEN mmt_vip_stage.vip_stage_id END) AS [No Status],
             COUNT(CASE WHEN mmt_vip_stage.vip_stage_id = 1 THEN mmt_vip_stage.vip_stage_id END) AS [Received but yet to be sent for Comments],
             COUNT(CASE WHEN mmt_vip_stage.vip_stage_id = 2 THEN mmt_vip_stage.vip_stage_id END) AS [Submitted for Approval],
@@ -31,9 +31,9 @@ async function vipWingWiseReport (req, res)
             COUNT(CASE WHEN mmt_vip_stage.vip_stage_id = 6 THEN mmt_vip_stage.vip_stage_id END) AS [Disposed]
         FROM mmt_wings
         LEFT JOIN 
-            tbl_vip_reference_change ON mmt_wings.wing_id = tbl_vip_reference_change.wing
+            tbl_vip_reference ON mmt_wings.wing_id = tbl_vip_reference.wing
         LEFT JOIN 
-            mmt_vip_stage ON mmt_vip_stage.vip_stage_id = tbl_vip_reference_change.stage_id
+            mmt_vip_stage ON mmt_vip_stage.vip_stage_id = tbl_vip_reference.stage_id
         GROUP BY 
             mmt_wings.wing_id,mmt_wings.wing_name
         ORDER BY 
@@ -124,7 +124,7 @@ async function vipDivisionWiseReport (req, res)
             ROW_NUMBER() OVER (ORDER BY mmt_division.division_id) AS [S No],
             mmt_division.division_id AS [Division ID],
             mmt_division.division_name AS [Division Name],
-            COUNT(tbl_vip_reference_change.vip_reference_id) AS [No of VIP Reference],
+            COUNT(tbl_vip_reference.vip_reference_id) AS [No of VIP Reference],
             COUNT(CASE WHEN mmt_vip_stage.vip_stage_id = 0 THEN 1 END) AS [No Status],
             COUNT(CASE WHEN mmt_vip_stage.vip_stage_id = 1 THEN 1 END) AS [Received but yet to be sent for Comments],
             COUNT(CASE WHEN mmt_vip_stage.vip_stage_id = 2 THEN 1 END) AS [Submitted for Approval],
@@ -135,9 +135,9 @@ async function vipDivisionWiseReport (req, res)
         FROM 
             mmt_division
         LEFT JOIN 
-            tbl_vip_reference_change ON mmt_division.division_id = tbl_vip_reference_change.division
+            tbl_vip_reference ON mmt_division.division_id = tbl_vip_reference.division
         LEFT JOIN 
-            mmt_vip_stage ON mmt_vip_stage.vip_stage_id = tbl_vip_reference_change.stage_id
+            mmt_vip_stage ON mmt_vip_stage.vip_stage_id = tbl_vip_reference.stage_id
         WHERE 
             mmt_division.wing_id = @wingID
         GROUP BY 
@@ -194,11 +194,11 @@ async function getDetailVipWingWise (req, res)
                 CONVERT(varchar, deadline, 101) AS [Deadline],  
                 CONVERT(varchar, updated_date, 101) AS [Last Updated Date]
 
-        FROM tbl_vip_reference_change 
-            INNER JOIN mmt_wings on mmt_wings.wing_id = tbl_vip_reference_change.wing
-            INNER JOIN mmt_division on mmt_division.division_id = tbl_vip_reference_change.division       
-            INNER JOIN mmt_vip_stage on mmt_vip_stage.vip_stage_id = tbl_vip_reference_change.stage_id
-            WHERE (wing = @wingID) AND tbl_vip_reference_change.stage_id = COALESCE(@vipStage, 0)
+        FROM tbl_vip_reference 
+            INNER JOIN mmt_wings on mmt_wings.wing_id = tbl_vip_reference.wing
+            INNER JOIN mmt_division on mmt_division.division_id = tbl_vip_reference.division       
+            INNER JOIN mmt_vip_stage on mmt_vip_stage.vip_stage_id = tbl_vip_reference.stage_id
+            WHERE (wing = @wingID) AND tbl_vip_reference.stage_id = COALESCE(@vipStage, 0)
             ORDER BY subject, eoffice_file_number              
         ;`);
         
@@ -259,11 +259,11 @@ async function getDetailVipDivisionWise (req, res)
         CONVERT(varchar, deadline, 101) AS [Deadline],  
         CONVERT(varchar, updated_date, 101) AS [Last Updated Date]
 
-        FROM tbl_vip_reference_change 
-        INNER JOIN mmt_wings ON mmt_wings.wing_id = tbl_vip_reference_change.wing
-        INNER JOIN mmt_division ON mmt_division.division_id = tbl_vip_reference_change.division
-        INNER JOIN mmt_vip_stage ON mmt_vip_stage.vip_stage_id = tbl_vip_reference_change.stage_id
-        WHERE (division = @divisionID) AND tbl_vip_reference_change.stage_id = COALESCE(@vipStage, 0)
+        FROM tbl_vip_reference 
+        INNER JOIN mmt_wings ON mmt_wings.wing_id = tbl_vip_reference.wing
+        INNER JOIN mmt_division ON mmt_division.division_id = tbl_vip_reference.division
+        INNER JOIN mmt_vip_stage ON mmt_vip_stage.vip_stage_id = tbl_vip_reference.stage_id
+        WHERE (division = @divisionID) AND tbl_vip_reference.stage_id = COALESCE(@vipStage, 0)
         ORDER BY subject ASC, eoffice_file_number ASC;  
 
         ;`);
@@ -349,11 +349,11 @@ async function vipPendencyWingWiseReport (req, res)
         FROM 
             mmt_wings 
         LEFT JOIN 
-            tbl_vip_reference_change ON mmt_wings.wing_id = tbl_vip_reference_change.wing
+            tbl_vip_reference ON mmt_wings.wing_id = tbl_vip_reference.wing
         LEFT JOIN 
-            mmt_vip_stage ON mmt_vip_stage.vip_stage_id = tbl_vip_reference_change.stage_id
+            mmt_vip_stage ON mmt_vip_stage.vip_stage_id = tbl_vip_reference.stage_id
         WHERE  
-            DATEDIFF(day, GETDATE(), COALESCE(tbl_vip_reference_change.received_at_ministry_date, GETDATE())) < 0 AND (COALESCE(tbl_vip_reference_change.stage_id, 6) != 6)   OR tbl_vip_reference_change.received_at_ministry_date IS NULL
+            DATEDIFF(day, GETDATE(), COALESCE(tbl_vip_reference.received_at_ministry_date, GETDATE())) < 0 AND (COALESCE(tbl_vip_reference.stage_id, 6) != 6)   OR tbl_vip_reference.received_at_ministry_date IS NULL
         GROUP BY  
             mmt_wings.wing_id, 
             mmt_wings.wing_name
@@ -361,19 +361,24 @@ async function vipPendencyWingWiseReport (req, res)
             mmt_wings.wing_id;        
         ;`);      
 
-        const rowData = result.recordset;  
-    
+        const rowData = result.recordset;
+
         if (rowData.length === 0) {
             return res.status(404).json({ error: 'No data available' });
         }
-        
-        const columnDefs = Object.keys(rowData[0]).map(key => ({
-            headerName: key.charAt(0).toUpperCase() + key.slice(1), // Capitalize the first letter
-            field: key,
-        }));
-        res.json({ columnDefs, rowData });     
+
+        const columnDefs = [
+            { headerName: "S.No", field: "S No", cellStyle: { textAlign: 'center' } },
+            { headerName: "Wing ID", field: "Wing ID", hide: true },
+            { headerName: "Wing", field: "Wing" },
+            { headerName: "Total No of Pending VIP References", field: "Total No of Pending VIP References" },
+            { headerName: "0-30 Days", field: "0-30 Days" },
+            { headerName: "31-60 Days", field: "31-60 Days" },
+            { headerName: "More Than 60 Days", field: "More Than 60 Days" },
+        ];
+        res.json({ columnDefs, rowData });
     }
-    catch(err) 
+    catch(err)
     {
         console.log(err);
         return res.sendStatus(500);
@@ -442,30 +447,43 @@ async function vipPendencyDivisionWiseReport (req, res)
             ) AS [More Than 60 Days]
         FROM
             mmt_division
-        LEFT JOIN 
-            tbl_vip_reference_change ON mmt_division.division_id = tbl_vip_reference_change.division
-        LEFT JOIN 
-            mmt_vip_stage ON mmt_vip_stage.vip_stage_id = tbl_vip_reference_change.stage_id
+        LEFT JOIN
+            tbl_vip_reference ON mmt_division.division_id = tbl_vip_reference.division
+                AND tbl_vip_reference.wing = @wingID
+        LEFT JOIN
+            mmt_vip_stage ON mmt_vip_stage.vip_stage_id = tbl_vip_reference.stage_id
         WHERE
-            mmt_division.wing_id = @wingID OR tbl_vip_reference_change.wing = @wingID AND DATEDIFF(day, GETDATE(), tbl_vip_reference_change.received_at_ministry_date) < 0  AND (stage_id != 6 ) 
+            mmt_division.wing_id = @wingID
+            AND (
+                (
+                    DATEDIFF(day, GETDATE(), COALESCE(tbl_vip_reference.received_at_ministry_date, GETDATE())) < 0
+                    AND COALESCE(tbl_vip_reference.stage_id, 6) != 6
+                )
+                OR tbl_vip_reference.received_at_ministry_date IS NULL
+            )
         GROUP BY
             mmt_division.division_id,
             mmt_division.division_name
         Order BY
             mmt_division.division_id      
         ;`);
-        const rowData = result.recordset;  
+        const rowData = result.recordset;
         if (rowData.length === 0) {
             return res.status(404).json({ error: 'No data available' });
         }
-        
-        const columnDefs = Object.keys(rowData[0]).map(key => ({
-            headerName: key.charAt(0).toUpperCase() + key.slice(1), 
-            field: key,
-        }));
+
+        const columnDefs = [
+            { headerName: "S.No", field: "S No", cellStyle: { textAlign: 'center' } },
+            { headerName: "Division Id", field: "Division Id", hide: true },
+            { headerName: "Division Name", field: "Division Name" },
+            { headerName: "Total No of Pending VIP References", field: "Total No of Pending VIP References" },
+            { headerName: "0-30 Days", field: "0-30 Days" },
+            { headerName: "31-60 Days", field: "31-60 Days" },
+            { headerName: "More Than 60 Days", field: "More Than 60 Days" },
+        ];
         res.json({ columnDefs, rowData });
     }
-    catch(err) 
+    catch(err)
     {
         console.log(err);
         return res.sendStatus(500);
@@ -500,9 +518,9 @@ async function getDetailVipPendencyWingWise (req, res)
                 CONVERT(varchar, disposed_date, 101) AS [Disposed],
                 CONVERT(varchar, deadline, 101) AS [Deadline],  
                 CONVERT(varchar, updated_date, 101) AS [Last Updated Date]
-            FROM tbl_vip_reference_change 
-                INNER JOIN mmt_wings on mmt_wings.wing_id = tbl_vip_reference_change.wing       
-                INNER JOIN mmt_vip_stage on mmt_vip_stage.vip_stage_id = tbl_vip_reference_change.stage_id
+            FROM tbl_vip_reference 
+                INNER JOIN mmt_wings on mmt_wings.wing_id = tbl_vip_reference.wing       
+                INNER JOIN mmt_vip_stage on mmt_vip_stage.vip_stage_id = tbl_vip_reference.stage_id
             WHERE (wing = @wingID) AND (stage_id != 6 ) AND (DATEDIFF(D, GETDATE(), received_at_ministry_date) <= 0 AND
                 DATEDIFF(D, GETDATE(), received_at_ministry_date) >= -30)         
             ;`);
@@ -524,9 +542,9 @@ async function getDetailVipPendencyWingWise (req, res)
                 CONVERT(varchar, disposed_date, 101) AS [Disposed],
                 CONVERT(varchar, deadline, 101) AS [Deadline],  
                 CONVERT(varchar, updated_date, 101) AS [Last Updated Date]
-            FROM tbl_vip_reference_change 
-                INNER JOIN mmt_wings on mmt_wings.wing_id = tbl_vip_reference_change.wing
-                INNER JOIN mmt_vip_stage on mmt_vip_stage.vip_stage_id = tbl_vip_reference_change.stage_id
+            FROM tbl_vip_reference 
+                INNER JOIN mmt_wings on mmt_wings.wing_id = tbl_vip_reference.wing
+                INNER JOIN mmt_vip_stage on mmt_vip_stage.vip_stage_id = tbl_vip_reference.stage_id
             WHERE (wing = @wingID) AND (stage_id != 6 ) AND (DATEDIFF(D, GETDATE(), received_at_ministry_date) <= -31 AND
                 DATEDIFF(D, GETDATE(), received_at_ministry_date) >= -60 ) 
             ;`);
@@ -549,12 +567,12 @@ async function getDetailVipPendencyWingWise (req, res)
                 CONVERT(varchar, deadline, 101) AS [Deadline],  
                 CONVERT(varchar, updated_date, 101) AS [Last Updated Date]
                             
-            FROM tbl_vip_reference_change 
-                INNER JOIN mmt_wings on mmt_wings.wing_id = tbl_vip_reference_change.wing
+            FROM tbl_vip_reference 
+                INNER JOIN mmt_wings on mmt_wings.wing_id = tbl_vip_reference.wing
                    
-                INNER JOIN mmt_vip_stage on mmt_vip_stage.vip_stage_id = tbl_vip_reference_change.stage_id
-            WHERE (wing = @wingID) AND (stage_id != 6 ) 
-                AND DATEDIFF(D, GETDATE(), received_at_ministry_date) <= 61     
+                INNER JOIN mmt_vip_stage on mmt_vip_stage.vip_stage_id = tbl_vip_reference.stage_id
+            WHERE (wing = @wingID) AND (stage_id != 6 )
+                AND DATEDIFF(D, GETDATE(), received_at_ministry_date) <= -61
             ;`);
         }
 
@@ -613,13 +631,13 @@ async function getDetailVipPendencyDivisionWise (req, res)
                 CONVERT(varchar, deadline, 101) AS [Deadline],  
                 CONVERT(varchar, updated_date, 101) AS [Last Updated Date]
         
-            FROM tbl_vip_reference_change 
-         --   INNER JOIN mmt_wings on mmt_wings.wing_id= tbl_vip_reference_change.wing
-            INNER JOIN mmt_division on mmt_division.division_id = tbl_vip_reference_change.division       
-            INNER JOIN mmt_vip_stage on mmt_vip_stage.vip_stage_id = tbl_vip_reference_change.stage_id
-            WHERE (division = @divisionID) AND (stage_id != 6 ) 
+            FROM tbl_vip_reference 
+         --   INNER JOIN mmt_wings on mmt_wings.wing_id= tbl_vip_reference.wing
+            INNER JOIN mmt_division on mmt_division.division_id = tbl_vip_reference.division       
+            INNER JOIN mmt_vip_stage on mmt_vip_stage.vip_stage_id = tbl_vip_reference.stage_id
+            WHERE (division = @divisionID) AND (stage_id != 6 )
             AND (DATEDIFF(D, GETDATE(), received_at_ministry_date) <= 0 AND
-            DATEDIFF(D, GETDATE(), received_at_ministry_date) >= 30 )         
+            DATEDIFF(D, GETDATE(), received_at_ministry_date) >= -30 )         
         ;`);
     }
     else if(countDate > 30 && countDate <= 60)
@@ -640,13 +658,13 @@ async function getDetailVipPendencyDivisionWise (req, res)
                 CONVERT(varchar, deadline, 101) AS [Deadline],  
                 CONVERT(varchar, updated_date, 101) AS [Last Updated Date]
         
-            FROM tbl_vip_reference_change 
-          --  INNER JOIN mmt_wings on mmt_wings.wing_id= tbl_vip_reference_change.wing
-            INNER JOIN mmt_division on mmt_division.division_id = tbl_vip_reference_change.division       
-            INNER JOIN mmt_vip_stage on mmt_vip_stage.vip_stage_id = tbl_vip_reference_change.stage_id
-            WHERE (division = @divisionID) AND (stage_id != 6 ) 
-            AND (DATEDIFF(D, GETDATE(), received_at_ministry_date) <= 31 AND
-            DATEDIFF(D, GETDATE(), received_at_ministry_date) >= 60 ) 
+            FROM tbl_vip_reference 
+          --  INNER JOIN mmt_wings on mmt_wings.wing_id= tbl_vip_reference.wing
+            INNER JOIN mmt_division on mmt_division.division_id = tbl_vip_reference.division       
+            INNER JOIN mmt_vip_stage on mmt_vip_stage.vip_stage_id = tbl_vip_reference.stage_id
+            WHERE (division = @divisionID) AND (stage_id != 6 )
+            AND (DATEDIFF(D, GETDATE(), received_at_ministry_date) <= -31 AND
+            DATEDIFF(D, GETDATE(), received_at_ministry_date) >= -60 ) 
             ORDER BY subject, eoffice_file_number
         ;`);
     }
@@ -668,11 +686,11 @@ async function getDetailVipPendencyDivisionWise (req, res)
             CONVERT(varchar, deadline, 101) AS [Deadline],  
             CONVERT(varchar, updated_date, 101) AS [Last Updated Date]
         
-            FROM tbl_vip_reference_change 
-            INNER JOIN mmt_division on mmt_division.division_id = tbl_vip_reference_change.division       
-            INNER JOIN mmt_vip_stage on mmt_vip_stage.vip_stage_id = tbl_vip_reference_change.stage_id
-            WHERE (division = @divisionID) AND (stage_id != 6 ) 
-            AND DATEDIFF(D, GETDATE(), received_at_ministry_date) <= 61    
+            FROM tbl_vip_reference 
+            INNER JOIN mmt_division on mmt_division.division_id = tbl_vip_reference.division       
+            INNER JOIN mmt_vip_stage on mmt_vip_stage.vip_stage_id = tbl_vip_reference.stage_id
+            WHERE (division = @divisionID) AND (stage_id != 6 )
+            AND DATEDIFF(D, GETDATE(), received_at_ministry_date) <= -61    
             ORDER BY subject, eoffice_file_number
         ;`);
     }

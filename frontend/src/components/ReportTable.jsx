@@ -8,6 +8,7 @@ import { exportGridToExcel, exportGridToPdf } from '../utils/exportGridReport';
 export default function ReportTable({
   title,
   subtitle,
+  exportSubtitle,
   eyebrow,
   onBack,
   showBackButton = false,
@@ -187,70 +188,29 @@ export default function ReportTable({
     }
   };
 
-  const formatExportFileName = (type) => {
-    const cleanTitle = (title || 'Report')
-      .replace(/[:\/\\?%*|"<>]/g, '')
-      .replace(/\s+/g, '_')
-      .replace(/_+/g, '_');
-    
-    const now = new Date();
-    const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    const timeStr = `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
-    
-    return `${cleanTitle}_${dateStr}_${timeStr}.${type === 'Excel' ? 'csv' : 'pdf'}`;
-  };
-
-  const getLeafColumns = (cols) => {
-    let result = [];
-    (cols || []).forEach((col) => {
-      if (col.children && Array.isArray(col.children)) {
-        result = result.concat(getLeafColumns(col.children));
-      } else if (col.field || col.headerName) {
-        result.push(col);
-      }
-    });
-    return result;
-  };
-
-  // Leaf header with its group names in front ("Direct EXIM - Loaded - PY"), for flat exports like Copy
-  const getLeafLabels = (cols, prefix = '') => (cols || []).flatMap((col) => {
-    const name = col.headerName || col.field || '';
-    if (col.children && Array.isArray(col.children)) {
-      return getLeafLabels(col.children, prefix ? `${prefix} - ${name}` : name);
+  const handlePageSizeChange = (newSize) => {
+    if (gridRef.current?.api) {
+      gridRef.current.api.paginationSetPageSize(newSize);
+      gridRef.current.api.paginationGoToFirstPage();
+      setPageSize(newSize);
     }
-    return col.field || col.headerName ? [{ col, label: prefix ? `${prefix} - ${name}` : name }] : [];
-  });
-
-  // Header rows for the PDF, one per column-group level (a single row when there are no groups)
-  const buildHeaderRows = (cols, keepLeaf) => {
-    const prune = (list) => (list || [])
-      .map((c) => (c.children && Array.isArray(c.children) ? { ...c, children: prune(c.children) } : c))
-      .filter((c) => (c.children ? c.children.length > 0 : (c.field || c.headerName) && keepLeaf(c)));
-    const tree = prune(cols);
-    const depth = (c) => (c.children ? 1 + Math.max(...c.children.map(depth)) : 1);
-    const leafCount = (c) => (c.children ? c.children.reduce((s, ch) => s + leafCount(ch), 0) : 1);
-    const maxDepth = Math.max(1, ...tree.map(depth));
-    const rows = Array.from({ length: maxDepth }, () => []);
-    const walk = (c, level) => {
-      const name = c.headerName || c.field || '';
-      if (c.children) {
-        rows[level].push({ name, colspan: leafCount(c), rowspan: 1 });
-        c.children.forEach((ch) => walk(ch, level + 1));
-      } else {
-        rows[level].push({ name, colspan: 1, rowspan: maxDepth - level });
-      }
-    };
-    tree.forEach((c) => walk(c, 0));
-    return rows;
   };
 
   const isSerialCol = (col) => ['S No', 'S.No'].includes(col.field) || ['S No', 'S.No'].includes(col.headerName);
   const cellText = (col, row) => {
     let val;
-    if (col.valueFormatter && typeof col.valueFormatter === 'function') {
-      try { val = col.valueFormatter({ value: row[col.field], data: row }); } catch { val = row[col.field]; }
-    } else {
+    if (col.valueGetter && typeof col.valueGetter === 'function') {
+      try { val = col.valueGetter({ data: row }); } catch { val = undefined; }
+    } else if (col.field) {
       val = row[col.field];
+      if ((val === null || val === undefined) && col.headerName && col.headerName !== col.field) {
+        val = row[col.headerName];
+      }
+    } else if (col.headerName) {
+      val = row[col.headerName];
+    }
+    if (col.valueFormatter && typeof col.valueFormatter === 'function') {
+      try { val = col.valueFormatter({ value: val, data: row }); } catch { /* keep val */ }
     }
     return val === undefined || val === null || typeof val === 'object' ? '' : val;
   };
@@ -265,11 +225,13 @@ export default function ReportTable({
   };
 
   const handleReportExport = (type) => {
+    const resolvedSubtitle = exportSubtitle
+      || (typeof subtitle === 'string' ? subtitle : undefined);
     const options = {
       title: title || 'Report',
-      subtitle: typeof subtitle === 'string' ? subtitle : undefined,
+      subtitle: resolvedSubtitle,
       columns: effectiveColumns,
-      rows: displayedRows(),
+      rows: effectiveData,
       pinnedRows: pinnedBottomRowData || [],
     };
     const fileName = type === 'Excel'
@@ -280,68 +242,10 @@ export default function ReportTable({
 
   const handleExport = (type) => {
     try {
-      if (reportExport) {
-        handleReportExport(type);
-        return;
-      }
-      const fileName = formatExportFileName(type);
-      if (type === 'Excel') {
-        if (gridRef.current?.api) {
-          gridRef.current.api.exportDataAsCsv({
-            fileName: fileName
-          });
-          if (triggerNotification && typeof triggerNotification === 'function') {
-            triggerNotification(`Report exported to Excel successfully! (${fileName})`);
-          }
-        }
-      } else if (type === 'PDF') {
-        const keepLeaf = (c) => c.field !== 'Ministry Id' && c.field !== 'Ministry ID';
-        const leafCols = getLeafColumns(effectiveInputCols).filter(keepLeaf);
-        const docTitle = title || 'Report';
-
-        let headersHtml = '';
-        buildHeaderRows(columns, keepLeaf).forEach((cells) => {
-          headersHtml += '<tr>';
-          cells.forEach(({ name, colspan, rowspan }) => {
-            headersHtml += `<th colspan="${colspan}" rowspan="${rowspan}" style="border:1px solid rgba(255,255,255,0.35); padding:10px 14px; text-align:center; background:${brandColor}; color:#fff; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">${name}</th>`;
-          });
-          headersHtml += '</tr>';
-        });
-
-        let rowsHtml = '';
-        // Body rows, then the total rows pinned at the bottom (shown bold, no serial number)
-        const bodyRows = effectiveData || [];
-        [...bodyRows, ...(pinnedBottomRowData || [])].forEach((row, i) => {
-          const isPinned = i >= bodyRows.length;
-          const bg = isPinned ? accentColor : i % 2 === 0 ? '#fff' : oddRowColor;
-          rowsHtml += `<tr style="background:${bg};${isPinned ? 'font-weight:800;' : ''}">`;
-          leafCols.forEach(col => {
-            const val = isSerialCol(col) ? (isPinned ? '' : i + 1) : cellText(col, row);
-            rowsHtml += `<td style="border:1px solid #e2e8f0; padding:8px 14px; font-size:12px; color:#334155; text-align:center;">${val}</td>`;
-          });
-          rowsHtml += '</tr>';
-        });
-
-        const printWindow = window.open('', '_blank');
-        if (!printWindow) {
-          if (triggerNotification && typeof triggerNotification === 'function') {
-            triggerNotification('Popup blocker prevented opening PDF print preview window.');
-          }
-          return;
-        }
-
-        printWindow.document.write(`<html><head><title>${docTitle}</title><style>body{font-family:'Google Sans',system-ui,sans-serif;color:#334155;padding:24px}h1{font-size:18px;margin-bottom:4px;color:${brandColor}}table{width:100%;border-collapse:collapse;margin-top:16px}</style></head><body><h1>${docTitle}</h1><p style="font-size:11px;color:#64748b;margin:0 0 20px">Generated on: ${new Date().toLocaleString()}</p><table><thead>${headersHtml}</thead><tbody>${rowsHtml}</tbody></table><script>window.onload=function(){window.print();window.close()}</script></body></html>`);
-        printWindow.document.close();
-
-        if (triggerNotification && typeof triggerNotification === 'function') {
-          triggerNotification('PDF document generated successfully!');
-        }
-      }
+      handleReportExport(type);
     } catch (err) {
       console.error("Export error caught safely:", err);
-      if (triggerNotification && typeof triggerNotification === 'function') {
-        triggerNotification('An error occurred during export.');
-      }
+      triggerNotification?.('An error occurred during export.');
     }
   };
 
@@ -356,15 +260,13 @@ export default function ReportTable({
 
     let index = 1;
     const addRow = (row, pinned) => {
-      const rowTsv = activeCols.map(({ col }) => {
+      const rowTsv = activeCols.map((col) => {
         const val = isSerialCol(col) ? (pinned ? '' : index++) : cellText(col, row);
         return String(val).replace(/\t/g, ' ').replace(/\n/g, ' ');
       }).join('\t');
       tsv += rowTsv + '\n';
     };
-    gridRef.current.api.forEachNodeAfterFilterAndSort((node) => {
-      if (node.data) addRow(node.data, false);
-    });
+    effectiveData.forEach((row) => addRow(row, false));
     (pinnedBottomRowData || []).forEach((row) => addRow(row, true));
 
     navigator.clipboard.writeText(tsv)
@@ -439,6 +341,23 @@ export default function ReportTable({
               </button>
             )}
           </div>
+
+          {/* Rows-per-page selector — shown next to search when pagination is on */}
+          {pagination && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Rows</span>
+              <select
+                value={pageSize}
+                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                className="px-2 py-[7px] rounded-[9px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold cursor-pointer focus:outline-none focus:ring-[3px] focus:ring-[color:var(--theme-primary-color)]/10 focus:border-[color:var(--theme-primary-color)] transition"
+                style={{ color: brandColor }}
+              >
+                {[10, 25, 50, 100].map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {toolbarExtra}
 
@@ -525,7 +444,7 @@ export default function ReportTable({
                   className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-[13px] text-slate-800 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-800 border-0 bg-transparent cursor-pointer font-medium"
                 >
                   <FileSpreadsheet size={14} className="text-emerald-500" />
-                  <span>{reportExport ? 'Excel (.xlsx)' : 'CSV (Excel)'}</span>
+                  <span>Excel (.xlsx)</span>
                 </button>
                 <button
                   type="button"
@@ -536,7 +455,7 @@ export default function ReportTable({
                   className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-[13px] text-slate-800 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-800 border-0 bg-transparent cursor-pointer font-medium"
                 >
                   <Download size={14} className="text-rose-500" />
-                  <span>{reportExport ? 'PDF' : 'Print / PDF'}</span>
+                  <span>PDF</span>
                 </button>
               </div>
             )}

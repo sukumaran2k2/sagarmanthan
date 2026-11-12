@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { ArrowLeft, Calendar, Upload, File, FileText, CheckCircle, ChevronUp, ChevronDown, X } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { Calendar, Upload, FileText, CheckCircle, ChevronUp, ChevronDown, X } from 'lucide-react';
 import {
   createConsultantAppointment,
   updateConsultantAppointment,
@@ -14,6 +14,7 @@ import {
 import { getCurrentUserId } from '../../../utils/authSession';
 import { useNotifier, COMMON_TOASTS, getErrorMessage, toastError } from '../../../utils/notify';
 import { CA_TOASTS } from '../toastMessages';
+import { toInputDate } from '../formatters';
 
 /**
  * Milestone Workflow Configuration
@@ -140,9 +141,7 @@ export default function InputForm({
 
   const isFieldInvalid = (field, val) => {
     if (errors[field]) return true;
-    if (field.endsWith('Date')) {
-      return !!errors[field];
-    }
+    if (field.endsWith('Date')) return false;
     if (touched[field]) {
       return !val || (typeof val === 'string' && !val.trim());
     }
@@ -179,52 +178,34 @@ export default function InputForm({
 
       // Load candidate details
       if (editData.id) {
+        const loadFromIds = (candIdsStr) => {
+          if (!candIdsStr) return;
+          const idList = candIdsStr.split(',').map(s => s.trim()).filter(Boolean);
+          Promise.all(
+            idList.map(async (cid) => {
+              try {
+                const cres = await fetchCandidateDetail(cid);
+                const docRes = await fetchCandidateDocument(cid).catch(() => ({ data: [] }));
+                const cdata = cres.data?.[0] || {};
+                const docName = docRes.data?.[0]?.appointment_order_document || '';
+                return { ...cdata, documentName: docName };
+              } catch {
+                return { candidate_id: cid };
+              }
+            })
+          ).then(loaded => setCandidates(loaded));
+        };
+
         fetchCandidatesByConsultantAppointmentId(editData.id)
           .then((res) => {
             if (res.data && res.data.length > 0) {
               setCandidates(res.data);
             } else {
-              const candIdsStr = editData.raw?.candidate_id || '';
-              if (candIdsStr) {
-                const idList = candIdsStr.split(',').map(s => s.trim()).filter(Boolean);
-                Promise.all(
-                  idList.map(async (cid) => {
-                    try {
-                      const cres = await fetchCandidateDetail(cid);
-                      const docRes = await fetchCandidateDocument(cid).catch(() => ({ data: [] }));
-                      const cdata = cres.data?.[0] || {};
-                      const docName = docRes.data?.[0]?.appointment_order_document || '';
-                      return { ...cdata, documentName: docName };
-                    } catch {
-                      return { candidate_id: cid };
-                    }
-                  })
-                ).then(loadedCandidates => {
-                  setCandidates(loadedCandidates);
-                });
-              }
+              loadFromIds(editData.raw?.candidate_id || '');
             }
           })
           .catch(() => {
-            const candIdsStr = editData.raw?.candidate_id || '';
-            if (candIdsStr) {
-              const idList = candIdsStr.split(',').map(s => s.trim()).filter(Boolean);
-              Promise.all(
-                idList.map(async (cid) => {
-                  try {
-                    const cres = await fetchCandidateDetail(cid);
-                    const docRes = await fetchCandidateDocument(cid).catch(() => ({ data: [] }));
-                    const cdata = cres.data?.[0] || {};
-                    const docName = docRes.data?.[0]?.appointment_order_document || '';
-                    return { ...cdata, documentName: docName };
-                  } catch {
-                    return { candidate_id: cid };
-                  }
-                })
-              ).then(loadedCandidates => {
-                setCandidates(loadedCandidates);
-              });
-            }
+            loadFromIds(editData.raw?.candidate_id || '');
           });
       }
     }
@@ -258,49 +239,57 @@ export default function InputForm({
   };
 
   const handleDateChange = (dateKey, val) => {
-    let updatedDates = {};
-    setDates(prev => {
-      const newDates = { ...prev, [dateKey]: val };
-      if (!val) {
-        let clear = false;
-        for (const stage of STAGES) {
-          if (clear) {
-            newDates[stage.dateKey] = '';
-            if (stage.key === 'contractSigned') {
-              setConsultingFirmName('');
-            }
-          }
-          if (stage.dateKey === dateKey) clear = true;
+    const nextDates = { ...dates, [dateKey]: val };
+    const clearedStages = [];
+
+    if (!val) {
+      // Clearing a stage date clears every later stage too: the chain cannot resume past a gap
+      let clear = false;
+      for (const stage of STAGES) {
+        if (clear && nextDates[stage.dateKey]) {
+          nextDates[stage.dateKey] = '';
+          clearedStages.push(stage.key);
         }
-      } else {
-        // If a stage date is set, ensure no subsequent stage has an earlier date than this one
-        let isSubsequent = false;
-        for (const stage of STAGES) {
-          if (isSubsequent) {
-            if (newDates[stage.dateKey] && newDates[stage.dateKey] < val) {
-              newDates[stage.dateKey] = '';
-            }
-          }
-          if (stage.dateKey === dateKey) isSubsequent = true;
-        }
+        if (stage.dateKey === dateKey) clear = true;
       }
-      updatedDates = newDates;
-      return newDates;
-    });
-    
+      const own = STAGES.find(s => s.dateKey === dateKey);
+      if (own) clearedStages.push(own.key);
+    } else {
+      // If a stage date is set, ensure no subsequent stage has an earlier date than this one
+      let isSubsequent = false;
+      for (const stage of STAGES) {
+        if (isSubsequent && nextDates[stage.dateKey] && nextDates[stage.dateKey] < val) {
+          nextDates[stage.dateKey] = '';
+          clearedStages.push(stage.key);
+        }
+        if (stage.dateKey === dateKey) isSubsequent = true;
+      }
+    }
+
+    setDates(nextDates);
+
+    // A remark belongs to its stage's date. Leaving it behind saved a remark against a NULL
+    // date which the form no longer displays, so it could be neither read nor cleared.
+    if (clearedStages.length) {
+      setRemarks(prev => {
+        const next = { ...prev };
+        for (const key of clearedStages) next[key] = '';
+        return next;
+      });
+      if (clearedStages.includes('contractSigned')) {
+        setConsultingFirmName('');
+      }
+    }
+
     setErrors(prev => {
       const newErrors = { ...prev };
-      if (!val) {
-        let clear = false;
-        for (const stage of STAGES) {
-          if (clear) delete newErrors[stage.dateKey];
-          if (stage.dateKey === dateKey) clear = true;
-        }
+      for (const stage of STAGES) {
+        if (!nextDates[stage.dateKey]) delete newErrors[stage.dateKey];
       }
       return newErrors;
     });
-    
-    validateField(dateKey, val, { ...dates, [dateKey]: val });
+
+    validateField(dateKey, val, nextDates);
   };
 
   const handleRemarkChange = (key, val) => {
@@ -321,6 +310,23 @@ export default function InputForm({
     if (Object.keys(errors).length > 0) {
       notify(COMMON_TOASTS.fixValidationErrors());
       return;
+    }
+
+    // The chain is enforced as dates change, but re-check the whole sequence here so an
+    // out-of-order or gapped set can never be submitted.
+    for (let i = 1; i < STAGES.length; i++) {
+      const previous = dates[STAGES[i - 1].dateKey];
+      const current = dates[STAGES[i].dateKey];
+      if (current && !previous) {
+        notify(toastError('Incomplete Stages',
+          `${STAGES[i].label} has a date but ${STAGES[i - 1].label} does not. Fill the earlier stage first.`));
+        return;
+      }
+      if (current && previous && current < previous) {
+        notify(toastError('Dates Out of Order',
+          `${STAGES[i].label} cannot be earlier than ${STAGES[i - 1].label}.`));
+        return;
+      }
     }
 
     if (isEdit && !canEdit) {
@@ -372,11 +378,11 @@ export default function InputForm({
       workOrderIssuedRemarks: remarks.workOrderIssued || null,
       contractSignedDate: dates.contractSignedDate || null,
       contractSignedRemarks: remarks.contractSigned || null,
-      remarks: remarks,
       consultingFirmName: consultingFirmName || '',
       candidateIDs: candidateIDs,
-      stageID: selectedStage,
-      userID: activeUserId
+      stageID: selectedStage
+      // created_by / updated_by come from the signed-in user's token on the server, so no
+      // user id is sent here. activeUserId above only checks the session is still valid.
     };
 
     try {
@@ -386,9 +392,16 @@ export default function InputForm({
           ...payload
         });
       } else {
-        await createConsultantAppointment({
-          ...payload
-        });
+        const createRes = await createConsultantAppointment({ ...payload });
+        const newAppointmentId = createRes.data?.consultant_appointment_id;
+        if (newAppointmentId) {
+          const candidateIds = candidates.map(c => c.candidate_id).filter(Boolean);
+          await Promise.allSettled(
+            candidateIds.map(cid =>
+              addConsultantID({ candidateID: cid, consultantAppointmentID: newAppointmentId })
+            )
+          );
+        }
       }
 
       const wingName = wings.find(w => String(w.wing_id) === String(wing))?.wing_name;
@@ -419,7 +432,7 @@ export default function InputForm({
       setCWorkExperience(cand.work_experience !== undefined && cand.work_experience !== null ? String(cand.work_experience) : '');
       setCSalary(cand.salary !== undefined && cand.salary !== null ? String(cand.salary) : '');
       setCCategory(cand.category || 'Direct Contract');
-      setCAppointmentDate(cand.date_of_appointment ? new Date(cand.date_of_appointment).toISOString().split('T')[0] : '');
+      setCAppointmentDate(toInputDate(cand.date_of_appointment));
       setCSkillSet(cand.skill_set || '');
       setCFileName(cand.appointment_order_document || '');
       setCFile(null);
@@ -469,7 +482,8 @@ export default function InputForm({
         salary: Number(cSalary) || 0,
         category: cCategory,
         appointmentDate: cAppointmentDate,
-        skillSet: cSkillSet
+        skillSet: cSkillSet,
+        consultantAppointmentID: editData?.id || null
       };
 
       if (candidateId) {
@@ -491,7 +505,7 @@ export default function InputForm({
         finalDocName = uploadRes.data?.fileName || cFile.name;
       }
 
-      if (editData?.id && candidateId) {
+      if (editData?.id && candidateId && !existingCand) {
         try {
           await addConsultantID({
             candidateID: candidateId,
@@ -529,6 +543,21 @@ export default function InputForm({
     } finally {
       setCSaving(false);
     }
+  };
+
+  // In create mode a candidate profile is written as soon as it is saved, before the
+  // appointment exists. Leaving without submitting would strand those rows, so say so first.
+  const handleExit = () => {
+    const savedCandidates = candidates.filter(c => c && c.candidate_id).length;
+    if (!isEdit && savedCandidates > 0) {
+      const leave = window.confirm(
+        `${savedCandidates} candidate profile${savedCandidates === 1 ? ' has' : 's have'} already been saved. ` +
+        `If you leave now the appointment is not created and ${savedCandidates === 1 ? 'that profile' : 'those profiles'} ` +
+        `will not be linked to it. Leave anyway?`
+      );
+      if (!leave) return;
+    }
+    onBack();
   };
 
   const isFormDisabled =
@@ -573,7 +602,7 @@ export default function InputForm({
                     handleBlur('wing');
                   }}
                   onBlur={() => handleBlur('wing')}
-                  className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border ${isFieldInvalid('wing', wing) ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'} rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-semibold text-slate-700 dark:text-slate-200`}
+                  className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border ${isFieldInvalid('wing', wing) ? 'border-red-500' : 'border-slate-200 dark:border-slate-800'} rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-semibold text-slate-700 dark:text-slate-200`}
                 >
                   <option value="">Select Wing</option>
                   {wings.map((w) => (
@@ -594,7 +623,7 @@ export default function InputForm({
                   }}
                   onBlur={() => handleBlur('division')}
                   disabled={!wing}
-                  className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border ${isFieldInvalid('division', division) ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'} rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-semibold text-slate-700 dark:text-slate-200 ${!wing ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border ${isFieldInvalid('division', division) ? 'border-red-500' : 'border-slate-200 dark:border-slate-800'} rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-semibold text-slate-700 dark:text-slate-200 ${!wing ? 'opacity-60 cursor-not-allowed' : ''}`}
                 >
                   <option value="">{!wing ? 'Select Wing First' : 'Select Division'}</option>
                   {filteredDivisions.map((d) => (
@@ -617,7 +646,7 @@ export default function InputForm({
                     validateField('numResources', val);
                   }}
                   onBlur={() => handleBlur('numResources')}
-                  className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border ${isFieldInvalid('numResources', numResources) ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'} rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-semibold text-slate-700 dark:text-slate-200`}
+                  className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border ${isFieldInvalid('numResources', numResources) ? 'border-red-500' : 'border-slate-200 dark:border-slate-800'} rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-semibold text-slate-700 dark:text-slate-200`}
                   placeholder="1"
                 />
                 {errors.numResources && (
@@ -630,7 +659,7 @@ export default function InputForm({
                 <select
                   value={appointmentType}
                   onChange={(e) => setAppointmentType(e.target.value)}
-                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-semibold text-slate-700 dark:text-slate-200"
+                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-semibold text-slate-700 dark:text-slate-200"
                 >
                   <option value="Full Time">Full Time</option>
                   <option value="Part Time">Part Time</option>
@@ -772,7 +801,7 @@ export default function InputForm({
                                     value={cName}
                                     onChange={(e) => setCName(e.target.value)}
                                     placeholder="Full name"
-                                    className={`w-full text-xs p-2 bg-slate-50 dark:bg-slate-950 border ${cErrors.name ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'} rounded-lg font-semibold text-slate-800 dark:text-slate-100`}
+                                    className={`w-full text-xs p-2 bg-slate-50 dark:bg-slate-950 border ${cErrors.name ? 'border-red-500' : 'border-slate-200 dark:border-slate-800'} rounded-lg font-semibold text-slate-800 dark:text-slate-100`}
                                   />
                                 </div>
 
@@ -783,7 +812,7 @@ export default function InputForm({
                                     value={cQualification}
                                     onChange={(e) => setCQualification(e.target.value)}
                                     placeholder="e.g. B.Tech / MBA"
-                                    className={`w-full text-xs p-2 bg-slate-50 dark:bg-slate-950 border ${cErrors.qualification ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'} rounded-lg font-semibold text-slate-800 dark:text-slate-100`}
+                                    className={`w-full text-xs p-2 bg-slate-50 dark:bg-slate-950 border ${cErrors.qualification ? 'border-red-500' : 'border-slate-200 dark:border-slate-800'} rounded-lg font-semibold text-slate-800 dark:text-slate-100`}
                                   />
                                 </div>
 
@@ -796,7 +825,7 @@ export default function InputForm({
                                     value={cWorkExperience}
                                     onChange={(e) => setCWorkExperience(e.target.value)}
                                     placeholder="e.g. 5"
-                                    className={`w-full text-xs p-2 bg-slate-50 dark:bg-slate-950 border ${cErrors.workExperience ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'} rounded-lg font-semibold text-slate-800 dark:text-slate-100`}
+                                    className={`w-full text-xs p-2 bg-slate-50 dark:bg-slate-950 border ${cErrors.workExperience ? 'border-red-500' : 'border-slate-200 dark:border-slate-800'} rounded-lg font-semibold text-slate-800 dark:text-slate-100`}
                                   />
                                 </div>
 
@@ -809,7 +838,7 @@ export default function InputForm({
                                     value={cSalary}
                                     onChange={(e) => setCSalary(e.target.value)}
                                     placeholder="e.g. 12"
-                                    className={`w-full text-xs p-2 bg-slate-50 dark:bg-slate-950 border ${cErrors.salary ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'} rounded-lg font-semibold text-slate-800 dark:text-slate-100`}
+                                    className={`w-full text-xs p-2 bg-slate-50 dark:bg-slate-950 border ${cErrors.salary ? 'border-red-500' : 'border-slate-200 dark:border-slate-800'} rounded-lg font-semibold text-slate-800 dark:text-slate-100`}
                                   />
                                 </div>
                               </div>
@@ -847,7 +876,7 @@ export default function InputForm({
                                     type="date"
                                     value={cAppointmentDate}
                                     onChange={(e) => setCAppointmentDate(e.target.value)}
-                                    className={`w-full text-xs p-2 bg-slate-50 dark:bg-slate-950 border ${cErrors.appointmentDate ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'} rounded-lg font-semibold text-slate-800 dark:text-slate-100`}
+                                    className={`w-full text-xs p-2 bg-slate-50 dark:bg-slate-950 border ${cErrors.appointmentDate ? 'border-red-500' : 'border-slate-200 dark:border-slate-800'} rounded-lg font-semibold text-slate-800 dark:text-slate-100`}
                                   />
                                 </div>
 
@@ -858,7 +887,7 @@ export default function InputForm({
                                     value={cSkillSet}
                                     onChange={(e) => setCSkillSet(e.target.value)}
                                     placeholder="e.g. Legal, IT, Port Operations"
-                                    className={`w-full text-xs p-2 bg-slate-50 dark:bg-slate-950 border ${cErrors.skillSet ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'} rounded-lg font-semibold text-slate-800 dark:text-slate-100`}
+                                    className={`w-full text-xs p-2 bg-slate-50 dark:bg-slate-950 border ${cErrors.skillSet ? 'border-red-500' : 'border-slate-200 dark:border-slate-800'} rounded-lg font-semibold text-slate-800 dark:text-slate-100`}
                                   />
                                 </div>
                               </div>
@@ -969,7 +998,7 @@ export default function InputForm({
             </button>
             <button
               type="button"
-              onClick={onBack}
+              onClick={handleExit}
               className="px-6 py-2 rounded-xl text-xs font-black uppercase tracking-wider text-white bg-red-600 hover:bg-red-700 hover:shadow transition-all cursor-pointer active:scale-95"
             >
               Exit

@@ -4,7 +4,6 @@ import path from 'path';
 import fs from 'fs';
 import cors from "cors";
 import cookieParser from 'cookie-parser';
-import bodyParser from 'body-parser';
 import cron from 'node-cron';
 import { sendEmail } from './src/controllers/Dashboard/emailService.js';
 import { fileURLToPath } from 'url';
@@ -16,7 +15,6 @@ const __dirname = dirname(__filename);
 
 const app = express();
 
-// Enable CORS as the first middleware.
 // Credentials: true is required so the browser sends the httpOnly refreshToken cookie.
 // ALLOWED_ORIGIN must not be "*" when credentials are enabled.
 const ALLOWED_ORIGIN = process.env.FRONTEND_URL || 'http://localhost:5173';
@@ -29,10 +27,10 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
-app.use(cookieParser());
 
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true, parameterLimit: 50000 }));
+app.use(cookieParser());
 
 // cron.schedule('0 9 * * *', async () => {
 //   const today = new Date();
@@ -86,12 +84,6 @@ app.get("/", (req, res) => {
 
 app.use(router);
 
-const port = process.env.PORT || 3000;
-app.listen(port, () => console.log(`Sagarmanthan Backend started successfully on port ${port}`));
-
-// chatbot email
-app.use(bodyParser.json());
-
 app.post('/send-email', async (req, res) => {
     const { to, subject, text, cc } = req.body;
     console.log('Recipient:', to);
@@ -104,6 +96,9 @@ app.post('/send-email', async (req, res) => {
         res.status(500).send('Failed to send email');
     }
 });
+
+const port = process.env.PORT || 3000;
+app.listen(port, () => console.log(`Sagarmanthan Backend started successfully on port ${port}`));
 
 const mainProjectDir = path.join(__dirname, 'fileuploads', 'Project_Documents', 'project_images', 'mainProject');
 const subProjectDir = path.join(__dirname, 'fileuploads', 'Project_Documents', 'project_images', 'subProject');

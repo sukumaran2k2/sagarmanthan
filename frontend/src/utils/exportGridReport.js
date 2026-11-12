@@ -44,7 +44,18 @@ function headerRows(tree) {
 }
 
 function cellText(col, row) {
-  const value = col.valueGetter ? safe(() => col.valueGetter({ data: row })) : row?.[col.field];
+  let value;
+  if (col.valueGetter) {
+    value = safe(() => col.valueGetter({ data: row }));
+  } else if (col.field) {
+    value = row?.[col.field];
+    // Fallback: headerName as key when field lookup yields nothing
+    if ((value === null || value === undefined) && col.headerName && col.headerName !== col.field) {
+      value = row?.[col.headerName];
+    }
+  } else if (col.headerName) {
+    value = row?.[col.headerName];
+  }
   const formatted = typeof col.valueFormatter === 'function'
     ? safe(() => col.valueFormatter({ value, data: row }), value)
     : value;
@@ -106,7 +117,15 @@ export function exportGridToExcel({ title, subtitle, columns, rows = [], pinnedR
 
   const sheet = XLSX.utils.aoa_to_sheet(aoa);
   sheet['!merges'] = merges;
-  sheet['!cols'] = cols.map((col) => ({ wch: Math.min(45, Math.max(10, headerText(col).length + 2)) }));
+  const allDataRows = [...rows, ...pinnedRows];
+  sheet['!cols'] = cols.map((col) => {
+    const headerLen = headerText(col).length;
+    const maxDataLen = allDataRows.reduce((max, row) => {
+      const v = cellText(col, row);
+      return Math.max(max, String(v === null || v === undefined ? '' : v).length);
+    }, 0);
+    return { wch: Math.min(60, Math.max(10, headerLen, maxDataLen) + 2) };
+  });
 
   const book = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(book, sheet, String(sheetName).replace(/[[\]:*?/\\]/g, '').slice(0, 31) || 'Report');

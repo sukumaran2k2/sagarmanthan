@@ -37,6 +37,7 @@ const KPIDGLLView = lazy(() => import('./modules/KPIDGLL/KPIDGLL'));
 const CSLView = lazy(() => import('./modules/CSL/CSL'));
 const IMUView = lazy(() => import('./modules/IMU/IMU'));
 const SCIView = lazy(() => import('./modules/SCI/SCI'));
+const NMPView = lazy(() => import('./modules/NMP/NMP'));
 const UserMatrix = lazy(() => import('./modules/UserManagement/UserMatrix'));
 const FormBuilderView = lazy(() => import('./modules/FormBuilder/FormBuilder'));
 const MasterManagement = lazy(() => import("./modules/MasterManagement/pages/masterManagement"));
@@ -544,6 +545,9 @@ export default function App() {
 
             {/* Finance - Capex */}
             <Route path="finance/capex/*" element={<CapexView triggerNotification={triggerNotification} />} />
+
+            {/* Finance - NMP (National Monetization Plan) */}
+            <Route path="finance/nmp/*" element={<NMPView triggerNotification={triggerNotification} />} />
 
             {/* Governance Routes */}
             <Route path="governance/e-office/*" element={<EOfficeView triggerNotification={triggerNotification} />} />

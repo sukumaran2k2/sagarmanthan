@@ -62,7 +62,6 @@ import reviewItemsTab from "./controllers/Governance/reviewItems.js"
 
 //HR
 import youngProfessionalsTab from "./controllers/HR/youngProfessionals.js";
-import candidateDocumentTab from "./controllers/HR/appointmentOrderUploader.js";
 import consultantAppointmentTab from "./controllers/HR/consultantAppointment.js";
 import consultantAppointmentDashboard from "./controllers/HR/consultantAppointmentDashboard.js";
 import candidateCaDocumentTab from "./controllers/HR/caAppointmentOrderUploader.js";
@@ -1064,8 +1063,6 @@ router.post("/candidate-detail", auth, requireModulePermission("YOUNG_PROFESSION
 router.put("/candidate-detail", auth, requireModulePermission("YOUNG_PROFESSIONAL", "update"), youngProfessionalsTab.updateCandidateDetail);
 router.delete("/yp-candidate-all-data/:youngProfessionalId/:userID", auth, requireModulePermission("YOUNG_PROFESSIONAL", "delete"), youngProfessionalsTab.deleteYpCandidateData);
 
-router.put("/candidate-uploader", auth, requireAnyModulePermission("YOUNG_PROFESSIONAL", ["create", "update"]), candidateDocumentTab.upload.single('file'), candidateDocumentTab.candidateDocumentUpdater);
-router.post("/candidate-uploader", auth, requireAnyModulePermission("YOUNG_PROFESSIONAL", ["create", "update"]), candidateDocumentTab.upload.single('file'), candidateDocumentTab.candidateDocumentUploader);
 router.get("/candidate-detail/:youngProfessionalId", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), youngProfessionalsTab.getCandidateDetail);
 router.get("/candidate-detail-document/:candidate_id", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), youngProfessionalsTab.getCandidateDetailDocument);
 
@@ -1076,7 +1073,6 @@ router.get("/consultant-appointment-dashboard", auth, requireModulePermission("C
 router.get("/consultant-appointment", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentTab.getConsultantAppointment);
 router.post("/consultant-appointment", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "create"), consultantAppointmentTab.createConsultantAppointment);
 router.put("/consultant-appointment", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "update"), consultantAppointmentTab.updateConsultantAppointment);
-router.post("/consultant-appointment-stage", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "create"), consultantAppointmentTab.createConsultantAppointmentStage);
 router.get("/edit-consultant-appointment/:consultantAppointmentID", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentTab.getUpdateConsultantAppointmentData);
 router.get("/get-candidate-id/:consultantAppointmentID", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentTab.getCandidateID);
 
@@ -1087,10 +1083,12 @@ router.post("/ca-candidate-uploader", auth, requireAnyModulePermission("CONSULTA
 router.get("/ca-candidate-detail/:Id", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentTab.getCandidateDetail);
 router.get("/ca-candidate-detail-document/:Id", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentTab.getCandidateDetailDocument);
 router.get("/get-ca-candidates/:consultantAppointmentID", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentTab.getCandidatesByConsultantAppointmentId);
-router.get("/ca-candidate-document-download/:fileName", candidateCaDocumentTab.downloadCandidateDocument);
+router.get("/ca-candidate-document-download/:fileName", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), candidateCaDocumentTab.downloadCandidateDocument);
 router.post("/add-consultant-id", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "create"), consultantAppointmentTab.addConsultantID);
 
 //delete consultant appoinment and candidate details
+// The :userID segment is legacy. The handlers identify the actor from the auth token, so the
+// value in the URL is ignored; it is kept only so existing clients keep matching the route.
 router.delete("/consultant-candidate-all-data/:consultant_appointment_id/:userID", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "delete"), consultantAppointmentTab.deleteCACandidateData);
 router.delete("/ca-candidate-single/:candidate_id/:userID", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "delete"), consultantAppointmentTab.deleteCACandidateSingle);
 
@@ -3406,5 +3404,16 @@ router.delete("/delete-form-builder-data/:data", auth, requireModulePermission("
 // AI Report Copilot (OpenAI / Vercel AI SDK)
 import reportCopilotTab from "./controllers/ai/reportCopilot.js";
 router.post('/ai/report-copilot', reportCopilotTab.chatReportCopilot);
+
+// ── NMP (National Monetization Plan) ─────────────────────────────────────────
+import nmpTab from "./controllers/Finance/nmp.js";
+router.get("/nmp/dashboard", auth, nmpTab.getNmpDashboard);
+router.get("/nmp/land-abstract", auth, nmpTab.getLandAbstractList);
+router.get("/nmp/past-land", auth, nmpTab.getPastLandList);
+router.get("/nmp/future-land", auth, nmpTab.getFutureLandList);
+router.get("/nmp/:id", auth, nmpTab.getNmpById);
+router.post("/nmp", auth, nmpTab.createNmpEntry);
+router.put("/nmp", auth, nmpTab.updateNmpEntry);
+router.delete("/nmp/:id/:userId", auth, nmpTab.deleteNmpEntry);
 
 export default router;

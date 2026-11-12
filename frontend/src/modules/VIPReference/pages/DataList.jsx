@@ -4,87 +4,69 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell
 import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
-import { fetchVIPReferences, fetchWings, fetchDivisions } from '../api';
+import { fetchVIPReferences } from '../api';
 import { STAGE_STEPS } from '../utils/constants';
+import { useVipStore } from '../store/useVipStore';
+import { useNotifier, COMMON_TOASTS } from '../../../utils/notify';
+
+const COLORS = ['#0f417a', '#1e5ea8', '#3b82f6', '#60a5fa', '#93c5fd', '#10b981'];
+
+function getRefStageText(steps) {
+  let currentStage = 'Draft';
+  for (let i = 1; i <= 6; i++) {
+    if (steps?.[i] === 'Yes') {
+      currentStage = STAGE_STEPS[i];
+    }
+  }
+  return currentStage;
+}
 
 export default function DataList({
-  wings = [],
-  divisions = [],
   onEdit,
-  triggerNotification
+  triggerNotification,
+  canEdit = true,
 }) {
-  const [gridApi, setGridApi] = useState(null);
+  const notify = useNotifier(triggerNotification);
 
-  // Wings & Divisions local state (with automatic dropdown fetch fallback)
-  const [localWings, setLocalWings] = useState(wings);
-  const [localDivisions, setLocalDivisions] = useState(divisions);
+  const wings = useVipStore(state => state.wings);
+  const divisions = useVipStore(state => state.divisions);
 
-  useEffect(() => {
-    if (wings && wings.length > 0) {
-      setLocalWings(wings);
-    } else {
-      fetchWings()
-        .then(res => setLocalWings(Array.isArray(res.data) ? res.data : []))
-        .catch(err => console.error("Error fetching wings in DataList:", err));
-    }
-  }, [wings]);
+  const activeCategory = useVipStore(state => state.activeCategory);
+  const searchTerm = useVipStore(state => state.searchTerm);
+  const debouncedSearch = useVipStore(state => state.debouncedSearch);
+  const selectedWing = useVipStore(state => state.selectedWing);
+  const selectedDivision = useVipStore(state => state.selectedDivision);
+  const selectedStage = useVipStore(state => state.selectedStage);
+  const showFilterPanel = useVipStore(state => state.showFilterPanel);
+  const pageSize = useVipStore(state => state.pageSize);
+  const viewMode = useVipStore(state => state.viewMode);
+  const visibleCols = useVipStore(state => state.visibleCols);
 
-  useEffect(() => {
-    if (divisions && divisions.length > 0) {
-      setLocalDivisions(divisions);
-    } else {
-      fetchDivisions()
-        .then(res => setLocalDivisions(Array.isArray(res.data) ? res.data : []))
-        .catch(err => console.error("Error fetching divisions in DataList:", err));
-    }
-  }, [divisions]);
+  const setActiveCategory = useVipStore(state => state.setActiveCategory);
+  const setSearchTerm = useVipStore(state => state.setSearchTerm);
+  const setDebouncedSearch = useVipStore(state => state.setDebouncedSearch);
+  const setSelectedWing = useVipStore(state => state.setSelectedWing);
+  const setSelectedDivision = useVipStore(state => state.setSelectedDivision);
+  const setSelectedStage = useVipStore(state => state.setSelectedStage);
+  const setShowFilterPanel = useVipStore(state => state.setShowFilterPanel);
+  const setPageSize = useVipStore(state => state.setPageSize);
+  const setViewMode = useVipStore(state => state.setViewMode);
+  const setVisibleCols = useVipStore(state => state.setVisibleCols);
+  const resetFilters = useVipStore(state => state.resetFilters);
 
-  // Reference data
   const [rowData, setRowData] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [gridApi, setGridApi] = useState(null);
 
-  // Filters
-  const [selectedWing, setSelectedWing] = useState('All');
-  const [selectedDivision, setSelectedDivision] = useState('All');
-  const [selectedStage, setSelectedStage] = useState('All');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [pageSize, setPageSize] = useState(10);
-  const [viewMode, setViewMode] = useState('table'); // 'table' | 'chart'
-
-  // Debounced search
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearch(searchQuery);
-    }, 300);
-    return () => clearTimeout(handler);
-  }, [searchQuery]);
-
-  const [activeCategory, setActiveCategory] = useState('active'); // 'active' | 'disposed'
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
-
-  useEffect(() => {
-    if (activeCategory === 'disposed') {
-      setSelectedStage('All');
-    }
-  }, [activeCategory]);
-
-  const activeFiltersCount = (selectedWing !== 'All' ? 1 : 0) + (selectedDivision !== 'All' ? 1 : 0) + (selectedStage !== 'All' ? 1 : 0);
-
-  // Column visibility checklist
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const colDropdownRef = useRef(null);
-  const [visibleCols, setVisibleCols] = useState({
-    subject: true,
-    wing: true,
-    division: true,
-    stage: true,
-    refNumber: true,
-    receivedFrom: true,
-    remarks: true,
-    deadline: true,
-    lastUpdated: true
-  });
+
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedSearch(searchTerm), 300);
+    return () => clearTimeout(handler);
+  }, [searchTerm, setDebouncedSearch]);
+
+  const activeFiltersCount = (selectedWing !== 'All' ? 1 : 0) + (selectedDivision !== 'All' ? 1 : 0) + (selectedStage !== 'All' ? 1 : 0);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -96,7 +78,6 @@ export default function DataList({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Fetch references dynamically from backend
   const fetchData = useCallback(() => {
     setLoading(true);
     fetchVIPReferences()
@@ -109,7 +90,7 @@ export default function DataList({
             3: r.comments_sought_date ? 'Yes' : 'No',
             4: r.comments_received_date ? 'Yes' : 'No',
             5: r.reply_furnished_date ? 'Yes' : 'No',
-            6: r.disposed_date ? 'Yes' : 'No'
+            6: r.disposed_date ? 'Yes' : 'No',
           };
           const dates = {
             1: r.received_at_ministry_date ? new Date(r.received_at_ministry_date).toISOString().split('T')[0] : '',
@@ -117,16 +98,16 @@ export default function DataList({
             3: r.comments_sought_date ? new Date(r.comments_sought_date).toISOString().split('T')[0] : '',
             4: r.comments_received_date ? new Date(r.comments_received_date).toISOString().split('T')[0] : '',
             5: r.reply_furnished_date ? new Date(r.reply_furnished_date).toISOString().split('T')[0] : '',
-            6: r.disposed_date ? new Date(r.disposed_date).toISOString().split('T')[0] : ''
+            6: r.disposed_date ? new Date(r.disposed_date).toISOString().split('T')[0] : '',
           };
           const remarksByStage = {
-          1: r.vip_received_ministry_remark || '',
-          2: r.vip_submitted_for_approval_remark || '',
-          3: r.vip_comments_sought_remark || '',
-          4: r.vip_comments_received_remark || '',
-          5: r.vip_reply_furnished_remark || '',
-          6: r.vip_disposed_remark || ''
-        };
+            1: r.vip_received_ministry_remark || '',
+            2: r.vip_submitted_for_approval_remark || '',
+            3: r.vip_comments_sought_remark || '',
+            4: r.vip_comments_received_remark || '',
+            5: r.vip_reply_furnished_remark || '',
+            6: r.vip_disposed_remark || '',
+          };
           return {
             sNo: idx + 1,
             id: r.vip_reference_id,
@@ -141,204 +122,162 @@ export default function DataList({
             stageSteps: steps,
             statusDates: dates,
             statusRemarks: remarksByStage,
-            lastUpdated: r.updated_date ? new Date(r.updated_date).toISOString().split('T')[0] : ''
+            lastUpdated: r.updated_date ? new Date(r.updated_date).toISOString().split('T')[0] : '',
           };
         });
         setRowData(mapped);
       })
-      .catch(err => {
-        console.error("Error loading VIP references:", err);
-        triggerNotification?.("Failed to load VIP reference list.", "error");
+      .catch(() => {
+        notify(COMMON_TOASTS.loadFailed('VIP References'));
       })
       .finally(() => setLoading(false));
-  }, [triggerNotification]);
+  }, [notify]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  const getRefStageText = (steps) => {
-    let currentStage = 'Draft';
-    for (let i = 1; i <= 6; i++) {
-      if (steps?.[i] === 'Yes') {
-        currentStage = STAGE_STEPS[i];
-      }
-    }
-    return currentStage;
-  };
-
-  // Dynamically filter divisions based on selected wing
   const filteredDivisions = useMemo(() => {
     if (selectedWing === 'All') return divisions.map(d => d.division_name);
-    const selectedWingObj = wings.find(w => w.wing_name === selectedWing);
-    if (!selectedWingObj) return [];
+    const wingObj = wings.find(w => w.wing_name === selectedWing);
+    if (!wingObj) return [];
     return divisions
-      .filter(d => d.wing_id === selectedWingObj.wing_id)
+      .filter(d => d.wing_id === wingObj.wing_id)
       .map(d => d.division_name);
   }, [selectedWing, wings, divisions]);
 
-  // Instant client-side filtering based on Wing, Division, Status / Stage, Category, and Search
   const filteredData = useMemo(() => {
     let res = rowData;
 
-    // Filter by Category (Active vs Disposed)
     if (activeCategory === 'active') {
       res = res.filter(r => r.stageSteps?.[6] !== 'Yes');
     } else {
       res = res.filter(r => r.stageSteps?.[6] === 'Yes');
     }
 
-    // Filter by Wing
     if (selectedWing !== 'All') {
       res = res.filter(r => r.wing === selectedWing);
     }
-
-    // Filter by Division
     if (selectedDivision !== 'All') {
       res = res.filter(r => r.division === selectedDivision);
     }
-
-    // Filter by Stage / Status
     if (selectedStage !== 'All') {
       res = res.filter(r => getRefStageText(r.stageSteps) === selectedStage);
     }
-
-    // Filter by Search Query
     if (debouncedSearch) {
       const q = debouncedSearch.toLowerCase();
       res = res.filter(r =>
         (r.subject || '').toLowerCase().includes(q) ||
-        (r.eofficeFile || '').toLowerCase().includes(q) ||
         (r.refNumber || '').toLowerCase().includes(q) ||
         (r.receivedFrom || '').toLowerCase().includes(q) ||
         (r.wing || '').toLowerCase().includes(q) ||
         (r.division || '').toLowerCase().includes(q)
       );
     }
-
     return res;
   }, [rowData, activeCategory, selectedWing, selectedDivision, selectedStage, debouncedSearch]);
 
   const activeCount = useMemo(() => rowData.filter(r => r.stageSteps?.[6] !== 'Yes').length, [rowData]);
   const disposedCount = useMemo(() => rowData.filter(r => r.stageSteps?.[6] === 'Yes').length, [rowData]);
 
-  // Chart Data Preparation
   const chartData = useMemo(() => {
     const counts = {};
     filteredData.forEach(r => {
       const stage = getRefStageText(r.stageSteps);
       counts[stage] = (counts[stage] || 0) + 1;
     });
-
     return Object.keys(counts).map(key => ({
       name: key,
-      'Pending References': counts[key]
+      'Pending References': counts[key],
     }));
   }, [filteredData]);
 
-  const COLORS = ['#0f417a', '#1e5ea8', '#3b82f6', '#60a5fa', '#93c5fd', '#10b981'];
-
-  // Handle Export / Copy
   const handleExport = (type) => {
+    const escHtml = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const headers = ['S.No', 'Subject', 'Wing', 'Division', 'Reference Stage', 'Reference Letter No', 'Received From', 'Remarks', 'Deadline', 'Last Updated'];
+
+    const buildRowValues = (row, idx) => [
+      idx + 1,
+      row.subject || '',
+      row.wing || '',
+      row.division || '',
+      getRefStageText(row.stageSteps),
+      row.refNumber || '',
+      row.receivedFrom || '',
+      row.remarks || '',
+      row.deadline || '',
+      row.lastUpdated || '',
+    ];
+
     if (type === 'Copy') {
-      let tsv = '';
-      const headers = ['S.No', 'Subject', 'E-Office File', 'Wing', 'Division', 'Reference Stage', 'Reference Letter No', 'Received From', 'Remarks', 'Deadline', 'Last Updated'];
-      tsv += headers.join('\t') + '\n';
-
+      if (filteredData.length === 0) {
+        notify(COMMON_TOASTS.nothingToCopy());
+        return;
+      }
+      let tsv = headers.join('\t') + '\n';
       filteredData.forEach((row, idx) => {
-        const line = [
-          idx + 1,
-          row.subject || '',
-          row.eofficeFile || '',
-          row.wing || '',
-          row.division || '',
-          getRefStageText(row.stageSteps),
-          row.refNumber || '',
-          row.receivedFrom || '',
-          row.remarks || '',
-          row.deadline || '',
-          row.lastUpdated || ''
-        ];
-        tsv += line.join('\t') + '\n';
+        tsv += buildRowValues(row, idx).join('\t') + '\n';
       });
-
       navigator.clipboard.writeText(tsv)
-        .then(() => {
-          triggerNotification?.('VIP References data copied to clipboard!', 'success');
-        })
-        .catch(() => {
-          triggerNotification?.('Failed to copy table data.', 'error');
-        });
+        .then(() => notify(COMMON_TOASTS.copySuccess(filteredData.length)))
+        .catch(() => notify(COMMON_TOASTS.copyFailed()));
     } else if (type === 'Excel') {
+      if (filteredData.length === 0) {
+        notify(COMMON_TOASTS.nothingToExport());
+        return;
+      }
+      const fileName = `VIP_References_${activeCategory}_${new Date().toISOString().split('T')[0]}.csv`;
       if (gridApi) {
-        gridApi.exportDataAsCsv({
-          fileName: `VIP_References_${activeCategory}_${new Date().toISOString().split('T')[0]}.csv`
-        });
-        triggerNotification?.('VIP Reference data exported to CSV/Excel successfully!', 'success');
+        gridApi.exportDataAsCsv({ fileName });
+        notify(COMMON_TOASTS.excelExported(fileName));
       } else {
-        let csvContent = 'data:text/csv;charset=utf-8,';
-        csvContent += ['S.No', 'Subject', 'E-Office File', 'Wing', 'Division', 'Stage', 'Ref Letter No', 'Received From', 'Remarks', 'Deadline', 'Last Updated'].map(h => `"${h}"`).join(',') + '\n';
-        
+        let csvContent = '﻿' + headers.map(h => `"${h}"`).join(',') + '\r\n';
         filteredData.forEach((row, idx) => {
-          const line = [
-            idx + 1,
-            row.subject || '',
-            row.eofficeFile || '',
-            row.wing || '',
-            row.division || '',
-            getRefStageText(row.stageSteps),
-            row.refNumber || '',
-            row.receivedFrom || '',
-            row.remarks || '',
-            row.deadline || '',
-            row.lastUpdated || ''
-          ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(',');
-          csvContent += line + '\n';
+          csvContent += buildRowValues(row, idx).map(val => `"${String(val).replace(/"/g, '""')}"`).join(',') + '\r\n';
         });
-
-        const encodedUri = encodeURI(csvContent);
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
-        link.setAttribute('href', encodedUri);
-        link.setAttribute('download', `VIP_References_${activeCategory}_${new Date().toISOString().split('T')[0]}.csv`);
+        link.href = url;
+        link.download = fileName;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        triggerNotification?.('VIP Reference data exported to CSV/Excel successfully!', 'success');
+        URL.revokeObjectURL(url);
+        notify(COMMON_TOASTS.excelExported(fileName));
       }
     } else if (type === 'PDF') {
-      triggerNotification?.('Preparing printable PDF document...', 'info');
+      if (filteredData.length === 0) {
+        notify(COMMON_TOASTS.nothingToExport());
+        return;
+      }
       const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        notify(COMMON_TOASTS.popupBlocked());
+        return;
+      }
+      notify(COMMON_TOASTS.pdfPreparing());
       const title = `VIP References - ${activeCategory.toUpperCase()}`;
 
-      let headersHtml = `
-        <th style="border: 1px solid #cbd5e1; padding: 8px; text-align: center; background-color: #f8fafc; font-size: 11px;">S.No</th>
-        <th style="border: 1px solid #cbd5e1; padding: 8px; text-align: left; background-color: #f8fafc; font-size: 11px;">Subject</th>
-        <th style="border: 1px solid #cbd5e1; padding: 8px; text-align: center; background-color: #f8fafc; font-size: 11px;">E-Office File</th>
-        <th style="border: 1px solid #cbd5e1; padding: 8px; text-align: left; background-color: #f8fafc; font-size: 11px;">Wing / Division</th>
-        <th style="border: 1px solid #cbd5e1; padding: 8px; text-align: center; background-color: #f8fafc; font-size: 11px;">Stage</th>
-        <th style="border: 1px solid #cbd5e1; padding: 8px; text-align: left; background-color: #f8fafc; font-size: 11px;">Received From</th>
-        <th style="border: 1px solid #cbd5e1; padding: 8px; text-align: center; background-color: #f8fafc; font-size: 11px;">Last Updated</th>
-      `;
+      const headersHtml = ['S.No', 'Subject', 'Wing / Division', 'Stage', 'Received From', 'Last Updated']
+        .map(h => `<th style="border:1px solid #cbd5e1;padding:8px;text-align:left;background:#f8fafc;font-size:11px;font-weight:bold;">${escHtml(h)}</th>`)
+        .join('');
 
-      let rowsHtml = '';
-      filteredData.forEach((row, idx) => {
-        rowsHtml += `
-          <tr>
-            <td style="border: 1px solid #e2e8f0; padding: 6px; text-align: center; font-size: 11px;">${idx + 1}</td>
-            <td style="border: 1px solid #e2e8f0; padding: 6px; font-size: 11px; max-width: 250px;">${row.subject || ''}</td>
-            <td style="border: 1px solid #e2e8f0; padding: 6px; text-align: center; font-size: 11px;">${row.eofficeFile || ''}</td>
-            <td style="border: 1px solid #e2e8f0; padding: 6px; font-size: 11px;">${row.wing} / ${row.division}</td>
-            <td style="border: 1px solid #e2e8f0; padding: 6px; text-align: center; font-size: 11px; font-weight: bold;">${getRefStageText(row.stageSteps)}</td>
-            <td style="border: 1px solid #e2e8f0; padding: 6px; font-size: 11px;">${row.receivedFrom || ''}</td>
-            <td style="border: 1px solid #e2e8f0; padding: 6px; text-align: center; font-size: 11px;">${row.lastUpdated || ''}</td>
-          </tr>
-        `;
-      });
+      const rowsHtml = filteredData.map((row, idx) => `
+        <tr>
+          <td style="border:1px solid #e2e8f0;padding:6px;text-align:center;font-size:11px;">${idx + 1}</td>
+          <td style="border:1px solid #e2e8f0;padding:6px;font-size:11px;max-width:250px;">${escHtml(row.subject)}</td>
+          <td style="border:1px solid #e2e8f0;padding:6px;font-size:11px;">${escHtml(row.wing)} / ${escHtml(row.division)}</td>
+          <td style="border:1px solid #e2e8f0;padding:6px;text-align:center;font-size:11px;font-weight:bold;">${escHtml(getRefStageText(row.stageSteps))}</td>
+          <td style="border:1px solid #e2e8f0;padding:6px;font-size:11px;">${escHtml(row.receivedFrom)}</td>
+          <td style="border:1px solid #e2e8f0;padding:6px;text-align:center;font-size:11px;">${escHtml(row.lastUpdated)}</td>
+        </tr>
+      `).join('');
 
       printWindow.document.write(`
         <html>
           <head>
-            <title>${title}</title>
+            <title>${escHtml(title)}</title>
             <style>
               body { font-family: Arial, sans-serif; margin: 20px; color: #1e293b; }
               table { width: 100%; border-collapse: collapse; margin-top: 15px; }
@@ -348,7 +287,7 @@ export default function DataList({
           </head>
           <body>
             <h2>Ministry of Ports, Shipping and Waterways</h2>
-            <p>${title} | Generated on ${new Date().toLocaleDateString()}</p>
+            <p>${escHtml(title)} | Generated on ${new Date().toLocaleDateString()}</p>
             <table>
               <thead><tr>${headersHtml}</tr></thead>
               <tbody>${rowsHtml}</tbody>
@@ -361,7 +300,6 @@ export default function DataList({
     }
   };
 
-  // AG-Grid Columns Definition
   const colDefs = useMemo(() => [
     {
       headerName: 'S.No',
@@ -371,7 +309,7 @@ export default function DataList({
       maxWidth: 80,
       pinned: 'left',
       suppressSizeToFit: true,
-      cellClass: 'text-center flex items-center justify-center font-bold text-slate-700 dark:text-slate-200 font-mono border-r border-slate-100 dark:border-slate-800'
+      cellClass: 'text-center flex items-center justify-center font-bold text-slate-700 dark:text-slate-200 font-mono border-r border-slate-100 dark:border-slate-800',
     },
     {
       headerName: 'Subject of VIP Reference',
@@ -381,14 +319,7 @@ export default function DataList({
       wrapText: true,
       autoHeight: true,
       cellClass: 'font-semibold text-slate-800 dark:text-slate-100 flex items-center py-2.5 border-r border-slate-100 dark:border-slate-800 whitespace-normal leading-relaxed',
-      hide: !visibleCols.subject
-    },
-    {
-      headerName: 'E-Office File No',
-      field: 'eofficeFile',
-      width: 200,
-      minWidth: 180,
-      cellClass: 'text-center flex items-center justify-center font-mono font-bold text-blue-700 dark:text-blue-400 border-r border-slate-100 dark:border-slate-800'
+      hide: !visibleCols.subject,
     },
     {
       headerName: 'Wing',
@@ -398,7 +329,7 @@ export default function DataList({
       wrapText: true,
       autoHeight: true,
       cellClass: 'text-center flex items-center justify-center font-semibold text-slate-700 dark:text-slate-300 border-r border-slate-100 dark:border-slate-800',
-      hide: !visibleCols.wing
+      hide: !visibleCols.wing,
     },
     {
       headerName: 'Division',
@@ -408,7 +339,7 @@ export default function DataList({
       wrapText: true,
       autoHeight: true,
       cellClass: 'text-center flex items-center justify-center font-semibold text-slate-700 dark:text-slate-300 border-r border-slate-100 dark:border-slate-800',
-      hide: !visibleCols.division
+      hide: !visibleCols.division,
     },
     {
       headerName: 'Current Stage',
@@ -424,7 +355,7 @@ export default function DataList({
         const color = activeCategory === 'disposed' ? 'text-emerald-600 dark:text-emerald-500' : 'text-rose-600 dark:text-rose-500';
         return <span className={color}>{stageText}</span>;
       },
-      valueFormatter: (params) => getRefStageText(params.value)
+      valueFormatter: (params) => getRefStageText(params.value),
     },
     {
       headerName: 'Reference Letter Number',
@@ -432,7 +363,7 @@ export default function DataList({
       width: 230,
       minWidth: 190,
       cellClass: 'text-center flex items-center justify-center border-r border-slate-100 dark:border-slate-800 font-medium',
-      hide: !visibleCols.refNumber
+      hide: !visibleCols.refNumber,
     },
     {
       headerName: 'Received From',
@@ -442,7 +373,7 @@ export default function DataList({
       wrapText: true,
       autoHeight: true,
       cellClass: 'text-slate-600 dark:text-slate-300 flex items-center py-2 border-r border-slate-100 dark:border-slate-800 font-semibold whitespace-normal',
-      hide: !visibleCols.receivedFrom
+      hide: !visibleCols.receivedFrom,
     },
     {
       headerName: 'Remarks',
@@ -453,7 +384,7 @@ export default function DataList({
       autoHeight: true,
       cellClass: 'text-slate-500 dark:text-slate-400 flex items-center py-2 border-r border-slate-100 dark:border-slate-800 font-medium whitespace-normal',
       valueFormatter: (params) => params.value || '--',
-      hide: !visibleCols.remarks
+      hide: !visibleCols.remarks,
     },
     {
       headerName: 'Deadline',
@@ -462,7 +393,7 @@ export default function DataList({
       minWidth: 130,
       cellClass: 'text-center flex items-center justify-center border-r border-slate-100 dark:border-slate-800 font-medium',
       hide: !visibleCols.deadline,
-      valueFormatter: (params) => params.value || '--'
+      valueFormatter: (params) => params.value || '--',
     },
     {
       headerName: 'Last Updated Date',
@@ -470,7 +401,7 @@ export default function DataList({
       width: 170,
       minWidth: 150,
       cellClass: 'text-center flex items-center justify-center border-r border-slate-100 dark:border-slate-800 font-medium',
-      hide: !visibleCols.lastUpdated
+      hide: !visibleCols.lastUpdated,
     },
     {
       headerName: 'Action',
@@ -479,64 +410,48 @@ export default function DataList({
       minWidth: 90,
       pinned: 'right',
       cellClass: 'text-center flex items-center justify-center',
-      cellRenderer: (params) => (
-        <button
-          type="button"
-          onClick={() => onEdit?.(params.data)}
-          className="p-1.5 hover:bg-orange-50 dark:hover:bg-slate-800 rounded-lg text-orange-500 hover:text-orange-600 dark:text-orange-400 transition cursor-pointer"
-          title="Update VIP Letter status"
-        >
-          <Edit className="h-4 w-4" />
-        </button>
-      )
-    }
-  ], [visibleCols, onEdit, activeCategory]);
-
-  const hasActiveFilters = selectedWing !== 'All' || selectedDivision !== 'All' || selectedStage !== 'All' || searchQuery !== '';
+      cellRenderer: (params) => {
+        if (!canEdit) return null;
+        return (
+          <button
+            type="button"
+            onClick={() => onEdit?.(params.data)}
+            className="p-1.5 hover:bg-orange-50 dark:hover:bg-slate-800 rounded-lg text-orange-500 hover:text-orange-600 dark:text-orange-400 transition cursor-pointer"
+            title="Update VIP Letter status"
+          >
+            <Edit className="h-4 w-4" />
+          </button>
+        );
+      },
+    },
+  ], [visibleCols, onEdit, activeCategory, canEdit]);
 
   return (
-    <div className="space-y-6 animate-fade-in relative">
-      {/* Category selector tabs */}
-      <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-1 mb-4 select-none px-1">
+    <div className="space-y-4 animate-fade-in relative">
+      <div className="module-subtabs-strip">
         <button
           type="button"
           onClick={() => setActiveCategory('active')}
-          className={`px-5 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
-            activeCategory === 'active'
-              ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
-              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
-          }`}
+          className={`module-subtab-btn ${activeCategory === 'active' ? 'active' : ''}`}
         >
-          Active ({activeCount})
+          ACTIVE ({activeCount})
         </button>
         <button
           type="button"
           onClick={() => setActiveCategory('disposed')}
-          className={`px-5 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
-            activeCategory === 'disposed'
-              ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
-              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
-          }`}
+          className={`module-subtab-btn ${activeCategory === 'disposed' ? 'active' : ''}`}
         >
-          Disposed ({disposedCount})
+          DISPOSED ({disposedCount})
         </button>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-4">
-
-        {/* Search & Actions Row matching YP / GMIS format */}
-        <div className="flex flex-col lg:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
-          
-          {/* 1. Left: Dedicated Filter Button + Reset */}
+      <div className="module-card space-y-4">
+        <div className="flex flex-col lg:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
           <div className="flex items-center gap-2.5 w-full lg:w-auto">
             <button
               type="button"
               onClick={() => setShowFilterPanel(prev => !prev)}
-              className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer border shadow-2xs ${
-                showFilterPanel || activeFiltersCount > 0
-                  ? 'bg-blue-50 border-blue-300 text-[#0f417a] dark:bg-blue-950/50 dark:border-blue-700 dark:text-blue-300'
-                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800'
-              }`}
+              className={`module-filter-btn ${showFilterPanel || activeFiltersCount > 0 ? 'active' : ''}`}
             >
               <Filter className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
               <span>Filter</span>
@@ -552,11 +467,8 @@ export default function DataList({
               <button
                 type="button"
                 onClick={() => {
-                  setSelectedWing('All');
-                  setSelectedDivision('All');
-                  setSelectedStage('All');
-                  setSearchQuery('');
-                  triggerNotification?.('Filters have been reset', 'info');
+                  resetFilters();
+                  notify(COMMON_TOASTS.filtersReset());
                 }}
                 className="px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 dark:bg-rose-950/40 rounded-xl border border-rose-200 dark:border-rose-900 transition cursor-pointer"
               >
@@ -565,26 +477,22 @@ export default function DataList({
             )}
           </div>
 
-          {/* 2. Middle Spacer */}
           <div className="hidden lg:block flex-1" />
 
-          {/* 3. Right: Search Input + Row Count + Total + Visibility + Copy + Export + View Toggle */}
           <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-end">
-            
-            {/* Search Input */}
             <div className="relative min-w-[200px] flex-1 sm:flex-initial">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
               <input
                 type="text"
                 placeholder="Search Subject / File..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-8 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-slate-400 text-slate-800 dark:text-slate-200"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full module-search-input"
               />
-              {searchQuery && (
+              {searchTerm && (
                 <button
                   type="button"
-                  onClick={() => setSearchQuery('')}
+                  onClick={() => setSearchTerm('')}
                   className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
                   <X className="h-3.5 w-3.5" />
@@ -592,7 +500,6 @@ export default function DataList({
               )}
             </div>
 
-            {/* Rows Limit Select Dropdown */}
             <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-xs select-none dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200">
               <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
               <select
@@ -607,12 +514,10 @@ export default function DataList({
               </select>
             </div>
 
-            {/* Total Count Badge */}
             <div className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
               Total: {filteredData.length}
             </div>
 
-            {/* Column Visibility Dropdown */}
             <div className="relative" ref={colDropdownRef}>
               <button
                 type="button"
@@ -639,22 +544,9 @@ export default function DataList({
               )}
             </div>
 
-            {/* Copy Button */}
-            <CopyButton
-              onCopy={() => handleExport('Copy')}
-              color="#0f417a"
-              hoverBg="#f1f5f9"
-            />
+            <CopyButton onCopy={() => handleExport('Copy')} color="#0f417a" hoverBg="#f1f5f9" />
+            <ExportDropdown onExportExcel={() => handleExport('Excel')} onExportPdf={() => handleExport('PDF')} color="#0f417a" hoverColor="#1e5ea8" />
 
-            {/* Export Dropdown */}
-            <ExportDropdown
-              onExportExcel={() => handleExport('Excel')}
-              onExportPdf={() => handleExport('PDF')}
-              color="#0f417a"
-              hoverColor="#1e5ea8"
-            />
-
-            {/* View Toggle */}
             <div className="flex items-center border border-slate-200 rounded-xl p-0.5 bg-slate-50 dark:bg-slate-800 dark:border-slate-700">
               <button
                 type="button"
@@ -673,70 +565,52 @@ export default function DataList({
                 <BarChart3 className="h-4 w-4" />
               </button>
             </div>
-
           </div>
         </div>
 
-        {/* Collapsible Filter Panel matching YP / GMIS style */}
         {showFilterPanel && (
-          <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200/80 dark:border-slate-700 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 animate-fade-in">
-            {/* Wing Selector */}
+          <div className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200/80 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 animate-fade-in">
             <div className="space-y-1">
-              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Wing
-              </label>
+              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Wing</label>
               <div className="relative">
                 <select
                   value={selectedWing}
-                  onChange={(e) => {
-                    setSelectedWing(e.target.value);
-                    setSelectedDivision('All');
-                  }}
-                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                  onChange={(e) => setSelectedWing(e.target.value)}
+                  className="appearance-none w-full text-xs pl-2.5 pr-8 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
                 >
                   <option value="All">All Wings</option>
-                  {localWings.map(w => (
-                    <option key={w.wing_id || w.wing_name} value={w.wing_name}>
-                      {w.wing_name}
-                    </option>
+                  {wings.map(w => (
+                    <option key={w.wing_id || w.wing_name} value={w.wing_name}>{w.wing_name}</option>
                   ))}
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
               </div>
             </div>
 
-            {/* Division Selector */}
             <div className="space-y-1">
-              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Division
-              </label>
+              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Division</label>
               <div className="relative">
                 <select
                   value={selectedDivision}
                   onChange={(e) => setSelectedDivision(e.target.value)}
-                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                  className="appearance-none w-full text-xs pl-2.5 pr-8 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
                 >
                   <option value="All">All Divisions</option>
                   {filteredDivisions.map(d => (
-                    <option key={d.division_id || d.division_name || d} value={d.division_name || d}>
-                      {d.division_name || d}
-                    </option>
+                    <option key={d} value={d}>{d}</option>
                   ))}
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
               </div>
             </div>
 
-            {/* Status / Stage Filter */}
             <div className="space-y-1">
-              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Status / Stage
-              </label>
+              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status / Stage</label>
               <div className="relative">
                 <select
                   value={selectedStage}
                   onChange={(e) => setSelectedStage(e.target.value)}
-                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                  className="appearance-none w-full text-xs pl-2.5 pr-8 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
                 >
                   <option value="All">All Statuses</option>
                   {Object.values(STAGE_STEPS)
@@ -751,9 +625,8 @@ export default function DataList({
           </div>
         )}
 
-        {/* View Mode: Table vs Chart */}
         {viewMode === 'table' ? (
-          <div className="ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
+          <div className="ag-theme-quartz module-datalist-grid w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
             <Table
               rowData={filteredData}
               columnDefs={colDefs}
@@ -785,7 +658,6 @@ export default function DataList({
             )}
           </div>
         )}
-
       </div>
     </div>
   );

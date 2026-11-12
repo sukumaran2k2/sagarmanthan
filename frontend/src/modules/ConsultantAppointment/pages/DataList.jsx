@@ -1,6 +1,7 @@
-import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import Table from '../../../components/Table';
-import { Search, X, Edit, Trash2, ChevronDown, Users, Filter } from 'lucide-react';
+import { Search, X, Edit, Trash2, ChevronDown, Users, Filter, Plus } from 'lucide-react';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import CandidateDrilldownView from './CandidateDrilldownView';
@@ -9,6 +10,7 @@ import { fetchConsultantAppointments } from '../api';
 import { useShallow } from 'zustand/react/shallow';
 import { useCaStore } from '../store/useCaStore';
 import { useNotifier, COMMON_TOASTS } from '../../../utils/notify';
+import { formatDateTime, toInputDate, guardFormula, tsvCell } from '../formatters';
 
 const STAGES = [
   { key: 'adminApproval', label: 'Admin Approval for engaging Consultant' },
@@ -21,71 +23,40 @@ const STAGES = [
   { key: 'contractSigned', label: 'Contract Signed' },
 ];
 
-const PENDING_STAGES = [
-  'Initiated',
-  'Admin Approval for engaging Consultant',
-  'Tender Published',
-  'Pre-bid Queries Responded',
-  'Bid Received',
-  'Technical Bid Finalized',
-  'Financial Bid Finalized',
-  'Work Order Issued',
-];
+// Contract Signed is the completed state, so it is not offered as a pending stage
+const COMPLETED_STAGE_ID = 8;
 
-const formatDate = (d) => (d ? new Date(d).toISOString().split('T')[0] : '');
-const formatDateTime = (d) => {
-  if (!d) return '';
-  const str = typeof d === 'string' ? d : d.toISOString ? d.toISOString() : String(d);
-  const match = str.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})/);
-  if (match) {
-    const y = match[1];
-    const m = match[2];
-    const day = match[3];
-    const hStr = match[4];
-    const min = match[5];
-    const sec = match[6];
-    
-    if (hStr === '00' && min === '00' && sec === '00') {
-      return `${day}/${m}/${y}`;
-    }
 
-    let h = parseInt(hStr, 10);
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    h = h % 12;
-    h = h ? h : 12;
-    const hFormatted = String(h).padStart(2, '0');
-    return `${day}/${m}/${y}, ${hFormatted}:${min} ${ampm}`;
-  }
-  return String(d);
-};
-
+// Fallback only: the Status column shows the stage the server reports, because that is what
+// the Stage filter matches on. Deriving it from the dates instead let a row display one
+// stage while the filter placed it under another.
 const getStatusFromStages = (stages) => {
   for (let i = STAGES.length - 1; i >= 0; i--) {
     if (stages[STAGES[i].key]) {
       return STAGES[i].label;
     }
   }
-  return 'Initiated';
+  return 'No Status';
 };
 
 function parseAppointmentRow(b) {
   const stages = {
     adminApproval: !!b.admin_approval_for_nkg_consultant_date,
-    adminApprovalDate: formatDate(b.admin_approval_for_nkg_consultant_date),
+    adminApprovalDate: toInputDate(b.admin_approval_for_nkg_consultant_date),
     tenderPublished: !!b.tender_published_date,
-    tenderPublishedDate: formatDate(b.tender_published_date),
+    tenderPublishedDate: toInputDate(b.tender_published_date),
     preBidQueries: !!b.pre_bid_queries_responded_date,
-    preBidQueriesDate: formatDate(b.pre_bid_queries_responded_date),
+    preBidQueriesDate: toInputDate(b.pre_bid_queries_responded_date),
     bidReceived: !!b.bid_received_date,
-    bidReceivedDate: formatDate(b.bid_received_date),
+    bidReceivedDate: toInputDate(b.bid_received_date),
     techBidFinalized: !!b.technical_bid_finalized_date,
-    techBidFinalizedDate: formatDate(b.technical_bid_finalized_date),
+    techBidFinalizedDate: toInputDate(b.technical_bid_finalized_date),
     finBidFinalized: !!b.financial_bid_finalized_date,
-    finBidFinalizedDate: formatDate(b.financial_bid_finalized_date),
+    finBidFinalizedDate: toInputDate(b.financial_bid_finalized_date),
     workOrderIssued: !!b.work_order_issued_date,
-    workOrderIssuedDate: formatDate(b.work_order_issued_date),
+    workOrderIssuedDate: toInputDate(b.work_order_issued_date),
     contractSigned: !!b.contract_signed_date,
-    contractSignedDate: formatDate(b.contract_signed_date),
+    contractSignedDate: toInputDate(b.contract_signed_date),
   };
 
   const remarks = {
@@ -107,7 +78,9 @@ function parseAppointmentRow(b) {
     division: b.division_name || 'Unknown',
     appointmentType: b.appointment_type || 'Full Time',
     numResources: b.number_of_resources || 1,
-    status: getStatusFromStages(stages),
+    // stage_name is the value the Stage filter compares against, so showing it keeps the
+    // filter and the column in agreement
+    status: b.stage_name || getStatusFromStages(stages),
     stages,
     remarks,
     created_date: b.created_date,
@@ -173,8 +146,22 @@ export default function DataList({
     resetFilters: state.resetFilters
   })));
 
+  // Stage names come from the master table so the filter sends a value the server can match
+  const stageMaster = useCaStore(state => state.stages);
+  const stageOptions = useMemo(() => {
+    const names = stageMaster
+      .filter(s => activeTab !== 'pending' || s.stage_id !== COMPLETED_STAGE_ID)
+      .map(s => s.stage_name)
+      .filter(Boolean);
+    return names;
+  }, [stageMaster, activeTab]);
+
   // Drilldown is view state for this page only; it must not outlive the Data List
   const [drilldownAppointment, setDrilldownAppointment] = useState(null);
+
+  // Delete confirmation overlay state
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -183,7 +170,6 @@ export default function DataList({
   const gridApiRef = useRef(null);
   const notify = useNotifier(triggerNotification);
 
-  const [allCount, setAllCount] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
   const [completedCount, setCompletedCount] = useState(0);
 
@@ -253,35 +239,13 @@ export default function DataList({
         setTotalCount(payload.pagination.total || 0);
         setTotalPages(payload.pagination.totalPages || 1);
         if (payload.pagination.allCount !== undefined) {
-          setAllCount(payload.pagination.allCount || 0);
           setPendingCount(payload.pagination.pendingCount || 0);
           setCompletedCount(payload.pagination.completedCount || 0);
         }
       } else {
-        const list = Array.isArray(payload) ? payload : [];
-        const parsed = list.map((item, idx) => ({
-          ...parseAppointmentRow(item),
-          sNo: idx + 1
-        }));
-        const total = parsed.length;
-        const comp = parsed.filter(item => item.status === 'Contract Signed').length;
-        const pend = total - comp;
-        setAllCount(total);
-        setCompletedCount(comp);
-        setPendingCount(pend);
-
-        let filtered = parsed;
-        if (activeTab === 'pending') {
-          filtered = filtered.filter(item => item.status !== 'Contract Signed');
-        } else if (activeTab === 'completed') {
-          filtered = filtered.filter(item => item.status === 'Contract Signed');
-        }
-        if (selectedStage && selectedStage !== 'All Stages') {
-          filtered = filtered.filter(item => item.status === selectedStage);
-        }
-        setData(filtered);
-        setTotalCount(filtered.length);
-        setTotalPages(Math.ceil(filtered.length / pageSize) || 1);
+        setData([]);
+        setTotalCount(0);
+        setTotalPages(1);
       }
     } catch (err) {
       if (isStale()) return;
@@ -306,7 +270,7 @@ export default function DataList({
 
   const divisionOptions = useMemo(() => {
     if (!selectedWing) return [];
-    let filtered = divisions;
+    let filtered;
     const matchingWing = wings.find(w => 
       (w.wing_name && String(w.wing_name) === String(selectedWing)) || 
       (w.wing_id && String(w.wing_id) === String(selectedWing))
@@ -350,7 +314,7 @@ export default function DataList({
           columnDefs.forEach(col => {
             if (col.headerName && col.headerName !== 'Action') {
               const val = row[col.field] !== undefined ? row[col.field] : '';
-              line.push(val);
+              line.push(tsvCell(val));
             }
           });
           tsv += line.join('\t') + '\n';
@@ -365,7 +329,11 @@ export default function DataList({
     } else if (type === 'Excel') {
       if (gridApiRef.current) {
         const fileName = `Consultant_Appointment_Page_${currentPage}.csv`;
-        gridApiRef.current.exportDataAsCsv({ fileName });
+        gridApiRef.current.exportDataAsCsv({
+          fileName,
+          // ag-grid quotes fields but does not stop Excel executing one that starts with = + - @
+          processCellCallback: (params) => guardFormula(params.value),
+        });
         notify(COMMON_TOASTS.excelExported(fileName));
       } else {
         notify(COMMON_TOASTS.tableNotReady('export'));
@@ -431,6 +399,27 @@ export default function DataList({
       printWindow.document.close();
     }
   };
+
+  // Open overlay instead of window.confirm
+  const handleDeleteRow = useCallback((row) => {
+    setDeleteTarget(row);
+  }, []);
+
+  const confirmDelete = useCallback(async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await onDelete(deleteTarget);
+      setDeleteTarget(null);
+      fetchData();
+    } catch (err) {
+      console.error('Delete failed:', err);
+    } finally {
+      setDeleting(false);
+    }
+  }, [deleteTarget, onDelete, fetchData]);
+
+  const showDeleteAction = canRemove && !!onDelete;
 
   const columnDefs = useMemo(() => {
     const cols = [
@@ -561,12 +550,9 @@ export default function DataList({
                   <Edit className="h-4 w-4" />
                 </button>
               )}
-              {canRemove && onDelete && (
+              {showDeleteAction && (
                 <button
-                  onClick={async () => {
-                    await onDelete(row);
-                    fetchData();
-                  }}
+                  onClick={() => handleDeleteRow(row)}
                   className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/40 rounded text-red-600 dark:text-red-400 transition cursor-pointer"
                   title="Delete Appointment"
                 >
@@ -580,7 +566,7 @@ export default function DataList({
     }
 
     return cols;
-  }, [visibleCols, canEdit, canRemove, onEdit, onDelete, fetchData]);
+  }, [visibleCols, canEdit, canRemove, showDeleteAction, onEdit, handleDeleteRow]);
 
   if (drilldownAppointment) {
     return (
@@ -740,6 +726,18 @@ export default function DataList({
               color="#0f417a"
               hoverColor="#1e5ea8"
             />
+
+            {/* Add Appointment (matches the OVOD Data List) */}
+            {canAdd && onAddClick && (
+              <button
+                type="button"
+                onClick={onAddClick}
+                className="px-3.5 py-1.5 bg-[#0f417a] hover:bg-[#1a5ba3] text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Add Appointment</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -804,7 +802,7 @@ export default function DataList({
                     className="appearance-none w-full text-xs pl-2.5 pr-8 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
                   >
                     <option value="">All Stages</option>
-                    {(activeTab === 'pending' ? PENDING_STAGES : STAGES.map(s => s.label)).map(stage => (
+                    {stageOptions.map(stage => (
                       <option key={stage} value={stage}>{stage}</option>
                     ))}
                   </select>
@@ -853,6 +851,69 @@ export default function DataList({
         />
       </div>
       </div>
+
+      {/* Delete Confirmation Overlay */}
+      {deleteTarget && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 animate-fade-in"
+          onClick={() => !deleting && setDeleteTarget(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl animate-scale-up overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-black text-slate-800 dark:text-slate-100">
+                  Delete Consultant Appointment
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Are you sure you want to delete this record? This will also remove associated candidate records and documents.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="px-5 py-4 space-y-3">
+              <div className="bg-slate-50 dark:bg-slate-950 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs space-y-1">
+                <p className="text-slate-800 dark:text-slate-200 font-bold truncate">
+                  {deleteTarget.wing} — {deleteTarget.division}
+                </p>
+                <p className="text-slate-500 dark:text-slate-400 text-[11px]">
+                  {deleteTarget.appointmentType} • {deleteTarget.status}
+                </p>
+              </div>
+            </div>
+
+            <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2 bg-slate-50/60 dark:bg-slate-950/40">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="px-3.5 py-2 text-xs font-bold rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-60 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={confirmDelete}
+                className="px-4 py-2 text-xs font-bold rounded-lg bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-60 transition shadow-xs cursor-pointer"
+              >
+                {deleting ? 'Deleting...' : 'Delete Appointment'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
