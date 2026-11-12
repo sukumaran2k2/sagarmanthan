@@ -10,8 +10,6 @@ const MONTHS = [
 
 const SOCIAL_CHANNELS = ["twitter", "instagram", "facebook", "linkedIn", "youTube"];
 const SOCIAL_METRICS = ["posts", "impression", "engagement"];
-const CHANNEL_LABELS = { twitter: "Twitter", instagram: "Instagram", facebook: "Facebook", linkedIn: "LinkedIn", youTube: "YouTube" };
-const METRIC_LABELS = { posts: "Posts", impression: "Impression", engagement: "Engagement" };
 
 // Entered columns per media type; overall is the sum of the two entered values
 const SECTIONS = {
@@ -27,13 +25,6 @@ const SECTIONS = {
 // Financial-year order: April = 1 ... March = 12
 const MONTH_ORDER_SQL = `CASE sm.month ${MONTHS.map((m, i) => `WHEN '${m}' THEN ${i + 1}`).join(" ")} END`;
 
-const QUARTER_SQL = `CASE
-    WHEN sm.month IN ('April', 'May', 'June') THEN 'Quarter 1'
-    WHEN sm.month IN ('July', 'August', 'September') THEN 'Quarter 2'
-    WHEN sm.month IN ('October', 'November', 'December') THEN 'Quarter 3'
-    ELSE 'Quarter 4'
-END`;
-
 function isValidFinancialYear(value) {
     const match = /^(\d{4})-(\d{4})$/.exec(String(value ?? ""));
     return !!match && Number(match[2]) === Number(match[1]) + 1;
@@ -48,7 +39,6 @@ function isFutureMonth(financialYear, month) {
 
 // Older records may store '2026-27' instead of '2026-2027'; lookups match both
 const shortFinancialYear = (fy) => `${fy.slice(0, 4)}-${fy.slice(7)}`;
-const FULL_YEAR_SQL = "LEFT(sm.financial_year, 4) + '-' + CAST(CAST(LEFT(sm.financial_year, 4) AS INT) + 1 AS VARCHAR(4))";
 
 // Missing counts as 0; only whole numbers or digit strings in int range are valid, else null
 function readCount(value) {
@@ -263,131 +253,9 @@ async function deleteSocialMedia(req, res) {
     }
 }
 
-// SUM columns for a summary, e.g. broadcast_national -> total_national, twitter_posts -> twitter_posts
-function summaryColumns(platform) {
-    const { inputs, overall } = SECTIONS[platform];
-    if (platform === "social_media") {
-        return inputs.map((c) => `SUM(ISNULL(sm.${c}, 0)) AS ${c}`).join(", ");
-    }
-    return [...inputs, overall]
-        .map((c) => `SUM(ISNULL(sm.${c}, 0)) AS ${c.replace(`${platform}_`, "total_")}`)
-        .join(", ");
-}
-
-async function sendSummary(req, res, byQuarter) {
-    const { platform } = req.params;
-    if (!SECTIONS[platform]) return res.status(400).json({ message: "Invalid platform" });
-
-    try {
-        const conn = await pool;
-        const request = conn.request();
-        const result = await request.query(`
-            SELECT sm.organisation_id, ${FULL_YEAR_SQL} AS financial_year,
-                ${byQuarter ? `${QUARTER_SQL} AS quarter_number,` : ""}
-                ${summaryColumns(platform)}
-            FROM tbl_social_media sm
-            WHERE sm.financial_year IS NOT NULL ${scopeSql(req, request)}
-            GROUP BY sm.organisation_id, ${FULL_YEAR_SQL}${byQuarter ? `, ${QUARTER_SQL}` : ""}
-            ORDER BY financial_year DESC${byQuarter ? ", quarter_number" : ""}
-        `);
-        return res.json(result.recordset);
-    } catch (err) {
-        return sendServerError(res, err, byQuarter ? "quarterly summary" : "annual summary");
-    }
-}
-
-const getQuarterlySummary = (req, res) => sendSummary(req, res, true);
-const getAnnualSummary = (req, res) => sendSummary(req, res, false);
-
-// Report SELECT columns and matching grid column definitions
-function reportLayout(platform) {
-    const baseDefs = ["S No", "Organisation Name", "Month", "Financial Year"].map((field) => ({ headerName: field, field }));
-
-    if (platform === "social_media") {
-        return {
-            columns: SECTIONS.social_media.inputs.map((c) => `sm.${c} AS ${c}`).join(", "),
-            columnDefs: [
-                ...baseDefs,
-                ...SOCIAL_CHANNELS.map((channel) => ({
-                    headerName: CHANNEL_LABELS[channel],
-                    children: SOCIAL_METRICS.map((metric) => ({ headerName: METRIC_LABELS[metric], field: `${channel}_${metric}` })),
-                })),
-            ],
-        };
-    }
-
-    const { inputs, overall } = SECTIONS[platform];
-    const labels = platform === "online"
-        ? ["Online English", "Online Vernacular", "Online Overall"]
-        : ["National", "Regional", "Overall"];
-    return {
-        columns: [...inputs, overall].map((c, i) => `sm.${c} AS [${labels[i]}]`).join(", "),
-        columnDefs: [...baseDefs, ...labels.map((label) => ({ headerName: label, field: label }))],
-    };
-}
-
-async function sendMonthlyReport(req, res, platform) {
-    const { currentMonth, currentFinYear } = req.params;
-    if (!SECTIONS[platform]) return res.status(400).json({ message: "Invalid platform" });
-    if (currentMonth !== "ALL" && !MONTHS.includes(currentMonth)) {
-        return res.status(400).json({ message: "Invalid month" });
-    }
-    if (currentFinYear !== "ALL" && !isValidFinancialYear(currentFinYear)) {
-        return res.status(400).json({ message: "Invalid financial year" });
-    }
-
-    try {
-        const conn = await pool;
-        const request = conn.request();
-        const conditions = [`sm.${SECTIONS[platform].checked} = 1 ${scopeSql(req, request)}`];
-        if (currentFinYear !== "ALL") {
-            request.input("financialYear", currentFinYear);
-            request.input("shortFinancialYear", shortFinancialYear(currentFinYear));
-            conditions.push("sm.financial_year IN (@financialYear, @shortFinancialYear)");
-        }
-        if (currentMonth !== "ALL") {
-            request.input("month", currentMonth);
-            conditions.push("sm.month = @month");
-        }
-
-        const { columns, columnDefs } = reportLayout(platform);
-        const result = await request.query(`
-            SELECT
-                ROW_NUMBER() OVER (ORDER BY o.organisation_name, sm.financial_year, ${MONTH_ORDER_SQL}) AS [S No],
-                o.organisation_name AS [Organisation Name],
-                sm.month AS [Month],
-                ${FULL_YEAR_SQL} AS [Financial Year],
-                ${columns}
-            FROM tbl_social_media sm
-            INNER JOIN mmt_organisation o ON o.organisation_id = sm.organisation_id
-            WHERE ${conditions.join(" AND ")}
-            ORDER BY [S No]
-        `);
-        return res.json({ columnDefs, rowData: result.recordset });
-    } catch (err) {
-        return sendServerError(res, err, `${platform} report`);
-    }
-}
-
-const getMonthlyOnlineReport = (req, res) => sendMonthlyReport(req, res, "online");
-const getMonthlySocialReport = (req, res) => sendMonthlyReport(req, res, "social_media");
-
-function getMonthlyBroadPrintReport(req, res) {
-    const { platform } = req.params;
-    if (platform !== "broadcast" && platform !== "print_media") {
-        return res.status(400).json({ message: "Invalid platform" });
-    }
-    return sendMonthlyReport(req, res, platform);
-}
-
 export default {
     createSocialMedia,
     getSocialMediaList,
     updateSocialMedia,
     deleteSocialMedia,
-    getQuarterlySummary,
-    getAnnualSummary,
-    getMonthlyOnlineReport,
-    getMonthlySocialReport,
-    getMonthlyBroadPrintReport,
 };

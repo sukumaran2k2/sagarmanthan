@@ -1538,18 +1538,6 @@ router.get(
   requireModulePermission("MEDIA_OUTREACH", "read"),
   socialmediaTab.getSocialMediaList
 );
-router.get(
-  "/quarterly-socialmedia-parameter/:platform",
-  auth,
-  requireModulePermission("MEDIA_OUTREACH", "read"),
-  socialmediaTab.getQuarterlySummary
-);
-router.get(
-  "/annually-socialmedia-parameter/:platform",
-  auth,
-  requireModulePermission("MEDIA_OUTREACH", "read"),
-  socialmediaTab.getAnnualSummary
-);
 router.put(
   "/media-outreach-data-edit",
   auth,
@@ -1561,26 +1549,6 @@ router.delete(
   auth,
   requireModulePermission("MEDIA_OUTREACH", "delete"),
   socialmediaTab.deleteSocialMedia
-);
-
-// Social media monthly reports
-router.get(
-  "/monthly-onlinemedia-report-parameter/:currentMonth/:currentFinYear",
-  auth,
-  requireModulePermission("MEDIA_OUTREACH", "read"),
-  socialmediaTab.getMonthlyOnlineReport
-);
-router.get(
-  "/monthly-socialmedia-report-parameter/:currentMonth/:currentFinYear",
-  auth,
-  requireModulePermission("MEDIA_OUTREACH", "read"),
-  socialmediaTab.getMonthlySocialReport
-);
-router.get(
-  "/monthly-BroadPrint-report-parameter/:platform/:currentMonth/:currentFinYear",
-  auth,
-  requireModulePermission("MEDIA_OUTREACH", "read"),
-  socialmediaTab.getMonthlyBroadPrintReport
 );
 
 // Gem Procurement
