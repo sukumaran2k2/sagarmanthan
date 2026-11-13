@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plane, ArrowLeft, AlertCircle, Loader2, ClipboardCheck, PlaneLanding, FileText } from 'lucide-react';
-import VisitFormFields, { YesNoField, Field, GRID, HALF } from '../components/VisitFormFields';
+import {
+  Plane, ArrowLeft, AlertCircle, Loader2, ClipboardCheck, PlaneLanding, FileText,
+  ChevronLeft, ChevronRight,
+} from 'lucide-react';
+import VisitFormFields, { YesNoField, Field, GRID, HALF, FULL } from '../components/VisitFormFields';
 import DocumentUploadField from '../components/DocumentUploadField';
 import {
   fetchForeignVisitForUpdate,
@@ -9,10 +12,10 @@ import {
   updateSanctionedInfo,
   updateVisitInfo,
   uploadForeignVisitDocument,
-  downloadForeignVisitDocument,
 } from '../api';
+import { downloadVisitDocument } from '../utils/downloadDocument';
 import { useFvStore } from '../store/useFvStore';
-import { DOC_TYPE, STAGE, STAGE_NAMES, SCHEMA_LIMITS } from '../utils/constants';
+import { DOC_TYPE, STAGE, STAGE_NAMES, SCHEMA_LIMITS, isMinistryOrganisation } from '../utils/constants';
 import {
   emptyVisitValues,
   buildProposedUpdatePayload,
@@ -26,7 +29,8 @@ import { FV_TOASTS } from '../toastMessages';
 const ALL_TABS = [
   { id: 'proposal', label: 'Proposed Information', icon: FileText },
   { id: 'sanction', label: 'Sanctioned Information', icon: ClipboardCheck },
-  { id: 'visit', label: 'Visit Information', icon: PlaneLanding },
+  // The 2.0 tab is named for the outcome it records; the panel below it is headed "Tour Report".
+  { id: 'visit', label: 'Details of Visited / Not Visited', heading: 'Tour Report', icon: PlaneLanding },
 ];
 
 /**
@@ -42,17 +46,31 @@ function tabsForStage(stage) {
   return ALL_TABS.filter((t) => t.id !== 'visit' || sanctioned);
 }
 
-/** Amber ribbon naming the stage the record sits at, as in the 2.0 form. */
-function StageBadge({ label }) {
+/**
+ * Ribbon naming where the tour stands, as in the 2.0 form.
+ *
+ * It names the decision, not the stage: everything from Sanctioned onwards reads
+ * "Sanctioned Tour", so a visited record does not display "Sanctioned & Visited Tour".
+ */
+function stageRibbon(stage) {
+  const id = Number(stage);
+  if (!id) return null;
+  if (id === STAGE.PROPOSED) return { label: 'Proposed Tour', tone: 'bg-amber-400 text-slate-900' };
+  if (id === STAGE.REJECTED) return { label: 'Rejected Tour', tone: 'bg-rose-500 text-white' };
+  return { label: 'Sanctioned Tour', tone: 'bg-sky-500 text-white' };
+}
+
+function StageBadge({ ribbon }) {
+  if (!ribbon) return null;
   return (
-    <span className="inline-flex items-center rounded-lg bg-amber-400 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-slate-900 shadow-sm">
-      {label}
+    <span className={`inline-flex items-center rounded-lg px-3 py-1 text-[11px] font-black uppercase tracking-wide shadow-sm ${ribbon.tone}`}>
+      {ribbon.label}
     </span>
   );
 }
 
 /**
- * Update an existing Official Foreign Visit.
+ * Update an existing Foreign Visit.
  *
  * The backend splits an update across three endpoints, each owning a slice of the row and each
  * deciding the next stage itself. The tabs here mirror that split so a save never sends fields
@@ -62,6 +80,7 @@ export default function UpdateVisit({ visitId, onBack, onSaved, triggerNotificat
   const notify = useNotifier(triggerNotification);
   const visitTypes = useFvStore((s) => s.allVisitTypes);
   const stages = useFvStore((s) => s.stages);
+  const organisations = useFvStore((s) => s.organisations);
   const userId = getCurrentUserId();
 
   const [activeTab, setActiveTab] = useState('proposal');
@@ -139,24 +158,18 @@ export default function UpdateVisit({ visitId, onBack, onSaved, triggerNotificat
   // and validated on the Sanction tab instead. Everything else follows the stage, the same way
   // the create form does.
   const proposalErrors = useMemo(() => {
-    const errs = validateVisitValues(values, { visitTypes });
+    const errs = validateVisitValues(values, {
+      visitTypes,
+      isMinistry: isMinistryOrganisation(organisations, values.organisation),
+    });
     delete errs.sanctioningAuthority;
     return errs;
-  }, [values, visitTypes]);
+  }, [values, visitTypes, organisations]);
   const proposalValid = Object.keys(proposalErrors).length === 0;
 
   const handleDownload = async (fileName) => {
-    if (!fileName) return;
     try {
-      const res = await downloadForeignVisitDocument(fileName);
-      const url = URL.createObjectURL(new Blob([res.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      await downloadVisitDocument(fileName);
     } catch (err) {
       console.error('Foreign Visit: download failed', err);
       notify(FV_TOASTS.downloadFailed(err));
@@ -206,11 +219,18 @@ export default function UpdateVisit({ visitId, onBack, onSaved, triggerNotificat
     if (tourSanctioned === '1' && !sanctionedAuthority.trim()) {
       errs.sanctionedAuthority = 'Sanctioning authority is required.';
     }
+    // A sanctioned tour must have its order on file -- either one already attached or one
+    // picked now.
+    const attachedOrder = documents.find((d) => d.doc_related === DOC_TYPE.SANCTION)?.file_name;
+    if (tourSanctioned === '1' && !sanctionFile && !attachedOrder) {
+      errs.sanctionOrder = 'Attach the sanction order.';
+    }
     if (tourSanctioned === '0' && !rejectionRemarks.trim()) {
       errs.rejectionRemarks = 'Give a reason for not approving the visit.';
     }
     return errs;
-  }, [tourSanctioned, sanctionedAuthority, rejectionRemarks]);
+    // documents feeds docFor, so a freshly uploaded order clears the error after a reload
+  }, [tourSanctioned, sanctionedAuthority, rejectionRemarks, sanctionFile, documents]);
 
   const saveSanction = async () => {
     setSanctionSubmitted(true);
@@ -229,7 +249,11 @@ export default function UpdateVisit({ visitId, onBack, onSaved, triggerNotificat
         visit: String(record?.visit ?? STAGE.PROPOSED),
         userID: userId,
       });
-      await uploadOne(sanctionFile, DOC_TYPE.SANCTION, 'sanction order');
+      // Only attach the order when the tour was actually sanctioned -- a file picked and then
+      // left behind by switching the answer to No must not reach a rejected record.
+      if (tourSanctioned === '1') {
+        await uploadOne(sanctionFile, DOC_TYPE.SANCTION, 'sanction order');
+      }
       setSanctionFile(null);
       notify(FV_TOASTS.sanctionUpdated(tourSanctioned === '1'));
       await loadRecord();
@@ -250,9 +274,6 @@ export default function UpdateVisit({ visitId, onBack, onSaved, triggerNotificat
     if (visitCompleted === '0' && !notVisitedReason.trim()) {
       errs.notVisitedReason = 'Give a reason, otherwise the visit will be recorded as completed.';
     }
-    if (visitCompleted === '1' && notVisitedReason.trim()) {
-      errs.notVisitedReason = 'Clear this reason, otherwise the visit will be recorded as not visited.';
-    }
     return errs;
   }, [visitCompleted, notVisitedReason]);
 
@@ -266,11 +287,17 @@ export default function UpdateVisit({ visitId, onBack, onSaved, triggerNotificat
       await updateVisitInfo({
         ID: visitId,
         visitCompleted: Number(visitCompleted),
-        reasonForNotVisited: notVisitedReason.trim() || null,
+        // updateVisitTab derives the stage purely from whether a reason was sent -- a reason
+        // means Not Visited (4), none means Visited (3). Sending a reason left over from a
+        // previous answer would record the opposite of what was chosen here.
+        reasonForNotVisited: visitCompleted === '0' ? (notVisitedReason.trim() || null) : null,
         visit: String(record?.visit ?? STAGE.SANCTIONED),
         userID: userId,
       });
-      await uploadOne(tourFile, DOC_TYPE.TOUR, 'tour report');
+      // Likewise, a tour report belongs only to a visit that actually happened.
+      if (visitCompleted === '1') {
+        await uploadOne(tourFile, DOC_TYPE.TOUR, 'tour report');
+      }
       setTourFile(null);
       notify(FV_TOASTS.visitOutcomeUpdated(visitCompleted === '1'));
       await loadRecord();
@@ -288,6 +315,19 @@ export default function UpdateVisit({ visitId, onBack, onSaved, triggerNotificat
     const match = stages.find((s) => String(s.fv_stage_id) === String(record.visit));
     return match?.fv_stage_name || STAGE_NAMES[Number(record.visit)] || '—';
   }, [record, stages]);
+
+  const tabs = useMemo(() => tabsForStage(record?.visit), [record]);
+
+  /**
+   * A save can move the record to a stage that no longer offers the open tab -- rejecting a
+   * tour drops the Visit tab. Deriving the tab rather than correcting it in an effect means
+   * there is never a render where the selected tab does not exist.
+   */
+  const effectiveTab = tabs.some((t) => t.id === activeTab) ? activeTab : (tabs[0]?.id ?? 'proposal');
+
+  const tabIndex = tabs.findIndex((t) => t.id === effectiveTab);
+  const prevTab = tabIndex > 0 ? tabs[tabIndex - 1] : null;
+  const nextTab = tabIndex >= 0 && tabIndex < tabs.length - 1 ? tabs[tabIndex + 1] : null;
 
   const errorLine = (message) =>
     message ? (
@@ -324,7 +364,7 @@ export default function UpdateVisit({ visitId, onBack, onSaved, triggerNotificat
         <div>
           <h3 className="module-form-banner-title">
             <Plane className="h-4 w-4" />
-            <span>UPDATE OFFICIAL FOREIGN VISIT — {record?.fv_id || ''}</span>
+            <span>UPDATE FOREIGN VISIT — {record?.fv_id || ''}</span>
           </h3>
           <p className="module-form-banner-subtext">
             {record?.name || 'Officer'} · Current stage: {currentStageName}
@@ -337,23 +377,33 @@ export default function UpdateVisit({ visitId, onBack, onSaved, triggerNotificat
         </button>
       </div>
 
-      <div className="px-6 pt-5">
+      <div className="px-6 pt-5 space-y-4">
         <div className="module-subtabs-strip">
-          {TABS.map((tab) => {
+          {tabs.map((tab) => {
             const Icon = tab.icon;
             return (
               <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)}
-                className={`module-subtab-btn flex items-center gap-1.5 ${activeTab === tab.id ? 'active' : ''}`}>
+                className={`module-subtab-btn flex items-center gap-1.5 ${effectiveTab === tab.id ? 'active' : ''}`}>
                 <Icon className="h-3.5 w-3.5" />
                 <span>{tab.label.toUpperCase()}</span>
               </button>
             );
           })}
         </div>
+
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-base font-black text-slate-800 dark:text-slate-100">
+            {(() => {
+              const tab = tabs.find((t) => t.id === effectiveTab);
+              return tab?.heading || tab?.label;
+            })()}
+          </h3>
+          <StageBadge ribbon={stageRibbon(record?.visit)} />
+        </div>
       </div>
 
       <div className="p-6 space-y-6">
-        {activeTab === 'proposal' && (
+        {effectiveTab === 'proposal' && (
           <>
             {proposalSubmitted && !proposalValid && (
               <div className="p-4 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 rounded-xl flex items-start space-x-3">
@@ -379,16 +429,17 @@ export default function UpdateVisit({ visitId, onBack, onSaved, triggerNotificat
             />
 
             <SaveBar saving={saving} onCancel={onBack} onSave={saveProposal} disabled={!canEdit}
-              label="Save Proposal Details" />
+              prevTab={prevTab} nextTab={nextTab} onGoToTab={setActiveTab}
+              label="Update" />
           </>
         )}
 
-        {activeTab === 'sanction' && (
+        {effectiveTab === 'sanction' && (
           <>
             <div className={GRID}>
-              <div className={HALF}>
+              <div className={FULL}>
                 <YesNoField
-                  label="Tour Sanctioned?"
+                  label="Whether Tour is Sanctioned?"
                   name="tourSanctioned"
                   value={tourSanctioned}
                   onChange={setTourSanctioned}
@@ -397,35 +448,47 @@ export default function UpdateVisit({ visitId, onBack, onSaved, triggerNotificat
                 />
               </div>
 
-              <Field label="Sanctioning Authority" required={tourSanctioned === '1'} span={HALF}
-                error={sanctionSubmitted && errorLine(sanctionErrors.sanctionedAuthority)}>
-                <input type="text" value={sanctionedAuthority} disabled={saving || !canEdit}
-                  maxLength={SCHEMA_LIMITS.sanctionedAuthority}
-                  onChange={(e) => setSanctionedAuthority(e.target.value)}
-                  placeholder="e.g. Secretary (PSW)"
-                  className={`module-form-input ${sanctionSubmitted && sanctionErrors.sanctionedAuthority ? '!border-rose-500 !ring-1 !ring-rose-500' : ''}`} />
-              </Field>
+              {/* The authority and the order only exist once the tour has been approved, so
+                  they stay out of the way until Yes is chosen -- as in the 2.0 form, which
+                  shows nothing but the question and Remarks before a decision is made. */}
+              {tourSanctioned === '1' && (
+                <>
+                  <Field label="Sanctioning Authority" required span={HALF}
+                    error={sanctionSubmitted && errorLine(sanctionErrors.sanctionedAuthority)}>
+                    <input type="text" value={sanctionedAuthority} disabled={saving || !canEdit}
+                      maxLength={SCHEMA_LIMITS.sanctionedAuthority}
+                      onChange={(e) => setSanctionedAuthority(e.target.value)}
+                      placeholder="e.g. Secretary (PSW)"
+                      className={`module-form-input ${sanctionSubmitted && sanctionErrors.sanctionedAuthority ? '!border-rose-500 !ring-1 !ring-rose-500' : ''}`} />
+                  </Field>
 
-              <Field label="Remarks for Not Approving" required={tourSanctioned === '0'} span={HALF}
-                error={sanctionSubmitted && errorLine(sanctionErrors.rejectionRemarks)}>
-                <textarea value={rejectionRemarks} rows={3} disabled={saving || !canEdit}
-                  maxLength={SCHEMA_LIMITS.remarks}
-                  onChange={(e) => setRejectionRemarks(e.target.value)}
-                  placeholder="Only needed when the tour was not sanctioned"
-                  className={`module-form-textarea resize-y ${sanctionSubmitted && sanctionErrors.rejectionRemarks ? '!border-rose-500 !ring-1 !ring-rose-500' : ''}`} />
-              </Field>
+                  <div className={HALF}>
+                    <DocumentUploadField
+                      label="Sanction Order"
+                      required
+                      pdfOnly
+                      file={sanctionFile}
+                      error={sanctionFileError || (sanctionSubmitted ? sanctionErrors.sanctionOrder : null)}
+                      disabled={saving || !canEdit}
+                      existingFileName={docFor(DOC_TYPE.SANCTION)}
+                      onDownloadExisting={() => handleDownload(docFor(DOC_TYPE.SANCTION))}
+                      onSelect={(file, error) => { setSanctionFile(file); setSanctionFileError(error); }}
+                    />
+                  </div>
+                </>
+              )}
 
-              <div className={HALF}>
-                <DocumentUploadField
-                  label="Upload Sanction Order"
-                  file={sanctionFile}
-                  error={sanctionFileError}
-                  disabled={saving || !canEdit}
-                  existingFileName={docFor(DOC_TYPE.SANCTION)}
-                  onDownloadExisting={() => handleDownload(docFor(DOC_TYPE.SANCTION))}
-                  onSelect={(file, error) => { setSanctionFile(file); setSanctionFileError(error); }}
-                />
-              </div>
+              {/* Only a tour that was not sanctioned needs a reason. */}
+              {tourSanctioned !== '1' && (
+                <Field label="Remarks" required={tourSanctioned === '0'} span={HALF}
+                  error={sanctionSubmitted && errorLine(sanctionErrors.rejectionRemarks)}>
+                  <textarea value={rejectionRemarks} rows={3} disabled={saving || !canEdit}
+                    maxLength={SCHEMA_LIMITS.remarks}
+                    onChange={(e) => setRejectionRemarks(e.target.value)}
+                    placeholder="Enter reason for incomplete visit"
+                    className={`module-form-textarea resize-y ${sanctionSubmitted && sanctionErrors.rejectionRemarks ? '!border-rose-500 !ring-1 !ring-rose-500' : ''}`} />
+                </Field>
+              )}
             </div>
 
             <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2">
@@ -434,16 +497,17 @@ export default function UpdateVisit({ visitId, onBack, onSaved, triggerNotificat
             </p>
 
             <SaveBar saving={saving} onCancel={onBack} onSave={saveSanction} disabled={!canEdit}
-              label="Save Sanction Details" />
+              prevTab={prevTab} nextTab={nextTab} onGoToTab={setActiveTab}
+              label="Update" />
           </>
         )}
 
-        {activeTab === 'visit' && (
+        {effectiveTab === 'visit' && (
           <>
             <div className={GRID}>
-              <div className={HALF}>
+              <div className={FULL}>
                 <YesNoField
-                  label="Visit Completed?"
+                  label="Visit completed by the officer?"
                   name="visitCompleted"
                   value={visitCompleted}
                   onChange={setVisitCompleted}
@@ -452,26 +516,33 @@ export default function UpdateVisit({ visitId, onBack, onSaved, triggerNotificat
                 />
               </div>
 
-              <div className={HALF}>
-                <DocumentUploadField
-                  label="Upload Tour Report"
-                  file={tourFile}
-                  error={tourFileError}
-                  disabled={saving || !canEdit}
-                  existingFileName={docFor(DOC_TYPE.TOUR)}
-                  onDownloadExisting={() => handleDownload(docFor(DOC_TYPE.TOUR))}
-                  onSelect={(file, error) => { setTourFile(file); setTourFileError(error); }}
-                />
-              </div>
+              {/* A completed visit has a report; one that did not happen has a reason. Neither
+                  is asked for until the question above is answered. */}
+              {visitCompleted === '1' && (
+                <div className={HALF}>
+                  <DocumentUploadField
+                    label="Tour Report"
+                    pdfOnly
+                    file={tourFile}
+                    error={tourFileError}
+                    disabled={saving || !canEdit}
+                    existingFileName={docFor(DOC_TYPE.TOUR)}
+                    onDownloadExisting={() => handleDownload(docFor(DOC_TYPE.TOUR))}
+                    onSelect={(file, error) => { setTourFile(file); setTourFileError(error); }}
+                  />
+                </div>
+              )}
 
-              <Field label="Reason for Not Visiting" required={visitCompleted === '0'} span={HALF}
-                error={visitSubmitted && errorLine(visitErrors.notVisitedReason)}>
-                <textarea value={notVisitedReason} rows={3} disabled={saving || !canEdit}
-                  maxLength={SCHEMA_LIMITS.remarks}
-                  onChange={(e) => setNotVisitedReason(e.target.value)}
-                  placeholder="Leave empty when the visit went ahead"
-                  className={`module-form-textarea resize-y ${visitSubmitted && visitErrors.notVisitedReason ? '!border-rose-500 !ring-1 !ring-rose-500' : ''}`} />
-              </Field>
+              {visitCompleted === '0' && (
+                <Field label="Reason for Not Visiting" required span={HALF}
+                  error={visitSubmitted && errorLine(visitErrors.notVisitedReason)}>
+                  <textarea value={notVisitedReason} rows={3} disabled={saving || !canEdit}
+                    maxLength={SCHEMA_LIMITS.remarks}
+                    onChange={(e) => setNotVisitedReason(e.target.value)}
+                    placeholder="Why the sanctioned visit did not take place"
+                    className={`module-form-textarea resize-y ${visitSubmitted && visitErrors.notVisitedReason ? '!border-rose-500 !ring-1 !ring-rose-500' : ''}`} />
+                </Field>
+              )}
             </div>
 
             <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2">
@@ -480,7 +551,8 @@ export default function UpdateVisit({ visitId, onBack, onSaved, triggerNotificat
             </p>
 
             <SaveBar saving={saving} onCancel={onBack} onSave={saveVisitOutcome} disabled={!canEdit}
-              label="Save Visit Outcome" />
+              prevTab={prevTab} nextTab={nextTab} onGoToTab={setActiveTab}
+              label="Update" />
           </>
         )}
       </div>
@@ -488,18 +560,47 @@ export default function UpdateVisit({ visitId, onBack, onSaved, triggerNotificat
   );
 }
 
-function SaveBar({ saving, onCancel, onSave, label, disabled }) {
+/**
+ * Previous / Exit on the left, Update / Next on the right, as in the 2.0 form.
+ *
+ * Next only moves between tabs -- it does not save. Each tab is its own endpoint, so moving on
+ * without pressing Update would otherwise look like a save that silently did nothing.
+ */
+function SaveBar({ saving, onCancel, onSave, label, disabled, prevTab, nextTab, onGoToTab }) {
   return (
-    <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
-      <button type="button" onClick={onCancel} disabled={saving}
-        className="px-5 py-2.5 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer disabled:opacity-60">
-        Exit
-      </button>
-      <button type="button" onClick={onSave} disabled={saving || disabled}
-        className="px-6 py-2.5 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition cursor-pointer disabled:opacity-60 flex items-center gap-2">
-        {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-        <span>{saving ? 'Saving…' : label}</span>
-      </button>
+    <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+      <div className="flex items-center gap-3">
+        {prevTab && (
+          <button type="button" onClick={() => onGoToTab(prevTab.id)} disabled={saving}
+            className="px-5 py-2.5 text-xs font-bold rounded-xl bg-sky-600 hover:bg-sky-700 text-white transition cursor-pointer disabled:opacity-60 flex items-center gap-1.5">
+            <ChevronLeft className="h-3.5 w-3.5" />
+            <span>Previous</span>
+          </button>
+        )}
+      </div>
+
+      <div className="flex items-center gap-3">
+        <button type="button" onClick={onSave} disabled={saving || disabled}
+          className="px-6 py-2.5 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition cursor-pointer disabled:opacity-60 flex items-center gap-2">
+          {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+          <span>{saving ? 'Saving…' : label}</span>
+        </button>
+
+        {/* Next while there is another tab to move to, Exit once this is the last one. */}
+        {nextTab ? (
+          <button type="button" onClick={() => onGoToTab(nextTab.id)} disabled={saving}
+            title="Moves to the next tab. Press Update first to save this one."
+            className="px-5 py-2.5 text-xs font-bold rounded-xl bg-orange-500 hover:bg-orange-600 text-white transition cursor-pointer disabled:opacity-60 flex items-center gap-1.5">
+            <span>Next</span>
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+        ) : (
+          <button type="button" onClick={onCancel} disabled={saving}
+            className="px-5 py-2.5 text-xs font-bold rounded-xl bg-rose-600 hover:bg-rose-700 text-white transition cursor-pointer disabled:opacity-60">
+            Exit
+          </button>
+        )}
+      </div>
     </div>
   );
 }

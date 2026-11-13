@@ -54,8 +54,10 @@ export const FV_TOASTS = {
   documentUploadFailed: (label, err) =>
     toastError('Upload Failed', withReason(`The ${label} could not be uploaded.`, getErrorMessage(err))),
 
+  // downloadVisitDocument throws an Error whose message already explains the failure, so it is
+  // used as-is rather than appended to a generic sentence.
   downloadFailed: (err) =>
-    toastError('Download Failed', withReason('The document could not be downloaded.', getErrorMessage(err))),
+    toastError('Download Failed', err?.message || 'The document could not be downloaded.'),
 
   loadFailed: (what, err) =>
     toastError('Could Not Load', withReason(`The ${what} could not be loaded.`, getErrorMessage(err))),

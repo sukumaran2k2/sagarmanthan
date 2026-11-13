@@ -1,5 +1,5 @@
 /**
- * Official Foreign Visit -- shared constants.
+ * Foreign Visit -- shared constants.
  *
  * Stage ids mirror mmt_ofv_stage and are relied on by the backend update endpoints, which
  * derive the next stage themselves (see updateSanctionedInfo / updateVisitTab). Do not renumber.

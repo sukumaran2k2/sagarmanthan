@@ -1,7 +1,7 @@
 import { axiosInstance } from '../../api';
 
 /**
- * Official Foreign Visit API.
+ * Foreign Visit API.
  *
  * The backend controller (backend/src/controllers/Governance/officialForeignVisit.js) was ported
  * from the 2.0 portal, so the route names and payload keys below are its spelling, not ours --

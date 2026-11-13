@@ -58,7 +58,7 @@ function Section({ title, children }) {
 }
 
 /**
- * The proposal fields of an Official Foreign Visit.
+ * The proposal fields of an Foreign Visit.
  *
  * Shared by the Input Form (create) and the Proposal tab of the Update screen, so the two can
  * never drift apart. The parent owns the values, the errors and which fields have been touched.
@@ -118,7 +118,12 @@ export default function VisitFormFields({
   const handleOrganisationChange = (e) => {
     const next = e.target.value;
     onChange('organisation', next);
-    if (!isMinistryOrganisation(organisations, next) && values.designationGOI) {
+
+    if (isMinistryOrganisation(organisations, next)) {
+      // Switching to the ministry: the organisation designation no longer applies.
+      if (values.designation) onChange('designation', '');
+      if (values.newDesignation) onChange('newDesignation', '');
+    } else if (values.designationGOI) {
       onChange('designationGOI', '');
     }
   };
@@ -253,37 +258,44 @@ export default function VisitFormFields({
           </Field>
         )}
 
-        {/* Ministry officers only -- see isMinistryOrganisation. */}
-        {showGoiDesignation && (
-          <Field label="Designation Equivalent in GoI" span={HALF}>
+        {/*
+          A ministry officer is identified by their GoI-equivalent rank, an organisation officer
+          by the designation they hold there. The two are alternatives, so exactly one is shown.
+        */}
+        {showGoiDesignation ? (
+          <Field label="Designation Equivalent in GoI" required span={FULL}
+            error={fieldError('designationGOI')}>
             <select value={values.designationGOI} disabled={disabled}
               onChange={set('designationGOI')} onBlur={blur('designationGOI')}
-              className="module-form-select cursor-pointer">
+              className={`module-form-select cursor-pointer ${errorClass('designationGOI')}`}>
               <option value="">--Select--</option>
               {GOI_DESIGNATIONS.map((d) => <option key={d.code} value={d.code}>{d.label}</option>)}
             </select>
           </Field>
-        )}
+        ) : (
+          <>
+            <Field label="Designation in the Respective Organisation" required span={FULL}
+              error={fieldError('designation')}>
+              <select value={values.designation} disabled={disabled}
+                onChange={set('designation')} onBlur={blur('designation')}
+                className={`module-form-select cursor-pointer ${errorClass('designation')}`}>
+                <option value="">--Select Designation--</option>
+                {sortedDesignations.map((d) => (
+                  <option key={d.id} value={String(d.id)}>{d.designation}</option>
+                ))}
+              </select>
+            </Field>
 
-        <Field label="Designation in the Respective Organisation" required
-          span={showGoiDesignation ? HALF : FULL} error={fieldError('designation')}>
-          <select value={values.designation} disabled={disabled}
-            onChange={set('designation')} onBlur={blur('designation')}
-            className={`module-form-select cursor-pointer ${errorClass('designation')}`}>
-            <option value="">--Select Designation--</option>
-            {sortedDesignations.map((d) => (
-              <option key={d.id} value={String(d.id)}>{d.designation}</option>
-            ))}
-          </select>
-        </Field>
-
-        {isOtherDesignation(values.designation) && (
-          <Field label="Specify the Designation" required span={FULL} error={fieldError('newDesignation')}>
-            <input type="text" value={values.newDesignation} disabled={disabled}
-              maxLength={SCHEMA_LIMITS.otherDesignation}
-              onChange={set('newDesignation')} onBlur={blur('newDesignation')}
-              className={`module-form-input ${errorClass('newDesignation')}`} />
-          </Field>
+            {isOtherDesignation(values.designation) && (
+              <Field label="Enter New Designation" required span={FULL}
+                error={fieldError('newDesignation')}>
+                <input type="text" value={values.newDesignation} disabled={disabled}
+                  maxLength={SCHEMA_LIMITS.otherDesignation}
+                  onChange={set('newDesignation')} onBlur={blur('newDesignation')}
+                  className={`module-form-input ${errorClass('newDesignation')}`} />
+              </Field>
+            )}
+          </>
         )}
       </Section>
 
@@ -353,7 +365,7 @@ export default function VisitFormFields({
         <Section title="Post-Visit Compliance">
           <div className={HALF}>
             <YesNoField
-              label="Submitted to Competent Authority?"
+              label="Submitted to competent authority?"
               name="competentAuthority"
               value={values.competentAuthority}
               onChange={(v) => onChange('competentAuthority', v)}
@@ -363,7 +375,7 @@ export default function VisitFormFields({
           </div>
           <div className={HALF}>
             <YesNoField
-              label="Report Uploaded to FVMS?"
+              label="Whether tour report uploaded on FVMS?"
               name="fvms"
               value={values.fvms}
               onChange={(v) => onChange('fvms', v)}

@@ -108,7 +108,7 @@ export default function Dashboard({ triggerNotification }) {
       cellClass: 'text-center flex items-center justify-center font-bold text-slate-700 dark:text-slate-200 font-mono border-r border-slate-100 dark:border-slate-800',
     },
     {
-      headerName: 'Official Foreign Visit ID', field: 'fv_id', width: 190, minWidth: 160,
+      headerName: 'Foreign Visit ID', field: 'fv_id', width: 190, minWidth: 160,
       cellClass: 'text-center flex items-center justify-center font-bold text-[#0f417a] dark:text-blue-400 font-mono border-r border-slate-100 dark:border-slate-800',
     },
     {

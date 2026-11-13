@@ -295,13 +295,13 @@ export default function Tabs({ activeTab, setActiveTab }) {
           ]
         }),
         m('FOREIGN_VISIT', {
-          label: 'Official Foreign Visit', icon: Plane,
-          targetTab: 'Official Foreign Visit',
+          label: 'Foreign Visit', icon: Plane,
+          targetTab: 'Foreign Visit',
           subItems: [
-            { label: 'Dashboard', tab: 'Official Foreign Visit - Dashboard', targetSubTab: 'Dashboard', icon: LayoutDashboard },
-            { label: 'Data List', tab: 'Official Foreign Visit - Data List', targetSubTab: 'Data List', icon: ClipboardList },
-            { label: 'Input Form', tab: 'Official Foreign Visit - Input Form', targetSubTab: 'Input Form', icon: FileEdit },
-            { label: 'Reports', tab: 'Official Foreign Visit - Reports', targetSubTab: 'Reports', icon: FilePieChart },
+            { label: 'Dashboard', tab: 'Foreign Visit - Dashboard', targetSubTab: 'Dashboard', icon: LayoutDashboard },
+            { label: 'Data List', tab: 'Foreign Visit - Data List', targetSubTab: 'Data List', icon: ClipboardList },
+            { label: 'Input Form', tab: 'Foreign Visit - Input Form', targetSubTab: 'Input Form', icon: FileEdit },
+            { label: 'Reports', tab: 'Foreign Visit - Reports', targetSubTab: 'Reports', icon: FilePieChart },
           ]
         }),
         m('MEDIA_OUTREACH', {

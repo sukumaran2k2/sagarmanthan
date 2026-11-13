@@ -81,7 +81,7 @@ export function deriveVisitFields(values) {
  * Mirrors the required markers in the 2.0 form, plus the ordering and length rules the
  * database would otherwise enforce with an unhelpful 500.
  */
-export function validateVisitValues(values, { visitTypes = [], sections } = {}) {
+export function validateVisitValues(values, { visitTypes = [], sections, isMinistry = false } = {}) {
   const errs = {};
   const text = (v) => String(v ?? '').trim();
   // Fields the stage does not show are not required -- and must not be, or the form could never
@@ -114,9 +114,18 @@ export function validateVisitValues(values, { visitTypes = [], sections } = {}) 
     errs.newOrganisation = 'Enter the organisation name.';
   }
 
-  if (!text(values.designation)) errs.designation = 'Designation in the respective organisation is required.';
-  if (isOtherDesignation(values.designation) && !text(values.newDesignation)) {
-    errs.newDesignation = 'Enter the designation.';
+  // A ministry officer is identified by the GoI-equivalent rank; an organisation officer by the
+  // designation held in that organisation. The form shows one or the other, never both, so only
+  // the one on screen is required.
+  if (isMinistry) {
+    if (!text(values.designationGOI)) {
+      errs.designationGOI = 'Designation equivalent in GoI is required.';
+    }
+  } else {
+    if (!text(values.designation)) errs.designation = 'Designation in the respective organisation is required.';
+    if (isOtherDesignation(values.designation) && !text(values.newDesignation)) {
+      errs.newDesignation = 'Enter the designation.';
+    }
   }
   if (text(values.newDesignation).length > SCHEMA_LIMITS.otherDesignation) {
     errs.newDesignation = `Keep the designation under ${SCHEMA_LIMITS.otherDesignation} characters.`;
@@ -206,7 +215,8 @@ export function buildCreatePayload(values, userId) {
     officerName: values.officerName.trim(),
     organisationSelect: organisationIsOther ? 'Others' : values.organisation,
     newOrganisation: organisationIsOther ? values.newOrganisation.trim() : null,
-    designation: values.designation,
+    // designation_organisation is an INT column; '' would be sent as an empty string and fail.
+    designation: nullIfBlank(values.designation),
     newDesignation: nullIfBlank(values.newDesignation),
     designationGOI: nullIfBlank(values.designationGOI),
     visitFrom: values.visitFrom,
@@ -254,7 +264,8 @@ export function buildProposedUpdatePayload(values, { id, userId }) {
     officerName: values.officerName.trim(),
     organisationSelect: organisationIsOther ? 'Others' : values.organisation,
     newOrganisation: organisationIsOther ? values.newOrganisation.trim() : null,
-    designation: values.designation,
+    // designation_organisation is an INT column; '' would be sent as an empty string and fail.
+    designation: nullIfBlank(values.designation),
     newDesignation: nullIfBlank(values.newDesignation),
     designationGOI: nullIfBlank(values.designationGOI),
     visitFrom: values.visitFrom,

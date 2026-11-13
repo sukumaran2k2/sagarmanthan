@@ -3,7 +3,8 @@ import { Search, X, Edit, ChevronDown, Filter, Plus, Download, FileWarning } fro
 import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
-import { fetchForeignVisits, downloadForeignVisitDocument } from '../api';
+import { fetchForeignVisits } from '../api';
+import { downloadVisitDocument } from '../utils/downloadDocument';
 import { useFvStore } from '../store/useFvStore';
 import { LIST_TABS, STAGE_NAMES } from '../utils/constants';
 import { getCurrentUserId, getSessionOrganisationId } from '../../../utils/authSession';
@@ -115,17 +116,8 @@ export default function DataList({ onEdit, onAdd, triggerNotification, canEdit, 
     .filter((v) => v !== 'All').length;
 
   const handleDownload = useCallback(async (fileName) => {
-    if (!fileName) return;
     try {
-      const res = await downloadForeignVisitDocument(fileName);
-      const url = URL.createObjectURL(new Blob([res.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      await downloadVisitDocument(fileName);
     } catch (err) {
       console.error('Foreign Visit: download failed', err);
       notify(FV_TOASTS.downloadFailed(err));
@@ -361,8 +353,8 @@ export default function DataList({ onEdit, onAdd, triggerNotification, canEdit, 
               headers={exportHeaders}
               rows={exportRows.map((row) => exportHeaders.map((h) => row[h]))}
               data={exportRows}
-              fileName="Official_Foreign_Visits"
-              title="Official Foreign Visit"
+              fileName="Foreign_Visits"
+              title="Foreign Visit"
               triggerNotification={triggerNotification}
               color="#0f417a"
               hoverColor="#1e5ea8"

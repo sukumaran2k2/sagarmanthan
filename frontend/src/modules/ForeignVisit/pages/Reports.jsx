@@ -4,8 +4,8 @@ import ReportTable from '../../../components/ReportTable';
 import {
   fetchForeignVisitReport,
   fetchOfficerNames,
-  downloadForeignVisitDocument,
 } from '../api';
+import { downloadVisitDocument } from '../utils/downloadDocument';
 import { useFvStore } from '../store/useFvStore';
 import { YEAR_OPTIONS, formatDisplayDate } from '../utils/constants';
 import { useNotifier } from '../../../utils/notify';
@@ -76,17 +76,8 @@ export default function Reports({ triggerNotification }) {
   const set = (field) => (e) => setFilters((prev) => ({ ...prev, [field]: e.target.value }));
 
   const handleDownload = useCallback(async (fileName) => {
-    if (!fileName) return;
     try {
-      const res = await downloadForeignVisitDocument(fileName);
-      const url = URL.createObjectURL(new Blob([res.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      await downloadVisitDocument(fileName);
     } catch (err) {
       console.error('Foreign Visit: download failed', err);
       notify(FV_TOASTS.downloadFailed(err));
@@ -335,7 +326,7 @@ export default function Reports({ triggerNotification }) {
     <ReportTable
       title="Form No.: P.1.1 - Tour Details"
       subtitle={`As On date: ${formatDisplayDate(new Date().toISOString())}`}
-      eyebrow="Official Foreign Visit"
+      eyebrow="Foreign Visit"
       rowData={viewRows}
       viewData={viewRows}
       rawData={viewRows}

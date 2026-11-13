@@ -4,7 +4,7 @@ import VisitFormFields from '../components/VisitFormFields';
 import DocumentUploadField from '../components/DocumentUploadField';
 import { createForeignVisit, uploadForeignVisitDocument } from '../api';
 import { useFvStore } from '../store/useFvStore';
-import { DOC_TYPE } from '../utils/constants';
+import { DOC_TYPE, isMinistryOrganisation } from '../utils/constants';
 import {
   emptyVisitValues,
   buildCreatePayload,
@@ -16,7 +16,7 @@ import { useNotifier } from '../../../utils/notify';
 import { FV_TOASTS } from '../toastMessages';
 
 /**
- * Add Official Foreign Visit.
+ * Add Foreign Visit.
  *
  * Create only. Editing an existing visit goes through the Update screen, because the backend
  * splits an update across three stage-specific endpoints rather than one PUT.
@@ -24,6 +24,7 @@ import { FV_TOASTS } from '../toastMessages';
 export default function InputForm({ onBack, onSuccess, triggerNotification, canAdd }) {
   const notify = useNotifier(triggerNotification);
   const visitTypes = useFvStore((s) => s.allVisitTypes);
+  const organisations = useFvStore((s) => s.organisations);
   const userId = getCurrentUserId();
 
   const [values, setValues] = useState({ ...emptyVisitValues });
@@ -43,10 +44,12 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, canA
   }, []);
 
   const sections = useMemo(() => stageSections(values.stage), [values.stage]);
+  // Decides which of the two designation fields is on screen, and so which one is required.
+  const isMinistry = isMinistryOrganisation(organisations, values.organisation);
 
   const validationErrors = useMemo(
-    () => validateVisitValues(values, { visitTypes, sections }),
-    [values, visitTypes, sections]
+    () => validateVisitValues(values, { visitTypes, sections, isMinistry }),
+    [values, visitTypes, sections, isMinistry]
   );
   const isFormValid = Object.keys(validationErrors).length === 0;
 
@@ -118,7 +121,7 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, canA
         <div>
           <h3 className="module-form-banner-title">
             <Plane className="h-4 w-4" />
-            <span>ADD OFFICIAL FOREIGN VISIT</span>
+            <span>ADD FOREIGN VISIT</span>
           </h3>
           <p className="module-form-banner-subtext">Ministry of Ports, Shipping and Waterways</p>
         </div>

@@ -45,14 +45,14 @@ export default function ForeignVisit({ triggerNotification }) {
   const goToUpdate = useCallback((row) => navigate(`${BASE}/update/${row.id}`), [navigate]);
 
   if (!canView && !canAdd && !canEdit) {
-    return <RestrictedAccess moduleName="Official Foreign Visit" />;
+    return <RestrictedAccess moduleName="Foreign Visit" />;
   }
 
   return (
     <div className="module-page-container space-y-6 animate-fade-in">
       <div className="module-header-container">
         <div>
-          <h1 className="module-header-title">Official Foreign Visit</h1>
+          <h1 className="module-header-title">Foreign Visit</h1>
           <p className="module-header-subtitle">
             Record and track official foreign visits from proposal through sanction to the tour report.
           </p>

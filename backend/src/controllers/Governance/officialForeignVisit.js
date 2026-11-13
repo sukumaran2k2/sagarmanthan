@@ -64,7 +64,7 @@ async function getOFVData(req, res) {
                 -- Subquery to fetch latest 'Tour' document
                 (SELECT TOP 1 doc.file_name
                 FROM tbl_ofv_doc doc
-                WHERE doc.ofv_id = ofv.id AND doc.doc_related = 'Tour'
+                WHERE doc.ofv_id = ofv.id AND doc.doc_related IN ('Tour', 'TourReport')
                 ORDER BY doc.id DESC) AS tour_file_name,
 
                 -- Subquery to fetch latest 'Sanction' document
@@ -134,7 +134,7 @@ async function getOFVData(req, res) {
                     SELECT TOP 1 doc.file_name
                     FROM tbl_ofv_doc doc
                     WHERE doc.ofv_id = ofv.id 
-                    AND doc.doc_related = 'Tour'
+                    AND doc.doc_related IN ('Tour', 'TourReport')
                     ORDER BY doc.id DESC
                 ) AS tour_file_name,
 
@@ -667,7 +667,7 @@ async function getOFVReport(req, res) {
 
         const result = await request.query(`SELECT 
                 tbl_official_foreign_visit.id,
-                tbl_official_foreign_visit.fv_id AS [Official Foreign Visit ID], 
+                tbl_official_foreign_visit.fv_id AS [Foreign Visit ID], 
                 year AS Year, 
                 mmt_ofv_stage.fv_stage_name AS Visit,
                -- visit AS Visit,
@@ -680,7 +680,7 @@ async function getOFVReport(req, res) {
                 visit_type_name AS [Visit Type], 
                 purpose AS [Purpose/Keywords], 
                 country_visited AS Country,
-                MAX(CASE WHEN filtered_ofv_doc.doc_related = 'Tour' THEN filtered_ofv_doc.file_name END) AS [Tour File],
+                MAX(CASE WHEN filtered_ofv_doc.doc_related IN ('Tour', 'TourReport') THEN filtered_ofv_doc.file_name END) AS [Tour File],
                 MAX(CASE WHEN filtered_ofv_doc.doc_related = 'Sanction' THEN filtered_ofv_doc.file_name END) AS [Sanctioned Report],
                 Remarks
             FROM 
@@ -1183,7 +1183,7 @@ async function getDetailYearOFVReport(req, res){
                     visit_type_name AS [Visit Type], 
                     purpose AS [Purpose/Keywords], 
                     country_visited AS Country,
-                    MAX(CASE WHEN filtered_ofv_doc.doc_related = 'Tour' THEN filtered_ofv_doc.file_name END) AS [Tour File],
+                    MAX(CASE WHEN filtered_ofv_doc.doc_related IN ('Tour', 'TourReport') THEN filtered_ofv_doc.file_name END) AS [Tour File],
                     MAX(CASE WHEN filtered_ofv_doc.doc_related = 'Sanction' THEN filtered_ofv_doc.file_name END) AS [Sanctioned Report],
                     Remarks
                 FROM 
@@ -1462,7 +1462,7 @@ async function getDetailNameOFVReport(req, res){
                     visit_type_name AS [Visit Type], 
                     purpose AS [Purpose/Keywords], 
                     country_visited AS Country,
-                    MAX(CASE WHEN filtered_ofv_doc.doc_related = 'Tour' THEN filtered_ofv_doc.file_name END) AS [Tour File],
+                    MAX(CASE WHEN filtered_ofv_doc.doc_related IN ('Tour', 'TourReport') THEN filtered_ofv_doc.file_name END) AS [Tour File],
                     MAX(CASE WHEN filtered_ofv_doc.doc_related = 'Sanction' THEN filtered_ofv_doc.file_name END) AS [Sanctioned Report],
                     Remarks
                 FROM 

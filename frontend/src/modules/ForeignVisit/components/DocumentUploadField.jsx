@@ -16,15 +16,22 @@ export default function DocumentUploadField({
   onDownloadExisting,
   error,
   disabled = false,
+  required = false,
+  // The sanction order and tour report are PDF only; the create form takes images too.
+  pdfOnly = false,
 }) {
   const inputRef = useRef(null);
+
+  const allowedTypes = pdfOnly ? ['application/pdf'] : ALLOWED_UPLOAD_TYPES;
+  const hint = pdfOnly ? 'Allowed: PDF only. Max size: 2MB' : ALLOWED_UPLOAD_LABEL;
+  const accept = pdfOnly ? '.pdf' : '.pdf,.jpg,.jpeg,.png';
 
   const handleChange = (e) => {
     const picked = e.target.files?.[0];
     if (!picked) return;
 
-    if (!ALLOWED_UPLOAD_TYPES.includes(picked.type)) {
-      onSelect(null, 'Only PDF, JPEG and PNG files are allowed.');
+    if (!allowedTypes.includes(picked.type)) {
+      onSelect(null, pdfOnly ? 'Only PDF files are allowed.' : 'Only PDF, JPEG and PNG files are allowed.');
       e.target.value = '';
       return;
     }
@@ -46,14 +53,16 @@ export default function DocumentUploadField({
       {/* Same label row as VisitFormFields' Field, so the file input lines up with the inputs
           beside it in the grid. */}
       <div className="flex justify-between items-center gap-2 min-h-[18px]">
-        <label className="module-form-label truncate">{label}</label>
+        <label className="module-form-label truncate">
+          {label} {required && <span className="text-rose-500">*</span>}
+        </label>
       </div>
 
       <div className="flex items-center gap-2">
         <input
           ref={inputRef}
           type="file"
-          accept=".pdf,.jpg,.jpeg,.png"
+          accept={accept}
           onChange={handleChange}
           disabled={disabled}
           className="module-form-input file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#0f417a] file:text-white hover:file:bg-[#1e3a8a] file:cursor-pointer cursor-pointer"
@@ -66,7 +75,7 @@ export default function DocumentUploadField({
         )}
       </div>
 
-      <p className="text-[10px] font-semibold text-slate-400">{ALLOWED_UPLOAD_LABEL}</p>
+      <p className="text-[10px] font-semibold text-slate-400">{hint}</p>
 
       {file && (
         <p className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
@@ -75,19 +84,28 @@ export default function DocumentUploadField({
         </p>
       )}
 
+      {/* Names the file already on the record, and warns that choosing another replaces it --
+          the server deletes the old file rather than keeping both. */}
       {!file && existingFileName && (
-        <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1">
-          <FileCheck className="h-3 w-3 flex-shrink-0 text-emerald-600" />
-          <span className="truncate">Currently attached: </span>
-          {onDownloadExisting ? (
-            <button type="button" onClick={onDownloadExisting}
-              className="underline text-blue-700 dark:text-blue-400 hover:text-blue-900 truncate cursor-pointer">
-              {existingFileName}
-            </button>
-          ) : (
-            <span className="truncate">{existingFileName}</span>
-          )}
-        </p>
+        <div className="space-y-0.5">
+          <p className="text-[11px] font-semibold text-slate-700 dark:text-slate-200 flex items-start gap-1">
+            <FileCheck className="h-3 w-3 flex-shrink-0 text-emerald-600 mt-0.5" />
+            <span>
+              <span className="font-bold">File uploaded: </span>
+              {onDownloadExisting ? (
+                <button type="button" onClick={onDownloadExisting}
+                  className="underline text-blue-700 dark:text-blue-400 hover:text-blue-900 break-all text-left cursor-pointer">
+                  {existingFileName}
+                </button>
+              ) : (
+                <span className="break-all">{existingFileName}</span>
+              )}
+            </span>
+          </p>
+          <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400">
+            Note: a file has already been uploaded. Choosing another will replace it.
+          </p>
+        </div>
       )}
 
       {error && (
