@@ -428,6 +428,14 @@ async function getNmpById(req, res) {
         construction_revised: parcel.completion_revised_date,
         construction_revised_2: parcel.completion_revised_date_1,
         construction_revised_3: parcel.completion_revised_date_2,
+
+        lease_status_id: parcel.lease_status,
+        purpose_id: parcel.purpose,
+        sector_id: parcel.sector,
+        status_id: parcel.status,
+        mode_of_allotment_id: parcel.mode_of_allotment,
+        type_of_lessee_id: parcel.type_of_agency,
+        agreement_signed_id: parcel.agreement_signed,
         sor_rows,
       });
     }
@@ -674,6 +682,10 @@ async function createNmpEntry(req, res) {
     rows: b.sor_rows,
   });
 
+return res.status(201).json({
+    message: "Past land entry created.",
+    id: result.recordset[0]?.id,
+  });
 
 } else {
       // future-land → tbl_nmp (most columns are NOT NULL)

@@ -860,16 +860,38 @@ function PastLandForm({ formData, onChange, stage = 1 }) {
     <div className="space-y-1 text-xs">
       {stage === 1 && (<>
         <Section number={1} title="Basic and land parcel details" id="pl-s1">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div><FLabel label="Parcel Detail" required /><input type="text" value={formData.parcel_detail || ''} onChange={e => onChange('parcel_detail', e.target.value)} className={inputCls} /></div>
-            <div><FLabel label="Area (Acres)" required /><input type="number" step="any" value={formData.area_acres || ''} onChange={e => onChange('area_acres', e.target.value)} className={inputCls} /></div>
-            <SelectField label="Purpose" required name="purpose_id" options={NMP_PURPOSE_OPTIONS} formData={formData} onChange={onChange} />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <SelectField label="Sector" required name="sector_id" options={NMP_SECTOR_OPTIONS} formData={formData} onChange={onChange} />
-            <div><FLabel label="Name of Specific Industry/Commercial Activities" required /><input type="text" value={formData.industry_name || ''} onChange={e => onChange('industry_name', e.target.value)} className={inputCls} /></div>
-          </div>
-        </Section>
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+    <div>
+      <FLabel label="Parcel Detail" required />
+      <input type="text" value={formData.parcel_detail || ''} onChange={e => onChange('parcel_detail', e.target.value)} className={inputCls} />
+    </div>
+    <div>
+      <FLabel label="Area (Acres)" required />
+      <input type="number" step="any" value={formData.area_acres || ''} onChange={e => onChange('area_acres', e.target.value)} className={inputCls} />
+    </div>
+    <div>
+      <FLabel label="Name of Specific Industry/Commercial Activities" required />
+      <input type="text" value={formData.industry_name || ''} onChange={e => onChange('industry_name', e.target.value)} className={inputCls} />
+    </div>
+    
+  </div>
+
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+    <div className="space-y-3">
+      <SelectField label="Purpose" required name="purpose_id" options={NMP_PURPOSE_OPTIONS} formData={formData} onChange={onChange} />
+      {formData.purpose_id === 4 && (
+        <OtherField label="Other Purpose" name="other_purpose" formData={formData} onChange={onChange} />
+      )}
+    </div>
+    <div className="space-y-3">
+      <SelectField label="Sector" required name="sector_id" options={NMP_SECTOR_OPTIONS} formData={formData} onChange={onChange} />
+      {formData.sector_id === 11 && (
+        <OtherField label="Other Sector" name="other_sector" formData={formData} onChange={onChange} />
+      )}
+    </div>
+    
+  </div>
+</Section>
         <Section number={2} title="Allotment and status" id="pl-s2">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div><FLabel label="Year of allotment (FY)" required /><select value={formData.year_of_allotment || ''} onChange={e => onChange('year_of_allotment', e.target.value)} className={inputCls}><option value="">--Select Year--</option>{FY_OPTIONS.map(y => <option key={y} value={y}>{y}</option>)}</select></div>

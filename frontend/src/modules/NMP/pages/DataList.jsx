@@ -216,7 +216,7 @@ const enrichRow = (row, tab) => {
   const purposeId = Number(row.purpose_id ?? row.purpose);
   const sectorId = Number(row.sector_id ?? row.sector);
 
-  const futureIds = tab === 'future-land' ? {
+  const futureIds = tab === 'future-land' || tab === 'past-land' ? {
     lease_status_id: rawId(row.lease_status_id ?? row.lease_status),
     purpose_id: rawId(row.purpose_id ?? row.purpose),
     sector_id: rawId(row.sector_id ?? row.sector),
