@@ -208,3 +208,18 @@ export function exportGridToPdf({ title, subtitle, columns, rows = [], pinnedRow
   doc.save(name);
   return name;
 }
+
+/**
+ * Excel (.xlsx) or PDF straight to a file, from plain headers and rows of cell values
+ * (no print dialog, no new tab). Header in the portal's dark blue. Returns the file name.
+ * type: 'pdf' | 'excel'; headers: ['S.No', ...]; rows: [[1, 'a', ...], ...]
+ */
+export function exportRowsToFile(type, { title, subtitle, headers, rows, fileName, brand = '#0f417a' }) {
+  const columns = headers.map((headerName, i) => ({ headerName, field: `c${i}` }));
+  const objects = rows.map((row) => Object.fromEntries(row.map((v, i) => [`c${i}`, v ?? ''])));
+  const asOn = `As on ${new Date(Date.now() + 330 * 60 * 1000).toISOString().slice(0, 10)}`;
+  const options = { title, subtitle: subtitle ? `${subtitle} | ${asOn}` : asOn, columns, rows: objects, fileName };
+  return type === 'pdf'
+    ? exportGridToPdf({ ...options, brand })
+    : exportGridToExcel(options);
+}

@@ -9,6 +9,7 @@ import CopyButton from '../../../components/CopyButton';
 import ExportDropdown from '../../../components/ExportDropdown';
 import { getWrapColumnProps, renderWrappedText } from '../../../utils/tableCellWrap';
 import { useNotifier, COMMON_TOASTS } from '../../../utils/notify';
+import { exportRowsToFile } from '../../../utils/exportGridReport';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -23,7 +24,7 @@ const COLUMN_LABELS = {
   lastUpdated: 'Last Updated Date',
 };
 
-const EXPORT_FILE = 'audit_paras.csv';
+const EXPORT_FILE = 'Audit_Paras';
 
 const sameText = (a, b) => (a || '').toLowerCase() === (b || '').toLowerCase();
 
@@ -145,23 +146,14 @@ export default function DataList({
     }
   };
 
-  const handleExcel = () => {
+  // Excel (.xlsx) / PDF of every filtered para, straight to a file (no print dialog or new tab)
+  const download = (type) => {
     const { header, rows } = exportTable();
-    const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const csv = '﻿' + [header, ...rows].map((r) => r.map(cell).join(',')).join('\r\n');
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = EXPORT_FILE;
-    a.click();
-    URL.revokeObjectURL(url);
-    notify(COMMON_TOASTS.excelExported(EXPORT_FILE));
+    const name = exportRowsToFile(type, { title: 'Audit Paras', headers: header, rows, fileName: EXPORT_FILE });
+    notify(COMMON_TOASTS.excelExported(name, 'Every filtered para'));
   };
-
-  const handlePdf = () => {
-    notify(COMMON_TOASTS.pdfPreparing());
-    window.print();
-  };
+  const handleExcel = () => download('excel');
+  const handlePdf = () => download('pdf');
 
   const handleResetFilters = () => {
     resetFilters();

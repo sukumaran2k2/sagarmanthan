@@ -108,6 +108,18 @@ export default function IssueListPage({
       });
   }, [requestKey, canView, category, filters, debouncedSearch, currentPage, pageSize, notify]);
 
+  // Copy / Excel / PDF: every row matching the tab, filters and search, not just the page on show
+  const fetchAllRows = useCallback(async () => {
+    const all = [];
+    for (let page = 1, totalPages = 1; page <= totalPages && page <= 200; page += 1) {
+      const res = await fetchParliamentaryIssues({ page, limit: 100, category, ...filters, search: debouncedSearch });
+      const payload = res?.data || {};
+      all.push(...(Array.isArray(payload.data) ? payload.data : []).map(mapIssueListRow));
+      totalPages = Number(payload.pagination?.totalPages) || 1;
+    }
+    return all.map((row, index) => ({ ...row, sNo: index + 1 }));
+  }, [category, filters, debouncedSearch]);
+
   const loading = result?.key !== requestKey;
   const rows = result?.rows ?? [];
   const pagination = result?.pagination ?? { ...EMPTY_PAGINATION, limit: pageSize };
@@ -175,6 +187,7 @@ export default function IssueListPage({
   return (
     <>
       <IssueListTable
+        fetchAllRows={fetchAllRows}
         rows={rows}
         loading={loading}
         wings={wings}

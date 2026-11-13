@@ -143,11 +143,11 @@ function TableExportMenu({ onExport }) {
         <div className="absolute right-0 top-full mt-1.5 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden">
           <button type="button" onClick={() => pick('excel')} className={item}>
             <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-            <span>CSV (Excel)</span>
+            <span>Excel (.xlsx)</span>
           </button>
           <button type="button" onClick={() => pick('pdf')} className={`${item} border-t border-slate-100 dark:border-slate-800`}>
             <Printer className="h-4 w-4 text-rose-600 dark:text-rose-400" />
-            <span>Print / PDF</span>
+            <span>PDF</span>
           </button>
         </div>
       )}
