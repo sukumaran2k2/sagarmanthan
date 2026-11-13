@@ -372,14 +372,17 @@ export default function Tabs({ activeTab, setActiveTab }) {
     },
     {
       id: 'nmp',
-      label: 'National Monetization Plan',
+      label: 'National Monetization Pipeline',
+      tab: 'NMP Dashboard',
       icon: DollarSign,
       align: 'left-0',
       width: 'w-[280px]',
+      defaultTab: 'NMP Dashboard', 
       items: [
         { label: 'NMP Dashboard', icon: LayoutDashboard, tab: 'NMP Dashboard' },
-        { label: 'NMP Data List', icon: ClipboardList, tab: 'NMP Data List' },
         { label: 'NMP Input Form', icon: FileEdit, tab: 'NMP Input Form' },
+        { label: 'NMP Data List', icon: ClipboardList, tab: 'NMP Data List' },
+        
       ]
     },
     {
@@ -592,6 +595,8 @@ export default function Tabs({ activeTab, setActiveTab }) {
                     {hasDropdown && <ChevronDown className="h-2.5 w-2.5 opacity-60" />}
                   </span>
                 </button>
+
+                
 
                 {/* Dropdown Menu Container */}
                 {hasDropdown && (

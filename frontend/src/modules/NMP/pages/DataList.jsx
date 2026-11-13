@@ -44,7 +44,9 @@ const fmtDate = (v) => {
   if (!v) return '-';
   const d = new Date(v);
   if (isNaN(d.getTime())) return '-';
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return `${dd}/${mm}/${d.getFullYear()}`;
 };
 
 const dateCellRenderer = (p) => <span className="text-slate-600 dark:text-slate-300">{fmtDate(p.value)}</span>;
@@ -89,36 +91,7 @@ function buildActionCol({ onEditRow, onDeleteRow, canEdit, canRemove }) {
   };
 }
 
-function buildNmpPlanCols({ onEditRow, onDeleteRow, canEdit, canRemove }) {
-  return [
-    { field: 'sNo', headerName: 'S.No', minWidth: 80, maxWidth: 80, pinned: 'left', suppressSizeToFit: true, cellClass: 'text-slate-600 dark:text-slate-400 text-center font-bold', headerClass: 'text-center' },
-    { field: 'parcel_detail', headerName: 'Parcel Detail', minWidth: 160, pinned: 'left', cellRenderer: boldCell },
-    { field: 'organisation_name', headerName: 'Organisation', minWidth: 160, cellRenderer: (p) => <span className="text-slate-600 dark:text-slate-300 font-medium">{p.value || '-'}</span> },
-    { field: 'area_acres', headerName: 'Area (Acres)', minWidth: 110, cellRenderer: numCell },
-    { field: 'lease_status', headerName: 'Lease Status', minWidth: 120, cellRenderer: textCell },
-    { field: 'upfront_premium', headerName: 'Upfront Premium [A]', minWidth: 150, cellRenderer: numCell },
-    { field: 'annual_base_lease_rental', headerName: 'Annual Lease Rental', minWidth: 160, cellRenderer: numCell },
-    { field: 'lease_tenure_years', headerName: 'Lease Tenure (Yrs)', minWidth: 140, cellRenderer: numCell },
-    { field: 'escalation_rate', headerName: 'Escalation Rate (%)', minWidth: 140, cellRenderer: numCell },
-    { field: 'frequency_of_escalation', headerName: 'Escalation Freq (Yrs)', minWidth: 150, cellRenderer: numCell },
-    { field: 'npv_lease_rentals', headerName: 'NPV @12% [B]', minWidth: 140, cellRenderer: numCell },
-    { field: 'estimated_private_investment', headerName: 'Est. Private Inv [C]', minWidth: 160, cellRenderer: numCell },
-    { field: 'total_monetisation_value', headerName: 'Total [A+B+C]', minWidth: 140, cellRenderer: (p) => <span className="font-semibold text-slate-800 dark:text-slate-200">{p.value ?? '-'}</span> },
-    { field: 'lease_rental_received', headerName: 'Lease Rental FY25-26', minWidth: 160, cellRenderer: numCell },
-    { field: 'agency_lessee_name', headerName: 'Agency/Lessee', minWidth: 160, cellRenderer: textCell },
-    { field: 'type_of_agency_lessee', headerName: 'Type of Agency', minWidth: 140, cellRenderer: textCell },
-    { field: 'agreement_signed', headerName: 'Agreement Signed', minWidth: 140, cellRenderer: textCell },
-    { field: 'nit_original_target_date', headerName: 'NIT Original Target Date', minWidth: 170, cellRenderer: dateCellRenderer },
-    { field: 'nit_actual_date', headerName: 'NIT Actual Date', minWidth: 150, cellRenderer: dateCellRenderer },
-    { field: 'agreement_original_target_date', headerName: 'Agreement Original Target Date', minWidth: 210, cellRenderer: dateCellRenderer },
-    { field: 'actual_agreement_date', headerName: 'Agreement Actual Date', minWidth: 170, cellRenderer: dateCellRenderer },
-    { field: 'original_completion_date', headerName: 'Construction Original Target Date', minWidth: 210, cellRenderer: dateCellRenderer },
-    { field: 'actual_completion_date', headerName: 'Construction Actual Date', minWidth: 180, cellRenderer: dateCellRenderer },
-    { field: 'remarks', headerName: 'Remarks', minWidth: 180, cellRenderer: textCell },
-    { field: 'created_date', headerName: 'Last Updated', minWidth: 150, cellRenderer: dateCellRenderer },
-    buildActionCol({ onEditRow, onDeleteRow, canEdit, canRemove }),
-  ];
-}
+
 // Returns the label for a row's dropdown value.
 // Handles a numeric id, a numeric string, or an old text label, under any of the given keys.
 // Works for a numeric id, a numeric string, or an old text label, under any of the given keys.
@@ -132,18 +105,149 @@ const toLabel = (options, row, keys) => {
   }
   return '-';
 };
+const multiCell = (p) => {
+  const parts = String(p.value ?? '').split('|').map((s) => s.trim()).filter(Boolean);
+  if (!parts.length) return <span className="text-slate-600 dark:text-slate-300">-</span>;
+  return (
+    <div className="flex flex-col leading-tight py-1.5 text-slate-600 dark:text-slate-300">
+      {parts.map((x, i) => <span key={i}>{x}</span>)}
+    </div>
+  );
+};
 
+const totalCell = (p) => <span className="font-semibold text-slate-800 dark:text-slate-200">{p.value ?? '-'}</span>;
+
+const srCol = { field: 'sNo', headerName: 'S.No', minWidth: 80, maxWidth: 80, pinned: 'left', suppressSizeToFit: true, cellClass: 'text-slate-600 dark:text-slate-400 text-center font-bold', headerClass: 'text-center' };
+const parcelCol = { field: 'parcel_details', headerName: 'Parcel Detail', minWidth: 160, pinned: 'left', cellRenderer: boldCell };
+
+const milestoneCols = [
+  { field: 'nit_target_date', headerName: 'NIT Original Target Date', minWidth: 170, cellRenderer: dateCellRenderer },
+  { field: 'actual_nit_date', headerName: 'NIT Actual Date', minWidth: 150, cellRenderer: dateCellRenderer },
+  { field: 'target_agreement_date', headerName: 'Agreement Original Target Date', minWidth: 210, cellRenderer: dateCellRenderer },
+  { field: 'actual_agreement_date', headerName: 'Agreement Actual Date', minWidth: 170, cellRenderer: dateCellRenderer },
+  { field: 'target_completion_date', headerName: 'Construction Original Target Date', minWidth: 210, cellRenderer: dateCellRenderer },
+  { field: 'actual_completion_date', headerName: 'Construction Actual Date', minWidth: 180, cellRenderer: dateCellRenderer },
+];
+const statusLabel = (row) => {
+  let v = row?.status_id ?? row?.status;
+  if (Array.isArray(v)) v = v[0];            // duplicate column names arrive as arrays
+  if (v == null || v === '') return '-';
+  if (typeof v === 'string' && isNaN(Number(v))) return v;   // already text
+  const m = OPT.status.find(([id]) => id === Number(v));
+  return m ? m[1] : '-';
+};
+// ── PAST LAND ──
+function buildPastLandCols(actions) {
+  return [
+    srCol,
+    parcelCol,
+    { field: 'organisation_name', headerName: 'Organisation', minWidth: 160, cellRenderer: textCell },
+    { field: 'area_acres', headerName: 'Area (Acres)', minWidth: 110, cellRenderer: numCell },
+    { field: 'purpose', headerName: 'Purpose', minWidth: 120, cellRenderer: textCell },
+    { field: 'sector', headerName: 'Sector', minWidth: 160, cellRenderer: textCell },
+    { field: 'year_of_allotment', headerName: 'Year of Allotment', minWidth: 140, cellRenderer: textCell },
+    { field: 'mode_of_allotment', headerName: 'Mode of Allotment', minWidth: 150, cellRenderer: textCell },
+    { field: 'status', headerName: 'Status', minWidth: 150, cellRenderer: textCell },
+    { field: 'lease_status', headerName: 'Lease Status', minWidth: 120, cellRenderer: textCell },
+    { field: 'upfront_premium', headerName: 'Upfront Premium [A]', minWidth: 150, cellRenderer: numCell },
+    { field: 'npv_lease_rentals', headerName: 'NPV @12% [B]', minWidth: 140,
+      valueGetter: (p) => p.data?.npv_lease_rentals ?? p.data?.npv_lease_rental, cellRenderer: numCell },
+    { field: 'estimated_private_investment', headerName: 'Private Inv [C]', minWidth: 150, cellRenderer: numCell },
+    { field: 'total_monetisation_value', headerName: 'Total [A+B+C]', minWidth: 140,
+      valueGetter: (p) => p.data?.total_monetisation_value ?? p.data?.total_monetization_value, cellRenderer: totalCell },
+    { field: 'type_of_agency_lessee', headerName: 'Type of Lessee', minWidth: 140, cellRenderer: textCell },
+    { field: 'agreement_signed', headerName: 'Agreement Signed', minWidth: 140, cellRenderer: textCell },
+    ...milestoneCols,
+    { field: 'remarks', headerName: 'Remarks', minWidth: 180, cellRenderer: textCell },
+    { field: 'created_date', headerName: 'Last Updated', minWidth: 150, cellRenderer: dateCellRenderer },
+    buildActionCol(actions),
+  ];
+}
+
+// ── FUTURE LAND ──
+function buildFutureLandCols(actions) {
+  return [
+    srCol,
+    parcelCol,
+    { field: 'organisation_name', headerName: 'Organisation', minWidth: 160, cellRenderer: textCell },
+    { field: 'area', headerName: 'Area (Acres)', minWidth: 110, cellRenderer: numCell },
+    { field: 'purpose', headerName: 'Purpose', minWidth: 120, cellRenderer: textCell },
+    { field: 'sector', headerName: 'Sector', minWidth: 160, cellRenderer: textCell },
+    { field: 'target_year', headerName: 'Target Yr of Monetisation', minWidth: 190, cellRenderer: textCell },
+    { field: 'mode_of_allotment', headerName: 'Mode of Allotment', minWidth: 150, cellRenderer: textCell },
+    { field: 'status', headerName: 'Status', minWidth: 120, cellRenderer: textCell },
+    { field: 'lease_status', headerName: 'Lease Status', minWidth: 120, cellRenderer: textCell },
+    { field: 'upfront_premium', headerName: 'Upfront Premium [A]', minWidth: 150, cellRenderer: numCell },
+    { field: 'lease_tenure', headerName: 'Lease Tenure (Yrs)', minWidth: 140,
+      valueGetter: (p) => p.data?.lease_tenure_years ?? p.data?.lease_tenure, cellRenderer: numCell },
+    { field: 'annual_rental', headerName: 'Annual Rentals', minWidth: 160, cellRenderer: numCell },
+    { field: 'escalation_rate', headerName: 'Escalation Rate (%)', minWidth: 140, cellRenderer: numCell },
+    { field: 'frequency_of_escalation', headerName: 'Escalation Freq (Yrs)', minWidth: 150, cellRenderer: numCell },
+    { field: 'npv_lease_rentals', headerName: 'NPV @12% [B]', minWidth: 140,
+      valueGetter: (p) => p.data?.npv_lease_rentals ?? p.data?.npv_lease_rental, cellRenderer: numCell },
+    { field: 'extimated_private_investment', headerName: 'Est. Private Inv [C]', minWidth: 160, cellRenderer: numCell },
+    { field: 'total_monetisation_value', headerName: 'Total [A+B+C]', minWidth: 140,
+      valueGetter: (p) => p.data?.total_monetisation_value ?? p.data?.total_monetization_value, cellRenderer: totalCell },
+    { field: 'lease_rental_received', headerName: 'Lease Rental FY25-26', minWidth: 160, cellRenderer: numCell },
+    { field: 'agency_name', headerName: 'Agency/Lessee', minWidth: 160, cellRenderer: textCell },
+    { field: 'type_of_agency', headerName: 'Type of Agency', minWidth: 140, cellRenderer: textCell },
+    { field: 'agreement_signed', headerName: 'Agreement Signed', minWidth: 140, cellRenderer: textCell },
+    ...milestoneCols,
+    { field: 'remarks', headerName: 'Remarks', minWidth: 180, cellRenderer: textCell },
+    { field: 'created_date', headerName: 'Last Updated', minWidth: 150, cellRenderer: dateCellRenderer },
+    buildActionCol(actions),
+  ];
+}
+const lesseeLabel = (row) => {
+  let v = row?.type_of_agency ?? row?.type_of_lessee_id;
+  if (Array.isArray(v)) v = v[0];
+  if (v == null || v === '') return '-';
+  const id = Number(v);
+  if (id === 5) return row.other_agency || 'Others';
+  return OPT.lessee.find(([i]) => i === id)?.[1] ?? '-';
+};
+const rawId = (v) => {
+  const x = Array.isArray(v) ? v[0] : v;
+  return x == null || x === '' || isNaN(Number(x)) ? '' : Number(x);
+};
 const enrichRow = (row, tab) => {
   if (tab === 'land-abstract') return row;
+
+  const purposeId = Number(row.purpose_id ?? row.purpose);
+  const sectorId = Number(row.sector_id ?? row.sector);
+
+  const futureIds = tab === 'future-land' ? {
+    lease_status_id: rawId(row.lease_status_id ?? row.lease_status),
+    purpose_id: rawId(row.purpose_id ?? row.purpose),
+    sector_id: rawId(row.sector_id ?? row.sector),
+    status_id: rawId(row.status_id ?? row.status),
+    mode_of_allotment_id: rawId(row.mode_of_allotment_id ?? row.mode_of_allotment),
+    type_of_lessee_id: rawId(row.type_of_agency),
+    agreement_signed_id: rawId(row.agreement_signed_id ?? row.agreement_signed),
+  } : {};
+
   return {
     ...row,
+    parcel_detail: row.parcel_detail ?? row.parcel_details ?? '',
     lease_status: toLabel(tab === 'past-land' ? OPT.leasePast : OPT.leaseFuture, row, ['lease_status_id', 'lease_status']),
-    purpose: toLabel(OPT.purpose, row, ['purpose_id', 'purpose']),
-    sector: toLabel(OPT.sector, row, ['sector_id', 'sector']),
-    status: toLabel(OPT.status, row, ['status_id', 'status']),
+
+    purpose: purposeId === 4
+      ? (row.other_purpose || 'Others')
+      : toLabel(OPT.purpose, row, ['purpose_id', 'purpose']),
+
+    sector: sectorId === 11
+      ? (row.other_sector || 'Other')
+      : toLabel(OPT.sector, row, ['sector_id', 'sector']),
+
+    type_of_lessee_id: row.type_of_agency ?? row.type_of_lessee_id,
+    type_of_agency: lesseeLabel(row),
+    type_of_agency_lessee: lesseeLabel(row),
+
+    status: statusLabel(row),
     mode_of_allotment: toLabel(OPT.mode, row, ['mode_of_allotment_id', 'mode_of_allotment']),
-    type_of_agency_lessee: toLabel(OPT.lessee, row, ['type_of_lessee_id', 'type_of_agency_lessee_id', 'type_of_agency_lessee', 'type_of_lessee']),
     agreement_signed: toLabel(OPT.agreement, row, ['agreement_signed_id', 'agreement_signed']),
+
+    ...futureIds,   // must be last so the raw ids win
   };
 };
 const FETCH_MAP = {
@@ -156,7 +260,7 @@ export default function NmpDataList({ onEdit, onAddNew, triggerNotification, can
   const gridApiRef = useRef(null);
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [subTab, setSubTab] = useState('future-land');
+  const [subTab, setSubTab] = useState('land-abstract');
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [pageSize, setPageSize] = useState(25);
@@ -177,9 +281,11 @@ export default function NmpDataList({ onEdit, onAddNew, triggerNotification, can
       const res = await fetcher();
       if (isStale()) return;
       const rows = Array.isArray(res.data) ? res.data : [];
+//       console.log('KEYS:', Object.keys(rows[0] || {}));
+// console.log('STATUS values:', rows.map(r => ({ status: r.status, status_id: r.status_id })));
       if (subTab === 'past-land') {
-  console.log('PAST raw API rows:', rows);
-  console.table(rows);   // easy-to-read table in the console
+  // console.log('PAST raw API rows:', rows);
+  // console.table(rows);   // easy-to-read table in the console
 }
       setData(rows.map((item, idx) => ({ ...enrichRow(item, subTab), sNo: idx + 1 })));
       setTabCounts(prev => ({ ...prev, [subTab]: rows.length }));
@@ -236,10 +342,11 @@ export default function NmpDataList({ onEdit, onAddNew, triggerNotification, can
   }, [data, debouncedSearch]);
 
   const columnDefs = useMemo(() => {
-    const actions = { onEditRow: handleEdit, onDeleteRow: handleDelete, canEdit, canRemove };
-    if (subTab === 'land-abstract') return buildLandAbstractCols(actions);
-    return buildNmpPlanCols(actions);
-  }, [subTab, handleEdit, handleDelete, canEdit, canRemove]);
+  const actions = { onEditRow: handleEdit, onDeleteRow: handleDelete, canEdit, canRemove };
+  if (subTab === 'land-abstract') return buildLandAbstractCols(actions);
+  if (subTab === 'past-land') return buildPastLandCols(actions);
+  return buildFutureLandCols(actions);
+}, [subTab, handleEdit, handleDelete, canEdit, canRemove]);
 
   const escHtml = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 

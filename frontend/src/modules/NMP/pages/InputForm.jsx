@@ -87,8 +87,30 @@ const getIdFieldMap = (formType) => [
   ['agreement_signed', 'agreement_signed_id', AGREEMENT_SIGNED_OPTIONS],
 ];
 
-// Fill this if land-abstract rows come back from the API with different column names
-const ABSTRACT_FIELD_MAP = {};
+const ABSTRACT_FIELD_MAP = {
+  total_land_acres: 'total_land_held',
+  total_land_by_pa: 'total_land_held',
+  port_operation: 'cat_A_acres',
+  connectivity: 'cat_B_acres',
+  warehousing_storage: 'cat_C_acres',
+  oil_gas_energy: 'cat_D_acres',
+  manufacturing: 'cat_E_acres',
+  commercial: 'cat_F_acres',
+  residential: 'cat_G_acres',
+  logistics_parks_trade_zones: 'cat_H_acres',
+  salt_land_acquired: 'cat_I_acres',
+  other_uses: 'cat_J_acres',
+  vacant_land_acres: 'cat_K_acres',
+  vacant_land_encumbrance_free: 'cat_K_acres',
+  land_under_litigation_acres: 'cat_L_acres',
+  vacant_land_litigated_encumbered: 'cat_L_acres',
+  land_not_developable: 'cat_M_acres',
+  land_likely_freed_by_rationalisation: 'unlock_rationalisation_acres',
+  land_reclaimable_from_sea_backwater_identified: 'unlock_reclamation_acres',
+  salt_land_identified_for_acquisition: 'unlock_salt_land_acres',
+  additional_land_identified: 'unlock_state_govt_acres',
+  marshy_land_development_plan: 'unlock_marshy_acres',
+};
 
 const MAX_REVISED_DATES = 3;
 
@@ -142,7 +164,29 @@ function normalizeEditData(data) {
   };
   const out = { ...data };
   const formType = out.form_type;
+    const futureMap = formType === 'future-land' ? {
+    area: 'area_acres',
+    name_of_industry: 'industry_name',
+    annual_rental: 'annual_base_lease_rental',
+    extimated_private_investment: 'estimated_private_investment',
+    agency_name: 'lessee_name',
+    nit_target_date: 'nit_original',
+    actual_nit_date: 'nit_actual',
+    revised_nit_date: 'nit_revised',
+    revised_nit_date_1: 'nit_revised_2',
+    revised_nit_date_2: 'nit_revised_3',
+    target_agreement_date: 'agreement_original',
+    revised_agreement_date: 'agreement_revised',
+    revised_agreement_date_1: 'agreement_revised_2',
+    revised_agreement_date_2: 'agreement_revised_3',
+    target_completion_date: 'construction_original',
+    revised_completion_date: 'construction_revised',
+    revised_completion_date_1: 'construction_revised_2',
+    revised_completion_date_2: 'construction_revised_3',
+  } : {};
+
   const map = formType === 'land-abstract' ? ABSTRACT_FIELD_MAP : {
+    ...futureMap,
     ...(formType === 'past-land' ? { target_year: 'year_of_allotment' } : { target_year: 'target_yr_monetisation' }),
     annual_base_lease_rental: 'annual_base_lease_rental',
     lease_tenure_years: 'lease_tenure',
@@ -163,6 +207,8 @@ function normalizeEditData(data) {
       delete out[from];
     }
   }
+
+  
 
   // Dropdowns: prefer the id from the API; fall back to matching an old text label to its id
   if (formType !== 'land-abstract') {
@@ -611,53 +657,69 @@ function ParcelForm({ formType, formData, onChange, stage }) {
   return (
     <div>
       {/* ── Stage 1: Basic Details ── */}
-      {stage === 1 && (
-        <Section number={1} title="Basic Details" id="section-1">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-  <div><FLabel label="Parcel Detail" required /><input type="text" value={formData.parcel_detail || ''} onChange={e => onChange('parcel_detail', e.target.value)} className={inputCls} /></div>
-  <div><FLabel label="Area (Acres)" required /><input type="number" step="any" value={formData.area_acres || ''} onChange={e => onChange('area_acres', e.target.value)} className={inputCls} /></div>
-  <div className="space-y-3">
-    <SelectField label="Purpose" required name="purpose_id" options={NMP_PURPOSE_OPTIONS} formData={formData} onChange={onChange} />
-    {formData.purpose_id === 4 && (
-      <OtherField label="Other Purpose" name="other_purpose" formData={formData} onChange={onChange} />
-    )}
-  </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-3">
-                <SelectField label="Sector" required name="sector_id" options={NMP_SECTOR_OPTIONS} formData={formData} onChange={onChange} />
-                {formData.sector_id === 11 && (
-                  <OtherField label="Other Sector" name="other_sector" formData={formData} onChange={onChange} />
-                )}
-              </div>
-              <div><FLabel label="Name of Specific Industry/Commercial Activities" required /><input type="text" value={formData.industry_name || ''} onChange={e => onChange('industry_name', e.target.value)} className={inputCls} /></div>
-            </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <SelectField label="Mode of Allotment" required name="mode_of_allotment_id" options={NMP_MODE_OPTIONS} formData={formData} onChange={onChange} />
-            <SelectField label="Land Allotment Status" required name="status_id" options={NMP_STATUS_OPTIONS} formData={formData} onChange={onChange} />
-            <div>
-              <FLabel label={isFuture ? 'Target Yr of Monetisation' : 'Year of Allotment (FY)'} required />
-              <select value={formData[isFuture ? 'target_yr_monetisation' : 'year_of_allotment'] || ''} onChange={(e) => onChange(isFuture ? 'target_yr_monetisation' : 'year_of_allotment', e.target.value)} className={inputCls}>
-                <option value="">--Select Year--</option>
-                {FY_OPTIONS.map((y) => <option key={y} value={y}>{y}</option>)}
-              </select>
-            </div>
-          </div>
-        </Section>
-      )}
+    {stage === 1 && (
+  <Section number={1} title="Basic Details" id="section-1">
+    {/* Row 1 */}
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+      <div>
+        <FLabel label="Parcel Detail" required />
+        <input type="text" value={formData.parcel_detail || ''} onChange={(e) => onChange('parcel_detail', e.target.value)} className={inputCls} />
+      </div>
+      <div>
+        <FLabel label="Area (Acres)" required />
+        <input type="number" step="any" value={formData.area_acres || ''} onChange={(e) => onChange('area_acres', e.target.value)} className={inputCls} />
+      </div>
+      <SelectField label="Lease Status" required name="lease_status_id" options={FUTURE_LEASE_STATUS_OPTIONS} formData={formData} onChange={onChange} />
+    </div>
+
+    {/* Row 2 */}
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+      <div className="space-y-3">
+        <SelectField label="Purpose" required name="purpose_id" options={NMP_PURPOSE_OPTIONS} formData={formData} onChange={onChange} />
+        {formData.purpose_id === 4 && (
+          <OtherField label="Other Purpose" name="other_purpose" formData={formData} onChange={onChange} />
+        )}
+      </div>
+      <div className="space-y-3">
+        <SelectField label="Sector" required name="sector_id" options={NMP_SECTOR_OPTIONS} formData={formData} onChange={onChange} />
+        {formData.sector_id === 11 && (
+          <OtherField label="Other Sector" name="other_sector" formData={formData} onChange={onChange} />
+        )}
+      </div>
+      <div>
+        <FLabel label="Name of Specific Industry/Commercial Activities" required />
+        <input type="text" value={formData.industry_name || ''} onChange={(e) => onChange('industry_name', e.target.value)} className={inputCls} />
+      </div>
+    </div>
+
+    {/* Row 3 */}
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+      <SelectField label="Mode of Allotment" required name="mode_of_allotment_id" options={NMP_MODE_OPTIONS} formData={formData} onChange={onChange} />
+      <SelectField label="Status" required name="status_id" options={NMP_STATUS_OPTIONS} formData={formData} onChange={onChange} />
+      <div>
+        <FLabel label={isFuture ? 'Target Yr of Monetisation' : 'Year of Allotment (FY)'} required />
+        <select value={formData[isFuture ? 'target_yr_monetisation' : 'year_of_allotment'] || ''} onChange={(e) => onChange(isFuture ? 'target_yr_monetisation' : 'year_of_allotment', e.target.value)} className={inputCls}>
+          <option value="">--Select Year--</option>
+          {FY_OPTIONS.map((y) => <option key={y} value={y}>{y}</option>)}
+        </select>
+      </div>
+    </div>
+  </Section>
+)}
 
       {/* ── Stage 2: Financial Details ── */}
       {stage === 2 && (
         <Section number={2} title="Financial Details" id="section-2">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
+              <div>
               <FLabel label="Upfront Premium [A] (INR Cr)" required />
               <input type="number" step="any" value={formData.upfront_premium || ''} onChange={(e) => onChange('upfront_premium', e.target.value)} className={inputCls} />
             </div>
-            <div>
+             <div>
               <FLabel label="Annual Base Lease Rental (INR Cr)" required />
               <input type="number" step="any" value={formData.annual_base_lease_rental || ''} onChange={(e) => onChange('annual_base_lease_rental', e.target.value)} className={inputCls} />
             </div>
+            
             <div>
               <FLabel label="Lease Tenure (Years)" required />
               <input type="number" step="any" value={formData.lease_tenure || ''} onChange={(e) => onChange('lease_tenure', e.target.value)} className={inputCls} />
@@ -948,7 +1010,7 @@ const SUB_TABS = [
 export default function NmpInputForm({ editData, onSuccess, onCancel, triggerNotification }) {
   const location = useLocation();
   const isEditMode = !!editData;
-  const defaultTab = editData?.form_type || location.state?.formType || 'future-land';
+  const defaultTab = editData?.form_type || location.state?.formType || 'land-abstract';
   const [subTab, setSubTab] = useState(defaultTab);
   const [formData, setFormData] = useState(() => normalizeEditData(editData) || {});
   const [submitting, setSubmitting] = useState(false);
