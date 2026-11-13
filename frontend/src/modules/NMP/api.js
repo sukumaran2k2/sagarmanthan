@@ -41,3 +41,6 @@ export function deleteNmpEntry(id, userId, formType = 'future-land') {
 export function fetchNmpById(id, formType = 'future-land') {
   return axiosInstance.get(`/nmp/${id}`, { params: { form_type: formType } });
 }
+
+export const getNmpCaseNumber = (organisationId) =>
+  axiosInstance.get(`/get-last-nmp-no/${organisationId}`);

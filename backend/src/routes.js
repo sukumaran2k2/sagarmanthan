@@ -3417,5 +3417,6 @@ router.get("/nmp/:id", auth, nmpTab.getNmpById);
 router.post("/nmp", auth, nmpTab.createNmpEntry);
 router.put("/nmp", auth, nmpTab.updateNmpEntry);
 router.delete("/nmp/:id/:userId", auth, nmpTab.deleteNmpEntry);
+router.get("/get-last-nmp-no/:organisationID", nmpTab.getnmpCaseNumber);
 
 export default router;
