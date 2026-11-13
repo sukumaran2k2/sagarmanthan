@@ -5,7 +5,8 @@ import CopyButton from '../../components/CopyButton';
 import ExportDropdown from '../../components/ExportDropdown';
 import { ACTS_AND_RULES, WINGS } from './actsAndRulesData';
 import { useActsAndRulesStore } from './store/useActsAndRulesStore';
-import { useNotifier, COMMON_TOASTS } from '../../utils/notify';
+import { useNotifier, COMMON_TOASTS, toastError } from '../../utils/notify';
+import { exportGridToExcel, exportGridToPdf } from '../../utils/exportGridReport';
 
 const FILTERS = ['All', ...WINGS];
 
@@ -75,23 +76,35 @@ export default function ActsAndRules({ triggerNotification }) {
     );
   };
 
+  // Excel and PDF files (not a CSV, which Excel opens with garbled characters, nor a print of the
+  // page): title, wing shown and date on top, one line per act.
   const handleExport = (type) => {
-    if (type === 'Excel') {
-      const escapeCsv = (val) => `"${String(val ?? '').replace(/"/g, '""')}"`;
-      let csv = ['S.No', 'Wing', 'Act', 'Rule'].map(escapeCsv).join(',') + '\n';
-      flatRows.forEach((r) => {
-        csv += [r.sno, r.wing, r.act, r.rule].map(escapeCsv).join(',') + '\n';
-      });
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'acts_and_rules.csv';
-      link.click();
-      URL.revokeObjectURL(url);
-      notify(COMMON_TOASTS.excelExported('acts_and_rules.csv'));
-    } else if (type === 'PDF') {
-      window.print();
+    if (flatRows.length === 0) {
+      notify(COMMON_TOASTS.nothingToExport());
+      return;
+    }
+    const today = new Date(Date.now() + 330 * 60 * 1000).toISOString().slice(0, 10);
+    const options = {
+      title: 'Acts & Rules',
+      subtitle: `${activeFilter === 'All' ? 'All wings' : `Wing: ${activeFilter}`} | As on ${today}`,
+      // PDF widths fill a landscape A4 page (786 pt inside the margins); long text wraps left-aligned
+      columns: [
+        { headerName: 'S.No', field: 'sno', pdfWidth: 36 },
+        { headerName: 'Wing', field: 'wing', pdfWidth: 70 },
+        { headerName: 'Act', field: 'act', pdfWidth: 190, pdfAlign: 'left' },
+        { headerName: 'Rule', field: 'rule', pdfWidth: 490, pdfAlign: 'left' },
+      ],
+      rows: flatRows,
+      fileName: 'Acts_and_Rules',
+    };
+    try {
+      const name = type === 'PDF'
+        ? exportGridToPdf(options)
+        : exportGridToExcel({ ...options, sheetName: 'Acts and Rules' });
+      notify(COMMON_TOASTS.excelExported(name, 'Acts & Rules'));
+    } catch (err) {
+      console.error('Acts & Rules export failed', err);
+      notify(toastError('Export Failed', 'Acts & Rules could not be exported. Please try again.'));
     }
   };
 
