@@ -10,7 +10,7 @@ import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import { fetchMIVMeetingsData, fetchOrganisations, fetchMeetingLogsByOrg, createMeeting as apiCreateMeeting, deleteMeeting as apiDeleteMeeting } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
-
+import ConfirmModal from '../../../components/ConfirmModal';
 
 export default function MIVMeetings({ triggerNotification }) {
   const [meetingSummary, setMeetingSummary] = useState([]);
@@ -23,6 +23,9 @@ export default function MIVMeetings({ triggerNotification }) {
   // Dedicated Filter Panel Toggle State
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const activeFiltersCount = selectedOrgFilter ? 1 : 0;
+
+  const [deleteTarget, setDeleteTarget] = useState(null); // { id, label }
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Column visibility checklist
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -134,20 +137,29 @@ export default function MIVMeetings({ triggerNotification }) {
     }
   };
 
-  const handleDeleteMeeting = async (meetingId) => {
-    if (!window.confirm("Are you sure you want to delete this meeting record?")) return;
-    try {
-      await apiDeleteMeeting(meetingId);
-      triggerNotification?.("Meeting record deleted successfully.");
-      if (selectedOrgForLogs) {
-        handleOpenLogs(selectedOrgForLogs);
-      }
-      fetchMeetingSummary();
-    } catch (err) {
-      console.error("Error deleting meeting:", err);
-      triggerNotification?.("Failed to delete meeting.");
+const handleDeleteMeeting = (meetingId, label = '') => {
+  setDeleteTarget({ id: meetingId, label });
+};
+
+// Runs when "Delete" is clicked inside the popup
+const confirmDeleteMeeting = async () => {
+  if (!deleteTarget) return;
+  setIsDeleting(true);
+  try {
+    await apiDeleteMeeting(deleteTarget.id);
+    triggerNotification?.("Meeting record deleted successfully.");
+    if (selectedOrgForLogs) {
+      handleOpenLogs(selectedOrgForLogs);
     }
-  };
+    fetchMeetingSummary();
+    setDeleteTarget(null);
+  } catch (err) {
+    console.error("Error deleting meeting:", err);
+    triggerNotification?.("Failed to delete meeting.");
+  } finally {
+    setIsDeleting(false);
+  }
+};
 
   const formatDate = (val) => {
     if (!val) return '-';
@@ -333,10 +345,11 @@ export default function MIVMeetings({ triggerNotification }) {
       headerClass: 'text-center',
       cellRenderer: (params) => {
         const id = params.data?.meeting_document_id || params.data?.id;
+        const label = formatDate(params.data?.date_of_meeting);
         return (
           <div className="flex items-center justify-center h-full">
             <button
-              onClick={() => handleDeleteMeeting(id)}
+              onClick={() => handleDeleteMeeting(id, label)}
               title="Delete Record"
               className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-slate-800 rounded-lg transition cursor-pointer"
             >
@@ -803,6 +816,19 @@ export default function MIVMeetings({ triggerNotification }) {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={!!deleteTarget}
+        title="Delete Meeting Record"
+        message={
+          deleteTarget?.label && deleteTarget.label !== '-'
+            ? `Delete the meeting record dated ${deleteTarget.label}? This cannot be undone.`
+            : 'Delete this meeting record? This cannot be undone.'
+        }
+        loading={isDeleting}
+        onConfirm={confirmDeleteMeeting}
+        onClose={() => setDeleteTarget(null)}
+      />
 
     </div>
   );

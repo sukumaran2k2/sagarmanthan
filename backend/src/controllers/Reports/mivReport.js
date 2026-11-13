@@ -1001,32 +1001,42 @@ async function downloadDocument(req, res)
 //-----------------------------------------------------------------------Delete logic--------------------------------------------------------------------------
 async function deleteMeeting(req, res) {
     try {
-        const id = req.params.id;
+        const id = parseInt(req.params.id, 10);
+        if (Number.isNaN(id)) {
+            return res.status(400).send({ message: 'Invalid meeting id' });
+        }
+
         const conn = await pool;
 
-        const result = await conn.query(
-            `SELECT file_name FROM tbl_meeting_document WHERE meeting_document_id = ${id}`
-        );
-        
-        const fileName = result.recordset[0].file_name;
-        
-       if(fileName){
-            if (fs.existsSync(`./fileuploads/MIV/meeting/${fileName}`)) {
-            
-                fs.unlink(`./fileuploads/MIV/meeting/${fileName}`, (err) => {
-                    if (err) {
-                        console.error("Error deleting file:", err);
-                    }
-                });
-            } 
-       }
+        const result = await conn
+            .request()
+            .input('id', id)
+            .query(`SELECT file_name FROM tbl_meeting_document WHERE meeting_document_id = @id`);
 
-        const deleteRecord = await conn.query(`Delete FROM tbl_meeting_document WHERE meeting_document_id = ${id}`);
-        
-        res.status(200);
+        if (result.recordset.length === 0) {
+            return res.status(404).send({ message: 'Meeting record not found' });
+        }
+
+        const fileName = result.recordset[0].file_name;
+
+        await conn
+            .request()
+            .input('id', id)
+            .query(`DELETE FROM tbl_meeting_document WHERE meeting_document_id = @id`);
+
+        if (fileName) {
+            const filePath = path.join('./fileuploads/MIV/meeting', path.basename(fileName));
+            fs.unlink(filePath, (err) => {
+                if (err && err.code !== 'ENOENT') {
+                    console.error('Error deleting file:', err);
+                }
+            });
+        }
+
+        return res.status(200).send({ message: 'Meeting record deleted successfully' });
     } catch (err) {
         console.error(err);
-        res.status(500).send({ message: err.message });
+        return res.status(500).send({ message: err.message });
     }
 }
 
