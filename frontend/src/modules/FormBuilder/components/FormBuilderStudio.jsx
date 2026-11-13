@@ -39,90 +39,6 @@ import {
 } from 'lucide-react';
 import FormPreviewModal from './FormPreviewModal';
 
-export const FULL_ORGANISATION_LIST = [
-  { id: '1', name: 'Syama Prasad Mookerjee Port Authority', code: 'SMPA', category: '1' },
-  { id: '2', name: 'Paradip Port Authority', code: 'PPA', category: '1' },
-  { id: '3', name: 'Kamarajar Port Limited', code: 'KPL', category: '1' },
-  { id: '4', name: 'Chennai Port Authority', code: 'ChPA', category: '1' },
-  { id: '5', name: 'Cochin Port Authority', code: 'CoPA', category: '1' },
-  { id: '6', name: 'New Mangalore Port Authority', code: 'NMPT', category: '1' },
-  { id: '7', name: 'Mormugao Port Authority', code: 'MPA', category: '1' },
-  { id: '8', name: 'Mumbai Port Authority', code: 'MbPA', category: '1' },
-  { id: '9', name: 'Jawaharlal Nehru Port Authority', code: 'JNPA', category: '1' },
-  { id: '10', name: 'Deendayal Port Authority', code: 'DPA', category: '1' },
-  { id: '11', name: 'V.O. Chidambaranar Port Authority', code: 'VOCPA', category: '1' },
-  { id: '12', name: 'Visakhapatnam Port Authority', code: 'VPA', category: '1' },
-  { id: '13', name: 'SMPA - Kolkata Dock System', code: 'SMPA-KDS', category: '1' },
-  { id: '14', name: 'SMPA - Haldia Dock Complex', code: 'SMPA-HDC', category: '1' },
-  { id: '15', name: 'Ministry of Ports, Shipping and Waterways', code: 'MoPSW', category: '2' },
-  { id: '16', name: 'Ministry of Rural Development (DDU-GKY)', code: 'MORDDDU', category: '2' },
-  { id: '17', name: 'Shipping Corporation of India', code: 'SCI', category: '3' },
-  { id: '18', name: 'Indian Port Association', code: 'IPA', category: '3' },
-  { id: '19', name: 'Inland Waterways Authority of India', code: 'IWAI', category: '3' },
-  { id: '20', name: 'Cochin Shipyard Limited', code: 'CSL', category: '3' },
-  { id: '21', name: 'Directorate General of Lighthouses and Lightships', code: 'DGLL', category: '3' },
-  { id: '22', name: 'Indian Port Rail & Ropeway Corporation Ltd', code: 'IPRCL', category: '3' },
-  { id: '23', name: 'Directorate General of Shipping, Mumbai', code: 'DGS', category: '3' },
-  { id: '24', name: 'Sagarmala Finance Corporation Limited', code: 'SMFCL', category: '3' },
-  { id: '25', name: 'Andaman, Lakshadweep Harbour Works', code: 'ALHW', category: '3' },
-  { id: '26', name: 'Tariff Authority of Major Ports', code: 'TAMP', category: '3' },
-  { id: '27', name: 'Indian Maritime University', code: 'IMU', category: '3' },
-  { id: '28', name: 'Dredging Corporation of India', code: 'DCI', category: '3' },
-  { id: '29', name: "Seamen's Provident Fund Organisation", code: 'SPFO', category: '3' },
-  { id: '30', name: 'Udupi Cochin Shipyard Limited', code: 'UCSL', category: '3' },
-  { id: '31', name: 'Hooghly Cochin Shipyard Limited', code: 'HCSL', category: '3' },
-  { id: '32', name: 'NHAI', code: 'NHAI', category: '3' },
-  { id: '33', name: 'Centre for Maritime Economy & Connectivity', code: 'CMEC', category: '3' },
-  { id: '34', name: 'A to Z EXIM', code: 'EXIM', category: '3' },
-  { id: '35', name: 'India Ports Global Limited', code: 'IPGL', category: '3' },
-  { id: '36', name: 'Shipping Corporation of India Land and Assets Limited', code: 'SCILAL', category: '3' },
-  { id: '37', name: 'Comptroller and Auditor General of India', code: 'CAG', category: '3' },
-  { id: '38', name: 'Andhra Pradesh Maritime Board', code: 'APMB', category: '4' },
-  { id: '39', name: 'Andhra Pradesh Tourism Development Corporation', code: 'APTDC', category: '4' },
-  { id: '40', name: 'Commissionerate of Fisheries, GoG', code: 'COFGOG', category: '4' },
-  { id: '41', name: 'Daman & Diu', code: 'DD', category: '4' },
-  { id: '42', name: 'Department of Ports, Government of Odisha', code: 'DOPGOO', category: '4' },
-  { id: '43', name: 'Director of Fisheries, Karnataka', code: 'DOFK', category: '4' },
-  { id: '44', name: 'Fisheries Department, GoAP', code: 'FDGOAP', category: '4' },
-  { id: '45', name: 'Fisheries Department, GoO', code: 'FDGOO', category: '4' },
-  { id: '46', name: 'Fisheries Department, GoTN', code: 'FDGOTN', category: '4' },
-  { id: '47', name: 'Gujarat Maritime Board', code: 'GMB', category: '4' },
-  { id: '48', name: 'Harbour Engineering Department, Kerala', code: 'HEDK', category: '4' },
-  { id: '49', name: 'Kerala Maritime Board', code: 'KMB', category: '4' },
-  { id: '50', name: 'Maharashtra Fisheries Development Corporation', code: 'MFDC', category: '4' },
-  { id: '51', name: 'Maharashtra Maritime Board', code: 'MMB', category: '4' },
-  { id: '52', name: 'Port Department, Government of Puducherry', code: 'PDGOP', category: '4' },
-  { id: '53', name: 'Ports & IWT, Karnataka', code: 'PIWTK', category: '4' },
-  { id: '54', name: 'Tamil Nadu Maritime Board', code: 'TNMB', category: '4' },
-  { id: '55', name: 'PWD, GOA', code: 'PWD', category: '4' },
-  { id: '56', name: 'Karnataka Maritime Board', code: 'KarnatakaMB', category: '4' },
-  { id: '57', name: 'Directorate of Ports & IWT, Odisha', code: 'DopIWT', category: '4' },
-  { id: '58', name: 'IIT Madras', code: 'IITM', category: '5' },
-  { id: '59', name: 'IIT Kharagpur', code: 'IITKH', category: '5' },
-  { id: '60', name: 'IRS', code: 'IRS', category: '5' },
-  { id: '61', name: 'Centre Of Excellence in Maritime and Shipbuilding', code: 'CEMS', category: '5' },
-  { id: '62', name: 'Centre for Inland and Coastal Maritime Technology', code: 'CICMT', category: '5' },
-  { id: '63', name: 'The Energy and Research Institute', code: 'TERI', category: '5' },
-  { id: '64', name: 'Pondicherry Port', code: 'PP', category: '6' },
-  { id: '65', name: 'Lakshadweep Ports', code: 'LP', category: '6' },
-  { id: '66', name: 'Andaman Port, Port Blair', code: 'APPB', category: '6' }
-].sort((a, b) => a.name.localeCompare(b.name));
-
-export const WING_OPTIONS = [
-  'Administration', 'Coord-I', 'Coord-II', 'DGLL, Parliament & TRW', 
-  'Development', 'Finance', 'IWT', 'Information Technology', 
-  'Office of Economic Advisor', 'Ports', 'Sagarmala ', 'Shipping', 
-  'Special Initiatives & Projects', 'Vigilance'
-].sort((a, b) => a.localeCompare(b));
-
-export const DIVISION_OPTIONS = [
-  'Admn. ', 'Coord-I ', 'Coord-II ', 'DGLL, Parl. & TRW', 'Devlopment ', 
-  'Finance ', 'IT', 'IWT-I ', 'IWT-II ', 'PD- IV', 'PD-I', 'PD-II', 
-  'PD-III', 'PHRD ', 'PPP ', 'Sagarmala -I ', 'Sagarmala -II ', 
-  'Sagarmala-III , ALHW & Media ', 'Shipping-I', 'Shipping-II ', 
-  'Shipping-III ', 'Special Initiatives & Projects', 'Vigilance'
-].sort((a, b) => a.localeCompare(b));
-
 export const SAGARMANTHAN_INPUT_TYPES = [
   { type: 'text', label: 'Text', icon: Type, defaultLabel: 'Sample Text Field' },
   { type: 'email', label: 'Email', icon: Mail, defaultLabel: 'Official Email Address' },
@@ -170,6 +86,32 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
   const [selectedWings, setSelectedWings] = useState([]);
   const [isWingDropdownOpen, setIsWingDropdownOpen] = useState(false);
   const wingDropdownRef = useRef(null);
+  // Organisations (by code) and wings come from the masters, so assignments use the codes
+  // the server compares users against.
+  const [organisations, setOrganisations] = useState([]);
+  const [wingOptions, setWingOptions] = useState([]);
+  const [targetsError, setTargetsError] = useState(null);
+  useEffect(() => {
+    api.get('/get-form-targets')
+      .then((res) => {
+        setOrganisations((res.data?.organisations || []).map((o) => ({
+          id: String(o.id), name: o.name, code: o.code, category: o.categoryName || '',
+        })));
+        setWingOptions((res.data?.wings || []).map((w) => w.name));
+        // Edit: tick the form's organisations. Forms published before the list came from the
+        // masters may carry the old codes for New Mangalore and Mormugao.
+        if (formToEdit) {
+          const OLD_CODES = { NMPT: 'NMPA', MPA: 'MgPA' };
+          const orgCodes = String(formToEdit.organisation || '').split(',').map((c) => c.trim()).filter(Boolean)
+            .map((c) => OLD_CODES[c] || c);
+          setSelectedOrgIds((res.data?.organisations || []).filter((o) => orgCodes.includes(o.code)).map((o) => String(o.id)));
+        }
+      })
+      .catch((err) => {
+        console.error('Error loading organisations and wings:', err);
+        setTargetsError(err.response?.data?.message || 'Could not load the organisations and wings');
+      });
+  }, [formToEdit]);
   const [dueDate, setDueDate] = useState('');
   const [activeStatus, setActiveStatus] = useState('1');
 
@@ -242,12 +184,11 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
         setAssignType('wing');
         setSelectedWings(editWings);
       } else {
-        const orgCodes = splitCSV(formToEdit.organisation);
         setAssignType('organisation');
-        setSelectedOrgIds(FULL_ORGANISATION_LIST.filter(o => orgCodes.includes(o.code)).map(o => o.id));
       }
     }
   }, [formToEdit]);
+
 
 
 
@@ -261,14 +202,15 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
   };
 
   // Quick Select Helpers
+  const majorPorts = organisations.filter(o => o.category === 'Major Ports');
   const handleSelectAllMajorPorts = () => {
-    const majorPortIds = FULL_ORGANISATION_LIST.filter(o => o.category === 'Major Port').map(o => o.id);
+    const majorPortIds = majorPorts.map(o => o.id);
     const combined = Array.from(new Set([...selectedOrgIds, ...majorPortIds]));
     setSelectedOrgIds(combined);
   };
 
   const handleSelectAllOrgs = () => {
-    setSelectedOrgIds(FULL_ORGANISATION_LIST.map(o => o.id));
+    setSelectedOrgIds(organisations.map(o => o.id));
   };
 
   const handleClearAllOrgs = () => {
@@ -276,7 +218,7 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
   };
 
   // Filtered Organisations for Multi-Select Dropdown
-  const filteredOrgs = FULL_ORGANISATION_LIST.filter(o => 
+  const filteredOrgs = organisations.filter(o => 
     o.name.toLowerCase().includes(orgSearchQuery.toLowerCase()) ||
     o.code.toLowerCase().includes(orgSearchQuery.toLowerCase()) ||
     o.category.toLowerCase().includes(orgSearchQuery.toLowerCase())
@@ -401,7 +343,7 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
 
     setIsSubmitting(true);
 
-    const selectedOrgNames = assignType === 'organisation' ? FULL_ORGANISATION_LIST.filter(o => selectedOrgIds.includes(o.id)).map(o => o.code) : [];
+    const selectedOrgNames = assignType === 'organisation' ? organisations.filter(o => selectedOrgIds.includes(o.id)).map(o => o.code) : [];
     // targetWing/targetDivision were never defined (ReferenceError on Wing publish); use the real selection
     const payloadWing = assignType === 'wing' ? selectedWings : [];
     const payloadDivision = []; // no division picker in the Studio yet
@@ -557,6 +499,9 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
 
           {/* Assign To (Wing vs Org) */}
           <div className="lg:col-span-4 space-y-1.5">
+            {targetsError && (
+              <div className="px-3 py-2 rounded-lg border border-rose-200 bg-rose-50 text-[11px] font-semibold text-rose-700">{targetsError}</div>
+            )}
             <div className="flex items-center space-x-4 mb-1.5 pt-0.5">
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                 Assign To: <span className="text-red-500">*</span>
@@ -605,9 +550,9 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
 
                   {selectedWings.length === 0 ? (
                     <span className="text-slate-400 font-medium">Select Wings...</span>
-                  ) : selectedWings.length === WING_OPTIONS.length ? (
+                  ) : selectedWings.length === wingOptions.length ? (
                     <span className="px-2 py-0.5 bg-blue-100 text-blue-800 font-bold rounded-md text-xs">
-                      All {WING_OPTIONS.length}
+                      All {wingOptions.length}
                     </span>
                   ) : (
                     selectedWings.slice(0, 3).map(wing => (
@@ -624,7 +569,7 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
                     ))
                   )}
 
-                  {selectedWings.length > 3 && selectedWings.length < WING_OPTIONS.length && (
+                  {selectedWings.length > 3 && selectedWings.length < wingOptions.length && (
                     <span className="px-2 py-0.5 bg-slate-200 text-slate-700 font-extrabold rounded-md text-[11px]">
                       +{selectedWings.length - 3}
                     </span>
@@ -634,7 +579,7 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
                 {isWingDropdownOpen && (
                   <div className="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl border border-slate-200 shadow-2xl z-50 p-3 animate-fade-in flex flex-col">
                     <div className="flex items-center justify-between text-[11px] pb-2 border-b border-slate-100 mb-2">
-                      <button type="button" onClick={() => setSelectedWings([...WING_OPTIONS])} className="text-emerald-600 font-bold hover:underline cursor-pointer">
+                      <button type="button" onClick={() => setSelectedWings([...wingOptions])} className="text-emerald-600 font-bold hover:underline cursor-pointer">
                         Select All
                       </button>
                       <button type="button" onClick={() => setSelectedWings([])} className="text-red-500 font-bold hover:underline cursor-pointer">
@@ -642,7 +587,7 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
                       </button>
                     </div>
                     <div className="overflow-y-auto max-h-60 space-y-1">
-                      {WING_OPTIONS.map((wing) => {
+                      {wingOptions.map((wing) => {
                         const isChecked = selectedWings.includes(wing);
                         return (
                           <label key={wing} onClick={(e) => {
@@ -693,13 +638,13 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
 
                   {selectedOrgIds.length === 0 ? (
                     <span className="text-slate-400 font-medium">Select...</span>
-                  ) : selectedOrgIds.length === FULL_ORGANISATION_LIST.length ? (
+                  ) : selectedOrgIds.length === organisations.length ? (
                     <span className="px-2 py-0.5 bg-blue-100 text-blue-800 font-bold rounded-md text-xs">
-                      All {FULL_ORGANISATION_LIST.length}
+                      All {organisations.length}
                     </span>
                   ) : (
                     selectedOrgIds.slice(0, 2).map(id => {
-                      const org = FULL_ORGANISATION_LIST.find(o => o.id === id);
+                      const org = organisations.find(o => o.id === id);
                       return (
                         <span 
                           key={id}
@@ -715,7 +660,7 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
                     })
                   )}
 
-                  {selectedOrgIds.length > 2 && selectedOrgIds.length < FULL_ORGANISATION_LIST.length && (
+                  {selectedOrgIds.length > 2 && selectedOrgIds.length < organisations.length && (
                     <span className="px-2 py-0.5 bg-slate-200 text-slate-700 font-extrabold rounded-md text-[11px]">
                       +{selectedOrgIds.length - 2}
                     </span>
@@ -737,10 +682,10 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
                       </div>
                       <div className="flex items-center justify-between text-[11px] pt-1">
                         <button type="button" onClick={handleSelectAllMajorPorts} className="text-blue-600 font-bold hover:underline cursor-pointer">
-                          + 12 Major Ports
+                          + {majorPorts.length} Major Ports
                         </button>
                         <button type="button" onClick={handleSelectAllOrgs} className="text-emerald-600 font-bold hover:underline cursor-pointer">
-                          Select All ({FULL_ORGANISATION_LIST.length})
+                          Select All ({organisations.length})
                         </button>
                         <button type="button" onClick={handleClearAllOrgs} className="text-red-500 font-bold hover:underline cursor-pointer">
                           Clear All

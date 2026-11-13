@@ -13,48 +13,7 @@ import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
 import TablePagination from '../../../components/TablePagination';
 import api from '../api';
-
-const MOCK_SUBMISSIONS = [
-  {
-    id: 'SUB_001',
-    portName: 'Jawaharlal Nehru Port Authority (JNPA)',
-    submittedBy: 'Sanjay Kumar (Nodal Officer)',
-    submittedOn: '2026-09-24 14:30',
-    data: {
-      'Project Name': 'Fourth Container Terminal Expansion',
-      'Sanctioned Cost (Rs Cr)': '1,250.00',
-      'Implementation Stage': 'Under Construction',
-      'Target Completion Date': '2027-03-31',
-      'Status': 'On Track'
-    }
-  },
-  {
-    id: 'SUB_002',
-    portName: 'Deendayal Port Authority (Kandla)',
-    submittedBy: 'Rajesh Sharma (Chief Engineer)',
-    submittedOn: '2026-09-23 11:15',
-    data: {
-      'Project Name': 'Oil Jetty No. 7 Modernization',
-      'Sanctioned Cost (Rs Cr)': '340.50',
-      'Implementation Stage': 'Completed',
-      'Target Completion Date': '2026-08-15',
-      'Status': 'Completed'
-    }
-  },
-  {
-    id: 'SUB_003',
-    portName: 'Chennai Port Authority',
-    submittedBy: 'V. Ramanathan (Dy. Conservator)',
-    submittedOn: '2026-09-22 16:45',
-    data: {
-      'Project Name': 'Coastal Protection Works Phase 2',
-      'Sanctioned Cost (Rs Cr)': '88.20',
-      'Implementation Stage': 'Under Tendering',
-      'Target Completion Date': '2027-06-30',
-      'Status': 'In Progress'
-    }
-  }
-];
+import { exportGridToExcel, exportGridToPdf } from '../../../utils/exportGridReport';
 
 export default function SubmissionsTable({ selectedForm, triggerNotification, onBackToDirectory }) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -71,11 +30,12 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
   }, []);
   useEffect(() => { setHiddenCols({}); }, [selectedForm?.id]);
 
-  // Forms from the DB have numeric ids; mock forms ('form_101') keep showing mock submissions.
+  // The form comes from the Directory card, or from the address (/form-builder/submissions/<id>)
+  // after a refresh; the name then comes from the server's answer.
   const isRealForm = !!selectedForm && /^\d+$/.test(String(selectedForm.id));
   const [realData, setRealData] = useState(null);
 
-  // Real forms are paged and searched on the server; mock forms filter in the browser.
+  // Paged and searched on the server.
   const PAGE_SIZE = 10;
   const [page, setPage] = useState(1);
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -100,56 +60,46 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
       });
   }, [isRealForm, selectedForm?.id, page, debouncedSearch]);
 
-  const formTitle = selectedForm ? selectedForm.formName : 'Monthly Capex Expenditure Telemetry';
+  const formTitle = realData?.form?.formName || selectedForm?.formName || '';
+  const asOnDate = new Date(Date.now() + 330 * 60 * 1000).toISOString().split('T')[0];
 
-  const handleExportExcel = async () => {
-    // The grid only holds one page for real forms, so export fetches every matching row.
-    if (isRealForm) {
-      try {
-        const res = await api.get(`/get-form-submissions/${selectedForm.id}`, { params: { all: true, search: debouncedSearch } });
-        const cell = (v) => {
-          const text = v === null || v === undefined ? '' : String(v);
-          return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-        };
-        const lines = [
-          visibleColumnDefs.map(c => cell(c.headerName)).join(','),
-          ...res.data.submissions.map((row, i) => visibleColumnDefs.map(c => cell(
-            c.colId === 'sno' ? i + 1 : c.valueGetter ? c.valueGetter({ data: row }) : row[c.field]
-          )).join(',')),
-        ];
-        const url = URL.createObjectURL(new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `Submissions_${formTitle}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
-        triggerNotification && triggerNotification(`Exported ${res.data.submissions.length} submissions to CSV`, 'success');
-      } catch (err) {
-        console.error('Export failed', err);
-        triggerNotification && triggerNotification('Could not export submissions', 'error');
+  // Excel / PDF of every row matching the search (the grid holds one page), with the
+  // form name, date and the visible columns.
+  const handleExport = async (type) => {
+    try {
+      const res = await api.get(`/get-form-submissions/${selectedForm.id}`, { params: { all: true, search: debouncedSearch } });
+      const rows = (res.data?.submissions || []).map((r, i) => ({ ...r, _sno: i + 1 }));
+      if (rows.length === 0) {
+        triggerNotification && triggerNotification('There is nothing to export', 'warning');
+        return;
       }
-      return;
-    }
-    if (gridRef.current && gridRef.current.api) {
-      gridRef.current.api.exportDataAsCsv({ fileName: `Submissions_${formTitle}` });
-      triggerNotification && triggerNotification('Exporting submissions report to CSV...', 'success');
+      const columns = visibleColumnDefs.map((c) => (c.colId === 'sno'
+        ? { headerName: 'S.No', field: '_sno' }
+        : { headerName: c.headerName, field: c.field, valueGetter: c.valueGetter }));
+      const options = {
+        title: `Submissions - ${formTitle}`,
+        subtitle: `As on ${asOnDate}${debouncedSearch ? ` | Search: ${debouncedSearch}` : ''}`,
+        columns,
+        rows,
+        fileName: `Submissions_${formTitle}`,
+      };
+      if (type === 'pdf') exportGridToPdf({ ...options, brand: '#4b2424' });
+      else exportGridToExcel({ ...options, sheetName: 'Submissions' });
+      triggerNotification && triggerNotification(`Exported ${rows.length} rows`, 'success');
+    } catch (err) {
+      console.error('Export failed', err);
+      triggerNotification && triggerNotification('Could not export submissions', 'error');
     }
   };
 
-  const filtered = isRealForm
-    ? (realData?.submissions || [])
-    : MOCK_SUBMISSIONS.filter(s => 
-      (s.portName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (s.submittedBy || '').toLowerCase().includes(searchQuery.toLowerCase())
-    );
+  const filtered = realData?.submissions || [];
   const pagination = realData?.pagination;
 
+  // Submission rate: assigned organisations / wings (an organisation user: their own) that responded
   const stats = realData?.stats;
-  const complianceText = !isRealForm
-    ? '84% Compliance'
-    : stats?.assignedOrganisations
-      ? `${Math.round((stats.respondedOrganisations / stats.assignedOrganisations) * 100)}% Compliance`
-      : '—';
+  const complianceText = stats?.assignedOrganisations
+    ? `${Math.round((stats.respondedOrganisations / stats.assignedOrganisations) * 100)}% (${stats.respondedOrganisations} of ${stats.assignedOrganisations})`
+    : '—';
 
   const formatValue = (v) => (
     Array.isArray(v) ? v.join(', ')
@@ -212,7 +162,7 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
       headerName: 'S.No',
       // Real forms are paged on the server, so page 2 continues from 11.
       valueGetter: (params) => (params.node && !params.node.rowPinned
-        ? params.node.rowIndex + 1 + (isRealForm ? (page - 1) * PAGE_SIZE : 0)
+        ? params.node.rowIndex + 1 + (page - 1) * PAGE_SIZE
         : ''),
       minWidth: 90,
       pinned: 'left',
@@ -228,7 +178,6 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
     {
       colId: 'status',
       headerName: 'Status',
-      // Mock rows carry no status; they are all submitted responses.
       valueGetter: (p) => p.data?.status || 'Submitted',
       cellRenderer: (params) => (
         <div className="flex items-center justify-center h-full">
@@ -248,26 +197,10 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
     },
   ];
 
-  const mockColumnDefs = [
-    { headerName: 'Project Name', valueGetter: (p) => p.data.data['Project Name'], cellStyle: { fontWeight: '600', color: '#1e293b', fontSize: '11px' }, cellClass: 'justify-center text-center', flex: 1.5 },
-    { headerName: 'Cost (Rs Cr)', valueGetter: (p) => p.data.data['Sanctioned Cost (Rs Cr)'], cellStyle: { fontWeight: '900', color: '#0f172a', fontSize: '11px' }, cellClass: 'justify-center text-center' },
-    { 
-      headerName: 'Stage',
-      valueGetter: (p) => p.data.data['Implementation Stage'],
-      cellRenderer: (params) => (
-        <div className="flex items-center justify-center h-full">
-          <span className="px-2 py-0.5 bg-[#f7f3f3] text-[#4b2424] font-bold rounded text-[10px] uppercase border border-[#eadede] shadow-sm inline-block whitespace-nowrap leading-none">
-            {params.value}
-          </span>
-        </div>
-      )
-    }
-  ];
-
   // Column visibility ("Visibility" menu, as on other modules' Data List pages). Columns
   // depend on the form, so hidden columns are tracked by key and reset per form.
   const colKey = (c) => c.colId || c.field || c.headerName;
-  const columnDefs = [...baseColumnDefs, ...(isRealForm ? realFieldColumns : mockColumnDefs)]
+  const columnDefs = [...baseColumnDefs, ...realFieldColumns]
     .map(c => ({ ...c, hide: !!hiddenCols[colKey(c)] }));
   const visibleColumnDefs = columnDefs.filter(c => !c.hide);
 
@@ -291,7 +224,7 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
           </div>
           <h2 className="text-xl font-bold text-[#4b2424] dark:text-[#eadede] tracking-wide">{formTitle}</h2>
           <div className="text-xs text-slate-500 mt-1">
-            As on date: <strong className="text-[#4b2424] dark:text-[#eadede]">{new Date(Date.now() + 330 * 60 * 1000).toISOString().split('T')[0]}</strong>
+            As on date: <strong className="text-[#4b2424] dark:text-[#eadede]">{asOnDate}</strong>
           </div>
         </div>
         
@@ -334,8 +267,8 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
             </div>
           {/* Same look as the Visibility button: brown, white text, chevron */}
           <ExportDropdown 
-            onExportExcel={handleExportExcel} 
-            onExportPdf={() => window.print()} 
+            onExportExcel={() => handleExport('excel')}
+            onExportPdf={() => handleExport('pdf')}
             color="#4b2424"
             hoverColor="#6b3535"
             chevron
@@ -344,7 +277,7 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
       </div>
 
       {/* Toolbar & Stats Section */}
-      <div className="p-5 border-b border-slate-200/80 bg-[#f7f3f3]/60 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+      <div className="p-5 border-b border-slate-200/80 dark:border-slate-800 bg-[#f7f3f3]/60 dark:bg-slate-900/60 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
         
         {/* Search Bar */}
         <div className="relative w-full lg:w-96">
@@ -361,23 +294,23 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
         {/* Stats Highlights */}
         <div className="flex items-center space-x-8">
           <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Total Submissions</span>
-            <div className="text-lg font-black text-[#4b2424]">{isRealForm ? (stats?.totalSubmissions ?? 0) : filtered.length}</div>
+            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Total Submissions</span>
+            <div className="text-lg font-black text-[#4b2424] dark:text-[#eadede]">{stats ? stats.totalSubmissions : '…'}</div>
           </div>
           
           <div className="w-px h-8 bg-slate-200 hidden md:block"></div>
 
           <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Submission Rate</span>
-            <div className="text-lg font-black text-[#8c4242]">{complianceText}</div>
+            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Submission Rate</span>
+            <div className="text-lg font-black text-[#8c4242] dark:text-[#eadede]" title="Assigned organisations / wings that have submitted">{stats ? complianceText : '…'}</div>
           </div>
 
-          {isRealForm && (
+          {(
             <>
               <div className="w-px h-8 bg-slate-200 hidden md:block"></div>
               <div className="flex flex-col">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Not Submitted</span>
-                <div className="text-lg font-black text-red-600">{stats?.notSubmitted ?? 0}</div>
+                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Not Submitted</span>
+                <div className="text-lg font-black text-red-600 dark:text-red-400">{stats ? stats.notSubmitted : '…'}</div>
               </div>
             </>
           )}
@@ -390,20 +323,22 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
         <style>{`
           .fb-row-pending .ag-cell { background-color: #fef2f2 !important; color: #0f172a !important; }
           .fb-row-pending.ag-row-hover .ag-cell { background-color: #fee2e2 !important; }
+          .dark .fb-row-pending .ag-cell { background-color: rgba(127, 29, 29, 0.35) !important; color: #fecaca !important; }
+          .dark .fb-row-pending .ag-cell div:not([class*="bg-"]) { color: #fecaca !important; }
+          .dark .fb-row-pending.ag-row-hover .ag-cell { background-color: rgba(127, 29, 29, 0.5) !important; }
         `}</style>
         <Table 
           ref={gridRef}
           rowData={filtered} 
           columnDefs={columnDefs} 
           rowClassRules={{ 'fb-row-pending': (p) => !!p.data?.isPending }}
-          pagination={!isRealForm}
-          paginationPageSize={10}
+          pagination={false}
           enableExport={false}
           domLayout="autoHeight"
           color="#4b2424"
           rowHeight={34}
         />
-        {isRealForm && pagination?.totalPages > 0 && (
+        {pagination?.totalPages > 0 && (
           <TablePagination
             currentPage={Math.max(0, page - 1)}
             totalPages={pagination.totalPages}
