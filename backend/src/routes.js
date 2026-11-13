@@ -3203,7 +3203,7 @@ router.get('/get-mou-category-names', auth, requireModulePermission("GMIS_IMW_MO
 router.post('/submit-gmis-mou-data', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "create"), gmisMouTab.submitGmisMouData);
 router.post("/gmisdocumentUploader", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "create"), gmisMouTab.upload.single('file'), gmisMouTab.addNewgmisFileupload);
 router.put('/update-gmis-mou-data', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "update"), gmisMouTab.updateGmisMouData);
-router.get('/get-gmis-mou-data-by-id/:mouID', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouDataByID);
+// router.get('/get-gmis-mou-data-by-id/:mouID', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouDataByID);
 router.get("/download-gmismou-pdf-document", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.gmisPdfFileDownload);
 router.delete("/delete-gmisfile", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "delete"), gmisMouTab.gmisfileDelete);
 router.post("/add-revised-financial-progress-date", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "update"), gmisMouTab.addRevisedfinancialprogressdate);
