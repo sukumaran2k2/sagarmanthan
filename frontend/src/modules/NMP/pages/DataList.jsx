@@ -251,12 +251,13 @@ const enrichRow = (row, tab) => {
   };
 };
 const FETCH_MAP = {
-  'land-abstract': fetchLandAbstractList,
-  'past-land': fetchPastLandList,
-  'future-land': fetchFutureLandList,
+  'land-abstract': (userId) => fetchLandAbstractList(userId),
+  'past-land':     (userId) => fetchPastLandList(userId),
+  'future-land':   (userId) => fetchFutureLandList(userId),
 };
 
 export default function NmpDataList({ onEdit, onAddNew, triggerNotification, canEdit, canAdd, canRemove }) {
+  const userId = getCurrentUserId();
   const gridApiRef = useRef(null);
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -273,45 +274,43 @@ export default function NmpDataList({ onEdit, onAddNew, triggerNotification, can
 
   const latestRequestRef = useRef(0);
   const fetchData = useCallback(async () => {
-    const requestId = ++latestRequestRef.current;
-    const isStale = () => requestId !== latestRequestRef.current;
-    setLoading(true);
-    try {
-      const fetcher = FETCH_MAP[subTab] || fetchFutureLandList;
-      const res = await fetcher();
-      if (isStale()) return;
-      const rows = Array.isArray(res.data) ? res.data : [];
-//       console.log('KEYS:', Object.keys(rows[0] || {}));
-// console.log('STATUS values:', rows.map(r => ({ status: r.status, status_id: r.status_id })));
-      if (subTab === 'past-land') {
-  // console.log('PAST raw API rows:', rows);
-  // console.table(rows);   // easy-to-read table in the console
-}
-      setData(rows.map((item, idx) => ({ ...enrichRow(item, subTab), sNo: idx + 1 })));
-      setTabCounts(prev => ({ ...prev, [subTab]: rows.length }));
-    } catch {
-      if (!latestRequestRef.current) return;
-      setData([]);
-    } finally {
-      if (!isStale()) setLoading(false);
-    }
-  }, [subTab]);
-
+  if (!userId) {
+    triggerNotification?.('Session expired. Please log in again.', 'error');
+    setLoading(false);
+    return;
+  }
+  const requestId = ++latestRequestRef.current;
+  const isStale = () => requestId !== latestRequestRef.current;
+  setLoading(true);
+  try {
+    const fetcher = FETCH_MAP[subTab] || FETCH_MAP['future-land'];
+    const res = await fetcher(userId);
+    if (isStale()) return;
+    const rows = Array.isArray(res.data) ? res.data : [];
+    setData(rows.map((item, idx) => ({ ...enrichRow(item, subTab), sNo: idx + 1 })));
+    setTabCounts(prev => ({ ...prev, [subTab]: rows.length }));
+  } catch {
+    if (isStale()) return;
+    setData([]);
+  } finally {
+    if (!isStale()) setLoading(false);
+  }
+}, [subTab, userId]);
   useEffect(() => { fetchData(); }, [fetchData]);
 
   // Fetch counts for all tabs once on mount so badges show immediately
-  useEffect(() => {
-    const tabs = Object.entries(FETCH_MAP);
-    tabs.forEach(async ([tabId, fetcher]) => {
-      try {
-        const res = await fetcher();
-        const rows = Array.isArray(res.data) ? res.data : [];
-        setTabCounts(prev => ({ ...prev, [tabId]: rows.length }));
-      } catch {
-        setTabCounts(prev => ({ ...prev, [tabId]: 0 }));
-      }
-    });
-  }, []);
+ useEffect(() => {
+  if (!userId) return;
+  Object.entries(FETCH_MAP).forEach(async ([tabId, fetcher]) => {
+    try {
+      const res = await fetcher(userId);
+      const rows = Array.isArray(res.data) ? res.data : [];
+      setTabCounts(prev => ({ ...prev, [tabId]: rows.length }));
+    } catch {
+      setTabCounts(prev => ({ ...prev, [tabId]: 0 }));
+    }
+  });
+}, [userId]);
 
   const handleDelete = useCallback(async (item) => {
     const idKey = subTab === 'land-abstract' ? 'land_abstract_id' : subTab === 'past-land' ? 'nmp_past_id' : 'nmp_id';

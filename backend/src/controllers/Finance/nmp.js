@@ -48,45 +48,45 @@ async function getNmpDashboard(req, res) {
 
 // ── Land Abstract List ───────────────────────────────────────────────────────
 
-async function getLandAbstractList(req, res) {
-  try {
-    const conn = await pool;
-    const result = await conn.request().query(`
-      SELECT
-        la.land_abstract_id,
-        la.organisation_id,
-        m.organisation_name AS port_name,
-        la.total_land_by_pa AS total_land_acres,
-        la.port_operation,
-        la.connectivity,
-        la.warehousing_storage,
-        la.oil_gas_energy,
-        la.manufacturing,
-        la.commercial,
-        la.residential,
-        la.logistics_parks_trade_zones,
-        la.other_uses,
-        la.salt_land_acquired,
-        la.vacant_land_encumbrance_free AS vacant_land_acres,
-        la.vacant_land_litigated_encumbered AS land_under_litigation_acres,
-        la.land_not_developable,
-        la.land_likely_freed_by_rationalisation,
-        la.land_reclaimable_from_sea_backwater_identified,
-        la.salt_land_identified_for_acquisition,
-        la.additional_land_identified,
-        la.marshy_land_development_plan,
-        la.created_date,
-        la.updated_date
-      FROM tbl_land_abstract la
-      LEFT JOIN mmt_organisation m ON m.organisation_id = la.organisation_id
-      ORDER BY la.created_date DESC
-    `);
-    res.status(200).json(result.recordset);
-  } catch (err) {
-    console.error("NMP Land Abstract list error:", err);
-    res.status(500).json({ message: "Failed to fetch land abstract list." });
-  }
-}
+// async function getLandAbstractList(req, res) {
+//   try {
+//     const conn = await pool;
+//     const result = await conn.request().query(`
+//       SELECT
+//         la.land_abstract_id,
+//         la.organisation_id,
+//         m.organisation_name AS port_name,
+//         la.total_land_by_pa AS total_land_acres,
+//         la.port_operation,
+//         la.connectivity,
+//         la.warehousing_storage,
+//         la.oil_gas_energy,
+//         la.manufacturing,
+//         la.commercial,
+//         la.residential,
+//         la.logistics_parks_trade_zones,
+//         la.other_uses,
+//         la.salt_land_acquired,
+//         la.vacant_land_encumbrance_free AS vacant_land_acres,
+//         la.vacant_land_litigated_encumbered AS land_under_litigation_acres,
+//         la.land_not_developable,
+//         la.land_likely_freed_by_rationalisation,
+//         la.land_reclaimable_from_sea_backwater_identified,
+//         la.salt_land_identified_for_acquisition,
+//         la.additional_land_identified,
+//         la.marshy_land_development_plan,
+//         la.created_date,
+//         la.updated_date
+//       FROM tbl_land_abstract la
+//       LEFT JOIN mmt_organisation m ON m.organisation_id = la.organisation_id
+//       ORDER BY la.created_date DESC
+//     `);
+//     res.status(200).json(result.recordset);
+//   } catch (err) {
+//     console.error("NMP Land Abstract list error:", err);
+//     res.status(500).json({ message: "Failed to fetch land abstract list." });
+//   }
+// }
 
 // ── Past Land List ───────────────────────────────────────────────────────────
 
@@ -142,10 +142,32 @@ async function getLandAbstractList(req, res) {
 //     res.status(500).json({ message: "Failed to fetch past land list." });
 //   }
 // }
+
+const ALL_ACCESS_ROLE_IDS = [1, 2, 3, 4, 5, 8];
+
+// Looks up the logged-in user's role and organisation.
+// Token first, URL param only as a fallback. Returns null if not found.
+async function getUserRoleOrg(conn, req) {
+  const userId = actingUserId(req) || Number(req.params.userId);
+  if (!Number.isInteger(userId) || userId <= 0) return null;
+
+  const r = await conn.request()
+    .input('userID', sql.Int, userId)
+    .query(`SELECT role_id, organisation_id FROM tbl_user WHERE user_id = @userID`);
+
+  return r.recordset[0] || null;
+}
 async function getPastLandList(req, res) {
   try {
     const conn = await pool;
-    const result = await conn.request().query(`
+
+    const user = await getUserRoleOrg(conn, req);
+    if (!user) return res.status(401).json({ message: 'User not found.' });
+    const { role_id, organisation_id } = user;
+
+    const request = conn.request();
+
+    const baseSql = `
       SELECT
         p.*,
         m.organisation_name,
@@ -161,8 +183,18 @@ async function getPastLandList(req, res) {
       FROM tbl_nmp_past p
       LEFT JOIN mmt_organisation m ON m.organisation_id = p.organisation_id
       LEFT JOIN tbl_lease_rental_details_past l ON l.sub_unique_nmp_id = p.unique_nmp_id
-      ORDER BY p.created_date DESC, p.nmp_past_id DESC, l.id
-    `);
+    `;
+    const orderSql = `ORDER BY p.created_date DESC, p.nmp_past_id DESC, l.id`;
+
+    let result;
+    if (ALL_ACCESS_ROLE_IDS.includes(role_id)) {
+      result = await request.query(`${baseSql} ${orderSql}`);
+    } else {
+      request.input('organisation_id', sql.Int, organisation_id);
+      result = await request.query(
+        `${baseSql} WHERE p.organisation_id = @organisation_id ${orderSql}`
+      );
+    }
 
     const p2 = (n) => String(n % 100).padStart(2, '0');
     const fyStart = (d) => { if (!d) return ''; const y = new Date(d).getUTCFullYear(); return `FY${p2(y)}-${p2(y + 1)}`; };
@@ -208,7 +240,6 @@ async function getPastLandList(req, res) {
       agency_lessee_name: r.agency_name,
       type_of_agency_lessee: r.type_of_agency,
 
-      // columns from tbl_lease_rental_details_past (multiple rows joined with " | ")
       annual_base_lease_rental: join(r.sor_rows, 'annual_base_lease_rental'),
       escalation_rate: join(r.sor_rows, 'escalation_rate'),
       frequency_of_escalation: join(r.sor_rows, 'frequency_of_escalation'),
@@ -237,18 +268,98 @@ async function getPastLandList(req, res) {
     res.status(500).json({ message: "Failed to fetch past land list." });
   }
 }
+
+async function getLandAbstractList(req, res) {
+  try {
+    const conn = await pool;
+
+    const user = await getUserRoleOrg(conn, req);
+    if (!user) return res.status(401).json({ message: 'User not found.' });
+    const { role_id, organisation_id } = user;
+
+    const request = conn.request();
+
+    const baseSql = `
+      SELECT
+        la.land_abstract_id,
+        la.organisation_id,
+        m.organisation_name AS port_name,
+        la.total_land_by_pa AS total_land_acres,
+        la.port_operation,
+        la.connectivity,
+        la.warehousing_storage,
+        la.oil_gas_energy,
+        la.manufacturing,
+        la.commercial,
+        la.residential,
+        la.logistics_parks_trade_zones,
+        la.other_uses,
+        la.salt_land_acquired,
+        la.vacant_land_encumbrance_free AS vacant_land_acres,
+        la.vacant_land_litigated_encumbered AS land_under_litigation_acres,
+        la.land_not_developable,
+        la.land_likely_freed_by_rationalisation,
+        la.land_reclaimable_from_sea_backwater_identified,
+        la.salt_land_identified_for_acquisition,
+        la.additional_land_identified,
+        la.marshy_land_development_plan,
+        la.created_date,
+        la.updated_date
+      FROM tbl_land_abstract la
+      LEFT JOIN mmt_organisation m ON m.organisation_id = la.organisation_id
+    `;
+    const orderSql = `ORDER BY la.created_date DESC`;
+
+    let result;
+    if (ALL_ACCESS_ROLE_IDS.includes(role_id)) {
+      // ministry roles: all organisations
+      result = await request.query(`${baseSql} ${orderSql}`);
+    } else {
+      // everyone else: only their own organisation
+      request.input('organisation_id', sql.Int, organisation_id);
+      result = await request.query(
+        `${baseSql} WHERE la.organisation_id = @organisation_id ${orderSql}`
+      );
+    }
+
+    res.status(200).json(result.recordset);
+  } catch (err) {
+    console.error("NMP Land Abstract list error:", err);
+    res.status(500).json({ message: "Failed to fetch land abstract list." });
+  }
+}
 // ── Future Land List ─────────────────────────────────────────────────────────
 
 async function getFutureLandList(req, res) {
   try {
     const conn = await pool;
-    const result = await conn.request().query(`
+
+    const user = await getUserRoleOrg(conn, req);
+    if (!user) return res.status(401).json({ message: 'User not found.' });
+    const { role_id, organisation_id } = user;
+
+    const request = conn.request();
+
+    const baseSql = `
       SELECT
        *
       FROM tbl_nmp f
       LEFT JOIN mmt_organisation m ON m.organisation_id = f.organisation_id
-      ORDER BY f.created_date DESC
-    `);
+    `;
+    const orderSql = `ORDER BY f.created_date DESC`;
+
+    let result;
+    if (ALL_ACCESS_ROLE_IDS.includes(role_id)) {
+      // ministry roles: all organisations
+      result = await request.query(`${baseSql} ${orderSql}`);
+    } else {
+      // everyone else: only their own organisation
+      request.input('organisation_id', sql.Int, organisation_id);
+      result = await request.query(
+        `${baseSql} WHERE f.organisation_id = @organisation_id ${orderSql}`
+      );
+    }
+
     res.status(200).json(result.recordset);
   } catch (err) {
     console.error("NMP Future Land list error:", err);
@@ -256,100 +367,6 @@ async function getFutureLandList(req, res) {
   }
 }
 
-// ── Get by ID ────────────────────────────────────────────────────────────────
-
-// async function getNmpById(req, res) {
-//   try {
-//     const conn = await pool;
-//     const formType = req.query.form_type || 'future-land';
-//     const id = parseInt(req.params.id, 10);
-
-//     if (formType === 'past-land') {
-//       const parcelRes = await conn.request()
-//         .input("id", sql.Int, id)
-//         .query(`
-//           SELECT p.*, m.organisation_name
-//           FROM tbl_nmp_past p
-//           LEFT JOIN mmt_organisation m ON m.organisation_id = p.organisation_id
-//           WHERE p.nmp_past_id = @id
-//         `);
-
-//       if (!parcelRes.recordset.length) {
-//         return res.status(404).json({ message: "NMP entry not found." });
-//       }
-//       const parcel = parcelRes.recordset[0];
-
-//       const sorRes = await conn.request()
-//         .input("uid", sql.NVarChar(100), parcel.unique_nmp_id)
-//         .input("org", sql.Int, parcel.organisation_id)
-//         .query(`
-//           SELECT *
-//           FROM tbl_lease_rental_details_past
-//           WHERE sub_unique_nmp_id = @uid AND organisation_id = @org
-//           ORDER BY id
-//         `);
-
-//       const p2 = (n) => String(n % 100).padStart(2, '0');
-//       const fyStart = (d) => { if (!d) return ''; const y = new Date(d).getUTCFullYear(); return `FY${p2(y)}-${p2(y + 1)}`; };
-//       const fyEnd   = (d) => { if (!d) return ''; const y = new Date(d).getUTCFullYear() - 1; return `FY${p2(y)}-${p2(y + 1)}`; };
-//       const fyShort = (s) => { const m = /(\d{4})-(\d{4})/.exec(s || ''); return m ? `FY${m[1].slice(2)}-${m[2].slice(2)}` : ''; };
-
-//       const sor_rows = sorRes.recordset.map((r) => ({
-//         sor_from: fyStart(r.period_of_sor_from),
-//         sor_to: fyEnd(r.period_of_sor_to),
-//         year_of_applicability: fyShort(r.year_of_applicability),
-//         annual_base_lease_rental: r.annual_base_lease,
-//         escalation_rate: r.escalation_rate,
-//         frequency_of_escalation: r.frequency_escalation,
-//         lease_tenure: r.lease_tenure,
-//         npv: r.nvp_lease_rentals,
-//       }));
-
-//       return res.status(200).json({
-//         ...parcel,
-//         parcel_detail: parcel.parcel_details,
-//         area_acres: parcel.area,
-//         industry_name: parcel.name_of_industry,
-//         npv_lease_rentals: parcel.npv_lease_rental,
-//         estimated_private_investment: parcel.extimated_private_investment,
-//         total_monetisation_value: parcel.total_monetization_value,
-//         agency_lessee_name: parcel.agency_name,
-//         type_of_agency_lessee: parcel.type_of_agency,
-//         nit_original_target_date: parcel.target_nit_date,
-//         nit_actual_date: parcel.actual_nit_date,
-//         nit_revised: parcel.nit_reversed_date,
-//         nit_revised_2: parcel.nit_reversed_date_1,
-//         nit_revised_3: parcel.nit_reversed_date_2,
-//         agreement_original_target_date: parcel.target_agreement_date,
-//         agreement_revised: parcel.agreement_revised_date,
-//         agreement_revised_2: parcel.agreement_revised_date_1,
-//         agreement_revised_3: parcel.agreement_revised_date_2,
-//         original_completion_date: parcel.target_completion_date,
-//         construction_revised: parcel.completion_revised_date,
-//         construction_revised_2: parcel.completion_revised_date_1,
-//         construction_revised_3: parcel.completion_revised_date_2,
-//         sor_rows,
-//       });
-//     }
-
-//     const request = conn.request();
-//     request.input("id", sql.Int, id);
-//     let result;
-//     if (formType === 'land-abstract') {
-//       result = await request.query(`SELECT * FROM tbl_land_abstract WHERE land_abstract_id = @id`);
-//     } else {
-//       result = await request.query(`SELECT * FROM tbl_nmp WHERE nmp_id = @id`);
-//     }
-
-//     if (!result.recordset.length) {
-//       return res.status(404).json({ message: "NMP entry not found." });
-//     }
-//     res.status(200).json(result.recordset[0]);
-//   } catch (err) {
-//     console.error("NMP getById error:", err);
-//     res.status(500).json({ message: "Failed to fetch NMP entry." });
-//   }
-// }
 
 async function getNmpById(req, res) {
   try {

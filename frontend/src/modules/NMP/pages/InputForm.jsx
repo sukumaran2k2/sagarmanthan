@@ -5,6 +5,8 @@ import { createNmpEntry, updateNmpEntry, getNmpCaseNumber } from '../api';
 import { getCurrentUserId, getSessionOrganisationId } from '../../../utils/authSession';
 
 
+
+
 // ── Constants ────────────────────────────────────────────────────────────────
 // Dropdown options are { id, label }. The id is stored in formData and sent to the API.
 // Match these ids to your master tables.
@@ -1031,6 +1033,8 @@ const SUB_TABS = [
 
 export default function NmpInputForm({ editData, onSuccess, onCancel, triggerNotification }) {
   const location = useLocation();
+  const userId = getCurrentUserId(); 
+  console.log('userId:', userId);  
   const isEditMode = !!editData;
   const defaultTab = editData?.form_type || location.state?.formType || 'land-abstract';
   const [subTab, setSubTab] = useState(defaultTab);
