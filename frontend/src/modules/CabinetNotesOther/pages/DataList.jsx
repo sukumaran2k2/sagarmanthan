@@ -102,19 +102,6 @@ export default function DataList({
     return stName.includes('reply furnished to other ministry') || stName.includes('completed');
   };
 
-  const { activeCount, completedCount } = useMemo(() => {
-    let active = 0;
-    let completed = 0;
-    (rowData || []).forEach(item => {
-      if (checkIsCompleted(item)) {
-        completed++;
-      } else {
-        active++;
-      }
-    });
-    return { activeCount: active, completedCount: completed };
-  }, [rowData]);
-
   // Derive Stage Options: exclude "Reply Furnished to Other Ministry" / Stage 5 from stage options in active tab
   const stageOptions = useMemo(() => {
     let list = [];
@@ -151,21 +138,11 @@ export default function DataList({
     triggerNotification?.('Filters have been reset', 'info');
   };
 
-  // Filter data by active/completed category and filters
-  const filteredData = useMemo(() => {
+  // Ministry and search: everything but the tab and the (Active-only) stage
+  const matchingRows = useMemo(() => {
     return (rowData || []).filter(item => {
-      const isCompleted = checkIsCompleted(item);
-      const matchesCategory = activeCategory === 'completed' ? isCompleted : !isCompleted;
-
-      if (!matchesCategory) return false;
-
       const matchesMinistry = selectedMinistry
         ? cleanMinistryName(item.ministry_name) === selectedMinistry
-        : true;
-
-      const stageText = item.stage_name || '';
-      const matchesStage = (activeCategory === 'active' && selectedStage)
-        ? stageText === selectedStage
         : true;
 
       const q = searchTerm.toLowerCase().trim();
@@ -177,9 +154,28 @@ export default function DataList({
         item.remarks
       ].some(val => String(val || '').toLowerCase().includes(q));
 
-      return matchesMinistry && matchesStage && matchesSearch;
+      return matchesMinistry && matchesSearch;
     });
-  }, [rowData, selectedMinistry, selectedStage, activeCategory, searchTerm]);
+  }, [rowData, selectedMinistry, searchTerm]);
+
+  // Tab counts: what each tab shows when clicked. The stage filter exists only on Active and is
+  // cleared on switching tab.
+  const stageApplies = activeCategory === 'active' && selectedStage;
+  const { activeCount, completedCount } = useMemo(() => {
+    let active = 0;
+    let completed = 0;
+    matchingRows.forEach((item) => {
+      if (checkIsCompleted(item)) completed++;
+      else if (!stageApplies || (item.stage_name || '') === selectedStage) active++;
+    });
+    return { activeCount: active, completedCount: completed };
+  }, [matchingRows, stageApplies, selectedStage]);
+
+  const filteredData = useMemo(() => matchingRows.filter((item) => {
+    const isCompleted = checkIsCompleted(item);
+    if (activeCategory === 'completed') return isCompleted;
+    return !isCompleted && (!stageApplies || (item.stage_name || '') === selectedStage);
+  }), [matchingRows, activeCategory, stageApplies, selectedStage]);
 
   // The stored page is kept as chosen; it is clamped here so a list that has shrunk since
   // (a delete, a narrower filter elsewhere) never opens on an empty page.

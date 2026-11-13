@@ -124,21 +124,15 @@ export default function DataList({
     .filter(([id]) => (activeCategory === 'disposed') === (Number(id) >= DISPOSED_FROM_STAGE))
     .map(([id, label]) => ({ value: id, label })), [activeCategory]);
 
-  const filteredData = useMemo(() => {
+  // Wing, division and search: everything but the tab and its stage
+  const matchingRows = useMemo(() => {
     return rowData.filter(item => {
-      if (activeCategory === 'active' && isDisposed(item)) return false;
-      if (activeCategory === 'disposed' && !isDisposed(item)) return false;
-
       const matchesWing = selectedWing
         ? String(item.wing) === String(selectedWing)
         : true;
 
       const matchesDivision = selectedDivision
         ? String(item.division) === String(selectedDivision)
-        : true;
-
-      const matchesStage = selectedStage !== ''
-        ? String(stageOf(item)) === String(selectedStage)
         : true;
 
       // Searches every column on show
@@ -148,9 +142,31 @@ export default function DataList({
           .some((v) => String(v || '').toLowerCase().includes(query))
         : true;
 
-      return matchesWing && matchesDivision && matchesStage && matchesSearch;
+      return matchesWing && matchesDivision && matchesSearch;
     });
-  }, [rowData, selectedWing, selectedDivision, selectedStage, searchQuery, activeCategory]);
+  }, [rowData, selectedWing, selectedDivision, searchQuery]);
+
+  // Tab counts: what each tab shows when clicked. The stage filter is cleared on switching
+  // tab, so it counts only towards the tab it belongs to.
+  const matchesStage = useCallback(
+    (item) => selectedStage === '' || String(stageOf(item)) === String(selectedStage),
+    [selectedStage],
+  );
+  const { activeCount, disposedCount } = useMemo(() => {
+    let active = 0;
+    let disposed = 0;
+    matchingRows.forEach((item) => {
+      const onTab = isDisposed(item) ? 'disposed' : 'active';
+      if (onTab === activeCategory && !matchesStage(item)) return;
+      if (onTab === 'disposed') disposed++; else active++;
+    });
+    return { activeCount: active, disposedCount: disposed };
+  }, [matchingRows, activeCategory, matchesStage]);
+
+  const filteredData = useMemo(
+    () => matchingRows.filter((item) => (activeCategory === 'disposed') === isDisposed(item) && matchesStage(item)),
+    [matchingRows, activeCategory, matchesStage],
+  );
 
   const activeFiltersCount = [selectedWing, selectedDivision, selectedStage].filter(Boolean).length;
 
@@ -159,8 +175,6 @@ export default function DataList({
     notify?.(COMMON_TOASTS.filtersReset());
   };
 
-  const activeCount = useMemo(() => rowData.filter((item) => !isDisposed(item)).length, [rowData]);
-  const disposedCount = rowData.length - activeCount;
 
   // Every filtered row goes to the grid, which pages it, so a column sort covers the whole list
 
