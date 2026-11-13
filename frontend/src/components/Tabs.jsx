@@ -111,6 +111,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
   const canCreateConsultant = canCreateModule('CONSULTANT_APPOINTMENT');
   const canCreateYp = canCreateModule('YOUNG_PROFESSIONAL');
   const canCreateCapex = canCreateModule('CAPEX');
+  const canCreateAuditPara = canCreateModule('AUDIT_PARAS');
   // HR pages follow the user's HR view (Major Port / non-port / Secretary / ministry), as in the HR tab bar
   const { hrView, canViewVacancy: canViewHrVacancy, canViewAdministration: canViewHrAdmin } = useHRPermissions();
 
@@ -254,6 +255,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           label: 'Cabinet Notes - Other Ministries', icon: FileText,
           targetTab: 'Cabinet Notes - Other Ministries',
           subItems: [
+            { label: 'Dashboard', tab: 'Cabinet Notes - Other Ministries', targetSubTab: 'Dashboard', icon: LayoutDashboard },
             { label: 'Data List', tab: 'Cabinet Notes - Other Ministries', targetSubTab: 'Data List', icon: ClipboardList },
             { label: 'Input Form', tab: 'Cabinet Notes - Other Ministries', targetSubTab: 'Input Form', icon: FileEdit },
             { label: 'Reports', tab: 'Cabinet Notes - Other Ministries', targetSubTab: 'Reports', icon: FilePieChart },
@@ -265,6 +267,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           icon: Scale,
           targetTab: 'Parliamentary Issue',
           subItems: [
+            { label: 'Dashboard', tab: 'Parliamentary Issue - Dashboard', targetSubTab: 'Dashboard', icon: LayoutDashboard },
             { label: 'Data List', tab: 'Parliamentary Issue - Data List', targetSubTab: 'Data List', icon: ClipboardList },
             ...(canCreateParliamentary
               ? [{ label: 'Input Form', tab: 'Parliamentary Issue - Input Form', targetSubTab: 'Input Form', icon: FileEdit }]
@@ -277,6 +280,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           label: 'Cabinet Notes - MoPSW', icon: FileText,
           targetTab: 'Cabinet Notes - MoPSW',
           subItems: [
+            { label: 'Dashboard', tab: 'Cabinet Notes - MoPSW - Dashboard', targetSubTab: 'Dashboard', icon: LayoutDashboard },
             { label: 'Data List', tab: 'Cabinet Notes - MoPSW - Data List', targetSubTab: 'Data List', icon: ClipboardList },
             ...(canCreateCabinetMopsw
               ? [{ label: 'Input Form', tab: 'Cabinet Notes - MoPSW - Input Form', targetSubTab: 'Input Form', icon: FileEdit }]
@@ -288,6 +292,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           label: 'VIP Reference', icon: Users,
           targetTab: 'VIP Reference',
           subItems: [
+            { label: 'Dashboard', tab: 'VIP Reference - Dashboard', targetSubTab: 'Dashboard', icon: LayoutDashboard },
             { label: 'Data List', tab: 'VIP Reference - Data List', targetSubTab: 'Data List', icon: ClipboardList },
             { label: 'Input Form', tab: 'VIP Reference - Input Form', targetSubTab: 'Input Form', icon: FileEdit },
             { label: 'Reports', tab: 'VIP Reference - Reports', targetSubTab: 'Reports', icon: FilePieChart },
@@ -304,7 +309,18 @@ export default function Tabs({ activeTab, setActiveTab }) {
             { label: 'Social Media', tab: 'Media Outreach', mediaType: 'social_media', icon: Network },
           ]
         }),
-        m('AUDIT_PARAS', { label: 'Audit Paras', icon: CheckCircle }),
+        m('AUDIT_PARAS', {
+          label: 'Audit Paras', icon: CheckCircle,
+          targetTab: 'Audit Paras',
+          subItems: [
+            { label: 'Dashboard', tab: 'Audit Paras - Dashboard', targetSubTab: 'Dashboard', icon: LayoutDashboard },
+            { label: 'Data List', tab: 'Audit Paras - Data List', targetSubTab: 'Data List', icon: ClipboardList },
+            ...(canCreateAuditPara
+              ? [{ label: 'Input Form', tab: 'Audit Paras - Input Form', targetSubTab: 'Input Form', icon: FileEdit }]
+              : []),
+            { label: 'Reports', tab: 'Audit Paras - Reports', targetSubTab: 'Reports', icon: FilePieChart },
+          ]
+        }),
       ]
     },
     {
@@ -362,6 +378,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           targetTab: 'Bills/PreConstitutions Act',
           clickableHeader: true,
           subItems: [
+            { label: 'Dashboard', tab: 'Bills/PreConstitutions Act', targetSubTab: 'Dashboard', icon: LayoutDashboard },
             { label: 'Data List', tab: 'Bills/PreConstitutions Act', targetSubTab: 'Data List', icon: ClipboardList },
             { label: 'Input Form', tab: 'Bills/PreConstitutions Act', targetSubTab: 'Input Form', icon: FileEdit },
             { label: 'Reports', tab: 'Bills/PreConstitutions Act', targetSubTab: 'Reports', icon: FilePieChart },
@@ -470,7 +487,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
       directTab: 'Contact Us',
     },
   ]),
-    [accessKey, isOrgUser, canCreateParliamentary, canCreateCabinetMopsw, canCreateConsultant, canCreateYp, canCreateCapex, canViewHrVacancy, canViewHrAdmin, hrView]
+    [accessKey, isOrgUser, canCreateParliamentary, canCreateCabinetMopsw, canCreateConsultant, canCreateYp, canCreateCapex, canCreateAuditPara, canViewHrVacancy, canViewHrAdmin, hrView]
   );
 
   // Modules that keep their sub-tab in a store rather than in the URL read the opening tab from
@@ -492,6 +509,21 @@ export default function Tabs({ activeTab, setActiveTab }) {
     const [key, event] = hint;
     sessionStorage.setItem(key, sub.targetSubTab);
     window.dispatchEvent(new CustomEvent(event, { detail: sub.targetSubTab }));
+  };
+
+  // A sub-item click: its page, plus the sub-tab hint for store-driven modules
+  const openSubItem = (item, sub) => {
+    const mainTab = sub.tab || item.targetTab || item.label;
+    setActiveTab(mainTab);
+    setIsOpen(false);
+    applySubTabHint(mainTab, sub);
+  };
+
+  // Clicking a module's name opens its Dashboard when it has one, otherwise its own page
+  const openModule = (item) => {
+    const dashboard = item.subItems?.find((sub) => sub.label === 'Dashboard');
+    if (dashboard) openSubItem(item, dashboard);
+    else handleItemClick(item.tab ?? item.label);
   };
 
   const handleItemClick = (tabOrLabel) => {
@@ -694,7 +726,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
                             return (
                               <div key={iIdx} className="relative group/flyout">
                                 <button
-                                  onClick={() => handleItemClick(item.tab ?? item.label)}
+                                  onClick={() => openModule(item)}
                                   className="flex items-center justify-between space-x-2 w-full text-left text-xs font-semibold text-slate-655 hover:text-blue-605 hover:bg-slate-55 transition-all px-2.5 py-1.5 rounded-lg border border-transparent hover:border-slate-100 cursor-pointer group/flyoutbtn"
                                 >
                                   <div className="flex items-center space-x-2">
@@ -707,7 +739,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
                                 <div className="absolute left-full top-0 ml-2 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl rounded-2xl p-3 z-[60] transition-all duration-200 origin-left scale-95 opacity-0 invisible group-hover/flyout:scale-100 group-hover/flyout:opacity-100 group-hover/flyout:visible space-y-1">
                                   {item.clickableHeader ? (
                                     <button
-                                      onClick={() => { handleItemClick(item.tab ?? item.label); setIsOpen(false); }}
+                                      onClick={() => openModule(item)}
                                       className="w-full text-left text-[10px] font-extrabold text-[#0f417a] dark:text-blue-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700 pb-1.5 mb-2 hover:text-blue-600 dark:hover:text-blue-300 transition-colors cursor-pointer"
                                     >
                                       {item.label}
