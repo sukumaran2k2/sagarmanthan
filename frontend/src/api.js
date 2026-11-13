@@ -2,7 +2,7 @@ import axios from 'axios';
 import { refreshAccessToken } from './utils/sessionRefresh';
 import { getAccessToken, clearAccessToken } from './utils/tabSession';
 
-export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://sagarmanthan.ntcpwc.net:8443/api';
 
 const withToken = (config, token) => {
   config.headers = config.headers || {};

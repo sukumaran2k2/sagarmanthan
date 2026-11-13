@@ -49,8 +49,8 @@ describe('createApiClient', () => {
 
   it('uses the shared backend address unless a module gives its own, and keeps other options', () => {
     expect(createApiClient().defaults.baseURL).toBe(API_BASE);
-    const own = createApiClient({ baseURL: 'http://localhost:3001', timeout: 30000 });
-    expect(own.defaults.baseURL).toBe('http://localhost:3001');
+    const own = createApiClient({ baseURL: 'https://sagarmanthan.ntcpwc.net:8443/api', timeout: 30000 });
+    expect(own.defaults.baseURL).toBe('https://sagarmanthan.ntcpwc.net:8443/api');
     expect(own.defaults.timeout).toBe(30000);
   });
 

@@ -2,7 +2,7 @@ import axios from 'axios';
 import { decodeAccessToken } from '../../utils/authSession';
 import { getAccessToken } from '../../utils/tabSession';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://sagarmanthan.ntcpwc.net:8443/api';
 
 const getAuthHeaders = () => {
   const token = getAccessToken();

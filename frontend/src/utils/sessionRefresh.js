@@ -2,7 +2,7 @@ import axios from 'axios';
 import { decodeAccessToken } from './authSession';
 import { getAccessToken, setAccessToken, clearAccessToken } from './tabSession';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://sagarmanthan.ntcpwc.net:8443/api';
 
 let pending = null;
 
