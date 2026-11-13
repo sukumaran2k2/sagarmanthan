@@ -6,7 +6,6 @@ import Footer from '../components/Footer';
 import Toast from '../components/Toast';
 import NetworkCheckView from '../components/NetworkCheckView';
 import RestrictedAccess from '../components/RestrictedAccess';
-import SagarBot from '../components/SagarBot';
 import { 
   canAccessTab, 
   normalizeTab, 
@@ -504,9 +503,9 @@ export default function MainLayout({
       />
 
       {/* Main Content Viewport */}
-      <main className="flex-grow w-full max-w-full px-4 sm:px-6 lg:px-8 pb-12">
+      <main className="flex-grow w-full max-w-full px-3 sm:px-6 lg:px-8 pb-12">
         {!usesOwnPageHeader(activeTab) && tabAllowed && (
-          <div className="flex items-center space-x-2 text-slate-400 text-xs font-semibold px-2 mb-6 mt-3 animate-fade-in select-none bg-white py-2.5 px-4 rounded-xl border border-slate-200 shadow-sm w-fit">
+          <div className="flex items-center space-x-1.5 sm:space-x-2 text-slate-400 text-[10px] sm:text-xs font-semibold mb-4 sm:mb-6 mt-2 sm:mt-3 animate-fade-in select-none bg-white py-2 sm:py-2.5 px-3 sm:px-4 rounded-lg sm:rounded-xl border border-slate-200 shadow-sm max-w-full overflow-x-auto scrollbar-none">
             <Home className="h-3.5 w-3.5 text-slate-500 cursor-pointer hover:text-blue-700 transition-colors" onClick={() => goToTab('landing')} />
             {getBreadcrumbs(activeTab).slice(1).map((crumb, idx, arr) => (
               <div key={idx} className="flex items-center space-x-2">
@@ -534,7 +533,6 @@ export default function MainLayout({
       <Footer />
 
       {/* Intelligent Maritime ChatBot Assistant (Temporarily disabled) */}
-      {/* <SagarBot /> */}
     </div>
   );
 }

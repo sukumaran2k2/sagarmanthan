@@ -16,7 +16,6 @@ import {
   Tag
 } from 'lucide-react';
 import ReportTable from '../../../components/ReportTable';
-import { useAICopilot } from '../../../context/AICopilotContext';
 import { fetchOvdOrgListData, getUserIdFromToken } from '../api';
 import { OVOD_VISIONS } from '../utils/constants';
 import { useShallow } from 'zustand/react/shallow';
@@ -280,8 +279,6 @@ const OTHER_ORGS_NAMES = [
 ];
 
 export default function Reports({ triggerNotification }) {
-  const { registerReport, clearReport } = useAICopilot();
-
   const notify = useNotifier(triggerNotification);
 
   // Active sub-tab ('wing' | 'port' | 'org'), vision filter and panel state live in the OVOD
@@ -563,22 +560,6 @@ export default function Reports({ triggerNotification }) {
     };
   }, [reportRows]);
 
-  /* ── Register Report into SagarBot AICopilotContext ────────── */
-  useEffect(() => {
-    if (reportRows && reportRows.length > 0) {
-      registerReport({
-        moduleName: 'One Vision One Document',
-        reportTitle: activeReportConfig.fullTitle,
-        activeView: activeReportConfig.code,
-        data: reportRows,
-        rowCount: reportRows.length,
-        autoOpen: false
-      });
-    }
-    return () => {
-      clearReport();
-    };
-  }, [reportRows, activeReportConfig, registerReport, clearReport]);
 
   /* ── Subtitle matching MIV 2030 ───────────────────────────── */
   const subtitle = useMemo(() => {
@@ -1137,7 +1118,7 @@ export default function Reports({ triggerNotification }) {
                   key={r.id}
                   type="button"
                   onClick={() => handleTabChange(r.id)}
-                  className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
+                  className={`px-3 sm:px-4 py-2 sm:py-2.5 text-[10px] sm:text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-1.5 sm:gap-2 whitespace-nowrap flex-shrink-0 ${
                     isActive
                       ? 'border-[#4b2424] text-[#4b2424] bg-[#f7f3f3] dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-400 rounded-t-lg'
                       : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
@@ -1154,75 +1135,75 @@ export default function Reports({ triggerNotification }) {
 
       {/* ── KPI Summary Cards (Brown Theme Highlights Grid) ── */}
       {!drilldownTarget && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 animate-fade-in">
-          <div className="p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3.5 animate-fade-in">
+          <div className="p-2.5 sm:p-3.5 bg-white dark:bg-slate-900 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Actions</span>
-              <div className="p-1.5 rounded-lg bg-amber-50 dark:bg-[#4b2424]/40 text-[#4b2424] dark:text-amber-400">
-                <TrendingUp className="h-4 w-4" />
+              <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Actions</span>
+              <div className="p-1 sm:p-1.5 rounded-lg bg-amber-50 dark:bg-[#4b2424]/40 text-[#4b2424] dark:text-amber-400">
+                <TrendingUp className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </div>
             </div>
-            <div className="mt-2 text-xl font-black font-mono text-[#4b2424] dark:text-amber-300">
+            <div className="mt-1.5 sm:mt-2 text-lg sm:text-xl font-black font-mono text-[#4b2424] dark:text-amber-300">
               {formatNumber(kpis.totalActions)}
             </div>
           </div>
 
-          <div className="p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+          <div className="p-2.5 sm:p-3.5 bg-white dark:bg-slate-900 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Cost</span>
-              <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400">
-                <Coins className="h-4 w-4" />
+              <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Cost</span>
+              <div className="p-1 sm:p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400">
+                <Coins className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </div>
             </div>
-            <div className="mt-2 text-lg font-black font-mono text-emerald-700 dark:text-emerald-400 truncate">
+            <div className="mt-1.5 sm:mt-2 text-base sm:text-lg font-black font-mono text-emerald-700 dark:text-emerald-400 truncate">
               ₹{formatInvestment(kpis.totalCost)} Cr.
             </div>
           </div>
 
-          <div className="p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+          <div className="p-2.5 sm:p-3.5 bg-white dark:bg-slate-900 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Completed</span>
-              <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400">
-                <CheckCircle2 className="h-4 w-4" />
+              <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Completed</span>
+              <div className="p-1 sm:p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400">
+                <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </div>
             </div>
-            <div className="mt-2 text-xl font-black font-mono text-emerald-600 dark:text-emerald-400">
+            <div className="mt-1.5 sm:mt-2 text-lg sm:text-xl font-black font-mono text-emerald-600 dark:text-emerald-400">
               {formatNumber(kpis.completed)}
             </div>
           </div>
 
-          <div className="p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+          <div className="p-2.5 sm:p-3.5 bg-white dark:bg-slate-900 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Progress On Time</span>
-              <div className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400">
-                <Clock className="h-4 w-4" />
+              <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Progress On Time</span>
+              <div className="p-1 sm:p-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400">
+                <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </div>
             </div>
-            <div className="mt-2 text-xl font-black font-mono text-blue-600 dark:text-blue-400">
+            <div className="mt-1.5 sm:mt-2 text-lg sm:text-xl font-black font-mono text-blue-600 dark:text-blue-400">
               {formatNumber(kpis.onTime)}
             </div>
           </div>
 
-          <div className="p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+          <div className="p-2.5 sm:p-3.5 bg-white dark:bg-slate-900 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Progress Delayed</span>
-              <div className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400">
-                <AlertTriangle className="h-4 w-4" />
+              <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Progress Delayed</span>
+              <div className="p-1 sm:p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400">
+                <AlertTriangle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </div>
             </div>
-            <div className="mt-2 text-xl font-black font-mono text-rose-600 dark:text-rose-400">
+            <div className="mt-1.5 sm:mt-2 text-lg sm:text-xl font-black font-mono text-rose-600 dark:text-rose-400">
               {formatNumber(kpis.delayed)}
             </div>
           </div>
 
-          <div className="p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+          <div className="p-2.5 sm:p-3.5 bg-white dark:bg-slate-900 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Yet to Start / Update</span>
-              <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-                <Layers className="h-4 w-4" />
+              <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Yet to Start / Update</span>
+              <div className="p-1 sm:p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                <Layers className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </div>
             </div>
-            <div className="mt-2 text-xl font-black font-mono text-slate-600 dark:text-slate-300">
+            <div className="mt-1.5 sm:mt-2 text-lg sm:text-xl font-black font-mono text-slate-600 dark:text-slate-300">
               {formatNumber(kpis.yetToStartOrUpdate)}
             </div>
           </div>

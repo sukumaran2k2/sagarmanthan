@@ -101,7 +101,7 @@ export default function Header({ onLogout, onProfileClick, onUserManagementClick
     <header className="bg-gradient-to-r from-[#0a2540] via-[#0f417a] to-[#008ca3] text-white shadow-lg border-b border-[#008ca3]/30">
       {/* Top Banner / Ministry Details */}
       <div className="w-full px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-20">
+        <div className="flex items-center justify-between h-14 sm:h-16 lg:h-20">
           {/* Left: Emblem, Government branding & Sagarmanthan Logo (GIGW Layout) */}
           <div className="flex items-center space-x-2 sm:space-x-4 scale-[0.8] sm:scale-90 lg:scale-100 origin-left flex-shrink">
             <div className="flex items-center space-x-3 lg:border-r lg:border-white/20 lg:pr-4">

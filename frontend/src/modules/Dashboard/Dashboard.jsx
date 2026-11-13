@@ -595,9 +595,9 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
           </div>
 
           {/* Charts Row: Organisations Wise Project Count & Delay Status side-by-side */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
             {/* Organisations Wise Project Count Bar Chart */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+            <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between border-b border-slate-150 pb-4 mb-6">
                   <div className="flex items-center space-x-2">
@@ -697,7 +697,7 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
             </div>
 
             {/* Delay Status Card */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+            <div className="bg-white border border-slate-200 rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm flex flex-col justify-between">
               <div>
                 <div className="flex items-center space-x-2 border-b border-slate-100 pb-4 mb-2">
                   <span className="h-1.5 w-1.5 rounded-full bg-blue-650"></span>
@@ -708,7 +708,7 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                   
                   {/* SVG Pie Chart */}
                   <div className="relative flex items-center justify-center">
-                    <svg className="w-64 h-64 transform -rotate-90">
+                    <svg className="w-44 h-44 sm:w-56 sm:h-56 lg:w-64 lg:h-64 transform -rotate-90" viewBox="0 0 256 256">
                       {/* Outer circle backdrop */}
                       <circle cx="128" cy="128" r="90" stroke="#f1f5f9" strokeWidth="32" fill="transparent" />
                       
@@ -899,7 +899,7 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
         <div className="space-y-6 animate-fade-in">
           
           {/* Top Row: Estimated Cost and circular Ongoing projects side-by-side inside a professional panel */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 items-stretch">
             
             {/* Estimated Cost Card */}
             <div className="bg-gradient-to-br from-blue-50/50 via-white to-sky-50 border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-center items-center text-center lg:col-span-2 relative overflow-hidden">

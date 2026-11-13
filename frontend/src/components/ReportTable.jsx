@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ChevronLeft, FileSpreadsheet, Download, Search, Loader2, RefreshCw, X, TrendingUp, Copy } from 'lucide-react';
 import TablePagination from './TablePagination';
-import { useAICopilot } from '../context/AICopilotContext';
 import { exportGridToExcel, exportGridToPdf } from '../utils/exportGridReport';
 
 export default function ReportTable({
@@ -49,8 +48,6 @@ export default function ReportTable({
     if (columnDefs && columnDefs.length > 0) return columnDefs;
     return [];
   }, [columns, columnDefs]);
-
-  const { registerReport, clearReport } = useAICopilot();
 
   // Detail titles with "|" keep the full string in the eyebrow (legacy Form 8.2).
   // Summary titles use the segment before " - ".
@@ -115,23 +112,6 @@ export default function ReportTable({
   const [totalPages, setTotalPages] = useState(0);
   const [totalRows, setTotalRows] = useState(0);
   const [pageSize, setPageSize] = useState(10);
-
-  useEffect(() => {
-    if (title && effectiveData.length > 0) {
-      registerReport({
-        reportTitle: title,
-        eyebrow: eyebrowText,
-        columns: effectiveInputCols,
-        data: effectiveData,
-        rowCount: effectiveData.length,
-        pinnedBottom: pinnedBottomRowData,
-        autoOpen: true
-      });
-    }
-    return () => {
-      clearReport();
-    };
-  }, [title, effectiveData, effectiveInputCols, registerReport, clearReport, eyebrowText, pinnedBottomRowData]);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -280,9 +260,9 @@ export default function ReportTable({
   };
 
   const iconBtnClass =
-    'inline-flex items-center justify-center w-9 h-9 rounded-[9px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-[color:var(--theme-primary-color)] hover:border-[color:var(--theme-primary-color)] transition cursor-pointer';
+    'inline-flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-lg sm:rounded-[9px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-[color:var(--theme-primary-color)] hover:border-[color:var(--theme-primary-color)] transition cursor-pointer';
   const ghostBtnClass =
-    'inline-flex items-center gap-1.5 px-4 py-2 rounded-[9px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[13px] font-semibold text-[color:var(--theme-primary-color)] dark:text-slate-200 hover:bg-[color:var(--theme-accent-color)] dark:hover:bg-slate-800 transition cursor-pointer';
+    'inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-[9px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[11px] sm:text-[13px] font-semibold text-[color:var(--theme-primary-color)] dark:text-slate-200 hover:bg-[color:var(--theme-accent-color)] dark:hover:bg-slate-800 transition cursor-pointer';
 
   return (
     <div
@@ -293,8 +273,8 @@ export default function ReportTable({
         '--theme-row-odd-bg': oddRowColor,
       }}
     >
-      <div className="relative flex flex-wrap items-center justify-between gap-4 px-[26px] py-5 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-[#fdfcfc] to-slate-50 dark:from-slate-900 dark:to-slate-800">
-        <div className="flex items-center gap-3 flex-1 min-w-[300px]">
+      <div className="relative flex flex-wrap items-center justify-between gap-3 sm:gap-4 px-3 sm:px-[26px] py-3 sm:py-5 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-[#fdfcfc] to-slate-50 dark:from-slate-900 dark:to-slate-800">
+        <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 sm:min-w-[300px]">
           {showBackButton && (
             <button type="button" onClick={onBack} className={iconBtnClass} style={{ color: brandColor }} aria-label="Back" title="Back">
               <ChevronLeft size={18} />
@@ -307,7 +287,7 @@ export default function ReportTable({
                 {eyebrowText}
               </span>
             </div>
-            <h3 className="m-0 text-xl font-bold tracking-wide text-[color:var(--theme-primary-color)] dark:text-slate-100">
+            <h3 className="m-0 text-base sm:text-xl font-bold tracking-wide text-[color:var(--theme-primary-color)] dark:text-slate-100">
               {title}
             </h3>
             {subtitle && (
@@ -318,8 +298,8 @@ export default function ReportTable({
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <div className="relative w-60">
+        <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap w-full sm:w-auto">
+          <div className="relative w-full sm:w-60">
             <Search
               size={14}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--theme-primary-color)] dark:text-slate-400 pointer-events-none"

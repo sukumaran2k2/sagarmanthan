@@ -17,7 +17,6 @@ import {
   Tag
 } from 'lucide-react';
 import ReportTable from '../../../components/ReportTable';
-import { useAICopilot } from '../../../context/AICopilotContext';
 import { getCurrentUserId } from '../../../utils/authSession';
 import {
   getMIVOrgWisePerformanceReport,
@@ -72,7 +71,6 @@ const REPORTS = [
 ];
 
 export default function MIVReports({ triggerNotification }) {
-  const { registerReport, clearReport } = useAICopilot();
   const [activeTab, setActiveTab] = useState('1.1');
   const [loading, setLoading] = useState(false);
   const [reportRows, setReportRows] = useState([]);
@@ -752,24 +750,6 @@ export default function MIVReports({ triggerNotification }) {
     return {};
   }, [displayedReportRows, activeTab]);
 
-  /* ── Register Report into SagarBot AICopilotContext ────────── */
-  useEffect(() => {
-    if (displayedReportRows && displayedReportRows.length > 0) {
-      registerReport({
-        moduleName: 'Maritime India Vision 2030',
-        reportTitle: activeReportConfig.fullTitle,
-        activeView: activeReportConfig.code,
-        columns: columns,
-        data: displayedReportRows,
-        rowCount: displayedReportRows.length,
-        pinnedBottom: pinnedBottomRowData,
-        autoOpen: true
-      });
-    }
-    return () => {
-      clearReport();
-    };
-  }, [displayedReportRows, activeReportConfig, columns, pinnedBottomRowData, registerReport, clearReport]);
 
   /* ── As-on-date / Report month (header strip) ────────────── */
   const asOnDateLabel = useMemo(() => {

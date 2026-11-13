@@ -505,30 +505,30 @@ export default function Reports({ triggerNotification }) {
     <div className="space-y-6 animate-fade-in w-full">
       
       {/* Top Report Switcher Pill Tabs */}
-      <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-3 select-none">
+      <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-3 select-none overflow-x-auto scrollbar-none">
         <button
           type="button"
           onClick={() => handleSwitchReportType('abstract')}
-          className={`flex items-center space-x-2 px-5 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+          className={`flex items-center space-x-1.5 sm:space-x-2 px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap flex-shrink-0 ${
             reportType === 'abstract'
               ? 'border-[#4b2424] text-[#4b2424] bg-[#f7f3f3] dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-400 rounded-t-lg shadow-sm'
               : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
           }`}
         >
-          <FileText className="h-4 w-4" />
+          <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           <span>Abstract & Detailed Report</span>
         </button>
 
         <button
           type="button"
           onClick={() => handleSwitchReportType('pendency')}
-          className={`flex items-center space-x-2 px-5 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+          className={`flex items-center space-x-1.5 sm:space-x-2 px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap flex-shrink-0 ${
             reportType === 'pendency'
               ? 'border-[#4b2424] text-[#4b2424] bg-[#f7f3f3] dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-400 rounded-t-lg shadow-sm'
               : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
           }`}
         >
-          <Clock className="h-4 w-4" />
+          <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           <span>Pendency Report</span>
         </button>
       </div>

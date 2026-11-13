@@ -621,7 +621,7 @@ export default function App() {
         <IdleWarningDialog deadline={warningDeadline} onStay={stayActive} onSignOut={handleLogout} />
       )}
 
-      {/* Floating Network Check FAB (Positioned at bottom-6 below SagarBot) */}
+      {/* Floating Network Check FAB */}
       <div className="fixed bottom-6 right-6 z-40 flex items-center space-x-3 select-none">
         <div 
           onClick={() => {
