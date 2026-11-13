@@ -169,12 +169,12 @@ export default function Tabs({ activeTab, setActiveTab }) {
           title: 'Capex',
           icon: Coins,
           items: [
-            m('CAPEX', { label: 'Capex Dashboard', icon: LayoutDashboard, tab: 'Capex Dashboard' }),
-            m('CAPEX', { label: 'Capex Datalist', icon: ClipboardList, tab: 'Capex Datalist' }),
+            m('CAPEX', { label: 'Dashboard', icon: LayoutDashboard, tab: 'Capex Dashboard' }),
+            m('CAPEX', { label: 'Data List', icon: ClipboardList, tab: 'Capex Datalist' }),
             ...(canCreateCapex && !isOrgUser
-              ? [m('CAPEX', { label: 'Capex Input Form', icon: FileEdit, tab: 'Capex Input Form' })]
+              ? [m('CAPEX', { label: 'Input Form', icon: FileEdit, tab: 'Capex Input Form' })]
               : []),
-            m('CAPEX', { label: 'Capex Reports', icon: FilePieChart, tab: 'Capex Reports' }),
+            m('CAPEX', { label: 'Reports', icon: FilePieChart, tab: 'Capex Reports' }),
           ],
         },
       ]
@@ -190,54 +190,54 @@ export default function Tabs({ activeTab, setActiveTab }) {
           title: 'Major Ports',
           icon: Anchor,
           items: [
-            m('KPI_MAJOR_PORTS', { label: 'Major Ports Dashboard', icon: LayoutDashboard }),
-            m('KPI_MAJOR_PORTS', { label: 'Major Ports Input Form', icon: FileEdit }),
+            m('KPI_MAJOR_PORTS', { label: 'Dashboard', tab: 'Major Ports Dashboard', icon: LayoutDashboard }),
+            m('KPI_MAJOR_PORTS', { label: 'Input Form', tab: 'Major Ports Input Form', icon: FileEdit }),
             // Ministry unlocks late traffic entry (the earlier portal's Ministry Access Unlock)
-            ...(!isOrgUser ? [m('KPI_MAJOR_PORTS', { label: 'Major Ports Entry Access', icon: KeyRound })] : []),
+            ...(!isOrgUser ? [m('KPI_MAJOR_PORTS', { label: 'Entry Access', tab: 'Major Ports Entry Access', icon: KeyRound })] : []),
           ]
         },
         {
           title: 'DGLL',
           icon: Compass,
           items: [
-            m('KPI_DGLL', { label: 'DGLL Input Form', icon: FileEdit }),
-            m('KPI_DGLL', { label: 'DGLL Data List', icon: ClipboardList }),
-            m('KPI_DGLL', { label: 'DGLL Reports', icon: FilePieChart }),
+            m('KPI_DGLL', { label: 'Input Form', tab: 'DGLL Input Form', icon: FileEdit }),
+            m('KPI_DGLL', { label: 'Data List', tab: 'DGLL Data List', icon: ClipboardList }),
+            m('KPI_DGLL', { label: 'Reports', tab: 'DGLL Reports', icon: FilePieChart }),
           ]
         },
         {
           title: 'CSL',
           icon: Layers,
           items: [
-            m('KPI_CSL', { label: 'CSL Input Form', icon: FileEdit }),
-            m('KPI_CSL', { label: 'CSL Data List', icon: ClipboardList }),
-            m('KPI_CSL', { label: 'CSL Reports', icon: FilePieChart }),
+            m('KPI_CSL', { label: 'Input Form', tab: 'CSL Input Form', icon: FileEdit }),
+            m('KPI_CSL', { label: 'Data List', tab: 'CSL Data List', icon: ClipboardList }),
+            m('KPI_CSL', { label: 'Reports', tab: 'CSL Reports', icon: FilePieChart }),
           ]
         },
         {
           title: 'IMU',
           icon: GraduationCap,
           items: [
-            m('KPI_IMU', { label: 'IMU Input Form', icon: FileEdit }),
-            m('KPI_IMU', { label: 'IMU Data List', icon: ClipboardList }),
-            m('KPI_IMU', { label: 'IMU Reports', icon: FilePieChart }),
+            m('KPI_IMU', { label: 'Input Form', tab: 'IMU Input Form', icon: FileEdit }),
+            m('KPI_IMU', { label: 'Data List', tab: 'IMU Data List', icon: ClipboardList }),
+            m('KPI_IMU', { label: 'Reports', tab: 'IMU Reports', icon: FilePieChart }),
           ]
         },
         {
           title: 'SCI',
           icon: Ship,
           items: [
-            m('KPI_SCI', { label: 'SCI Input Form', icon: FileEdit }),
-            m('KPI_SCI', { label: 'SCI Data List', icon: ClipboardList }),
-            m('KPI_SCI', { label: 'SCI Reports', icon: FilePieChart }),
+            m('KPI_SCI', { label: 'Input Form', tab: 'SCI Input Form', icon: FileEdit }),
+            m('KPI_SCI', { label: 'Data List', tab: 'SCI Data List', icon: ClipboardList }),
+            m('KPI_SCI', { label: 'Reports', tab: 'SCI Reports', icon: FilePieChart }),
           ]
         },
         {
           title: 'CMEC',
           icon: Layers,
           items: [
-            m('KPI_CMEC', { label: 'CMEC Input Form', icon: FileEdit }),
-            m('KPI_CMEC', { label: 'CMEC Reports', icon: FilePieChart }),
+            m('KPI_CMEC', { label: 'Input Form', tab: 'CMEC Input Form', icon: FileEdit }),
+            m('KPI_CMEC', { label: 'Reports', tab: 'CMEC Reports', icon: FilePieChart }),
           ]
         }
       ]
@@ -358,10 +358,10 @@ export default function Tabs({ activeTab, setActiveTab }) {
           title: 'Consultant Appointment',
           icon: UserPlus,
           items: [
-            m('CONSULTANT_APPOINTMENT', { label: 'Consultant Dashboard', icon: LayoutDashboard }),
-            ...(canCreateConsultant ? [m('CONSULTANT_APPOINTMENT', { label: 'Consultant Input Form', icon: FileEdit })] : []),
-            m('CONSULTANT_APPOINTMENT', { label: 'Consultant Data List', icon: ClipboardList }),
-            m('CONSULTANT_APPOINTMENT', { label: 'Consultant Reports', icon: FilePieChart }),
+            m('CONSULTANT_APPOINTMENT', { label: 'Dashboard', tab: 'Consultant Dashboard', icon: LayoutDashboard }),
+            ...(canCreateConsultant ? [m('CONSULTANT_APPOINTMENT', { label: 'Input Form', tab: 'Consultant Input Form', icon: FileEdit })] : []),
+            m('CONSULTANT_APPOINTMENT', { label: 'Data List', tab: 'Consultant Data List', icon: ClipboardList }),
+            m('CONSULTANT_APPOINTMENT', { label: 'Reports', tab: 'Consultant Reports', icon: FilePieChart }),
           ]
         }
       ]

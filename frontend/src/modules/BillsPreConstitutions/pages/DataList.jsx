@@ -6,10 +6,10 @@ import { deleteBill } from '../api';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import ConfirmModal from '../../../components/ConfirmModal';
-import { exportDataListToCsv } from '../../../utils/exportDataListCsv';
 import { COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
 import { useBillsStore } from '../store/useBillsStore';
 import { BILLS_TOASTS } from '../toastMessages';
+import { exportRowsToFile } from '../../../utils/exportGridReport';
 
 const STAGES = {
   0: 'No Status',
@@ -301,62 +301,16 @@ export default function DataList({
         () => notify?.(COMMON_TOASTS.copySuccess(rows.length)),
         () => notify?.(COMMON_TOASTS.copyFailed()),
       );
-    } else if (type === 'Excel') {
-      // Every filtered row, not just the page on show
-      exportDataListToCsv({
-        columnLabels: Object.fromEntries(cols.map((c) => [c.field, c.label])),
-        visibleCols: Object.fromEntries(cols.map((c) => [c.field, true])),
-        rowData: rows,
+    } else {
+      // Excel (.xlsx) / PDF of every filtered row, straight to a file (no print dialog or new tab)
+      const name = exportRowsToFile(type === 'PDF' ? 'pdf' : 'excel', {
+        title: 'Bills / Pre-Constitutions Act Register',
+        subtitle: activeCategory === 'disposed' ? 'Disposed bills' : 'Active bills',
+        headers: ['S.No', ...cols.map((c) => c.label)],
+        rows: rows.map((row, i) => [i + 1, ...cols.map((c) => row[c.field])]),
         fileName: 'Bills_PreConstitutions_Register',
       });
-      notify?.(COMMON_TOASTS.excelExported('Bills_PreConstitutions_Register.csv'));
-    } else if (type === 'PDF') {
-      const printWindow = window.open('', '_blank');
-      if (!printWindow) {
-        notify?.(COMMON_TOASTS.popupBlocked());
-        return;
-      }
-      notify?.(COMMON_TOASTS.pdfPreparing());
-      const title = 'Bills / Pre-Constitutions Act Register';
-      const escape = (v) => String(v ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-      const th = (label) => `<th style="border:1px solid #0f417a; padding:10px 14px; text-align:left; background:#0f417a; color:#fff; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">${label}</th>`;
-      const headersHtml = th('S.No') + cols.map((c) => th(c.label)).join('');
-      const rowsHtml = rows.map((row, i) => {
-        const td = (v) => `<td style="border:1px solid #e2e8f0; padding:8px 14px; font-size:12px; color:#334155;">${escape(v)}</td>`;
-        return `<tr style="background:${i % 2 === 0 ? '#fff' : '#f8fafc'}">${td(i + 1)}${cols.map((c) => td(row[c.field])).join('')}</tr>`;
-      }).join('');
-
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>${title}</title>
-            <style>
-              body { font-family: system-ui, sans-serif; color: #1e293b; padding: 24px; }
-              h1 { font-size: 18px; margin-bottom: 4px; color: #0f417a; }
-              table { width: 100%; border-collapse: collapse; margin-top: 16px; }
-            </style>
-          </head>
-          <body>
-            <h1>${title}</h1>
-            <p style="font-size:11px; color:#64748b; margin:0 0 20px;">Generated on: ${new Date().toLocaleDateString()}</p>
-            <table>
-              <thead>
-                <tr>${headersHtml}</tr>
-              </thead>
-              <tbody>
-                ${rowsHtml}
-              </tbody>
-            </table>
-            <script>
-              window.onload = function() {
-                window.print();
-                window.close();
-              };
-            </script>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
+      notify?.(COMMON_TOASTS.excelExported(name, 'Every filtered bill'));
     }
   };
 

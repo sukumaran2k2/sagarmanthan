@@ -19,6 +19,7 @@ import {
 } from '../../../utils/tableCellWrap';
 import { COMMON_TOASTS } from '../../../utils/notify';
 import { DEFAULT_VISIBLE_COLS } from '../store/useCabinetNotesStore';
+import { exportRowsToFile } from '../../../utils/exportGridReport';
 
 function formatDate(value) {
   if (!value || value === '--') return '--';
@@ -26,6 +27,7 @@ function formatDate(value) {
 }
 
 export default function NoteListTable({
+  fetchAllRows,
   rows = [],
   loading = false,
   wings = [],
@@ -55,7 +57,6 @@ export default function NoteListTable({
   onVisibleColsChange,
   notify,
 }) {
-  const [gridApi, setGridApi] = useState(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const colDropdownRef = useRef(null);
   const setShowFilterPanel = (updater) => onShowFilterPanelChange?.(updater);
@@ -242,90 +243,46 @@ export default function NoteListTable({
     notify?.(COMMON_TOASTS.filtersReset());
   };
 
-  const handleExport = (type) => {
+  // Copy / Excel (.xlsx) / PDF of every row matching the tab, filters and search (fetched for
+  // the export; the grid holds one page). Files are written directly: no print dialog or new tab.
+  const handleExport = async (type) => {
+    let source;
+    try {
+      source = fetchAllRows ? await fetchAllRows() : displayRows;
+    } catch (err) {
+      console.error('Export failed', err);
+      notify?.(COMMON_TOASTS.loadFailed('The rows to export'));
+      return;
+    }
+    if (!source.length) {
+      notify?.(COMMON_TOASTS.nothingToExport());
+      return;
+    }
+    const cols = columnDefs.filter((col) => col.headerName && col.headerName !== 'Update' && !col.hide);
+    const cellValue = (col, row) => {
+      if (col.field === 'sNo') return row.sNo;
+      if (col.field === 'lastUpdated') return formatDate(row.lastUpdated);
+      return row[col.field] ?? '';
+    };
+    const headers = cols.map((col) => col.headerName);
+    const rows = source.map((row) => cols.map((col) => cellValue(col, row)));
+
     if (type === 'Copy') {
-      let tsv = '';
-      const headers = [];
-      columnDefs.forEach((col) => {
-        if (col.headerName && col.headerName !== 'Update' && !col.hide) {
-          headers.push(col.headerName);
-        }
-      });
-      tsv += `${headers.join('\t')}\n`;
-      displayRows.forEach((row) => {
-        const line = [];
-        columnDefs.forEach((col) => {
-          if (col.headerName && col.headerName !== 'Update' && !col.hide) {
-            let val;
-            if (col.field === 'sNo') val = row.sNo;
-            else if (col.field === 'lastUpdated') val = formatDate(row.lastUpdated);
-            else val = row[col.field] ?? '';
-            line.push(String(val).replace(/\t/g, ' ').replace(/\n/g, ' '));
-          }
-        });
-        tsv += `${line.join('\t')}\n`;
-      });
-      navigator.clipboard.writeText(tsv).then(
-        () => notify?.(COMMON_TOASTS.copySuccess(displayRows.length)),
+      const clean = (v) => String(v).replace(/[\t\n]/g, ' ');
+      navigator.clipboard.writeText([headers, ...rows].map((line) => line.map(clean).join('\t')).join('\n')).then(
+        () => notify?.(COMMON_TOASTS.copySuccess(rows.length, 'matching the filters')),
         () => notify?.(COMMON_TOASTS.copyFailed()),
       );
       return;
     }
-
-    if (type === 'Excel') {
-      if (!gridApi) {
-        notify?.(COMMON_TOASTS.tableNotReady('export'));
-        return;
-      }
-      gridApi.exportDataAsCsv({
-        fileName: 'Cabinet_Notes_MoPSW_Register_export.csv',
-        columnKeys: columnDefs
-          .filter((c) => c.field && c.headerName !== 'Update' && !c.hide)
-          .map((c) => c.field),
-      });
-      notify?.(COMMON_TOASTS.excelExported('Cabinet_Notes_MoPSW_Register_export.csv'));
-      return;
-    }
-
-    if (type === 'PDF') {
-      const printWindow = window.open('', '_blank');
-      if (!printWindow) {
-        notify?.(COMMON_TOASTS.popupBlocked());
-        return;
-      }
-      notify?.(COMMON_TOASTS.pdfPreparing());
-      let headersHtml = '';
-      columnDefs.forEach((col) => {
-        if (col.headerName && col.headerName !== 'Update' && !col.hide) {
-          headersHtml += `<th style="border:1px solid #cbd5e1;padding:10px;text-align:left;background:#0f417a;color:#fff;font-size:11px;font-weight:bold;text-transform:uppercase;">${col.headerName}</th>`;
-        }
-      });
-      let rowsHtml = '';
-      displayRows.forEach((row) => {
-        rowsHtml += '<tr>';
-        columnDefs.forEach((col) => {
-          if (col.headerName && col.headerName !== 'Update' && !col.hide) {
-            let val;
-            if (col.field === 'sNo') val = row.sNo;
-            else if (col.field === 'lastUpdated') val = formatDate(row.lastUpdated);
-            else val = row[col.field] ?? '';
-            rowsHtml += `<td style="border:1px solid #e2e8f0;padding:8px;font-size:11px;">${val}</td>`;
-          }
-        });
-        rowsHtml += '</tr>';
-      });
-      printWindow.document.write(`
-        <html><head><title>Cabinet Notes MoPSW</title>
-        <style>body{font-family:system-ui,sans-serif;color:#1e293b;padding:20px}h1{font-size:18px;color:#0f417a}table{width:100%;border-collapse:collapse;margin-top:15px}</style>
-        </head><body>
-        <h1>Cabinet Notes MoPSW Register</h1>
-        <p style="font-size:11px;color:#64748b">Generated on: ${new Date().toLocaleDateString()}</p>
-        <table><thead><tr>${headersHtml}</tr></thead><tbody>${rowsHtml}</tbody></table>
-        <script>window.onload=function(){window.print();window.close()}</script>
-        </body></html>
-      `);
-      printWindow.document.close();
-    }
+    const name = exportRowsToFile(type === 'PDF' ? 'pdf' : 'excel', {
+      title: 'Cabinet Notes - MoPSW Register',
+      subtitle: category === 'completed' ? 'Completed' : 'Active',
+      headers,
+      rows,
+      fileName: 'Cabinet_Notes_MoPSW_Register',
+    });
+    notify?.(COMMON_TOASTS.excelExported(name, 'Every row matching the filters'));
   };
 
   const filterSelectClass =
@@ -597,7 +554,6 @@ export default function NoteListTable({
             pagination={false}
             enableExport={false}
             color="#0f417a"
-            onGridReady={(params) => setGridApi(params.api)}
             defaultColDef={{
               minWidth: 90,
               filter: false,
