@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { 
   FileText, 
   PlusCircle, 
@@ -60,6 +60,16 @@ export default function FormBuilder({ triggerNotification }) {
     }
   }, [canAuthor, activeTab]);
 
+  // Submissions keep the form number in the address (/form-builder/submissions/<id>), so a
+  // refresh reloads the same form; Edit has nothing to edit after a refresh, so it goes back.
+  const submissionsFormId = (location.pathname.match(/\/submissions\/(\d+)/) || [])[1];
+  // Decided from the address alone, which changes in the same step as the selection
+  const backToDirectory = (location.pathname.includes('/submissions') && !submissionsFormId)
+    || (location.pathname.includes('/edit') && !formToEdit && canAuthor);
+  const submissionsForm = submissionsFormId
+    ? (String(selectedFormForSubmission?.id) === submissionsFormId ? selectedFormForSubmission : { id: submissionsFormId })
+    : null;
+
   const handleEditForm = (form) => {
     setFormToEdit(form);
     handleTabChange('edit');
@@ -70,6 +80,8 @@ export default function FormBuilder({ triggerNotification }) {
     { id: 'directory', label: 'Form Directory' },
     { id: 'inbox', label: 'Inbox Forms' }
   ];
+
+  if (backToDirectory) return <Navigate to="/form-builder/directory" replace />;
 
   return (
     <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800 dark:text-slate-100 font-sans">
@@ -137,7 +149,7 @@ export default function FormBuilder({ triggerNotification }) {
           triggerNotification={triggerNotification}
           onViewSubmissions={(form) => {
             setSelectedFormForSubmission(form);
-            handleTabChange('submissions');
+            navigate(`/form-builder/submissions/${form.id}`);
           }}
           onEditForm={handleEditForm}
         />
@@ -151,9 +163,9 @@ export default function FormBuilder({ triggerNotification }) {
         />
       )}
 
-      {activeTab === 'submissions' && (
+      {activeTab === 'submissions' && submissionsForm && (
         <SubmissionsTable 
-          selectedForm={selectedFormForSubmission}
+          selectedForm={submissionsForm}
           triggerNotification={triggerNotification}
           onBackToDirectory={() => handleTabChange('directory')}
         />

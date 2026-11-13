@@ -14,45 +14,6 @@ import Table from '../../../components/Table';
 import FormPreviewModal from './FormPreviewModal';
 import api from '../api';
 
-const MOCK_INBOX = [
-  {
-    id: 'INB_001',
-    formName: 'Monthly Capex Expenditure Telemetry',
-    formDescription: 'Please provide monthly capex expenditure details as requested.',
-    assignedBy: 'Ministry of Ports, Shipping and Waterways',
-    dueDate: '2026-10-31',
-    status: 'Pending',
-    fields: [
-      { id: 'f1', inputLabel: 'Month', inputType: 'dropdown', options: ['October 2026', 'November 2026'], required: true },
-      { id: 'f2', inputLabel: 'Actual Spent (Rs Cr)', inputType: 'number', placeholder: '0.00', required: true }
-    ]
-  },
-  {
-    id: 'INB_002',
-    formName: 'CSR Project Beneficiary Verification',
-    formDescription: 'Quarterly review report of beneficiaries.',
-    assignedBy: 'Nodal Officer (CSR)',
-    dueDate: '2026-11-15',
-    status: 'Draft Saved',
-    fields: [
-      { id: 'f1', inputLabel: 'CSR Project Name', inputType: 'text', placeholder: 'e.g. Skill Centre', required: true },
-      { id: 'f2', inputLabel: 'Beneficiaries Reached', inputType: 'number', placeholder: 'Count', required: true }
-    ]
-  },
-  {
-    id: 'INB_003',
-    formName: 'GeM Procurement Compliance Upload',
-    formDescription: 'Monthly verification of transactions processed outside GeM portal.',
-    assignedBy: 'Finance Division',
-    dueDate: '2026-09-30',
-    status: 'Submitted',
-    fields: [
-      { id: 'f1', inputLabel: 'Procurement Order No', inputType: 'text', required: true },
-      { id: 'f2', inputLabel: 'Order Amount (Rs)', inputType: 'number', required: true }
-    ]
-  }
-];
-
 // Turns a failed request into a message the user can act on.
 const loadErrorMessage = (err, what) => (
   err.response?.status === 401
@@ -63,21 +24,14 @@ const loadErrorMessage = (err, what) => (
 export default function InboxForms({ triggerNotification, onBackToDirectory }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFormToFill, setSelectedFormToFill] = useState(null);
-  const [inboxForms, setInboxForms] = useState(MOCK_INBOX);
+  // null until the server answers; a failed request shows an error, never sample data
+  const [inboxForms, setInboxForms] = useState(null);
   const [loadError, setLoadError] = useState(null);
 
-  // Same rule as Form Directory: mock list only when the request succeeds with
-  // nothing assigned; a failed request shows an error instead.
   const loadInbox = () => {
     setLoadError(null);
     api.get('/get-inbox-forms')
-      .then(res => {
-        if (Array.isArray(res.data) && res.data.length > 0) {
-          setInboxForms(res.data);
-        } else {
-          setInboxForms(MOCK_INBOX);
-        }
-      })
+      .then(res => setInboxForms(Array.isArray(res.data) ? res.data : []))
       .catch((err) => {
         console.error('Error loading inbox forms:', err);
         setInboxForms([]);
@@ -89,13 +43,10 @@ export default function InboxForms({ triggerNotification, onBackToDirectory }) {
     loadInbox();
   }, []);
 
-  // Real (numeric-id) forms save through the API; mock forms stay preview-only.
-  const isRealForm = (form) => /^\d+$/.test(String(form?.id));
-
   // Opens the fill form; for a saved draft or submitted response, loads the earlier
   // answers first so saving again doesn't overwrite them with blanks.
   const openForm = async (form) => {
-    if (!isRealForm(form) || form.status === 'Pending') {
+    if (form.status === 'Pending') {
       setSelectedFormToFill(form);
       return;
     }
@@ -129,12 +80,13 @@ export default function InboxForms({ triggerNotification, onBackToDirectory }) {
     return res.data.message;
   };
 
-  const filtered = inboxForms.filter(s => 
+  const filtered = (inboxForms || []).filter(s => 
     (s.formName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (s.assignedBy || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const pendingCount = inboxForms.filter(s => s.status !== 'Submitted').length;
+  // Both boxes count the rows listed, so they follow the search
+  const notSubmittedCount = filtered.filter(s => s.status !== 'Submitted').length;
 
   const columnDefs = [
     {
@@ -247,11 +199,11 @@ export default function InboxForms({ triggerNotification, onBackToDirectory }) {
           <div className="hidden md:flex items-center gap-2">
             <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 min-w-[90px] text-center">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Total</span>
-              <span className="text-xl font-black text-slate-800">{filtered.length}</span>
+              <span className="text-xl font-black text-slate-800">{inboxForms ? filtered.length : '…'}</span>
             </div>
             <div className="bg-rose-50 rounded-xl p-3 border border-rose-100 min-w-[90px] text-center">
-              <span className="text-[10px] font-bold text-rose-500 uppercase tracking-wider block">Pending</span>
-              <span className="text-xl font-black text-rose-700">{pendingCount}</span>
+              <span className="text-[10px] font-bold text-rose-500 uppercase tracking-wider block" title="Pending or draft saved">Not Submitted</span>
+              <span className="text-xl font-black text-rose-700">{inboxForms ? notSubmittedCount : '…'}</span>
             </div>
           </div>
         </div>
@@ -292,9 +244,7 @@ export default function InboxForms({ triggerNotification, onBackToDirectory }) {
           fields={selectedFormToFill.fields}
           initialValues={selectedFormToFill.initialValues}
           onClose={() => setSelectedFormToFill(null)}
-          onSubmitResponse={isRealForm(selectedFormToFill)
-            ? (action, values) => submitResponse(selectedFormToFill, action, values)
-            : undefined}
+          onSubmitResponse={(action, values) => submitResponse(selectedFormToFill, action, values)}
         />
       )}
     </div>

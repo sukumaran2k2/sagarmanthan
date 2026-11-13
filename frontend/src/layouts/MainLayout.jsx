@@ -283,6 +283,7 @@ export const getTabFromSlug = (slug) => {
   if (cleanSlug.startsWith('form-builder/directory')) return 'Form Directory';
   if (cleanSlug.startsWith('form-builder/inbox')) return 'Inbox Forms';
   if (cleanSlug.startsWith('form-builder/edit')) return 'Edit Form';
+  if (cleanSlug.startsWith('form-builder/submissions')) return 'View Submissions';
   if (cleanSlug.startsWith('admin/user-module-permission')) return TAB_USER_MODULE_PERMISSION;
   if (cleanSlug.startsWith('admin/user-list')) return TAB_USER_LIST;
   if (cleanSlug.startsWith('admin/user-master-management')) return TAB_USER_MASTER_MANAGEMENT;
