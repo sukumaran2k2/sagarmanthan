@@ -306,6 +306,11 @@ export function fetchExpenditureOutlay(projectID, subProjectID) {
   return api.get(`/get-expenditure-outlay/${projectID}/${subProjectID}`);
 }
 
+export function deleteExpenditureOutlay(id, projectID, subProjectID) {
+  return api.delete(`/delete-expenditure-outlay/${id}/${projectID}/${subProjectID}`
+  );
+}
+
 export function submitExpenditureOutlay(payload) {
   return api.post('/add-expenditure-outlay', payload);
 }

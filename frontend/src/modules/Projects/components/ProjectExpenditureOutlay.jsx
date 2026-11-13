@@ -1,6 +1,6 @@
 ﻿import { useEffect, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
-import { fetchExpenditureOutlay, submitExpenditureOutlay } from '../api';
+import { fetchExpenditureOutlay, submitExpenditureOutlay, deleteExpenditureOutlay } from '../api';
 
 const FY_OPTIONS = [
   '2023-2024',
@@ -24,6 +24,7 @@ export default function ProjectExpenditureOutlay({
 }) {
   const [rows, setRows] = useState([emptyRow()]);
   const [loading, setLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
   const [saving, setSaving] = useState(false);
 
   const disabled = !canSubmit || readOnly;
@@ -41,6 +42,7 @@ export default function ProjectExpenditureOutlay({
         if (data.length) {
           setRows(
             data.map((row) => ({
+              id: row.expenditure_outlay_id ?? row.id,
               financialYear: String(row.year || row.financial_year || ''),
               expenditureOutlayValue: String(row.expenditure_outlay ?? ''),
             }))
@@ -68,8 +70,48 @@ export default function ProjectExpenditureOutlay({
 
   const addRow = () => setRows((prev) => [...prev, emptyRow()]);
 
-  const removeRow = (index) => {
-    setRows((prev) => (prev.length <= 1 ? [emptyRow()] : prev.filter((_, idx) => idx !== index)));
+
+  const removeRow = async (index) => {
+    if (disabled || deletingId !== null) return;
+
+    const row = rows[index];
+    if (!row) return;
+
+    // Saved DB row - delete from backend directly
+    if (row.id !== null && row.id !== undefined) {
+      setDeletingId(row.id);
+
+      try {
+        await deleteExpenditureOutlay(
+          row.id,
+          projectID,
+          subProjectID
+        );
+
+        notify?.(
+          'Target expenditure deleted successfully.',
+          'success'
+        );
+      } catch (error) {
+        console.error(error);
+
+        notify?.(
+          error?.response?.data?.message ||
+            'Failed to delete target expenditure.',
+          'error'
+        );
+
+        return;
+      } finally {
+        setDeletingId(null);
+      }
+    }
+
+    // Remove from frontend
+    setRows((prev) => {
+      const updated = prev.filter((_, idx) => idx !== index);
+      return updated.length ? updated : [emptyRow()];
+    });
   };
 
   const handleSave = async () => {

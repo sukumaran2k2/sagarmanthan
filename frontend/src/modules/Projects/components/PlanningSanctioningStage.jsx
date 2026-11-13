@@ -270,7 +270,8 @@ export default function PlanningSanctioningStage({
                     onChange={(e) => updateRow(row.key, { actualDate: e.target.value })}
                     disabled={disabled || row.notApplicable}
                     max={today}
-                    className="w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-slate-50"
+                    className={`w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-slate-50 ${
+                      row.notApplicable || disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                   />
                 </td>
                 <td className="px-3 py-3 min-w-[220px]">
@@ -279,8 +280,9 @@ export default function PlanningSanctioningStage({
                     placeholder="Remarks"
                     value={row.remarks}
                     onChange={(e) => updateRow(row.key, { remarks: e.target.value })}
-                    disabled={disabled}
-                    className="w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-slate-50"
+                    disabled={disabled || row.notApplicable}
+                    className={`w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-slate-50 ${
+                      row.notApplicable || disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                   />
                 </td>
               </tr>

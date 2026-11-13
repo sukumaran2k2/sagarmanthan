@@ -992,6 +992,8 @@ router.get("/viewproject-tender-data/:projectID/:subProjectID", auth, requireMod
 router.get("/get-editprojectdata/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), editProjectTab.getEdiProjectData);
 router.get("/get-expenditure-outlay/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), expenditureTab.getExpenditureOutlayCost);
 router.post("/add-expenditure-outlay", auth, requireModulePermission("PROJECTS", "update"), expenditureTab.addExpenditureOutlay);
+router.delete("/delete-expenditure-outlay/:id/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "update"), expenditureTab.deleteExpenditureOutlay);
+
 
 router.post("/add-revised-date", auth, requireModulePermission("PROJECTS", "update"), editProjectTab.addRevisedDate);
 router.get("/get-revised-date/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), editProjectTab.getRevisedDate);
