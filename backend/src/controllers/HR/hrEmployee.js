@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
 import { fileURLToPath } from 'url';
+import { isWideRole } from "../../middleware/dataScope.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -810,7 +811,7 @@ async function getTransactionHstryOfEmp(req, res) {
     const { isOrganisation, organisationId } = getDataScope(req.user);
     const roleID = Number.parseInt(isOrganisation ? (req.user?.roleId ?? req.params.roleID) : req.params.roleID, 10);
     const orgID = isOrganisation ? Number(organisationId) : Number.parseInt(req.params.orgID, 10);
-    const seesAll = !isOrganisation && ((roleID >= 1 && roleID <= 5) || roleID === 8);
+    const seesAll = !isOrganisation && (await isWideRole(roleID));
     if (!seesAll && !(Number.isInteger(orgID) && orgID > 0)) {
         return res.status(403).json({ message: "Unauthorized access: Invalid role" });
     }

@@ -1,6 +1,7 @@
 
 import { pool } from "../../db.js";
 import fs from 'fs';
+import { isWideRole } from "../../middleware/dataScope.js";
 async function submitCruisePortsData(req, res) {
 
     const {
@@ -170,7 +171,7 @@ async function getcruisepassengersData(req, res) {
         let query = "";
 
         // Admin Roles → Show All Organisations
-        if (roleID == 2 || roleID == 3 || roleID == 4 || roleID == 5 || roleID == 8) {
+        if (await isWideRole(roleID)) {
 
             query = `
                 SELECT 

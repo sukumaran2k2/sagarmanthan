@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import { access, stat } from 'fs/promises';
 import { createReadStream } from 'fs';
 import fs from 'fs';
+import { isWideRole } from "../../middleware/dataScope.js";
 // import mssql from "mssql";
 
 async function getMIVOrgWisePerformanceReport(req, res) {
@@ -28,10 +29,9 @@ async function getMIVOrgWisePerformanceReport(req, res) {
             return res.status(404).json({ message: "User not found" });
         }
         const { role_id, organisation_id } = userResult.recordset[0];
-        const allOrganisationRoles = [1, 2, 3, 4, 5, 8];
 
         let result;
-        if (allOrganisationRoles.includes(Number(role_id))) {
+        if (await isWideRole(role_id)) {
 
             const request = conn.request();
             result = await request.query(`
@@ -210,11 +210,10 @@ async function getThemeWiseMIVPerformanceReport(req, res) {
             return res.status(404).json({ message: "User not found" });
         }
         const { role_id, organisation_id } = userResult.recordset[0];
-        const allOrganisationRoles = [1, 2, 3, 4, 5, 8];
 
         let result;
 
-        if (allOrganisationRoles.includes(Number(role_id))) {
+        if (await isWideRole(role_id)) {
 
             const request = conn.request();
             result = await request.query(`
@@ -686,7 +685,7 @@ async function mivThemeDetailedData (req, res)
 
         if(mivStageLength == 1)
         {
-            if (role_id === 1 || role_id === 2 || role_id === 3 || role_id === 4 || role_id === 5 || role_id === 8) {
+            if (await isWideRole(role_id)) {
                 query = await request.query(`
                     SELECT  mmt_organisation.organisation_name as [Organisation/Wing], initiative_id  as [Initiative ID],
                         initiative_name as [Name of Initiative], total_cost as [Total Cost of Initiatives], category as [Initiative Category], 
@@ -731,7 +730,7 @@ async function mivThemeDetailedData (req, res)
         }
         else
         {
-            if (role_id === 1 || role_id === 2 || role_id === 3 || role_id === 4 || role_id === 5 || role_id === 8) {
+            if (await isWideRole(role_id)) {
                 query = await request.query(`
                     SELECT mmt_organisation.organisation_name as [Organisation/Wing], initiative_id  as [Initiative ID],
                         initiative_name as [Name of Initiative], total_cost as [Total Cost of Initiatives], category as [Initiative Category], 
@@ -1058,11 +1057,10 @@ async function getCategoryWiseMIVPerformanceReport(req,res) {
             return res.status(404).json({ message: "User not found" });
         }
         const { role_id, organisation_id } = userResult.recordset[0];
-        const allOrganisationRoles = [1, 2, 3, 4, 5, 8];
 
         let result;
 
-        if (allOrganisationRoles.includes(Number(role_id))) {
+        if (await isWideRole(role_id)) {
 
             const request = conn.request();
             result = await request.query(`

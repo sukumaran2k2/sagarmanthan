@@ -1,5 +1,6 @@
 import { pool } from "../../db.js";
 import fs from 'fs';
+import { isWideRole } from "../../middleware/dataScope.js";
 
 const getFinancialYear = (year, month) => {
   let financialYearStart;
@@ -111,7 +112,7 @@ async function getTrafficData(req, res) {
 
     let query;
 
-    if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5) {
+    if (await isWideRole(role_id)) {
       query = `
                 SELECT
                 financial_year, organisation_id,
@@ -210,7 +211,7 @@ async function getQuarterlyTrafficData(req, res) {
 
     let query;
 
-    if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5) {
+    if (await isWideRole(role_id)) {
       query = `
                 SELECT
                 annually_financial_year, organisation_id,
@@ -318,7 +319,7 @@ async function getAnnuallyTrafficData(req, res) {
     // console.log('role' , role_id);
     let query;
 
-    if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5) {
+    if (await isWideRole(role_id)) {
       query = `
         SELECT
             annually_financial_year,
@@ -400,7 +401,7 @@ async function getMonthlyTrafficData(req, res) {
 
     let query;
 
-    if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5) {
+    if (await isWideRole(role_id)) {
       query = `
                 SELECT
                     id,
@@ -532,7 +533,7 @@ async function getFilteredTrafficReport(req, res) {
 
     let query1, query2;
 
-    if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5) {
+    if (await isWideRole(role_id)) {
       // console.log('Query Qorked 1');
       query1 = `
         SELECT

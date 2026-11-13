@@ -1,4 +1,5 @@
 import { pool } from "../../db.js";
+import { isWideRole } from "../../middleware/dataScope.js";
 
 const getFinancialYear = (year, month) => {
     let financialYearStart;
@@ -328,7 +329,7 @@ async function getMonthlyMajorPortsData(req, res) {
 
         let query;
 
-        if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8) {
+        if (await isWideRole(role_id)) {
             query = `SELECT * FROM tbl_major_ports ORDER BY financial_year DESC;`;
         } else {
             const orgResult = await conn.query(`SELECT organisation_id FROM tbl_user WHERE user_id = ${userID}`);
@@ -366,7 +367,7 @@ async function getQuarterlyMajorPortsData(req, res) {
 
         let query;
 
-        if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8) {
+        if (await isWideRole(role_id)) {
             query = `SELECT          
                 organisation_id,
                 annually_financial_year,
@@ -461,7 +462,7 @@ async function getAnnuallyMajorPortsData(req, res) {
         `);
         const { role_id } = userResult.recordset[0];  
         let query;
-        if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8) {
+        if (await isWideRole(role_id)) {
             query = `
                 SELECT
                     annually_financial_year,

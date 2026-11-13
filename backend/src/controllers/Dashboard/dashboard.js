@@ -1,4 +1,5 @@
 import { pool } from "../../db.js";
+import { isWideRole } from "../../middleware/dataScope.js";
 
 async function getDashboardCourtCaseStatus(req,res){
 
@@ -636,7 +637,7 @@ async function getDashboardGemProAndCapex(req, res) {
         LEFT JOIN PriorityMonthWorksCTE pw ON o.organisation_id = pw.works_organisation_id
                 `;
 
-            if (![2, 3, 4, 5].includes(role_id)) {
+            if (!(await isWideRole(role_id))) {
                 query += ` WHERE o.organisation_id = @organisation_id `;
                 request.input("organisation_id", organisation_id);
             }
@@ -743,7 +744,7 @@ async function getDashboardGemProAndCapexministryView(req, res) {
         `;
 
         // Restrict for non-admin roles
-        if (![2,3,4,5].includes(role_id)) {
+        if (!(await isWideRole(role_id))) {
             query += ` WHERE o.organisation_id = @organisation_id `;
             request.input("organisation_id", organisation_id);
         }
@@ -1573,7 +1574,7 @@ LEFT JOIN (
 
         `;
  
-        if (![2, 3, 4, 5].includes(role_id)) {
+        if (!(await isWideRole(role_id))) {
             query += ` WHERE o.organisation_id = @organisation_id `;
             request.input("organisation_id", organisation_id);
         }
