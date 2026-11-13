@@ -184,6 +184,14 @@ export function exportGridToPdf({ title, subtitle, columns, rows = [], pinnedRow
     styles: { fontSize: cols.length > 12 ? 6 : 8, cellPadding: 3, halign: 'center', valign: 'middle', lineWidth: 0.5, lineColor: [210, 214, 220] },
     headStyles: { fillColor: hexToRgb(brand) || [15, 65, 122], textColor: 255, fontStyle: 'bold' },
     alternateRowStyles: { fillColor: [248, 250, 246] },
+    // Optional per column: pdfWidth (points) and pdfAlign ('left' | 'center' | 'right'), e.g. for
+    // long text that should wrap left-aligned inside the page instead of widening the table
+    columnStyles: Object.fromEntries(cols
+      .map((col, i) => [i, {
+        ...(col.pdfWidth ? { cellWidth: col.pdfWidth } : {}),
+        ...(col.pdfAlign ? { halign: col.pdfAlign } : {}),
+      }])
+      .filter(([, style]) => Object.keys(style).length)),
     didParseCell: (data) => {
       if (data.section !== 'body') return;
       const row = all[data.row.index];
