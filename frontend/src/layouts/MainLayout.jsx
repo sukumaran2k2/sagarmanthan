@@ -504,13 +504,15 @@ export default function MainLayout({
 
       {/* Main Content Viewport */}
       <main className="flex-grow w-full max-w-full px-3 sm:px-6 lg:px-8 pb-12">
+        {/* Breadcrumb bar: w-fit keeps it only as wide as the crumbs, max-w-full stops it
+            overflowing the viewport, and flex-wrap lets a long trail fall onto a second line. */}
         {!usesOwnPageHeader(activeTab) && tabAllowed && (
-          <div className="flex items-center space-x-1.5 sm:space-x-2 text-slate-400 text-[10px] sm:text-xs font-semibold mb-4 sm:mb-6 mt-2 sm:mt-3 animate-fade-in select-none bg-white py-2 sm:py-2.5 px-3 sm:px-4 rounded-lg sm:rounded-xl border border-slate-200 shadow-sm max-w-full overflow-x-auto scrollbar-none">
-            <Home className="h-3.5 w-3.5 text-slate-500 cursor-pointer hover:text-blue-700 transition-colors" onClick={() => goToTab('landing')} />
+          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 sm:gap-x-2 text-slate-400 text-[10px] sm:text-xs font-semibold mb-4 sm:mb-6 mt-2 sm:mt-3 animate-fade-in select-none bg-white py-2 sm:py-2.5 px-3 sm:px-4 rounded-lg sm:rounded-xl border border-slate-200 shadow-sm w-fit max-w-full">
+            <Home className="h-3.5 w-3.5 shrink-0 text-slate-500 cursor-pointer hover:text-blue-700 transition-colors" onClick={() => goToTab('landing')} />
             {getBreadcrumbs(activeTab).slice(1).map((crumb, idx, arr) => (
-              <div key={idx} className="flex items-center space-x-2">
-                <span className="text-slate-350">/</span>
-                <span className={idx === arr.length - 1 ? "text-blue-800 font-bold" : "text-slate-550"}>
+              <div key={idx} className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                <span className="text-slate-350 shrink-0">/</span>
+                <span className={`break-words ${idx === arr.length - 1 ? "text-blue-800 font-bold" : "text-slate-550"}`}>
                   {idx === arr.length - 1 ? (getKpiSubTabCrumb(location.pathname, liveSearch) || crumb) : crumb}
                 </span>
               </div>

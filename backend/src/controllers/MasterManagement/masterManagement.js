@@ -560,6 +560,12 @@ async function getDropDownData(req, res) {
             query = "SELECT * FROM mmt_hr_activities";
             break;
 
+        // The Consultant Appointment Data List filters by stage_name, so its stage options
+        // have to come from this master table.
+        case "mmt_consultant_appointment_stage":
+            query = "SELECT stage_id, stage_name FROM mmt_consultant_appointment_stage ORDER BY stage_id";
+            break;
+
         case "tbl_project_sub_stage":
             query = "SELECT sub_stage_id, sub_stage_name FROM tbl_project_sub_stage WHERE sub_stage_id BETWEEN 3 AND 10 ORDER BY sub_stage_id";
             break;
@@ -568,6 +574,11 @@ async function getDropDownData(req, res) {
         //     query = "SELECT project_id, project_name FROM tbl_project WHERE status = 1 AND project_stage_id != 14 ORDER BY project_name";
         //     break;
 
+    }
+    // No case matched: querying with an undefined statement throws a confusing 500,
+    // so report the unknown table instead.
+    if (!query) {
+        return res.status(400).json({ message: `No dropdown query defined for "${tid}"` });
     }
     try {
         const result = await conn.query(query);
