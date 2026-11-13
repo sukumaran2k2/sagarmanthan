@@ -386,8 +386,13 @@ export default function Tabs({ activeTab, setActiveTab }) {
       id: 'vision',
       label: 'Long Term Strategies',
       icon: TrendingUp,
-      align: 'left-0',
+      // Right-aligned so the panel grows leftwards; at left-0 it overflows the viewport whenever
+      // this menu lands near the right edge of the nav bar.
+      align: 'right-0',
       width: 'w-[260px]',
+      // This menu sits near the right end of the nav bar. At left-full the sub-panel would start
+      // roughly 476px right of the button and run off the viewport, so open it leftwards instead.
+      flyoutSide: 'left',
       items: [
         m('MIV_2030', {
           label: 'MIV 2030',
@@ -701,10 +706,10 @@ export default function Tabs({ activeTab, setActiveTab }) {
                                     {ItemIcon && <ItemIcon className="h-4 w-4 text-slate-400" />}
                                     <span>{item.label}</span>
                                   </div>
-                                  <ChevronRight className="h-3 w-3 text-slate-350 group-hover/flyoutbtn:text-blue-500 transition-colors" />
+                                  <ChevronRight className={`h-3 w-3 text-slate-350 group-hover/flyoutbtn:text-blue-500 transition-colors ${menu.flyoutSide === 'left' ? 'rotate-180' : ''}`} />
                                 </button>
                                 {/* Flyout sub-panel on hover */}
-                                <div className="absolute left-full top-0 ml-2 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl rounded-2xl p-3 z-[60] transition-all duration-200 origin-left scale-95 opacity-0 invisible group-hover/flyout:scale-100 group-hover/flyout:opacity-100 group-hover/flyout:visible space-y-1">
+                                <div className={`absolute top-0 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl rounded-2xl p-3 z-[60] transition-all duration-200 scale-95 opacity-0 invisible group-hover/flyout:scale-100 group-hover/flyout:opacity-100 group-hover/flyout:visible space-y-1 ${menu.flyoutSide === 'left' ? 'right-full mr-2 origin-right' : 'left-full ml-2 origin-left'}`}>
                                   {item.clickableHeader ? (
                                     <button
                                       onClick={() => { handleItemClick(item.tab ?? item.label); setIsOpen(false); }}
