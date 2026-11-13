@@ -55,7 +55,10 @@ async function getLightHouseMaster(req, res) {
         const offset = (page - 1) * limit;
         const search = (req.query.search || '').trim();
         const status = String(req.query.status || 'active').toLowerCase() === 'inactive' ? 'inactive' : 'active';
-        const statusValue = status === 'active' ? 1 : 0;
+        // Anything not marked active (blank included) is listed and counted as inactive
+        const STATUS_MATCH = status === 'active'
+            ? 'tbl_light_house_master.light_status = 1'
+            : 'ISNULL(tbl_light_house_master.light_status, 0) <> 1';
 
         const FROM_SQL = `
             FROM tbl_light_house_master
@@ -66,13 +69,12 @@ async function getLightHouseMaster(req, res) {
         const countsRequest = conn.request();
         const totalRequest = conn.request();
         const pageRequest = conn.request();
-        totalRequest.input("statusValue", statusValue);
-        pageRequest.input("statusValue", statusValue);
         pageRequest.input("offset", offset);
         pageRequest.input("limit", limit);
 
         let searchClause = '';
         if (search) {
+            countsRequest.input("search", `%${search}%`);
             totalRequest.input("search", `%${search}%`);
             pageRequest.input("search", `%${search}%`);
             searchClause = ` AND (tbl_light_house_master.alol LIKE @search OR tbl_light_house_master.light_house_name LIKE @search OR mmt_state.state_name LIKE @search OR mmt_district.district_name LIKE @search)`;
@@ -81,11 +83,12 @@ async function getLightHouseMaster(req, res) {
         const [countsResult, totalResult, pageResult] = await Promise.all([
             countsRequest.query(`
                 SELECT
-                    SUM(CASE WHEN light_status = 1 THEN 1 ELSE 0 END) AS active_count,
-                    SUM(CASE WHEN light_status = 1 THEN 0 ELSE 1 END) AS inactive_count
-                FROM tbl_light_house_master
+                    SUM(CASE WHEN tbl_light_house_master.light_status = 1 THEN 1 ELSE 0 END) AS active_count,
+                    SUM(CASE WHEN tbl_light_house_master.light_status = 1 THEN 0 ELSE 1 END) AS inactive_count
+                ${FROM_SQL}
+                WHERE 1 = 1 ${searchClause}
             `),
-            totalRequest.query(`SELECT COUNT(*) AS total ${FROM_SQL} WHERE tbl_light_house_master.light_status = @statusValue ${searchClause}`),
+            totalRequest.query(`SELECT COUNT(*) AS total ${FROM_SQL} WHERE ${STATUS_MATCH} ${searchClause}`),
             pageRequest.query(`
                 SELECT tbl_light_house_master.lights_house_id, tbl_light_house_master.alol, tbl_light_house_master.light_house_name,
                        tbl_light_house_master.light_status, tbl_light_house_master.commisioned_date,
@@ -94,7 +97,7 @@ async function getLightHouseMaster(req, res) {
                        tbl_light_house_master.latitude, tbl_light_house_master.longitude,
                        tbl_light_house_master.created_by, tbl_light_house_master.updated_date
                 ${FROM_SQL}
-                WHERE tbl_light_house_master.light_status = @statusValue ${searchClause}
+                WHERE ${STATUS_MATCH} ${searchClause}
                 ORDER BY tbl_light_house_master.lights_house_id DESC
                 OFFSET @offset ROWS
                 FETCH NEXT @limit ROWS ONLY;

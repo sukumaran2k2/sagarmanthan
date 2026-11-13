@@ -54,7 +54,7 @@ function nvarcharType(length) {
   return typeof t === 'function' ? t(length) : t;
 }
 
-function bindListFilters(request, query, { includeStatus = false } = {}) {
+function bindListFilters(request, query, { includeStatus = false, includeIssueType = true } = {}) {
   let filterSql = "";
 
   if (!isAllParam(query.wingId)) {
@@ -73,7 +73,7 @@ function bindListFilters(request, query, { includeStatus = false } = {}) {
     }
   }
 
-  if (!isAllParam(query.issueType)) {
+  if (includeIssueType && !isAllParam(query.issueType)) {
     request.input("issueType", nvarcharType(200), String(query.issueType).trim());
     filterSql += " AND tpi.parliamentary_issue_type = @issueType";
   }
@@ -173,9 +173,16 @@ async function getParliamentaryIssue(req, res) {
     });
     applyDataScope(pageRequest, req.user, { strategy: "viaCreatedBy", alias: "tpi" });
 
-    const sharedFilter = bindListFilters(countRequest, req.query);
+    // Tab counts: each tab's number is what that tab shows when clicked. Switching tab clears
+    // the status filter (and the issue type, going to Completed), so the other tab leaves those out.
+    const sharedFilter = bindListFilters(countRequest, req.query, { includeIssueType: false });
     bindListFilters(pageRequest, req.query, { includeStatus: category === "active" });
 
+    let issueTypeFilter = "";
+    if (!isAllParam(req.query.issueType)) {
+      countRequest.input("issueType", nvarcharType(200), String(req.query.issueType).trim());
+      issueTypeFilter = " AND tpi.parliamentary_issue_type = @issueType";
+    }
     if (category === "active" && !isAllParam(req.query.status)) {
       countRequest.input("status", nvarcharType(200), String(req.query.status).trim());
     }
@@ -188,7 +195,9 @@ async function getParliamentaryIssue(req, res) {
       category === "active" && !isAllParam(req.query.status)
         ? " AND mps.parlia_stage_name = @status"
         : "";
-    const pageMatchSql = `${category === "completed" ? COMPLETED_SQL : `NOT ${COMPLETED_SQL}`}${statusFilter}`;
+    const activeMatchSql = `NOT ${COMPLETED_SQL}${issueTypeFilter}${statusFilter}`;
+    const completedMatchSql = `${COMPLETED_SQL}${category === "completed" ? issueTypeFilter : ""}`;
+    const pageMatchSql = category === "completed" ? completedMatchSql : activeMatchSql;
 
     pageRequest.input("offset", sql.Int, offset);
     pageRequest.input("limit", sql.Int, limit);
@@ -196,8 +205,8 @@ async function getParliamentaryIssue(req, res) {
     const [countResult, pageResult] = await Promise.all([
       countRequest.query(`
         SELECT
-          SUM(CASE WHEN ${COMPLETED_SQL} THEN 1 ELSE 0 END) AS completed_count,
-          SUM(CASE WHEN NOT ${COMPLETED_SQL} THEN 1 ELSE 0 END) AS active_count,
+          SUM(CASE WHEN ${completedMatchSql} THEN 1 ELSE 0 END) AS completed_count,
+          SUM(CASE WHEN ${activeMatchSql} THEN 1 ELSE 0 END) AS active_count,
           SUM(CASE WHEN ${pageMatchSql} THEN 1 ELSE 0 END) AS page_total
         ${LIST_FROM_SQL}
         ${joinSql}

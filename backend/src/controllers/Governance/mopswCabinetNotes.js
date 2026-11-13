@@ -160,6 +160,8 @@ async function getCabinetMopsw(req, res) {
     });
     applyDataScope(pageRequest, req.user, { strategy: "viaCreatedBy", alias: "notes" });
 
+    // Tab counts: each tab's number is what that tab shows when clicked. Switching tab clears
+    // the status filter, so it counts only towards Active.
     const sharedFilter = bindListFilters(countRequest, req.query);
     bindListFilters(pageRequest, req.query, { includeStatus: category === "active" });
 
@@ -175,7 +177,8 @@ async function getCabinetMopsw(req, res) {
       category === "active" && !isAllParam(req.query.status)
         ? " AND stage.mopsw_stage_name = @status"
         : "";
-    const pageMatchSql = `${category === "completed" ? COMPLETED_SQL : `NOT ${COMPLETED_SQL}`}${statusFilter}`;
+    const activeMatchSql = `NOT ${COMPLETED_SQL}${statusFilter}`;
+    const pageMatchSql = category === "completed" ? COMPLETED_SQL : activeMatchSql;
 
     pageRequest.input("offset", sql.Int, offset);
     pageRequest.input("limit", sql.Int, limit);
@@ -184,7 +187,7 @@ async function getCabinetMopsw(req, res) {
       countRequest.query(`
         SELECT
           SUM(CASE WHEN ${COMPLETED_SQL} THEN 1 ELSE 0 END) AS completed_count,
-          SUM(CASE WHEN NOT ${COMPLETED_SQL} THEN 1 ELSE 0 END) AS active_count,
+          SUM(CASE WHEN ${activeMatchSql} THEN 1 ELSE 0 END) AS active_count,
           SUM(CASE WHEN ${pageMatchSql} THEN 1 ELSE 0 END) AS page_total
         ${LIST_FROM_SQL}
         ${joinSql}

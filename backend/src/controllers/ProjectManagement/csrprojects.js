@@ -576,18 +576,25 @@ async function getCsrProjectslist(req, res)
             request.input('fFocus', Number(q.focus));
             where.push('p.csr_focus = @fFocus');
         }
-        if (q.status) {
-            request.input('fStatus', String(q.status).slice(0, 100));
-            where.push(`${STATUS_SQL} = @fStatus`);
-        }
         const search = String(q.search || '').trim().slice(0, 200);
         if (search) {
             request.input('fSearch', likeText(search));
             where.push(`(${['p.project_name', 'o.organisation_name', 'p.project_received_from', 'p.target_beneficiaries', 'p.remarks']
                 .map((c) => `${c} LIKE @fSearch ESCAPE '\\'`).join(' OR ')})`);
         }
-        // The tab counts use every filter and the search, but not the tab itself
+        // Tab counts: each tab's number is what that tab shows when clicked. They use every filter
+        // and the search; the status filter only where it stays on switching tab (any status on
+        // All, a not-Completed status on Active, Completed on Completed), as the list's store does.
         const countWhereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+        const status = String(q.status || '').slice(0, 100);
+        let allMatch = '1 = 1';
+        let activeMatch = `${STATUS_SQL} <> 'Completed'`;
+        if (status) {
+            request.input('fStatus', status);
+            where.push(`${STATUS_SQL} = @fStatus`);
+            allMatch = `${STATUS_SQL} = @fStatus`;
+            if (status !== 'Completed') activeMatch += ` AND ${STATUS_SQL} = @fStatus`;
+        }
         if (q.category === 'completed') where.push(`${STATUS_SQL} = 'Completed'`);
         else if (q.category === 'active') where.push(`${STATUS_SQL} <> 'Completed'`);
         const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
@@ -624,8 +631,10 @@ async function getCsrProjectslist(req, res)
             ${paged ? `
             SELECT COUNT(*) AS total FROM tbl_csr_projects p
             JOIN mmt_organisation o ON o.organisation_id = p.organisation_id ${whereSql};
-            -- Category tab counts: the filtered projects, split by tab
-            SELECT COUNT(*) AS [all], ISNULL(SUM(CASE WHEN ${STATUS_SQL} = 'Completed' THEN 1 ELSE 0 END), 0) AS completed
+            -- Category tab counts (see countWhereSql above)
+            SELECT ISNULL(SUM(CASE WHEN ${allMatch} THEN 1 ELSE 0 END), 0) AS [all],
+                ISNULL(SUM(CASE WHEN ${activeMatch} THEN 1 ELSE 0 END), 0) AS active,
+                ISNULL(SUM(CASE WHEN ${STATUS_SQL} = 'Completed' THEN 1 ELSE 0 END), 0) AS completed
             FROM tbl_csr_projects p
             JOIN mmt_organisation o ON o.organisation_id = p.organisation_id ${countWhereSql};` : ''}
         `);
@@ -634,7 +643,7 @@ async function getCsrProjectslist(req, res)
         res.json({
             rows: result.recordsets[0],
             total: result.recordsets[1][0].total,
-            counts: { all: counts.all, active: counts.all - counts.completed, completed: counts.completed },
+            counts: { all: counts.all, active: counts.active, completed: counts.completed },
         });
     } catch (err) {
         console.error('Error fetching CSR projects:', err);
