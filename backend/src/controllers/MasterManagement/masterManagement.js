@@ -566,6 +566,11 @@ async function getDropDownData(req, res) {
             query = "SELECT stage_id, stage_name FROM mmt_consultant_appointment_stage ORDER BY stage_id";
             break;
 
+
+        // Official Foreign Visit workflow stages (Proposed / Sanctioned / Visited / Not Visited / Rejected)
+        case "mmt_ofv_stage":
+            query = "SELECT fv_stage_id, fv_stage_name FROM mmt_ofv_stage WHERE status = 1 ORDER BY fv_stage_id";
+            break;
         case "tbl_project_sub_stage":
             query = "SELECT sub_stage_id, sub_stage_name FROM tbl_project_sub_stage WHERE sub_stage_id BETWEEN 3 AND 10 ORDER BY sub_stage_id";
             break;

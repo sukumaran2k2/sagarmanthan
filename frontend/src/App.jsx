@@ -29,6 +29,7 @@ const ConsultantAppointmentView = lazy(() => import('./modules/ConsultantAppoint
 const ProfileView = lazy(() => import('./modules/Profile/Profile'));
 const AuditParaView = lazy(() => import('./modules/AuditPara/AuditPara'));
 const VIPReferenceView = lazy(() => import('./modules/VIPReference/VIPReference'));
+const ForeignVisitView = lazy(() => import('./modules/ForeignVisit/ForeignVisit'));
 const MediaOutreachView = lazy(() => import('./modules/MediaOutreach/MediaOutreach'));
 const BillsPreConstitutionsView = lazy(() => import('./modules/BillsPreConstitutions/BillsPreConstitutions'));
 const ActsAndRulesView = lazy(() => import('./modules/ActsAndRules/ActsAndRules'));
@@ -556,6 +557,7 @@ export default function App() {
             <Route path="governance/cabinet-notes/*" element={<CabinetNotes triggerNotification={triggerNotification} />} />
             <Route path="governance/cabinet-notes-other-ministry/*" element={<CabinetNotesOther triggerNotification={triggerNotification} />} />
             <Route path="governance/vip-reference/*" element={<VIPReferenceView triggerNotification={triggerNotification} />} />
+            <Route path="governance/foreign-visit/*" element={<ForeignVisitView triggerNotification={triggerNotification} />} />
             <Route path="governance/media-outreach/*" element={<MediaOutreachView triggerNotification={triggerNotification} />} />
             <Route path="governance/parliamentary-issue/*" element={<ParliamentaryIssues triggerNotification={triggerNotification} />} />
             <Route path="governance/parliamentary-issues/*" element={<ParliamentaryIssues triggerNotification={triggerNotification} />} />

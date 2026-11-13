@@ -24,6 +24,7 @@ import {
   TrendingUp,
   BookMarked,
   FileEdit,
+  Plane,
   UserCheck,
   PhoneCall,
   ChevronDown,
@@ -291,6 +292,16 @@ export default function Tabs({ activeTab, setActiveTab }) {
             { label: 'Data List', tab: 'VIP Reference - Data List', targetSubTab: 'Data List', icon: ClipboardList },
             { label: 'Input Form', tab: 'VIP Reference - Input Form', targetSubTab: 'Input Form', icon: FileEdit },
             { label: 'Reports', tab: 'VIP Reference - Reports', targetSubTab: 'Reports', icon: FilePieChart },
+          ]
+        }),
+        m('FOREIGN_VISIT', {
+          label: 'Official Foreign Visit', icon: Plane,
+          targetTab: 'Official Foreign Visit',
+          subItems: [
+            { label: 'Dashboard', tab: 'Official Foreign Visit - Dashboard', targetSubTab: 'Dashboard', icon: LayoutDashboard },
+            { label: 'Data List', tab: 'Official Foreign Visit - Data List', targetSubTab: 'Data List', icon: ClipboardList },
+            { label: 'Input Form', tab: 'Official Foreign Visit - Input Form', targetSubTab: 'Input Form', icon: FileEdit },
+            { label: 'Reports', tab: 'Official Foreign Visit - Reports', targetSubTab: 'Reports', icon: FilePieChart },
           ]
         }),
         m('MEDIA_OUTREACH', {

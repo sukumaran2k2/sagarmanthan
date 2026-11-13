@@ -192,7 +192,21 @@ export const MODULE_PAGES = {
   },
 
   FOREIGN_VISIT: {
-    tabs: ['Foreign Visit'],
+    tabs: [
+      'Foreign Visit',
+      'Official Foreign Visit',
+      'Official Foreign Visit - Dashboard',
+      'Official Foreign Visit - Data List',
+      'Official Foreign Visit - Input Form',
+      'Official Foreign Visit - Reports',
+    ],
+    uiTabs: [
+      'Official Foreign Visit',
+      'Official Foreign Visit - Dashboard',
+      'Official Foreign Visit - Data List',
+      'Official Foreign Visit - Input Form',
+      'Official Foreign Visit - Reports',
+    ],
   },
 
   HR_MANAGEMENT: {

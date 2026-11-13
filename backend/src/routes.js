@@ -789,26 +789,31 @@ router.put("/file-disposal-update", auth, ministryOnly, eofficeUpdate, EofficeFi
 
 
 // Official Foreign Visit
-router.get("/OFV-data/:userID/:organisationID", officialForeignVisitTab.getOFVData);
-router.post("/add-OFV-data", officialForeignVisitTab.addOFVData);
-router.post("/OFV/upload-files", officialForeignVisitTab.upload.single('file'), officialForeignVisitTab.addOFVDocument);
-router.get("/OFV/download/:id", officialForeignVisitTab.downloadTour);
+// Login is already enforced globally, but these routes carried no module check, so any signed-in
+// user could read or write every organisation's foreign visits. Guard them like the other modules.
+const fvRead = requireModulePermission("FOREIGN_VISIT", "read");
+const fvCreate = requireModulePermission("FOREIGN_VISIT", "create");
+const fvUpdate = requireModulePermission("FOREIGN_VISIT", "update");
+
+router.get("/OFV-data/:userID/:organisationID", fvRead, officialForeignVisitTab.getOFVData);
+router.post("/add-OFV-data", fvCreate, officialForeignVisitTab.addOFVData);
+router.post("/OFV/upload-files", fvUpdate, officialForeignVisitTab.upload.single('file'), officialForeignVisitTab.addOFVDocument);
+router.get("/OFV/download/:id", fvRead, officialForeignVisitTab.downloadTour);
 // router.get("/get-OFV-report/:type", officialForeignVisitTab.getOFVReport);
-router.post("/get-OFV-report", officialForeignVisitTab.getOFVReport);
+router.post("/get-OFV-report", fvRead, officialForeignVisitTab.getOFVReport);
 
-router.get("/get-OFV-update/:ID", officialForeignVisitTab.getUpdateOFVData);
-router.get("/get-OFV-year/:year/:type", officialForeignVisitTab.getDetailYearOFVReport);
-router.get("/get-OFV-name/:name/:type", officialForeignVisitTab.getDetailNameOFVReport);
-router.get("/get-OFV-detail/:id", officialForeignVisitTab.getDetailedInfoOFV);
-router.get("/get-foreign-chart/:orgID/:roleId/:desigID/:officerName", officialForeignVisitTab.getOFVChart);
-router.post("/get-foreign-count", officialForeignVisitTab.getCountOFV);
-router.get("/get-foreign-onGoing/:orgID/:roleId/:desigID/:officerName", officialForeignVisitTab.getOnGoingListOFV);
-router.get("/get-OFV-upload/:ID", officialForeignVisitTab.getUploadData);
+router.get("/get-OFV-update/:ID", fvRead, officialForeignVisitTab.getUpdateOFVData);
+router.get("/get-OFV-year/:year/:type", fvRead, officialForeignVisitTab.getDetailYearOFVReport);
+router.get("/get-OFV-name/:name/:type", fvRead, officialForeignVisitTab.getDetailNameOFVReport);
+router.get("/get-OFV-detail/:id", fvRead, officialForeignVisitTab.getDetailedInfoOFV);
+router.get("/get-foreign-chart/:orgID/:roleId/:desigID/:officerName", fvRead, officialForeignVisitTab.getOFVChart);
+router.post("/get-foreign-count", fvRead, officialForeignVisitTab.getCountOFV);
+router.get("/get-foreign-onGoing/:orgID/:roleId/:desigID/:officerName", fvRead, officialForeignVisitTab.getOnGoingListOFV);
+router.get("/get-OFV-upload/:ID", fvRead, officialForeignVisitTab.getUploadData);
 
-router.post("/update-propsed-info", officialForeignVisitTab.updateProposedInformation);
-router.post("/update-sanctioned-info", officialForeignVisitTab.updateSanctionedInfo);
-router.post("/update-visit-tab", officialForeignVisitTab.updateVisitTab);
-
+router.post("/update-propsed-info", fvUpdate, officialForeignVisitTab.updateProposedInformation);
+router.post("/update-sanctioned-info", fvUpdate, officialForeignVisitTab.updateSanctionedInfo);
+router.post("/update-visit-tab", fvUpdate, officialForeignVisitTab.updateVisitTab);
 
 // Flagged ship
 router.get("/get-flag-data", flaggedShipTab.getFSData);

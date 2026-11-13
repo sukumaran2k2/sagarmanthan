@@ -81,6 +81,11 @@ export const ROUTE_MAP = {
   'VIP Reference - Data List': 'governance/vip-reference/data-list',
   'VIP Reference - Input Form': 'governance/vip-reference/input-form',
   'VIP Reference - Reports': 'governance/vip-reference/reports',
+  'Official Foreign Visit': 'governance/foreign-visit/dashboard',
+  'Official Foreign Visit - Dashboard': 'governance/foreign-visit/dashboard',
+  'Official Foreign Visit - Data List': 'governance/foreign-visit/data-list',
+  'Official Foreign Visit - Input Form': 'governance/foreign-visit/input-form',
+  'Official Foreign Visit - Reports': 'governance/foreign-visit/reports',
   'Media Outreach': 'governance/media-outreach/broadcast',
   'Parliamentary Issue': 'governance/parliamentary-issues/data-list',
   'Parliamentary Issues': 'governance/parliamentary-issues/data-list',
@@ -265,6 +270,7 @@ export const getTabFromSlug = (slug) => {
   if (cleanSlug.startsWith('finance/capex')) return 'Capex';
   if (cleanSlug.startsWith('governance/gem-procurements')) return 'GEM Procurements';
   if (cleanSlug.startsWith('governance/vip-reference')) return 'VIP Reference';
+  if (cleanSlug.startsWith('governance/foreign-visit')) return 'Official Foreign Visit';
   if (cleanSlug.startsWith('governance/audit-paras')) return 'Audit Paras';
   if (cleanSlug.startsWith('governance/cabinet-notes-other-ministry')) return 'Cabinet Notes - Other Ministries';
   if (cleanSlug.startsWith('governance/cabinet-notes')) return 'Cabinet Notes - MoPSW';
@@ -387,7 +393,7 @@ const getBreadcrumbs = (tab) => {
     'Attendance', 'Cabinet Notes - Other Ministries', 'E Office',
     'Parliamentary Issues', 'GEM Procurements', 'Cabinet Notes - MoPSW',
     'VIP Reference', 'Media Outreach', 'Audit Paras',
-    'Inter State & Inter Ministerial', 'Foreign Visit'
+    'Inter State & Inter Ministerial', 'Foreign Visit', 'Official Foreign Visit'
   ];
   if (tab === 'Media Outreach') return ['Home', 'Media Outreach - (Input Form)'];
   if (governanceItems.includes(tab)) return ['Home', 'Governance', tab];
