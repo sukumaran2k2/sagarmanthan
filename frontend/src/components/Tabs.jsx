@@ -121,7 +121,12 @@ export default function Tabs({ activeTab, setActiveTab }) {
     const claims = getSessionClaims();
     if (!claims) return createFlags;
     const codes = claims.allowedModuleCodes;
-    return `${claims.roleCode || ''}|${Array.isArray(codes) ? codes.join(',') : ''}|${createFlags}`;
+    // Read ticks decide which modules the menu shows, so a change to them must rebuild it
+    const readCodes = (Array.isArray(claims.modulePermissions) ? claims.modulePermissions : [])
+      .filter((p) => p.read ?? p.canRead ?? p.can_read)
+      .map((p) => p.moduleCode || p.module_code)
+      .join(',');
+    return `${claims.roleCode || ''}|${Array.isArray(codes) ? codes.join(',') : ''}|read:${readCodes}|${createFlags}`;
   })();
 
   const m = (moduleCode, item) => ({ ...item, moduleCode });
