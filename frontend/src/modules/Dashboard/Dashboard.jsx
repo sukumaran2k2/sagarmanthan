@@ -302,7 +302,7 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
               { id: 'projects-dashboard', label: 'Project Dashboard', icon: LayoutDashboard },
               { id: 'projects-list', label: 'Project List', icon: ClipboardList },
               { id: 'projects-less5cr', label: 'Projects Less Than 5 Cr', icon: TrendingDown },
-              { id: 'projects-lumpsum', label: 'Lumpsum - IWAI', icon: TrendingUp },
+              // { id: 'projects-lumpsum', label: 'Lumpsum - IWAI', icon: TrendingUp },
               { id: 'projects-dropRequests', label: 'View Drop Request', icon: FolderSync },
               { id: 'projects-reports', label: 'Reports', icon: FilePieChart },
             ]}
