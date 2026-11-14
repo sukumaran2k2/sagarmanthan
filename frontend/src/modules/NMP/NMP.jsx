@@ -28,8 +28,8 @@ export default function NMPView({ triggerNotification }) {
   const tabs = useMemo(() => {
     const list = [];
     if (canView) list.push({ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard });
-    if (canView) list.push({ id: 'data-list', label: 'Data List', icon: Layers });
     if (canAdd) list.push({ id: 'input-form', label: 'Input Form', icon: PlusCircle });
+    if (canView) list.push({ id: 'data-list', label: 'Data List', icon: Layers });
     return list;
   }, [canAdd, canView]);
 

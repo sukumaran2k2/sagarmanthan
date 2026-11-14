@@ -392,18 +392,19 @@ export default function Tabs({ activeTab, setActiveTab }) {
     },
     {
       id: 'nmp',
-      label: 'National Monetisation Pipeline',
+      label: 'National Monetization Pipeline',
+      tab: 'NMP Dashboard',
       icon: DollarSign,
       // Clicking the menu itself opens the dashboard rather than only revealing the sub-menu.
       landingTab: 'NMP Dashboard',
       align: 'left-0',
       width: 'w-[280px]',
+      defaultTab: 'NMP Dashboard', 
       items: [
-        // Tagged with the module code like every other menu, so filterMenuByAccess hides them
-        // from users without NMP access instead of falling back to the tab name.
-        m('NMP', { label: 'NMP Dashboard', icon: LayoutDashboard, tab: 'NMP Dashboard' }),
-        m('NMP', { label: 'NMP Data List', icon: ClipboardList, tab: 'NMP Data List' }),
-        m('NMP', { label: 'NMP Input Form', icon: FileEdit, tab: 'NMP Input Form' }),
+        { label: 'NMP Dashboard', icon: LayoutDashboard, tab: 'NMP Dashboard' },
+        { label: 'NMP Input Form', icon: FileEdit, tab: 'NMP Input Form' },
+        { label: 'NMP Data List', icon: ClipboardList, tab: 'NMP Data List' },
+        
       ]
     },
     {
@@ -635,6 +636,8 @@ export default function Tabs({ activeTab, setActiveTab }) {
                     {hasDropdown && <ChevronDown className="h-2.5 w-2.5 opacity-60" />}
                   </span>
                 </button>
+
+                
 
                 {/* Dropdown Menu Container */}
                 {hasDropdown && (

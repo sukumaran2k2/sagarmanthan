@@ -48,45 +48,45 @@ async function getNmpDashboard(req, res) {
 
 // ── Land Abstract List ───────────────────────────────────────────────────────
 
-async function getLandAbstractList(req, res) {
-  try {
-    const conn = await pool;
-    const result = await conn.request().query(`
-      SELECT
-        la.land_abstract_id,
-        la.organisation_id,
-        m.organisation_name AS port_name,
-        la.total_land_by_pa AS total_land_acres,
-        la.port_operation,
-        la.connectivity,
-        la.warehousing_storage,
-        la.oil_gas_energy,
-        la.manufacturing,
-        la.commercial,
-        la.residential,
-        la.logistics_parks_trade_zones,
-        la.other_uses,
-        la.salt_land_acquired,
-        la.vacant_land_encumbrance_free AS vacant_land_acres,
-        la.vacant_land_litigated_encumbered AS land_under_litigation_acres,
-        la.land_not_developable,
-        la.land_likely_freed_by_rationalisation,
-        la.land_reclaimable_from_sea_backwater_identified,
-        la.salt_land_identified_for_acquisition,
-        la.additional_land_identified,
-        la.marshy_land_development_plan,
-        la.created_date,
-        la.updated_date
-      FROM tbl_land_abstract la
-      LEFT JOIN mmt_organisation m ON m.organisation_id = la.organisation_id
-      ORDER BY la.created_date DESC
-    `);
-    res.status(200).json(result.recordset);
-  } catch (err) {
-    console.error("NMP Land Abstract list error:", err);
-    res.status(500).json({ message: "Failed to fetch land abstract list." });
-  }
-}
+// async function getLandAbstractList(req, res) {
+//   try {
+//     const conn = await pool;
+//     const result = await conn.request().query(`
+//       SELECT
+//         la.land_abstract_id,
+//         la.organisation_id,
+//         m.organisation_name AS port_name,
+//         la.total_land_by_pa AS total_land_acres,
+//         la.port_operation,
+//         la.connectivity,
+//         la.warehousing_storage,
+//         la.oil_gas_energy,
+//         la.manufacturing,
+//         la.commercial,
+//         la.residential,
+//         la.logistics_parks_trade_zones,
+//         la.other_uses,
+//         la.salt_land_acquired,
+//         la.vacant_land_encumbrance_free AS vacant_land_acres,
+//         la.vacant_land_litigated_encumbered AS land_under_litigation_acres,
+//         la.land_not_developable,
+//         la.land_likely_freed_by_rationalisation,
+//         la.land_reclaimable_from_sea_backwater_identified,
+//         la.salt_land_identified_for_acquisition,
+//         la.additional_land_identified,
+//         la.marshy_land_development_plan,
+//         la.created_date,
+//         la.updated_date
+//       FROM tbl_land_abstract la
+//       LEFT JOIN mmt_organisation m ON m.organisation_id = la.organisation_id
+//       ORDER BY la.created_date DESC
+//     `);
+//     res.status(200).json(result.recordset);
+//   } catch (err) {
+//     console.error("NMP Land Abstract list error:", err);
+//     res.status(500).json({ message: "Failed to fetch land abstract list." });
+//   }
+// }
 
 // ── Past Land List ───────────────────────────────────────────────────────────
 
@@ -142,10 +142,32 @@ async function getLandAbstractList(req, res) {
 //     res.status(500).json({ message: "Failed to fetch past land list." });
 //   }
 // }
+
+const ALL_ACCESS_ROLE_IDS = [1, 2, 3, 4, 5, 8];
+
+// Looks up the logged-in user's role and organisation.
+// Token first, URL param only as a fallback. Returns null if not found.
+async function getUserRoleOrg(conn, req) {
+  const userId = actingUserId(req) || Number(req.params.userId);
+  if (!Number.isInteger(userId) || userId <= 0) return null;
+
+  const r = await conn.request()
+    .input('userID', sql.Int, userId)
+    .query(`SELECT role_id, organisation_id FROM tbl_user WHERE user_id = @userID`);
+
+  return r.recordset[0] || null;
+}
 async function getPastLandList(req, res) {
   try {
     const conn = await pool;
-    const result = await conn.request().query(`
+
+    const user = await getUserRoleOrg(conn, req);
+    if (!user) return res.status(401).json({ message: 'User not found.' });
+    const { role_id, organisation_id } = user;
+
+    const request = conn.request();
+
+    const baseSql = `
       SELECT
         p.*,
         m.organisation_name,
@@ -161,8 +183,18 @@ async function getPastLandList(req, res) {
       FROM tbl_nmp_past p
       LEFT JOIN mmt_organisation m ON m.organisation_id = p.organisation_id
       LEFT JOIN tbl_lease_rental_details_past l ON l.sub_unique_nmp_id = p.unique_nmp_id
-      ORDER BY p.created_date DESC, p.nmp_past_id DESC, l.id
-    `);
+    `;
+    const orderSql = `ORDER BY p.created_date DESC, p.nmp_past_id DESC, l.id`;
+
+    let result;
+    if (ALL_ACCESS_ROLE_IDS.includes(role_id)) {
+      result = await request.query(`${baseSql} ${orderSql}`);
+    } else {
+      request.input('organisation_id', sql.Int, organisation_id);
+      result = await request.query(
+        `${baseSql} WHERE p.organisation_id = @organisation_id ${orderSql}`
+      );
+    }
 
     const p2 = (n) => String(n % 100).padStart(2, '0');
     const fyStart = (d) => { if (!d) return ''; const y = new Date(d).getUTCFullYear(); return `FY${p2(y)}-${p2(y + 1)}`; };
@@ -183,15 +215,15 @@ async function getPastLandList(req, res) {
       }
       if (r.sor_id != null) {
         row.sor_rows.push({
-          sor_from: fyStart(r.sor_period_from),
-          sor_to: fyEnd(r.sor_period_to),
-          year_of_applicability: fyShort(r.sor_year_of_applicability),
-          annual_base_lease_rental: r.sor_annual_base_lease,
-          escalation_rate: r.sor_escalation_rate,
-          frequency_of_escalation: r.sor_frequency_escalation,
-          lease_tenure: r.sor_lease_tenure,
-          npv: r.sor_nvp,
-        });
+        sor_from: fyStart(r.sor_period_from),
+        sor_to: fyEnd(r.sor_period_to),
+        year_of_applicability: fyShort(r.sor_year_of_applicability),
+        annual_base_lease_rental: r.sor_annual_base_lease,
+        escalation_rate: r.sor_escalation_rate,
+        frequency_of_escalation: r.sor_frequency_escalation,
+        lease_tenure: r.sor_lease_tenure,
+        npv: r.sor_nvp,
+      });
       }
     }
 
@@ -208,7 +240,6 @@ async function getPastLandList(req, res) {
       agency_lessee_name: r.agency_name,
       type_of_agency_lessee: r.type_of_agency,
 
-      // columns from tbl_lease_rental_details_past (multiple rows joined with " | ")
       annual_base_lease_rental: join(r.sor_rows, 'annual_base_lease_rental'),
       escalation_rate: join(r.sor_rows, 'escalation_rate'),
       frequency_of_escalation: join(r.sor_rows, 'frequency_of_escalation'),
@@ -237,49 +268,98 @@ async function getPastLandList(req, res) {
     res.status(500).json({ message: "Failed to fetch past land list." });
   }
 }
+
+async function getLandAbstractList(req, res) {
+  try {
+    const conn = await pool;
+
+    const user = await getUserRoleOrg(conn, req);
+    if (!user) return res.status(401).json({ message: 'User not found.' });
+    const { role_id, organisation_id } = user;
+
+    const request = conn.request();
+
+    const baseSql = `
+      SELECT
+        la.land_abstract_id,
+        la.organisation_id,
+        m.organisation_name AS port_name,
+        la.total_land_by_pa AS total_land_acres,
+        la.port_operation,
+        la.connectivity,
+        la.warehousing_storage,
+        la.oil_gas_energy,
+        la.manufacturing,
+        la.commercial,
+        la.residential,
+        la.logistics_parks_trade_zones,
+        la.other_uses,
+        la.salt_land_acquired,
+        la.vacant_land_encumbrance_free AS vacant_land_acres,
+        la.vacant_land_litigated_encumbered AS land_under_litigation_acres,
+        la.land_not_developable,
+        la.land_likely_freed_by_rationalisation,
+        la.land_reclaimable_from_sea_backwater_identified,
+        la.salt_land_identified_for_acquisition,
+        la.additional_land_identified,
+        la.marshy_land_development_plan,
+        la.created_date,
+        la.updated_date
+      FROM tbl_land_abstract la
+      LEFT JOIN mmt_organisation m ON m.organisation_id = la.organisation_id
+    `;
+    const orderSql = `ORDER BY la.created_date DESC`;
+
+    let result;
+    if (ALL_ACCESS_ROLE_IDS.includes(role_id)) {
+      // ministry roles: all organisations
+      result = await request.query(`${baseSql} ${orderSql}`);
+    } else {
+      // everyone else: only their own organisation
+      request.input('organisation_id', sql.Int, organisation_id);
+      result = await request.query(
+        `${baseSql} WHERE la.organisation_id = @organisation_id ${orderSql}`
+      );
+    }
+
+    res.status(200).json(result.recordset);
+  } catch (err) {
+    console.error("NMP Land Abstract list error:", err);
+    res.status(500).json({ message: "Failed to fetch land abstract list." });
+  }
+}
 // ── Future Land List ─────────────────────────────────────────────────────────
 
 async function getFutureLandList(req, res) {
   try {
     const conn = await pool;
-    const result = await conn.request().query(`
+
+    const user = await getUserRoleOrg(conn, req);
+    if (!user) return res.status(401).json({ message: 'User not found.' });
+    const { role_id, organisation_id } = user;
+
+    const request = conn.request();
+
+    const baseSql = `
       SELECT
-        f.nmp_id,
-        f.organisation_id,
-        m.organisation_name,
-        f.parcel_details AS parcel_detail,
-        f.area AS area_acres,
-        f.lease_status,
-        f.purpose,
-        f.sector,
-        f.name_of_industry AS industry_name,
-        f.mode_of_allotment,
-        f.status,
-        f.target_year,
-        f.upfront_premium,
-        f.annual_rental AS annual_base_lease_rental,
-        f.lease_tenure AS lease_tenure_years,
-        f.escalation_rate,
-        f.frequency_of_escalation,
-        f.npv_lease_rental AS npv_lease_rentals,
-        f.extimated_private_investment AS estimated_private_investment,
-        f.total_monetization_value AS total_monetisation_value,
-        f.lease_rental_received,
-        f.agency_name AS agency_lessee_name,
-        f.type_of_agency AS type_of_agency_lessee,
-        f.agreement_signed,
-        f.target_nit_date AS nit_target_date,
-        f.actual_nit_date AS nit_actual_date,
-        f.target_agreement_date AS agreement_target_date,
-        f.actual_agreement_date AS agreement_actual_date,
-        f.target_completion_date AS completion_target_date,
-        f.actual_completion_date AS completion_actual_date,
-        f.remarks,
-        f.created_date
+       *
       FROM tbl_nmp f
       LEFT JOIN mmt_organisation m ON m.organisation_id = f.organisation_id
-      ORDER BY f.created_date DESC
-    `);
+    `;
+    const orderSql = `ORDER BY f.created_date DESC`;
+
+    let result;
+    if (ALL_ACCESS_ROLE_IDS.includes(role_id)) {
+      // ministry roles: all organisations
+      result = await request.query(`${baseSql} ${orderSql}`);
+    } else {
+      // everyone else: only their own organisation
+      request.input('organisation_id', sql.Int, organisation_id);
+      result = await request.query(
+        `${baseSql} WHERE f.organisation_id = @organisation_id ${orderSql}`
+      );
+    }
+
     res.status(200).json(result.recordset);
   } catch (err) {
     console.error("NMP Future Land list error:", err);
@@ -287,7 +367,6 @@ async function getFutureLandList(req, res) {
   }
 }
 
-// ── Get by ID ────────────────────────────────────────────────────────────────
 
 async function getNmpById(req, res) {
   try {
@@ -295,6 +374,11 @@ async function getNmpById(req, res) {
     const formType = req.query.form_type || 'future-land';
     const id = parseInt(req.params.id, 10);
 
+    if (!id) {
+      return res.status(400).json({ message: "Invalid entry id." });
+    }
+
+    // ── Past land ────────────────────────────────────────────────────────────
     if (formType === 'past-land') {
       const parcelRes = await conn.request()
         .input("id", sql.Int, id)
@@ -338,6 +422,8 @@ async function getNmpById(req, res) {
 
       return res.status(200).json({
         ...parcel,
+        id: parcel.nmp_past_id,
+        form_type: 'past-land',
         parcel_detail: parcel.parcel_details,
         area_acres: parcel.area,
         industry_name: parcel.name_of_industry,
@@ -359,26 +445,115 @@ async function getNmpById(req, res) {
         construction_revised: parcel.completion_revised_date,
         construction_revised_2: parcel.completion_revised_date_1,
         construction_revised_3: parcel.completion_revised_date_2,
+
+        lease_status_id: parcel.lease_status,
+        purpose_id: parcel.purpose,
+        sector_id: parcel.sector,
+        status_id: parcel.status,
+        mode_of_allotment_id: parcel.mode_of_allotment,
+        type_of_lessee_id: parcel.type_of_agency,
+        agreement_signed_id: parcel.agreement_signed,
         sor_rows,
       });
     }
 
-    const request = conn.request();
-    request.input("id", sql.Int, id);
-    let result;
+    // ── Land abstract ────────────────────────────────────────────────────────
     if (formType === 'land-abstract') {
-      result = await request.query(`SELECT * FROM tbl_land_abstract WHERE land_abstract_id = @id`);
-    } else {
-      result = await request.query(`SELECT * FROM tbl_nmp WHERE nmp_id = @id`);
+      const result = await conn.request()
+        .input("id", sql.Int, id)
+        .query(`SELECT * FROM tbl_land_abstract WHERE land_abstract_id = @id`);
+
+      if (!result.recordset.length) {
+        return res.status(404).json({ message: "NMP entry not found." });
+      }
+      const a = result.recordset[0];
+
+      return res.status(200).json({
+        ...a,
+        id: a.land_abstract_id,
+        form_type: 'land-abstract',
+        total_land_held: a.total_land_by_pa,
+        cat_A_acres: a.port_operation,
+        cat_B_acres: a.connectivity,
+        cat_C_acres: a.warehousing_storage,
+        cat_D_acres: a.oil_gas_energy,
+        cat_E_acres: a.manufacturing,
+        cat_F_acres: a.commercial,
+        cat_G_acres: a.residential,
+        cat_H_acres: a.logistics_parks_trade_zones,
+        cat_I_acres: a.salt_land_acquired,
+        cat_J_acres: a.other_uses,
+        cat_K_acres: a.vacant_land_encumbrance_free,
+        cat_L_acres: a.vacant_land_litigated_encumbered,
+        cat_M_acres: a.land_not_developable,
+        unlock_rationalisation_acres: a.land_likely_freed_by_rationalisation,
+        unlock_reclamation_acres: a.land_reclaimable_from_sea_backwater_identified,
+        unlock_salt_land_acres: a.salt_land_identified_for_acquisition,
+        unlock_state_govt_acres: a.additional_land_identified,
+        unlock_marshy_acres: a.marshy_land_development_plan,
+      });
     }
+
+    // ── Future land (tbl_nmp) ────────────────────────────────────────────────
+    const result = await conn.request()
+      .input("id", sql.Int, id)
+      .query(`SELECT * FROM tbl_nmp WHERE nmp_id = @id`);
 
     if (!result.recordset.length) {
       return res.status(404).json({ message: "NMP entry not found." });
     }
-    res.status(200).json(result.recordset[0]);
+    const n = result.recordset[0];
+
+    return res.status(200).json({
+      ...n,
+      id: n.nmp_id,
+      form_type: 'future-land',
+
+      // basic details
+      parcel_detail: n.parcel_details,
+      area_acres: n.area,
+      industry_name: n.name_of_industry,
+
+      // financial
+      annual_base_lease_rental: n.annual_rental,
+      estimated_private_investment: n.extimated_private_investment,
+
+      // lessee
+      lessee_name: n.agency_name,
+
+      // dropdown ids (form reads *_id keys)
+      lease_status_id: n.lease_status,
+      purpose_id: n.purpose,
+      sector_id: n.sector,
+      status_id: n.status,
+      mode_of_allotment_id: n.mode_of_allotment,
+      type_of_lessee_id: n.type_of_agency,
+      agreement_signed_id: n.agreement_signed,
+
+      // NIT milestone
+      nit_original: n.nit_target_date,
+      nit_actual: n.actual_nit_date,
+      nit_revised: n.revised_nit_date,
+      nit_revised_2: n.revised_nit_date_1,
+      nit_revised_3: n.revised_nit_date_2,
+
+      // Agreement milestone
+      agreement_original: n.target_agreement_date,
+      agreement_actual: n.actual_agreement_date,
+      agreement_revised: n.revised_agreement_date,
+      agreement_revised_2: n.revised_agreement_date_1,
+      agreement_revised_3: n.revised_agreement_date_2,
+
+      // Construction milestone
+      construction_original: n.target_completion_date,
+      construction_actual: n.actual_completion_date,
+      construction_revised: n.revised_completion_date,
+      construction_revised_2: n.revised_completion_date_1,
+      construction_revised_3: n.revised_completion_date_2,
+    });
   } catch (err) {
     console.error("NMP getById error:", err);
-    res.status(500).json({ message: "Failed to fetch NMP entry." });
+    res.status(500).json({ message: "Failed to fetch NMP entry.", error: err.message });
   }
 }
 
@@ -446,11 +621,12 @@ async function createNmpEntry(req, res) {
       return res.status(201).json({ message: "Land abstract entry created.", id: result.recordset[0]?.id });
 
    } else if (formType === 'past-land') {
+
   request.input("organisation_id", sql.Int, orgId);
   request.input("unique_nmp_id", sql.NVarChar(100), nullIfEmpty(b.unique_nmp_id));
   request.input("parcel_details", sql.NVarChar(256), nullIfEmpty(b.parcel_detail));
   request.input("area", sql.Decimal(18, 2), numOrZero(b.area_acres));
-    request.input("name_of_industry", sql.NVarChar(256), nullIfEmpty(b.industry_name));
+  request.input("name_of_industry", sql.NVarChar(256), nullIfEmpty(b.industry_name));
   request.input("lease_status", sql.Int, intOrNull(b.lease_status));
   request.input("purpose", sql.Int, intOrNull(b.purpose));
   request.input("sector", sql.Int, intOrNull(b.sector));
@@ -465,7 +641,7 @@ async function createNmpEntry(req, res) {
   request.input("total_monetization_value", sql.Decimal(18, 2), numOrZero(b.total_monetization_value));
   request.input("lease_rental_received", sql.Decimal(18, 2), numOrZero(b.lease_rental_received));
   request.input("agency_name", sql.NVarChar(100), nullIfEmpty(b.lessee_name));
- 
+  request.input("other_agency", sql.NVarChar(256), nullIfEmpty(b.other_agency));
 
   request.input("target_nit_date", sql.Date, dateOrNull(b.nit_original));
   request.input("actual_nit_date", sql.Date, dateOrNull(b.nit_actual));
@@ -485,11 +661,17 @@ async function createNmpEntry(req, res) {
   request.input("completion_revised_date_1", sql.Date, dateOrNull(b.construction_revised_2));
   request.input("completion_revised_date_2", sql.Date, dateOrNull(b.construction_revised_3));
 
+  request.input("allotment_target_date", sql.Date, dateOrNull(b.allotment_original));
+request.input("actual_allotment_date", sql.Date, dateOrNull(b.allotment_actual));
+request.input("allotment_revised_date", sql.Date, dateOrNull(b.allotment_revised));
+request.input("allotment_revised_date_1", sql.Date, dateOrNull(b.allotment_revised_2));
+request.input("allotment_revised_date_2", sql.Date, dateOrNull(b.allotment_revised_3))
+
   request.input("lease_expiration_date", sql.Date, dateOrNull(b.lease_expiration_date));
   request.input("remarks", sql.NVarChar(256), nullIfEmpty(b.remarks));
   request.input("other_purpose", sql.NVarChar(256), nullIfEmpty(b.other_purpose));
   request.input("other_sector",  sql.NVarChar(256), nullIfEmpty(b.other_sector));
-  request.input("other_agency",  sql.NVarChar(256), nullIfEmpty(b.other_agency));
+
   request.input("created_by", sql.Int, userId);
 
   const result = await request.query(`
@@ -502,6 +684,7 @@ async function createNmpEntry(req, res) {
       target_nit_date, actual_nit_date, nit_reversed_date, nit_reversed_date_1, nit_reversed_date_2,
       target_agreement_date, actual_agreement_date, agreement_revised_date, agreement_revised_date_1, agreement_revised_date_2,
       target_completion_date, actual_completion_date, completion_revised_date, completion_revised_date_1, completion_revised_date_2,
+      allotment_target_date, actual_allotment_date, allotment_revised_date, allotment_revised_date_1, allotment_revised_date_2,
       lease_expiration_date, remarks, other_purpose, other_sector, other_agency, created_date, created_by
     ) VALUES (
       @unique_nmp_id, @organisation_id, @parcel_details, @area, @lease_status, @purpose, @sector,
@@ -512,18 +695,22 @@ async function createNmpEntry(req, res) {
       @target_nit_date, @actual_nit_date, @nit_reversed_date, @nit_reversed_date_1, @nit_reversed_date_2,
       @target_agreement_date, @actual_agreement_date, @agreement_revised_date, @agreement_revised_date_1, @agreement_revised_date_2,
       @target_completion_date, @actual_completion_date, @completion_revised_date, @completion_revised_date_1, @completion_revised_date_2,
+      @allotment_target_date, @actual_allotment_date, @allotment_revised_date, @allotment_revised_date_1, @allotment_revised_date_2,
       @lease_expiration_date, @remarks, @other_purpose, @other_sector, @other_agency, GETDATE(), @created_by
     );
     SELECT SCOPE_IDENTITY() AS id;
   `);
    await replaceSorRows(conn, {
     uniqueId: b.unique_nmp_id,
-    orgId: Number(b.organisation_id) || actingOrgId(req),
+    orgId,                       // was: Number(b.organisation_id) || actingOrgId(req)
     userId,
     rows: b.sor_rows,
   });
-    await replaceSorRows(conn, { uniqueId: b.unique_nmp_id, orgId, userId, rows: b.sor_rows });
-  return res.status(201).json({ message: "Past land entry created.", id: result.recordset[0]?.id });
+
+return res.status(201).json({
+    message: "Past land entry created.",
+    id: result.recordset[0]?.id,
+  });
 
 } else {
       // future-land → tbl_nmp (most columns are NOT NULL)
@@ -532,6 +719,9 @@ async function createNmpEntry(req, res) {
       request.input("area", sql.NVarChar(100), String(nullIfEmpty(b.area_acres) || '0'));
       request.input("lease_status", sql.Int, intOrNull(b.lease_status));
       request.input("purpose", sql.Int, intOrNull(b.purpose));
+      request.input("other_purpose", sql.NVarChar(256), nullIfEmpty(b.other_purpose));
+      request.input("other_sector",  sql.NVarChar(256), nullIfEmpty(b.other_sector));
+      request.input("other_agency",  sql.NVarChar(256), nullIfEmpty(b.other_agency));
       request.input("sector", sql.Int, intOrNull(b.sector));
       request.input("name_of_industry", sql.NVarChar(256), nullIfEmpty(b.industry_name) || '');
       request.input("mode_of_allotment", sql.Int, intOrNull(b.mode_of_allotment));
@@ -549,37 +739,48 @@ async function createNmpEntry(req, res) {
       request.input("agency_name", sql.NVarChar(100), nullIfEmpty(b.lessee_name) || '');
       request.input("type_of_agency", sql.Int, intOrNull(b.type_of_lessee));
       request.input("agreement_signed", sql.Int, intOrNull(b.agreement_signed));
-      request.input("target_nit_date", sql.Date, dateOrNull(b.nit_original) || new Date('1900-01-01'));
+      request.input("target_nit_date", sql.Date, dateOrNull(b.nit_original));
       request.input("actual_nit_date", sql.Date, dateOrNull(b.nit_actual));
+      request.input("nit_reversed_date", sql.Date, dateOrNull(b.nit_revised));
+      request.input("nit_reversed_date_1", sql.Date, dateOrNull(b.nit_revised_2));
+      request.input("nit_reversed_date_2", sql.Date, dateOrNull(b.nit_revised_3));
       request.input("target_agreement_date", sql.Date, dateOrNull(b.agreement_original));
       request.input("actual_agreement_date", sql.Date, dateOrNull(b.agreement_actual));
       request.input("target_completion_date", sql.Date, dateOrNull(b.construction_target));
+      request.input("agreement_revised_date", sql.Date, dateOrNull(b.agreement_revised));
+      request.input("agreement_revised_date_1", sql.Date, dateOrNull(b.agreement_revised_2));
+      request.input("agreement_revised_date_2", sql.Date, dateOrNull(b.agreement_revised_3));
       request.input("actual_completion_date", sql.Date, dateOrNull(b.construction_actual));
+      request.input("completion_revised_date", sql.Date, dateOrNull(b.construction_revised));
+      request.input("completion_revised_date_1", sql.Date, dateOrNull(b.construction_revised_2));
+       request.input("completion_revised_date_2", sql.Date, dateOrNull(b.construction_revised_3));
       request.input("remarks", sql.NVarChar(256), nullIfEmpty(b.remarks) || '');
       request.input("created_by", sql.Int, userId);
 
-      const result = await request.query(`
-        INSERT INTO tbl_nmp (
-          organisation_id, parcel_details, area, lease_status, purpose, sector,
-          name_of_industry, mode_of_allotment, status, target_year,
-          upfront_premium, annual_rental, lease_tenure, escalation_rate, frequency_of_escalation,
-          npv_lease_rental, extimated_private_investment, total_monetization_value, lease_rental_received,
-          agency_name, type_of_agency, agreement_signed,
-          target_completion_date, actual_completion_date,
-          target_agreement_date, actual_agreement_date,
-          remarks, created_date, created_by
-        ) VALUES (
-          @organisation_id, @parcel_details, @area, @lease_status, @purpose, @sector,
-          @name_of_industry, @mode_of_allotment, @status, @target_year,
-          @upfront_premium, @annual_rental, @lease_tenure, @escalation_rate, @frequency_of_escalation,
-          @npv_lease_rental, @extimated_private_investment, @total_monetization_value, @lease_rental_received,
-          @agency_name, @type_of_agency, @agreement_signed,
-          @target_completion_date, @actual_completion_date,
-          @target_agreement_date, @actual_agreement_date,
-          @remarks, GETDATE(), @created_by
-        );
-        SELECT SCOPE_IDENTITY() AS id;
-      `);
+    const result = await request.query(`
+      INSERT INTO tbl_nmp (
+        organisation_id, parcel_details, area, lease_status,
+        purpose, other_purpose, sector, other_sector,
+        name_of_industry, mode_of_allotment, status, target_year,
+        upfront_premium, annual_rental, lease_tenure, escalation_rate, frequency_of_escalation,
+        npv_lease_rental, extimated_private_investment, total_monetization_value, lease_rental_received,
+        agency_name, type_of_agency, other_agency, agreement_signed,nit_target_date,actual_nit_date,revised_nit_date,revised_nit_date_1,revised_nit_date_2,
+        target_completion_date, actual_completion_date,revised_completion_date,revised_completion_date_1,revised_completion_date_2,
+        target_agreement_date, actual_agreement_date,revised_agreement_date,revised_agreement_date_1,revised_agreement_date_2,
+        remarks, created_date, created_by
+      ) VALUES (
+        @organisation_id, @parcel_details, @area, @lease_status,
+        @purpose, @other_purpose, @sector, @other_sector,
+        @name_of_industry, @mode_of_allotment, @status, @target_year,
+        @upfront_premium, @annual_rental, @lease_tenure, @escalation_rate, @frequency_of_escalation,
+        @npv_lease_rental, @extimated_private_investment, @total_monetization_value, @lease_rental_received,
+        @agency_name, @type_of_agency, @other_agency, @agreement_signed, @target_nit_date,@actual_nit_date,@nit_reversed_date,@nit_reversed_date_1,
+        @nit_reversed_date_2,@target_completion_date, @actual_completion_date,@completion_revised_date,@completion_revised_date_1,@completion_revised_date_2,
+        @target_agreement_date, @actual_agreement_date,@agreement_revised_date,@agreement_revised_date_1,
+        @agreement_revised_date_2, @remarks, GETDATE(), @created_by
+      );
+      SELECT SCOPE_IDENTITY() AS id;
+    `);
        
       return res.status(201).json({ message: "Future land entry created.", id: result.recordset[0]?.id });
     }
@@ -727,6 +928,13 @@ async function updateNmpEntry(req, res) {
   request.input("completion_revised_date", sql.Date, dateOrNull(b.construction_revised));
   request.input("completion_revised_date_1", sql.Date, dateOrNull(b.construction_revised_2));
   request.input("completion_revised_date_2", sql.Date, dateOrNull(b.construction_revised_3));
+
+request.input("allotment_target_date", sql.Date, dateOrNull(b.allotment_original));
+request.input("actual_allotment_date", sql.Date, dateOrNull(b.allotment_actual));
+request.input("allotment_revised_date", sql.Date, dateOrNull(b.allotment_revised));
+request.input("allotment_revised_date_1", sql.Date, dateOrNull(b.allotment_revised_2));
+request.input("allotment_revised_date_2", sql.Date, dateOrNull(b.allotment_revised_3))
+
   request.input("lease_expiration_date", sql.Date, dateOrNull(b.lease_expiration_date));
   request.input("remarks", sql.NVarChar(256), nullIfEmpty(b.remarks));
   request.input("other_purpose", sql.NVarChar(256), nullIfEmpty(b.other_purpose));
@@ -751,6 +959,7 @@ async function updateNmpEntry(req, res) {
       agreement_revised_date = @agreement_revised_date, agreement_revised_date_1 = @agreement_revised_date_1, agreement_revised_date_2 = @agreement_revised_date_2,
       target_completion_date = @target_completion_date, actual_completion_date = @actual_completion_date,
       completion_revised_date = @completion_revised_date, completion_revised_date_1 = @completion_revised_date_1, completion_revised_date_2 = @completion_revised_date_2,
+      allotment_target_date = @allotment_target_date, actual_allotment_date = @actual_allotment_date, allotment_revised_date = @allotment_revised_date, allotment_revised_date_1 = @allotment_revised_date_1, allotment_revised_date_2 = @allotment_revised_date_2,
       lease_expiration_date = @lease_expiration_date,
       remarks = @remarks, other_purpose = @other_purpose, other_sector = @other_sector, other_agency = @other_agency, updated_date = GETDATE(), updated_by = @updated_by
     WHERE nmp_past_id = @nmp_past_id
@@ -764,57 +973,83 @@ async function updateNmpEntry(req, res) {
   });
 
 } else {
-      // future-land → tbl_nmp
-      request.input("nmp_id", sql.Int, b.id);
-      request.input("parcel_details", sql.NVarChar(256), nullIfEmpty(b.parcel_detail) || '');
-      request.input("area", sql.NVarChar(100), String(nullIfEmpty(b.area_acres) || '0'));
-      request.input("lease_status", sql.NVarChar(100), nullIfEmpty(b.lease_status) || '');
-      request.input("purpose", sql.NVarChar(100), nullIfEmpty(b.purpose) || '');
-      request.input("sector", sql.NVarChar(100), nullIfEmpty(b.sector) || '');
-      request.input("name_of_industry", sql.NVarChar(256), nullIfEmpty(b.industry_name) || '');
-      request.input("mode_of_allotment", sql.NVarChar(100), nullIfEmpty(b.mode_of_allotment) || '');
-      request.input("status", sql.NVarChar(100), nullIfEmpty(b.status) || '');
-      request.input("target_year", sql.NVarChar(100), nullIfEmpty(b.target_yr_monetisation) || '');
-      request.input("upfront_premium", sql.Float, numOrZero(b.upfront_premium));
-      request.input("annual_rental", sql.Float, numOrZero(b.annual_base_lease_rental));
-      request.input("lease_tenure", sql.Float, numOrZero(b.lease_tenure));
-      request.input("escalation_rate", sql.Float, numOrZero(b.escalation_rate));
-      request.input("frequency_of_escalation", sql.Float, numOrZero(b.frequency_of_escalation));
-      request.input("npv_lease_rental", sql.Float, numOrZero(b.npv_lease_rental));
-      request.input("extimated_private_investment", sql.Float, numOrZero(b.estimated_private_investment));
-      request.input("total_monetization_value", sql.Float, numOrZero(b.total_monetization_value));
-      request.input("lease_rental_received", sql.Float, numOrZero(b.lease_rental_received));
-      request.input("agency_name", sql.NVarChar(100), nullIfEmpty(b.lessee_name) || '');
-      request.input("type_of_agency", sql.NVarChar(100), nullIfEmpty(b.type_of_lessee) || '');
-      request.input("agreement_signed", sql.NVarChar(100), nullIfEmpty(b.agreement_signed) || '');
-      request.input("target_nit_date", sql.Date, dateOrNull(b.nit_original) || new Date('1900-01-01'));
-      request.input("actual_nit_date", sql.Date, dateOrNull(b.nit_actual));
-      request.input("target_agreement_date", sql.Date, dateOrNull(b.agreement_target));
-      request.input("actual_agreement_date", sql.Date, dateOrNull(b.agreement_actual));
-      request.input("target_completion_date", sql.Date, dateOrNull(b.construction_target));
-      request.input("actual_completion_date", sql.Date, dateOrNull(b.construction_actual));
-      request.input("remarks", sql.NVarChar(256), nullIfEmpty(b.remarks) || '');
-      request.input("updated_by", sql.Int, userId);
+  // future-land → tbl_nmp
+  request.input("nmp_id", sql.Int, b.id);
+  request.input("parcel_details", sql.NVarChar(256), nullIfEmpty(b.parcel_detail) || '');
+  request.input("area", sql.NVarChar(100), String(nullIfEmpty(b.area_acres) || '0'));
+  request.input("lease_status", sql.Int, intOrNull(b.lease_status));
+  request.input("purpose", sql.Int, intOrNull(b.purpose));
+  request.input("other_purpose", sql.NVarChar(256), nullIfEmpty(b.other_purpose));
+  request.input("sector", sql.Int, intOrNull(b.sector));
+  request.input("other_sector", sql.NVarChar(256), nullIfEmpty(b.other_sector));
+  request.input("name_of_industry", sql.NVarChar(256), nullIfEmpty(b.industry_name) || '');
+  request.input("mode_of_allotment", sql.Int, intOrNull(b.mode_of_allotment));
+  request.input("status", sql.Int, intOrNull(b.status));
+  request.input("target_year", sql.NVarChar(100), nullIfEmpty(b.target_yr_monetisation) || '');
+  request.input("upfront_premium", sql.Float, numOrZero(b.upfront_premium));
+  request.input("annual_rental", sql.Float, numOrZero(b.annual_base_lease_rental));
+  request.input("lease_tenure", sql.Float, numOrZero(b.lease_tenure));
+  request.input("escalation_rate", sql.Float, numOrZero(b.escalation_rate));
+  request.input("frequency_of_escalation", sql.Float, numOrZero(b.frequency_of_escalation));
+  request.input("npv_lease_rental", sql.Float, numOrZero(b.npv_lease_rental));
+  request.input("extimated_private_investment", sql.Float, numOrZero(b.estimated_private_investment));
+  request.input("total_monetization_value", sql.Float, numOrZero(b.total_monetization_value));
+  request.input("lease_rental_received", sql.Float, numOrZero(b.lease_rental_received));
+  request.input("agency_name", sql.NVarChar(100), nullIfEmpty(b.lessee_name) || '');
+  request.input("type_of_agency", sql.Int, intOrNull(b.type_of_lessee));
+  request.input("other_agency", sql.NVarChar(256), nullIfEmpty(b.other_agency));
+  request.input("agreement_signed", sql.Int, intOrNull(b.agreement_signed));
 
-      await request.query(`
-        UPDATE tbl_nmp SET
-          parcel_details = @parcel_details, area = @area, lease_status = @lease_status,
-          purpose = @purpose, sector = @sector, name_of_industry = @name_of_industry,
-          mode_of_allotment = @mode_of_allotment, status = @status, target_year = @target_year,
-          upfront_premium = @upfront_premium, annual_rental = @annual_rental,
-          lease_tenure = @lease_tenure, escalation_rate = @escalation_rate,
-          frequency_of_escalation = @frequency_of_escalation,
-          npv_lease_rental = @npv_lease_rental, extimated_private_investment = @extimated_private_investment,
-          total_monetization_value = @total_monetization_value, lease_rental_received = @lease_rental_received,
-          agency_name = @agency_name, type_of_agency = @type_of_agency,
-          agreement_signed = @agreement_signed,
-          target_nit_date = @target_nit_date, actual_nit_date = @actual_nit_date,
-          target_agreement_date = @target_agreement_date, actual_agreement_date = @actual_agreement_date,
-          target_completion_date = @target_completion_date, actual_completion_date = @actual_completion_date,
-          remarks = @remarks, updated_by = @updated_by
-        WHERE nmp_id = @nmp_id
-      `);
-    }
+  // NIT
+  request.input("nit_target_date", sql.Date, dateOrNull(b.nit_original));
+  request.input("actual_nit_date", sql.Date, dateOrNull(b.nit_actual));
+  request.input("revised_nit_date", sql.Date, dateOrNull(b.nit_revised));
+  request.input("revised_nit_date_1", sql.Date, dateOrNull(b.nit_revised_2));
+  request.input("revised_nit_date_2", sql.Date, dateOrNull(b.nit_revised_3));
+
+  // Agreement
+  request.input("target_agreement_date", sql.Date, dateOrNull(b.agreement_original));
+  request.input("actual_agreement_date", sql.Date, dateOrNull(b.agreement_actual));
+  request.input("revised_agreement_date", sql.Date, dateOrNull(b.agreement_revised));
+  request.input("revised_agreement_date_1", sql.Date, dateOrNull(b.agreement_revised_2));
+  request.input("revised_agreement_date_2", sql.Date, dateOrNull(b.agreement_revised_3));
+
+  // Construction / completion
+  request.input("target_completion_date", sql.Date, dateOrNull(b.construction_original));
+  request.input("actual_completion_date", sql.Date, dateOrNull(b.construction_actual));
+  request.input("revised_completion_date", sql.Date, dateOrNull(b.construction_revised));
+  request.input("revised_completion_date_1", sql.Date, dateOrNull(b.construction_revised_2));
+  request.input("revised_completion_date_2", sql.Date, dateOrNull(b.construction_revised_3));
+
+  request.input("remarks", sql.NVarChar(256), nullIfEmpty(b.remarks) || '');
+  request.input("updated_by", sql.Int, userId);
+
+  await request.query(`
+    UPDATE tbl_nmp SET
+      parcel_details = @parcel_details, area = @area, lease_status = @lease_status,
+      purpose = @purpose, other_purpose = @other_purpose,
+      sector = @sector, other_sector = @other_sector,
+      name_of_industry = @name_of_industry, mode_of_allotment = @mode_of_allotment,
+      status = @status, target_year = @target_year,
+      upfront_premium = @upfront_premium, annual_rental = @annual_rental,
+      lease_tenure = @lease_tenure, escalation_rate = @escalation_rate,
+      frequency_of_escalation = @frequency_of_escalation,
+      npv_lease_rental = @npv_lease_rental,
+      extimated_private_investment = @extimated_private_investment,
+      total_monetization_value = @total_monetization_value,
+      lease_rental_received = @lease_rental_received,
+      agency_name = @agency_name, type_of_agency = @type_of_agency,
+      other_agency = @other_agency, agreement_signed = @agreement_signed,
+      nit_target_date = @nit_target_date, actual_nit_date = @actual_nit_date,
+      revised_nit_date = @revised_nit_date, revised_nit_date_1 = @revised_nit_date_1, revised_nit_date_2 = @revised_nit_date_2,
+      target_agreement_date = @target_agreement_date, actual_agreement_date = @actual_agreement_date,
+      revised_agreement_date = @revised_agreement_date, revised_agreement_date_1 = @revised_agreement_date_1, revised_agreement_date_2 = @revised_agreement_date_2,
+      target_completion_date = @target_completion_date, actual_completion_date = @actual_completion_date,
+      revised_completion_date = @revised_completion_date, revised_completion_date_1 = @revised_completion_date_1, revised_completion_date_2 = @revised_completion_date_2,
+      remarks = @remarks, updated_by = @updated_by
+    WHERE nmp_id = @nmp_id
+  `);
+}
 
     res.status(200).json({ message: "NMP entry updated successfully." });
   } catch (err) {
