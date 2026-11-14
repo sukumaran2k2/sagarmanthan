@@ -1,3 +1,6 @@
+import { cellText } from './cellText';
+import { exportRowsToFile } from './exportGridReport';
+
 // Data List → CSV (opens in Excel), with the same columns and S.No as exportDataListToPdf.
 // For lists paged in the browser: the grid only holds the page on show, so its own
 // exportDataAsCsv would miss the other pages. Pass every filtered row instead.
@@ -21,7 +24,7 @@ export function exportDataListToCsv({ columnLabels = {}, visibleCols = {}, rowDa
   const fields = Object.keys(columnLabels).filter((f) => visibleCols[f]);
   const lines = [
     ['S.No', ...fields.map((f) => columnLabels[f])],
-    ...rowData.map((row, i) => [i + 1, ...fields.map((f) => row[f])]),
+    ...rowData.map((row, i) => [i + 1, ...fields.map((f) => cellText(row[f]))]), // date-times as dates
   ];
   // BOM so Excel reads UTF-8 (₹, names) correctly
   const csv = '﻿' + lines.map((r) => r.map(cell).join(',')).join('\r\n');
@@ -31,6 +34,17 @@ export function exportDataListToCsv({ columnLabels = {}, visibleCols = {}, rowDa
   a.download = `${fileName}.csv`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+// Same columns and rows as exportDataListToCsv, as an Excel (.xlsx) file with a title. Returns the file name.
+export function exportDataListToExcel({ columnLabels = {}, visibleCols = {}, rowData = [], fileName = 'data_list', title }) {
+  const fields = Object.keys(columnLabels).filter((f) => visibleCols[f]);
+  return exportRowsToFile('excel', {
+    title: title || fileName,
+    headers: ['S.No', ...fields.map((f) => columnLabels[f])],
+    rows: rowData.map((row, i) => [i + 1, ...fields.map((f) => cellText(row[f]))]),
+    fileName,
+  });
 }
 
 export default exportDataListToCsv;

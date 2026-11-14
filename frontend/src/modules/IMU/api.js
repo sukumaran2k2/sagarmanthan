@@ -36,7 +36,7 @@ export function deleteStudentEnrollment(studentId) {
 // createimuFinalYearpassPercentage is also an upsert, keyed on
 // (programme, batch).
 export function fetchFinalYearPassPercentage() {
-  return api.get('/get-student-perecntage-list/1');
+  return api.get('/get-student-perecntage-list'); // the route takes no user id (KPI-14)
 }
 
 export function fetchFinalYearPassPercentageById(studentId) {

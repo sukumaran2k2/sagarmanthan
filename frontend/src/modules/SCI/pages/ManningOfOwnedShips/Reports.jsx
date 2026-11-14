@@ -11,6 +11,7 @@ import CopyButton from '../../../../components/CopyButton';
 import ChartExportMenu from '../../../../components/ChartExportMenu';
 import { exportReportToPdf } from '../../../../utils/exportReportPdf';
 import { COMMON_TOASTS } from '../../../../utils/notify';
+import { exportGridToExcel } from '../../../../utils/exportGridReport';
 
 // Confirmed from the legacy site: dual-axis chart with all 3 metrics
 // genuinely charted (unlike K-6.4.2, where a 3rd metric was declared but
@@ -173,9 +174,10 @@ export default function ManningOfOwnedShipsReports({ notify }) {
   };
 
   const handleExport = (type) => {
-    if (type === 'Excel' && gridRef.current?.api) {
-      gridRef.current.api.exportDataAsCsv({ fileName: 'sci_manning_of_owned_ships_report.csv' });
-      notify?.(COMMON_TOASTS.excelExported('sci_manning_of_owned_ships_report.csv'));
+    if (type === 'Excel') {
+      // Works in Chart view too: the table (and its grid) only exists in Table view
+      const file = exportGridToExcel({ title, columns: columnDefs, rows: filteredRowData, fileName: 'sci_manning_of_owned_ships_report' });
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
     else if (type === 'PDF') {
       exportReportToPdf({

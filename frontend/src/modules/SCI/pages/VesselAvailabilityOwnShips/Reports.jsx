@@ -11,6 +11,7 @@ import CopyButton from '../../../../components/CopyButton';
 import ChartExportMenu from '../../../../components/ChartExportMenu';
 import { exportReportToPdf } from '../../../../utils/exportReportPdf';
 import { COMMON_TOASTS } from '../../../../utils/notify';
+import { exportGridToExcel } from '../../../../utils/exportGridReport';
 
 // Confirmed from the legacy site: line series for Own Operated Ships +
 // column series for Ship Utilization %, one shared axis.
@@ -157,9 +158,10 @@ export default function VesselAvailabilityOwnShipsReports({ notify }) {
   };
 
   const handleExport = (type) => {
-    if (type === 'Excel' && gridRef.current?.api) {
-      gridRef.current.api.exportDataAsCsv({ fileName: 'sci_vessel_availability_own_ships_report.csv' });
-      notify?.(COMMON_TOASTS.excelExported('sci_vessel_availability_own_ships_report.csv'));
+    if (type === 'Excel') {
+      // Works in Chart view too: the table (and its grid) only exists in Table view
+      const file = exportGridToExcel({ title, columns: columnDefs, rows: filteredRowData, fileName: 'sci_vessel_availability_own_ships_report' });
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
     else if (type === 'PDF') {
       exportReportToPdf({

@@ -6,6 +6,7 @@ import ExportDropdown from '../../../../components/ExportDropdown';
 import CopyButton from '../../../../components/CopyButton';
 import { exportReportToPdf } from '../../../../utils/exportReportPdf';
 import { COMMON_TOASTS } from '../../../../utils/notify';
+import { exportGridToExcel } from '../../../../utils/exportGridReport';
 
 // Confirmed from the legacy site: this report is table-only (DataTables,
 // no amCharts calls at all) -- unlike K-6.1.1, which has a real chart.
@@ -65,9 +66,10 @@ export default function TimeVoyageBulkReports({ notify }) {
   };
 
   const handleExport = (type) => {
-    if (type === 'Excel' && gridRef.current?.api) {
-      gridRef.current.api.exportDataAsCsv({ fileName: 'sci_time_voyage_bulk_report.csv' });
-      notify?.(COMMON_TOASTS.excelExported('sci_time_voyage_bulk_report.csv'));
+    if (type === 'Excel') {
+      // Works in Chart view too: the table (and its grid) only exists in Table view
+      const file = exportGridToExcel({ title, columns: columnDefs, rows: filteredRowData, fileName: 'sci_time_voyage_bulk_report' });
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
     else if (type === 'PDF') {
       exportReportToPdf({

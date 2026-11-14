@@ -4,8 +4,9 @@ import Table from '../../../components/Table';
 import TablePagination from '../../../components/TablePagination';
 import DataListToolbar from '../../../components/DataListToolbar';
 import { exportDataListToPdf } from '../../../utils/exportReportPdf';
-import { exportDataListToCsv } from '../../../utils/exportDataListCsv';
+import { exportDataListToExcel } from '../../../utils/exportDataListCsv';
 import { COMMON_TOASTS } from '../../../utils/notify';
+import { cellText, lastUpdatedText } from '../../../utils/cellText';
 
 const COLUMN_LABELS = {
   programme: 'Programme',
@@ -13,6 +14,7 @@ const COLUMN_LABELS = {
   appeared: 'Appeared',
   passed: 'Passed',
   pass_percentage: 'Pass Percentage',
+  Updated_Date: 'Last Updated Date',
 };
 
 const DEFAULT_VISIBLE_COLS = {
@@ -21,6 +23,7 @@ const DEFAULT_VISIBLE_COLS = {
   appeared: true,
   passed: true,
   pass_percentage: true,
+  Updated_Date: false, // offered in Visibility, unticked (as in 2.0)
 };
 
 // This section returns every row, so search and paging happen here in the browser;
@@ -64,7 +67,7 @@ export default function FinalYearPassPercentageDataList({
       const cols = Object.keys(visibleCols).filter((c) => visibleCols[c]);
       let tsv = ['S.No', ...cols.map((c) => COLUMN_LABELS[c])].join('\t') + '\n';
       filteredData.forEach((row, i) => {
-        const line = [i + 1, ...cols.map((c) => row[c] ?? '')];
+        const line = [i + 1, ...cols.map((c) => cellText(row[c]))];
         tsv += line.join('\t') + '\n';
       });
       navigator.clipboard.writeText(tsv).then(
@@ -72,8 +75,8 @@ export default function FinalYearPassPercentageDataList({
         () => notify?.(COMMON_TOASTS.copyFailed()),
       );
     } else if (type === 'Excel') {
-      exportDataListToCsv({ columnLabels: COLUMN_LABELS, visibleCols, rowData: filteredData, fileName: 'imu_final_year_pass_percentage' });
-      notify?.(COMMON_TOASTS.excelExported('imu_final_year_pass_percentage.csv'));
+      const file = exportDataListToExcel({ columnLabels: COLUMN_LABELS, visibleCols, rowData: filteredData, fileName: 'imu_final_year_pass_percentage', title: 'IMU Final Year Pass Percentage Data List' });
+      notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
       exportDataListToPdf({
         title: 'IMU Final Year Pass Percentage Data List',
@@ -100,6 +103,12 @@ export default function FinalYearPassPercentageDataList({
     ...(visibleCols.passed ? [{ headerName: 'Passed', field: 'passed', wrapText: true, autoHeight: true, flex: 1, minWidth: 120, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
     ...(visibleCols.pass_percentage ? [{ headerName: 'Pass Percentage', field: 'pass_percentage', wrapText: true, autoHeight: true, flex: 1, minWidth: 160, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700', valueFormatter: (p) => p.value != null ? `${p.value}%` : '' }] : []),
 
+    ...(visibleCols.Updated_Date ? [{
+      headerName: 'Last Updated Date', field: 'Updated_Date', minWidth: 140,
+      cellClass: 'text-center text-slate-600 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700',
+      valueFormatter: (params) => lastUpdatedText(params.value),
+      useValueFormatterForExport: true,
+    }] : []),
     ...(canEdit || canRemove ? [{
       headerName: 'Actions', field: 'id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,
       cellClass: 'text-center flex items-center justify-center gap-1',

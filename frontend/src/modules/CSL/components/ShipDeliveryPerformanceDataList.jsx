@@ -5,12 +5,15 @@ import TablePagination from '../../../components/TablePagination';
 import DataListToolbar from '../../../components/DataListToolbar';
 import { exportDataListToPdf } from '../../../utils/exportReportPdf';
 import { COMMON_TOASTS } from '../../../utils/notify';
+import { cellText, lastUpdatedText } from '../../../utils/cellText';
+import { exportGridApiToExcel } from '../../../utils/exportGridReport';
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
   financial_quater: 'Financial Quarter',
   total_no_ship_orders_received: 'Total No Of Ship Orders Received',
   no_of_ships_delivered: 'No Of Ships Delivered on Time',
+  updated_date: 'Last Updated Date',
 };
 
 const QUARTER_LABELS = { Q1: 'Q1 (Apr - Jun)', Q2: 'Q2 (Jul - Sep)', Q3: 'Q3 (Oct - Dec)', Q4: 'Q4 (Jan - Mar)' };
@@ -20,6 +23,7 @@ const DEFAULT_VISIBLE_COLS = {
   financial_quater: true,
   total_no_ship_orders_received: true,
   no_of_ships_delivered: true,
+  updated_date: false, // offered in Visibility, unticked (as in 2.0)
 };
 
 export default function ShipDeliveryPerformanceDataList({
@@ -53,7 +57,7 @@ export default function ShipDeliveryPerformanceDataList({
       const cols = Object.keys(visibleCols).filter((c) => visibleCols[c]);
       let tsv = ['S.No', ...cols.map((c) => COLUMN_LABELS[c])].join('\t') + '\n';
       rowData.forEach((row, i) => {
-        const line = [i + 1, ...cols.map((c) => c === 'financial_quater' ? (QUARTER_LABELS[row[c]] || row[c]) : (row[c] ?? ''))];
+        const line = [i + 1, ...cols.map((c) => c === 'financial_quater' ? (QUARTER_LABELS[row[c]] || row[c]) : cellText(row[c]))];
         tsv += line.join('\t') + '\n';
       });
       navigator.clipboard.writeText(tsv).then(
@@ -61,8 +65,8 @@ export default function ShipDeliveryPerformanceDataList({
         () => notify?.(COMMON_TOASTS.copyFailed()),
       );
     } else if (type === 'Excel') {
-      gridRef.current?.api?.exportDataAsCsv({ fileName: 'csl_ship_delivery_performance' });
-      notify?.(COMMON_TOASTS.excelExported('csl_ship_delivery_performance.csv'));
+      const file = exportGridApiToExcel(gridRef.current?.api, { title: 'CSL Ship Delivery Performance Data List', fileName: 'csl_ship_delivery_performance' });
+      notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
       exportDataListToPdf({
         title: 'CSL Ship Delivery Performance Data List',
@@ -86,6 +90,12 @@ export default function ShipDeliveryPerformanceDataList({
     ...(visibleCols.total_no_ship_orders_received ? [{ headerName: 'Total No Of Ship Orders Received', field: 'total_no_ship_orders_received', wrapText: true, autoHeight: true, flex: 1.5, minWidth: 230, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
     ...(visibleCols.no_of_ships_delivered ? [{ headerName: 'No Of Ships Delivered on Time', field: 'no_of_ships_delivered', wrapText: true, autoHeight: true, flex: 1.5, minWidth: 220, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
 
+    ...(visibleCols.updated_date ? [{
+      headerName: 'Last Updated Date', field: 'updated_date', minWidth: 140,
+      cellClass: 'text-center text-slate-600 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700',
+      valueFormatter: (params) => lastUpdatedText(params.value),
+      useValueFormatterForExport: true,
+    }] : []),
     ...(canEdit || canRemove ? [{
       headerName: 'Actions', field: 'csl_shipdelivery_id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,
       cellClass: 'text-center flex items-center justify-center gap-1',

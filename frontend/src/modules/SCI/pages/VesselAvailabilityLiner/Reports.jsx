@@ -6,6 +6,7 @@ import ExportDropdown from '../../../../components/ExportDropdown';
 import CopyButton from '../../../../components/CopyButton';
 import { exportReportToPdf } from '../../../../utils/exportReportPdf';
 import { COMMON_TOASTS } from '../../../../utils/notify';
+import { exportGridToExcel } from '../../../../utils/exportGridReport';
 
 export default function VesselAvailabilityLinerReports({ notify }) {
   const gridRef = useRef(null);
@@ -62,9 +63,10 @@ export default function VesselAvailabilityLinerReports({ notify }) {
   };
 
   const handleExport = (type) => {
-    if (type === 'Excel' && gridRef.current?.api) {
-      gridRef.current.api.exportDataAsCsv({ fileName: 'sci_vessel_availability_liner_report.csv' });
-      notify?.(COMMON_TOASTS.excelExported('sci_vessel_availability_liner_report.csv'));
+    if (type === 'Excel') {
+      // Works in Chart view too: the table (and its grid) only exists in Table view
+      const file = exportGridToExcel({ title, columns: columnDefs, rows: filteredRowData, fileName: 'sci_vessel_availability_liner_report' });
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
     else if (type === 'PDF') {
       exportReportToPdf({

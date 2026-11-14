@@ -5,6 +5,8 @@ import TablePagination from '../../../components/TablePagination';
 import DataListToolbar from '../../../components/DataListToolbar';
 import { exportDataListToPdf } from '../../../utils/exportReportPdf';
 import { COMMON_TOASTS } from '../../../utils/notify';
+import { cellText, lastUpdatedText } from '../../../utils/cellText';
+import { exportGridApiToExcel } from '../../../utils/exportGridReport';
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
@@ -14,6 +16,7 @@ const COLUMN_LABELS = {
   patents_filed: 'Patents/IP Filed',
   startups_funded: 'Startups Funded/Incubated',
   research_ms_awarded: 'MS (By Research) Awarded',
+  updated_date: 'Last Updated Date',
 };
 
 const DEFAULT_VISIBLE_COLS = {
@@ -24,6 +27,7 @@ const DEFAULT_VISIBLE_COLS = {
   patents_filed: true,
   startups_funded: true,
   research_ms_awarded: true,
+  updated_date: false, // offered in Visibility, unticked (as in 2.0)
 };
 
 export default function ResearchDataList({
@@ -57,7 +61,7 @@ export default function ResearchDataList({
       const cols = Object.keys(visibleCols).filter((c) => visibleCols[c]);
       let tsv = ['S.No', ...cols.map((c) => COLUMN_LABELS[c])].join('\t') + '\n';
       rowData.forEach((row, i) => {
-        const line = [i + 1, ...cols.map((c) => row[c] ?? '')];
+        const line = [i + 1, ...cols.map((c) => cellText(row[c]))];
         tsv += line.join('\t') + '\n';
       });
       navigator.clipboard.writeText(tsv).then(
@@ -65,8 +69,8 @@ export default function ResearchDataList({
         () => notify?.(COMMON_TOASTS.copyFailed()),
       );
     } else if (type === 'Excel') {
-      gridRef.current?.api?.exportDataAsCsv({ fileName: 'imu_research' });
-      notify?.(COMMON_TOASTS.excelExported('imu_research.csv'));
+      const file = exportGridApiToExcel(gridRef.current?.api, { title: 'IMU Research Data List', fileName: 'imu_research' });
+      notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
       exportDataListToPdf({
         title: 'IMU Research Data List',
@@ -89,6 +93,12 @@ export default function ResearchDataList({
     ...(visibleCols.startups_funded ? [{ headerName: 'Startups Funded/Incubated', field: 'startups_funded', wrapText: true, autoHeight: true, flex: 1.2, minWidth: 200, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
     ...(visibleCols.research_ms_awarded ? [{ headerName: 'MS (By Research) Awarded', field: 'research_ms_awarded', wrapText: true, autoHeight: true, flex: 1.2, minWidth: 200, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
 
+    ...(visibleCols.updated_date ? [{
+      headerName: 'Last Updated Date', field: 'updated_date', minWidth: 140,
+      cellClass: 'text-center text-slate-600 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700',
+      valueFormatter: (params) => lastUpdatedText(params.value),
+      useValueFormatterForExport: true,
+    }] : []),
     ...(canEdit || canRemove ? [{
       headerName: 'Actions', field: 'research_id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,
       cellClass: 'text-center flex items-center justify-center gap-1',
