@@ -12,27 +12,29 @@ import { registerStoreReset } from '../../../stores/resetRegistry';
  * The MoU being edited is NOT kept here; it travels with the route
  * (location.state.item). Fetched rows stay in the pages.
  */
+// Columns shown by default follow the 2.0 list; the rest are offered in Visibility, unticked.
 export const DEFAULT_VISIBLE_COLS = {
   sNo: true,
   org: true,
-  event: true,
+  event: false,
   name: true,
   party2: true,
-  nature: true,
+  nature: false,
   navic: true,
   category: true,
   amount: true,
-  revisedAmount: true,
+  revisedAmount: false,
   status: true,
+  mouBrief: true,
+  physicalDate: true,
   physicalProgress: true,
-  physicalDate: false,
+  financialDate: true,
   financialProgress: true,
-  financialDate: false,
-  mouBrief: false,
   remarks: false,
+  lastUpdated: false,
   nextSteps: false,
   reasonForDropping: false,
-  document: true,
+  document: false,
 };
 
 // '' = all. The summit is chosen with the tabs above the list, the rest in the filter panel.

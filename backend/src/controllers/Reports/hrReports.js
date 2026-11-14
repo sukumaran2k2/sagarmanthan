@@ -11,6 +11,7 @@
 
 // SELECT CONCAT(YEAR(GETDATE()), '-04-01');
 import { pool } from "../../db.js";
+import { isWideRole } from "../../middleware/dataScope.js";
 
 // SELECT tbl_hr_department.organisation_id, tbl_hr_post_strength.stage_id, organisation_name, count(tbl_hr_post_strength.id) as tbl_hr_post_strength_count
 //             FROM tbl_hr_post_strength
@@ -10333,7 +10334,7 @@ async function getTrainingDetailsReport(req, res) {
       JOIN TBL_TRAINING_TITLE tit ON ht.TRAINING_TITLE_ID = tit.TRAINING_TITLE_ID
       JOIN TBL_TRAINING_TYPE tt ON tit.TRAINING_TYPE_ID = tt.TRAINING_TYPE_ID
       LEFT JOIN TBL_HR_STAFF_TRAINING hst ON ht.TRAINING_ID = hst.TRAINING_ID
-      ${![2, 3, 4, 5].includes(Number(roleID)) ? "WHERE org.organisation_id = @organisationID" : ""}
+      ${!(await isWideRole(roleID)) ? "WHERE org.organisation_id = @organisationID" : ""}
       GROUP BY tt.TRAINING_TYPE_NAME, org.organisation_name;
     `);
 
@@ -10645,7 +10646,7 @@ async function getContractDetailsReport(req, res) {
 
       FROM tbl_hr_contract_data cd
       INNER JOIN mmt_organisation org ON cd.organisation_id = org.organisation_id
-       ${![2, 3, 4, 5].includes(Number(roleID)) ? "WHERE org.organisation_id = @organisationID" : ""}
+       ${!(await isWideRole(roleID)) ? "WHERE org.organisation_id = @organisationID" : ""}
       GROUP BY org.organisation_id, org.organisation_name, cd.financial_year
       ORDER BY org.organisation_name, cd.financial_year;
     `);

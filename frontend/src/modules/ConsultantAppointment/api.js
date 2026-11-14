@@ -1,6 +1,4 @@
-import { createApiClient } from '../../api';
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL;
+import { API_BASE, createApiClient } from '../../api';
 
 const api = createApiClient({ baseURL: API_BASE });
 

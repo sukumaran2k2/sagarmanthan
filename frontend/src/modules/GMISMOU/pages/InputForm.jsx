@@ -116,6 +116,10 @@ export default function GMISInputForm({
       setErrors(prev => ({ ...prev, [field]: null }));
     }
   };
+const getNavicId = (n) =>
+  n?.navic_vibhas_id ?? n?.vibhas_navic_id ?? n?.navic_id ?? n?.vibhas_id ?? n?.id;
+const getNavicName = (n) =>
+  n?.navic_name ?? n?.vibhas_name ?? n?.name ?? n?.label ?? '';
 
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -628,11 +632,20 @@ export default function GMISInputForm({
                     }`}
                   >
                     <option value="">--Select Vibhas / Navic--</option>
-                    {navicCells.map((n, i) => (
+
+                   {navicCells.map((n, i) => (
                       <option key={i} value={n.id || n.navic_vibhas_id || n.navic_name}>
                         {n.navic_name || n}
                       </option>
                     ))}
+
+                    {/* Fallback: if the saved ID is not in the list, still show it from editData */}
+                    {formData.vibhasNavicID &&
+                      !navicCells.some((n) => String(getNavicId(n)) === String(formData.vibhasNavicID)) && (
+                        <option value={formData.vibhasNavicID}>
+                          {editData?.navic_name || `NAVIC ID ${formData.vibhasNavicID}`}
+                        </option>
+                      )}
                   </select>
                   {formData.vibhasNavicID && (
                     <CheckCircle2 className="h-4 w-4 text-emerald-500 absolute right-3 top-3 pointer-events-none" />

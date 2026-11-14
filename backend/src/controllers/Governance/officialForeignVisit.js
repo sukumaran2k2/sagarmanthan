@@ -5,6 +5,7 @@ import { pool } from "../../db.js";
 import { fileURLToPath } from 'url';
 import { access, stat } from 'fs/promises';
 import { createReadStream } from 'fs';
+import { isWideRole, isOrganisationRole } from "../../middleware/dataScope.js";
 
 
 const uploadDestination = './fileuploads/Official_Foreign_Visit';
@@ -40,7 +41,7 @@ async function getOFVData(req, res) {
     try {
         const userResult = await conn.query(` SELECT role_id FROM tbl_user WHERE user_id = ${userID} `);
         const { role_id } = userResult.recordset[0];
-        if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8) {
+        if (await isWideRole(role_id)) {
             const result = await conn.query(` SELECT 
                 ofv.id, 
                 ofv.fv_id,
@@ -1768,7 +1769,7 @@ async function getOFVChart(req, res) {
         // if (roleId == 6 || roleId == 7) {
         //     whereClause.push("tbl_official_foreign_visit.organisation = @orgID");
         // }
-        if ((roleId == 6 || roleId == 7) ||
+        if ((await isOrganisationRole(roleId)) ||
             (orgID !== 0 && orgID)
         ) {
             whereClause.push("tbl_official_foreign_visit.organisation = @orgID");
@@ -1835,7 +1836,7 @@ async function getCountOFV(req, res) {
     // }
 
     
-    if ((roleId == 6 || roleId == 7) ||
+    if ((await isOrganisationRole(roleId)) ||
         (orgID !== 0 && orgID)
     ) {
         whereClause.push("organisation = @orgID");
@@ -1906,7 +1907,7 @@ async function getOnGoingListOFV(req, res) {
         //     whereClause.push("tbl_official_foreign_visit.organisation = @orgID");
         // }
 
-        if ((roleId == 6 || roleId == 7) ||
+        if ((await isOrganisationRole(roleId)) ||
             (orgID !== 0 && orgID)
         ) {
             whereClause.push("tbl_official_foreign_visit.organisation = @orgID");

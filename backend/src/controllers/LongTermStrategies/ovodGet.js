@@ -1,5 +1,6 @@
 import { pool } from "../../db.js";
 import sql from 'mssql';
+import { isWideRole } from "../../middleware/dataScope.js";
 
 // List all data
 async function getOVDData(req, res) {
@@ -30,7 +31,7 @@ async function getOVDData(req, res) {
         const whereWingCondition = whereClause.length > 0 ? 'WHERE tbl_one_vision_doc.delete_status = 0 AND ' + whereClause.join(' AND ') : 'WHERE tbl_one_vision_doc.delete_status = 0 ';
 
         let getQuery;
-        if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8) {
+        if (await isWideRole(role_id)) {
             getQuery = `WITH cte AS (
             SELECT 
                 tbl_one_vision_doc.id,
@@ -370,7 +371,7 @@ async function getOVODOrgAllData(req, res) {
 
         let result; 
         
-        if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8) {
+        if (await isWideRole(role_id)) {
             result = await conn.query(`
             with cte as (
             SELECT 
@@ -1428,7 +1429,7 @@ async function getCountInitDetail(req, res){
 
         let whereCatgeoryCondition;
 
-         if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8) {
+         if (await isWideRole(role_id)) {
             // whereCatgeoryCondition = whereClause.length > 0 ? 'WHERE (tbl_one_vision_doc.goal_b1 IS NOT NULL OR tbl_one_vision_doc.intervention_b2 IS NOT NULL) AND tbl_one_vision_doc.imp_agency = @organisation_id AND ' + whereClause.join(' AND ') : 'WHERE (tbl_one_vision_doc.goal_b1 IS NULL OR tbl_one_vision_doc.action_a3 IS NOT NULL) AND tbl_one_vision_doc.imp_agency = @organisation_id';
             whereCatgeoryCondition = whereClause.length > 0 ? 'WHERE tbl_one_vision_doc.delete_status = 0 AND ' + whereClause.join(' AND ') : 'WHERE tbl_one_vision_doc.delete_status = 0';
         } else {
@@ -1437,7 +1438,7 @@ async function getCountInitDetail(req, res){
 
         let getQuery;
 
-        if(role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8){
+        if(await isWideRole(role_id)){
             getQuery = `SELECT 
                 COUNT(CASE WHEN current_status = 'Dropped' THEN 1 END) AS Dropped_Count,
                 COUNT(CASE WHEN current_status = 'Not Applicable' THEN 1 END) AS Not_Applicable_Count

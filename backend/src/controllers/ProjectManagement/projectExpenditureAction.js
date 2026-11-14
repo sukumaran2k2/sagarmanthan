@@ -327,6 +327,54 @@ async function addExpenditureOutlay(req, res)
     }
 }
 
+async function deleteExpenditureOutlay(req, res) 
+{
+    const id = req.params.id;
+    const projectID = req.params.projectID;
+    const subProjectID = req.params.subProjectID;
+
+    try 
+    {
+        const conn = await pool;
+        const request = conn.request();
+
+        request.input("id", id);
+        request.input("projectID", projectID);
+        request.input("subProjectID", subProjectID);
+
+        let deleteQuery;
+
+        if (subProjectID === '-1') {
+            deleteQuery = `
+                DELETE FROM tbl_project_expenditure_outlay
+                WHERE id = @id AND project_id = @projectID AND sub_project_id = -1
+            `;
+        } else {
+            deleteQuery = `
+                DELETE FROM tbl_project_expenditure_outlay
+                WHERE id = @id AND project_id = @projectID AND sub_project_id = @subProjectID
+            `;
+        }
+
+        const result = await request.query(deleteQuery);
+
+        if (result.rowsAffected[0] === 0) {
+            return res.status(404).json({
+                message: "Target expenditure record not found."
+            });
+        }
+
+        res.sendStatus(200);
+    }catch (err) {
+        console.error("Delete Expenditure Outlay Error:", err.message);
+        console.error("SQL Error:", err.originalError?.info);
+
+        return res.status(500).json({
+            message: err.message
+        });
+    }
+}
+
 async function getExpenditureFinancialYear(req, res) {
     const projectID = req.params.projectID;
     const subProjectID = req.params.subProjectID;
@@ -576,6 +624,6 @@ async function sumOfExpIncurredFy(req, res)
 }
 
 export default { getSourceOfFundingComponent, addExpenditureDetails, getExpenditureDetails, getTotalExpenditureDetails,
-     getTotalExpenditureValue, addExpenditureOutlay, getExpenditureOutlayCost, 
+     getTotalExpenditureValue, addExpenditureOutlay, deleteExpenditureOutlay, getExpenditureOutlayCost, 
      getExpenditureFinancialYear, getExpenditureMainFinancialYear, editExpenditureComponentsDetails, 
     deleteExpenditureLogRow, sumOfExpIncurredFy }; 

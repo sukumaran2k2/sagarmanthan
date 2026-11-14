@@ -35,8 +35,9 @@ const initialState = {
     division: true,
     category: true,
     statusSteps: true,
-    remarks: true,
-    lastUpdated: true,
+    // Offered in Visibility, unticked by default (as in 2.0)
+    remarks: false,
+    lastUpdated: false,
   },
 
   // Report

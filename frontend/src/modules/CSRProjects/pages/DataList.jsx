@@ -13,6 +13,9 @@ import { useCsrStore, DEFAULT_PROJECT_COLS } from '../store/useCsrStore';
 import { CSR_TOASTS } from '../toastMessages';
 import { COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
 
+// CSR focus area name from its id ('-' when not set)
+const focusName = (id) => CSR_FOCUS_AREAS.find((f) => String(f.id) === String(id))?.name || '-';
+
 const CATEGORIES = [
   { id: 'all', label: 'All' },
   { id: 'active', label: 'Active' },
@@ -174,7 +177,7 @@ export default function DataList({ notify, permissions, onEdit }) {
     }
   };
 
-  // Tab counts: everything the user may see, before filters (the last answer's, kept while loading)
+  // Tab counts follow the filters and search (the last answer's, kept while loading)
   const countFor = result?.counts || { all: '…', active: '…', completed: '…' };
 
   const availableStatuses = category === 'active'
@@ -202,6 +205,14 @@ export default function DataList({ notify, permissions, onEdit }) {
     { key: 'project_status', label: 'Project Status' },
     ...(category === 'completed' ? [{ key: 'completed_on', label: 'Completed On' }] : []),
     { key: 'remarks', label: 'Remarks' },
+    { key: 'updated_date', label: 'Last Updated Date' },
+    { key: 'physical_progress', label: 'Physical Progress (%)' },
+    { key: 'financial_progress', label: 'Financial Progress (%)' },
+    { key: 'project_received_from', label: 'Project Received From' },
+    { key: 'impact_possible_outcome', label: 'Impact of the Project' },
+    { key: 'target_beneficiaries', label: 'Target Beneficiaries' },
+    { key: 'csr_focus', label: 'CSR Focus Area' },
+    { key: 'commenced_on', label: 'Commenced On' },
     { key: 'actions', label: 'Actions' },
   ], [isOrgUser, category]);
 
@@ -241,6 +252,43 @@ export default function DataList({ notify, permissions, onEdit }) {
         valueFormatter: (p) => p.value || '-',
       },
       {
+        headerName: 'Last Updated Date', field: 'updated_date', minWidth: 130, flex: 1.1, hide: !show('updated_date'), ...centered,
+        valueFormatter: (p) => formatDate(p.value),
+      },
+      // Offered in Visibility, unticked by default (as in 2.0)
+      {
+        headerName: 'Physical Progress (%)', field: 'physical_progress', minWidth: 130, flex: 1.1, hide: !show('physical_progress'), ...centered,
+        valueFormatter: (p) => (p.value == null || p.value === '' ? '-' : `${p.value}%`),
+      },
+      {
+        headerName: 'Financial Progress (%)', field: 'financial_progress', minWidth: 130, flex: 1.1, hide: !show('financial_progress'), ...centered,
+        valueFormatter: (p) => (p.value == null || p.value === '' ? '-' : `${p.value}%`),
+      },
+      {
+        headerName: 'Project Received From', field: 'project_received_from', minWidth: 180, flex: 1.6, wrapText: true, autoHeight: true,
+        hide: !show('project_received_from'), headerClass: 'text-center', cellClass: 'mopsw-wrap-cell text-center',
+        valueFormatter: (p) => p.value || '-',
+      },
+      {
+        headerName: 'Impact of the Project', field: 'impact_possible_outcome', minWidth: 220, flex: 2, wrapText: true, autoHeight: true,
+        hide: !show('impact_possible_outcome'), headerClass: 'text-center', cellClass: 'mopsw-wrap-cell text-center text-slate-600 dark:text-slate-400',
+        valueFormatter: (p) => p.value || '-',
+      },
+      {
+        headerName: 'Target Beneficiaries', field: 'target_beneficiaries', minWidth: 180, flex: 1.6, wrapText: true, autoHeight: true,
+        hide: !show('target_beneficiaries'), headerClass: 'text-center', cellClass: 'mopsw-wrap-cell text-center',
+        valueFormatter: (p) => p.value || '-',
+      },
+      {
+        headerName: 'CSR Focus Area', field: 'csr_focus', minWidth: 180, flex: 1.6, wrapText: true, autoHeight: true,
+        hide: !show('csr_focus'), headerClass: 'text-center', cellClass: 'mopsw-wrap-cell text-center',
+        valueGetter: (p) => p.data && focusName(p.data.csr_focus),
+      },
+      {
+        headerName: 'Commenced On', field: 'commenced_on', minWidth: 120, flex: 1.1, hide: !show('commenced_on'), ...centered,
+        valueFormatter: (p) => formatDate(p.value),
+      },
+      {
         // View buttons for everyone, Edit for those who can edit (QC R-15: was titled 'Update')
         headerName: 'Actions', width: 120, minWidth: 110, pinned: 'right', hide: !show('actions'), sortable: false, ...centered,
         cellRenderer: (p) => p.data && (
@@ -275,6 +323,14 @@ export default function DataList({ notify, permissions, onEdit }) {
       project_status: statusText,
       completed_on: (p) => formatDate(p.completed_on),
       remarks: (p) => p.remarks || '-',
+      updated_date: (p) => formatDate(p.updated_date),
+      physical_progress: (p) => (p.physical_progress == null || p.physical_progress === '' ? '-' : `${p.physical_progress}%`),
+      financial_progress: (p) => (p.financial_progress == null || p.financial_progress === '' ? '-' : `${p.financial_progress}%`),
+      project_received_from: (p) => p.project_received_from || '-',
+      impact_possible_outcome: (p) => p.impact_possible_outcome || '-',
+      target_beneficiaries: (p) => p.target_beneficiaries || '-',
+      csr_focus: (p) => focusName(p.csr_focus),
+      commenced_on: (p) => formatDate(p.commenced_on),
     };
     return columnChoices
       .filter((c) => values[c.key] && visibleCols[c.key])

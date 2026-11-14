@@ -4,8 +4,9 @@ import Table from '../../../../components/Table';
 import TablePagination from '../../../../components/TablePagination';
 import DataListToolbar from '../../../../components/DataListToolbar';
 import { exportDataListToPdf } from '../../../../utils/exportReportPdf';
-import { exportDataListToCsv } from '../../../../utils/exportDataListCsv';
+import { exportDataListToExcel } from '../../../../utils/exportDataListCsv';
 import { COMMON_TOASTS } from '../../../../utils/notify';
+import { cellText, lastUpdatedText } from '../../../../utils/cellText';
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
@@ -14,6 +15,7 @@ const COLUMN_LABELS = {
   total_no_days_on_offshore_voyage_charter: 'Days on Voyage Charter',
   total_revenue_offshore: 'Total Revenue (Rs. in Crs.)',
   average_earnings_offshore: 'Average Earnings per Day (US $)',
+  updated_date: 'Last Updated Date',
 };
 
 const DEFAULT_VISIBLE_COLS = {
@@ -23,6 +25,7 @@ const DEFAULT_VISIBLE_COLS = {
   total_no_days_on_offshore_voyage_charter: true,
   total_revenue_offshore: true,
   average_earnings_offshore: true,
+  updated_date: false, // offered in Visibility, unticked (as in 2.0)
 };
 
 export default function TimeVoyageOffshoreDataList({
@@ -74,7 +77,7 @@ export default function TimeVoyageOffshoreDataList({
       const cols = Object.keys(visibleCols).filter((c) => visibleCols[c]);
       let tsv = ['S.No', ...cols.map((c) => COLUMN_LABELS[c])].join('\t') + '\n';
       filteredData.forEach((row, i) => {
-        const line = [i + 1, ...cols.map((c) => row[c] ?? '')];
+        const line = [i + 1, ...cols.map((c) => cellText(row[c]))];
         tsv += line.join('\t') + '\n';
       });
       navigator.clipboard.writeText(tsv).then(
@@ -83,8 +86,8 @@ export default function TimeVoyageOffshoreDataList({
       );
     } else if (type === 'Excel') {
       // Every filtered row, not just the page on show
-      exportDataListToCsv({ columnLabels: COLUMN_LABELS, visibleCols, rowData: filteredData, fileName: 'sci_time_voyage_offshore' });
-      notify?.(COMMON_TOASTS.excelExported('sci_time_voyage_offshore.csv'));
+      const file = exportDataListToExcel({ columnLabels: COLUMN_LABELS, visibleCols, rowData: filteredData, fileName: 'sci_time_voyage_offshore', title: 'SCI Time Voyage Offshore Data List' });
+      notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
       exportDataListToPdf({
         title: 'SCI Time Voyage Offshore Data List',
@@ -106,6 +109,12 @@ export default function TimeVoyageOffshoreDataList({
     ...(visibleCols.total_revenue_offshore ? [{ headerName: 'Total Revenue (Rs. in Crs.)', field: 'total_revenue_offshore', flex: 1.2, minWidth: 200, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
     ...(visibleCols.average_earnings_offshore ? [{ headerName: 'Average Earnings per Day (US $)', field: 'average_earnings_offshore', flex: 1.2, minWidth: 220, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
 
+    ...(visibleCols.updated_date ? [{
+      headerName: 'Last Updated Date', field: 'updated_date', minWidth: 140,
+      cellClass: 'text-center text-slate-600 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700',
+      valueFormatter: (params) => lastUpdatedText(params.value),
+      useValueFormatterForExport: true,
+    }] : []),
     ...(canEdit || canRemove ? [{
       headerName: 'Actions', field: 'sci_time_voyage_offshore_id', pinned: 'right', width: canEdit && canRemove ? 90 : 60,
       cellClass: 'text-center flex items-center justify-center gap-1',

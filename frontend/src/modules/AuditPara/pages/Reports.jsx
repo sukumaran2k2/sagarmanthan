@@ -3,6 +3,7 @@ import { Search, RefreshCw, X, TrendingUp, Building2, Tag, ArrowLeft } from 'luc
 import { useShallow } from 'zustand/react/shallow';
 import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
+import { exportGridToExcel, exportGridToPdf } from '../../../utils/exportGridReport';
 import CopyButton from '../../../components/CopyButton';
 import { CATEGORIES } from '../constants';
 import { useAuditParaStore } from '../store/useAuditParaStore';
@@ -54,35 +55,42 @@ export default function Reports({ rowData = [], wings = [], divisions = [], load
   );
 
   /* ── Aggregation by current report view ─────────────────────── */
+  // Rows are the master wings / divisions plus any wing / division the paras themselves carry
+  // (e.g. "Not specified", or a division filed under another wing), so every para is in exactly
+  // one row and the totals always equal the Data List.
   const aggregatedData = useMemo(() => {
+    const lower = (v) => (v || '').toLowerCase();
+    const addMissing = (names, extra) => {
+      const seen = new Set(names.map(lower));
+      extra.forEach((n) => { if (n && !seen.has(lower(n))) { seen.add(lower(n)); names.push(n); } });
+      return names;
+    };
     if (reportView === 'wing') {
-      return wings
-        .map((w) => {
-          const paras = categoryParas.filter((p) => (p.wing || '').toLowerCase() === w.wing_name.toLowerCase());
-          return { Wing: w.wing_name, ...computeCounts(paras) };
-        })
+      return addMissing(wings.map((w) => w.wing_name), categoryParas.map((p) => p.wing))
+        .map((name) => ({ Wing: name, ...computeCounts(categoryParas.filter((p) => lower(p.wing) === lower(name))) }))
         .sort((a, b) => a.Wing.localeCompare(b.Wing));
     }
     if (reportView === 'division') {
       const drillWingId = drillWing && wings.find((w) => sameName(w.wing_name, drillWing))?.wing_id;
-      return divisions
-        .filter((d) => !drillWing || String(d.wing_id) === String(drillWingId))
-        .map((d) => {
-          const paras = categoryParas.filter((p) => (p.division || '').toLowerCase() === d.division_name.toLowerCase());
-          return { Division: d.division_name, ...computeCounts(paras) };
-        })
+      const inWing = categoryParas.filter((p) => !drillWing || sameName(p.wing, drillWing));
+      const master = divisions.filter((d) => !drillWing || String(d.wing_id) === String(drillWingId)).map((d) => d.division_name);
+      return addMissing(master, inWing.map((p) => p.division))
+        .map((name) => ({ Division: name, ...computeCounts(inWing.filter((p) => lower(p.division) === lower(name))) }))
         .sort((a, b) => a.Division.localeCompare(b.Division));
     }
     // 'all' -- combined Wing + Division rows
-    return divisions
-      .map((d) => {
-        const wingObj = wings.find((w) => String(w.wing_id) === String(d.wing_id));
-        const wingName = wingObj?.wing_name || '';
-        const paras = categoryParas.filter(
-          (p) => (p.wing || '').toLowerCase() === wingName.toLowerCase() && (p.division || '').toLowerCase() === d.division_name.toLowerCase()
-        );
-        return { Wing: wingName, Division: d.division_name, ...computeCounts(paras) };
-      })
+    const pairs = divisions.map((d) => [wings.find((w) => String(w.wing_id) === String(d.wing_id))?.wing_name || '', d.division_name]);
+    const seen = new Set(pairs.map(([w, d]) => `${lower(w)}|${lower(d)}`));
+    categoryParas.forEach((p) => {
+      const key = `${lower(p.wing)}|${lower(p.division)}`;
+      if (!seen.has(key)) { seen.add(key); pairs.push([p.wing || '', p.division || '']); }
+    });
+    return pairs
+      .map(([wingName, divisionName]) => ({
+        Wing: wingName,
+        Division: divisionName,
+        ...computeCounts(categoryParas.filter((p) => lower(p.wing) === lower(wingName) && lower(p.division) === lower(divisionName))),
+      }))
       .sort((a, b) => a.Wing.localeCompare(b.Wing) || a.Division.localeCompare(b.Division))
       .map((r, idx) => ({ ...r, 'S No': idx + 1 }));
   }, [categoryParas, wings, divisions, reportView, drillWing]);
@@ -215,12 +223,23 @@ export default function Reports({ rowData = [], wings = [], divisions = [], load
     navigator.clipboard.writeText(tsv);
   };
 
+  // Excel (.xlsx) and PDF files with the report title, date, the rows as shown (search and sort
+  // applied) and the Total row, as the other modules' reports (it was a bare CSV and a print of
+  // the whole page)
   const handleExport = (type) => {
-    if (type === 'Excel' && gridRef.current?.api) {
-      gridRef.current.api.exportDataAsCsv({ fileName: `${(detail ? `${title} - ${detail.title}` : title).replace(/\s+/g, '_')}_export.csv` });
-    } else if (type === 'PDF') {
-      window.print();
-    }
+    const api = gridRef.current?.api;
+    const rows = [];
+    if (api) api.forEachNodeAfterFilterAndSort((node) => { if (node.data) rows.push(node.data); });
+    else rows.push(...gridRows);
+    const options = {
+      title: detail ? `${title} - ${detail.title}` : title,
+      subtitle: `As on ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`,
+      columns: gridColumns,
+      rows,
+      pinnedRows: detail ? [] : (pinnedBottomRowData || []),
+    };
+    if (type === 'Excel') exportGridToExcel(options);
+    else exportGridToPdf({ ...options, brand: '#4b2424' });
   };
 
   return (

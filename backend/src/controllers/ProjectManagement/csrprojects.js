@@ -546,6 +546,8 @@ const STATUS_SQL = "ISNULL(NULLIF(p.project_status, ''), 'Project yet to start')
 const LIST_SORTS = {
     organisation_name: 'o.organisation_name', financial_year: 'p.financial_year', project_name: 'p.project_name',
     project_value: 'p.project_value', project_status: STATUS_SQL, completed_on: 'p.completed_on', remarks: 'p.remarks',
+    updated_date: 'p.updated_date', commenced_on: 'p.commenced_on',
+    physical_progress: 'p.physical_progress', financial_progress: 'p.financial_progress',
 };
 const likeText = (v) => `%${String(v).replace(/[\\%_[]/g, (c) => `\\${c}`)}%`;
 
@@ -563,7 +565,6 @@ async function getCsrProjectslist(req, res)
             request.input("organisationID", scope.orgId);
             where.push('p.organisation_id = @organisationID');
         }
-        const scopeSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
         if (!scope.orgId && /^\d+$/.test(String(q.organisation || ''))) {
             request.input('fOrg', Number(q.organisation));
@@ -577,18 +578,27 @@ async function getCsrProjectslist(req, res)
             request.input('fFocus', Number(q.focus));
             where.push('p.csr_focus = @fFocus');
         }
-        if (q.category === 'completed') where.push(`${STATUS_SQL} = 'Completed'`);
-        else if (q.category === 'active') where.push(`${STATUS_SQL} <> 'Completed'`);
-        if (q.status && q.category !== 'completed') {
-            request.input('fStatus', String(q.status).slice(0, 100));
-            where.push(`${STATUS_SQL} = @fStatus`);
-        }
         const search = String(q.search || '').trim().slice(0, 200);
         if (search) {
             request.input('fSearch', likeText(search));
             where.push(`(${['p.project_name', 'o.organisation_name', 'p.project_received_from', 'p.target_beneficiaries', 'p.remarks']
                 .map((c) => `${c} LIKE @fSearch ESCAPE '\\'`).join(' OR ')})`);
         }
+        // Tab counts: each tab's number is what that tab shows when clicked. They use every filter
+        // and the search; the status filter only where it stays on switching tab (any status on
+        // All, a not-Completed status on Active, Completed on Completed), as the list's store does.
+        const countWhereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+        const status = String(q.status || '').slice(0, 100);
+        let allMatch = '1 = 1';
+        let activeMatch = `${STATUS_SQL} <> 'Completed'`;
+        if (status) {
+            request.input('fStatus', status);
+            where.push(`${STATUS_SQL} = @fStatus`);
+            allMatch = `${STATUS_SQL} = @fStatus`;
+            if (status !== 'Completed') activeMatch += ` AND ${STATUS_SQL} = @fStatus`;
+        }
+        if (q.category === 'completed') where.push(`${STATUS_SQL} = 'Completed'`);
+        else if (q.category === 'active') where.push(`${STATUS_SQL} <> 'Completed'`);
         const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
         const sortColumn = LIST_SORTS[q.sort];
@@ -623,17 +633,19 @@ async function getCsrProjectslist(req, res)
             ${paged ? `
             SELECT COUNT(*) AS total FROM tbl_csr_projects p
             JOIN mmt_organisation o ON o.organisation_id = p.organisation_id ${whereSql};
-            -- Category tab counts: everything the user may see, before filters
-            SELECT COUNT(*) AS [all], ISNULL(SUM(CASE WHEN ${STATUS_SQL} = 'Completed' THEN 1 ELSE 0 END), 0) AS completed
+            -- Category tab counts (see countWhereSql above)
+            SELECT ISNULL(SUM(CASE WHEN ${allMatch} THEN 1 ELSE 0 END), 0) AS [all],
+                ISNULL(SUM(CASE WHEN ${activeMatch} THEN 1 ELSE 0 END), 0) AS active,
+                ISNULL(SUM(CASE WHEN ${STATUS_SQL} = 'Completed' THEN 1 ELSE 0 END), 0) AS completed
             FROM tbl_csr_projects p
-            JOIN mmt_organisation o ON o.organisation_id = p.organisation_id ${scopeSql};` : ''}
+            JOIN mmt_organisation o ON o.organisation_id = p.organisation_id ${countWhereSql};` : ''}
         `);
         if (!paged) return res.json(result.recordsets[0]);
         const counts = result.recordsets[2][0];
         res.json({
             rows: result.recordsets[0],
             total: result.recordsets[1][0].total,
-            counts: { all: counts.all, active: counts.all - counts.completed, completed: counts.completed },
+            counts: { all: counts.all, active: counts.active, completed: counts.completed },
         });
     } catch (err) {
         console.error('Error fetching CSR projects:', err);
@@ -1244,11 +1256,17 @@ async function getCsrDashboard(req, res) {
         SUM(CASE WHEN project_status = 'Completed' THEN 1 ELSE 0 END) AS completed
       FROM Projects;
 
-      -- Expenditure booked in the year on the filtered projects (any project year)
-      SELECT SUM(e.csr_expenditure_cost) AS expenditure
+      -- Expenditure booked in the year on the filtered projects (any project year). As in Fund
+      -- Details and the fund summary, only years the organisation has a fund entry for count;
+      -- spending in a year with no fund entry is returned apart (CSR retest, 12-Nov-2026)
+      SELECT
+        SUM(CASE WHEN funded.organisation_id IS NOT NULL THEN e.csr_expenditure_cost ELSE 0 END) AS expenditure,
+        SUM(CASE WHEN funded.organisation_id IS NULL THEN e.csr_expenditure_cost ELSE 0 END) AS unfunded_expenditure
       FROM tbl_csr_expenditure e
       INNER JOIN tbl_csr_projects p ON p.csr_project_id = e.csr_project_id
       INNER JOIN mmt_organisation o ON o.organisation_id = p.organisation_id
+      LEFT JOIN (SELECT DISTINCT organisation_id, financial_year FROM tbl_csr_fund) funded
+        ON funded.organisation_id = p.organisation_id AND funded.financial_year = e.year
       WHERE ${inOrgs('p.organisation_id')}
         AND (@focusId = 0 OR p.csr_focus = @focusId)
         AND (@fy IS NULL OR e.year = @fy);
@@ -1377,6 +1395,7 @@ async function getCsrDashboard(req, res) {
         projects: n(kpi[0]?.projects),
         projectValue: n(kpi[0]?.project_value),
         expenditure: n(spent[0]?.expenditure),
+        unfundedExpenditure: n(spent[0]?.unfunded_expenditure),
         underImplementation: n(kpi[0]?.under_implementation),
         completed: n(kpi[0]?.completed),
       },
@@ -1514,9 +1533,11 @@ async function getCsrProjectsYearWiseSummary(req, res) {
     // no projects yet, or vice versa.
     // organisationId scopes both sides when provided (used for the
     // Organisation-sheet's auto-scoped version of this same report).
+    // A project saved without a financial year is counted under "Not specified" (last row);
+    // it used to make a blank row of zeros and was missing from the total.
     const sqlQuery = `
       WITH AllYears AS (
-        SELECT DISTINCT financial_year FROM tbl_csr_projects
+        SELECT DISTINCT ISNULL(NULLIF(LTRIM(RTRIM(financial_year)), ''), 'Not specified') AS financial_year FROM tbl_csr_projects
         WHERE (@organisationId IS NULL OR organisation_id = @organisationId)
         UNION
         SELECT DISTINCT financial_year FROM tbl_csr_fund
@@ -1524,7 +1545,7 @@ async function getCsrProjectsYearWiseSummary(req, res) {
       ),
       ProjectCounts AS (
         SELECT
-          financial_year,
+          ISNULL(NULLIF(LTRIM(RTRIM(financial_year)), ''), 'Not specified') AS financial_year,
           COUNT(*) AS total_projects,
           SUM(CASE WHEN project_status = 'Approved by Board' THEN 1 ELSE 0 END) AS approved_count,
           SUM(CASE WHEN project_status = 'Project yet to start' THEN 1 ELSE 0 END) AS yet_to_start_count,
@@ -1532,7 +1553,7 @@ async function getCsrProjectsYearWiseSummary(req, res) {
           SUM(CASE WHEN project_status = 'Completed' THEN 1 ELSE 0 END) AS completed_count
         FROM tbl_csr_projects
         WHERE (@organisationId IS NULL OR organisation_id = @organisationId)
-        GROUP BY financial_year
+        GROUP BY ISNULL(NULLIF(LTRIM(RTRIM(financial_year)), ''), 'Not specified')
       ),
       FundByYear AS (
         SELECT financial_year, SUM(csr_fund_alloted_year) AS total_allotted
@@ -1551,7 +1572,7 @@ async function getCsrProjectsYearWiseSummary(req, res) {
       FROM AllYears ay
       LEFT JOIN ProjectCounts pc ON pc.financial_year = ay.financial_year
       LEFT JOIN FundByYear fby ON fby.financial_year = ay.financial_year
-      ORDER BY ay.financial_year DESC;
+      ORDER BY CASE WHEN ay.financial_year = 'Not specified' THEN 1 ELSE 0 END, ay.financial_year DESC;
     `;
 
     const { recordset } = await request.query(sqlQuery);

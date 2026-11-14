@@ -112,6 +112,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
   const canCreateConsultant = canCreateModule('CONSULTANT_APPOINTMENT');
   const canCreateYp = canCreateModule('YOUNG_PROFESSIONAL');
   const canCreateCapex = canCreateModule('CAPEX');
+  const canCreateAuditPara = canCreateModule('AUDIT_PARAS');
   // HR pages follow the user's HR view (Major Port / non-port / Secretary / ministry), as in the HR tab bar
   const { hrView, canViewVacancy: canViewHrVacancy, canViewAdministration: canViewHrAdmin } = useHRPermissions();
 
@@ -169,12 +170,12 @@ export default function Tabs({ activeTab, setActiveTab }) {
           title: 'Capex',
           icon: Coins,
           items: [
-            m('CAPEX', { label: 'Capex Dashboard', icon: LayoutDashboard, tab: 'Capex Dashboard' }),
-            m('CAPEX', { label: 'Capex Datalist', icon: ClipboardList, tab: 'Capex Datalist' }),
+            m('CAPEX', { label: 'Dashboard', icon: LayoutDashboard, tab: 'Capex Dashboard' }),
+            m('CAPEX', { label: 'Data List', icon: ClipboardList, tab: 'Capex Datalist' }),
             ...(canCreateCapex && !isOrgUser
-              ? [m('CAPEX', { label: 'Capex Input Form', icon: FileEdit, tab: 'Capex Input Form' })]
+              ? [m('CAPEX', { label: 'Input Form', icon: FileEdit, tab: 'Capex Input Form' })]
               : []),
-            m('CAPEX', { label: 'Capex Reports', icon: FilePieChart, tab: 'Capex Reports' }),
+            m('CAPEX', { label: 'Reports', icon: FilePieChart, tab: 'Capex Reports' }),
           ],
         },
       ]
@@ -190,54 +191,54 @@ export default function Tabs({ activeTab, setActiveTab }) {
           title: 'Major Ports',
           icon: Anchor,
           items: [
-            m('KPI_MAJOR_PORTS', { label: 'Major Ports Dashboard', icon: LayoutDashboard }),
-            m('KPI_MAJOR_PORTS', { label: 'Major Ports Input Form', icon: FileEdit }),
+            m('KPI_MAJOR_PORTS', { label: 'Dashboard', tab: 'Major Ports Dashboard', icon: LayoutDashboard }),
+            m('KPI_MAJOR_PORTS', { label: 'Input Form', tab: 'Major Ports Input Form', icon: FileEdit }),
             // Ministry unlocks late traffic entry (the earlier portal's Ministry Access Unlock)
-            ...(!isOrgUser ? [m('KPI_MAJOR_PORTS', { label: 'Major Ports Entry Access', icon: KeyRound })] : []),
+            ...(!isOrgUser ? [m('KPI_MAJOR_PORTS', { label: 'Entry Access', tab: 'Major Ports Entry Access', icon: KeyRound })] : []),
           ]
         },
         {
           title: 'DGLL',
           icon: Compass,
           items: [
-            m('KPI_DGLL', { label: 'DGLL Input Form', icon: FileEdit }),
-            m('KPI_DGLL', { label: 'DGLL Data List', icon: ClipboardList }),
-            m('KPI_DGLL', { label: 'DGLL Reports', icon: FilePieChart }),
+            m('KPI_DGLL', { label: 'Input Form', tab: 'DGLL Input Form', icon: FileEdit }),
+            m('KPI_DGLL', { label: 'Data List', tab: 'DGLL Data List', icon: ClipboardList }),
+            m('KPI_DGLL', { label: 'Reports', tab: 'DGLL Reports', icon: FilePieChart }),
           ]
         },
         {
           title: 'CSL',
           icon: Layers,
           items: [
-            m('KPI_CSL', { label: 'CSL Input Form', icon: FileEdit }),
-            m('KPI_CSL', { label: 'CSL Data List', icon: ClipboardList }),
-            m('KPI_CSL', { label: 'CSL Reports', icon: FilePieChart }),
+            m('KPI_CSL', { label: 'Input Form', tab: 'CSL Input Form', icon: FileEdit }),
+            m('KPI_CSL', { label: 'Data List', tab: 'CSL Data List', icon: ClipboardList }),
+            m('KPI_CSL', { label: 'Reports', tab: 'CSL Reports', icon: FilePieChart }),
           ]
         },
         {
           title: 'IMU',
           icon: GraduationCap,
           items: [
-            m('KPI_IMU', { label: 'IMU Input Form', icon: FileEdit }),
-            m('KPI_IMU', { label: 'IMU Data List', icon: ClipboardList }),
-            m('KPI_IMU', { label: 'IMU Reports', icon: FilePieChart }),
+            m('KPI_IMU', { label: 'Input Form', tab: 'IMU Input Form', icon: FileEdit }),
+            m('KPI_IMU', { label: 'Data List', tab: 'IMU Data List', icon: ClipboardList }),
+            m('KPI_IMU', { label: 'Reports', tab: 'IMU Reports', icon: FilePieChart }),
           ]
         },
         {
           title: 'SCI',
           icon: Ship,
           items: [
-            m('KPI_SCI', { label: 'SCI Input Form', icon: FileEdit }),
-            m('KPI_SCI', { label: 'SCI Data List', icon: ClipboardList }),
-            m('KPI_SCI', { label: 'SCI Reports', icon: FilePieChart }),
+            m('KPI_SCI', { label: 'Input Form', tab: 'SCI Input Form', icon: FileEdit }),
+            m('KPI_SCI', { label: 'Data List', tab: 'SCI Data List', icon: ClipboardList }),
+            m('KPI_SCI', { label: 'Reports', tab: 'SCI Reports', icon: FilePieChart }),
           ]
         },
         {
           title: 'CMEC',
           icon: Layers,
           items: [
-            m('KPI_CMEC', { label: 'CMEC Input Form', icon: FileEdit }),
-            m('KPI_CMEC', { label: 'CMEC Reports', icon: FilePieChart }),
+            m('KPI_CMEC', { label: 'Input Form', tab: 'CMEC Input Form', icon: FileEdit }),
+            m('KPI_CMEC', { label: 'Reports', tab: 'CMEC Reports', icon: FilePieChart }),
           ]
         }
       ]
@@ -255,6 +256,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           label: 'Cabinet Notes - Other Ministries', icon: FileText,
           targetTab: 'Cabinet Notes - Other Ministries',
           subItems: [
+            { label: 'Dashboard', tab: 'Cabinet Notes - Other Ministries', targetSubTab: 'Dashboard', icon: LayoutDashboard },
             { label: 'Data List', tab: 'Cabinet Notes - Other Ministries', targetSubTab: 'Data List', icon: ClipboardList },
             { label: 'Input Form', tab: 'Cabinet Notes - Other Ministries', targetSubTab: 'Input Form', icon: FileEdit },
             { label: 'Reports', tab: 'Cabinet Notes - Other Ministries', targetSubTab: 'Reports', icon: FilePieChart },
@@ -266,6 +268,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           icon: Scale,
           targetTab: 'Parliamentary Issue',
           subItems: [
+            { label: 'Dashboard', tab: 'Parliamentary Issue - Dashboard', targetSubTab: 'Dashboard', icon: LayoutDashboard },
             { label: 'Data List', tab: 'Parliamentary Issue - Data List', targetSubTab: 'Data List', icon: ClipboardList },
             ...(canCreateParliamentary
               ? [{ label: 'Input Form', tab: 'Parliamentary Issue - Input Form', targetSubTab: 'Input Form', icon: FileEdit }]
@@ -278,6 +281,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           label: 'Cabinet Notes - MoPSW', icon: FileText,
           targetTab: 'Cabinet Notes - MoPSW',
           subItems: [
+            { label: 'Dashboard', tab: 'Cabinet Notes - MoPSW - Dashboard', targetSubTab: 'Dashboard', icon: LayoutDashboard },
             { label: 'Data List', tab: 'Cabinet Notes - MoPSW - Data List', targetSubTab: 'Data List', icon: ClipboardList },
             ...(canCreateCabinetMopsw
               ? [{ label: 'Input Form', tab: 'Cabinet Notes - MoPSW - Input Form', targetSubTab: 'Input Form', icon: FileEdit }]
@@ -289,6 +293,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           label: 'VIP Reference', icon: Users,
           targetTab: 'VIP Reference',
           subItems: [
+            { label: 'Dashboard', tab: 'VIP Reference - Dashboard', targetSubTab: 'Dashboard', icon: LayoutDashboard },
             { label: 'Data List', tab: 'VIP Reference - Data List', targetSubTab: 'Data List', icon: ClipboardList },
             { label: 'Input Form', tab: 'VIP Reference - Input Form', targetSubTab: 'Input Form', icon: FileEdit },
             { label: 'Reports', tab: 'VIP Reference - Reports', targetSubTab: 'Reports', icon: FilePieChart },
@@ -315,7 +320,18 @@ export default function Tabs({ activeTab, setActiveTab }) {
             { label: 'Social Media', tab: 'Media Outreach', mediaType: 'social_media', icon: Network },
           ]
         }),
-        m('AUDIT_PARAS', { label: 'Audit Paras', icon: CheckCircle }),
+        m('AUDIT_PARAS', {
+          label: 'Audit Paras', icon: CheckCircle,
+          targetTab: 'Audit Paras',
+          subItems: [
+            { label: 'Dashboard', tab: 'Audit Paras - Dashboard', targetSubTab: 'Dashboard', icon: LayoutDashboard },
+            { label: 'Data List', tab: 'Audit Paras - Data List', targetSubTab: 'Data List', icon: ClipboardList },
+            ...(canCreateAuditPara
+              ? [{ label: 'Input Form', tab: 'Audit Paras - Input Form', targetSubTab: 'Input Form', icon: FileEdit }]
+              : []),
+            { label: 'Reports', tab: 'Audit Paras - Reports', targetSubTab: 'Reports', icon: FilePieChart },
+          ]
+        }),
       ]
     },
     {
@@ -353,10 +369,10 @@ export default function Tabs({ activeTab, setActiveTab }) {
           title: 'Consultant Appointment',
           icon: UserPlus,
           items: [
-            m('CONSULTANT_APPOINTMENT', { label: 'Consultant Dashboard', icon: LayoutDashboard }),
-            ...(canCreateConsultant ? [m('CONSULTANT_APPOINTMENT', { label: 'Consultant Input Form', icon: FileEdit })] : []),
-            m('CONSULTANT_APPOINTMENT', { label: 'Consultant Data List', icon: ClipboardList }),
-            m('CONSULTANT_APPOINTMENT', { label: 'Consultant Reports', icon: FilePieChart }),
+            m('CONSULTANT_APPOINTMENT', { label: 'Dashboard', tab: 'Consultant Dashboard', icon: LayoutDashboard }),
+            ...(canCreateConsultant ? [m('CONSULTANT_APPOINTMENT', { label: 'Input Form', tab: 'Consultant Input Form', icon: FileEdit })] : []),
+            m('CONSULTANT_APPOINTMENT', { label: 'Data List', tab: 'Consultant Data List', icon: ClipboardList }),
+            m('CONSULTANT_APPOINTMENT', { label: 'Reports', tab: 'Consultant Reports', icon: FilePieChart }),
           ]
         }
       ]
@@ -373,6 +389,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           targetTab: 'Bills/PreConstitutions Act',
           clickableHeader: true,
           subItems: [
+            { label: 'Dashboard', tab: 'Bills/PreConstitutions Act', targetSubTab: 'Dashboard', icon: LayoutDashboard },
             { label: 'Data List', tab: 'Bills/PreConstitutions Act', targetSubTab: 'Data List', icon: ClipboardList },
             { label: 'Input Form', tab: 'Bills/PreConstitutions Act', targetSubTab: 'Input Form', icon: FileEdit },
             { label: 'Reports', tab: 'Bills/PreConstitutions Act', targetSubTab: 'Reports', icon: FilePieChart },
@@ -490,7 +507,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
       directTab: 'Contact Us',
     },
   ]),
-    [accessKey, isOrgUser, canCreateParliamentary, canCreateCabinetMopsw, canCreateConsultant, canCreateYp, canCreateCapex, canViewHrVacancy, canViewHrAdmin, hrView]
+    [accessKey, isOrgUser, canCreateParliamentary, canCreateCabinetMopsw, canCreateConsultant, canCreateYp, canCreateCapex, canCreateAuditPara, canViewHrVacancy, canViewHrAdmin, hrView]
   );
 
   // Modules that keep their sub-tab in a store rather than in the URL read the opening tab from
@@ -512,6 +529,21 @@ export default function Tabs({ activeTab, setActiveTab }) {
     const [key, event] = hint;
     sessionStorage.setItem(key, sub.targetSubTab);
     window.dispatchEvent(new CustomEvent(event, { detail: sub.targetSubTab }));
+  };
+
+  // A sub-item click: its page, plus the sub-tab hint for store-driven modules
+  const openSubItem = (item, sub) => {
+    const mainTab = sub.tab || item.targetTab || item.label;
+    setActiveTab(mainTab);
+    setIsOpen(false);
+    applySubTabHint(mainTab, sub);
+  };
+
+  // Clicking a module's name opens its Dashboard when it has one, otherwise its own page
+  const openModule = (item) => {
+    const dashboard = item.subItems?.find((sub) => sub.label === 'Dashboard');
+    if (dashboard) openSubItem(item, dashboard);
+    else handleItemClick(item.tab ?? item.label);
   };
 
   const handleItemClick = (tabOrLabel) => {
@@ -718,7 +750,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
                             return (
                               <div key={iIdx} className="relative group/flyout">
                                 <button
-                                  onClick={() => handleItemClick(item.tab ?? item.label)}
+                                  onClick={() => openModule(item)}
                                   className="flex items-center justify-between space-x-2 w-full text-left text-xs font-semibold text-slate-655 hover:text-blue-605 hover:bg-slate-55 transition-all px-2.5 py-1.5 rounded-lg border border-transparent hover:border-slate-100 cursor-pointer group/flyoutbtn"
                                 >
                                   <div className="flex items-center space-x-2">
@@ -731,7 +763,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
                                 <div className={`absolute top-0 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl rounded-2xl p-3 z-[60] transition-all duration-200 scale-95 opacity-0 invisible group-hover/flyout:scale-100 group-hover/flyout:opacity-100 group-hover/flyout:visible space-y-1 ${menu.flyoutSide === 'left' ? 'right-full mr-2 origin-right' : 'left-full ml-2 origin-left'}`}>
                                   {item.clickableHeader ? (
                                     <button
-                                      onClick={() => { handleItemClick(item.tab ?? item.label); setIsOpen(false); }}
+                                      onClick={() => openModule(item)}
                                       className="w-full text-left text-[10px] font-extrabold text-[#0f417a] dark:text-blue-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700 pb-1.5 mb-2 hover:text-blue-600 dark:hover:text-blue-300 transition-colors cursor-pointer"
                                     >
                                       {item.label}

@@ -16,6 +16,7 @@ import { fetchCapexReport } from '../api';
 import { getSessionOrganisationId } from '../../../utils/authSession';
 import { COMMON_TOASTS } from '../../../utils/notify';
 import { CAPEX_TOASTS } from '../toastMessages';
+import { exportHtmlTableToPdf } from '../../../utils/exportGridReport';
 
 const BRAND = '#4b2424';
 const BRAND_HOVER = '#6b3535';
@@ -439,9 +440,14 @@ export default function CapexForm32Report({ notify, orgScoped = false }) {
     notify?.(COMMON_TOASTS.excelExported(`Capex_Detailed_Report_${selectedYear}.xlsx`, 'The report'));
   };
 
+  // PDF of the report table only, straight to a file (it used to print the whole page)
   const handleExportPdf = () => {
-    notify?.(COMMON_TOASTS.pdfPreparing());
-    window.print();
+    const file = exportHtmlTableToPdf(document.getElementById('capexForm32Table'), {
+      title: 'Capex Detailed Report (Form 32)',
+      subtitle: `Financial Year ${selectedYear}`,
+      fileName: `Capex_Detailed_Report_${selectedYear}`,
+    });
+    if (file) notify?.(COMMON_TOASTS.excelExported(file, 'The report'));
   };
 
   let rowCounter = 1;

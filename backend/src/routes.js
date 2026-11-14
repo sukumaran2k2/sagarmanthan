@@ -212,6 +212,7 @@ import MIVTab from "./controllers/LongTermStrategies/miv.js";
 import AKVTab from "./controllers/LongTermStrategies/amritKaal.js";
 import gmisMouTab from "./controllers/LongTermStrategies/gmisMou.js";
 import gmisMouDashboard from "./controllers/LongTermStrategies/gmisMouDashboard.js";
+import mivDashboard from "./controllers/LongTermStrategies/mivDashboard.js";
 
 //User manuals
 import userManualMenu from "./controllers/UserManuals/userManual.js";
@@ -996,6 +997,8 @@ router.get("/viewproject-tender-data/:projectID/:subProjectID", auth, requireMod
 router.get("/get-editprojectdata/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), editProjectTab.getEdiProjectData);
 router.get("/get-expenditure-outlay/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), expenditureTab.getExpenditureOutlayCost);
 router.post("/add-expenditure-outlay", auth, requireModulePermission("PROJECTS", "update"), expenditureTab.addExpenditureOutlay);
+router.delete("/delete-expenditure-outlay/:id/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "update"), expenditureTab.deleteExpenditureOutlay);
+
 
 router.post("/add-revised-date", auth, requireModulePermission("PROJECTS", "update"), editProjectTab.addRevisedDate);
 router.get("/get-revised-date/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), editProjectTab.getRevisedDate);
@@ -3086,6 +3089,8 @@ router.get('/get-target-date/:initiativeID', auth, requireModulePermission("MIV_
 router.get('/meetinglogs-mopsw/:organisationId', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getLogMeetingMopsw);
 
 router.get('/get-miv-dashboard', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getMIVDashboard);
+// MIV 2030 dashboard (themes, statuses, organisations, overdue); organisation users see their own
+router.get('/miv-dashboard', auth, requireModulePermission("MIV_2030", "read"), mivDashboard.getMivDashboard);
 router.get('/get-miv-activity-status-wise', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getMIVactivityStatusWise);
 router.get('/get-miv-activity-current-status-port-wise', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getMIVactivityCurrentStatusPortWise);
 router.get('/get-miv-category-count-wise', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getMIVCategoryCountWise);
@@ -3212,7 +3217,7 @@ router.get('/get-mou-category-names', auth, requireModulePermission("GMIS_IMW_MO
 router.post('/submit-gmis-mou-data', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "create"), gmisMouTab.submitGmisMouData);
 router.post("/gmisdocumentUploader", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "create"), gmisMouTab.upload.single('file'), gmisMouTab.addNewgmisFileupload);
 router.put('/update-gmis-mou-data', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "update"), gmisMouTab.updateGmisMouData);
-router.get('/get-gmis-mou-data-by-id/:mouID', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouDataByID);
+// router.get('/get-gmis-mou-data-by-id/:mouID', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouDataByID);
 router.get("/download-gmismou-pdf-document", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.gmisPdfFileDownload);
 router.delete("/delete-gmisfile", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "delete"), gmisMouTab.gmisfileDelete);
 router.post("/add-revised-financial-progress-date", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "update"), gmisMouTab.addRevisedfinancialprogressdate);
@@ -3395,6 +3400,7 @@ router.get(
   formBuilderController.downloadFormFile
 );
 // Studio drafts (unpublished form designs, private to their author)
+router.get('/get-form-targets', auth, requireModulePermission("FORM_BUILDER", "create"), formBuilderController.getFormTargets); // Studio: organisations and wings to assign
 router.get('/get-form-drafts', auth, requireModulePermission("FORM_BUILDER", "create"), formBuilderController.getFormDrafts);
 router.post('/save-form-draft', auth, requireModulePermission("FORM_BUILDER", "create"), formBuilderController.saveFormDraft);
 router.delete('/delete-form-draft/:draftId', auth, requireModulePermission("FORM_BUILDER", "create"), formBuilderController.deleteFormDraft);

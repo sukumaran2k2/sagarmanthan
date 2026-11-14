@@ -5,6 +5,7 @@ import TablePagination from '../../../components/TablePagination';
 import DataListToolbar from '../../../components/DataListToolbar';
 import { exportDataListToPdf } from '../../../utils/exportReportPdf';
 import { COMMON_TOASTS } from '../../../utils/notify';
+import { exportGridApiToExcel } from '../../../utils/exportGridReport';
 
 const DEST_COLUMN_LABELS = {
   finacial_year: 'Financial Year',
@@ -151,8 +152,11 @@ export default function TouristDestinationsDataList({
         () => notify?.(COMMON_TOASTS.copyFailed()),
       );
     } else if (type === 'Excel') {
-      gridRef.current?.api?.exportDataAsCsv({ fileName: fileNameBase });
-      notify?.(COMMON_TOASTS.excelExported(`${fileNameBase}.csv`));
+      const file = exportGridApiToExcel(gridRef.current?.api, {
+        title: isDestination ? 'Tourist Destinations Data List' : 'Tourist Destinations Target Details Data List',
+        fileName: fileNameBase,
+      });
+      notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
       exportDataListToPdf({
         title: isDestination ? 'Tourist Destinations Data List' : 'Tourist Destinations Target Details Data List',

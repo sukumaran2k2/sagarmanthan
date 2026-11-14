@@ -6,6 +6,7 @@ import CopyButton from '../../../components/CopyButton';
 import ExportDropdown from '../../../components/ExportDropdown';
 import { Search, Edit, Trash2, Filter, ChevronDown, X } from 'lucide-react';
 import { useCabinetNotesOtherStore } from '../store/useCabinetNotesOtherStore';
+import { exportRowsToFile } from '../../../utils/exportGridReport';
 import {
   getWrapColumnProps,
   renderWrappedText,
@@ -102,19 +103,6 @@ export default function DataList({
     return stName.includes('reply furnished to other ministry') || stName.includes('completed');
   };
 
-  const { activeCount, completedCount } = useMemo(() => {
-    let active = 0;
-    let completed = 0;
-    (rowData || []).forEach(item => {
-      if (checkIsCompleted(item)) {
-        completed++;
-      } else {
-        active++;
-      }
-    });
-    return { activeCount: active, completedCount: completed };
-  }, [rowData]);
-
   // Derive Stage Options: exclude "Reply Furnished to Other Ministry" / Stage 5 from stage options in active tab
   const stageOptions = useMemo(() => {
     let list = [];
@@ -151,21 +139,11 @@ export default function DataList({
     triggerNotification?.('Filters have been reset', 'info');
   };
 
-  // Filter data by active/completed category and filters
-  const filteredData = useMemo(() => {
+  // Ministry and search: everything but the tab and the (Active-only) stage
+  const matchingRows = useMemo(() => {
     return (rowData || []).filter(item => {
-      const isCompleted = checkIsCompleted(item);
-      const matchesCategory = activeCategory === 'completed' ? isCompleted : !isCompleted;
-
-      if (!matchesCategory) return false;
-
       const matchesMinistry = selectedMinistry
         ? cleanMinistryName(item.ministry_name) === selectedMinistry
-        : true;
-
-      const stageText = item.stage_name || '';
-      const matchesStage = (activeCategory === 'active' && selectedStage)
-        ? stageText === selectedStage
         : true;
 
       const q = searchTerm.toLowerCase().trim();
@@ -177,9 +155,28 @@ export default function DataList({
         item.remarks
       ].some(val => String(val || '').toLowerCase().includes(q));
 
-      return matchesMinistry && matchesStage && matchesSearch;
+      return matchesMinistry && matchesSearch;
     });
-  }, [rowData, selectedMinistry, selectedStage, activeCategory, searchTerm]);
+  }, [rowData, selectedMinistry, searchTerm]);
+
+  // Tab counts: what each tab shows when clicked. The stage filter exists only on Active and is
+  // cleared on switching tab.
+  const stageApplies = activeCategory === 'active' && selectedStage;
+  const { activeCount, completedCount } = useMemo(() => {
+    let active = 0;
+    let completed = 0;
+    matchingRows.forEach((item) => {
+      if (checkIsCompleted(item)) completed++;
+      else if (!stageApplies || (item.stage_name || '') === selectedStage) active++;
+    });
+    return { activeCount: active, completedCount: completed };
+  }, [matchingRows, stageApplies, selectedStage]);
+
+  const filteredData = useMemo(() => matchingRows.filter((item) => {
+    const isCompleted = checkIsCompleted(item);
+    if (activeCategory === 'completed') return isCompleted;
+    return !isCompleted && (!stageApplies || (item.stage_name || '') === selectedStage);
+  }), [matchingRows, activeCategory, stageApplies, selectedStage]);
 
   // The stored page is kept as chosen; it is clamped here so a list that has shrunk since
   // (a delete, a narrower filter elsewhere) never opens on an empty page.
@@ -427,107 +424,22 @@ export default function DataList({
       .catch(() => triggerNotification?.('Failed to copy table data.', 'error'));
   };
 
-  // Export handlers
+  // Export: Excel (.xlsx) / PDF of every filtered note, straight to a file (no print dialog or new tab)
   const handleExport = (type) => {
-    if (type === 'Excel') {
-      const activeCols = columnDefs.filter(c => c.headerName && c.headerName !== 'ACTIONS' && !c.hide);
-      let csvContent = '\uFEFF';
-      csvContent += activeCols.map(c => `"${c.headerName}"`).join(',') + '\r\n';
-
-      filteredData.forEach((row, rowIndex) => {
-        const line = activeCols.map(col => {
-          let val = '';
-          if (col.field === 'sNo' || col.headerName === 'S.NO') {
-            val = rowIndex + 1;
-          } else if (col.valueGetter && typeof col.valueGetter === 'function') {
-            val = col.valueGetter({ data: row, node: { rowIndex } });
-          } else {
-            val = row[col.field] !== undefined && row[col.field] !== null ? row[col.field] : '';
-          }
-          return `"${String(val).replace(/"/g, '""')}"`;
-        });
-        csvContent += line.join(',') + '\r\n';
-      });
-
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.setAttribute('href', url);
-      link.setAttribute('download', `Cabinet_Notes_Other_Ministry_Register_export.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-
-      if (triggerNotification) {
-        triggerNotification(`Register data exported to Excel (CSV) successfully!`, 'success');
-      }
-    } else if (type === 'PDF') {
-      if (triggerNotification) {
-        triggerNotification(`Preparing PDF document...`, 'info');
-      }
-
-      const printWindow = window.open('', '_blank');
-      const title = 'Cabinet Notes - Other Ministry Data List';
-
-      const activeCols = columnDefs.filter(c => c.headerName && c.headerName !== 'ACTIONS' && !c.hide);
-      let headersHtml = '';
-      activeCols.forEach(col => {
-        headersHtml += `<th style="border: 1px solid #cbd5e1; padding: 10px; text-align: left; background-color: #0f417a; color: #ffffff; font-size: 11px; font-weight: bold; text-transform: uppercase;">${col.headerName}</th>`;
-      });
-
-      let rowsHtml = '';
-      filteredData.forEach((row, rowIndex) => {
-        const bg = rowIndex % 2 === 0 ? '#ffffff' : '#f8fafc';
-        rowsHtml += `<tr style="background-color: ${bg};">`;
-        activeCols.forEach(col => {
-          let val = '';
-          if (col.field === 'sNo' || col.headerName === 'S.NO') {
-            val = rowIndex + 1;
-          } else if (col.valueGetter && typeof col.valueGetter === 'function') {
-            val = col.valueGetter({ data: row, node: { rowIndex } });
-          } else {
-            val = row[col.field] !== undefined && row[col.field] !== null ? row[col.field] : '-';
-          }
-          rowsHtml += `<td style="border: 1px solid #e2e8f0; padding: 8px; font-size: 11px;">${val}</td>`;
-        });
-        rowsHtml += '</tr>';
-      });
-
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>${title}</title>
-            <style>
-              body { font-family: system-ui, -apple-system, sans-serif; color: #1e293b; padding: 20px; }
-              h1 { font-size: 18px; margin-bottom: 5px; color: #0f417a; }
-              table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-              @media print {
-                body { padding: 0; }
-              }
-            </style>
-          </head>
-          <body>
-            <h1>${title}</h1>
-            <p style="font-size: 11px; color: #64748b; margin-top: 0; margin-bottom: 20px;">Generated on: ${new Date().toLocaleDateString()}</p>
-            <table>
-              <thead>
-                <tr>${headersHtml}</tr>
-              </thead>
-              <tbody>
-                ${rowsHtml}
-              </tbody>
-            </table>
-            <script>
-              window.onload = function() {
-                window.print();
-              };
-            </script>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
-    }
+    const activeCols = columnDefs.filter(c => c.headerName && c.headerName !== 'ACTIONS' && !c.hide);
+    const cellValue = (col, row, rowIndex) => {
+      if (col.field === 'sNo' || col.headerName === 'S.NO') return rowIndex + 1;
+      if (typeof col.valueGetter === 'function') return col.valueGetter({ data: row, node: { rowIndex } });
+      return row[col.field] ?? '';
+    };
+    const name = exportRowsToFile(type === 'PDF' ? 'pdf' : 'excel', {
+      title: 'Cabinet Notes - Other Ministries',
+      subtitle: activeCategory === 'completed' ? 'Completed notes' : 'Active notes',
+      headers: activeCols.map(c => c.headerName),
+      rows: filteredData.map((row, rowIndex) => activeCols.map(col => cellValue(col, row, rowIndex))),
+      fileName: 'Cabinet_Notes_Other_Ministries',
+    });
+    triggerNotification?.(`Exported ${filteredData.length} notes as ${name}`, 'success');
   };
 
   return (

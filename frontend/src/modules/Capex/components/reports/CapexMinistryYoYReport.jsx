@@ -16,6 +16,7 @@ import { fetchCapexYoYReport } from '../../api';
 import { getCapexReportAsOnMeta } from '../../utils/capexUtils';
 import { COMMON_TOASTS } from '../../../../utils/notify';
 import { CAPEX_TOASTS } from '../../toastMessages';
+import { exportRowsToFile } from '../../../../utils/exportGridReport';
 
 const BRAND = '#4b2424';
 const BRAND_HOVER = '#6b3535';
@@ -163,7 +164,8 @@ export default function CapexMinistryYoYReport({ notify }) {
     });
   };
 
-  const handleExportExcel = () => {
+  // Report rows for Excel and PDF
+  const buildExportData = () => {
     const data = filteredRows.map((r, i) => {
       const row = {
         SNo: i + 1,
@@ -187,6 +189,11 @@ export default function CapexMinistryYoYReport({ notify }) {
     });
     data.push(totalRow);
 
+    return data;
+  };
+
+  const handleExportExcel = () => {
+    const data = buildExportData();
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Capex YoY');
@@ -194,9 +201,16 @@ export default function CapexMinistryYoYReport({ notify }) {
     notify?.(COMMON_TOASTS.excelExported('Capex_Year_on_Year_Report.xlsx', 'The report'));
   };
 
+  // PDF of the report's rows, straight to a file (it used to print the whole page)
   const handleExportPdf = () => {
-    notify?.(COMMON_TOASTS.pdfPreparing());
-    window.print();
+    const data = buildExportData();
+    if (!data.length) return;
+    exportRowsToFile('pdf', {
+      title: 'Capex - Year on Year Report',
+      headers: Object.keys(data[0]),
+      rows: data.map((row) => Object.values(row)),
+      fileName: 'Capex_Year_on_Year_Report',
+    });
   };
 
   const colSpan = 2 + financialYears.length * 3;

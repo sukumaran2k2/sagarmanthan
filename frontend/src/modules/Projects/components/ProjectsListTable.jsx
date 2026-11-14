@@ -12,6 +12,7 @@ import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import { isOrganisationUser as checkIsOrganisationUser } from '../../../utils/authSession';
 import { pickPresentCost } from '../utils/mapProject';
+import { exportRowsToFile } from '../../../utils/exportGridReport';
 
 const STATUS_COLORS = {
   'Under Implementation': '#0284c7',
@@ -165,6 +166,16 @@ export default function ProjectsListTable({
     dropRemarks: true,
     dropStatus: true,
     actions: true,
+    // 2.0 list columns offered in Visibility, unticked by default
+    sagarmalaProjectId: false,
+    projectCategory: false,
+    scheme: false,
+    stateName: false,
+    organisationName: false,
+    modeOfImplementation: false,
+    implementationType: false,
+    awardedCost: false,
+    isSagarmalaFunded: false,
   });
 
   useEffect(() => {
@@ -923,6 +934,35 @@ export default function ProjectsListTable({
         },
       });
     }
+    // 2.0 list columns offered in Visibility (unticked by default); not on the Dropped tab
+    if (!isDroppedTab) {
+      [
+        ['sagarmalaProjectId', 'Sagarmala Project ID', (r) => r.sagarmalaProjectId],
+        ['projectCategory', 'Project Category', (r) => r.category],
+        ['scheme', 'Scheme', (r) => r.raw?.scheme_name],
+        ['stateName', 'State', (r) => r.stateName],
+        ['organisationName', 'Organisation Name', (r) => r.organisationName],
+        ['modeOfImplementation', 'Mode of Implementation', (r) => r.raw?.mode_of_implememtation],
+        ['implementationType', 'Implementation Type', (r) => r.raw?.implememtation_type],
+        ['awardedCost', 'Awarded Cost (₹ Cr)', (r) => (r.awardedCost !== null && r.awardedCost !== undefined && r.awardedCost !== '' ? toAmount(r.awardedCost) : '')],
+        ['isSagarmalaFunded', 'Is Sagarmala Funded', (r) => (r.isSagarmalaFunded ? 'Yes' : 'No')],
+      ].forEach(([key, headerName, get]) => {
+        if (!visibleCols[key] || (key === 'organisationName' && isOrgUser)) return;
+        cols.push({
+          colId: key,
+          headerName,
+          minWidth: 150,
+          wrapText: true,
+          autoHeight: true,
+          headerClass: 'text-center',
+          cellClass: 'text-xs text-slate-600 dark:text-slate-300 text-center flex items-center justify-center',
+          valueGetter: (params) => {
+            const v = params.data ? get(params.data) : '';
+            return v === null || v === undefined || v === '' ? '-' : v;
+          },
+        });
+      });
+    }
     if (!isDroppedTab && visibleCols.actions) {
       cols.push({
         headerName: 'Action',
@@ -1000,14 +1040,6 @@ export default function ProjectsListTable({
   const handleExport = async (type) => {
     if (exporting) return;
 
-    // Open the print window inside the click, before any await, so the browser does not block it.
-    const printWindow = type === 'PDF' ? window.open('', '_blank') : null;
-    if (type === 'PDF' && !printWindow) {
-      notify?.('Please allow pop-ups to export the PDF.', 'error');
-      return;
-    }
-    printWindow?.document.write('<p style="font-family: sans-serif; padding: 20px;">Preparing export...</p>');
-
     let exportRows = displayRows;
     if (typeof onFetchAllRows === 'function') {
       setExporting(true);
@@ -1016,7 +1048,6 @@ export default function ProjectsListTable({
         exportRows = allRows.map((row, idx) => ({ ...row, sNo: idx + 1 }));
       } catch (error) {
         console.error(error);
-        printWindow?.close();
         notify?.('Failed to fetch all projects for export. Please try again.', 'error');
         return;
       } finally {
@@ -1025,7 +1056,6 @@ export default function ProjectsListTable({
     }
 
     if (!exportRows.length) {
-      printWindow?.close();
       notify?.('No projects available to export.', 'info');
       return;
     }
@@ -1051,73 +1081,25 @@ export default function ProjectsListTable({
         notify?.('Failed to copy to clipboard.', 'error');
       }
     } else if (type === 'Excel') {
-      const csvCell = (val) => `"${String(val).replace(/"/g, '""')}"`;
-      let csv = '﻿';
-      csv += `${exportCols.map((col) => csvCell(col.headerName)).join(',')}\r\n`;
-      exportRows.forEach((row) => {
-        csv += `${exportCols.map((col) => csvCell(cellValue(col, row))).join(',')}\r\n`;
+      // Excel (.xlsx) of every project, the columns on show
+      exportRowsToFile('excel', {
+        title: 'Projects Module List',
+        subtitle: `${exportRows.length} project(s)`,
+        headers: exportCols.map((col) => col.headerName),
+        rows: exportRows.map((row) => exportCols.map((col) => cellValue(col, row))),
+        fileName: exportFileName,
       });
-
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${exportFileName}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-      notify?.(`Exported ${exportRows.length} project(s) to CSV.`, 'success');
+      notify?.(`Exported ${exportRows.length} project(s) to Excel.`, 'success');
     } else if (type === 'PDF') {
-      const title = 'Projects Module List';
-      const escapeHtml = (val) => String(val)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
-
-      const headersHtml = exportCols
-        .map((col) => `<th style="border: 1px solid #cbd5e1; padding: 10px; text-align: left; background-color: #f8fafc; font-size: 11px; font-weight: bold; text-transform: uppercase;">${escapeHtml(col.headerName)}</th>`)
-        .join('');
-
-      const rowsHtml = exportRows
-        .map((row) => `<tr>${exportCols
-          .map((col) => `<td style="border: 1px solid #e2e8f0; padding: 8px; font-size: 11px;">${escapeHtml(cellValue(col, row))}</td>`)
-          .join('')}</tr>`)
-        .join('');
-
-      printWindow.document.open();
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>${title}</title>
-            <style>
-              body { font-family: system-ui, -apple-system, sans-serif; color: #1e293b; padding: 20px; }
-              h1 { font-size: 18px; margin-bottom: 5px; color: #0f417a; }
-              table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-            </style>
-          </head>
-          <body>
-            <h1>${title}</h1>
-            <p style="font-size: 11px; color: #64748b; margin-top: 0; margin-bottom: 20px;">Generated on: ${new Date().toLocaleDateString()} &middot; ${exportRows.length} project(s)</p>
-            <table>
-              <thead>
-                <tr>${headersHtml}</tr>
-              </thead>
-              <tbody>
-                ${rowsHtml}
-              </tbody>
-            </table>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
-      // The window loaded before the data arrived, so print from here rather than its onload.
-      printWindow.onafterprint = () => printWindow.close();
-      setTimeout(() => {
-        printWindow.focus();
-        printWindow.print();
-      }, 300);
+      // PDF straight to a file (no print dialog or new tab): every project, the columns on show
+      exportRowsToFile('pdf', {
+        title: 'Projects Module List',
+        subtitle: `${exportRows.length} project(s)`,
+        headers: exportCols.map((col) => col.headerName),
+        rows: exportRows.map((row) => exportCols.map((col) => cellValue(col, row))),
+        fileName: exportFileName,
+      });
+      notify?.(`Exported ${exportRows.length} project(s) to PDF.`, 'success');
     }
   };
 
@@ -1310,6 +1292,10 @@ export default function ProjectsListTable({
                           { key: 'dropStatus', label: 'Drop Status' },
                         ]
                       : []),
+                    ...(filters?.projectStage !== 'Dropped'
+                      ? [{ key: 'sagarmalaProjectId', label: 'Sagarmala Project ID' }, { key: 'projectCategory', label: 'Project Category' }, { key: 'scheme', label: 'Scheme' }, { key: 'stateName', label: 'State' }, { key: 'modeOfImplementation', label: 'Mode of Implementation' }, { key: 'implementationType', label: 'Implementation Type' }, { key: 'awardedCost', label: 'Awarded Cost (₹ Cr)' }, { key: 'isSagarmalaFunded', label: 'Is Sagarmala Funded' }]
+                      : []),
+                    ...(filters?.projectStage !== 'Dropped' && !isOrgUser ? [{ key: 'organisationName', label: 'Organisation Name' }] : []),
                     ...(filters?.projectStage !== 'Dropped'
                       ? [{ key: 'actions', label: 'Action' }]
                       : []),

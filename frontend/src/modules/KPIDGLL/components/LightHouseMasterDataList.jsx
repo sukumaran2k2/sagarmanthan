@@ -5,17 +5,32 @@ import TablePagination from '../../../components/TablePagination';
 import DataListToolbar from '../../../components/DataListToolbar';
 import { exportDataListToPdf } from '../../../utils/exportReportPdf';
 import { COMMON_TOASTS } from '../../../utils/notify';
+import { cellText, lastUpdatedText } from '../../../utils/cellText';
+import { exportGridApiToExcel } from '../../../utils/exportGridReport';
 
 const COLUMN_LABELS = {
   alol: 'ALOL',
   light_house_name: 'Light House Name',
   light_status: 'Status',
+  commisioned_date: 'Date of Commissioning',
+  state_name: 'State',
+  district_name: 'District',
+  latitude: 'Latitude',
+  longitude: 'Longitude',
+  updated_date: 'Last Updated Date',
 };
 
 const DEFAULT_VISIBLE_COLS = {
   alol: true,
   light_house_name: true,
   light_status: true,
+  // Offered in Visibility, unticked (as in 2.0)
+  commisioned_date: false,
+  state_name: false,
+  district_name: false,
+  latitude: false,
+  longitude: false,
+  updated_date: false,
 };
 
 export default function LightHouseMasterDataList({
@@ -49,7 +64,7 @@ export default function LightHouseMasterDataList({
       const cols = Object.keys(visibleCols).filter((c) => visibleCols[c]);
       let tsv = ['S.No', ...cols.map((c) => COLUMN_LABELS[c])].join('\t') + '\n';
       rowData.forEach((row, i) => {
-        const line = [i + 1, ...cols.map((c) => c === 'light_status' ? (String(row[c]) === '1' ? 'Active' : 'Inactive') : (row[c] ?? ''))];
+        const line = [i + 1, ...cols.map((c) => c === 'light_status' ? (String(row[c]) === '1' ? 'Active' : 'Inactive') : cellText(row[c]))];
         tsv += line.join('\t') + '\n';
       });
       navigator.clipboard.writeText(tsv).then(
@@ -57,8 +72,8 @@ export default function LightHouseMasterDataList({
         () => notify?.(COMMON_TOASTS.copyFailed()),
       );
     } else if (type === 'Excel') {
-      gridRef.current?.api?.exportDataAsCsv({ fileName: 'light_house_master' });
-      notify?.(COMMON_TOASTS.excelExported('light_house_master.csv'));
+      const file = exportGridApiToExcel(gridRef.current?.api, { title: 'Light House Master Data List', fileName: 'light_house_master' });
+      notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
       exportDataListToPdf({
         title: 'Light House Master Data List',
@@ -90,6 +105,17 @@ export default function LightHouseMasterDataList({
       }
     }] : []),
 
+    ...(visibleCols.commisioned_date ? [{ headerName: 'Date of Commissioning', field: 'commisioned_date', minWidth: 150, cellClass: 'text-center text-slate-600 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700', valueFormatter: (params) => cellText(params.value), useValueFormatterForExport: true }] : []),
+    ...(visibleCols.state_name ? [{ headerName: 'State', field: 'state_name', minWidth: 130, cellClass: 'text-center text-slate-600 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.district_name ? [{ headerName: 'District', field: 'district_name', minWidth: 130, cellClass: 'text-center text-slate-600 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.latitude ? [{ headerName: 'Latitude', field: 'latitude', minWidth: 110, cellClass: 'text-center text-slate-600 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.longitude ? [{ headerName: 'Longitude', field: 'longitude', minWidth: 110, cellClass: 'text-center text-slate-600 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.updated_date ? [{
+      headerName: 'Last Updated Date', field: 'updated_date', minWidth: 140,
+      cellClass: 'text-center text-slate-600 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700',
+      valueFormatter: (params) => lastUpdatedText(params.value),
+      useValueFormatterForExport: true,
+    }] : []),
     ...(canEdit || canRemove ? [{
       headerName: 'Actions', field: 'lights_house_id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,
       cellClass: 'text-center flex items-center justify-center gap-1',

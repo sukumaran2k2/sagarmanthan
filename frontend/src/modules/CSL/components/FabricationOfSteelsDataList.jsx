@@ -5,12 +5,15 @@ import TablePagination from '../../../components/TablePagination';
 import DataListToolbar from '../../../components/DataListToolbar';
 import { exportDataListToPdf } from '../../../utils/exportReportPdf';
 import { COMMON_TOASTS } from '../../../utils/notify';
+import { cellText, lastUpdatedText } from '../../../utils/cellText';
+import { exportGridApiToExcel } from '../../../utils/exportGridReport';
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
   month: 'Month',
   fabrication_of_steel_targets: 'Fabrication Of Steel (In Tons) - Target',
   fabrication_of_steel_actual: 'Fabrication Of Steel (In Tons) - Actual',
+  updated_date: 'Last Updated Date',
 };
 
 const DEFAULT_VISIBLE_COLS = {
@@ -18,6 +21,7 @@ const DEFAULT_VISIBLE_COLS = {
   month: true,
   fabrication_of_steel_targets: true,
   fabrication_of_steel_actual: true,
+  updated_date: false, // offered in Visibility, unticked (as in 2.0)
 };
 
 export default function FabricationOfSteelsDataList({
@@ -51,7 +55,7 @@ export default function FabricationOfSteelsDataList({
       const cols = Object.keys(visibleCols).filter((c) => visibleCols[c]);
       let tsv = ['S.No', ...cols.map((c) => COLUMN_LABELS[c])].join('\t') + '\n';
       rowData.forEach((row, i) => {
-        const line = [i + 1, ...cols.map((c) => row[c] ?? '')];
+        const line = [i + 1, ...cols.map((c) => cellText(row[c]))];
         tsv += line.join('\t') + '\n';
       });
       navigator.clipboard.writeText(tsv).then(
@@ -59,8 +63,8 @@ export default function FabricationOfSteelsDataList({
         () => notify?.(COMMON_TOASTS.copyFailed()),
       );
     } else if (type === 'Excel') {
-      gridRef.current?.api?.exportDataAsCsv({ fileName: 'csl_fabrication_of_steels' });
-      notify?.(COMMON_TOASTS.excelExported('csl_fabrication_of_steels.csv'));
+      const file = exportGridApiToExcel(gridRef.current?.api, { title: 'CSL Fabrication of Steels Data List', fileName: 'csl_fabrication_of_steels' });
+      notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
       exportDataListToPdf({
         title: 'CSL Fabrication of Steels Data List',
@@ -80,6 +84,12 @@ export default function FabricationOfSteelsDataList({
     ...(visibleCols.fabrication_of_steel_targets ? [{ headerName: 'Fabrication Of Steel (In Tons) - Target', field: 'fabrication_of_steel_targets', wrapText: true, autoHeight: true, flex: 1.5, minWidth: 230, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
     ...(visibleCols.fabrication_of_steel_actual ? [{ headerName: 'Fabrication Of Steel (In Tons) - Actual', field: 'fabrication_of_steel_actual', wrapText: true, autoHeight: true, flex: 1.5, minWidth: 230, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
 
+    ...(visibleCols.updated_date ? [{
+      headerName: 'Last Updated Date', field: 'updated_date', minWidth: 140,
+      cellClass: 'text-center text-slate-600 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700',
+      valueFormatter: (params) => lastUpdatedText(params.value),
+      useValueFormatterForExport: true,
+    }] : []),
     ...(canEdit || canRemove ? [{
       headerName: 'Actions', field: 'csl_fabrication_id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,
       cellClass: 'text-center flex items-center justify-center gap-1',

@@ -337,7 +337,16 @@ export default function Dashboard({ notify, isOrgUser }) {
         <KpiCard label="Total Project Value" icon={IndianRupee} theme="sky" foot={<>Across <span className="font-black text-slate-700 dark:text-slate-200">{show(count(kpi.projects))}</span> projects</>}>
           <span className="text-2xl font-black text-sky-700 dark:text-sky-400">{show(cr(kpi.projectValue))}</span>
         </KpiCard>
-        <KpiCard label="CSR Expenditure" icon={Wallet} theme="amber" foot={allYears ? 'Booked across all years' : `Booked in ${yearLabel}`}>
+        {/* As in Fund Details and the fund summary: years with a fund entry only; spending in a
+            year with no fund entry is shown below the figure, not added to it */}
+        <KpiCard
+          label="CSR Expenditure"
+          icon={Wallet}
+          theme="amber"
+          foot={Number(kpi.unfundedExpenditure) > 0
+            ? `${allYears ? 'All financial years' : `For ${yearLabel}`}; another ${cr(kpi.unfundedExpenditure)} was booked in years with no fund entry`
+            : (allYears ? 'Booked across all years' : `Booked in ${yearLabel}`)}
+        >
           <span className="text-2xl font-black text-amber-700 dark:text-amber-400">{show(cr(kpi.expenditure))}</span>
         </KpiCard>
         <KpiCard label="Project Progress" icon={Activity} theme="emerald">

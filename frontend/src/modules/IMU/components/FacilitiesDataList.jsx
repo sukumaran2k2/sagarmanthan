@@ -5,6 +5,8 @@ import TablePagination from '../../../components/TablePagination';
 import DataListToolbar from '../../../components/DataListToolbar';
 import { exportDataListToPdf } from '../../../utils/exportReportPdf';
 import { COMMON_TOASTS } from '../../../utils/notify';
+import { cellText, lastUpdatedText } from '../../../utils/cellText';
+import { exportGridApiToExcel } from '../../../utils/exportGridReport';
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
@@ -18,6 +20,7 @@ const COLUMN_LABELS = {
   no_of_e_database: 'Number of E-Databases',
   no_of_acadamic_software: 'Number of Academic Software',
   total_e_resources: 'Total E-Resources',
+  Updated_Date: 'Last Updated Date',
 };
 
 const DEFAULT_VISIBLE_COLS = {
@@ -32,6 +35,7 @@ const DEFAULT_VISIBLE_COLS = {
   no_of_e_database: true,
   no_of_acadamic_software: true,
   total_e_resources: true,
+  Updated_Date: false, // offered in Visibility, unticked (as in 2.0)
 };
 
 export default function FacilitiesDataList({
@@ -65,7 +69,7 @@ export default function FacilitiesDataList({
       const cols = Object.keys(visibleCols).filter((c) => visibleCols[c]);
       let tsv = ['S.No', ...cols.map((c) => COLUMN_LABELS[c])].join('\t') + '\n';
       rowData.forEach((row, i) => {
-        const line = [i + 1, ...cols.map((c) => row[c] ?? '')];
+        const line = [i + 1, ...cols.map((c) => cellText(row[c]))];
         tsv += line.join('\t') + '\n';
       });
       navigator.clipboard.writeText(tsv).then(
@@ -73,8 +77,8 @@ export default function FacilitiesDataList({
         () => notify?.(COMMON_TOASTS.copyFailed()),
       );
     } else if (type === 'Excel') {
-      gridRef.current?.api?.exportDataAsCsv({ fileName: 'imu_facilities' });
-      notify?.(COMMON_TOASTS.excelExported('imu_facilities.csv'));
+      const file = exportGridApiToExcel(gridRef.current?.api, { title: 'IMU Facilities Data List', fileName: 'imu_facilities' });
+      notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
       exportDataListToPdf({
         title: 'IMU Facilities Data List',
@@ -101,6 +105,12 @@ export default function FacilitiesDataList({
     ...(visibleCols.no_of_acadamic_software ? [{ headerName: 'Number of Academic Software', field: 'no_of_acadamic_software', wrapText: true, autoHeight: true, flex: 1.3, minWidth: 210, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
     ...(visibleCols.total_e_resources ? [{ headerName: 'Total E-Resources', field: 'total_e_resources', wrapText: true, autoHeight: true, flex: 1, minWidth: 160, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
 
+    ...(visibleCols.Updated_Date ? [{
+      headerName: 'Last Updated Date', field: 'Updated_Date', minWidth: 140,
+      cellClass: 'text-center text-slate-600 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700',
+      valueFormatter: (params) => lastUpdatedText(params.value),
+      useValueFormatterForExport: true,
+    }] : []),
     ...(canEdit || canRemove ? [{
       headerName: 'Actions', field: 'facilities_id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,
       cellClass: 'text-center flex items-center justify-center gap-1',

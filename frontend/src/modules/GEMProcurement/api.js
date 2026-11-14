@@ -1,14 +1,14 @@
 import { createApiClient } from '../../api';
 
-export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://sagarmanthan.ntcpwc.net:8443/api';
 
 const api = createApiClient({ baseURL: API_BASE });
-const LOCAL_FALLBACK_BASE = 'http://localhost:3000';
+const LOCAL_FALLBACK_BASE = 'https://sagarmanthan.ntcpwc.net:8443/api';
 
 function shouldRetryWithLocalFallback(error) {
   const configured = String(API_BASE || '').toLowerCase();
   const isNetworkError = error?.code === 'ERR_NETWORK' || error?.message === 'Network Error';
-  return isNetworkError && configured.includes('localhost:3001');
+  return isNetworkError && configured.includes('https://sagarmanthan.ntcpwc.net:8443/api');
 }
 
 async function requestWithLocalFallback(method, path, dataOrConfig, maybeConfig) {

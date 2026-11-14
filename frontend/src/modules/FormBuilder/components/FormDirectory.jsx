@@ -25,79 +25,6 @@ import {
 } from 'lucide-react';
 import FormPreviewModal from './FormPreviewModal';
 
-const MOCK_PUBLISHED_FORMS = [
-  {
-    id: 'form_101',
-    formName: 'Monthly Capex Expenditure Telemetry',
-    formDescription: 'Furnish monthly actual capital expenditure against target allocation for Q3 FY 2025-26.',
-    organisation: 'All Major Ports',
-    dueDate: '2026-10-31',
-    status: 'Active',
-    submissionsCount: 9,
-    fields: [
-      { id: 'f1', inputLabel: 'Month', inputType: 'dropdown', options: ['October 2026', 'November 2026'], required: true },
-      { id: 'f2', inputLabel: 'Actual Spent (Rs Cr)', inputType: 'number', placeholder: '0.00', required: true },
-      { id: 'f3', inputLabel: 'Variance Reason', inputType: 'textarea', placeholder: 'Explain variance if any...', required: false }
-    ]
-  },
-  {
-    id: 'form_102',
-    formName: 'CSR Project Beneficiary Verification',
-    formDescription: 'Quarterly review report of beneficiaries impacted under maritime CSR initiatives.',
-    organisation: 'Jawaharlal Nehru Port Authority (JNPA)',
-    dueDate: '2026-11-15',
-    status: 'Active',
-    submissionsCount: 4,
-    fields: [
-      { id: 'f1', inputLabel: 'CSR Project Name', inputType: 'text', placeholder: 'e.g. Skill Centre', required: true },
-      { id: 'f2', inputLabel: 'Beneficiaries Reached', inputType: 'number', placeholder: 'Count', required: true },
-      { id: 'f3', inputLabel: 'Completion Certificate', inputType: 'file', required: true }
-    ]
-  },
-  {
-    id: 'form_103',
-    formName: 'GeM Procurement Compliance Upload',
-    formDescription: 'Monthly verification of transactions processed outside GeM portal with justification.',
-    organisation: 'Deendayal Port Authority (Kandla)',
-    dueDate: '2026-09-30',
-    status: 'Overdue',
-    submissionsCount: 2,
-    fields: [
-      { id: 'f1', inputLabel: 'Procurement Order No', inputType: 'text', required: true },
-      { id: 'f2', inputLabel: 'Order Amount (Rs)', inputType: 'number', required: true },
-      { id: 'f3', inputLabel: 'Exemption Reason', inputType: 'textarea', required: true }
-    ]
-  }
-];
-
-const MOCK_DRAFT_FORMS = [
-  {
-    id: 'draft_1',
-    formName: 'Annual HR Performance Review',
-    formDescription: 'Draft for the upcoming annual HR performance review for all major ports.',
-    organisation: 'All Major Ports',
-    dueDate: '2026-12-31',
-    status: 'Draft',
-    submissionsCount: 0,
-    fields: [
-      { id: 'f1', inputLabel: 'Employee ID', inputType: 'text', required: true },
-      { id: 'f2', inputLabel: 'Self Rating (1-10)', inputType: 'number', required: true }
-    ]
-  },
-  {
-    id: 'draft_2',
-    formName: 'Safety Audit Checklist',
-    formDescription: 'Safety inspection checklist draft for operational port terminals.',
-    organisation: 'Mumbai Port Authority (MbPA)',
-    dueDate: '2026-11-30',
-    status: 'Draft',
-    submissionsCount: 0,
-    fields: [
-      { id: 'f1', inputLabel: 'Terminal Zone', inputType: 'text', required: true }
-    ]
-  }
-];
-
 // Turns a failed request into a message the user can act on.
 const loadErrorMessage = (err, what) => (
   err.response?.status === 401
@@ -106,11 +33,8 @@ const loadErrorMessage = (err, what) => (
 );
 
 export default function FormDirectory({ triggerNotification, onViewSubmissions, onEditForm, mode = 'published' }) {
-  const [forms, setForms] = useState(mode === 'drafts' ? MOCK_DRAFT_FORMS : MOCK_PUBLISHED_FORMS);
-  
-  useEffect(() => {
-    setForms(mode === 'drafts' ? MOCK_DRAFT_FORMS : MOCK_PUBLISHED_FORMS);
-  }, [mode]);
+  // null until the server answers, so nothing (and no sample data) shows before that
+  const [forms, setForms] = useState(null);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFormToFill, setSelectedFormToFill] = useState(null);
@@ -124,35 +48,25 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [pagination, setPagination] = useState(null);
   const [activeCount, setActiveCount] = useState(0);
-  const [usingMock, setUsingMock] = useState(true);
 
-  // Mock forms show only when the request succeeds, the DB has no forms and nothing is
-  // being searched. A failed request shows an error instead, so it can't pass for real data.
+  // A failed request shows an error, never sample data that could pass for real forms.
   const loadForms = (p = page, q = debouncedSearch) => {
     setLoadError(null);
     api.get('/get-created-form-data', { params: { page: p, limit: PAGE_SIZE, search: q } })
       .then(res => {
         const { data = [], pagination: pg } = res.data || {};
-        if (pg && pg.total === 0 && !q) {
-          setForms(mode === 'drafts' ? MOCK_DRAFT_FORMS : MOCK_PUBLISHED_FORMS);
-          setUsingMock(true);
-          setPagination(null);
-          return;
-        }
         // Past the last page (e.g. after deleting its last card): step back to the last one.
         if (data.length === 0 && p > 1 && pg?.totalPages) {
           setPage(Math.min(p - 1, pg.totalPages));
           return;
         }
         setForms(data);
-        setUsingMock(false);
         setPagination(pg || null);
         setActiveCount(res.data?.counts?.active ?? 0);
       })
       .catch((err) => {
         console.error('Error loading forms:', err);
         setForms([]);
-        setUsingMock(false);
         setPagination(null);
         setLoadError(loadErrorMessage(err, 'forms'));
       });
@@ -167,49 +81,31 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
     loadForms(page, debouncedSearch);
   }, [page, debouncedSearch]);
 
+  // Cloned on the server, then the list is reloaded so the new card comes back in the server's shape.
   const handleCloneForm = async (form) => {
-    // Real forms are cloned on the server, then the list is reloaded so the new
-    // card comes back in the server's shape.
-    if (/^\d+$/.test(String(form.id))) {
-      try {
-        const res = await api.post(`/clone-form/${form.id}`);
-        triggerNotification && triggerNotification(res.data.message, 'success');
-        loadForms();
-      } catch (err) {
-        console.error('Error cloning form:', err);
-        triggerNotification && triggerNotification(err.response?.data?.message || `Could not clone "${form.formName}"`, 'error');
-      }
-      return;
+    try {
+      const res = await api.post(`/clone-form/${form.id}`);
+      triggerNotification && triggerNotification(res.data.message, 'success');
+      loadForms();
+    } catch (err) {
+      console.error('Error cloning form:', err);
+      triggerNotification && triggerNotification(err.response?.data?.message || `Could not clone "${form.formName}"`, 'error');
     }
-    const clonedForm = {
-      ...form,
-      id: `form_${Date.now()}`,
-      formName: `${form.formName} (Copy)`,
-      submissionsCount: 0
-    };
-    setForms([clonedForm, ...forms]);
-    triggerNotification && triggerNotification(`Cloned "${form.formName}" successfully!`, 'success');
   };
 
   const confirmDelete = async () => {
     if (!formToDelete) return;
     const target = formToDelete;
     setFormToDelete(null);
-    // Mock cards (non-numeric ids) only exist on screen.
-    if (/^\d+$/.test(String(target.id))) {
-      try {
-        await api.delete(`/delete-form-builder-data/${target.id}`);
-      } catch (err) {
-        console.error('Error deleting form:', err);
-        triggerNotification && triggerNotification(err.response?.data?.message || `Could not delete "${target.formName}"`, 'error');
-        return;
-      }
-      // Reload the page so it stays full (or steps back if it was the page's last card).
-      loadForms();
-      triggerNotification && triggerNotification(`Form "${target.formName}" deleted successfully`, 'success');
+    try {
+      await api.delete(`/delete-form-builder-data/${target.id}`);
+    } catch (err) {
+      console.error('Error deleting form:', err);
+      triggerNotification && triggerNotification(err.response?.data?.message || `Could not delete "${target.formName}"`, 'error');
       return;
     }
-    setForms(prev => prev.filter(f => f.id !== target.id));
+    // Reload the page so it stays full (or steps back if it was the page's last card).
+    loadForms();
     triggerNotification && triggerNotification(`Form "${target.formName}" deleted successfully`, 'success');
   };
 
@@ -218,18 +114,12 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
   const isSwitchOn = (form) => (typeof form.isActive === 'boolean' ? form.isActive : form.status === 'Active');
 
   const handleToggleStatus = async (form) => {
-    // Mock cards (non-numeric ids) only change on screen.
-    if (!/^\d+$/.test(String(form.id))) {
-      const newStatus = form.status === 'Active' ? 'Inactive' : 'Active';
-      setForms(prev => prev.map(f => (f.id === form.id ? { ...f, status: newStatus } : f)));
-      triggerNotification && triggerNotification(`Status changed to ${newStatus}`, 'success');
-      return;
-    }
     try {
       const res = await api.post(`/toggle-form-status/${form.id}`, { active: !isSwitchOn(form) });
       setForms(prev => prev.map(f => (f.id === form.id ? { ...f, status: res.data.status, isActive: res.data.isActive } : f)));
-      // Keep the TOTAL (active forms) count in step without reloading the page.
-      if (res.data.isActive !== isSwitchOn(form)) setActiveCount(c => c + (res.data.isActive ? 1 : -1));
+      // The Active box counts ACTIVE badges (switched on and not past due); keep it in step.
+      const wasActive = form.status === 'Active', nowActive = res.data.status === 'Active';
+      if (wasActive !== nowActive) setActiveCount(c => c + (nowActive ? 1 : -1));
       triggerNotification && triggerNotification(res.data.message, res.data.status === 'Overdue' ? 'warning' : 'success');
     } catch (err) {
       console.error('Error changing form status:', err);
@@ -238,7 +128,7 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
   };
 
   // Overview of every form (not just this page; honours the search) as an Excel file.
-  const EXPORT_HEADERS = ['S.No', 'Form Number', 'Form Name', 'Form Description', 'Created By', 'Created On', 'Organisations / Wings', 'Form Status'];
+  const EXPORT_HEADERS = ['S.No', 'Form Number', 'Form Name', 'Form Description', 'Created By', 'Created On', 'Organisations / Wings', 'Due Date', 'Submissions', 'Form Status'];
   const todayIST = () => new Date(Date.now() + 330 * 60 * 1000).toISOString().slice(0, 10);
 
   const fetchExportRows = async () => {
@@ -251,7 +141,9 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
       f.createdBy || '',
       f.createdOn || '',
       f.assignedTo || '',
-      f.isActive ? 'Active' : 'Not active',
+      f.dueDate || 'No due date',
+      f.submissionsCount ?? 0,
+      f.status,
     ]);
   };
 
@@ -271,20 +163,15 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
 
   const handleExportExcel = () => runExport((rows) => {
     const ws = XLSX.utils.aoa_to_sheet([EXPORT_HEADERS, ...rows]);
-    ws['!cols'] = [{ wch: 8 }, { wch: 12 }, { wch: 40 }, { wch: 50 }, { wch: 24 }, { wch: 18 }, { wch: 60 }, { wch: 12 }];
+    ws['!cols'] = [{ wch: 8 }, { wch: 12 }, { wch: 40 }, { wch: 50 }, { wch: 24 }, { wch: 18 }, { wch: 60 }, { wch: 12 }, { wch: 12 }, { wch: 12 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Forms');
     XLSX.writeFile(wb, `Form_Directory_${todayIST()}.xlsx`);
     triggerNotification && triggerNotification(`Exported ${rows.length} forms to Excel`, 'success');
   });
 
-  // Real forms arrive already filtered and paged; mock forms are filtered here.
-  const filteredForms = usingMock
-    ? forms.filter(f => 
-      f.formName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      f.organisation.toLowerCase().includes(searchQuery.toLowerCase())
-    )
-    : forms;
+  // Forms arrive already searched and paged by the server.
+  const filteredForms = forms || [];
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm space-y-6">
@@ -316,8 +203,8 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
           </div>
           <div className="bg-blue-50 rounded-xl p-3 border border-blue-100 min-w-[100px] text-center hidden md:block">
             <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider block">Active</span>
-            {/* Active forms only (switch on), across all pages; follows the search. */}
-            <span className="text-xl font-black text-blue-800">{usingMock ? filteredForms.filter(f => f.status === 'Active').length : activeCount}</span>
+            {/* Forms with the ACTIVE badge (switched on, not past due), across all pages; follows the search. */}
+            <span className="text-xl font-black text-blue-800">{forms ? activeCount : '…'}</span>
           </div>
         </div>
       </div>
@@ -336,7 +223,7 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
       )}
 
       {/* Export: right corner, just above the cards */}
-      {!usingMock && (
+      {forms && forms.length > 0 && (
         <div className="flex justify-end -mt-3 mb-0">
           {/* A TOTAL-wide (100px) slot on the right, so Export is centred under TOTAL's midpoint */}
           <div className="w-[100px] flex justify-center">
@@ -386,12 +273,12 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
 
                 <div className="space-y-1.5 pt-2 border-t border-slate-100 text-xs font-semibold text-slate-600">
                   <div className="flex items-center space-x-2">
-                    <Building2 className="h-3.5 w-3.5 text-slate-400" />
-                    <span className="truncate">{form.organisation}</span>
+                    <Building2 className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                    <span className="truncate" title={form.assignedTo || ''}>{form.assignedTo || 'Not assigned'}</span>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <CalendarDays className="h-3.5 w-3.5 text-slate-400" />
-                    <span>Due: {form.dueDate}</span>
+                    <CalendarDays className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                    <span>{form.dueDate ? `Due: ${form.dueDate}` : 'No due date'}</span>
                   </div>
                 </div>
               </div>
@@ -489,14 +376,17 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
           );
         })}
         
-        {filteredForms.length === 0 && !loadError && (
+        {forms && forms.length === 0 && !loadError && (
           <div className="col-span-full py-8 text-center text-sm text-slate-500 font-medium">
-            No published forms found matching your search.
+            {debouncedSearch ? 'No forms match your search.' : 'No forms yet.'}
           </div>
+        )}
+        {!forms && !loadError && (
+          <div className="col-span-full py-8 text-center text-sm text-slate-400 font-medium">Loading forms…</div>
         )}
       </div>
 
-      {!usingMock && pagination?.totalPages > 1 && (
+      {pagination?.totalPages > 1 && (
         <TablePagination
           currentPage={Math.max(0, page - 1)}
           totalPages={pagination.totalPages}

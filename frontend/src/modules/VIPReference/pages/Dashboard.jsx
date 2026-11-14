@@ -7,6 +7,7 @@ import { fetchVIPReferenceDashboard } from '../api';
 import ChartExportMenu from '../../../components/ChartExportMenu';
 import { chartColors, useIsDark } from '../../../utils/amCharts';
 import { MoreVertical, FileSpreadsheet, Printer } from 'lucide-react';
+import { exportRowsToFile } from '../../../utils/exportGridReport';
 
 function KpiCard({ label, value, subtext, icon: Icon, valueColorClass, iconWrapClass, subtextColorClass }) {
   return (
@@ -108,45 +109,14 @@ function TableExportMenu({ headers, data, fileName = 'export', title = 'Report' 
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleExcel = () => {
+  // Excel (.xlsx) and PDF straight to a file (no print dialog or new tab)
+  const download = (type) => {
     setIsOpen(false);
     if (!data?.length) return;
-    let csv = '\uFEFF' + headers.map((h) => `"${String(h).replace(/"/g, '""')}"`).join(',') + '\r\n';
-    data.forEach((row) => {
-      csv += Object.values(row).map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',') + '\r\n';
-    });
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${fileName}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    exportRowsToFile(type, { title, headers, rows: data.map((row) => Object.values(row)), fileName });
   };
-
-  const handlePrint = () => {
-    setIsOpen(false);
-    if (!data?.length) return;
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-    const headHtml = headers.map((h) => `<th style="border:1px solid #cbd5e1;padding:8px 10px;text-align:left;background:#6366f1;color:#fff;font-size:11px;font-weight:bold;text-transform:uppercase;">${h}</th>`).join('');
-    const rowsHtml = data.map((row, i) => {
-      const bg = i % 2 === 0 ? '#ffffff' : '#f8fafc';
-      const cells = Object.values(row).map((v) => `<td style="border:1px solid #e2e8f0;padding:6px 8px;font-size:11px;">${String(v ?? '')}</td>`).join('');
-      return `<tr style="background:${bg};">${cells}</tr>`;
-    }).join('');
-    printWindow.document.write(`
-      <!DOCTYPE html><html><head><title>${title}</title>
-      <style>body{font-family:-apple-system,sans-serif;color:#1e293b;padding:24px}h1{font-size:16px;color:#6366f1;margin-bottom:4px;font-weight:800;text-transform:uppercase}p{font-size:11px;color:#64748b;margin-top:0;margin-bottom:16px}table{width:100%;border-collapse:collapse;margin-top:12px}@media print{body{padding:0}}</style>
-      </head><body><h1>${title}</h1><p>Generated on: ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
-      <table><thead><tr>${headHtml}</tr></thead><tbody>${rowsHtml}</tbody></table>
-      <script>window.onload=function(){setTimeout(function(){window.print();},300);}</script>
-      </body></html>
-    `);
-    printWindow.document.close();
-  };
+  const handleExcel = () => download('excel');
+  const handlePrint = () => download('pdf');
 
   return (
     <div className="relative inline-block" ref={menuRef}>
@@ -166,7 +136,7 @@ function TableExportMenu({ headers, data, fileName = 'export', title = 'Report' 
             className="flex items-center gap-2.5 w-full px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer border-none bg-transparent text-left"
           >
             <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-            <span>CSV (Excel)</span>
+            <span>Excel (.xlsx)</span>
           </button>
           <button
             type="button"
@@ -174,7 +144,7 @@ function TableExportMenu({ headers, data, fileName = 'export', title = 'Report' 
             className="flex items-center gap-2.5 w-full px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer border-none bg-transparent text-left border-t border-slate-100 dark:border-slate-800"
           >
             <Printer className="h-4 w-4 text-rose-600 dark:text-rose-400" />
-            <span>Print / PDF</span>
+            <span>PDF</span>
           </button>
         </div>
       )}

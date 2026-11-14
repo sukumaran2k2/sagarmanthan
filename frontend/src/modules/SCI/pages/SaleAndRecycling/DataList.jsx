@@ -4,14 +4,16 @@ import Table from '../../../../components/Table';
 import TablePagination from '../../../../components/TablePagination';
 import DataListToolbar from '../../../../components/DataListToolbar';
 import { exportDataListToPdf } from '../../../../utils/exportReportPdf';
-import { exportDataListToCsv } from '../../../../utils/exportDataListCsv';
+import { exportDataListToExcel } from '../../../../utils/exportDataListCsv';
 import { COMMON_TOASTS } from '../../../../utils/notify';
+import { cellText, lastUpdatedText } from '../../../../utils/cellText';
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
   no_of_old_vessels_sold: 'Number of Old Vessels Sold',
   value_of_sale_proceeds: 'Value of Sale Proceeds ($ million)',
   avg_age_of_old_vessels_sold: 'Average Age of Old Vessels Sold (Years)',
+  updated_date: 'Last Updated Date',
 };
 
 const DEFAULT_VISIBLE_COLS = {
@@ -19,6 +21,7 @@ const DEFAULT_VISIBLE_COLS = {
   no_of_old_vessels_sold: true,
   value_of_sale_proceeds: true,
   avg_age_of_old_vessels_sold: true,
+  updated_date: false, // offered in Visibility, unticked (as in 2.0)
 };
 
 export default function SaleAndRecyclingDataList({
@@ -70,7 +73,7 @@ export default function SaleAndRecyclingDataList({
       const cols = Object.keys(visibleCols).filter((c) => visibleCols[c]);
       let tsv = ['S.No', ...cols.map((c) => COLUMN_LABELS[c])].join('\t') + '\n';
       filteredData.forEach((row, i) => {
-        const line = [i + 1, ...cols.map((c) => row[c] ?? '')];
+        const line = [i + 1, ...cols.map((c) => cellText(row[c]))];
         tsv += line.join('\t') + '\n';
       });
       navigator.clipboard.writeText(tsv).then(
@@ -79,8 +82,8 @@ export default function SaleAndRecyclingDataList({
       );
     } else if (type === 'Excel') {
       // Every filtered row, not just the page on show
-      exportDataListToCsv({ columnLabels: COLUMN_LABELS, visibleCols, rowData: filteredData, fileName: 'sci_sale_and_recycling' });
-      notify?.(COMMON_TOASTS.excelExported('sci_sale_and_recycling.csv'));
+      const file = exportDataListToExcel({ columnLabels: COLUMN_LABELS, visibleCols, rowData: filteredData, fileName: 'sci_sale_and_recycling', title: 'SCI Sale & Recycling of Old Vessels Data List' });
+      notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
       exportDataListToPdf({
         title: 'SCI Sale & Recycling of Old Vessels Data List',
@@ -100,6 +103,12 @@ export default function SaleAndRecyclingDataList({
     ...(visibleCols.value_of_sale_proceeds ? [{ headerName: 'Value of Sale Proceeds ($ million)', field: 'value_of_sale_proceeds', flex: 1.3, minWidth: 220, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
     ...(visibleCols.avg_age_of_old_vessels_sold ? [{ headerName: 'Average Age of Old Vessels Sold (Years)', field: 'avg_age_of_old_vessels_sold', flex: 1.3, minWidth: 230, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
 
+    ...(visibleCols.updated_date ? [{
+      headerName: 'Last Updated Date', field: 'updated_date', minWidth: 140,
+      cellClass: 'text-center text-slate-600 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700',
+      valueFormatter: (params) => lastUpdatedText(params.value),
+      useValueFormatterForExport: true,
+    }] : []),
     ...(canEdit || canRemove ? [{
       headerName: 'Actions', field: 'sci_sale_recycling_id', pinned: 'right', width: canEdit && canRemove ? 90 : 60,
       cellClass: 'text-center flex items-center justify-center gap-1',

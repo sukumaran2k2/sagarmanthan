@@ -150,6 +150,16 @@ const percentageCellStyle = (params) => {
 };
 
 const implementationProgressCellStyle = (params) => {
+
+  if (params.node?.rowPinned) {
+    return {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      textAlign: 'center',
+      fontWeight: 800,
+    };
+  }
   const rawValue = params.value;
 
   const value = Number(
@@ -912,19 +922,24 @@ export default function GMISReports({
         field: 'Financial Progress (%)',
         width: 170,
         headerClass: 'text-center',
-
-        cellStyle: percentageCellStyle,
-        valueFormatter: percentageFormatter,
+        cellStyle: (params) =>
+          params.node?.rowPinned
+            ? { textAlign: 'center', fontWeight: 800 }
+            : percentageCellStyle(params),
+        valueFormatter: (params) =>
+          params.node?.rowPinned ? '--' : percentageFormatter(params),
       },
-
       {
         headerName: 'Physical Progress (%)',
         field: 'Physical Progress (%)',
         width: 170,
         headerClass: 'text-center',
-
-        cellStyle: percentageCellStyle,
-        valueFormatter: percentageFormatter,
+        cellStyle: (params) =>
+          params.node?.rowPinned
+            ? { textAlign: 'center', fontWeight: 800 }
+            : percentageCellStyle(params),
+        valueFormatter: (params) =>
+          params.node?.rowPinned ? '--' : percentageFormatter(params),
       },
 
     ],
@@ -1324,41 +1339,13 @@ export default function GMISReports({
           0
         );
 
-        const financialValues = reportData
-          .map((row) => Number(row['Financial Progress (%)']))
-          .filter((value) => Number.isFinite(value));
-
-        const physicalValues = reportData
-          .map((row) => Number(row['Physical Progress (%)']))
-          .filter((value) => Number.isFinite(value));
-
-        totalRow['Financial Progress (%)'] =
-          financialValues.length
-            ? Number(
-                (
-                  financialValues.reduce((a, b) => a + b, 0) /
-                  financialValues.length
-                ).toFixed(2)
-              )
-            : 0;
-
-        totalRow['Physical Progress (%)'] =
-          physicalValues.length
-            ? Number(
-                (
-                  physicalValues.reduce((a, b) => a + b, 0) /
-                  physicalValues.length
-                ).toFixed(2)
-              )
-            : 0;
-
+        totalRow['Financial Progress (%)'] = '--';
+        totalRow['Physical Progress (%)'] = '--';
         return [totalRow];
       }
 
-    if (selectedReport === 'report-6') {
-      const totalRow = {
-        __sno: '',
-      };
+   if (selectedReport === 'report-6') {
+      const totalRow = { __sno: '' };
 
       if (reportData.length > 0) {
         const keys = Object.keys(reportData[0]);
@@ -1366,56 +1353,24 @@ export default function GMISReports({
         keys.forEach((key) => {
           const lowerKey = key.trim().toLowerCase();
 
-          const isTextColumn =
-            lowerKey.includes('first party') ||
-            lowerKey.includes('second party') ||
-            lowerKey.includes('organisation') ||
-            lowerKey.includes('organization') ||
-            lowerKey.includes('mou') ||
-            lowerKey.includes('project') ||
-            lowerKey.includes('status') ||
-            lowerKey.includes('event') ||
-            lowerKey.includes('category');
-
-          const isNonTotalColumn =
-            lowerKey.includes('percentage') ||
-            lowerKey.includes('progress') ||
-            lowerKey.includes('rank');
-
-          if (isTextColumn || isNonTotalColumn) {
-            totalRow[key] = '';
-            return;
-          }
-
-          const numericValues = reportData
-            .map((row) => Number(row[key]))
-            .filter((value) => Number.isFinite(value));
-
-          if (numericValues.length > 0) {
-            totalRow[key] = numericValues.reduce(
-              (sum, value) => sum + value,
-              0
-            );
+          if (lowerKey.includes('amount')) {
+            // Sum only the amount column; strip ₹ and commas in case values are strings
+            const total = reportData.reduce((sum, row) => {
+              const n = Number(String(row[key] ?? '').replace(/[^0-9.-]/g, ''));
+              return sum + (Number.isFinite(n) ? n : 0);
+            }, 0);
+            totalRow[key] = Number(total.toFixed(2));
           } else {
-            totalRow[key] = '';
+            totalRow[key] = '--';
           }
         });
 
-        // Show "Total" in the first suitable text column
+        // Put "Total" in the MoU / Project column
         const textKey = keys.find((key) => {
-          const lowerKey = key.trim().toLowerCase();
-
-          return (
-            lowerKey.includes('organisation') ||
-            lowerKey.includes('organization') ||
-            lowerKey.includes('mou') ||
-            lowerKey.includes('project')
-          );
+          const k = key.trim().toLowerCase();
+          return k.includes('mou') || k.includes('project');
         });
-
-        if (textKey) {
-          totalRow[textKey] = 'Total';
-        }
+        if (textKey) totalRow[textKey] = 'Total';
       }
 
       return [totalRow];

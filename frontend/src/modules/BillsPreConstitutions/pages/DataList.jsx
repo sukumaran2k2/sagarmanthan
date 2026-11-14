@@ -6,10 +6,10 @@ import { deleteBill } from '../api';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import ConfirmModal from '../../../components/ConfirmModal';
-import { exportDataListToCsv } from '../../../utils/exportDataListCsv';
 import { COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
 import { useBillsStore } from '../store/useBillsStore';
 import { BILLS_TOASTS } from '../toastMessages';
+import { exportRowsToFile } from '../../../utils/exportGridReport';
 
 const STAGES = {
   0: 'No Status',
@@ -36,7 +36,11 @@ const EXPORT_COLUMNS = [
   { key: 'wing', field: 'wing_name', label: 'Wing' },
   { key: 'division', field: 'division_name', label: 'Division' },
   { key: 'stage', field: 'stage', label: 'Status' },
+  { key: 'remarks', field: 'remarks', label: 'Remarks' },
+  { key: 'lastUpdated', field: 'lastUpdated', label: 'Last Updated Date' },
 ];
+const COLUMN_LABEL = Object.fromEntries(EXPORT_COLUMNS.map((c) => [c.key, c.label]));
+const formatDay = (v) => (v ? String(v).slice(0, 10) : '');
 
 // The bill's current stage is tbl_bill.stage_id (as in 2.0, the Dashboard and Reports), not
 // worked out from the dates: 2.0 bills often have stages done without a date.
@@ -124,21 +128,15 @@ export default function DataList({
     .filter(([id]) => (activeCategory === 'disposed') === (Number(id) >= DISPOSED_FROM_STAGE))
     .map(([id, label]) => ({ value: id, label })), [activeCategory]);
 
-  const filteredData = useMemo(() => {
+  // Wing, division and search: everything but the tab and its stage
+  const matchingRows = useMemo(() => {
     return rowData.filter(item => {
-      if (activeCategory === 'active' && isDisposed(item)) return false;
-      if (activeCategory === 'disposed' && !isDisposed(item)) return false;
-
       const matchesWing = selectedWing
         ? String(item.wing) === String(selectedWing)
         : true;
 
       const matchesDivision = selectedDivision
         ? String(item.division) === String(selectedDivision)
-        : true;
-
-      const matchesStage = selectedStage !== ''
-        ? String(stageOf(item)) === String(selectedStage)
         : true;
 
       // Searches every column on show
@@ -148,9 +146,31 @@ export default function DataList({
           .some((v) => String(v || '').toLowerCase().includes(query))
         : true;
 
-      return matchesWing && matchesDivision && matchesStage && matchesSearch;
+      return matchesWing && matchesDivision && matchesSearch;
     });
-  }, [rowData, selectedWing, selectedDivision, selectedStage, searchQuery, activeCategory]);
+  }, [rowData, selectedWing, selectedDivision, searchQuery]);
+
+  // Tab counts: what each tab shows when clicked. The stage filter is cleared on switching
+  // tab, so it counts only towards the tab it belongs to.
+  const matchesStage = useCallback(
+    (item) => selectedStage === '' || String(stageOf(item)) === String(selectedStage),
+    [selectedStage],
+  );
+  const { activeCount, disposedCount } = useMemo(() => {
+    let active = 0;
+    let disposed = 0;
+    matchingRows.forEach((item) => {
+      const onTab = isDisposed(item) ? 'disposed' : 'active';
+      if (onTab === activeCategory && !matchesStage(item)) return;
+      if (onTab === 'disposed') disposed++; else active++;
+    });
+    return { activeCount: active, disposedCount: disposed };
+  }, [matchingRows, activeCategory, matchesStage]);
+
+  const filteredData = useMemo(
+    () => matchingRows.filter((item) => (activeCategory === 'disposed') === isDisposed(item) && matchesStage(item)),
+    [matchingRows, activeCategory, matchesStage],
+  );
 
   const activeFiltersCount = [selectedWing, selectedDivision, selectedStage].filter(Boolean).length;
 
@@ -159,8 +179,6 @@ export default function DataList({
     notify?.(COMMON_TOASTS.filtersReset());
   };
 
-  const activeCount = useMemo(() => rowData.filter((item) => !isDisposed(item)).length, [rowData]);
-  const disposedCount = rowData.length - activeCount;
 
   // Every filtered row goes to the grid, which pages it, so a column sort covers the whole list
 
@@ -187,7 +205,7 @@ export default function DataList({
   };
 
   // Rows as exported: the stage is computed, not a field
-  const exportRows = () => filteredData.map((row) => ({ ...row, stage: getBillStageText(row) }));
+  const exportRows = () => filteredData.map((row) => ({ ...row, stage: getBillStageText(row), lastUpdated: formatDay(row.updated_date) }));
   const exportCols = () => EXPORT_COLUMNS.filter((c) => visibleCols[c.key]);
 
   const columnDefs = useMemo(() => [
@@ -244,6 +262,23 @@ export default function DataList({
       valueGetter: (params) => getBillStageText(params.data)
     },
     {
+      field: 'remarks',
+      headerName: 'Remarks',
+      flex: 1.5,
+      minWidth: 200,
+      wrapText: true,
+      autoHeight: true,
+      cellClass: 'text-center flex items-center justify-center text-slate-600 dark:text-slate-400 text-xs whitespace-normal leading-normal py-2',
+      hide: !visibleCols.remarks
+    },
+    {
+      headerName: 'Last Updated Date',
+      minWidth: 140,
+      cellClass: 'text-center flex items-center justify-center text-slate-600 dark:text-slate-400 text-xs',
+      hide: !visibleCols.lastUpdated,
+      valueGetter: (params) => formatDay(params.data?.updated_date)
+    },
+    {
       headerName: 'Actions',
       pinned: 'right',
       minWidth: canRemove ? 165 : 120,
@@ -287,62 +322,16 @@ export default function DataList({
         () => notify?.(COMMON_TOASTS.copySuccess(rows.length)),
         () => notify?.(COMMON_TOASTS.copyFailed()),
       );
-    } else if (type === 'Excel') {
-      // Every filtered row, not just the page on show
-      exportDataListToCsv({
-        columnLabels: Object.fromEntries(cols.map((c) => [c.field, c.label])),
-        visibleCols: Object.fromEntries(cols.map((c) => [c.field, true])),
-        rowData: rows,
+    } else {
+      // Excel (.xlsx) / PDF of every filtered row, straight to a file (no print dialog or new tab)
+      const name = exportRowsToFile(type === 'PDF' ? 'pdf' : 'excel', {
+        title: 'Bills / Pre-Constitutions Act Register',
+        subtitle: activeCategory === 'disposed' ? 'Disposed bills' : 'Active bills',
+        headers: ['S.No', ...cols.map((c) => c.label)],
+        rows: rows.map((row, i) => [i + 1, ...cols.map((c) => row[c.field])]),
         fileName: 'Bills_PreConstitutions_Register',
       });
-      notify?.(COMMON_TOASTS.excelExported('Bills_PreConstitutions_Register.csv'));
-    } else if (type === 'PDF') {
-      const printWindow = window.open('', '_blank');
-      if (!printWindow) {
-        notify?.(COMMON_TOASTS.popupBlocked());
-        return;
-      }
-      notify?.(COMMON_TOASTS.pdfPreparing());
-      const title = 'Bills / Pre-Constitutions Act Register';
-      const escape = (v) => String(v ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-      const th = (label) => `<th style="border:1px solid #0f417a; padding:10px 14px; text-align:left; background:#0f417a; color:#fff; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">${label}</th>`;
-      const headersHtml = th('S.No') + cols.map((c) => th(c.label)).join('');
-      const rowsHtml = rows.map((row, i) => {
-        const td = (v) => `<td style="border:1px solid #e2e8f0; padding:8px 14px; font-size:12px; color:#334155;">${escape(v)}</td>`;
-        return `<tr style="background:${i % 2 === 0 ? '#fff' : '#f8fafc'}">${td(i + 1)}${cols.map((c) => td(row[c.field])).join('')}</tr>`;
-      }).join('');
-
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>${title}</title>
-            <style>
-              body { font-family: system-ui, sans-serif; color: #1e293b; padding: 24px; }
-              h1 { font-size: 18px; margin-bottom: 4px; color: #0f417a; }
-              table { width: 100%; border-collapse: collapse; margin-top: 16px; }
-            </style>
-          </head>
-          <body>
-            <h1>${title}</h1>
-            <p style="font-size:11px; color:#64748b; margin:0 0 20px;">Generated on: ${new Date().toLocaleDateString()}</p>
-            <table>
-              <thead>
-                <tr>${headersHtml}</tr>
-              </thead>
-              <tbody>
-                ${rowsHtml}
-              </tbody>
-            </table>
-            <script>
-              window.onload = function() {
-                window.print();
-                window.close();
-              };
-            </script>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
+      notify?.(COMMON_TOASTS.excelExported(name, 'Every filtered bill'));
     }
   };
 
@@ -458,14 +447,14 @@ export default function DataList({
                 {dropdownOpen && (
                   <div className="absolute right-0 mt-1.5 w-44 bg-white border border-slate-200 rounded-xl shadow-lg p-2 z-50 animate-fade-in flex flex-col space-y-0.5 dark:bg-slate-900 dark:border-slate-800">
                     {Object.keys(visibleCols).map(col => (
-                      <label key={col} className="flex items-center space-x-2 px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 capitalize cursor-pointer select-none">
+                      <label key={col} className="flex items-center space-x-2 px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
                         <input
                           type="checkbox"
                           checked={visibleCols[col]}
                           onChange={() => setVisibleCols(prev => ({ ...prev, [col]: !prev[col] }))}
                           className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
                         />
-                        <span>{col}</span>
+                        <span>{COLUMN_LABEL[col] || col}</span>
                       </label>
                     ))}
                   </div>

@@ -13,9 +13,9 @@ export function fetchGmisMouPaginated(params = {}) {
   return api.get('/get-gmis-mou-paginated', { params });
 }
 
-export function fetchGmisMouDataById(mouId) {
-  return api.get(`/get-gmis-mou-data-by-id/${mouId}`);
-}
+// export function fetchGmisMouDataById(mouId) {
+//   return api.get(`/get-gmis-mou-data-by-id/${mouId}`);
+// }
 
 export function submitGmisMouData(payload) {
   return api.post('/submit-gmis-mou-data', payload);

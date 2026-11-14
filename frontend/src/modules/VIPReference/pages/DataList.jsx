@@ -8,6 +8,7 @@ import { fetchVIPReferences } from '../api';
 import { STAGE_STEPS } from '../utils/constants';
 import { useVipStore } from '../store/useVipStore';
 import { useNotifier, COMMON_TOASTS } from '../../../utils/notify';
+import { exportRowsToFile, exportGridApiToExcel } from '../../../utils/exportGridReport';
 
 const COLORS = ['#0f417a', '#1e5ea8', '#3b82f6', '#60a5fa', '#93c5fd', '#10b981'];
 
@@ -193,7 +194,6 @@ export default function DataList({
   }, [filteredData]);
 
   const handleExport = (type) => {
-    const escHtml = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const headers = ['S.No', 'Subject', 'Wing', 'Division', 'Reference Stage', 'Reference Letter No', 'Received From', 'Remarks', 'Deadline', 'Last Updated'];
 
     const buildRowValues = (row, idx) => [
@@ -226,77 +226,25 @@ export default function DataList({
         notify(COMMON_TOASTS.nothingToExport());
         return;
       }
-      const fileName = `VIP_References_${activeCategory}_${new Date().toISOString().split('T')[0]}.csv`;
-      if (gridApi) {
-        gridApi.exportDataAsCsv({ fileName });
-        notify(COMMON_TOASTS.excelExported(fileName));
-      } else {
-        let csvContent = '﻿' + headers.map(h => `"${h}"`).join(',') + '\r\n';
-        filteredData.forEach((row, idx) => {
-          csvContent += buildRowValues(row, idx).map(val => `"${String(val).replace(/"/g, '""')}"`).join(',') + '\r\n';
-        });
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-        notify(COMMON_TOASTS.excelExported(fileName));
-      }
+      // Excel (.xlsx): the table as shown, or the same rows when the grid is not ready
+      const fileName = `VIP_References_${activeCategory}`;
+      const file = gridApi
+        ? exportGridApiToExcel(gridApi, { title: `VIP References - ${activeCategory.toUpperCase()}`, fileName })
+        : exportRowsToFile('excel', { title: `VIP References - ${activeCategory.toUpperCase()}`, headers, rows: filteredData.map((row, idx) => buildRowValues(row, idx)), fileName });
+      notify(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
       if (filteredData.length === 0) {
         notify(COMMON_TOASTS.nothingToExport());
         return;
       }
-      const printWindow = window.open('', '_blank');
-      if (!printWindow) {
-        notify(COMMON_TOASTS.popupBlocked());
-        return;
-      }
-      notify(COMMON_TOASTS.pdfPreparing());
-      const title = `VIP References - ${activeCategory.toUpperCase()}`;
-
-      const headersHtml = ['S.No', 'Subject', 'Wing / Division', 'Stage', 'Received From', 'Last Updated']
-        .map(h => `<th style="border:1px solid #cbd5e1;padding:8px;text-align:left;background:#f8fafc;font-size:11px;font-weight:bold;">${escHtml(h)}</th>`)
-        .join('');
-
-      const rowsHtml = filteredData.map((row, idx) => `
-        <tr>
-          <td style="border:1px solid #e2e8f0;padding:6px;text-align:center;font-size:11px;">${idx + 1}</td>
-          <td style="border:1px solid #e2e8f0;padding:6px;font-size:11px;max-width:250px;">${escHtml(row.subject)}</td>
-          <td style="border:1px solid #e2e8f0;padding:6px;font-size:11px;">${escHtml(row.wing)} / ${escHtml(row.division)}</td>
-          <td style="border:1px solid #e2e8f0;padding:6px;text-align:center;font-size:11px;font-weight:bold;">${escHtml(getRefStageText(row.stageSteps))}</td>
-          <td style="border:1px solid #e2e8f0;padding:6px;font-size:11px;">${escHtml(row.receivedFrom)}</td>
-          <td style="border:1px solid #e2e8f0;padding:6px;text-align:center;font-size:11px;">${escHtml(row.lastUpdated)}</td>
-        </tr>
-      `).join('');
-
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>${escHtml(title)}</title>
-            <style>
-              body { font-family: Arial, sans-serif; margin: 20px; color: #1e293b; }
-              table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-              h2 { margin: 0; color: #0f417a; font-size: 18px; }
-              p { margin: 4px 0 15px 0; color: #64748b; font-size: 12px; }
-            </style>
-          </head>
-          <body>
-            <h2>Ministry of Ports, Shipping and Waterways</h2>
-            <p>${escHtml(title)} | Generated on ${new Date().toLocaleDateString()}</p>
-            <table>
-              <thead><tr>${headersHtml}</tr></thead>
-              <tbody>${rowsHtml}</tbody>
-            </table>
-            <script>window.onload = function() { window.print(); window.close(); };</script>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
+      // PDF straight to a file (no print dialog or new tab): the columns on show
+      const file = exportRowsToFile('pdf', {
+        title: `VIP References - ${activeCategory.toUpperCase()}`,
+        headers: ['S.No', 'Subject', 'Wing / Division', 'Stage', 'Received From', 'Last Updated'],
+        rows: filteredData.map((row, idx) => [idx + 1, row.subject, `${row.wing ?? ''} / ${row.division ?? ''}`, getRefStageText(row.stageSteps), row.receivedFrom, row.lastUpdated]),
+        fileName: `VIP_References_${activeCategory}`,
+      });
+      notify(COMMON_TOASTS.excelExported(file));
     }
   };
 

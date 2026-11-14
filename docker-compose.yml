@@ -41,8 +41,9 @@ services:
     build:
       context: ./frontend
       args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
         VITE_RSA_PUBLIC_KEY: ${VITE_RSA_PUBLIC_KEY}
-        VITE_RECAPTCHA_SITE_KEY: ${VITE_RECAPTCHA_SITE_KEY:-6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI}
+        VITE_RECAPTCHA_SITE_KEY: ${VITE_RECAPTCHA_SITE_KEY:6LeGT1QqAAAAACE9B3PdtDXfui3amPpNBIvneGEM}
     container_name: sagarmanthan-frontend
     restart: unless-stopped
     ports:

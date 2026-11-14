@@ -67,3 +67,39 @@ export function ministryOnly(req, res, next) {
   }
   return next();
 }
+
+// Data scope of a role, read from the role's RBAC data-scope mapping (cached briefly), for
+// code that only has a role_id (e.g. looked up from tbl_user) and not the logged-in user object.
+// Replaces hardcoded role-id lists, so renumbering roles cannot change who sees what.
+const ROLE_SCOPE_TTL_MS = 60 * 1000;
+const roleScopeCache = new Map();
+
+export async function getRoleDataScopeCode(roleId) {
+  const id = Number(roleId);
+  if (!Number.isInteger(id) || id <= 0) return '';
+  const hit = roleScopeCache.get(id);
+  if (hit && Date.now() - hit.at < ROLE_SCOPE_TTL_MS) return hit.code;
+  const { pool } = await import('../db.js');
+  const conn = await pool;
+  const result = await conn
+    .request()
+    .input('roleId', id)
+    .query(`SELECT TOP 1 ds.data_scope_code
+            FROM tbl_rbac_role_data_scope rds
+            INNER JOIN mmt_rbac_data_scope ds ON ds.data_scope_id = rds.data_scope_id
+            WHERE rds.role_id = @roleId`);
+  const code = String(result.recordset[0]?.data_scope_code || '').toUpperCase();
+  roleScopeCache.set(id, { code, at: Date.now() });
+  return code;
+}
+
+// True for Ministry / Master data scope - same meaning as getDataScope(user).isWide
+export async function isWideRole(roleId) {
+  const code = await getRoleDataScopeCode(roleId);
+  return code === 'MASTER' || code === 'MINISTRY';
+}
+
+// True for Organisation data scope - same meaning as getDataScope(user).isOrganisation
+export async function isOrganisationRole(roleId) {
+  return (await getRoleDataScopeCode(roleId)) === 'ORGANISATION';
+}

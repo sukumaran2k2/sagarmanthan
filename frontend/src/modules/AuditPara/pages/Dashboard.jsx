@@ -110,12 +110,16 @@ function BarChart({ data, categoryField, series, horizontal = false, stacked = t
   return <div ref={divRef} style={{ width: '100%', height: '100%', overflow: 'hidden' }} />;
 }
 
-// 2. Paras per wing / division: active, then dropped, each by category
+// 2. Paras per wing / division: active, then dropped, each by category. Each bar is one category,
+// so a click opens the Data List with exactly that category; CAG Report Item bars show only when
+// there are such paras.
 const SPLIT_SERIES = [
-  { field: 'audit_para', name: 'Audit Para (active)', color: AUDIT },
-  { field: 'draft_para', name: 'Draft Para (active)', color: DRAFT },
-  { field: 'dropped_audit', name: 'Audit Para (dropped)', color: 0x3b8a4a },
-  { field: 'dropped_draft', name: 'Draft Para (dropped)', color: 0xa7d7a8, label: 0x14532d },
+  { field: 'audit_para', name: 'Audit Para (active)', color: AUDIT, category: 'Audit Para' },
+  { field: 'draft_para', name: 'Draft Para (active)', color: DRAFT, category: 'Draft Para' },
+  { field: 'cag_item', name: 'CAG Report Item (active)', color: 0x0ea5e9, category: 'CAG Report Item' },
+  { field: 'dropped_audit', name: 'Audit Para (dropped)', color: 0x3b8a4a, category: 'Audit Para' },
+  { field: 'dropped_draft', name: 'Draft Para (dropped)', color: 0xa7d7a8, label: 0x14532d, category: 'Draft Para' },
+  { field: 'dropped_cag', name: 'CAG Report Item (dropped)', color: 0x7dd3fc, label: 0x0c4a6e, category: 'CAG Report Item' },
 ];
 // 4. Received and dropped each year, side by side
 const YEAR_SERIES = [
@@ -196,11 +200,11 @@ function TableExportMenu({ onExport }) {
         <div className="absolute right-0 top-full mt-1.5 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden">
           <button type="button" onClick={() => pick('excel')} className={item}>
             <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-            <span>CSV (Excel)</span>
+            <span>Excel (.xlsx)</span>
           </button>
           <button type="button" onClick={() => pick('pdf')} className={`${item} border-t border-slate-100 dark:border-slate-800`}>
             <Printer className="h-4 w-4 text-rose-600 dark:text-rose-400" />
-            <span>Print / PDF</span>
+            <span>PDF</span>
           </button>
         </div>
       )}
@@ -261,6 +265,9 @@ export default function AuditParaDashboard({ notify, wings = [], onOpenList }) {
   // "No Status" only shows when some para has no stage yet
   const stageRows = useMemo(() => (data?.stages || []).filter((s) => s.stage_id !== 0 || s.para_count > 0), [data]);
   const breakdown = useMemo(() => data?.breakdown || { by: 'wing', rows: [] }, [data]);
+  // Only the series that have paras (e.g. no CAG Report Item bars when there are none); memoized
+  // so the chart is not redrawn on every render
+  const splitSeries = useMemo(() => SPLIT_SERIES.filter((s) => breakdown.rows.some((r) => Number(r[s.field]) > 0)), [breakdown]);
   const yearly = useMemo(() => (data?.yearly || []).map((y) => ({ ...y, year: String(y.year) })), [data]);
   const longPending = useMemo(() => data?.longPending || [], [data]);
   const selectedWingName = wings.find((w) => String(w.wing_id) === String(selectedWing))?.wing_name;
@@ -270,8 +277,7 @@ export default function AuditParaDashboard({ notify, wings = [], onOpenList }) {
   // picked, that category is used.
   const pickSplit = useMemo(() => (row, field) => {
     if (!row || !onOpenList) return;
-    const isDraft = field === 'draft_para' || field === 'dropped_draft';
-    const category = selectedCategory || (isDraft ? 'Draft Para' : 'Audit Para');
+    const category = selectedCategory || SPLIT_SERIES.find((s) => s.field === field)?.category || '';
     const status = field.startsWith('dropped') ? STATUS_STEPS[7] : ACTIVE_STATUS;
     onOpenList(breakdown.by === 'division'
       ? { wing: selectedWingName, division: row.name, category, status }
@@ -382,11 +388,11 @@ export default function AuditParaDashboard({ notify, wings = [], onOpenList }) {
           <div className="p-5 flex-1 overflow-hidden flex flex-col">
             <div className="flex-1 min-h-0">
               {breakdown.rows.length
-                ? <BarChart data={breakdown.rows} categoryField="name" series={SPLIT_SERIES} horizontal onPick={onOpenList ? pickSplit : undefined} onRootReady={setSplitChartRoot} />
+                ? <BarChart data={breakdown.rows} categoryField="name" series={splitSeries} horizontal onPick={onOpenList ? pickSplit : undefined} onRootReady={setSplitChartRoot} />
                 : <p className="text-xs text-center text-slate-600 dark:text-slate-300 py-10">No paras</p>}
             </div>
             <p className="text-[9px] text-slate-600 dark:text-slate-300 text-center mt-1 flex-shrink-0">Number of paras →</p>
-            <div className="flex-shrink-0"><Legend items={SPLIT_SERIES} /></div>
+            <div className="flex-shrink-0"><Legend items={splitSeries} /></div>
           </div>
         </div>
 

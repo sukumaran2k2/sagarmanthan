@@ -151,7 +151,7 @@ async function submitGmisMouData(req, res) {
     const nameOfSecondParty = req.body.stakeholderName;
     const natureOfSecondParty = req.body.natureOfSecondParty;
     const amount = req.body.amount;
-    const mouCategoryId = req.body.mouCategory;
+    const mouCategoryId = parseInt(req.body.mouCategory, 10);
     const firstPartyName = req.body.firstPartyName;
     const presentStatus = req.body.presentStatus;
     const detailedRemarks = req.body.detailedRemarks || null;
@@ -188,8 +188,6 @@ async function submitGmisMouData(req, res) {
     request.input("nextSteps", nextSteps);
     bindProgress(request, req.body);
 
-    
-
     const firstPartyResult = await request.query(`
         SELECT organisation_name
         FROM sagarmanthan_revamp.dbo.mmt_organisation
@@ -204,7 +202,6 @@ async function submitGmisMouData(req, res) {
     const firstParty = firstPartyResult.recordset[0].organisation_name;
 
     request.input("firstParty", firstParty);
-
 
     try {
         // The MoU and its first progress revision are saved together
@@ -232,6 +229,7 @@ async function submitGmisMouData(req, res) {
         return res.sendStatus(500);
     }
 }
+
 async function addNewgmisFileupload(req, res) 
 {
     // const { folderName } = req.body;
@@ -565,60 +563,60 @@ async function getGmisMouPaginated(req, res) {
         return res.status(500).json({ error: "Internal server error fetching GMIS MoUs" });
     }
 }
-async function getGmisMouDataByID(req, res) {
-    const mouID = req.params.mouID;
-    const conn = await pool;
-    const request = conn.request();
-    const scope = gmisScope(req.user);
+// async function getGmisMouDataByID(req, res) {
+//     const mouID = req.params.mouID;
+//     const conn = await pool;
+//     const request = conn.request();
+//     const scope = gmisScope(req.user);
 
-    request.input("mouID", mouID);
-    if (scope.orgId) request.input("scopeOrgId", scope.orgId);
+//     request.input("mouID", mouID);
+//     if (scope.orgId) request.input("scopeOrgId", scope.orgId);
 
-    try {
-        const result = await request.query(`
-        SELECT 
-            tbl_gmis_mou.id,
-            tbl_gmis_mou.organisation_id,
-            tbl_gmis_mou.navic_vibhas_id,
-            mmt_organisation.organisation_name,
-            tbl_gmis_mou.name_of_mou,
-            tbl_gmis_mou.name_of_second_party,
-            tbl_gmis_mou.nature_of_second_party,
-            tbl_gmis_mou.name_of_first_party,
-            tbl_gmis_mou.amount,
-            tbl_gmis_mou.mou_category_id,
-            mmt_mou_category.mou_category_name,
-            tbl_gmis_mou.mou_brief,
-            tbl_gmis_mou.present_status,
-            tbl_gmis_mou.reason_for_dropping,
-            tbl_gmis_mou.remark_or_detailed_status,
-            tbl_gmis_mou.revised_amount,
-            tbl_gmis_mou.event_name,
-            tbl_gmis_mou.document_uploader,
-            tbl_gmis_mou.next_steps,
-            tbl_gmis_mou.created_on,
-            tbl_gmis_mou.updated_on,
-            ${PROGRESS_COLUMNS}
-        FROM 
-            tbl_gmis_mou
-        ${PROGRESS_JOIN}
-        LEFT JOIN 
-            mmt_organisation ON tbl_gmis_mou.organisation_id = mmt_organisation.organisation_id
-        LEFT JOIN 
-            mmt_navic_vibhas ON mmt_navic_vibhas.id = tbl_gmis_mou.navic_vibhas_id
-        LEFT JOIN 
-            mmt_mou_category ON tbl_gmis_mou.mou_category_id = mmt_mou_category.mou_category_id
-        WHERE 
-            tbl_gmis_mou.id = @mouID AND ${scope.sql};
-        `);
+//     try {
+//         const result = await request.query(`
+//         SELECT 
+//             tbl_gmis_mou.id,
+//             tbl_gmis_mou.organisation_id,
+//             tbl_gmis_mou.navic_vibhas_id,
+//             mmt_organisation.organisation_name,
+//             tbl_gmis_mou.name_of_mou,
+//             tbl_gmis_mou.name_of_second_party,
+//             tbl_gmis_mou.nature_of_second_party,
+//             tbl_gmis_mou.name_of_first_party,
+//             tbl_gmis_mou.amount,
+//             tbl_gmis_mou.mou_category_id,
+//             mmt_mou_category.mou_category_name,
+//             tbl_gmis_mou.mou_brief,
+//             tbl_gmis_mou.present_status,
+//             tbl_gmis_mou.reason_for_dropping,
+//             tbl_gmis_mou.remark_or_detailed_status,
+//             tbl_gmis_mou.revised_amount,
+//             tbl_gmis_mou.event_name,
+//             tbl_gmis_mou.document_uploader,
+//             tbl_gmis_mou.next_steps,
+//             tbl_gmis_mou.created_on,
+//             tbl_gmis_mou.updated_on,
+//             ${PROGRESS_COLUMNS}
+//         FROM 
+//             tbl_gmis_mou
+//         ${PROGRESS_JOIN}
+//         LEFT JOIN 
+//             mmt_organisation ON tbl_gmis_mou.organisation_id = mmt_organisation.organisation_id
+//         LEFT JOIN 
+//             mmt_navic_vibhas ON mmt_navic_vibhas.id = tbl_gmis_mou.navic_vibhas_id
+//         LEFT JOIN 
+//             mmt_mou_category ON tbl_gmis_mou.mou_category_id = mmt_mou_category.mou_category_id
+//         WHERE 
+//             tbl_gmis_mou.id = @mouID AND ${scope.sql};
+//         `);
 
-        res.json(result.recordset);
-    }
-    catch (err) {
-        console.error("Error in getGmisMouDataByID:", err);
-        return res.sendStatus(500);
-    }
-}
+//         res.json(result.recordset);
+//     }
+//     catch (err) {
+//         console.error("Error in getGmisMouDataByID:", err);
+//         return res.sendStatus(500);
+//     }
+// }
 
 
 // async function getGmisMouStageDetails(req, res) {
@@ -648,11 +646,11 @@ async function getGmisMouVibhasNavicCell(req, res) {
         const request = conn.request();
 
         const result = await request.query(`
-    SELECT DISTINCT mnv.navic_name
-    FROM tbl_gmis_mou gmismou
-    INNER JOIN mmt_navic_vibhas mnv 
-        ON gmismou.navic_vibhas_id = mnv.id
-`);
+            SELECT DISTINCT mnv.id, mnv.navic_name
+            FROM tbl_gmis_mou gmismou
+            INNER JOIN mmt_navic_vibhas mnv 
+                ON gmismou.navic_vibhas_id = mnv.id
+        `);
         res.json(result.recordset);
     } catch (err) {
         console.error("Database query error:", err);
@@ -1907,5 +1905,5 @@ async function getDroppedMousReport(req, res) {
 }
 
 export default {
-    getGmisMouPaginated, getMouCategory, submitGmisMouData, updateGmisMouData, getGmisMouDataByID, getGmisMouVibhasNavicCell, upload, fileUpload, gmisfileDelete, addRevisedfinancialprogressdate, getRevisedfinancialprogressdate, getRevisedphysicalprogressdate, addNewgmisFileupload, gmisPdfFileDownload, addRevisedphysicalprogressdate, getEventWiseSummary, getorgWisePerformanceRankingReport, getVibascellWiseSummary, getCategoryWiseSummary, getPhysicalAndFinancialProgressWise, getDroppedMousReport
+    getGmisMouPaginated, getMouCategory, submitGmisMouData, updateGmisMouData, getGmisMouVibhasNavicCell, upload, fileUpload, gmisfileDelete, addRevisedfinancialprogressdate, getRevisedfinancialprogressdate, getRevisedphysicalprogressdate, addNewgmisFileupload, gmisPdfFileDownload, addRevisedphysicalprogressdate, getEventWiseSummary, getorgWisePerformanceRankingReport, getVibascellWiseSummary, getCategoryWiseSummary, getPhysicalAndFinancialProgressWise, getDroppedMousReport
 };

@@ -24,6 +24,7 @@ const DEFAULT_VISIBLE = {
   'Financial Year': true,
   'Total for officers level': true,
   'Total for Non-officers level': true,
+  'Date Updated': false, // Last Updated Date: offered in Visibility, unticked (as in 2.0)
   'Actions': true
 };
 
@@ -131,7 +132,11 @@ export default function ContractualEmployment({ notify }) {
       { field: 'Organisation Name', headerName: 'Organisation', minWidth: 250, pinned: 'left', cellClass: 'font-extrabold text-slate-900 text-center flex justify-center', headerClass: 'text-center' },
       { field: 'Financial Year', headerName: 'Financial Year', minWidth: 150, cellClass: 'text-center flex justify-center', headerClass: 'text-center' },
       { field: 'Total for officers level', headerName: 'Total Contractual Employees at Officer level', minWidth: 250, cellClass: 'text-center font-bold text-blue-600', headerClass: 'text-center' },
-      { field: 'Total for Non-officers level', headerName: 'Total Contractual Employees at Non Officer level', minWidth: 250, cellClass: 'text-center font-bold text-blue-600', headerClass: 'text-center' }
+      { field: 'Total for Non-officers level', headerName: 'Total Contractual Employees at Non Officer level', minWidth: 250, cellClass: 'text-center font-bold text-blue-600', headerClass: 'text-center' },
+      {
+        field: 'Date Updated', headerName: 'Last Updated Date', minWidth: 150, cellClass: 'text-center flex justify-center', headerClass: 'text-center',
+        valueFormatter: (p) => (p.value ? String(p.value).slice(0, 10) : '--'),
+      },
     ];
 
     if (!isMinistryView && (canUseInputForm || canDelete)) {
@@ -243,7 +248,8 @@ export default function ContractualEmployment({ notify }) {
   // Copy / Export: the rows on the current page, visible data columns only
   const pageStart = (currentPage - 1) * pageSize;
   const runExport = (kind) => createTableExporter({
-    loadRows: () => filteredStaff.slice(pageStart, pageStart + pageSize),
+    loadRows: () => filteredStaff.slice(pageStart, pageStart + pageSize)
+      .map((r) => ({ ...r, 'Date Updated': r['Date Updated'] ? String(r['Date Updated']).slice(0, 10) : '--' })),
     serialStart: pageStart,
     getColumns: () => activeColumnDefs
       .filter((c) => c.field && c.field !== 'Actions')
@@ -278,7 +284,7 @@ export default function ContractualEmployment({ notify }) {
             <HrTotalBadge count={filteredStaff.length} />
             <HrColumnPicker
               capitalize
-              columns={Object.keys(visibleCols).map((col) => ({ key: col, label: col, visible: visibleCols[col] }))}
+              columns={Object.keys(visibleCols).map((col) => ({ key: col, label: col === 'Date Updated' ? 'Last Updated Date' : col, visible: visibleCols[col] }))}
               onToggle={toggleColumn}
             />
             <HrCopyExport onCopy={() => runExport('copy')} onExcel={() => runExport('excel')} onPdf={() => runExport('pdf')} />

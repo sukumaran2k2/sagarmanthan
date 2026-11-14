@@ -1,5 +1,6 @@
 import { pool } from "../../db.js";
 import sql from 'mssql';
+import { isWideRole } from "../../middleware/dataScope.js";
 
 
 
@@ -312,7 +313,7 @@ async function getHRTrainingDataByOrg(req, res) {
 
     try {
         let query;
-        if (roleID == 2 || roleID == 3 || roleID == 4 || roleID == 5 || roleID == 8) {
+        if (await isWideRole(roleID)) {
             query = `
             SELECT
                 org.organisation_id AS [org_id],
@@ -576,7 +577,7 @@ request.input("roleID",roleID);
 request.input("organisationID",organisationID);
 
 let query;
-if (roleID == 2 || roleID == 3 || roleID == 4 || roleID == 5 || roleID == 8) {
+if (await isWideRole(roleID)) {
     query = `
          SELECT 
             c.*, 
@@ -841,7 +842,7 @@ async function getHRTrainingDetailsDataByOrg(req, res) {
         return res.status(400).json({ message: "Missing required query parameters" });
     }
 
-    if (!(roleID == 1 || roleID == 2 || roleID == 3 || roleID == 4 || roleID == 5 || roleID == 8)) {
+    if (!(await isWideRole(roleID))) {
         return res.status(403).json({ message: "Access denied" });
     }
 
@@ -958,7 +959,7 @@ async function getAllTrainingData(req, res) {
         const allowedOrgIds = [23,15,27,21,24,19,25,22,16,17,18,20];
 
         let result;
-        if ([1,2,3,4,5,8].includes(role_id)) {
+        if (await isWideRole(role_id)) {
 
             result = await conn.query(`
                 WITH StaffRanked AS (
@@ -1232,7 +1233,7 @@ async function getAllContractualData(req,res) {
         }
         const { role_id,organisation_id  } = userResult.recordset[0];
         let result;
-        if ([1,2,3,4,5,8].includes(role_id)) {
+        if (await isWideRole(role_id)) {
             result = await conn.query(`
             SELECT 
                 ROW_NUMBER() OVER (ORDER BY org.organisation_id) AS [S.No],

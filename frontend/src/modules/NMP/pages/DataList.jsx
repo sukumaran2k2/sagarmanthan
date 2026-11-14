@@ -5,6 +5,7 @@ import CopyButton from '../../../components/CopyButton';
 import { Search, X, ChevronDown, Edit, Trash2 } from 'lucide-react';
 import { fetchLandAbstractList, fetchPastLandList, fetchFutureLandList, deleteNmpEntry } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
+import { exportRowsToFile, exportGridApiToExcel } from '../../../utils/exportGridReport';
 
 
 // ── Dropdown options (keep in sync with the add form) ──
@@ -241,7 +242,6 @@ export default function NmpDataList({ onEdit, onAddNew, triggerNotification, can
     return buildNmpPlanCols(actions);
   }, [subTab, handleEdit, handleDelete, canEdit, canRemove]);
 
-  const escHtml = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
   const handleExport = (type) => {
     if (type === 'Copy') {
@@ -257,24 +257,18 @@ export default function NmpDataList({ onEdit, onAddNew, triggerNotification, can
       navigator.clipboard.writeText(tsv).catch(() => {});
     } else if (type === 'Excel') {
       if (gridApiRef.current) {
-        gridApiRef.current.exportDataAsCsv({ fileName: `NMP_${subTab}_${new Date().toISOString().slice(0, 10)}.csv` });
+        // Excel (.xlsx) of the table as shown
+        exportGridApiToExcel(gridApiRef.current, { title: SUB_TABS.find((t) => t.id === subTab)?.label || 'NMP Data', fileName: `NMP_${subTab}` });
       }
     } else if (type === 'PDF') {
-      const printWindow = window.open('', '_blank');
-      if (!printWindow) return;
-      const title = SUB_TABS.find(t => t.id === subTab)?.label || 'NMP Data';
-      let headersHtml = columnDefs.filter(c => c.headerName).map(c =>
-        `<th style="border:1px solid #cbd5e1;padding:10px;text-align:left;background:#f8fafc;font-size:11px;font-weight:bold;text-transform:uppercase">${escHtml(c.headerName)}</th>`
-      ).join('');
-      let rowsHtml = filteredData.map(row => {
-        const cells = columnDefs.filter(c => c.headerName).map(c => {
-          const val = c.field === 'sNo' ? row.sNo : (row[c.field] ?? '');
-          return `<td style="border:1px solid #e2e8f0;padding:8px;font-size:11px">${escHtml(val)}</td>`;
-        }).join('');
-        return `<tr>${cells}</tr>`;
-      }).join('');
-      printWindow.document.write(`<html><head><title>${title}</title><style>body{font-family:'Google Sans',system-ui,sans-serif;color:#1e293b;padding:20px}h1{font-size:18px;margin-bottom:5px;color:#0f417a}table{width:100%;border-collapse:collapse;margin-top:15px}</style></head><body><h1>${title}</h1><p style="font-size:11px;color:#64748b;margin-top:0;margin-bottom:20px">Generated on: ${new Date().toLocaleDateString()}</p><table><thead><tr>${headersHtml}</tr></thead><tbody>${rowsHtml}</tbody></table><script>window.onload=function(){window.print();window.close()}<\/script></body></html>`);
-      printWindow.document.close();
+      // PDF straight to a file (no print dialog or new tab): the columns on show
+      const pdfCols = columnDefs.filter((c) => c.headerName && !c.hide);
+      exportRowsToFile('pdf', {
+        title: SUB_TABS.find((t) => t.id === subTab)?.label || 'NMP Data',
+        headers: pdfCols.map((c) => c.headerName),
+        rows: filteredData.map((row) => pdfCols.map((c) => (c.field === 'sNo' ? row.sNo : (row[c.field] ?? '')))),
+        fileName: `NMP_${subTab}`,
+      });
     }
   };
 

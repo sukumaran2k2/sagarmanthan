@@ -283,7 +283,7 @@ async function modifyFormBuilderInputForm(req, res) {
 // CSV (wing names can contain commas).
 function assignmentValues(list) {
   if (!Array.isArray(list)) return [];
-  return [...new Set(list.filter((v) => typeof v === 'string' && v.trim() && v.length <= 255))];
+  return [...new Set(list.filter((v) => typeof v === 'string' && v.trim() && v.length <= 255).map((v) => v.trim()))];
 }
 
 async function replaceAssignments(transaction, formId, meta) {
@@ -488,8 +488,13 @@ async function getCreatedFormData(req, res) {
     // Paged and searched in SQL (name, organisation codes or wings); 9 cards = a 3 x 3 grid.
     const { page, limit, search, searchPattern } = pagingParams(req.query, { defaultLimit: 9, maxLimit: 60 });
     const all = String(req.query.all) === 'true'; // every matching form (Directory Excel export)
+    // Search: form name, or an assigned organisation (name or code) or wing
     const searchSql = search
-      ? `AND (d.form_name LIKE @search ESCAPE '\\' OR d.organisation LIKE @search ESCAPE '\\' OR d.wing LIKE @search ESCAPE '\\')`
+      ? `AND (d.form_name LIKE @search ESCAPE '\\' OR EXISTS (
+          SELECT 1 FROM mmt_form_assignments sa
+          LEFT JOIN mmt_organisation so ON sa.kind = 'O' AND so.organisation_code = sa.value
+          WHERE sa.form_id = d.id
+            AND (sa.value LIKE @search ESCAPE '\\' OR so.organisation_name LIKE @search ESCAPE '\\')))`
       : '';
     const listFrom = `
       FROM mmt_form_definitions d
@@ -513,20 +518,20 @@ async function getCreatedFormData(req, res) {
              CASE WHEN d.due_date < ${TODAY_IST_SQL} THEN 1 ELSE 0 END AS is_past_due,
              CASE WHEN ${manageableFormsSql(scope)} THEN 1 ELSE 0 END AS can_manage,
              COUNT(*) OVER () AS total_count,
-             SUM(CASE WHEN d.active_status = '1' THEN 1 ELSE 0 END) OVER () AS active_count
+             SUM(CASE WHEN ${FORM_OPEN_SQL} THEN 1 ELSE 0 END) OVER () AS active_count
       ${listFrom}
       ORDER BY d.created_date DESC, d.id DESC
       ${all ? '' : 'OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY'};
     `);
     let total = result.recordset[0]?.total_count || 0;
-    // Forms switched to Active (the Directory TOTAL box), across all pages; honours the search.
+    // Forms open now (switched on and not past due: the ACTIVE badge), across all pages; honours the search.
     let activeCount = result.recordset[0]?.active_count || 0;
     if (result.recordset.length === 0 && page > 1) {
       // Past the last page (e.g. after a delete): report the real totals so the pager can recover.
       const counted = await bindVisibility(conn.request(), req.user)
         .input('search', sql.NVarChar(110), searchPattern)
         .query(`${DECLARE_CALLER_ASSIGNMENT_SQL}
-          SELECT COUNT(*) AS n, ISNULL(SUM(CASE WHEN d.active_status = '1' THEN 1 ELSE 0 END), 0) AS active ${listFrom};`);
+          SELECT COUNT(*) AS n, ISNULL(SUM(CASE WHEN ${FORM_OPEN_SQL} THEN 1 ELSE 0 END), 0) AS active ${listFrom};`);
       total = counted.recordset[0].n;
       activeCount = counted.recordset[0].active;
     }
@@ -717,22 +722,30 @@ async function getFormSubmissions(req, res) {
       const counted = await bindRows(conn.request()).query(`${rowsCte} SELECT COUNT(*) AS n FROM rows_all ${rowsSearchSql};`);
       total = counted.recordset[0].n;
     }
-    const notSubmitted = (await bindRows(conn.request())
-      .query(`${rowsCte} SELECT COUNT(*) AS n FROM rows_all WHERE is_pending = 1;`)).recordset[0].n;
-
-    // Header stats cover every visible response, not just this page or search. The
-    // responding organisations come back as a DISTINCT list (one row per organisation),
-    // not one code per response.
-    const statsResult = await bindFilters(conn.request()).query(`
-      SELECT COUNT(*) AS total_submissions,
-             COUNT(DISTINCT s.submitted_by) AS distinct_submitters
-      ${baseFrom};
-      SELECT DISTINCT o.organisation_code AS code
-      ${baseFrom}
-        AND o.organisation_code IS NOT NULL;
-    `);
-    const statsRow = statsResult.recordsets[0][0];
-    const respondedOrganisations = new Set(statsResult.recordsets[1].map((r) => r.code));
+    // Header numbers. Total Submissions and Not Submitted count the rows the table lists, so
+    // they follow the search. The submission rate is for the whole form as the caller sees it:
+    // every assigned organisation and wing (an organisation user: only their own), of which
+    // those without a "Not submitted" row have responded.
+    const counted = (await bindRows(conn.request()).query(`
+      ${rowsCte}
+      SELECT
+        ISNULL(SUM(CASE WHEN is_pending = 0 THEN 1 ELSE 0 END), 0) AS shown_submitted,
+        ISNULL(SUM(CASE WHEN is_pending = 1 THEN 1 ELSE 0 END), 0) AS shown_pending
+      FROM rows_all ${rowsSearchSql};
+      ${rowsCte}
+      SELECT ISNULL(SUM(CASE WHEN is_pending = 1 THEN 1 ELSE 0 END), 0) AS pending_all FROM rows_all;
+      SELECT COUNT(*) AS assigned
+      FROM mmt_form_assignments a
+      LEFT JOIN mmt_organisation org ON a.kind = 'O' AND org.organisation_code = a.value
+      WHERE a.form_id = @formId
+        AND ${ownOrgOnly ? "a.kind = 'O' AND org.organisation_id = @scopeOrgId" : '1 = 1'};
+    `)).recordsets;
+    const shown = counted[0][0];
+    const assignedCount = counted[2][0].assigned;
+    const respondedCount = Math.max(0, assignedCount - counted[1][0].pending_all);
+    const statsRow = (await bindFilters(conn.request()).query(`
+      SELECT COUNT(DISTINCT s.submitted_by) AS distinct_submitters ${baseFrom};
+    `)).recordset[0];
 
     // Uploaded files for the rows on this page, keyed by submission uid then field id.
     const filesByUid = new Map();
@@ -782,18 +795,18 @@ async function getFormSubmissions(req, res) {
       };
     });
 
-    const assignedOrganisations = String(form.organisation || '').split(',').filter(Boolean);
     const pageSize = all ? Math.max(total, 1) : limit;
 
     res.json({
       form: { id: form.id, formName: form.form_name, fields },
       submissions,
       stats: {
-        totalSubmissions: statsRow.total_submissions,
+        totalSubmissions: shown.shown_submitted,
         distinctSubmitters: statsRow.distinct_submitters,
-        assignedOrganisations: assignedOrganisations.length,
-        respondedOrganisations: assignedOrganisations.filter((c) => respondedOrganisations.has(c)).length,
-        notSubmitted,
+        // Assigned organisations and wings the caller sees, and how many have responded
+        assignedOrganisations: assignedCount,
+        respondedOrganisations: respondedCount,
+        notSubmitted: shown.shown_pending,
       },
       pagination: {
         total,
@@ -1693,7 +1706,33 @@ async function deleteFormDraft(req, res) {
   }
 }
 
+// ---------- GET /get-form-targets ----------
+// The organisations (by code) and wings a form can be assigned to, from the masters, so the
+// Studio offers exactly the codes and names the assignment checks compare against.
+async function getFormTargets(req, res) {
+  if (!canAuthor(scopeOf(req.user))) {
+    return res.status(403).json({ message: AUTHOR_DENIED });
+  }
+  try {
+    const conn = await pool;
+    const result = await conn.request().query(`
+      SELECT o.organisation_id AS id, o.organisation_name AS name, LTRIM(RTRIM(o.organisation_code)) AS code,
+             o.organisation_category_id AS categoryId, c.organisation_category_name AS categoryName
+      FROM mmt_organisation o
+      LEFT JOIN mmt_organisation_category c ON c.organisation_category_id = o.organisation_category_id
+      WHERE NULLIF(LTRIM(RTRIM(o.organisation_code)), '') IS NOT NULL AND ISNULL(o.status, 1) = 1
+      ORDER BY o.organisation_category_id, o.organisation_name;
+      SELECT wing_id AS id, LTRIM(RTRIM(wing_name)) AS name FROM mmt_wings ORDER BY wing_name;
+    `);
+    res.json({ organisations: result.recordsets[0], wings: result.recordsets[1] });
+  } catch (err) {
+    console.error('getFormTargets error:', err);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+}
+
 const formBuilderController = {
+  getFormTargets,
   modifyFormBuilderInputForm, getCreatedFormData, getFormSubmissions, getInboxForms, submitFormData,
   getMyFormResponse, deleteForm, toggleFormStatus, cloneForm, downloadFormFile,
   getFormDrafts, saveFormDraft, deleteFormDraft,

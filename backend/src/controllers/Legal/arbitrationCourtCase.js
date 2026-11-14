@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
 import { fileURLToPath } from 'url';
+import { isWideRole } from "../../middleware/dataScope.js";
 
 // async function(req, res) {
 //     let caseType = req.params.caseType;
@@ -868,7 +869,7 @@ async function getCourtCase(req, res) {
     request.input("organisationID",organisationID);
 
     let query;
-    if (roleID == 2 || roleID == 3 || roleID == 4 || roleID == 5 || roleID == 8) {
+    if (await isWideRole(roleID)) {
         query = `
             SELECT 
                 ac.organisation_id,
@@ -1272,7 +1273,7 @@ async function getCourtCaseReport(req, res) {
         const { role_id, organisation_id } = userResult.recordset[0];
 
         let result;
-        if (role_id === 1 || role_id === 2 || role_id === 3 || role_id === 4 || role_id === 5 || role_id === 8) {
+        if (await isWideRole(role_id)) {
              result = await conn.query(`
                 SELECT 
                     ROW_NUMBER() OVER (ORDER BY org.organisation_id) AS [S No],

@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import { access, stat } from 'fs/promises';
 import { createReadStream } from 'fs';
 import fs from 'fs';
+import { isWideRole } from "../../middleware/dataScope.js";
 // import mssql from "mssql";
 
 async function getMIVOrgWisePerformanceReport(req, res) {
@@ -28,10 +29,9 @@ async function getMIVOrgWisePerformanceReport(req, res) {
             return res.status(404).json({ message: "User not found" });
         }
         const { role_id, organisation_id } = userResult.recordset[0];
-        const allOrganisationRoles = [1, 2, 3, 4, 5, 8];
 
         let result;
-        if (allOrganisationRoles.includes(Number(role_id))) {
+        if (await isWideRole(role_id)) {
 
             const request = conn.request();
             result = await request.query(`
@@ -210,11 +210,10 @@ async function getThemeWiseMIVPerformanceReport(req, res) {
             return res.status(404).json({ message: "User not found" });
         }
         const { role_id, organisation_id } = userResult.recordset[0];
-        const allOrganisationRoles = [1, 2, 3, 4, 5, 8];
 
         let result;
 
-        if (allOrganisationRoles.includes(Number(role_id))) {
+        if (await isWideRole(role_id)) {
 
             const request = conn.request();
             result = await request.query(`
@@ -686,7 +685,7 @@ async function mivThemeDetailedData (req, res)
 
         if(mivStageLength == 1)
         {
-            if (role_id === 1 || role_id === 2 || role_id === 3 || role_id === 4 || role_id === 5 || role_id === 8) {
+            if (await isWideRole(role_id)) {
                 query = await request.query(`
                     SELECT  mmt_organisation.organisation_name as [Organisation/Wing], initiative_id  as [Initiative ID],
                         initiative_name as [Name of Initiative], total_cost as [Total Cost of Initiatives], category as [Initiative Category], 
@@ -731,7 +730,7 @@ async function mivThemeDetailedData (req, res)
         }
         else
         {
-            if (role_id === 1 || role_id === 2 || role_id === 3 || role_id === 4 || role_id === 5 || role_id === 8) {
+            if (await isWideRole(role_id)) {
                 query = await request.query(`
                     SELECT mmt_organisation.organisation_name as [Organisation/Wing], initiative_id  as [Initiative ID],
                         initiative_name as [Name of Initiative], total_cost as [Total Cost of Initiatives], category as [Initiative Category], 
@@ -1001,32 +1000,42 @@ async function downloadDocument(req, res)
 //-----------------------------------------------------------------------Delete logic--------------------------------------------------------------------------
 async function deleteMeeting(req, res) {
     try {
-        const id = req.params.id;
+        const id = parseInt(req.params.id, 10);
+        if (Number.isNaN(id)) {
+            return res.status(400).send({ message: 'Invalid meeting id' });
+        }
+
         const conn = await pool;
 
-        const result = await conn.query(
-            `SELECT file_name FROM tbl_meeting_document WHERE meeting_document_id = ${id}`
-        );
-        
-        const fileName = result.recordset[0].file_name;
-        
-       if(fileName){
-            if (fs.existsSync(`./fileuploads/MIV/meeting/${fileName}`)) {
-            
-                fs.unlink(`./fileuploads/MIV/meeting/${fileName}`, (err) => {
-                    if (err) {
-                        console.error("Error deleting file:", err);
-                    }
-                });
-            } 
-       }
+        const result = await conn
+            .request()
+            .input('id', id)
+            .query(`SELECT file_name FROM tbl_meeting_document WHERE meeting_document_id = @id`);
 
-        const deleteRecord = await conn.query(`Delete FROM tbl_meeting_document WHERE meeting_document_id = ${id}`);
-        
-        res.status(200);
+        if (result.recordset.length === 0) {
+            return res.status(404).send({ message: 'Meeting record not found' });
+        }
+
+        const fileName = result.recordset[0].file_name;
+
+        await conn
+            .request()
+            .input('id', id)
+            .query(`DELETE FROM tbl_meeting_document WHERE meeting_document_id = @id`);
+
+        if (fileName) {
+            const filePath = path.join('./fileuploads/MIV/meeting', path.basename(fileName));
+            fs.unlink(filePath, (err) => {
+                if (err && err.code !== 'ENOENT') {
+                    console.error('Error deleting file:', err);
+                }
+            });
+        }
+
+        return res.status(200).send({ message: 'Meeting record deleted successfully' });
     } catch (err) {
         console.error(err);
-        res.status(500).send({ message: err.message });
+        return res.status(500).send({ message: err.message });
     }
 }
 
@@ -1048,11 +1057,10 @@ async function getCategoryWiseMIVPerformanceReport(req,res) {
             return res.status(404).json({ message: "User not found" });
         }
         const { role_id, organisation_id } = userResult.recordset[0];
-        const allOrganisationRoles = [1, 2, 3, 4, 5, 8];
 
         let result;
 
-        if (allOrganisationRoles.includes(Number(role_id))) {
+        if (await isWideRole(role_id)) {
 
             const request = conn.request();
             result = await request.query(`

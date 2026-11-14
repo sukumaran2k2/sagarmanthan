@@ -13,11 +13,14 @@ import { registerStoreReset } from '../../../stores/resetRegistry';
  * The bill being edited is NOT kept here; it travels with the route
  * (location.state.item). Fetched bills stay in the module shell.
  */
+// Remarks and Last Updated are offered in Visibility, unticked by default (as in 2.0)
 export const DEFAULT_VISIBLE_COLS = {
   subject: true,
   wing: true,
   division: true,
   stage: true,
+  remarks: false,
+  lastUpdated: false,
 };
 
 const DEFAULT_FILTERS = { wing: '', division: '', stage: '' }; // '' = all

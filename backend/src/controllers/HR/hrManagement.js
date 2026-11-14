@@ -5,6 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import { getDataScope } from "../../middleware/dataScope.js";
 import {convertIntoVacantPost, getNewEmployeeIDofOrg, safeRollback, resolveReportOrganisation, readListQuery, likePattern, resolveListOrganisation, runPagedQuery, buildPagination} from "../HR/hrHelperFunctions.js";
+import { isWideRole, isOrganisationRole } from "../../middleware/dataScope.js";
 
 const uploadDestination = "./fileuploads/HR";
 
@@ -1063,9 +1064,9 @@ async function getHRAllEmployeeData(req, res) {
         const roleID = parseInt(req.params.roleID, 10);
         const organisationID = req.params.organisationID ? parseInt(req.params.organisationID, 10) : null;
 
-        if ((roleID === 6 || roleID === 7) && !organisationID) {
+        if ((await isOrganisationRole(roleID)) && !organisationID) {
             return res.status(400).json({ 
-                message: "OrganisationID required for role 6 and 7" 
+                message: "OrganisationID required for organisation roles" 
             });
         }
 
@@ -1077,7 +1078,7 @@ async function getHRAllEmployeeData(req, res) {
             request.input("organisationID", organisationID);
         }
 
-        const isOrgRestricted = (roleID === 6 || roleID === 7) && organisationID;
+        const isOrgRestricted = (await isOrganisationRole(roleID)) && organisationID;
 
         const orgFilterActive     = isOrgRestricted ? "AND ps.organisation_id    = @organisationID" : "";
         const orgFilterDeputation = isOrgRestricted ? "AND lt.emp_working_org_id = @organisationID" : "";
@@ -1709,7 +1710,7 @@ async function getDetailedSanctionedStrength(req, res) {
         }
         const { role_id,organisation_id  } = userResult.recordset[0];
         let result;
-        if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8) {
+        if (await isWideRole(role_id)) {
             result = await conn.query(`
            SELECT
                 o.organisation_name,
