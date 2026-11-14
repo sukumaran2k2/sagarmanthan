@@ -122,10 +122,6 @@ export const MODULE_PAGES = {
     uiTabs: ['SCI Input Form', 'SCI Data List', 'SCI Reports'],
   },
 
-  KPI_CMEC: {
-    tabs: ['CMEC Input Form', 'CMEC Reports'],
-  },
-
   ATTENDANCE: {
     tabs: ['Attendance'],
     uiTabs: ['Attendance'],
@@ -499,7 +495,7 @@ export function hasImplementedUi(tab) {
  */
 export const MODULE_GROUPS = [
   { id: 'projects', label: 'Projects', codes: ['PROJECTS', 'CSR_PROJECTS', 'CAPEX'] },
-  { id: 'kpi', label: 'KPI', codes: ['KPI_MAJOR_PORTS', 'KPI_DGLL', 'KPI_CSL', 'KPI_IMU', 'KPI_SCI', 'KPI_CMEC'] },
+  { id: 'kpi', label: 'KPI', codes: ['KPI_MAJOR_PORTS', 'KPI_DGLL', 'KPI_CSL', 'KPI_IMU', 'KPI_SCI'] },
   {
     id: 'governance',
     label: 'Governance',
@@ -559,6 +555,8 @@ export function groupModulesByNav(modules = []) {
  * the login query filters on it, so that revokes access, whereas this list only hides the row.
  */
 export const HIDDEN_PERMISSION_MODULE_CODES = new Set([
+  // KPI CMEC has no screens any more, but its tbl_modules row still exists, so it has to stay
+  // listed here or it would reappear in the permission matrix.
   'KPI_CMEC',
   'AKV_2047',
   'CPGRAMS',

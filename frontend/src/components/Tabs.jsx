@@ -233,14 +233,6 @@ export default function Tabs({ activeTab, setActiveTab }) {
             m('KPI_SCI', { label: 'Reports', tab: 'SCI Reports', icon: FilePieChart }),
           ]
         },
-        {
-          title: 'CMEC',
-          icon: Layers,
-          items: [
-            m('KPI_CMEC', { label: 'Input Form', tab: 'CMEC Input Form', icon: FileEdit }),
-            m('KPI_CMEC', { label: 'Reports', tab: 'CMEC Reports', icon: FilePieChart }),
-          ]
-        }
       ]
     },
     {

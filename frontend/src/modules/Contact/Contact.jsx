@@ -22,7 +22,7 @@ const CONTACTS_DATA = [
     initials: "US",
     name: "Under Secretary",
     division: "IC Division",
-    modules: ["Foreign Visit", "KPI CMEC"],
+    modules: ["Foreign Visit"],
     email: "usic-psw@gov.in",
     phone: "011-23719207"
   },

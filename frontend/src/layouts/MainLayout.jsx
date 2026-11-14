@@ -362,8 +362,6 @@ const getBreadcrumbs = (tab) => {
     'SCI Input Form': ['KPI', 'SCI'],
     'SCI Data List': ['KPI', 'SCI'],
     'SCI Reports': ['KPI', 'SCI'],
-    'CMEC Input Form': ['KPI', 'CMEC'],
-    'CMEC Reports': ['KPI', 'CMEC'],
   };
   if (kpiItems[tab]) return ['Home', ...kpiItems[tab], tab];
 
