@@ -408,13 +408,13 @@ export const MODULE_PAGES = {
       'NMP Dashboard',
       'NMP Data List',
       'NMP Input Form',
-      'National Monetization Plan',
+      'National Monetisation Pipeline',
     ],
     uiTabs: [
       'NMP Dashboard',
       'NMP Data List',
       'NMP Input Form',
-      'National Monetization Plan',
+      'National Monetisation Pipeline',
     ],
   },
 
@@ -441,16 +441,20 @@ export const MODULE_PAGES = {
 
 };
 
+/**
+ * Tabs every signed-in user may open, with no module permission.
+ *
+ * The NMP tabs used to be listed here, which made the module public: canAccessTab() returns
+ * true for anything in this list before it ever looks at module access, so NMP showed in the
+ * menu for everyone and could not be withheld from anyone. It is a normal permissioned module
+ * (MODULE_PAGES.NMP, module_code 'NMP') and is gated like the rest.
+ */
 export const PUBLIC_UI_TABS = [
   'landing',
   'profile',
   'Contact Us',
   'Ministry Contacts',
   'Helpdesk Support',
-  'NMP Dashboard',
-  'NMP Data List',
-  'NMP Input Form',
-  'National Monetization Plan',
 ];
 
 export const TAB_TO_MODULE = (() => {
@@ -475,4 +479,65 @@ export function getModuleCodeForTab(tab) {
 
 export function hasImplementedUi(tab) {
   return IMPLEMENTED_TABS.has(tab);
+}
+
+/**
+ * How modules are grouped in the main navigation, so the User / Module Permission screen can
+ * present them the same way an administrator sees them in the app.
+ *
+ * The order here is the order of the nav menus, and the codes within each group are the codes
+ * those menus gate on (components/Tabs.jsx). A module that is not listed falls into "Other
+ * Modules" rather than being hidden -- tbl_modules can hold rows the UI does not use yet.
+ */
+export const MODULE_GROUPS = [
+  { id: 'projects', label: 'Projects', codes: ['PROJECTS', 'CSR_PROJECTS', 'CAPEX'] },
+  { id: 'kpi', label: 'KPI', codes: ['KPI_MAJOR_PORTS', 'KPI_DGLL', 'KPI_CSL', 'KPI_IMU', 'KPI_SCI', 'KPI_CMEC'] },
+  {
+    id: 'governance',
+    label: 'Governance',
+    codes: [
+      'ATTENDANCE', 'CABINET_NOTES_OTHER_MINISTRIES', 'E_OFFICE', 'PARLIAMENTARY_ISSUES',
+      'GEM_PROCUREMENT', 'CABINET_NOTES_MOPSW', 'VIP_REFERENCE', 'FOREIGN_VISIT',
+      'MEDIA_OUTREACH', 'AUDIT_PARAS',
+    ],
+  },
+  { id: 'hr', label: 'HR & Institutional', codes: ['HR_MANAGEMENT', 'YOUNG_PROFESSIONAL', 'CONSULTANT_APPOINTMENT'] },
+  { id: 'legal', label: 'Legal', codes: ['BILLS_PRE_CONSTITUTION', 'ACTS_AND_RULES'] },
+  { id: 'nmp', label: 'National Monetisation Pipeline', codes: ['NMP'] },
+  {
+    id: 'vision',
+    label: 'Long Term Strategies',
+    // DRISHTI_PORTAL is the stored code; the other two are aliases the UI also uses.
+    codes: ['MIV_2030', 'GMIS_IMW_MOU_TRACKING', 'DRISHTI_PORTAL', 'ONE_VISION_ONE_DOCUMENT', 'OVOD'],
+  },
+  { id: 'formBuilder', label: 'Form Builder', codes: ['FORM_BUILDER'] },
+];
+
+const GROUP_FOR_CODE = (() => {
+  const map = {};
+  for (const g of MODULE_GROUPS) for (const c of g.codes) map[c] = g.id;
+  return map;
+})();
+
+/**
+ * Splits a flat module list into the nav groups above, keeping only groups that have modules.
+ * Each module keeps whatever shape it came in with; only the grouping is added.
+ */
+export function groupModulesByNav(modules = []) {
+  const buckets = new Map(MODULE_GROUPS.map((g) => [g.id, []]));
+  const other = [];
+
+  for (const m of modules) {
+    const code = String(m?.code || m?.module_code || '').toUpperCase();
+    const groupId = GROUP_FOR_CODE[code];
+    if (groupId) buckets.get(groupId).push(m);
+    else other.push(m);
+  }
+
+  const groups = MODULE_GROUPS
+    .map((g) => ({ id: g.id, label: g.label, modules: buckets.get(g.id) }))
+    .filter((g) => g.modules.length > 0);
+
+  if (other.length) groups.push({ id: 'other', label: 'Other Modules', modules: other });
+  return groups;
 }

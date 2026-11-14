@@ -363,7 +363,9 @@ export default function Reports({ triggerNotification }) {
           let yts = 0, onTime = 0, del = 0, comp = 0, na = 0, drop = 0, ytu = 0, cost = 0;
           matched.forEach((item) => {
             const st = String(item['Current Status'] || item.current_status || '').toLowerCase();
-            const c = Number(item.total_cost || 0);
+            // The query aliases the column as [Total Cost], so the row key has a space. Reading only
+            // item.total_cost gave undefined on every row and the Total Cost card summed to 0.
+            const c = Number(item['Total Cost'] ?? item.total_cost ?? 0);
             cost += isNaN(c) ? 0 : c;
             if (st.includes('completed')) comp++;
             else if (st.includes('on time')) onTime++;
@@ -408,7 +410,8 @@ export default function Reports({ triggerNotification }) {
         let yts = 0, onTime = 0, del = 0, comp = 0, na = 0, drop = 0, ytu = 0, cost = 0;
         matched.forEach((item) => {
           const st = String(item['Current Status'] || item.current_status || '').toLowerCase();
-          const c = Number(item.total_cost || 0);
+          // The query aliases the column as [Total Cost], so the row key has a space.
+          const c = Number(item['Total Cost'] ?? item.total_cost ?? 0);
           cost += isNaN(c) ? 0 : c;
           if (st.includes('completed')) comp++;
           else if (st.includes('on time')) onTime++;
@@ -451,7 +454,8 @@ export default function Reports({ triggerNotification }) {
       let yts = 0, onTime = 0, del = 0, comp = 0, na = 0, drop = 0, ytu = 0, cost = 0;
       matched.forEach((item) => {
         const st = String(item['Current Status'] || item.current_status || '').toLowerCase();
-        const c = Number(item.total_cost || 0);
+        // The query aliases the column as [Total Cost], so the row key has a space.
+        const c = Number(item['Total Cost'] ?? item.total_cost ?? 0);
         cost += isNaN(c) ? 0 : c;
         if (st.includes('completed')) comp++;
         else if (st.includes('on time')) onTime++;

@@ -56,7 +56,7 @@ export default function NMPView({ triggerNotification }) {
   }, [navigate]);
 
   if (!canAdd && !canView && !canEdit) {
-    return <RestrictedAccess moduleName="National Monetization Plan (NMP)" />;
+    return <RestrictedAccess moduleName="National Monetisation Pipeline (NMP)" />;
   }
 
   return (
@@ -64,10 +64,10 @@ export default function NMPView({ triggerNotification }) {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4 mb-6 select-none">
         <div>
           <h1 className="text-xl font-black text-[#0f417a] dark:text-blue-400 tracking-wide uppercase font-display">
-            National Monetization Plan
+            National Monetisation Pipeline
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-sans">
-            Track and manage National Monetization Plans for port land assets across all Major Ports.
+            Monetisation of port land assets under the National Monetisation Pipeline, across all Major Ports.
           </p>
         </div>
 

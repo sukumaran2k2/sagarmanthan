@@ -3,7 +3,7 @@ import {
   isSuperAdmin,
   isViewOnlyAdmin,
 } from './authSession';
-import { hasModuleAccess } from './moduleAccess';
+import { hasModuleAccess, moduleCodeAliases } from './moduleAccess';
 
 const EMPTY = Object.freeze({
   create: false,
@@ -39,10 +39,13 @@ export function getModuleCrud(moduleCode) {
     ? claims.modulePermissions
     : [];
 
+  // Match any spelling of the code. hasModuleAccess() above already aliases, so an exact-only
+  // match here would pass the access check and then find no CRUD entry -- e.g. a user granted
+  // DRISHTI_PORTAL asking for ONE_VISION_ONE_DOCUMENT would come back with nothing allowed.
+  const aliases = moduleCodeAliases(code);
   const match = list.find((p) => {
     const pCode = String(p.moduleCode || p.module_code || '').toUpperCase();
-    if (pCode && pCode === code) return true;
-    return false;
+    return !!pCode && aliases.includes(pCode);
   });
 
   // No permission entry found — fail closed. If read-only access is intended

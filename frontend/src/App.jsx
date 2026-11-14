@@ -547,7 +547,7 @@ export default function App() {
             {/* Finance - Capex */}
             <Route path="finance/capex/*" element={<CapexView triggerNotification={triggerNotification} />} />
 
-            {/* Finance - NMP (National Monetization Plan) */}
+            {/* Finance - NMP (National Monetisation Pipeline) */}
             <Route path="finance/nmp/*" element={<NMPView triggerNotification={triggerNotification} />} />
 
             {/* Governance Routes */}

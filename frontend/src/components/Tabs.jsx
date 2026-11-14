@@ -383,14 +383,16 @@ export default function Tabs({ activeTab, setActiveTab }) {
     },
     {
       id: 'nmp',
-      label: 'National Monetization Plan',
+      label: 'National Monetisation Pipeline',
       icon: DollarSign,
       align: 'left-0',
       width: 'w-[280px]',
       items: [
-        { label: 'NMP Dashboard', icon: LayoutDashboard, tab: 'NMP Dashboard' },
-        { label: 'NMP Data List', icon: ClipboardList, tab: 'NMP Data List' },
-        { label: 'NMP Input Form', icon: FileEdit, tab: 'NMP Input Form' },
+        // Tagged with the module code like every other menu, so filterMenuByAccess hides them
+        // from users without NMP access instead of falling back to the tab name.
+        m('NMP', { label: 'NMP Dashboard', icon: LayoutDashboard, tab: 'NMP Dashboard' }),
+        m('NMP', { label: 'NMP Data List', icon: ClipboardList, tab: 'NMP Data List' }),
+        m('NMP', { label: 'NMP Input Form', icon: FileEdit, tab: 'NMP Input Form' }),
       ]
     },
     {

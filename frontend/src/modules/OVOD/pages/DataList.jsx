@@ -62,10 +62,14 @@ const getStatusGroup = (status) => {
   return null;
 };
 
-export default function DataList({ 
-  onAddNew, 
-  onEdit, 
-  triggerNotification 
+export default function DataList({
+  onAddNew,
+  onEdit,
+  triggerNotification,
+  // Default to false: a caller that forgets to pass these gets no write actions rather than all.
+  canAdd = false,
+  canEdit = false,
+  canRemove = false,
 }) {
   const gridRef = useRef(null);
   const colVisRef = useRef(null);
@@ -575,35 +579,41 @@ export default function DataList({
       hide: !colVisibility.actions,
       cellRenderer: (params) => {
         const row = params.data;
+        // Each action is shown only to a user who holds that right; a read-only user sees none.
+        if (!canEdit && !canRemove) return <span className="text-slate-400">—</span>;
         return (
           <div className="flex items-center justify-center space-x-1.5 w-full h-full py-1">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (onEdit) onEdit(row);
-              }}
-              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-[#0f417a] dark:text-blue-400 transition cursor-pointer"
-              title="Edit B2/B3 Action"
-            >
-              <Edit className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setDeleteTarget(row);
-              }}
-              className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/40 rounded text-red-600 dark:text-red-400 transition cursor-pointer"
-              title="Delete Action"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onEdit) onEdit(row);
+                }}
+                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-[#0f417a] dark:text-blue-400 transition cursor-pointer"
+                title="Edit B2/B3 Action"
+              >
+                <Edit className="h-4 w-4" />
+              </button>
+            )}
+            {canRemove && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDeleteTarget(row);
+                }}
+                className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/40 rounded text-red-600 dark:text-red-400 transition cursor-pointer"
+                title="Delete Action"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
           </div>
         );
       }
     }
-  ], [colVisibility, onEdit]);
+  ], [colVisibility, onEdit, canEdit, canRemove]);
 
   return (
     <div className="space-y-6 animate-fade-in relative">
@@ -744,7 +754,7 @@ export default function DataList({
             />
 
             {/* Add B2/B3 Button */}
-            {onAddNew && (
+            {canAdd && onAddNew && (
               <button
                 onClick={onAddNew}
                 className="px-3.5 py-1.5 bg-[#0f417a] hover:bg-[#1a5ba3] text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"

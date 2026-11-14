@@ -46,6 +46,19 @@ export function getAllowedModuleCodes() {
   return codes.map((c) => String(c).toUpperCase());
 }
 
+/**
+ * Codes that mean the same module. Only DRISHTI_PORTAL exists in tbl_modules; the other two are
+ * spellings the UI still uses, so a grant under any of them satisfies all three.
+ */
+const CODE_ALIASES = [['DRISHTI_PORTAL', 'ONE_VISION_ONE_DOCUMENT', 'OVOD']];
+
+/** Every spelling of a module code, so a lookup matches however the grant was stored. */
+export function moduleCodeAliases(moduleCode) {
+  const upper = String(moduleCode || '').toUpperCase();
+  const group = CODE_ALIASES.find((g) => g.includes(upper));
+  return group || (upper ? [upper] : []);
+}
+
 export function hasModuleAccess(moduleCode) {
   if (!moduleCode || isSuperAdmin()) return false;
   const upper = String(moduleCode).toUpperCase();
