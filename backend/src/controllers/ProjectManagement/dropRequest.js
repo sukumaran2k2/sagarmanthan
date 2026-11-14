@@ -108,6 +108,9 @@ async function viewDropProjectList(req, res) {
     try {
 
         const userResult = await request.query(` SELECT role_id FROM tbl_user WHERE user_id = @userID `);
+        if (!userResult.recordset.length || !userResult.recordset[0]) {
+            return res.json([]);
+        }
         const { role_id } = userResult.recordset[0];
 
         if (await isWideRole(role_id)) 
