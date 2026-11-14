@@ -33,11 +33,20 @@ const EIGHT_AND_HALF_HOURS = 8.5 * 3600;
 
 // Report cell text: Average Working Hours is a decimal number of hours wing-wise and a time
 // per employee; toSeconds reads both
+// Only the time columns go through the time formatter: it reads a capital T as the date / time
+// separator, so names, wings and designations came out cut ("Technology" as "echnolog").
+const isTimeColumn = (key) => /time/i.test(key);
 const cellText = (key, value) => {
   if (value === null || value === undefined || value === '') return '—';
   if (key === WORK_HOURS) return secondsToTime(toSeconds(value));
   if (typeof value === 'number') return value.toLocaleString('en-IN');
-  return formatTimeStr(value);
+  return isTimeColumn(key) ? formatTimeStr(value) : String(value);
+};
+
+// Wide enough for the header's longest word, so a header never breaks inside a word
+const headerMinWidth = (header, base) => {
+  const longest = Math.max(...String(header).split(/\s+/).map((w) => w.length));
+  return Math.max(base, Math.ceil(longest * 9) + 56);
 };
 
 // Average Working Hours: red below 8 1/2 hours, green from 8 1/2 hours (null when there is
@@ -132,7 +141,7 @@ export default function ReportPage({ notify, years }) {
       headerName: key,
       field: key,
       flex: isWing ? 2 : 1,
-      minWidth: isWing ? 180 : 140,
+      minWidth: headerMinWidth(key, isWing ? 180 : 140),
       wrapHeaderText: true,
       autoHeaderHeight: true,
       pinned: isWing ? 'left' : null,
@@ -165,7 +174,9 @@ export default function ReportPage({ notify, years }) {
       headerName: key,
       field: key,
       flex: /name/i.test(key) ? 2 : 1,
-      minWidth: /name/i.test(key) ? 180 : 120,
+      minWidth: headerMinWidth(key, /name/i.test(key) ? 180 : 120),
+      wrapHeaderText: true,
+      autoHeaderHeight: true,
       cellClass: (p) => (/name/i.test(key)
         ? 'font-semibold flex items-center'
         : `text-center flex items-center justify-center${key === WORK_HOURS && workHoursTone(p.value) ? ` font-bold${workHoursTone(p.value).box}${workHoursTone(p.value).text}` : ''}`),
