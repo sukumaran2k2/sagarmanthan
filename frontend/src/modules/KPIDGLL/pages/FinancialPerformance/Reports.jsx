@@ -6,6 +6,7 @@ import ExportDropdown from '../../../../components/ExportDropdown';
 import CopyButton from '../../../../components/CopyButton';
 import { exportReportToPdf } from '../../../../utils/exportReportPdf';
 import { COMMON_TOASTS } from '../../../../utils/notify';
+import { exportGridToExcel } from '../../../../utils/exportGridReport';
 
 // Unlike the other DGLL reports, Financial Performance is a financial
 // statement (section headers, line items, computed subtotals) rather than a
@@ -79,9 +80,10 @@ export default function FinancialPerformanceReports({ notify }) {
   };
 
   const handleExport = (type) => {
-    if (type === 'Excel' && gridRef.current?.api) {
-      gridRef.current.api.exportDataAsCsv({ fileName: 'financial_performance_report.csv' });
-      notify?.(COMMON_TOASTS.excelExported('financial_performance_report.csv'));
+    if (type === 'Excel') {
+      // Works in Chart view too: the table (and its grid) only exists in Table view
+      const file = exportGridToExcel({ title, columns: columnDefs, rows: filteredRowData, fileName: 'financial_performance_report' });
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
     else if (type === 'PDF') {
       exportReportToPdf({

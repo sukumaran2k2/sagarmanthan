@@ -130,6 +130,7 @@ export default function FundDetails({ notify, permissions }) {
     ...(!isOrgUser ? [{ key: 'org', label: 'Organisation' }] : []),
     { key: 'financial_year', label: 'Financial Year' },
     ...AMOUNT_COLUMNS,
+    { key: 'updated_date', label: 'Last Updated Date' },
     ...(canEdit ? [{ key: 'actions', label: 'Actions' }] : []),
   ], [isOrgUser, canEdit]);
 
@@ -151,6 +152,10 @@ export default function FundDetails({ notify, permissions }) {
         cellClass: `text-center flex items-center justify-center ${AMOUNT_COLOURS[c.key] || 'font-semibold'}`,
         valueFormatter: (p) => formatCrore(p.value),
       })),
+      {
+        headerName: 'Last Updated Date', field: 'updated_date', minWidth: 130, flex: 1.1, hide: !show('updated_date'), ...centered,
+        valueFormatter: (p) => (p.value ? String(p.value).slice(0, 10) : '-'),
+      },
       {
         headerName: 'Actions', width: 90, minWidth: 80, flex: 0.8, pinned: 'right', hide: !show('actions'), sortable: false, ...centered,
         cellRenderer: (p) => p.data && (
@@ -174,7 +179,8 @@ export default function FundDetails({ notify, permissions }) {
         ...c,
         value: c.key === 'org' ? (f) => f.organisation_name
           : c.key === 'financial_year' ? (f) => f.financial_year
-            : (f) => formatCrore(f[c.key]),
+            : c.key === 'updated_date' ? (f) => (f.updated_date ? String(f.updated_date).slice(0, 10) : '-')
+              : (f) => formatCrore(f[c.key]),
       })),
     rows: filteredFunds,
     fileName: 'CSR_Fund_Details',

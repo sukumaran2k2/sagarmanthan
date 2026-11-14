@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as am5exporting from '@amcharts/amcharts5/plugins/exporting';
+import { cellText } from './cellText';
 
 // Renders a proper PDF containing just the report's chart(s) and table --
 // not the whole page (nav, sidebar, etc.), which is what window.print()
@@ -136,10 +137,7 @@ export function exportDataListToPdf({
   const head = [['S.No', ...fields.map((f) => columnLabels[f])]];
   const body = rowData.map((row, i) => [
     String(serialStart + i + 1),
-    ...fields.map((f) => {
-      const val = row[f];
-      return val === null || val === undefined ? '' : String(val);
-    }),
+    ...fields.map((f) => String(cellText(row[f]))),
   ]);
 
   autoTable(doc, {

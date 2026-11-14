@@ -10,6 +10,18 @@ import CopyButton from '../../../components/CopyButton';
 import MIVDetailView from '../components/MIVDetailView';
 import { fetchMIVData, fetchOrganisations } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
+import { exportRowsToFile, exportGridApiToExcel } from '../../../utils/exportGridReport';
+
+// Column chooser labels for the columns brought over from the 2.0 list
+const MIV_EXTRA_LABELS = {
+  fundingSource: 'Source of Funding',
+  actualDate: 'Expected / Actual Date of Completion',
+  projectDetail: 'Sub Activity / Sub Project Details',
+  outcomes: 'Output / Outcome',
+  targetDate: 'Target Date of Completion (MIV 2030)',
+  statusOn: 'Status as on 1st April 2023',
+  startDate: 'Start Date of Initiative',
+};
 
 const STATUS_COLORS = {
   'Under Implementation': '#0284c7',
@@ -64,6 +76,14 @@ export default function MIVDataList({
     progress: true,
     status: true,
     updatedDate: true,
+    // 2.0 columns 3.0 lacked: the two 2.0 showed are ticked, the rest offered unticked
+    fundingSource: true,
+    actualDate: true,
+    projectDetail: false,
+    outcomes: false,
+    targetDate: false,
+    statusOn: false,
+    startDate: false,
   });
 
   const userId = getCurrentUserId() || 1;
@@ -295,6 +315,80 @@ export default function MIVDataList({
       valueFormatter: (params) => formatDate(params.value || params.data.actual_date || params.data.completion_date),
     },
     {
+      headerName: 'Source of Funding',
+      field: 'source_of_funding',
+      minWidth: 200,
+      wrapText: true,
+      autoHeight: true,
+      cellClass: 'text-slate-600 dark:text-slate-400 text-xs text-center',
+      headerClass: 'text-center',
+      hide: !visibleCols.fundingSource,
+      valueFormatter: (params) => params.value || '-',
+    },
+    {
+      headerName: 'Expected / Actual Date of Completion',
+      field: 'actual_date',
+      minWidth: 140,
+            cellClass: 'text-slate-600 dark:text-slate-400 text-xs text-center',
+      headerClass: 'text-center',
+      hide: !visibleCols.actualDate,
+      valueFormatter: (params) => formatDate(params.value),
+      useValueFormatterForExport: true,
+    },
+    {
+      headerName: 'Sub Activity / Sub Project Details',
+      field: 'project_detail',
+      minWidth: 200,
+      wrapText: true,
+      autoHeight: true,
+      cellClass: 'text-slate-600 dark:text-slate-400 text-xs text-center',
+      headerClass: 'text-center',
+      hide: !visibleCols.projectDetail,
+      valueFormatter: (params) => params.value || '-',
+    },
+    {
+      headerName: 'Output / Outcome',
+      field: 'outcomes',
+      minWidth: 200,
+      wrapText: true,
+      autoHeight: true,
+      cellClass: 'text-slate-600 dark:text-slate-400 text-xs text-center',
+      headerClass: 'text-center',
+      hide: !visibleCols.outcomes,
+      valueFormatter: (params) => params.value || '-',
+    },
+    {
+      headerName: 'Target Date of Completion (MIV 2030)',
+      field: 'completion_date',
+      minWidth: 140,
+            cellClass: 'text-slate-600 dark:text-slate-400 text-xs text-center',
+      headerClass: 'text-center',
+      hide: !visibleCols.targetDate,
+      valueFormatter: (params) => formatDate(params.value),
+      useValueFormatterForExport: true,
+    },
+    {
+      headerName: 'Status as on 1st April 2023',
+      field: 'status_on',
+      minWidth: 200,
+      wrapText: true,
+      autoHeight: true,
+      cellClass: 'text-slate-600 dark:text-slate-400 text-xs text-center',
+      headerClass: 'text-center',
+      hide: !visibleCols.statusOn,
+      valueFormatter: (params) => params.value || '-',
+    },
+    {
+      headerName: 'Start Date of Initiative',
+      field: 'start_date',
+      minWidth: 140,
+            cellClass: 'text-slate-600 dark:text-slate-400 text-xs text-center',
+      headerClass: 'text-center',
+      hide: !visibleCols.startDate,
+      valueFormatter: (params) => formatDate(params.value),
+      useValueFormatterForExport: true,
+    },
+    {
       headerName: 'Action',
       minWidth: 110,
       pinned: 'right',
@@ -337,7 +431,7 @@ export default function MIVDataList({
         let tsv = '';
         const headers = [];
         columnDefs.forEach(col => {
-          if (col.headerName && col.headerName !== 'Action') {
+          if (col.headerName && col.headerName !== 'Action' && !col.hide) {
             headers.push(col.headerName);
           }
         });
@@ -346,7 +440,7 @@ export default function MIVDataList({
         data.forEach((row, rowIndex) => {
           const line = [];
           columnDefs.forEach(col => {
-            if (col.headerName && col.headerName !== 'Action') {
+            if (col.headerName && col.headerName !== 'Action' && !col.hide) {
               const val = row[col.field] !== undefined ? row[col.field] : '';
               line.push(val);
             }
@@ -393,11 +487,10 @@ export default function MIVDataList({
       }
     } else if (type === 'Excel') {
       if (gridApi) {
-        gridApi.exportDataAsCsv({
-          fileName: `MIV_2030_Initiatives_Page_${currentPage}.csv`
-        });
+        // Excel (.xlsx) of the table as shown
+        const file = exportGridApiToExcel(gridApi, { title: 'Maritime India Vision 2030 - Initiatives', fileName: `MIV_2030_Initiatives_Page_${currentPage}` });
         if (triggerNotification) {
-          triggerNotification(`Exported to CSV successfully!`);
+          triggerNotification(`Exported ${file}`);
         }
       } else {
         alert("Grid is not ready for export yet.");
@@ -407,59 +500,18 @@ export default function MIVDataList({
         triggerNotification(`Preparing PDF document...`);
       }
 
-      const printWindow = window.open('', '_blank');
-      const title = 'Maritime India Vision 2030 - Initiatives';
-
-      let headersHtml = '';
-      columnDefs.forEach(col => {
-        if (col.headerName && col.headerName !== 'Action') {
-          headersHtml += `<th style="border: 1px solid #cbd5e1; padding: 10px; text-align: left; background-color: #f8fafc; font-size: 11px; font-weight: bold; text-transform: uppercase;">${col.headerName}</th>`;
-        }
+      // PDF straight to a file (no print dialog or new tab): the columns on show
+      const pdfCols = columnDefs.filter((col) => col.headerName && col.headerName !== 'Action' && !col.hide);
+      const pdfCell = (col, row) => {
+        const raw = row[col.field];
+        return typeof col.valueFormatter === 'function' ? col.valueFormatter({ value: raw, data: row }) : (raw ?? '');
+      };
+      exportRowsToFile('pdf', {
+        title: 'Maritime India Vision 2030 - Initiatives',
+        headers: pdfCols.map((col) => col.headerName),
+        rows: data.map((row) => pdfCols.map((col) => pdfCell(col, row))),
+        fileName: `MIV_2030_Initiatives_Page_${currentPage}`,
       });
-
-      let rowsHtml = '';
-      data.forEach((row, rowIndex) => {
-        rowsHtml += '<tr>';
-        columnDefs.forEach(col => {
-          if (col.headerName && col.headerName !== 'Action') {
-            const val = row[col.field] !== undefined ? row[col.field] : '';
-            rowsHtml += `<td style="border: 1px solid #e2e8f0; padding: 8px; font-size: 11px;">${val}</td>`;
-          }
-        });
-        rowsHtml += '</tr>';
-      });
-
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>${title}</title>
-            <style>
-              body { font-family: system-ui, -apple-system, sans-serif; color: #1e293b; padding: 20px; }
-              h1 { font-size: 18px; margin-bottom: 5px; color: #0f417a; }
-              table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-            </style>
-          </head>
-          <body>
-            <h1>${title}</h1>
-            <p style="font-size: 11px; color: #64748b; margin-top: 0; margin-bottom: 20px;">Generated on: ${new Date().toLocaleDateString()}</p>
-            <table>
-              <thead>
-                <tr>${headersHtml}</tr>
-              </thead>
-              <tbody>
-                ${rowsHtml}
-              </tbody>
-            </table>
-            <script>
-              window.onload = function() {
-                window.print();
-                window.close();
-              };
-            </script>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
     }
   };
 
@@ -688,7 +740,8 @@ export default function MIVDataList({
                          col === 'category' ? 'Category' :
                          col === 'progress' ? 'Progress' :
                          col === 'status' ? 'Status' :
-                         col === 'updatedDate' ? 'Updated Date' : col}
+                         col === 'updatedDate' ? 'Updated Date' :
+                         (MIV_EXTRA_LABELS[col] || col)}
                       </span>
                     </label>
                   ))}

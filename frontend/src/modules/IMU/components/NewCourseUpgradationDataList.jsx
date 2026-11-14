@@ -5,17 +5,21 @@ import TablePagination from '../../../components/TablePagination';
 import DataListToolbar from '../../../components/DataListToolbar';
 import { exportDataListToPdf } from '../../../utils/exportReportPdf';
 import { COMMON_TOASTS } from '../../../utils/notify';
+import { cellText, lastUpdatedText } from '../../../utils/cellText';
+import { exportGridApiToExcel } from '../../../utils/exportGridReport';
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
   no_of_courses_offered: 'Number Of Courses Offered',
   no_of_courses_upgraded: 'Number Of New Courses',
+  updated_date: 'Last Updated Date',
 };
 
 const DEFAULT_VISIBLE_COLS = {
   financial_year: true,
   no_of_courses_offered: true,
   no_of_courses_upgraded: true,
+  updated_date: false, // offered in Visibility, unticked (as in 2.0)
 };
 
 export default function NewCourseUpgradationDataList({
@@ -49,7 +53,7 @@ export default function NewCourseUpgradationDataList({
       const cols = Object.keys(visibleCols).filter((c) => visibleCols[c]);
       let tsv = ['S.No', ...cols.map((c) => COLUMN_LABELS[c])].join('\t') + '\n';
       rowData.forEach((row, i) => {
-        const line = [i + 1, ...cols.map((c) => row[c] ?? '')];
+        const line = [i + 1, ...cols.map((c) => cellText(row[c]))];
         tsv += line.join('\t') + '\n';
       });
       navigator.clipboard.writeText(tsv).then(
@@ -57,8 +61,8 @@ export default function NewCourseUpgradationDataList({
         () => notify?.(COMMON_TOASTS.copyFailed()),
       );
     } else if (type === 'Excel') {
-      gridRef.current?.api?.exportDataAsCsv({ fileName: 'imu_new_course_upgradation' });
-      notify?.(COMMON_TOASTS.excelExported('imu_new_course_upgradation.csv'));
+      const file = exportGridApiToExcel(gridRef.current?.api, { title: 'IMU New Course Upgradation Data List', fileName: 'imu_new_course_upgradation' });
+      notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
       exportDataListToPdf({
         title: 'IMU New Course Upgradation Data List',
@@ -77,6 +81,12 @@ export default function NewCourseUpgradationDataList({
     ...(visibleCols.no_of_courses_offered ? [{ headerName: 'Number Of Courses Offered', field: 'no_of_courses_offered', wrapText: true, autoHeight: true, flex: 1.2, minWidth: 200, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
     ...(visibleCols.no_of_courses_upgraded ? [{ headerName: 'Number Of New Courses', field: 'no_of_courses_upgraded', wrapText: true, autoHeight: true, flex: 1.2, minWidth: 190, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
 
+    ...(visibleCols.updated_date ? [{
+      headerName: 'Last Updated Date', field: 'updated_date', minWidth: 140,
+      cellClass: 'text-center text-slate-600 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700',
+      valueFormatter: (params) => lastUpdatedText(params.value),
+      useValueFormatterForExport: true,
+    }] : []),
     ...(canEdit || canRemove ? [{
       headerName: 'Actions', field: 'course_id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,
       cellClass: 'text-center flex items-center justify-center gap-1',

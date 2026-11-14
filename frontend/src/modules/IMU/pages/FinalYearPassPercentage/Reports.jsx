@@ -11,6 +11,7 @@ import CopyButton from '../../../../components/CopyButton';
 import ChartExportMenu from '../../../../components/ChartExportMenu';
 import { exportReportToPdf } from '../../../../utils/exportReportPdf';
 import { COMMON_TOASTS } from '../../../../utils/notify';
+import { exportGridToExcel } from '../../../../utils/exportGridReport';
 
 // Confirmed from the legacy site: 3 column series (Appeared, Passed, Pass
 // Percentage) on one shared axis, x-axis combining programme + batch into
@@ -166,9 +167,10 @@ export default function FinalYearPassPercentageReports({ notify }) {
   };
 
   const handleExport = (type) => {
-    if (type === 'Excel' && gridRef.current?.api) {
-      gridRef.current.api.exportDataAsCsv({ fileName: 'imu_final_year_pass_percentage_report.csv' });
-      notify?.(COMMON_TOASTS.excelExported('imu_final_year_pass_percentage_report.csv'));
+    if (type === 'Excel') {
+      // Works in Chart view too: the table (and its grid) only exists in Table view
+      const file = exportGridToExcel({ title, columns: columnDefs, rows: filteredRowData, fileName: 'imu_final_year_pass_percentage_report' });
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
     else if (type === 'PDF') {
       exportReportToPdf({

@@ -34,6 +34,9 @@ const ORG_COLUMNS = {
   'Expenditure (In Lakh)': true,
   'Year': true,
   'Number of Participants': true,
+  // As in 2.0: offered in Visibility, unticked by default
+  'To date': false,
+  'Last Updated Date': false,
   'View Details': true,
   'Action': true
 };
@@ -163,6 +166,7 @@ export default function TrainingDetails({ notify }) {
                 'Number of Participants': parts,
                 'From date': row['From date'],
                 'To date': row['To date'],
+                'Last Updated Date': row['Date Updated'],
                 'Organisation Name': row['Organisation Name'],
                 'raw': row
               };
@@ -266,6 +270,14 @@ export default function TrainingDetails({ notify }) {
               </div>
             );
           }
+        },
+        {
+          field: 'To date', headerName: 'To Date', minWidth: 120, cellClass: 'text-center flex justify-center items-center', headerClass: 'text-center',
+          valueFormatter: (p) => formatTrainingDate(p.value),
+        },
+        {
+          field: 'Last Updated Date', headerName: 'Last Updated Date', minWidth: 140, cellClass: 'text-center flex justify-center items-center', headerClass: 'text-center',
+          valueFormatter: (p) => formatTrainingDate(p.value),
         },
         {
           headerName: 'View Details',
@@ -392,6 +404,8 @@ export default function TrainingDetails({ notify }) {
         { field: 'Expenditure (In Lakh)', label: 'Expenditure (In Lakh)' },
         { field: 'Year', label: 'Year' },
         { field: 'Number of Participants', label: 'Number of Participants', value: (t) => t['Number of Participants'] || 0 },
+        ...(visibleCols['To date'] ? [{ field: 'To date', label: 'To Date', value: (t) => formatTrainingDate(t['To date']) }] : []),
+        ...(visibleCols['Last Updated Date'] ? [{ field: 'Last Updated Date', label: 'Last Updated Date', value: (t) => formatTrainingDate(t['Last Updated Date']) }] : []),
       ]),
     notify,
     isBusy: loading,

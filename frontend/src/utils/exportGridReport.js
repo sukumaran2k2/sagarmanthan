@@ -223,3 +223,65 @@ export function exportRowsToFile(type, { title, subtitle, headers, rows, fileNam
     ? exportGridToPdf({ ...options, brand })
     : exportGridToExcel(options);
 }
+
+/**
+ * Excel (.xlsx) of an ag-Grid as shown: displayed columns in order (action columns left out),
+ * rows after filter and sort, each cell as the grid formats it. Returns the file name.
+ */
+export function exportGridApiToExcel(api, { title, subtitle, fileName, skipHeaders = ['Actions', 'Action', 'Update'] }) {
+  if (!api) return null;
+  const columns = api.getAllDisplayedColumns()
+    .filter((col) => !skipHeaders.includes(col.getColDef().headerName));
+  const headers = columns.map((col) => col.getColDef().headerName || '');
+  const cells = (node) => columns.map((col) => {
+    const shown = api.getCellValue({ rowNode: node, colKey: col, useFormatter: true });
+    return shown === null || shown === undefined ? '' : shown;
+  });
+  const rows = [];
+  for (let i = 0; i < api.getPinnedTopRowCount(); i += 1) rows.push(cells(api.getPinnedTopRow(i)));
+  api.forEachNodeAfterFilterAndSort((node) => rows.push(cells(node)));
+  // Total rows pinned at the bottom come last
+  for (let i = 0; i < api.getPinnedBottomRowCount(); i += 1) rows.push(cells(api.getPinnedBottomRow(i)));
+  return exportRowsToFile('excel', { title, subtitle, headers, rows, fileName });
+}
+
+/**
+ * PDF of an HTML table already on screen (grouped / merged headers kept), straight to a file:
+ * title and date on top, the table only (no menus or buttons). Returns the file name.
+ */
+export function exportHtmlTableToPdf(tableEl, { title, subtitle, fileName, brand = '#0f417a' }) {
+  if (!tableEl) return null;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 28;
+  let y = margin;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.text(pdfText(title || 'Report'), pageWidth / 2, y, { align: 'center', maxWidth: pageWidth - margin * 2 });
+  y += 16;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  if (subtitle) {
+    doc.text(pdfText(subtitle), pageWidth / 2, y, { align: 'center', maxWidth: pageWidth - margin * 2 });
+    y += 14;
+  }
+  doc.setTextColor(110);
+  doc.setFontSize(8);
+  doc.text(exportedOn(), pageWidth / 2, y, { align: 'center' });
+  doc.setTextColor(0);
+  y += 12;
+  autoTable(doc, {
+    html: tableEl,
+    startY: y,
+    margin: { left: margin, right: margin },
+    useCss: false,
+    styles: { fontSize: 7, cellPadding: 3, halign: 'center', valign: 'middle', lineWidth: 0.5, lineColor: [210, 214, 220] },
+    headStyles: { fillColor: hexToRgb(brand) || [15, 65, 122], textColor: 255, fontStyle: 'bold' },
+    footStyles: { fillColor: [241, 245, 249], textColor: 30, fontStyle: 'bold' },
+    // Text that only makes sense on screen (e.g. icons) is dropped by autoTable; keep cell text
+    didParseCell: (data) => { data.cell.text = data.cell.text.map((t) => pdfText(t)); },
+  });
+  const name = `${cleanName(fileName || title)}_${stamp()}.pdf`;
+  doc.save(name);
+  return name;
+}

@@ -11,6 +11,7 @@ import CopyButton from '../../../../components/CopyButton';
 import { exportReportToPdf } from '../../../../utils/exportReportPdf';
 import { COMMON_TOASTS } from '../../../../utils/notify';
 import ChartExportMenu from '../../../../components/ChartExportMenu';
+import { exportGridToExcel } from '../../../../utils/exportGridReport';
 
 // The legacy site renders two separate charts for this report: a combo
 // chart (Capacity as a line, Enrolled + Placed as columns -- all headcounts
@@ -264,9 +265,10 @@ export default function StudentEnrollmentReports({ notify }) {
   };
 
   const handleExport = (type) => {
-    if (type === 'Excel' && gridRef.current?.api) {
-      gridRef.current.api.exportDataAsCsv({ fileName: 'imu_student_enrollment_report.csv' });
-      notify?.(COMMON_TOASTS.excelExported('imu_student_enrollment_report.csv'));
+    if (type === 'Excel') {
+      // Works in Chart view too: the table (and its grid) only exists in Table view
+      const file = exportGridToExcel({ title, columns: columnDefs, rows: filteredRowData, fileName: 'imu_student_enrollment_report' });
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
     else if (type === 'PDF') {
       exportReportToPdf({

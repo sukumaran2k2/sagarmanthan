@@ -15,6 +15,7 @@ import {
   MIS_BRAND_HOVER,
   MIS_BRAND_SOFT,
 } from '../../../utils/mis/theme';
+import { exportRowsToFile } from '../../../../../utils/exportGridReport';
 
 function getColKey(col) {
   return col.field || col.headerName || '';
@@ -150,6 +151,18 @@ export default function MisReportTable({
     const book = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(book, sheet, report.code);
     XLSX.writeFile(book, `Projects_${report.code}_FY_${financialYear || 'current'}.xlsx`);
+  };
+
+  // PDF of the report's rows, straight to a file (it used to print the whole page)
+  const handleExportPdf = () => {
+    if (!filteredRows.length) return;
+    exportRowsToFile('pdf', {
+      title: `Projects MIS Report ${report.code}`,
+      subtitle: `FY ${financialYear || 'current'}`,
+      headers: ['Sl. No.', ...exportHeaders],
+      rows: filteredRows.map((row, index) => [index + 1, ...exportFields.map((field) => row[field] ?? '')]),
+      fileName: `Projects_${report.code}_FY_${financialYear || 'current'}`,
+    });
   };
 
   const emptyMessage = rows.length === 0
@@ -334,7 +347,7 @@ export default function MisReportTable({
           <CopyButton onCopy={handleCopyData} color={MIS_BRAND} hoverBg="#f7f3f3" />
           <ExportDropdown
             onExportExcel={handleExportExcel}
-            onExportPdf={() => window.print()}
+            onExportPdf={handleExportPdf}
             color={MIS_BRAND}
             hoverColor={MIS_BRAND_HOVER}
           />

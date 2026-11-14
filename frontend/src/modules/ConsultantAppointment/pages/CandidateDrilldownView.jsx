@@ -23,7 +23,8 @@ import { fetchCandidatesByConsultantAppointmentId, fetchCandidateDetail, fetchCa
 import { getCurrentUserId } from '../../../utils/authSession';
 import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
 import { CA_TOASTS } from '../toastMessages';
-import { toInputDate, formatDate, csvCell, tsvCell } from '../formatters';
+import { toInputDate, formatDate, tsvCell } from '../formatters';
+import { exportRowsToFile } from '../../../utils/exportGridReport';
 
 export default function CandidateDrilldownView({
   appointment,
@@ -352,68 +353,30 @@ export default function CandidateDrilldownView({
         .then(() => notify(CA_TOASTS.candidatesCopied(filteredCandidates.length)))
         .catch(() => notify(COMMON_TOASTS.copyFailed()));
     } else if (type === 'Excel') {
-      // Every text field goes through csvCell: Excel executes a cell that opens with = + - @,
-      // and candidate names and skill sets are free text
-      let csv = exportHeaders.map(h => `"${h}"`).join(',') + '\n';
-      filteredCandidates.forEach((c, idx) => {
-        csv += [
-          idx + 1,
-          csvCell(c.name),
-          csvCell(c.qualification),
-          csvCell(c.work_experience),
-          csvCell(c.salary),
-          csvCell(c.category),
-          csvCell(formatDate(c.date_of_appointment)),
-          csvCell(c.skill_set),
-          csvCell(c.appointment_order_document)
-        ].join(',') + '\n';
+      // Excel (.xlsx): cells are stored as text, so a value starting with = + - @ never runs as a formula
+      const file = exportRowsToFile('excel', {
+        title: `Candidate Details - ${appointment.wing || ''} / ${appointment.division || ''}`,
+        headers: exportHeaders,
+        rows: filteredCandidates.map((c, idx) => [
+          idx + 1, c.name, c.qualification, c.work_experience, c.salary, c.category,
+          formatDate(c.date_of_appointment), c.skill_set, c.appointment_order_document,
+        ]),
+        fileName: `Candidate_Details_${appointment.wing || 'Consultant'}`,
       });
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `Candidate_Details_${appointment.wing || 'Consultant'}.csv`;
-      link.click();
-      URL.revokeObjectURL(url);
-      notify(COMMON_TOASTS.excelExported(link.download));
+      notify(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      const printWindow = window.open('', '_blank');
-      if (!printWindow) {
-        notify(COMMON_TOASTS.popupBlocked());
-        return;
-      }
-      notify(COMMON_TOASTS.pdfPreparing());
-      const escHtml = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-      const title = `Candidate Details — ${escHtml(appointment.wing)} / ${escHtml(appointment.division)}`;
-      let headersHtml = exportHeaders.map(h => `<th style="border: 1px solid #cbd5e1; padding: 8px; text-align: left; background-color: #0f417a; color: #ffffff; font-size: 10px; font-weight: bold; text-transform: uppercase;">${escHtml(h)}</th>`).join('');
-      let rowsHtml = filteredCandidates.map((c, idx) => `
-        <tr>
-          <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px; text-align: center;">${idx + 1}</td>
-          <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px; font-weight: bold;">${escHtml(c.name) || '-'}</td>
-          <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px;">${escHtml(c.qualification) || '-'}</td>
-          <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px; text-align: center;">${escHtml(c.work_experience) || '-'}</td>
-          <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px; text-align: center;">${c.salary ? '₹ ' + escHtml(c.salary) + ' L' : '-'}</td>
-          <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px;">${escHtml(c.category) || '-'}</td>
-          <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px; text-align: center;">${escHtml(formatDate(c.date_of_appointment, '-'))}</td>
-          <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px;">${escHtml(c.skill_set) || '-'}</td>
-          <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 11px;">${escHtml(c.appointment_order_document) || 'Pending'}</td>
-        </tr>
-      `).join('');
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>${title}</title>
-            <style>body { font-family: system-ui, sans-serif; padding: 20px; color: #1e293b; } table { width: 100%; border-collapse: collapse; margin-top: 15px; }</style>
-          </head>
-          <body>
-            <h2 style="color: #0f417a; margin-bottom: 4px;">${title}</h2>
-            <p style="font-size: 11px; color: #64748b; margin-top: 0;">Status: ${appointment.status} | Total Resources: ${appointment.numResources}</p>
-            <table><thead><tr>${headersHtml}</tr></thead><tbody>${rowsHtml}</tbody></table>
-            <script>window.onload = function() { window.print(); window.close(); };</script>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
+      // PDF straight to a file (no print dialog or new tab): the columns on show
+      const file = exportRowsToFile('pdf', {
+        title: `Candidate Details - ${appointment.wing || ''} / ${appointment.division || ''}`,
+        headers: exportHeaders,
+        rows: filteredCandidates.map((c, idx) => [
+          idx + 1, c.name || '-', c.qualification || '-', c.work_experience || '-',
+          c.salary ? `Rs. ${c.salary} L` : '-', c.category || '-', formatDate(c.date_of_appointment, '-'),
+          c.skill_set || '-', c.appointment_order_document || 'Pending',
+        ]),
+        fileName: 'Consultant_Candidate_Details',
+      });
+      notify(COMMON_TOASTS.excelExported(file));
     }
   };
 

@@ -5,6 +5,8 @@ import TablePagination from '../../../components/TablePagination';
 import DataListToolbar from '../../../components/DataListToolbar';
 import { exportDataListToPdf } from '../../../utils/exportReportPdf';
 import { COMMON_TOASTS } from '../../../utils/notify';
+import { cellText, lastUpdatedText } from '../../../utils/cellText';
+import { exportGridApiToExcel } from '../../../utils/exportGridReport';
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
@@ -12,6 +14,7 @@ const COLUMN_LABELS = {
   academic_international: 'Academic Partnerships/MoUs - International',
   industry_domestic: 'Industry Partnerships/MoUs - Domestic',
   industry_international: 'Industry Partnerships/MoUs - International',
+  updated_date: 'Last Updated Date',
 };
 
 const DEFAULT_VISIBLE_COLS = {
@@ -20,6 +23,7 @@ const DEFAULT_VISIBLE_COLS = {
   academic_international: true,
   industry_domestic: true,
   industry_international: true,
+  updated_date: false, // offered in Visibility, unticked (as in 2.0)
 };
 
 export default function PartnershipDataList({
@@ -53,7 +57,7 @@ export default function PartnershipDataList({
       const cols = Object.keys(visibleCols).filter((c) => visibleCols[c]);
       let tsv = ['S.No', ...cols.map((c) => COLUMN_LABELS[c])].join('\t') + '\n';
       rowData.forEach((row, i) => {
-        const line = [i + 1, ...cols.map((c) => row[c] ?? '')];
+        const line = [i + 1, ...cols.map((c) => cellText(row[c]))];
         tsv += line.join('\t') + '\n';
       });
       navigator.clipboard.writeText(tsv).then(
@@ -61,8 +65,8 @@ export default function PartnershipDataList({
         () => notify?.(COMMON_TOASTS.copyFailed()),
       );
     } else if (type === 'Excel') {
-      gridRef.current?.api?.exportDataAsCsv({ fileName: 'imu_partnership' });
-      notify?.(COMMON_TOASTS.excelExported('imu_partnership.csv'));
+      const file = exportGridApiToExcel(gridRef.current?.api, { title: 'IMU Partnership Data List', fileName: 'imu_partnership' });
+      notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
       exportDataListToPdf({
         title: 'IMU Partnership Data List',
@@ -83,6 +87,12 @@ export default function PartnershipDataList({
     ...(visibleCols.industry_domestic ? [{ headerName: 'Industry Partnerships/MoUs - Domestic', field: 'industry_domestic', wrapText: true, autoHeight: true, flex: 1.3, minWidth: 230, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
     ...(visibleCols.industry_international ? [{ headerName: 'Industry Partnerships/MoUs - International', field: 'industry_international', wrapText: true, autoHeight: true, flex: 1.3, minWidth: 250, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
 
+    ...(visibleCols.updated_date ? [{
+      headerName: 'Last Updated Date', field: 'updated_date', minWidth: 140,
+      cellClass: 'text-center text-slate-600 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700',
+      valueFormatter: (params) => lastUpdatedText(params.value),
+      useValueFormatterForExport: true,
+    }] : []),
     ...(canEdit || canRemove ? [{
       headerName: 'Actions', field: 'partnership_id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,
       cellClass: 'text-center flex items-center justify-center gap-1',

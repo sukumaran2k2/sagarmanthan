@@ -21,6 +21,7 @@ import {
 } from "../utils/gemUtils";
 import { COMMON_TOASTS } from "../../../utils/notify";
 import { GEM_TOASTS } from "../toastMessages";
+import { exportHtmlTableToPdf } from '../../../utils/exportGridReport';
 
 export default function GEMReportView({ notify, viewMode = 'ministry' }) {
   const [selectedYear, setSelectedYear] = useState(getCurrentFinancialYear);
@@ -152,9 +153,14 @@ export default function GEMReportView({ notify, viewMode = 'ministry' }) {
     notify?.(COMMON_TOASTS.excelExported(`GeM_Procurement_Report_${selectedYear}.xlsx`, 'The report'));
   };
 
+  // PDF of the report table only, straight to a file (it used to print the whole page)
   const handleExportPdf = () => {
-    notify?.(COMMON_TOASTS.pdfPreparing());
-    window.print();
+    exportHtmlTableToPdf(document.getElementById('gemReportTable'), {
+      title: 'GeM Procurement Report',
+      subtitle: `Financial Year ${selectedYear}`,
+      fileName: `GeM_Procurement_Report_${selectedYear}`,
+      brand: '#4b2424',
+    });
   };
 
   const handleResetFilters = () => {

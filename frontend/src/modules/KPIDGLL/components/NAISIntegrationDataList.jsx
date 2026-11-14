@@ -5,17 +5,21 @@ import TablePagination from '../../../components/TablePagination';
 import DataListToolbar from '../../../components/DataListToolbar';
 import { exportDataListToPdf } from '../../../utils/exportReportPdf';
 import { COMMON_TOASTS } from '../../../utils/notify';
+import { cellText, lastUpdatedText } from '../../../utils/cellText';
+import { exportGridApiToExcel } from '../../../utils/exportGridReport';
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
   nais_integrated_with_nmda: 'NAIS Integrated with NMDA (%)',
   no_of_nais_upgraded: 'Number of NAIS System Upgraded',
+  updated_date: 'Last Updated Date',
 };
 
 const DEFAULT_VISIBLE_COLS = {
   financial_year: true,
   nais_integrated_with_nmda: true,
   no_of_nais_upgraded: true,
+  updated_date: false, // offered in Visibility, unticked (as in 2.0)
 };
 
 export default function NAISIntegrationDataList({
@@ -49,7 +53,7 @@ export default function NAISIntegrationDataList({
       const cols = Object.keys(visibleCols).filter((c) => visibleCols[c]);
       let tsv = ['S.No', ...cols.map((c) => COLUMN_LABELS[c])].join('\t') + '\n';
       rowData.forEach((row, i) => {
-        const line = [i + 1, ...cols.map((c) => c === 'nais_integrated_with_nmda' && row[c] != null ? `${row[c]}%` : (row[c] ?? ''))];
+        const line = [i + 1, ...cols.map((c) => c === 'nais_integrated_with_nmda' && row[c] != null ? `${row[c]}%` : cellText(row[c]))];
         tsv += line.join('\t') + '\n';
       });
       navigator.clipboard.writeText(tsv).then(
@@ -57,8 +61,8 @@ export default function NAISIntegrationDataList({
         () => notify?.(COMMON_TOASTS.copyFailed()),
       );
     } else if (type === 'Excel') {
-      gridRef.current?.api?.exportDataAsCsv({ fileName: 'nais_integration' });
-      notify?.(COMMON_TOASTS.excelExported('nais_integration.csv'));
+      const file = exportGridApiToExcel(gridRef.current?.api, { title: 'NAIS Integration Data List', fileName: 'nais_integration' });
+      notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
       exportDataListToPdf({
         title: 'NAIS Integration Data List',
@@ -84,6 +88,12 @@ export default function NAISIntegrationDataList({
       cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700',
     }] : []),
 
+    ...(visibleCols.updated_date ? [{
+      headerName: 'Last Updated Date', field: 'updated_date', minWidth: 140,
+      cellClass: 'text-center text-slate-600 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700',
+      valueFormatter: (params) => lastUpdatedText(params.value),
+      useValueFormatterForExport: true,
+    }] : []),
     ...(canEdit || canRemove ? [{
       headerName: 'Actions', field: 'nais_integration_id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,
       cellClass: 'text-center flex items-center justify-center gap-1',

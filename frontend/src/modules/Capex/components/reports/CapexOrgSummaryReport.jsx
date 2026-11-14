@@ -18,6 +18,7 @@ import {
 } from '../../utils/capexUtils';
 import { COMMON_TOASTS } from '../../../../utils/notify';
 import { CAPEX_TOASTS } from '../../toastMessages';
+import { exportRowsToFile } from '../../../../utils/exportGridReport';
 
 const BRAND = '#4b2424';
 const BRAND_HOVER = '#6b3535';
@@ -110,7 +111,8 @@ export default function CapexOrgSummaryReport({ notify }) {
     });
   };
 
-  const handleExportExcel = () => {
+  // Report rows for Excel and PDF
+  const buildExportData = () => {
     const data = rows.map((r, i) => ({
       SNo: i + 1,
       'Financial Year': r.fy,
@@ -119,11 +121,28 @@ export default function CapexOrgSummaryReport({ notify }) {
       '% of BE Achieved': Number(r.pctLabel),
       Status: r.status?.label || '',
     }));
+    return data;
+  };
+
+  const handleExportExcel = () => {
+    const data = buildExportData();
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Org Capex Summary');
     XLSX.writeFile(wb, 'Capex_Org_Summary_Report.xlsx');
     notify?.(COMMON_TOASTS.excelExported('Capex_Org_Summary_Report.xlsx', 'The report'));
+  };
+
+  // PDF of the report's rows, straight to a file (it used to print the whole page)
+  const handleExportPdf = () => {
+    const data = buildExportData();
+    if (!data.length) return;
+    exportRowsToFile('pdf', {
+      title: 'Capex - Organisation Summary Report',
+      headers: Object.keys(data[0]),
+      rows: data.map((row) => Object.values(row)),
+      fileName: 'Capex_Org_Summary_Report',
+    });
   };
 
   const orgLabel = rows[0]?.organisation_name || 'Your organisation';
@@ -169,10 +188,7 @@ export default function CapexOrgSummaryReport({ notify }) {
             color="#4b2424"
             hoverColor="#6b3535"
             onExportExcel={handleExportExcel}
-            onExportPdf={() => {
-              notify?.(COMMON_TOASTS.pdfPreparing());
-              window.print();
-            }}
+            onExportPdf={handleExportPdf}
             color={BRAND}
             hoverColor={BRAND_HOVER}
           />

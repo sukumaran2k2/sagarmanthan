@@ -10,6 +10,7 @@ import ExportDropdown from '../../../components/ExportDropdown';
 import { getWrapColumnProps, renderWrappedText } from '../../../utils/tableCellWrap';
 import { useNotifier, COMMON_TOASTS } from '../../../utils/notify';
 import { exportRowsToFile } from '../../../utils/exportGridReport';
+import { cellText } from '../../../utils/cellText';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -131,7 +132,7 @@ export default function DataList({
     const header = ['S.No', ...cols.map((c) => COLUMN_LABELS[c])];
     const rows = filteredData.map((row, i) => [
       i + 1,
-      ...cols.map((c) => (c === 'statusSteps' ? getParaStatusText(row[c]) : (row[c] ?? ''))),
+      ...cols.map((c) => (c === 'statusSteps' ? getParaStatusText(row[c]) : cellText(row[c]))),
     ]);
     return { header, rows };
   };

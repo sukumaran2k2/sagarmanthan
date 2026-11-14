@@ -5,17 +5,21 @@ import TablePagination from '../../../components/TablePagination';
 import DataListToolbar from '../../../components/DataListToolbar';
 import { exportDataListToPdf } from '../../../utils/exportReportPdf';
 import { COMMON_TOASTS } from '../../../utils/notify';
+import { cellText, lastUpdatedText } from '../../../utils/cellText';
+import { exportGridApiToExcel } from '../../../utils/exportGridReport';
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
   total_shipbuilding_capacity: 'Total Shipbuilding Capacity (GT/Year)',
   tonnage_of_vessels: 'Tonnage Of Vessels Built (GT)',
+  updated_date: 'Last Updated Date',
 };
 
 const DEFAULT_VISIBLE_COLS = {
   financial_year: true,
   total_shipbuilding_capacity: true,
   tonnage_of_vessels: true,
+  updated_date: false, // offered in Visibility, unticked (as in 2.0)
 };
 
 export default function CapacityUtilizationDataList({
@@ -49,7 +53,7 @@ export default function CapacityUtilizationDataList({
       const cols = Object.keys(visibleCols).filter((c) => visibleCols[c]);
       let tsv = ['S.No', ...cols.map((c) => COLUMN_LABELS[c])].join('\t') + '\n';
       rowData.forEach((row, i) => {
-        const line = [i + 1, ...cols.map((c) => row[c] ?? '')];
+        const line = [i + 1, ...cols.map((c) => cellText(row[c]))];
         tsv += line.join('\t') + '\n';
       });
       navigator.clipboard.writeText(tsv).then(
@@ -57,8 +61,8 @@ export default function CapacityUtilizationDataList({
         () => notify?.(COMMON_TOASTS.copyFailed()),
       );
     } else if (type === 'Excel') {
-      gridRef.current?.api?.exportDataAsCsv({ fileName: 'csl_capacity_utilization' });
-      notify?.(COMMON_TOASTS.excelExported('csl_capacity_utilization.csv'));
+      const file = exportGridApiToExcel(gridRef.current?.api, { title: 'CSL Capacity Utilization Data List', fileName: 'csl_capacity_utilization' });
+      notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
       exportDataListToPdf({
         title: 'CSL Capacity Utilization Data List',
@@ -77,6 +81,12 @@ export default function CapacityUtilizationDataList({
     ...(visibleCols.total_shipbuilding_capacity ? [{ headerName: 'Total Shipbuilding Capacity (GT/Year)', field: 'total_shipbuilding_capacity', wrapText: true, autoHeight: true, flex: 1.5, minWidth: 240, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
     ...(visibleCols.tonnage_of_vessels ? [{ headerName: 'Tonnage Of Vessels Built (GT)', field: 'tonnage_of_vessels', wrapText: true, autoHeight: true, flex: 1.5, minWidth: 220, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
 
+    ...(visibleCols.updated_date ? [{
+      headerName: 'Last Updated Date', field: 'updated_date', minWidth: 140,
+      cellClass: 'text-center text-slate-600 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700',
+      valueFormatter: (params) => lastUpdatedText(params.value),
+      useValueFormatterForExport: true,
+    }] : []),
     ...(canEdit || canRemove ? [{
       headerName: 'Actions', field: 'csl_capacity_utilization_id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,
       cellClass: 'text-center flex items-center justify-center gap-1',

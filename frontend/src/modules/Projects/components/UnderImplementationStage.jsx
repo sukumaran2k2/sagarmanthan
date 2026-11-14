@@ -34,6 +34,7 @@ import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import ScheduleStatusBadge, { ScheduleStatusSummary } from './ScheduleStatusBadge';
+import { exportRowsToFile, exportGridApiToExcel } from '../../../utils/exportGridReport';
 
 const COMPONENT_KEYS = [
   { key: 'gbsComponents', label: 'GBS Components (In Cr.)', apiField: 'gbs_components' },
@@ -323,11 +324,9 @@ export default function UnderImplementationStage({
 
     if (type === 'Excel') {
       if (financialGridApi) {
-        financialGridApi.exportDataAsCsv({
-          fileName: 'Under_Implementation_Financial_Progress.csv',
-          columnKeys: activeCols.map((col) => col.field),
-        });
-        notify?.('Financial progress exported to CSV successfully!', 'success');
+        // Excel (.xlsx) of the table as shown
+        exportGridApiToExcel(financialGridApi, { title: 'Under Implementation Financial Progress', fileName: 'Under_Implementation_Financial_Progress' });
+        notify?.('Financial progress exported to Excel successfully!', 'success');
       } else {
         notify?.('Exporting financial progress...', 'info');
       }
@@ -335,36 +334,13 @@ export default function UnderImplementationStage({
     }
 
     if (type === 'PDF') {
-      const printWindow = window.open('', '_blank');
-      if (!printWindow) return;
-      const headersHtml = activeCols
-        .map(
-          (col) =>
-            `<th style="border:1px solid #cbd5e1;padding:10px;text-align:left;background:#0f417a;color:#fff;font-size:11px;font-weight:bold;text-transform:uppercase;">${col.headerName}</th>`
-        )
-        .join('');
-      const rowsHtml = financialGridRows
-        .map((row) => {
-          const cells = activeCols
-            .map((col) => {
-              const val = row[col.field] ?? '';
-              return `<td style="border:1px solid #e2e8f0;padding:8px;font-size:11px;">${val}</td>`;
-            })
-            .join('');
-          return `<tr>${cells}</tr>`;
-        })
-        .join('');
-      printWindow.document.write(`
-        <html><head><title>Under Implementation Financial Progress</title>
-        <style>body{font-family:system-ui,sans-serif;color:#1e293b;padding:20px}h1{font-size:18px;color:#0f417a}table{width:100%;border-collapse:collapse;margin-top:15px}</style>
-        </head><body>
-        <h1>Under Implementation Financial Progress</h1>
-        <p style="font-size:11px;color:#64748b">Generated on: ${new Date().toLocaleDateString()}</p>
-        <table><thead><tr>${headersHtml}</tr></thead><tbody>${rowsHtml}</tbody></table>
-        <script>window.onload=function(){window.print();window.close()}</script>
-        </body></html>
-      `);
-      printWindow.document.close();
+      // PDF straight to a file (no print dialog or new tab)
+      exportRowsToFile('pdf', {
+        title: 'Under Implementation Financial Progress',
+        headers: activeCols.map((col) => col.headerName),
+        rows: financialGridRows.map((row) => activeCols.map((col) => row[col.field] ?? '')),
+        fileName: 'Under_Implementation_Financial_Progress',
+      });
     }
   };
 

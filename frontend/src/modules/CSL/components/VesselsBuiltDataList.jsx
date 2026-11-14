@@ -5,12 +5,15 @@ import TablePagination from '../../../components/TablePagination';
 import DataListToolbar from '../../../components/DataListToolbar';
 import { exportDataListToPdf } from '../../../utils/exportReportPdf';
 import { COMMON_TOASTS } from '../../../utils/notify';
+import { cellText, lastUpdatedText } from '../../../utils/cellText';
+import { exportGridApiToExcel } from '../../../utils/exportGridReport';
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
   no_of_vessels_built: 'Number Of Vessels Built',
   tonnage_of_vessels_built: 'Tonnage Of Vessels Built (GT)',
   value_of_vessels_built: 'Value Of Vessels Built (INR Cr.)',
+  updated_date: 'Last Updated Date',
 };
 
 const DEFAULT_VISIBLE_COLS = {
@@ -18,6 +21,7 @@ const DEFAULT_VISIBLE_COLS = {
   no_of_vessels_built: true,
   tonnage_of_vessels_built: true,
   value_of_vessels_built: true,
+  updated_date: false, // offered in Visibility, unticked (as in 2.0)
 };
 
 export default function VesselsBuiltDataList({
@@ -51,7 +55,7 @@ export default function VesselsBuiltDataList({
       const headers = Object.keys(visibleCols).filter((c) => visibleCols[c]).map((c) => COLUMN_LABELS[c]);
       let tsv = ['S.No', ...headers].join('\t') + '\n';
       rowData.forEach((row, i) => {
-        const line = [i + 1, ...Object.keys(visibleCols).filter((c) => visibleCols[c]).map((c) => row[c] ?? '')];
+        const line = [i + 1, ...Object.keys(visibleCols).filter((c) => visibleCols[c]).map((c) => cellText(row[c]))];
         tsv += line.join('\t') + '\n';
       });
       navigator.clipboard.writeText(tsv).then(
@@ -59,8 +63,8 @@ export default function VesselsBuiltDataList({
         () => notify?.(COMMON_TOASTS.copyFailed()),
       );
     } else if (type === 'Excel') {
-      gridRef.current?.api?.exportDataAsCsv({ fileName: 'csl_vessels_built' });
-      notify?.(COMMON_TOASTS.excelExported('csl_vessels_built.csv'));
+      const file = exportGridApiToExcel(gridRef.current?.api, { title: 'CSL Vessels Built Data List', fileName: 'csl_vessels_built' });
+      notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
       exportDataListToPdf({
         title: 'CSL Vessels Built Data List',
@@ -80,6 +84,12 @@ export default function VesselsBuiltDataList({
     ...(visibleCols.tonnage_of_vessels_built ? [{ headerName: 'Tonnage Of Vessels Built (GT)', field: 'tonnage_of_vessels_built', wrapText: true, autoHeight: true, flex: 1, minWidth: 200, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
     ...(visibleCols.value_of_vessels_built ? [{ headerName: 'Value Of Vessels Built (INR Cr.)', field: 'value_of_vessels_built', wrapText: true, autoHeight: true, flex: 1, minWidth: 210, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
 
+    ...(visibleCols.updated_date ? [{
+      headerName: 'Last Updated Date', field: 'updated_date', minWidth: 140,
+      cellClass: 'text-center text-slate-600 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700',
+      valueFormatter: (params) => lastUpdatedText(params.value),
+      useValueFormatterForExport: true,
+    }] : []),
     ...(canEdit || canRemove ? [{
       headerName: 'Actions', field: 'csl_vessel_id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,
       cellClass: 'text-center flex items-center justify-center gap-1',

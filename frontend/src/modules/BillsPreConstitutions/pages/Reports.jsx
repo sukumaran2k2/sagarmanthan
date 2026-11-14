@@ -8,6 +8,7 @@ import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import ReportTable from '../../../components/ReportTable';
+import { exportGridToExcel } from '../../../utils/exportGridReport';
 
 const COLUMN_STAGE_MAP = {
   "Draft Bill Prepared": 1, "Pre-DCN & Draft Bill Approved by Minister": 2, "Circulated for IMC": 3,
@@ -206,12 +207,15 @@ export default function Reports({ notify, triggerNotification, wings = [] }) {
 
   const handleExport = (type) => {
     if (type === 'Excel') {
-      if (!gridRef.current?.api) {
-        notify?.(COMMON_TOASTS.tableNotReady('export'));
-        return;
-      }
-      gridRef.current.api.exportDataAsCsv({ fileName: `bills_report_export.csv` });
-      notify?.(COMMON_TOASTS.excelExported('bills_report_export.csv'));
+      // An Excel (.xlsx) file with the same rows as the PDF, Total row included
+      const file = exportGridToExcel({
+        title: ABSTRACT_TITLE,
+        columns: columns.filter((c) => c.headerName),
+        rows: aggregatedData,
+        pinnedRows: pinnedBottomRowData || [],
+        fileName: 'bills_report',
+      });
+      notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
       // The table only, with its Total row (window.print() printed the whole page)
       exportReportToPdf({
