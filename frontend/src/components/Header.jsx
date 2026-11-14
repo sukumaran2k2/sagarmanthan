@@ -353,13 +353,6 @@ export default function Header({ onLogout, onProfileClick, onUserManagementClick
                         {TAB_USER_MODULE_PERMISSION}
                       </a>
                     )}
-                    <a
-                      href="#manual"
-                      onClick={() => setShowAvatarDropdown(false)}
-                      className="block px-4 py-2 text-xs text-slate-200 hover:bg-white/10 hover:text-white"
-                    >
-                      User Manual
-                    </a>
                     <hr className="border-white/10 my-1" />
                     <a
                       href="#logout"
