@@ -19,6 +19,7 @@ import {
 } from '../../utils/capexUtils';
 import { COMMON_TOASTS } from '../../../../utils/notify';
 import { CAPEX_TOASTS } from '../../toastMessages';
+import { exportRowsToFile } from '../../../../utils/exportGridReport';
 
 const BRAND = '#4b2424';
 const BRAND_HOVER = '#6b3535';
@@ -123,7 +124,8 @@ export default function CapexMinistrySummaryReport({ notify }) {
     });
   };
 
-  const handleExportExcel = () => {
+  // Report rows for Excel and PDF
+  const buildExportData = () => {
     const data = filteredRows.map((r, i) => ({
       SNo: i + 1,
       Organisation: r.organisation_name,
@@ -140,6 +142,11 @@ export default function CapexMinistrySummaryReport({ notify }) {
       '% of BE Achieved': Number(fmt(totals.pct)),
       Status: '',
     });
+    return data;
+  };
+
+  const handleExportExcel = () => {
+    const data = buildExportData();
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Capex Summary');
@@ -147,9 +154,16 @@ export default function CapexMinistrySummaryReport({ notify }) {
     notify?.(COMMON_TOASTS.excelExported(`Capex_Summary_Report_${selectedYear}.xlsx`, 'The report'));
   };
 
+  // PDF of the report's rows, straight to a file (it used to print the whole page)
   const handleExportPdf = () => {
-    notify?.(COMMON_TOASTS.pdfPreparing());
-    window.print();
+    const data = buildExportData();
+    if (!data.length) return;
+    exportRowsToFile('pdf', {
+      title: 'Capex - Summary Report',
+      headers: Object.keys(data[0]),
+      rows: data.map((row) => Object.values(row)),
+      fileName: `Capex_Summary_Report_${selectedYear}`,
+    });
   };
 
   return (

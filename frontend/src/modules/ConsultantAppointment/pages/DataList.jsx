@@ -10,7 +10,8 @@ import { fetchConsultantAppointments } from '../api';
 import { useShallow } from 'zustand/react/shallow';
 import { useCaStore } from '../store/useCaStore';
 import { useNotifier, COMMON_TOASTS } from '../../../utils/notify';
-import { formatDateTime, toInputDate, guardFormula, tsvCell } from '../formatters';
+import { formatDateTime, toInputDate, tsvCell } from '../formatters';
+import { exportRowsToFile, exportGridApiToExcel } from '../../../utils/exportGridReport';
 
 const STAGES = [
   { key: 'adminApproval', label: 'Admin Approval for engaging Consultant' },
@@ -297,7 +298,6 @@ export default function DataList({
     }
   }, [divisionOptions, selectedDivision, setSelectedDivision]);
   const handleExport = (type) => {
-    const escHtml = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     if (type === 'Copy') {
       if (gridApiRef.current) {
         let tsv = '';
@@ -328,75 +328,22 @@ export default function DataList({
       }
     } else if (type === 'Excel') {
       if (gridApiRef.current) {
-        const fileName = `Consultant_Appointment_Page_${currentPage}.csv`;
-        gridApiRef.current.exportDataAsCsv({
-          fileName,
-          // ag-grid quotes fields but does not stop Excel executing one that starts with = + - @
-          processCellCallback: (params) => guardFormula(params.value),
-        });
-        notify(COMMON_TOASTS.excelExported(fileName));
+        // Excel (.xlsx) of the table as shown; cells are stored as text, so nothing runs as a formula
+        const file = exportGridApiToExcel(gridApiRef.current, { title: 'Consultant Appointment - Data List', fileName: `Consultant_Appointment_Page_${currentPage}` });
+        notify(COMMON_TOASTS.excelExported(file));
       } else {
         notify(COMMON_TOASTS.tableNotReady('export'));
       }
     } else if (type === 'PDF') {
-      const printWindow = window.open('', '_blank');
-      if (!printWindow) {
-        notify(COMMON_TOASTS.popupBlocked());
-        return;
-      }
-      notify(COMMON_TOASTS.pdfPreparing());
-      const title = 'Consultant Appointment - Data List';
-
-      let headersHtml = '';
-      columnDefs.forEach(col => {
-        if (col.headerName && col.headerName !== 'Action') {
-          headersHtml += `<th style="border: 1px solid #cbd5e1; padding: 10px; text-align: left; background-color: #f8fafc; font-size: 11px; font-weight: bold; text-transform: uppercase;">${col.headerName}</th>`;
-        }
+      // PDF straight to a file (no print dialog or new tab): the columns on show
+      const pdfCols = columnDefs.filter((col) => col.headerName && col.headerName !== 'Action' && !col.hide);
+      const file = exportRowsToFile('pdf', {
+        title: 'Consultant Appointment - Data List',
+        headers: pdfCols.map((col) => col.headerName),
+        rows: data.map((row) => pdfCols.map((col) => row[col.field] ?? '')),
+        fileName: 'Consultant_Appointment_Data_List',
       });
-
-      let rowsHtml = '';
-      data.forEach((row) => {
-        rowsHtml += '<tr>';
-        columnDefs.forEach(col => {
-          if (col.headerName && col.headerName !== 'Action') {
-            const val = row[col.field] !== undefined ? row[col.field] : '';
-            rowsHtml += `<td style="border: 1px solid #e2e8f0; padding: 8px; font-size: 11px;">${escHtml(val)}</td>`;
-          }
-        });
-        rowsHtml += '</tr>';
-      });
-
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>${title}</title>
-            <style>
-              body { font-family: 'Google Sans', system-ui, -apple-system, sans-serif; color: #1e293b; padding: 20px; }
-              h1 { font-size: 18px; margin-bottom: 5px; color: #0f417a; }
-              table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-            </style>
-          </head>
-          <body>
-            <h1>${title}</h1>
-            <p style="font-size: 11px; color: #64748b; margin-top: 0; margin-bottom: 20px;">Generated on: ${new Date().toLocaleDateString()}</p>
-            <table>
-              <thead>
-                <tr>${headersHtml}</tr>
-              </thead>
-              <tbody>
-                ${rowsHtml}
-              </tbody>
-            </table>
-            <script>
-              window.onload = function() {
-                window.print();
-                window.close();
-              };
-            </script>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
+      notify(COMMON_TOASTS.excelExported(file));
     }
   };
 

@@ -17,7 +17,7 @@ import RestrictedAccess from '../../components/RestrictedAccess';
 import { useCapexPermissions } from './hooks/useCapexPermissions';
 import { getCurrentUserId } from '../../utils/authSession';
 import { COMMON_TOASTS, useNotifier } from '../../utils/notify';
-import { exportDataListToCsv } from '../../utils/exportDataListCsv';
+import { exportDataListToExcel } from '../../utils/exportDataListCsv';
 import { exportDataListToPdf } from '../../utils/exportReportPdf';
 import {
   fetchCapexList,
@@ -497,8 +497,8 @@ export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, tr
     }
     try {
       const rows = await fetchAllFilteredRows();
-      exportDataListToCsv({ ...exportArgs(rows), fileName: 'Capex_Data_List' });
-      notify(COMMON_TOASTS.excelExported('Capex_Data_List.csv', 'Every filtered row'));
+      const file = exportDataListToExcel({ ...exportArgs(rows), title: 'Capex Data List', fileName: 'Capex_Data_List' });
+      notify(COMMON_TOASTS.excelExported(file, 'Every filtered row'));
     } catch (err) {
       console.error('Capex export failed:', err?.message);
       notify(COMMON_TOASTS.loadFailed('The Capex rows to export'));

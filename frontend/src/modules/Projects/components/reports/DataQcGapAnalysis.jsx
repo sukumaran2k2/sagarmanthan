@@ -24,6 +24,7 @@ import {
   getCheckMetaById,
   mergeSummaryWithMeta,
 } from '../../utils/dataQcConfig';
+import { exportRowsToFile } from '../../../../utils/exportGridReport';
 
 const GROUP_ORDER = ['Tendering', 'Implementation', 'Overall Project', 'Master Data'];
 
@@ -450,8 +451,15 @@ function DataQcCheckGrid({
     XLSX.writeFile(wb, `Projects_DataQC_${checkId}.xlsx`);
   };
 
+  // PDF of the check's rows, straight to a file (it used to print the whole page)
   const handleExportPdf = () => {
-    window.print();
+    if (!filteredRows.length) return;
+    exportRowsToFile('pdf', {
+      title: `Projects - Data QC (${checkId})`,
+      headers: exportHeaders,
+      rows: filteredRows.map((row) => exportFields.map((field) => row[field] ?? '')),
+      fileName: `Projects_DataQC_${checkId}`,
+    });
   };
 
   const filterSelectClass =

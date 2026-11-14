@@ -31,6 +31,7 @@ import { useOvodStore } from '../store/useOvodStore';
 import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
 import { OVOD_TOASTS } from '../toastMessages';
 import { isOrganisationUser } from '../../../utils/authSession';
+import { exportRowsToFile } from '../../../utils/exportGridReport';
 
 const COLUMN_LIST = [
   { key: 'sno', label: 'S.No' },
@@ -359,61 +360,14 @@ export default function DataList({
       notify(COMMON_TOASTS.nothingToExport());
       return;
     }
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      notify(COMMON_TOASTS.popupBlocked());
-      return;
-    }
-    notify(COMMON_TOASTS.pdfPreparing());
-    const title = 'OVOD - Strategic Action Items';
-
-    const headers = [
-      'S.No', 'Organisation', 'Goal (A1)', 'Intervention (A2)', 
-      'Goal (B1)', 'Intervention (B2)', 'Action (B3)', 'Status', 'Date'
-    ];
-
-    let headersHtml = headers.map(h => 
-      `<th style="border: 1px solid #cbd5e1; padding: 8px; text-align: left; background-color: #f8fafc; font-size: 11px; font-weight: bold; text-transform: uppercase;">${h}</th>`
-    ).join('');
-
-    let rowsHtml = filteredData.slice(0, 500).map((r, idx) => `
-      <tr>
-        <td style="border: 1px solid #e2e8f0; padding: 6px; font-size: 11px;">${idx + 1}</td>
-        <td style="border: 1px solid #e2e8f0; padding: 6px; font-size: 11px;">${r.organisation_name || '-'}</td>
-        <td style="border: 1px solid #e2e8f0; padding: 6px; font-size: 11px;">${r.goal_a1 || '-'}</td>
-        <td style="border: 1px solid #e2e8f0; padding: 6px; font-size: 11px;">${r.intervention_a2 || '-'}</td>
-        <td style="border: 1px solid #e2e8f0; padding: 6px; font-size: 11px;">${r.goal_b1 || '-'}</td>
-        <td style="border: 1px solid #e2e8f0; padding: 6px; font-size: 11px;">${r.intervention_b2 || '-'}</td>
-        <td style="border: 1px solid #e2e8f0; padding: 6px; font-size: 11px;">${r.action_b3 || '-'}</td>
-        <td style="border: 1px solid #e2e8f0; padding: 6px; font-size: 11px;">${r.current_status || '-'}</td>
-        <td style="border: 1px solid #e2e8f0; padding: 6px; font-size: 11px;">${r.updated_at || '-'}</td>
-      </tr>
-    `).join('');
-
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>${title}</title>
-          <style>
-            body { font-family: 'Google Sans', system-ui, -apple-system, sans-serif; color: #1e293b; padding: 20px; }
-            h1 { font-size: 18px; margin-bottom: 5px; color: #0f417a; }
-            table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-          </style>
-        </head>
-        <body>
-          <h1>${title}</h1>
-          <p style="font-size: 11px; color: #64748b; margin-top: 0; margin-bottom: 20px;">Generated on: ${new Date().toLocaleDateString()}</p>
-          <table>
-            <thead><tr>${headersHtml}</tr></thead>
-            <tbody>${rowsHtml}</tbody>
-          </table>
-          <script>
-            window.onload = function() { window.print(); window.close(); };
-          </script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
+    // PDF straight to a file (no print dialog or new tab): the columns on show
+    const file = exportRowsToFile('pdf', {
+      title: 'OVOD - Strategic Action Items',
+      headers: ['S.No', 'Organisation', 'Goal (A1)', 'Intervention (A2)', 'Goal (B1)', 'Intervention (B2)', 'Action (B3)', 'Status', 'Date'],
+      rows: filteredData.slice(0, 500).map((r, idx) => [idx + 1, r.organisation_name || '-', r.goal_a1 || '-', r.intervention_a2 || '-', r.goal_b1 || '-', r.intervention_b2 || '-', r.action_b3 || '-', r.current_status || '-', r.updated_at || '-']),
+      fileName: 'OVOD_Strategic_Action_Items',
+    });
+    notify(COMMON_TOASTS.excelExported(file));
   };
 
   // Handle Delete Confirmation

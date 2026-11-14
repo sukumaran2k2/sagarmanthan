@@ -7,6 +7,7 @@ import { fetchGemYoYReport } from '../../api';
 import { getCurrentFinancialYear, getGemReportAsOnMeta } from '../../utils/gemUtils';
 import { COMMON_TOASTS } from '../../../../utils/notify';
 import { GEM_TOASTS } from '../../toastMessages';
+import { exportRowsToFile } from '../../../../utils/exportGridReport';
 
 const fmt = (n) => (Number.isFinite(Number(n)) ? Number(n).toFixed(2) : '0.00');
 
@@ -103,7 +104,8 @@ export default function GEMYoYReport({ notify }) {
     notify?.(GEM_TOASTS.reportCopied('GeM year-on-year report'));
   };
 
-  const handleExportExcel = () => {
+  // Report rows for Excel and PDF
+  const buildExportData = () => {
     const data = filteredRows.map((r, i) => {
       const row = {
         'S.No': i + 1,
@@ -119,10 +121,27 @@ export default function GEMYoYReport({ notify }) {
       return row;
     });
 
+    return data;
+  };
+
+  const handleExportExcel = () => {
+    const data = buildExportData();
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'GeM YoY');
     XLSX.writeFile(wb, 'GeM_Year_on_Year_Report.xlsx');
+  };
+
+  // PDF of the report's rows, straight to a file (it used to print the whole page)
+  const handleExportPdf = () => {
+    const data = buildExportData();
+    if (!data.length) return;
+    exportRowsToFile('pdf', {
+      title: 'GeM Procurement - Year on Year Report',
+      headers: Object.keys(data[0]),
+      rows: data.map((row) => Object.values(row)),
+      fileName: 'GeM_Year_on_Year_Report',
+    });
   };
 
   return (
@@ -172,7 +191,7 @@ export default function GEMYoYReport({ notify }) {
             ) : null}
           </div>
           <CopyButton onCopy={handleCopy} color="#4b2424" hoverBg="#f7f3f3" />
-          <ExportDropdown onExportExcel={handleExportExcel} onExportPdf={() => window.print()} color="#4b2424" hoverColor="#6b3535" />
+          <ExportDropdown onExportExcel={handleExportExcel} onExportPdf={handleExportPdf} color="#4b2424" hoverColor="#6b3535" />
           <button onClick={load} className="w-9 h-9 border border-[#eadede] rounded-lg inline-flex items-center justify-center">
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
           </button>
