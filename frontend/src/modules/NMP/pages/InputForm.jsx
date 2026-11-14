@@ -202,6 +202,11 @@ function normalizeEditData(data) {
     actual_agreement_date: 'agreement_actual',
     original_completion_date: 'construction_original',
     actual_completion_date: 'construction_actual',
+    allotment_target_date: 'allotment_original',
+    actual_allotment_date: 'allotment_actual',
+    allotment_revised_date: 'allotment_revised',
+    allotment_revised_date_1: 'allotment_revised_2',
+    allotment_revised_date_2: 'allotment_revised_3',
   };
   for (const [from, to] of Object.entries(map)) {
     if (from in out && !(to in out)) {
@@ -225,8 +230,8 @@ function normalizeEditData(data) {
     }
   }
 
-  const dateKeys = ['nit_original', 'nit_actual', 'agreement_original', 'agreement_actual', 'construction_original', 'construction_actual',
-    ...['nit', 'agreement', 'construction'].flatMap((prefix) => revisedKeysFor(prefix))];
+  const dateKeys = ['nit_original', 'nit_actual', 'agreement_original', 'agreement_actual', 'construction_original', 'construction_actual', 'allotment_original', 'allotment_actual',
+  ...['nit', 'agreement', 'construction', 'allotment'].flatMap((prefix) => revisedKeysFor(prefix))];
   for (const k of dateKeys) {
     if (out[k]) out[k] = fmtDate(out[k]);
   }
@@ -257,7 +262,12 @@ function validateParcelStage(stage, formData, isFuture) {
         formData.escalation_rate || formData.frequency_of_escalation || formData.estimated_private_investment
       );
     case 3:
-      return !!(has(formData.agreement_signed_id) && formData.lessee_name && has(formData.type_of_lessee_id));
+      return !!(
+        has(formData.agreement_signed_id) &&
+        formData.lessee_name &&
+        has(formData.type_of_lessee_id) &&
+        (formData.type_of_lessee_id !== 5 || (formData.other_agency ?? '').toString().trim() !== '')
+      );
     case 4:
       return true;
     default:
@@ -769,6 +779,12 @@ function ParcelForm({ formType, formData, onChange, stage }) {
               </div>
               <SelectField label="Type of Agency/Lessee" required name="type_of_lessee_id" options={NMP_LESSEE_TYPE_OPTIONS} formData={formData} onChange={onChange} />
             </div>
+            {formData.type_of_lessee_id === 5 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+              <div />
+              <OtherField label="Other Agency/Lessee" name="other_agency" formData={formData} onChange={onChange} />
+            </div>
+          )}
           </Section>
 
           <MilestoneRow title="NIT Date" keyPrefix="nit" formData={formData} onChange={onChange} />
@@ -919,13 +935,13 @@ function PastLandForm({ formData, onChange, stage = 1 }) {
               <thead>
                 <tr className="bg-[#0f417a] text-white">
                   <th className="px-3 py-2.5 text-center font-bold w-10">SI NO</th>
-                  <th className="px-3 py-2.5 text-left font-bold min-w-[200px]">Period of SoR (FY) *</th>
-                  <th className="px-3 py-2.5 text-left font-bold min-w-[120px]">Year of Applicability *</th>
-                  <th className="px-3 py-2.5 text-left font-bold min-w-[160px]">Annual Base Lease Rental (INR Cr) *</th>
-                  <th className="px-3 py-2.5 text-left font-bold min-w-[130px]">Escalation Rate (% YoY) *</th>
-                  <th className="px-3 py-2.5 text-left font-bold min-w-[160px]">Frequency of Escalation (Years) *</th>
-                  <th className="px-3 py-2.5 text-left font-bold min-w-[130px]">Lease Tenure (Years) *</th>
-                  <th className="px-3 py-2.5 text-left font-bold min-w-[160px]">NPV of Lease Rentals @12% [B] (INR Cr) *</th>
+                  <th className="px-3 py-2.5 text-left font-bold min-w-[200px]">Period of SoR (FY) </th>
+                  <th className="px-3 py-2.5 text-left font-bold min-w-[120px]">Year of Applicability </th>
+                  <th className="px-3 py-2.5 text-left font-bold min-w-[160px]">Annual Base Lease Rental (INR Cr) </th>
+                  <th className="px-3 py-2.5 text-left font-bold min-w-[130px]">Escalation Rate (% YoY) </th>
+                  <th className="px-3 py-2.5 text-left font-bold min-w-[160px]">Frequency of Escalation (Years) </th>
+                  <th className="px-3 py-2.5 text-left font-bold min-w-[130px]">Lease Tenure (Years)*</th>
+                  <th className="px-3 py-2.5 text-left font-bold min-w-[160px]">NPV of Lease Rentals @12% [B] (INR Cr) </th>
                   <th className="px-3 py-2.5 w-8" />
                 </tr>
               </thead>
@@ -965,14 +981,14 @@ function PastLandForm({ formData, onChange, stage = 1 }) {
       </>)}
 
       {stage === 3 && (<>
-        <Section number={5} title="Lessee and Milestone Details" id="pl-s5">
-          <div className="space-y-3">
-          <SelectField label="Type of Lessee" name="type_of_lessee_id" options={NMP_LESSEE_TYPE_OPTIONS} formData={formData} onChange={onChange} />
-          {formData.type_of_lessee_id === 5 && (
-            <OtherField label="Other Lessee Type" name="other_agency" formData={formData} onChange={onChange} />
-          )}
-        </div>
-        </Section>
+       <Section number={5} title="Lessee and Milestone Details" id="pl-s5">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+        <SelectField label="Type of Lessee" name="type_of_lessee_id" options={NMP_LESSEE_TYPE_OPTIONS} formData={formData} onChange={onChange} />
+        {formData.type_of_lessee_id === 5 && (
+          <OtherField label="Other Lessee Type" name="other_agency" formData={formData} onChange={onChange} />
+        )}
+      </div>
+    </Section>
         <MilestoneRow title="NIT Date" keyPrefix="nit" formData={formData} onChange={onChange} />
         <div className="mb-1" />
         <MilestoneRow title="Agreement Date" keyPrefix="agreement" formData={formData} onChange={onChange} />
@@ -982,6 +998,8 @@ function PastLandForm({ formData, onChange, stage = 1 }) {
           </div>
         </div>
         <MilestoneRow title="Completion of construction" keyPrefix="construction" formData={formData} onChange={onChange} />
+        <div className="mb-1" />
+<MilestoneRow title="Date of Allotment of Land" keyPrefix="allotment" formData={formData} onChange={onChange} />
       </>)}
 
       {stage === 4 && (

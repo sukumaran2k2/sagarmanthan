@@ -121,7 +121,7 @@ const srCol = { field: 'sNo', headerName: 'S.No', minWidth: 80, maxWidth: 80, pi
 const parcelCol = { field: 'parcel_details', headerName: 'Parcel Detail', minWidth: 160, pinned: 'left', cellRenderer: boldCell };
 
 const milestoneCols = [
-  { field: 'nit_target_date', headerName: 'NIT Original Target Date', minWidth: 170, cellRenderer: dateCellRenderer },
+  { field: 'target_nit_date', headerName: 'NIT Original Target Date', minWidth: 170, cellRenderer: dateCellRenderer },
   { field: 'actual_nit_date', headerName: 'NIT Actual Date', minWidth: 150, cellRenderer: dateCellRenderer },
   { field: 'target_agreement_date', headerName: 'Agreement Original Target Date', minWidth: 210, cellRenderer: dateCellRenderer },
   { field: 'actual_agreement_date', headerName: 'Agreement Actual Date', minWidth: 170, cellRenderer: dateCellRenderer },
@@ -141,11 +141,12 @@ function buildPastLandCols(actions) {
   return [
     srCol,
     parcelCol,
+    { field: 'unique_nmp_id', headerName: 'NMP ID', minWidth: 120, cellRenderer: textCell },
     { field: 'organisation_name', headerName: 'Organisation', minWidth: 160, cellRenderer: textCell },
     { field: 'area_acres', headerName: 'Area (Acres)', minWidth: 110, cellRenderer: numCell },
     { field: 'purpose', headerName: 'Purpose', minWidth: 120, cellRenderer: textCell },
     { field: 'sector', headerName: 'Sector', minWidth: 160, cellRenderer: textCell },
-    { field: 'year_of_allotment', headerName: 'Year of Allotment', minWidth: 140, cellRenderer: textCell },
+    { field: 'target_year', headerName: 'Year of Allotment', minWidth: 140, cellRenderer: textCell },
     { field: 'mode_of_allotment', headerName: 'Mode of Allotment', minWidth: 150, cellRenderer: textCell },
     { field: 'status', headerName: 'Status', minWidth: 150, cellRenderer: textCell },
     { field: 'lease_status', headerName: 'Lease Status', minWidth: 120, cellRenderer: textCell },
@@ -161,6 +162,25 @@ function buildPastLandCols(actions) {
     { field: 'remarks', headerName: 'Remarks', minWidth: 180, cellRenderer: textCell },
     { field: 'created_date', headerName: 'Last Updated', minWidth: 150, cellRenderer: dateCellRenderer },
     buildActionCol(actions),
+  ];
+}
+
+// ── PAST LAND: SoR details (one row per lease/rental entry) ──
+function buildPastSorCols(actions) {
+  return [
+    srCol,
+    parcelCol,
+    { field: 'organisation_name', headerName: 'Organisation', minWidth: 160, cellRenderer: textCell },
+    { field: 'unique_nmp_id', headerName: 'NMP ID', minWidth: 120, cellRenderer: textCell },
+    { field: 'sor_from', headerName: 'Period of SoR From (FY)', minWidth: 190, cellRenderer: textCell },
+    { field: 'sor_to',   headerName: 'Period of SoR To (FY)',   minWidth: 190, cellRenderer: textCell },
+    { field: 'year_of_applicability', headerName: 'Year of Applicability', minWidth: 160, cellRenderer: textCell },
+    { field: 'annual_base_lease_rental', headerName: 'Annual Base Lease Rental (INR Cr)', minWidth: 210, cellRenderer: numCell },
+    { field: 'escalation_rate', headerName: 'Escalation Rate (% YoY)', minWidth: 170, cellRenderer: numCell },
+    { field: 'frequency_of_escalation', headerName: 'Escalation Freq (Yrs)', minWidth: 160, cellRenderer: numCell },
+    { field: 'lease_tenure', headerName: 'Lease Tenure (Yrs)', minWidth: 150, cellRenderer: numCell },
+    { field: 'npv', headerName: 'NPV @12% [B] (INR Cr)', minWidth: 170, cellRenderer: numCell },
+    
   ];
 }
 
@@ -261,11 +281,12 @@ export default function NmpDataList({ onEdit, onAddNew, triggerNotification, can
   const gridApiRef = useRef(null);
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [subTab, setSubTab] = useState('land-abstract');
+  const [subTab, setSubTab] = useState(() => sessionStorage.getItem('nmpTab') || 'land-abstract');
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [pageSize, setPageSize] = useState(25);
   const [tabCounts, setTabCounts] = useState({ 'land-abstract': 0, 'past-land': 0, 'future-land': 0 });
+  const [pastView, setPastView] = useState('parcel');
 
   useEffect(() => {
     const handler = setTimeout(() => setDebouncedSearch(searchTerm), 300);
@@ -340,12 +361,22 @@ export default function NmpDataList({ onEdit, onAddNew, triggerNotification, can
     );
   }, [data, debouncedSearch]);
 
-  const columnDefs = useMemo(() => {
-  const actions = { onEditRow: handleEdit, onDeleteRow: handleDelete, canEdit, canRemove };
+  const isPastSor = subTab === 'past-land' && pastView === 'sor';
+
+const tableRows = useMemo(() => {
+  if (!isPastSor) return filteredData;
+  let n = 0;
+  return filteredData.flatMap((parcel) =>
+    (parcel.sor_rows || []).map((sor) => ({ ...parcel, ...sor, sNo: ++n }))
+  );
+}, [filteredData, isPastSor]);
+
+const columnDefs = useMemo(() => {
+  const actions = { onEditRow: handleEdit, onDeleteRow: handleDelete, canEdit, canRemove: canRemove && pastView !== 'sor' };
   if (subTab === 'land-abstract') return buildLandAbstractCols(actions);
-  if (subTab === 'past-land') return buildPastLandCols(actions);
+  if (subTab === 'past-land') return pastView === 'sor' ? buildPastSorCols(actions) : buildPastLandCols(actions);
   return buildFutureLandCols(actions);
-}, [subTab, handleEdit, handleDelete, canEdit, canRemove]);
+}, [subTab, pastView, handleEdit, handleDelete, canEdit, canRemove]);
 
   const escHtml = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -353,7 +384,7 @@ export default function NmpDataList({ onEdit, onAddNew, triggerNotification, can
     if (type === 'Copy') {
       const headers = columnDefs.filter(c => c.headerName).map(c => c.headerName);
       let tsv = headers.join('\t') + '\n';
-      filteredData.forEach((row) => {
+      tableRows.forEach((row) => {
         const line = columnDefs.filter(c => c.headerName).map(c => {
           if (c.field === 'sNo') return row.sNo || '';
           return row[c.field] !== undefined ? row[c.field] : '';
@@ -372,7 +403,7 @@ export default function NmpDataList({ onEdit, onAddNew, triggerNotification, can
       let headersHtml = columnDefs.filter(c => c.headerName).map(c =>
         `<th style="border:1px solid #cbd5e1;padding:10px;text-align:left;background:#f8fafc;font-size:11px;font-weight:bold;text-transform:uppercase">${escHtml(c.headerName)}</th>`
       ).join('');
-      let rowsHtml = filteredData.map(row => {
+      let rowsHtml = tableRows.map(row => {
         const cells = columnDefs.filter(c => c.headerName).map(c => {
           const val = c.field === 'sNo' ? row.sNo : (row[c.field] ?? '');
           return `<td style="border:1px solid #e2e8f0;padding:8px;font-size:11px">${escHtml(val)}</td>`;
@@ -391,7 +422,7 @@ export default function NmpDataList({ onEdit, onAddNew, triggerNotification, can
         {SUB_TABS.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => { setSubTab(tab.id); setSearchTerm(''); }}
+            onClick={() => { setSubTab(tab.id); sessionStorage.setItem('nmpTab', tab.id); setSearchTerm(''); }}
             className={`module-subtab-btn ${subTab === tab.id ? 'active' : ''}`}
           >
             {tab.label} ({subTab === tab.id ? filteredData.length : (tabCounts[tab.id] ?? '–')})
@@ -415,6 +446,30 @@ export default function NmpDataList({ onEdit, onAddNew, triggerNotification, can
                 + Add NMP Data
               </button>
             )}
+
+              {/* <-- paste the toggle here */}
+  {subTab === 'past-land' && (
+    <div className="inline-flex items-center rounded-xl border border-slate-200 bg-white p-1 shadow-xs dark:bg-slate-900 dark:border-slate-800">
+      {[
+        { id: 'parcel', label: 'PARCEL DETAILS' },
+        { id: 'sor', label: 'SOR DETAILS' },
+      ].map((v) => (
+        <button
+          key={v.id}
+          type="button"
+          onClick={() => setPastView(v.id)}
+          className={`px-4 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
+            pastView === v.id
+              ? 'bg-[#0f417a] text-white shadow-sm'
+              : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          {v.label}
+        </button>
+      ))}
+    </div>
+  )}
+
           </div>
 
           {/* Spacer */}
@@ -457,7 +512,7 @@ export default function NmpDataList({ onEdit, onAddNew, triggerNotification, can
 
             {/* Total count */}
             <div className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
-              Total: {filteredData.length}
+              Total: {tableRows.length}
             </div>
 
             {/* Copy */}
@@ -476,7 +531,7 @@ export default function NmpDataList({ onEdit, onAddNew, triggerNotification, can
         {/* AG Grid table */}
         <div className="ag-theme-quartz module-datalist-grid w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
           <Table
-            rowData={filteredData}
+            rowData={tableRows}
             columnDefs={columnDefs}
             loading={loading}
             pagination={true}

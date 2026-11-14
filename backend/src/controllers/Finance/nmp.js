@@ -215,15 +215,15 @@ async function getPastLandList(req, res) {
       }
       if (r.sor_id != null) {
         row.sor_rows.push({
-          sor_from: fyStart(r.sor_period_from),
-          sor_to: fyEnd(r.sor_period_to),
-          year_of_applicability: fyShort(r.sor_year_of_applicability),
-          annual_base_lease_rental: r.sor_annual_base_lease,
-          escalation_rate: r.sor_escalation_rate,
-          frequency_of_escalation: r.sor_frequency_escalation,
-          lease_tenure: r.sor_lease_tenure,
-          npv: r.sor_nvp,
-        });
+        sor_from: fyStart(r.sor_period_from),
+        sor_to: fyEnd(r.sor_period_to),
+        year_of_applicability: fyShort(r.sor_year_of_applicability),
+        annual_base_lease_rental: r.sor_annual_base_lease,
+        escalation_rate: r.sor_escalation_rate,
+        frequency_of_escalation: r.sor_frequency_escalation,
+        lease_tenure: r.sor_lease_tenure,
+        npv: r.sor_nvp,
+      });
       }
     }
 
@@ -661,6 +661,12 @@ async function createNmpEntry(req, res) {
   request.input("completion_revised_date_1", sql.Date, dateOrNull(b.construction_revised_2));
   request.input("completion_revised_date_2", sql.Date, dateOrNull(b.construction_revised_3));
 
+  request.input("allotment_target_date", sql.Date, dateOrNull(b.allotment_original));
+request.input("actual_allotment_date", sql.Date, dateOrNull(b.allotment_actual));
+request.input("allotment_revised_date", sql.Date, dateOrNull(b.allotment_revised));
+request.input("allotment_revised_date_1", sql.Date, dateOrNull(b.allotment_revised_2));
+request.input("allotment_revised_date_2", sql.Date, dateOrNull(b.allotment_revised_3))
+
   request.input("lease_expiration_date", sql.Date, dateOrNull(b.lease_expiration_date));
   request.input("remarks", sql.NVarChar(256), nullIfEmpty(b.remarks));
   request.input("other_purpose", sql.NVarChar(256), nullIfEmpty(b.other_purpose));
@@ -678,6 +684,7 @@ async function createNmpEntry(req, res) {
       target_nit_date, actual_nit_date, nit_reversed_date, nit_reversed_date_1, nit_reversed_date_2,
       target_agreement_date, actual_agreement_date, agreement_revised_date, agreement_revised_date_1, agreement_revised_date_2,
       target_completion_date, actual_completion_date, completion_revised_date, completion_revised_date_1, completion_revised_date_2,
+      allotment_target_date, actual_allotment_date, allotment_revised_date, allotment_revised_date_1, allotment_revised_date_2,
       lease_expiration_date, remarks, other_purpose, other_sector, other_agency, created_date, created_by
     ) VALUES (
       @unique_nmp_id, @organisation_id, @parcel_details, @area, @lease_status, @purpose, @sector,
@@ -688,13 +695,14 @@ async function createNmpEntry(req, res) {
       @target_nit_date, @actual_nit_date, @nit_reversed_date, @nit_reversed_date_1, @nit_reversed_date_2,
       @target_agreement_date, @actual_agreement_date, @agreement_revised_date, @agreement_revised_date_1, @agreement_revised_date_2,
       @target_completion_date, @actual_completion_date, @completion_revised_date, @completion_revised_date_1, @completion_revised_date_2,
+      @allotment_target_date, @actual_allotment_date, @allotment_revised_date, @allotment_revised_date_1, @allotment_revised_date_2,
       @lease_expiration_date, @remarks, @other_purpose, @other_sector, @other_agency, GETDATE(), @created_by
     );
     SELECT SCOPE_IDENTITY() AS id;
   `);
    await replaceSorRows(conn, {
     uniqueId: b.unique_nmp_id,
-    orgId: Number(b.organisation_id) || actingOrgId(req),
+    orgId,                       // was: Number(b.organisation_id) || actingOrgId(req)
     userId,
     rows: b.sor_rows,
   });
@@ -920,6 +928,13 @@ async function updateNmpEntry(req, res) {
   request.input("completion_revised_date", sql.Date, dateOrNull(b.construction_revised));
   request.input("completion_revised_date_1", sql.Date, dateOrNull(b.construction_revised_2));
   request.input("completion_revised_date_2", sql.Date, dateOrNull(b.construction_revised_3));
+
+request.input("allotment_target_date", sql.Date, dateOrNull(b.allotment_original));
+request.input("actual_allotment_date", sql.Date, dateOrNull(b.allotment_actual));
+request.input("allotment_revised_date", sql.Date, dateOrNull(b.allotment_revised));
+request.input("allotment_revised_date_1", sql.Date, dateOrNull(b.allotment_revised_2));
+request.input("allotment_revised_date_2", sql.Date, dateOrNull(b.allotment_revised_3))
+
   request.input("lease_expiration_date", sql.Date, dateOrNull(b.lease_expiration_date));
   request.input("remarks", sql.NVarChar(256), nullIfEmpty(b.remarks));
   request.input("other_purpose", sql.NVarChar(256), nullIfEmpty(b.other_purpose));
@@ -944,6 +959,7 @@ async function updateNmpEntry(req, res) {
       agreement_revised_date = @agreement_revised_date, agreement_revised_date_1 = @agreement_revised_date_1, agreement_revised_date_2 = @agreement_revised_date_2,
       target_completion_date = @target_completion_date, actual_completion_date = @actual_completion_date,
       completion_revised_date = @completion_revised_date, completion_revised_date_1 = @completion_revised_date_1, completion_revised_date_2 = @completion_revised_date_2,
+      allotment_target_date = @allotment_target_date, actual_allotment_date = @actual_allotment_date, allotment_revised_date = @allotment_revised_date, allotment_revised_date_1 = @allotment_revised_date_1, allotment_revised_date_2 = @allotment_revised_date_2,
       lease_expiration_date = @lease_expiration_date,
       remarks = @remarks, other_purpose = @other_purpose, other_sector = @other_sector, other_agency = @other_agency, updated_date = GETDATE(), updated_by = @updated_by
     WHERE nmp_past_id = @nmp_past_id
