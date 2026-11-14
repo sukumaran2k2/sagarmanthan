@@ -12,6 +12,7 @@ import {
 } from '../utils/moduleAccess';
 import { canCreateModule } from '../utils/modulePermissions';
 import { useHRPermissions } from '../modules/HR/hooks/useHRPermissions';
+import { useGMISPermissions } from '../modules/GMISMOU/hooks/useGMISPermissions';
 import { hrViewAllows } from '../modules/HR/utils/hrViews';
 import {
   Home,
@@ -113,6 +114,19 @@ export default function Tabs({ activeTab, setActiveTab }) {
   const canCreateYp = canCreateModule('YOUNG_PROFESSIONAL');
   const canCreateCapex = canCreateModule('CAPEX');
   const canCreateAuditPara = canCreateModule('AUDIT_PARAS');
+
+  // Modules whose page offers its Input Form only with Create, so the menu hides it without Create.
+  // Major Ports is left out: its Input Form item also opens the Targets/Actuals lists.
+  const INPUT_FORM_MODULES = [
+    'CSR_PROJECTS', 'KPI_DGLL', 'KPI_CSL', 'KPI_IMU', 'KPI_SCI', 'CABINET_NOTES_OTHER_MINISTRIES',
+    'VIP_REFERENCE', 'FOREIGN_VISIT', 'MEDIA_OUTREACH', 'BILLS_PRE_CONSTITUTION', 'NMP', 'MIV_2030',
+    'DRISHTI_PORTAL',
+  ];
+  const canCreateIn = Object.fromEntries(INPUT_FORM_MODULES.map((code) => [code, canCreateModule(code)]));
+  // GMIS has its own rules (ministry roles, users with no row), so it uses the module's own hook
+  const { canAdd: canCreateGmis } = useGMISPermissions();
+  const inputFormKey = `${INPUT_FORM_MODULES.map((code) => (canCreateIn[code] ? 1 : 0)).join('')}${canCreateGmis ? 1 : 0}`;
+  const withCreate = (allowed, items) => (allowed ? items : []);
   // HR pages follow the user's HR view (Major Port / non-port / Secretary / ministry), as in the HR tab bar
   const { hrView, canViewVacancy: canViewHrVacancy, canViewAdministration: canViewHrAdmin } = useHRPermissions();
 
@@ -161,7 +175,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
                 m('CSR_PROJECTS', { label: 'CSR Dashboard', tab: 'CSR Dashboard', icon: LayoutDashboard }),
                 m('CSR_PROJECTS', { label: 'CSR Fund Details', tab: 'CSR Fund Details', icon: Coins }),
                 m('CSR_PROJECTS', { label: 'CSR Project List', tab: 'CSR Project List', icon: ListTodo }),
-                m('CSR_PROJECTS', { label: 'Input Form', tab: 'CSR Input Form', icon: PlusCircle }),
+                ...withCreate(canCreateIn.CSR_PROJECTS, [m('CSR_PROJECTS', { label: 'Input Form', tab: 'CSR Input Form', icon: PlusCircle })]),
                 m('CSR_PROJECTS', { label: 'Reports', tab: 'CSR Reports', icon: FilePieChart }),
               ]
             : [
@@ -206,7 +220,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           title: 'DGLL',
           icon: Compass,
           items: [
-            m('KPI_DGLL', { label: 'Input Form', tab: 'DGLL Input Form', icon: FileEdit }),
+            ...withCreate(canCreateIn.KPI_DGLL, [m('KPI_DGLL', { label: 'Input Form', tab: 'DGLL Input Form', icon: FileEdit })]),
             m('KPI_DGLL', { label: 'Data List', tab: 'DGLL Data List', icon: ClipboardList }),
             m('KPI_DGLL', { label: 'Reports', tab: 'DGLL Reports', icon: FilePieChart }),
           ]
@@ -215,7 +229,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           title: 'CSL',
           icon: Layers,
           items: [
-            m('KPI_CSL', { label: 'Input Form', tab: 'CSL Input Form', icon: FileEdit }),
+            ...withCreate(canCreateIn.KPI_CSL, [m('KPI_CSL', { label: 'Input Form', tab: 'CSL Input Form', icon: FileEdit })]),
             m('KPI_CSL', { label: 'Data List', tab: 'CSL Data List', icon: ClipboardList }),
             m('KPI_CSL', { label: 'Reports', tab: 'CSL Reports', icon: FilePieChart }),
           ]
@@ -224,7 +238,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           title: 'IMU',
           icon: GraduationCap,
           items: [
-            m('KPI_IMU', { label: 'Input Form', tab: 'IMU Input Form', icon: FileEdit }),
+            ...withCreate(canCreateIn.KPI_IMU, [m('KPI_IMU', { label: 'Input Form', tab: 'IMU Input Form', icon: FileEdit })]),
             m('KPI_IMU', { label: 'Data List', tab: 'IMU Data List', icon: ClipboardList }),
             m('KPI_IMU', { label: 'Reports', tab: 'IMU Reports', icon: FilePieChart }),
           ]
@@ -233,7 +247,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           title: 'SCI',
           icon: Ship,
           items: [
-            m('KPI_SCI', { label: 'Input Form', tab: 'SCI Input Form', icon: FileEdit }),
+            ...withCreate(canCreateIn.KPI_SCI, [m('KPI_SCI', { label: 'Input Form', tab: 'SCI Input Form', icon: FileEdit })]),
             m('KPI_SCI', { label: 'Data List', tab: 'SCI Data List', icon: ClipboardList }),
             m('KPI_SCI', { label: 'Reports', tab: 'SCI Reports', icon: FilePieChart }),
           ]
@@ -255,7 +269,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           subItems: [
             { label: 'Dashboard', tab: 'Cabinet Notes - Other Ministries', targetSubTab: 'Dashboard', icon: LayoutDashboard },
             { label: 'Data List', tab: 'Cabinet Notes - Other Ministries', targetSubTab: 'Data List', icon: ClipboardList },
-            { label: 'Input Form', tab: 'Cabinet Notes - Other Ministries', targetSubTab: 'Input Form', icon: FileEdit },
+            ...withCreate(canCreateIn.CABINET_NOTES_OTHER_MINISTRIES, [{ label: 'Input Form', tab: 'Cabinet Notes - Other Ministries', targetSubTab: 'Input Form', icon: FileEdit }]),
             { label: 'Reports', tab: 'Cabinet Notes - Other Ministries', targetSubTab: 'Reports', icon: FilePieChart },
           ]
         }),
@@ -292,7 +306,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           subItems: [
             { label: 'Dashboard', tab: 'VIP Reference - Dashboard', targetSubTab: 'Dashboard', icon: LayoutDashboard },
             { label: 'Data List', tab: 'VIP Reference - Data List', targetSubTab: 'Data List', icon: ClipboardList },
-            { label: 'Input Form', tab: 'VIP Reference - Input Form', targetSubTab: 'Input Form', icon: FileEdit },
+            ...withCreate(canCreateIn.VIP_REFERENCE, [{ label: 'Input Form', tab: 'VIP Reference - Input Form', targetSubTab: 'Input Form', icon: FileEdit }]),
             { label: 'Reports', tab: 'VIP Reference - Reports', targetSubTab: 'Reports', icon: FilePieChart },
           ]
         }),
@@ -302,7 +316,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           subItems: [
             { label: 'Dashboard', tab: 'Foreign Visit - Dashboard', targetSubTab: 'Dashboard', icon: LayoutDashboard },
             { label: 'Data List', tab: 'Foreign Visit - Data List', targetSubTab: 'Data List', icon: ClipboardList },
-            { label: 'Input Form', tab: 'Foreign Visit - Input Form', targetSubTab: 'Input Form', icon: FileEdit },
+            ...withCreate(canCreateIn.FOREIGN_VISIT, [{ label: 'Input Form', tab: 'Foreign Visit - Input Form', targetSubTab: 'Input Form', icon: FileEdit }]),
             { label: 'Reports', tab: 'Foreign Visit - Reports', targetSubTab: 'Reports', icon: FilePieChart },
           ]
         }),
@@ -310,7 +324,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           label: 'Media Outreach', icon: Globe,
           targetTab: 'Media Outreach',
           subItems: [
-            { label: 'Input Form', tab: 'Media Outreach', mediaType: 'add_details', icon: FileEdit },
+            ...withCreate(canCreateIn.MEDIA_OUTREACH, [{ label: 'Input Form', tab: 'Media Outreach', mediaType: 'add_details', icon: FileEdit }]),
             { label: 'Broadcast / TV Media', tab: 'Media Outreach', mediaType: 'broadcast', icon: FileText },
             { label: 'Print Media', tab: 'Media Outreach', mediaType: 'print_media', icon: FileText },
             { label: 'Online', tab: 'Media Outreach', mediaType: 'online', icon: Globe },
@@ -388,7 +402,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           subItems: [
             { label: 'Dashboard', tab: 'Bills/PreConstitutions Act', targetSubTab: 'Dashboard', icon: LayoutDashboard },
             { label: 'Data List', tab: 'Bills/PreConstitutions Act', targetSubTab: 'Data List', icon: ClipboardList },
-            { label: 'Input Form', tab: 'Bills/PreConstitutions Act', targetSubTab: 'Input Form', icon: FileEdit },
+            ...withCreate(canCreateIn.BILLS_PRE_CONSTITUTION, [{ label: 'Input Form', tab: 'Bills/PreConstitutions Act', targetSubTab: 'Input Form', icon: FileEdit }]),
             { label: 'Reports', tab: 'Bills/PreConstitutions Act', targetSubTab: 'Reports', icon: FilePieChart },
           ]
         }),
@@ -407,7 +421,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
       defaultTab: 'NMP Dashboard', 
       items: [
         { label: 'NMP Dashboard', icon: LayoutDashboard, tab: 'NMP Dashboard' },
-        { label: 'NMP Input Form', icon: FileEdit, tab: 'NMP Input Form' },
+        ...withCreate(canCreateIn.NMP, [{ label: 'NMP Input Form', icon: FileEdit, tab: 'NMP Input Form' }]),
         { label: 'NMP Data List', icon: ClipboardList, tab: 'NMP Data List' },
         
       ]
@@ -431,7 +445,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           subItems: [
             { label: 'Dashboard', tab: 'MIV Dashboard', targetSubTab: 'Dashboard', icon: LayoutDashboard },
             { label: 'Data List', tab: 'MIV Data List', targetSubTab: 'Data List', icon: ClipboardList },
-            { label: 'Input Form', tab: 'MIV Input Form', targetSubTab: 'Input Form', icon: FileEdit },
+            ...withCreate(canCreateIn.MIV_2030, [{ label: 'Input Form', tab: 'MIV Input Form', targetSubTab: 'Input Form', icon: FileEdit }]),
             { label: 'MIV Meetings', tab: 'MIV Meetings', targetSubTab: 'MIV Meetings', icon: Users },
             { label: 'Report', tab: 'MIV Reports', targetSubTab: 'Reports', icon: FilePieChart },
           ]
@@ -443,7 +457,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           subItems: [
             { label: 'Dashboard', tab: 'GMIS & IMW MoUs', targetSubTab: 'Dashboard', icon: LayoutDashboard },
             { label: 'Data List', tab: 'GMIS & IMW MoUs', targetSubTab: 'Data List', icon: ClipboardList },
-            { label: 'Input Form', tab: 'GMIS & IMW MoUs', targetSubTab: 'Input Form', icon: FileEdit },
+            ...withCreate(canCreateGmis, [{ label: 'Input Form', tab: 'GMIS & IMW MoUs', targetSubTab: 'Input Form', icon: FileEdit }]),
             { label: 'Reports', tab: 'GMIS & IMW MoUs', targetSubTab: 'Reports', icon: FilePieChart },
           ]
         }),
@@ -455,7 +469,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           subItems: [
             { label: 'Dashboard', tab: 'OVOD', targetSubTab: 'Dashboard', icon: LayoutDashboard },
             { label: 'Intervention List', tab: 'Intervention List', targetSubTab: 'Interventions', icon: ClipboardList },
-            { label: 'Input Form', tab: 'OVOD Input Form', targetSubTab: 'Input-Form', icon: FileEdit },
+            ...withCreate(canCreateIn.DRISHTI_PORTAL, [{ label: 'Input Form', tab: 'OVOD Input Form', targetSubTab: 'Input-Form', icon: FileEdit }]),
             { label: 'Data List', tab: 'OVOD Data List', targetSubTab: 'Data-List', icon: Layers },
             { label: 'Report', tab: 'OVOD Reports', targetSubTab: 'Report', icon: FilePieChart },
           ]
@@ -505,7 +519,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
       directTab: 'Contact Us',
     },
   ]),
-    [accessKey, isOrgUser, canCreateParliamentary, canCreateCabinetMopsw, canCreateConsultant, canCreateYp, canCreateCapex, canCreateAuditPara, canViewHrVacancy, canViewHrAdmin, hrView]
+    [accessKey, inputFormKey, isOrgUser, canCreateParliamentary, canCreateCabinetMopsw, canCreateConsultant, canCreateYp, canCreateCapex, canCreateAuditPara, canViewHrVacancy, canViewHrAdmin, hrView]
   );
 
   // Modules that keep their sub-tab in a store rather than in the URL read the opening tab from
