@@ -205,12 +205,13 @@ export default function CapexMinistryYoYReport({ notify }) {
   const handleExportPdf = () => {
     const data = buildExportData();
     if (!data.length) return;
-    exportRowsToFile('pdf', {
+    const file = exportRowsToFile('pdf', {
       title: 'Capex - Year on Year Report',
       headers: Object.keys(data[0]),
       rows: data.map((row) => Object.values(row)),
       fileName: 'Capex_Year_on_Year_Report',
     });
+    if (file) notify?.(COMMON_TOASTS.excelExported(file, 'The report'));
   };
 
   const colSpan = 2 + financialYears.length * 3;

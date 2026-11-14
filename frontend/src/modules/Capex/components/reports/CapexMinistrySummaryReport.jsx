@@ -158,12 +158,13 @@ export default function CapexMinistrySummaryReport({ notify }) {
   const handleExportPdf = () => {
     const data = buildExportData();
     if (!data.length) return;
-    exportRowsToFile('pdf', {
+    const file = exportRowsToFile('pdf', {
       title: 'Capex - Summary Report',
       headers: Object.keys(data[0]),
       rows: data.map((row) => Object.values(row)),
       fileName: `Capex_Summary_Report_${selectedYear}`,
     });
+    if (file) notify?.(COMMON_TOASTS.excelExported(file, 'The report'));
   };
 
   return (
