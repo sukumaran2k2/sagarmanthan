@@ -546,6 +546,8 @@ const STATUS_SQL = "ISNULL(NULLIF(p.project_status, ''), 'Project yet to start')
 const LIST_SORTS = {
     organisation_name: 'o.organisation_name', financial_year: 'p.financial_year', project_name: 'p.project_name',
     project_value: 'p.project_value', project_status: STATUS_SQL, completed_on: 'p.completed_on', remarks: 'p.remarks',
+    updated_date: 'p.updated_date', commenced_on: 'p.commenced_on',
+    physical_progress: 'p.physical_progress', financial_progress: 'p.financial_progress',
 };
 const likeText = (v) => `%${String(v).replace(/[\\%_[]/g, (c) => `\\${c}`)}%`;
 

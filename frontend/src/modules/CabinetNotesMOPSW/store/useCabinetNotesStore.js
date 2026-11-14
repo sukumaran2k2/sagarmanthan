@@ -20,9 +20,10 @@ export const DEFAULT_VISIBLE_COLS = {
   wing: true,
   division: true,
   status: true,
-  remarks: true,
+  // Remarks and Last Updated are offered in Visibility, unticked by default (as in 2.0)
+  remarks: false,
   docs: true,
-  lastUpdated: true,
+  lastUpdated: false,
   actions: true,
 };
 

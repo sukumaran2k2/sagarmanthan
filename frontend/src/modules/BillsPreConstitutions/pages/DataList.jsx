@@ -36,7 +36,11 @@ const EXPORT_COLUMNS = [
   { key: 'wing', field: 'wing_name', label: 'Wing' },
   { key: 'division', field: 'division_name', label: 'Division' },
   { key: 'stage', field: 'stage', label: 'Status' },
+  { key: 'remarks', field: 'remarks', label: 'Remarks' },
+  { key: 'lastUpdated', field: 'lastUpdated', label: 'Last Updated Date' },
 ];
+const COLUMN_LABEL = Object.fromEntries(EXPORT_COLUMNS.map((c) => [c.key, c.label]));
+const formatDay = (v) => (v ? String(v).slice(0, 10) : '');
 
 // The bill's current stage is tbl_bill.stage_id (as in 2.0, the Dashboard and Reports), not
 // worked out from the dates: 2.0 bills often have stages done without a date.
@@ -201,7 +205,7 @@ export default function DataList({
   };
 
   // Rows as exported: the stage is computed, not a field
-  const exportRows = () => filteredData.map((row) => ({ ...row, stage: getBillStageText(row) }));
+  const exportRows = () => filteredData.map((row) => ({ ...row, stage: getBillStageText(row), lastUpdated: formatDay(row.updated_date) }));
   const exportCols = () => EXPORT_COLUMNS.filter((c) => visibleCols[c.key]);
 
   const columnDefs = useMemo(() => [
@@ -256,6 +260,23 @@ export default function DataList({
         return <span className={color}>{stageText}</span>;
       },
       valueGetter: (params) => getBillStageText(params.data)
+    },
+    {
+      field: 'remarks',
+      headerName: 'Remarks',
+      flex: 1.5,
+      minWidth: 200,
+      wrapText: true,
+      autoHeight: true,
+      cellClass: 'text-center flex items-center justify-center text-slate-600 dark:text-slate-400 text-xs whitespace-normal leading-normal py-2',
+      hide: !visibleCols.remarks
+    },
+    {
+      headerName: 'Last Updated Date',
+      minWidth: 140,
+      cellClass: 'text-center flex items-center justify-center text-slate-600 dark:text-slate-400 text-xs',
+      hide: !visibleCols.lastUpdated,
+      valueGetter: (params) => formatDay(params.data?.updated_date)
     },
     {
       headerName: 'Actions',
@@ -426,14 +447,14 @@ export default function DataList({
                 {dropdownOpen && (
                   <div className="absolute right-0 mt-1.5 w-44 bg-white border border-slate-200 rounded-xl shadow-lg p-2 z-50 animate-fade-in flex flex-col space-y-0.5 dark:bg-slate-900 dark:border-slate-800">
                     {Object.keys(visibleCols).map(col => (
-                      <label key={col} className="flex items-center space-x-2 px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 capitalize cursor-pointer select-none">
+                      <label key={col} className="flex items-center space-x-2 px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
                         <input
                           type="checkbox"
                           checked={visibleCols[col]}
                           onChange={() => setVisibleCols(prev => ({ ...prev, [col]: !prev[col] }))}
                           className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
                         />
-                        <span>{col}</span>
+                        <span>{COLUMN_LABEL[col] || col}</span>
                       </label>
                     ))}
                   </div>

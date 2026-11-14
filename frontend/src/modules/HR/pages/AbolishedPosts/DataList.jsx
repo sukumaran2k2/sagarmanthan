@@ -44,6 +44,8 @@ const toDisplayRow = (row) => {
     Class: row.class_name || '--',
     // Abolition date = date of vacancy + 5 years
     'Post Abolition Date': formatDate(row.date_of_arise_in_vacancy, 5),
+    'Date of Arise in Vacancy': formatDate(row.date_of_arise_in_vacancy, 0),
+    'Last Updated Date': row.updated_date ? String(row.updated_date).slice(0, 10) : '--',
     Status: status.label,
     StatusColor: status.color,
     StatusTargetView: status.targetView,
@@ -51,6 +53,10 @@ const toDisplayRow = (row) => {
     _raw: row,
   };
 };
+
+// 2.0 columns offered in Visibility, unticked until the user ticks them
+const HIDDEN_BY_DEFAULT = new Set(['Class', 'Date of Arise in Vacancy', 'Last Updated Date']);
+const isShown = (visibleCols, field) => visibleCols[field] ?? !HIDDEN_BY_DEFAULT.has(field);
 
 // Columns that hold data (exported when visible); the Revoke button column is not.
 const NON_DATA_FIELDS = new Set(['sNo', 'Revive abolition']);
@@ -166,7 +172,7 @@ export default function ListAbolishedPosts({ permissions, notify }) {
   // Column visibility lives in the store (only the user's changes; all shown by default)
   const visibleCols = list.visibleCols;
   const handleToggleColumn = (field) => {
-    actions.setVisibleCols(prev => ({ ...prev, [field]: prev[field] === false }));
+    actions.setVisibleCols(prev => ({ ...prev, [field]: !isShown(prev, field) }));
   };
 
   // All columns; the grid shows the visible ones
@@ -202,6 +208,9 @@ export default function ListAbolishedPosts({ permissions, notify }) {
         ) : null),
       },
       { field: 'Post Abolition Date', headerName: 'Post Abolition Date', minWidth: 170, cellClass: 'text-center font-medium', headerClass: 'text-center' },
+      { field: 'Class', headerName: 'Class', minWidth: 110, cellClass: 'text-center', headerClass: 'text-center' },
+      { field: 'Date of Arise in Vacancy', headerName: 'Date of Arise in Vacancy', minWidth: 170, cellClass: 'text-center', headerClass: 'text-center' },
+      { field: 'Last Updated Date', headerName: 'Last Updated Date', minWidth: 150, cellClass: 'text-center', headerClass: 'text-center' },
       {
         field: 'Status',
         headerName: 'Status',
@@ -259,7 +268,7 @@ export default function ListAbolishedPosts({ permissions, notify }) {
   }, [isMinistryView, canRequestRevival]);
   const columnDefs = useMemo(() => allColumnDefs.filter(col => {
     if (col.field === 'sNo') return true;
-    if (col.field) return visibleCols[col.field] !== false;
+    if (col.field) return isShown(visibleCols, col.field);
     return true;
   }), [allColumnDefs, visibleCols]);
 
@@ -322,7 +331,7 @@ export default function ListAbolishedPosts({ permissions, notify }) {
             <HrColumnPicker
               columns={allColumnDefs
                 .filter(c => c.field && c.field !== 'sNo')
-                .map(c => ({ key: c.field, label: c.headerName, visible: visibleCols[c.field] !== false }))}
+                .map(c => ({ key: c.field, label: c.headerName, visible: isShown(visibleCols, c.field) }))}
               onToggle={handleToggleColumn}
             />
             <HrCopyExport onCopy={() => runExport('copy')} onExcel={() => runExport('excel')} onPdf={() => runExport('pdf')} />

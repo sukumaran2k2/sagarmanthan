@@ -58,24 +58,35 @@ const COLUMN_LABELS = {
   remarks: 'Remarks / Details',
   nextSteps: 'Next Steps',
   reasonForDropping: 'Reason for Dropping',
+  lastUpdated: 'Last Updated Date',
   document: 'Document PDF',
 };
 
 const formatDate = (v) => (v ? new Date(v).toLocaleDateString('en-GB') : '-');
 const formatAmount = (v) => (v !== undefined && v !== null && v !== '' ? `₹ ${Number(v).toLocaleString()}` : '-');
 
-// Copy / Excel / PDF columns (the page on show)
+// Copy / Excel / PDF columns (the page on show): the ones ticked in Visibility, in table order
+const pct = (v) => (v === null || v === undefined || v === '' ? '' : `${v}%`);
 const EXPORT_COLUMNS = [
   { key: 'org', label: 'Organisation', value: (r) => r.organisation_name || '' },
-  { key: 'event', label: 'Summit', value: (r) => r.event_name || '' },
   { key: 'name', label: 'MoU Name', value: (r) => r.name_of_mou || '' },
+  { key: 'event', label: 'Summit', value: (r) => r.event_name || '' },
   { key: 'party2', label: '2nd Party', value: (r) => r.name_of_second_party || '' },
-  { key: 'nature', label: 'Nature', value: (r) => r.nature_of_second_party || '' },
-  { key: 'navic', label: 'NAVIC Cell', value: (r) => r.navic_name || '' },
+  { key: 'nature', label: 'Nature of 2nd Party', value: (r) => r.nature_of_second_party || '' },
+  { key: 'navic', label: 'NAVIC / VIBHAS Cell', value: (r) => r.navic_name || '' },
+  { key: 'category', label: 'Category', value: (r) => r.mou_category_name || '' },
   { key: 'amount', label: 'Amount (Cr)', value: (r) => r.amount ?? '' },
   { key: 'revisedAmount', label: 'Revised Amount (Cr)', value: (r) => r.revised_amount ?? '' },
-  { key: 'category', label: 'Category', value: (r) => r.mou_category_name || '' },
   { key: 'status', label: 'Status', value: (r) => r.present_status || '' },
+  { key: 'physicalProgress', label: 'Physical %', value: (r) => pct(r.physical_progress_percentage) },
+  { key: 'physicalDate', label: 'Physical Date', value: (r) => (r.physical_progress_date ? formatDate(r.physical_progress_date) : '') },
+  { key: 'financialProgress', label: 'Financial %', value: (r) => pct(r.financial_progress_percentage) },
+  { key: 'financialDate', label: 'Financial Date', value: (r) => (r.financial_progress_date ? formatDate(r.financial_progress_date) : '') },
+  { key: 'mouBrief', label: 'MoU Brief', value: (r) => r.mou_brief || '' },
+  { key: 'remarks', label: 'Remarks / Detailed Status', value: (r) => r.remark_or_detailed_status || '' },
+  { key: 'nextSteps', label: 'Next Steps', value: (r) => r.next_steps || '' },
+  { key: 'reasonForDropping', label: 'Reason for Dropping', value: (r) => r.reason_for_dropping || '' },
+  { key: 'lastUpdated', label: 'Last Updated Date', value: (r) => (r.updated_on ? formatDate(r.updated_on) : '') },
 ];
 
 const textCell = (params) => (
@@ -392,6 +403,15 @@ export default function GMISDataList({ onEdit, notify, organisations, categories
       cellRenderer: textCell,
     },
     {
+      headerName: 'Last Updated Date',
+      field: 'updated_on',
+      minWidth: 140,
+      cellClass: 'text-xs text-slate-600 dark:text-slate-400 text-center',
+      headerClass: 'text-center',
+      hide: !visibleCols.lastUpdated,
+      valueFormatter: (p) => formatDate(p.value),
+    },
+    {
       headerName: 'MoU Document',
       field: 'document_uploader',
       minWidth: 130,
@@ -441,7 +461,8 @@ export default function GMISDataList({ onEdit, notify, organisations, categories
     if (loading) return notify(COMMON_TOASTS.tableNotReady(type === 'copy' ? 'copy' : 'export'));
     if (!rows.length) return notify(type === 'copy' ? COMMON_TOASTS.nothingToCopy() : COMMON_TOASTS.nothingToExport());
     return exportTableRows(type, {
-      columns: EXPORT_COLUMNS,
+      // The Summit column is only on the table when all summits are listed
+      columns: EXPORT_COLUMNS.filter((c) => visibleCols[c.key] && !(c.key === 'event' && summit !== '')),
       rows,
       fileName: `GMIS_IMW_MoUs_Page_${currentPage}`,
       title: 'GMIS & IMW MoUs Registry',

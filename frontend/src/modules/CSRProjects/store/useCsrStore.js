@@ -25,6 +25,15 @@ export const DEFAULT_PROJECT_COLS = {
   project_status: true,
   completed_on: true,
   remarks: true,
+  // As in 2.0: Last Updated shown; the other details offered in Visibility, unticked
+  updated_date: true,
+  physical_progress: false,
+  financial_progress: false,
+  project_received_from: false,
+  impact_possible_outcome: false,
+  target_beneficiaries: false,
+  csr_focus: false,
+  commenced_on: false,
   actions: true,
 };
 
@@ -37,6 +46,7 @@ export const DEFAULT_FUND_COLS = {
   opening_balance_csr: true,
   project_expenditure: true,
   csr_fund_balance: true,
+  updated_date: false, // offered in Visibility, unticked (as in 2.0)
   actions: true,
 };
 
