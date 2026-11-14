@@ -121,7 +121,7 @@ const srCol = { field: 'sNo', headerName: 'S.No', minWidth: 80, maxWidth: 80, pi
 const parcelCol = { field: 'parcel_details', headerName: 'Parcel Detail', minWidth: 160, pinned: 'left', cellRenderer: boldCell };
 
 const milestoneCols = [
-  { field: 'target_nit_date', headerName: 'NIT Original Target Date', minWidth: 170, cellRenderer: dateCellRenderer },
+  { field: 'nit_target_date', headerName: 'NIT Original Target Date', minWidth: 170, cellRenderer: dateCellRenderer },
   { field: 'actual_nit_date', headerName: 'NIT Actual Date', minWidth: 150, cellRenderer: dateCellRenderer },
   { field: 'target_agreement_date', headerName: 'Agreement Original Target Date', minWidth: 210, cellRenderer: dateCellRenderer },
   { field: 'actual_agreement_date', headerName: 'Agreement Actual Date', minWidth: 170, cellRenderer: dateCellRenderer },
@@ -266,6 +266,7 @@ const enrichRow = (row, tab) => {
     status: statusLabel(row),
     mode_of_allotment: toLabel(OPT.mode, row, ['mode_of_allotment_id', 'mode_of_allotment']),
     agreement_signed: toLabel(OPT.agreement, row, ['agreement_signed_id', 'agreement_signed']),
+    nit_target_date: row.nit_target_date ?? row.target_nit_date,
 
     ...futureIds,   // must be last so the raw ids win
   };

@@ -290,7 +290,7 @@ function validatePastStage(stage, formData) {
       return !!(formData.upfront_premium != null || formData.annual_base_lease_rental || formData.lease_tenure);
     case 3:
       return !!(
-        has(formData.agreement_signed_id) &&
+        has(formData.agreement_signed_id) &&has(formData.allotment_original) && 
         (formData.type_of_lessee_id !== 5 || filled(formData.other_agency))  // Lessee type = Others
       );
     case 4:
