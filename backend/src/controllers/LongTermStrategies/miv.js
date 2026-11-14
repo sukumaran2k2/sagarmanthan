@@ -1,4 +1,13 @@
 import { pool } from "../../db.js";
+import { getDataScope, MOPSW_ORGANISATION_ID } from "../../middleware/dataScope.js";
+
+// The organisation a MIV read is limited to: Ministry / master scope and MoPSW's own staff get
+// what they asked for (0 = every organisation); other organisation users always their own.
+function mivOrganisationFilter(req, requested = 0) {
+    const { isWide, organisationId } = getDataScope(req.user);
+    if (isWide || Number(organisationId) === MOPSW_ORGANISATION_ID) return Number(requested) || 0;
+    return Number(organisationId) > 0 ? Number(organisationId) : -1;
+}
 import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
@@ -292,7 +301,10 @@ async function getMeeting(req, res) {
     const conn = await pool;
 
     try {
-        const result = await conn.query(`SELECT * FROM [sagarmanthan_revamp].[dbo].[tbl_meeting_document];`);
+        const organisationID = mivOrganisationFilter(req);
+        const result = await conn.request().input("organisationID", organisationID)
+            .query(`SELECT * FROM [sagarmanthan_revamp].[dbo].[tbl_meeting_document]
+                    WHERE @organisationID = 0 OR organisation_id = @organisationID;`);
         res.json(result.recordset);
     } catch (err) {
         console.error(err);
@@ -385,11 +397,12 @@ async function getMIVData(req, res) {
 
         const user = userResult.recordset[0];
 
-        const roleId = Number(user.role_id);
-        const userOrganisationId = Number(user.organisation_id);
 
-        const adminRoles = [2, 3, 4, 5, 8];
-        const isAdmin = adminRoles.includes(roleId);
+        // Access from the logged-in user, not the user id in the address: Ministry / master scope and
+        // MoPSW's own staff see every organisation; other organisation users only their own
+        const { isWide, organisationId: scopeOrganisationId } = getDataScope(req.user);
+        const userOrganisationId = Number(scopeOrganisationId);
+        const isAdmin = isWide || userOrganisationId === MOPSW_ORGANISATION_ID;
 
         const isFetchAll =
             all === "true" ||
@@ -982,10 +995,10 @@ async function getMIVMeeting(req, res) {
 
         const user = userResult.recordset[0];
 
-        const roleID = Number(user.role_id);
-        const organisationID = user.organisation_id;
-
-        const isAdmin = [2, 3, 4, 5, 8].includes(roleID);
+        // Access from the logged-in user, not the user id in the address: Ministry / master scope and
+        // MoPSW's own staff see every organisation; other organisation users only their own
+        const { isWide, organisationId: organisationID } = getDataScope(req.user);
+        const isAdmin = isWide || Number(organisationID) === MOPSW_ORGANISATION_ID;
 
         if (!isAdmin && !organisationID) {
             return res.status(400).json({
@@ -1037,11 +1050,13 @@ async function getInitiativeMopswData(req, res) {
     const conn = await pool;
 
     try {
-        const result = await conn.query(`SELECT ID, initiative_id, initiative_name, project_detail, total_cost, category, outcomes, source_of_funding, status_on, status_current,
+        const organisationID = mivOrganisationFilter(req);
+        const result = await conn.request().input("organisationID", organisationID).query(`SELECT ID, initiative_id, initiative_name, project_detail, total_cost, category, outcomes, source_of_funding, status_on, status_current,
          physical_progress, reasons_for_drop, reasons_for_delay,start_date, completion_date, actual_date,updated_date, tbl_initiative.organisation_id,
          organisation_name   
         FROM tbl_initiative
-        INNER JOIN mmt_organisation ON mmt_organisation.organisation_id = tbl_initiative.organisation_id;`);
+        INNER JOIN mmt_organisation ON mmt_organisation.organisation_id = tbl_initiative.organisation_id
+        WHERE @organisationID = 0 OR tbl_initiative.organisation_id = @organisationID;`);
         res.json(result.recordset);
     } catch (err) {
         console.error(err);
@@ -1050,7 +1065,7 @@ async function getInitiativeMopswData(req, res) {
 }
 
 async function getLogMeetingMopsw(req, res) {
-    const organisationId = req.params.organisationId;
+    const organisationId = mivOrganisationFilter(req, req.params.organisationId);
     const conn = await pool;
     const request = conn.request();
 
@@ -1109,7 +1124,7 @@ function deleteFile(fileName) {
 
 async function getMIVDashboard(req, res) {
     const clusterID = parseInt(req.query.clusterID) || 0;
-    const organisationID = parseInt(req.query.orgID) || 0;
+    const organisationID = mivOrganisationFilter(req, parseInt(req.query.orgID) || 0);
 
     const currentStatus = req.query.currentStatus?.trim() || null;
     const startDate = req.query.startDate?.trim() || null;
@@ -1223,7 +1238,7 @@ async function getMIVDashboard(req, res) {
 
 async function getMIVactivityStatusWise(req, res) {
     const clusterID = parseInt(req.query.clusterID) || 0;
-    const organisationID = parseInt(req.query.orgID) || 0;
+    const organisationID = mivOrganisationFilter(req, parseInt(req.query.orgID) || 0);
     const currentStatus = req.query.currentStatus && req.query.currentStatus.trim() !== "" ? req.query.currentStatus : null;
     const startDate = req.query.startDate && req.query.startDate.trim() !== "" ? req.query.startDate : null;
     const targetDate = req.query.targetDate && req.query.targetDate.trim() !== "" ? req.query.targetDate : null;
@@ -1266,7 +1281,7 @@ async function getMIVactivityStatusWise(req, res) {
 
 async function getMIVactivityCurrentStatusPortWise(req, res) {
     const clusterID = parseInt(req.query.clusterID) || 0;
-    const organisationID = parseInt(req.query.orgID) || 0;
+    const organisationID = mivOrganisationFilter(req, parseInt(req.query.orgID) || 0);
     const currentStatus = req.query.currentStatus && req.query.currentStatus.trim() !== "" ? req.query.currentStatus : null;
     const startDate = req.query.startDate && req.query.startDate.trim() !== "" ? req.query.startDate : null;
     const targetDate = req.query.targetDate && req.query.targetDate.trim() !== "" ? req.query.targetDate : null;
@@ -1314,7 +1329,7 @@ async function getMIVactivityCurrentStatusPortWise(req, res) {
 
 async function getMIVCategoryCountWise(req, res) {
     const clusterID = parseInt(req.query.clusterID) || 0;
-    const organisationID = parseInt(req.query.orgID) || 0;
+    const organisationID = mivOrganisationFilter(req, parseInt(req.query.orgID) || 0);
     const currentStatus = req.query.currentStatus && req.query.currentStatus.trim() !== "" ? req.query.currentStatus : null;
     const startDate = req.query.startDate && req.query.startDate.trim() !== "" ? req.query.startDate : null;
     const targetDate = req.query.targetDate && req.query.targetDate.trim() !== "" ? req.query.targetDate : null;
@@ -1358,7 +1373,7 @@ async function getMIVCategoryCountWise(req, res) {
 
 async function detailedMivDashboard(req, res) {
     const clusterID = parseInt(req.query.clusterID) || 0;
-    const organisationID = parseInt(req.query.organisationID) || 0;
+    const organisationID = mivOrganisationFilter(req, parseInt(req.query.organisationID) || 0);
 
     const stage = req.query.stage?.trim().toLowerCase() || null;
     const currentStatus = req.query.currentStatus?.trim().toLowerCase() || null;
@@ -1500,7 +1515,7 @@ async function detailedMivDashboard(req, res) {
 
 async function getMivCategoryDetails(req, res) {
     const clusterID = parseInt(req.query.clusterID) || 0;
-    const organisationID = parseInt(req.query.organisationID) || 0;
+    const organisationID = mivOrganisationFilter(req, parseInt(req.query.organisationID) || 0);
     const category = req.query.category?.trim() || null;
     const startDate = req.query.startDate?.trim() || null;
     const targetDate = req.query.targetDate?.trim() || null;
@@ -1570,7 +1585,7 @@ async function getMivCategoryDetails(req, res) {
 
 async function getDetailsMivActivityStatusWise(req, res) {
     const clusterID = parseInt(req.query.clusterID) || 0;
-    const organisationID = parseInt(req.query.organisationID) || 0;
+    const organisationID = mivOrganisationFilter(req, parseInt(req.query.organisationID) || 0);
     const stage = req.query.stage && req.query.stage.trim() !== "" ? req.query.stage.trim() : null;
     const startDate = req.query.startDate && req.query.startDate.trim() !== "" ? req.query.startDate : null;
     const targetDate = req.query.targetDate && req.query.targetDate.trim() !== "" ? req.query.targetDate : null;

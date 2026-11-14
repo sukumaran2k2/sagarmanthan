@@ -10,6 +10,13 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import {generalMailAlertForHR,pendingMailAlertForHR,resetAlertDate,checkLastUpdateOfEntryInHR,checkOrganisationsLastDataUpload,PendingMailOrgOrganisations} from './src/controllers/sendNotification.js';
 
+// Express 4 does not catch an error thrown inside an async route handler; without this, one such
+// error (e.g. a report called with a value it does not expect) stopped the whole server.
+// The error is logged and the server keeps running.
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled error in a request handler:', reason);
+});
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 

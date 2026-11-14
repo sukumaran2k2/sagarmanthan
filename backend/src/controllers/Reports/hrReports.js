@@ -2347,17 +2347,23 @@ async function detailedHrStatusFillingReport(req, res) {
 
   const fiscalYearEnd = `${endYear}-03-31`;
 
+  // Only report types 1-3 exist; any other type used to drop the organisation filter and list
+  // every organisation's posts. The organisation is bound as a parameter, not pasted into the SQL.
+  if (!["1", "2", "3"].includes(String(type))) {
+    return res.status(400).json({ error: "Unknown report type" });
+  }
+  request.input("organisationID", Number(organisationID));
   let result,
     query2 = "";
   if (type == 1) {
     query2 = `WHERE 1=1 AND 1=1 AND
-        o.organisation_id = ${organisationID} AND p.vacant_or_filled='filled' AND (p.employee_joined_date BETWEEN '${fiscalYearStart}' AND EOMONTH(GETDATE(), -2))`;
+        o.organisation_id = @organisationID AND p.vacant_or_filled='filled' AND (p.employee_joined_date BETWEEN '${fiscalYearStart}' AND EOMONTH(GETDATE(), -2))`;
   } else if (type == 2) {
     query2 = `WHERE  1=1 AND 1=1 AND
-        o.organisation_id = ${organisationID} AND p.vacant_or_filled='filled' AND (p.employee_joined_date BETWEEN DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE())-1, 1) AND EOMONTH(GETDATE(),-1))`;
+        o.organisation_id = @organisationID AND p.vacant_or_filled='filled' AND (p.employee_joined_date BETWEEN DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE())-1, 1) AND EOMONTH(GETDATE(),-1))`;
   } else if (type == 3) {
     query2 = `WHERE  1=1 AND 1=1 AND
-        o.organisation_id = ${organisationID} AND p.vacant_or_filled='filled' AND (p.employee_joined_date BETWEEN '${fiscalYearStart}' AND EOMONTH(GETDATE(),-1))`;
+        o.organisation_id = @organisationID AND p.vacant_or_filled='filled' AND (p.employee_joined_date BETWEEN '${fiscalYearStart}' AND EOMONTH(GETDATE(),-1))`;
   }
 
   try {
