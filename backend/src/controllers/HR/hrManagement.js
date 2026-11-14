@@ -1873,7 +1873,7 @@ async function getAbolishedVacantPosts(req,res) {
     }
 }
 
-// Months that have a vacancy log (tbl_hr_post_strength_log), newest first.
+// Months that have an HR snapshot, newest first.
 // organisationID 0 = every organisation (ministry view).
 async function getYearAndMonth(req, res) {
     // Organisation users read their own organisation; ministry users any (0 = all)
@@ -1887,15 +1887,20 @@ async function getYearAndMonth(req, res) {
         const request = conn.request();
         request.input("organisationID", sql.Int, organisationID);
 
+        // scope=mis: skip backfilled months (no gender or contract data)
+        const misOnly = req.query.scope === "mis";
         const result = await request.query(`
-            SELECT DISTINCT
-                l.log_year,
-                l.log_month
-            FROM tbl_hr_post_strength_log l
-            WHERE l.log_year IS NOT NULL
-              AND l.log_month IS NOT NULL
-              AND (@organisationID = 0 OR l.organisation_id = @organisationID)
-            ORDER BY l.log_year DESC, l.log_month DESC
+            SELECT r.snapshot_year AS log_year, r.snapshot_month AS log_month
+            FROM tbl_hr_snapshot_run r
+            WHERE r.status = 'SUCCESS'
+              ${misOnly ? "AND r.source <> 'LOG_BACKFILL'" : ""}
+              AND (@organisationID = 0 OR EXISTS (
+                  SELECT 1 FROM tbl_hr_strength_snapshot s
+                  WHERE s.snapshot_year = r.snapshot_year
+                    AND s.snapshot_month = r.snapshot_month
+                    AND s.organisation_id = @organisationID
+                    AND s.sanctioned_strength > 0))
+            ORDER BY r.snapshot_year DESC, r.snapshot_month DESC
         `);
 
         res.status(200).json(result.recordset);

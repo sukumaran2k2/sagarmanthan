@@ -10,6 +10,7 @@ import { sendEmail } from './src/controllers/Dashboard/emailService.js';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import {generalMailAlertForHR,pendingMailAlertForHR,resetAlertDate,checkLastUpdateOfEntryInHR,checkOrganisationsLastDataUpload,PendingMailOrgOrganisations} from './src/controllers/sendNotification.js';
+import { scheduleHrMonthlySnapshot } from './src/jobs/hrMonthlySnapshot.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -78,6 +79,9 @@ cron.schedule('0 1 * * *', async () => {
     await resetAlertDate();
   }
 });
+
+// HR monthly snapshot (10th, 23:00 IST)
+scheduleHrMonthlySnapshot();
 
 
 app.get("/", (req, res) => {

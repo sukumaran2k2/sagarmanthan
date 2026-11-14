@@ -262,23 +262,25 @@ export const fetchAbolishedPostsPage = listGet('/hr/abolished-posts');
 // orgCategory: 1 = Major Ports, 3 = Non-Major Ports.
 // deptCategory: 1 = departments grouped by cluster, 0 = without cluster.
 // The MIS reports answer { columnDefs, rowData } and 404 when there is no data.
+// period: { year, month } for a monthly snapshot
 
-export function fetchHrStaffingOverviewReport(orgCategory) {
-  return api.get(`/get-hr-staffing-overview-report/${orgCategory}`);
+export function fetchHrStaffingOverviewReport(orgCategory, period) {
+  return api.get(`/get-hr-staffing-overview-report/${orgCategory}`, { params: period ?? undefined });
 }
 
-export function fetchTotalManpowerSanctionActual(departmentId, classId, orgCategory, deptCategory) {
+export function fetchTotalManpowerSanctionActual(departmentId, classId, orgCategory, deptCategory, period) {
   return api.get(
-    `/get-hr-mis-total-manpower-actual/${departmentId}/${classId}/${orgCategory}/${deptCategory}`
+    `/get-hr-mis-total-manpower-actual/${departmentId}/${classId}/${orgCategory}/${deptCategory}`,
+    { params: period ?? undefined }
   );
 }
 
-export function fetchHrGenderWiseReport(orgCategory) {
-  return api.get(`/get-hr-mis-gender-wise-major-port/${orgCategory}`);
+export function fetchHrGenderWiseReport(orgCategory, period) {
+  return api.get(`/get-hr-mis-gender-wise-major-port/${orgCategory}`, { params: period ?? undefined });
 }
 
-export function fetchTotalManpowerClassWiseReport(orgCategory, deptCategory) {
-  return api.get(`/get-total-manpower-class-wise-report/${orgCategory}/${deptCategory}`);
+export function fetchTotalManpowerClassWiseReport(orgCategory, deptCategory, period) {
+  return api.get(`/get-total-manpower-class-wise-report/${orgCategory}/${deptCategory}`, { params: period ?? undefined });
 }
 
 export function fetchContractDetailsReport(roleId, orgId) {
@@ -300,8 +302,9 @@ export function fetchDepartmentWisePostStatusFiltered(clusterId, orgId, year, mo
   );
 }
 
-export function fetchVacancyLogYearsAndMonths(orgId) {
-  return api.get(`/get-year-and-month/${orgId}`);
+// Months with an HR snapshot; scope 'mis' skips backfilled months
+export function fetchVacancyLogYearsAndMonths(orgId, scope) {
+  return api.get(`/get-year-and-month/${orgId}`, { params: scope ? { scope } : undefined });
 }
 
 export function fetchOrganisationsByCluster(clusterId) {

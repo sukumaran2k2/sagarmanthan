@@ -59,7 +59,7 @@ export default function VacancyHistoryReport({ report, onBack, notify }) {
 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [periods, setPeriods] = useState({ years: [], months: [] });
+  const [periodRows, setPeriodRows] = useState([]);
   const [year, setYear] = useState('');
   const [month, setMonth] = useState('');
   const [organisations, setOrganisations] = useState([]);
@@ -75,7 +75,7 @@ export default function VacancyHistoryReport({ report, onBack, notify }) {
     if (scopeOrgId == null) return undefined;
     let alive = true;
     fetchVacancyLogYearsAndMonths(scopeOrgId)
-      .then((res) => { if (alive) setPeriods(yearMonthOptions(asList(res))); })
+      .then((res) => { if (alive) setPeriodRows(asList(res)); })
       .catch(() => {});
     fetchHrDepartments(scopeOrgId)
       .then((res) => { if (alive) setDepartments(asList(res)); })
@@ -87,6 +87,18 @@ export default function VacancyHistoryReport({ report, onBack, notify }) {
     }
     return () => { alive = false; };
   }, [scopeOrgId, isMinistryView]);
+
+  // Months listed only for the chosen year
+  const periods = useMemo(() => ({
+    years: yearMonthOptions(periodRows).years,
+    months: yearMonthOptions(year ? periodRows.filter((r) => String(r.log_year) === year) : periodRows).months,
+  }), [periodRows, year]);
+
+  const changeYear = (next) => {
+    setYear(next);
+    const monthsInYear = yearMonthOptions(next ? periodRows.filter((r) => String(r.log_year) === next) : periodRows).months;
+    if (month && !monthsInYear.some((m) => m.value === month)) setMonth('');
+  };
 
   // The month view applies only once both a year and a month are chosen.
   const hasPeriod = Boolean(year && month);
@@ -164,7 +176,7 @@ export default function VacancyHistoryReport({ report, onBack, notify }) {
 
   const filters = (
     <>
-      <FilterSelect label="Year" value={year} onChange={setYear} options={periods.years} placeholder="--Year--" />
+      <FilterSelect label="Year" value={year} onChange={changeYear} options={periods.years} placeholder="--Year--" />
       <FilterSelect label="Month" value={month} onChange={setMonth} options={periods.months} placeholder="--Month--" />
       {isMinistryView && (
         <FilterSelect
@@ -214,11 +226,15 @@ export default function VacancyHistoryReport({ report, onBack, notify }) {
       filters={filters}
       onBack={onBack}
       filtersActive={Boolean(year || month || orgFilter || classFilter || deptFilter)}
-      note="Choose both a year and a month to see the position recorded in that month's vacancy log."
+      note="Choose both a year and a month to see the position recorded in that month's snapshot."
       onResetFilters={resetFilters}
       summary={summary}
       notify={notify}
-      emptyMessage={scopeOrgId == null ? 'Your organisation could not be read from the session. Please sign in again.' : '-- No data available --'}
+      emptyMessage={
+        scopeOrgId == null
+          ? 'Your organisation could not be read from the session. Please sign in again.'
+          : hasPeriod ? `-- No data was recorded for ${periodLabel} --` : '-- No data available --'
+      }
     />
   );
 }

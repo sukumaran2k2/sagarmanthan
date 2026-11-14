@@ -13,6 +13,8 @@ import {
   totalRow,
   trimLabels,
   yearMonthOptions,
+  snapshotPeriodOptions,
+  parseSnapshotPeriod,
   zeroToBlank,
 } from '../../pages/Reports/reportUtils';
 import { indexRows, sectionOf, visibleReports } from '../../pages/Reports/reportCatalog';
@@ -92,6 +94,27 @@ describe('report shaping', () => {
       years: [{ value: '2025', label: '2025' }, { value: '2026', label: '2026' }],
       months: [{ value: '4', label: 'April' }, { value: '5', label: 'May' }],
     });
+  });
+
+  it('lists each monthly snapshot once, newest first, for the MIS period picker', () => {
+    expect(snapshotPeriodOptions([
+      { log_year: 2026, log_month: 4 },
+      { log_year: 2026, log_month: 10 },
+      { log_year: 2025, log_month: 12 },
+      { log_year: 2026, log_month: 10 },
+      { log_year: 2026, log_month: 13 },
+    ])).toEqual([
+      { value: '2026-10', label: 'October 2026' },
+      { value: '2026-4', label: 'April 2026' },
+      { value: '2025-12', label: 'December 2025' },
+    ]);
+  });
+
+  it('reads a period value back, and treats anything else as the current position', () => {
+    expect(parseSnapshotPeriod('2026-10')).toEqual({ year: 2026, month: 10 });
+    expect(parseSnapshotPeriod('')).toBeNull();
+    expect(parseSnapshotPeriod('2026-0')).toBeNull();
+    expect(parseSnapshotPeriod('October')).toBeNull();
   });
 });
 

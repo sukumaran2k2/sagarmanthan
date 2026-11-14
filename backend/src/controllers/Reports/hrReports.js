@@ -11,6 +11,7 @@
 
 // SELECT CONCAT(YEAR(GETDATE()), '-04-01');
 import { pool } from "../../db.js";
+import sql from "mssql";
 
 // SELECT tbl_hr_department.organisation_id, tbl_hr_post_strength.stage_id, organisation_name, count(tbl_hr_post_strength.id) as tbl_hr_post_strength_count
 //             FROM tbl_hr_post_strength
@@ -9592,7 +9593,87 @@ async function hrDetailedStatusReport(req, res) {
 }
 
 
+// MIS reports read #hr_post and #hr_contract: live data, or a month's snapshot with ?year&month
+
+function readMisPeriod(req) {
+  const { year, month } = req.query ?? {};
+  if (year === undefined && month === undefined) return { period: null };
+  const y = Number.parseInt(year, 10);
+  const m = Number.parseInt(month, 10);
+  if (!(y >= 2000 && y <= 2100) || !(m >= 1 && m <= 12)) return { error: "Invalid year or month." };
+  return { period: { year: y, month: m } };
+}
+
+// 404 unless the month has a usable snapshot (not backfilled)
+async function ensureMisSnapshot(conn, period, res) {
+  if (!period) return true;
+  const result = await conn.request()
+    .input("snapYear", sql.Int, period.year)
+    .input("snapMonth", sql.Int, period.month)
+    .query(`SELECT 1 AS ok FROM tbl_hr_snapshot_run
+            WHERE snapshot_year = @snapYear AND snapshot_month = @snapMonth
+              AND status = 'SUCCESS' AND source <> 'LOG_BACKFILL'`);
+  if (result.recordset.length) return true;
+  res.status(404).json({ error: "No HR snapshot is available for that month." });
+  return false;
+}
+
+// Creates #hr_post and #hr_contract (run in the same batch as the report query)
+function misSourceSql(request, period) {
+  if (period) {
+    request.input("snapYear", sql.Int, period.year);
+    request.input("snapMonth", sql.Int, period.month);
+    return `
+      SELECT organisation_id, department_id, class_id,
+             sanctioned_master AS sanctioned_strength, filled_post AS filled,
+             ISNULL(filled_male, 0) + ISNULL(filled_female, 0) + ISNULL(filled_transgender, 0) AS employees,
+             filled_male AS male, filled_female AS female, filled_transgender AS transgender
+      INTO #hr_post
+      FROM tbl_hr_strength_snapshot
+      WHERE snapshot_year = @snapYear AND snapshot_month = @snapMonth;
+
+      SELECT organisation_id, contract_officers AS officers, contract_non_officers AS non_officers
+      INTO #hr_contract
+      FROM tbl_hr_contract_snapshot
+      WHERE snapshot_year = @snapYear AND snapshot_month = @snapMonth;
+    `;
+  }
+  // Count strength rows per post first; joining before grouping is very slow
+  return `
+    SELECT p.organisation_id, p.department_id, p.class_id, p.sanctioned_strength,
+           ISNULL(s.filled, 0) AS filled, ISNULL(s.employees, 0) AS employees,
+           ISNULL(s.male, 0) AS male, ISNULL(s.female, 0) AS female, ISNULL(s.transgender, 0) AS transgender
+    INTO #hr_post
+    FROM mmt_hr_post p
+    LEFT JOIN (
+        SELECT ps.post_id,
+               COUNT(CASE WHEN ps.vacant_or_filled = 'filled' THEN 1 END) AS filled,
+               COUNT(em.emp_master_id) AS employees,
+               COUNT(CASE WHEN em.emp_gender = 'Male' THEN 1 END) AS male,
+               COUNT(CASE WHEN em.emp_gender = 'Female' THEN 1 END) AS female,
+               COUNT(CASE WHEN em.emp_gender = 'Transgender' THEN 1 END) AS transgender
+        FROM tbl_hr_post_strength ps
+        LEFT JOIN tbl_employee_master em ON em.emp_master_id = ps.emp_master_id
+        GROUP BY ps.post_id
+    ) s ON s.post_id = p.post_id
+    OPTION (MAXDOP 1);
+
+    SELECT organisation_id,
+           SUM(ISNULL(officers_direct_engagement,0) + ISNULL(officers_retired_from_govt,0) +
+               ISNULL(officers_retd_from_own_organ,0) + ISNULL(officers_through_agency,0) +
+               ISNULL(officers_for_ministry,0)) AS officers,
+           SUM(ISNULL(non_officers_direct_engagement,0) + ISNULL(non_officers_retired_from_govt,0) +
+               ISNULL(non_officers_retd_from_own_organ,0) + ISNULL(non_officers_through_agency,0) +
+               ISNULL(non_officers_for_ministry,0)) AS non_officers
+    INTO #hr_contract
+    FROM tbl_hr_contract_data
+    GROUP BY organisation_id;
+  `;
+}
+
 async function getTotalManpowerSanctionActual(req, res) {
+  const { period, error: periodError } = readMisPeriod(req);
+  if (periodError) return res.status(400).json({ error: periodError });
   const departmentID = parseInt(req.params.departmentID, 10);
   const classID = req.params.classID;
   const orgCategory = req.params.orgCategory;
@@ -9607,6 +9688,9 @@ async function getTotalManpowerSanctionActual(req, res) {
   if (classID !== 0) request.input("classID", classID);
 
   try {
+    if (!(await ensureMisSnapshot(conn, period, res))) return;
+    const sourceSql = misSourceSql(request, period);
+
     const departmentFilter =
       departmentID != 0 ? `AND p.department_id = @departmentID` : "";
     const classFilter = classID != 0 ? `AND p.class_id = @classID` : "";
@@ -9618,6 +9702,7 @@ async function getTotalManpowerSanctionActual(req, res) {
 
     if(!deptCategory || deptCategory == 0){
       query = `
+        ${sourceSql}
         DECLARE @sql NVARCHAR(MAX) = '';
 DECLARE @selectCols NVARCHAR(MAX) = '';
 
@@ -9626,22 +9711,22 @@ DECLARE @selectCols NVARCHAR(MAX) = '';
         o.organisation_id,
         REPLACE(o.organisation_name, '.', ' ') AS organisation_name_clean
     FROM mmt_organisation o
-    JOIN mmt_hr_post p ON o.organisation_id = p.organisation_id
+    JOIN #hr_post p ON o.organisation_id = p.organisation_id
     WHERE o.organisation_category_id = @orgCategory
     ${departmentFilter}
     ${classFilter}
 )
 
 SELECT @selectCols = STRING_AGG(CONVERT(NVARCHAR(MAX),
-    '(SELECT ISNULL(SUM(sanctioned_strength), 0) FROM mmt_hr_post p2 ' +
+    '(SELECT ISNULL(SUM(sanctioned_strength), 0) FROM #hr_post p2 ' +
     'WHERE p2.department_id = d.department_id AND p2.organisation_id = ' +
     CAST(organisation_id AS VARCHAR) +
     ${classID != 0 ? " ' AND p2.class_id = @classID'" : "''"} +
     ') AS [' + organisation_name_clean + '_Sanctioned], ' +
     'SUM(CASE WHEN o.organisation_id = ' + CAST(organisation_id AS VARCHAR) +
-    ' AND ps.vacant_or_filled = ''filled'' THEN 1 ELSE 0 END) AS [' +
+    ' THEN p.filled ELSE 0 END) AS [' +
     organisation_name_clean + '_Actual]'
-), ', ')
+), ', ') WITHIN GROUP (ORDER BY organisation_name_clean)
 FROM Orgs;
 
 SET @sql = '
@@ -9649,9 +9734,8 @@ SET @sql = '
         d.department_name AS Department,
         ' + @selectCols + '
     FROM mmt_hr_department d
-    LEFT JOIN mmt_hr_post p ON d.department_id = p.department_id
+    LEFT JOIN #hr_post p ON d.department_id = p.department_id
     LEFT JOIN mmt_organisation o ON p.organisation_id = o.organisation_id
-    LEFT JOIN tbl_hr_post_strength ps ON ps.post_id = p.post_id
     WHERE o.organisation_category_id = @orgCategory AND o.organisation_id != 4
     ${departmentFilter2}
     ${classFilter2}
@@ -9668,14 +9752,16 @@ EXEC sp_executesql
         `;
       } else {
 
-        const orgsResult = await conn.request()
-  .input("orgCategory", orgCategory)
-  .query(`
+        const orgsRequest = conn.request().input("orgCategory", orgCategory);
+        if (period) orgsRequest.input("snapYear", sql.Int, period.year).input("snapMonth", sql.Int, period.month);
+        const orgsResult = await orgsRequest.query(`
     SELECT DISTINCT
       o.organisation_id,
       REPLACE(o.organisation_name, '.', ' ') AS organisation_name_clean
     FROM mmt_organisation o
-    JOIN mmt_hr_post p ON o.organisation_id = p.organisation_id
+    ${period
+      ? "JOIN tbl_hr_strength_snapshot p ON o.organisation_id = p.organisation_id AND p.snapshot_year = @snapYear AND p.snapshot_month = @snapMonth"
+      : "JOIN mmt_hr_post p ON o.organisation_id = p.organisation_id"}
     WHERE o.organisation_category_id = @orgCategory
   `);
 
@@ -9691,14 +9777,14 @@ let selectCols = orgs.map((org) => {
   const orgName = org.organisation_name_clean.replace(/]/g, '').replace(/\[/g, ''); // escape square brackets
 
   const sanctionedCol = `(SELECT ISNULL(SUM(sanctioned_strength), 0)
-      FROM mmt_hr_post p2
+      FROM #hr_post p2
       JOIN mmt_hr_department d2 ON p2.department_id = d2.department_id
       WHERE d2.department_category_id = d.department_category_id
       AND p2.organisation_id = ${orgId} ${classID != 0 ? "AND p2.class_id = @classID" : ""})
       AS [${orgName}_Sanctioned]`;
 
   const actualCol = `SUM(CASE WHEN o.organisation_id = ${orgId}
-      AND ps.vacant_or_filled = 'filled' THEN 1 ELSE 0 END)
+      THEN p.filled ELSE 0 END)
       AS [${orgName}_Actual]`;
 
   return `${sanctionedCol}, ${actualCol}`;
@@ -9710,14 +9796,14 @@ let dynamicSQL = `
     ${selectCols}
   FROM mmt_hr_department d
   INNER JOIN mmt_hr_department_category dc ON d.department_category_id = dc.department_category_id
-  LEFT JOIN mmt_hr_post p ON d.department_id = p.department_id
+  LEFT JOIN #hr_post p ON d.department_id = p.department_id
   LEFT JOIN mmt_organisation o ON p.organisation_id = o.organisation_id
-  LEFT JOIN tbl_hr_post_strength ps ON ps.post_id = p.post_id
   WHERE o.organisation_category_id = @orgCategory AND o.organisation_id != 4
   GROUP BY dc.department_category_name, d.department_category_id
   ORDER BY dc.department_category_name;
 `;
      query = `
+  ${sourceSql}
   DECLARE @sql NVARCHAR(MAX);
   SET @sql = N'${dynamicSQL.replace(/'/g, "''")}';
   EXEC sp_executesql @sql, N'@orgCategory INT${classID != 0 ? ", @classID INT" : ""}',
@@ -9788,25 +9874,30 @@ if (classID != 0) execRequest.input("classID", classID);
 }
 
 async function getHRGenderWiseCountMajorReport(req, res) {
-  const orgCategory = req.params.orgCategory;
+  const { period, error: periodError } = readMisPeriod(req);
+  if (periodError) return res.status(400).json({ error: periodError });
+  const orgCategory = Number.parseInt(req.params.orgCategory, 10);
+  if (!Number.isInteger(orgCategory)) return res.status(400).json({ error: "Invalid organisation category." });
 
   const conn = await pool;
   const request = await conn.request();
+  request.input("orgCategory", sql.Int, orgCategory);
 
   try {
+    if (!(await ensureMisSnapshot(conn, period, res))) return;
     const query = `
+            ${misSourceSql(request, period)}
             DECLARE @sql NVARCHAR(MAX) = '';
 DECLARE @selectCols NVARCHAR(MAX) = '';
 
-SELECT @selectCols = STRING_AGG(QUOTENAME(o.organisation_name), ', ')
+SELECT @selectCols = STRING_AGG(QUOTENAME(o.organisation_name), ', ') WITHIN GROUP (ORDER BY o.organisation_name)
 FROM (
     SELECT DISTINCT REPLACE(mo.organisation_name, '.', ' ') AS organisation_name
-    FROM tbl_employee_master em
-    JOIN tbl_hr_post_strength ps ON ps.emp_master_id = em.emp_master_id
-    JOIN mmt_hr_post mhp ON mhp.post_id = ps.post_id
+    FROM #hr_post mhp
     JOIN mmt_hr_department d ON mhp.department_id = d.department_id
     JOIN mmt_organisation mo ON mhp.organisation_id = mo.organisation_id
-    WHERE mo.organisation_category_id = ${orgCategory} AND mo.organisation_id != 4
+    WHERE mo.organisation_category_id = @orgCategory AND mo.organisation_id != 4
+      AND mhp.employees > 0
 ) o;
 
 SET @sql = '
@@ -9814,16 +9905,15 @@ WITH CTE AS (
     SELECT
         mhp.class_id,
         REPLACE(mo.organisation_name, ''.'', '' '') AS organisation_name,
-        em.emp_gender,
-        COUNT(*) AS CNT
-    FROM tbl_employee_master em
-    JOIN tbl_hr_post_strength ps ON ps.emp_master_id = em.emp_master_id
-    JOIN mmt_hr_post mhp ON mhp.post_id = ps.post_id
+        g.emp_gender,
+        SUM(g.cnt) AS CNT
+    FROM #hr_post mhp
     JOIN mmt_hr_department d ON mhp.department_id = d.department_id
     JOIN mmt_organisation mo ON mhp.organisation_id = mo.organisation_id
-    WHERE mo.organisation_category_id = ${orgCategory} AND mo.organisation_id != 4
-      AND em.emp_gender IN (''Male'', ''Female'', ''Transgender'')
-    GROUP BY mhp.class_id, mo.organisation_name, em.emp_gender
+    CROSS APPLY (VALUES (''Male'', mhp.male), (''Female'', mhp.female), (''Transgender'', mhp.transgender)) AS g (emp_gender, cnt)
+    WHERE mo.organisation_category_id = @orgCategory AND mo.organisation_id != 4
+      AND g.cnt > 0
+    GROUP BY mhp.class_id, mo.organisation_name, g.emp_gender
 ),
 Classified AS (
     SELECT
@@ -9918,7 +10008,7 @@ ORDER BY
         ELSE 5
     END;';
 
-EXEC sp_executesql @sql;
+EXEC sp_executesql @sql, N'@orgCategory INT', @orgCategory;
         `;
 
     const result = await request.query(query);
@@ -9949,6 +10039,8 @@ EXEC sp_executesql @sql;
 }
 
 async function getTotalManpowerClassWiseReport(req, res) {
+  const { period, error: periodError } = readMisPeriod(req);
+  if (periodError) return res.status(400).json({ error: periodError });
   const orgCategory = req.params.orgCategory;
   const deptCategory = req.params.deptCategory;
   const conn = await pool;
@@ -9959,44 +10051,46 @@ async function getTotalManpowerClassWiseReport(req, res) {
 
 
   try {
+       if (!(await ensureMisSnapshot(conn, period, res))) return;
+       const sourceSql = misSourceSql(request, period);
 
        if(!deptCategory || deptCategory==0){
             query = `
+                ${sourceSql}
                 DECLARE @sql NVARCHAR(MAX) = '';
                 DECLARE @selectCols NVARCHAR(MAX) = '';
                 ;WITH Orgs AS (
                     SELECT DISTINCT o.organisation_id, REPLACE(o.organisation_name, '.', ' ') AS organisation_name
                     FROM mmt_organisation o
-                    JOIN mmt_hr_post p ON o.organisation_id = p.organisation_id
+                    JOIN #hr_post p ON o.organisation_id = p.organisation_id
                     WHERE o.organisation_category_id = @orgCategory AND o.organisation_id != 4
                 )
                 SELECT @selectCols = STRING_AGG(
                     CAST(
                         'SUM(CASE WHEN p.organisation_id = ' + CAST(o.organisation_id AS NVARCHAR) +
-                        ' AND p.class_id = 1 AND ps.vacant_or_filled = ''filled'' THEN 1 ELSE 0 END) AS [' + REPLACE(o.organisation_name, ']', ']]') + '_CLASS 1], ' +
+                        ' AND p.class_id = 1 THEN p.filled ELSE 0 END) AS [' + REPLACE(o.organisation_name, ']', ']]') + '_CLASS 1], ' +
 
                         'SUM(CASE WHEN p.organisation_id = ' + CAST(o.organisation_id AS NVARCHAR) +
-                        ' AND p.class_id = 2 AND ps.vacant_or_filled = ''filled'' THEN 1 ELSE 0 END) AS [' + REPLACE(o.organisation_name, ']', ']]') + '_CLASS 2], ' +
+                        ' AND p.class_id = 2 THEN p.filled ELSE 0 END) AS [' + REPLACE(o.organisation_name, ']', ']]') + '_CLASS 2], ' +
 
                         'SUM(CASE WHEN p.organisation_id = ' + CAST(o.organisation_id AS NVARCHAR) +
-                        ' AND p.class_id = 3 AND ps.vacant_or_filled = ''filled'' THEN 1 ELSE 0 END) AS [' + REPLACE(o.organisation_name, ']', ']]') + '_CLASS 3], ' +
+                        ' AND p.class_id = 3 THEN p.filled ELSE 0 END) AS [' + REPLACE(o.organisation_name, ']', ']]') + '_CLASS 3], ' +
 
                         'SUM(CASE WHEN p.organisation_id = ' + CAST(o.organisation_id AS NVARCHAR) +
-                        ' AND p.class_id = 4 AND ps.vacant_or_filled = ''filled'' THEN 1 ELSE 0 END) AS [' + REPLACE(o.organisation_name, ']', ']]') + '_CLASS 4], ' +
+                        ' AND p.class_id = 4 THEN p.filled ELSE 0 END) AS [' + REPLACE(o.organisation_name, ']', ']]') + '_CLASS 4], ' +
 
                         'SUM(CASE WHEN p.organisation_id = ' + CAST(o.organisation_id AS NVARCHAR) +
-                        ' AND p.class_id IN (1, 2, 3, 4) AND ps.vacant_or_filled = ''filled'' THEN 1 ELSE 0 END) AS [' + REPLACE(o.organisation_name, ']', ']]') + '_Total_Filled]'
+                        ' AND p.class_id IN (1, 2, 3, 4) THEN p.filled ELSE 0 END) AS [' + REPLACE(o.organisation_name, ']', ']]') + '_Total_Filled]'
                     AS NVARCHAR(MAX))
-                , ', ')
+                , ', ') WITHIN GROUP (ORDER BY o.organisation_name)
                 FROM Orgs o;
                 SET @sql = N'
                     SELECT
                         d.department_name AS Department,
                         ' + ISNULL(@selectCols, 'NULL AS [No_Data]') + '
                     FROM mmt_hr_department d
-                    LEFT JOIN mmt_hr_post p ON d.department_id = p.department_id
+                    LEFT JOIN #hr_post p ON d.department_id = p.department_id
                     LEFT JOIN mmt_organisation o ON p.organisation_id = o.organisation_id
-                    LEFT JOIN tbl_hr_post_strength ps ON ps.post_id = p.post_id
                     WHERE o.organisation_category_id = @orgCategory AND o.organisation_id != 4
                     GROUP BY d.department_id, d.department_name
                     ORDER BY d.department_name;
@@ -10005,33 +10099,34 @@ async function getTotalManpowerClassWiseReport(req, res) {
             `;
          }  else {
           query = `
+            ${sourceSql}
             DECLARE @sql NVARCHAR(MAX) = '';
             DECLARE @selectCols NVARCHAR(MAX) = '';
 
             ;WITH Orgs AS (
                 SELECT DISTINCT o.organisation_id, REPLACE(o.organisation_name, '.', ' ') AS organisation_name
                 FROM mmt_organisation o
-                JOIN mmt_hr_post p ON o.organisation_id = p.organisation_id
+                JOIN #hr_post p ON o.organisation_id = p.organisation_id
                 WHERE o.organisation_category_id = @orgCategory AND o.organisation_id != 4
             )
             SELECT @selectCols = STRING_AGG(
                 CAST(
                     'SUM(CASE WHEN p.organisation_id = ' + CAST(o.organisation_id AS NVARCHAR) +
-                    ' AND p.class_id = 1 AND ps.vacant_or_filled = ''filled'' THEN 1 ELSE 0 END) AS [' + REPLACE(o.organisation_name, ']', ']]') + '_CLASS 1], ' +
+                    ' AND p.class_id = 1 THEN p.filled ELSE 0 END) AS [' + REPLACE(o.organisation_name, ']', ']]') + '_CLASS 1], ' +
 
                     'SUM(CASE WHEN p.organisation_id = ' + CAST(o.organisation_id AS NVARCHAR) +
-                    ' AND p.class_id = 2 AND ps.vacant_or_filled = ''filled'' THEN 1 ELSE 0 END) AS [' + REPLACE(o.organisation_name, ']', ']]') + '_CLASS 2], ' +
+                    ' AND p.class_id = 2 THEN p.filled ELSE 0 END) AS [' + REPLACE(o.organisation_name, ']', ']]') + '_CLASS 2], ' +
 
                     'SUM(CASE WHEN p.organisation_id = ' + CAST(o.organisation_id AS NVARCHAR) +
-                    ' AND p.class_id = 3 AND ps.vacant_or_filled = ''filled'' THEN 1 ELSE 0 END) AS [' + REPLACE(o.organisation_name, ']', ']]') + '_CLASS 3], ' +
+                    ' AND p.class_id = 3 THEN p.filled ELSE 0 END) AS [' + REPLACE(o.organisation_name, ']', ']]') + '_CLASS 3], ' +
 
                     'SUM(CASE WHEN p.organisation_id = ' + CAST(o.organisation_id AS NVARCHAR) +
-                    ' AND p.class_id = 4 AND ps.vacant_or_filled = ''filled'' THEN 1 ELSE 0 END) AS [' + REPLACE(o.organisation_name, ']', ']]') + '_CLASS 4], ' +
+                    ' AND p.class_id = 4 THEN p.filled ELSE 0 END) AS [' + REPLACE(o.organisation_name, ']', ']]') + '_CLASS 4], ' +
 
                     'SUM(CASE WHEN p.organisation_id = ' + CAST(o.organisation_id AS NVARCHAR) +
-                    ' AND p.class_id IN (1,2,3,4) AND ps.vacant_or_filled = ''filled'' THEN 1 ELSE 0 END) AS [' + REPLACE(o.organisation_name, ']', ']]') + '_Total_Filled]'
+                    ' AND p.class_id IN (1,2,3,4) THEN p.filled ELSE 0 END) AS [' + REPLACE(o.organisation_name, ']', ']]') + '_Total_Filled]'
                 AS NVARCHAR(MAX))
-            , ', ')
+            , ', ') WITHIN GROUP (ORDER BY o.organisation_name)
             FROM Orgs o;
 
             SET @sql = N'
@@ -10040,9 +10135,8 @@ async function getTotalManpowerClassWiseReport(req, res) {
                     ' + ISNULL(@selectCols, 'NULL AS [No_Data]') + '
                 FROM mmt_hr_department d
                 LEFT JOIN mmt_hr_department_category dc ON d.department_category_id = dc.department_category_id
-                LEFT JOIN mmt_hr_post p ON d.department_id = p.department_id
+                LEFT JOIN #hr_post p ON d.department_id = p.department_id
                 LEFT JOIN mmt_organisation o ON p.organisation_id = o.organisation_id
-                LEFT JOIN tbl_hr_post_strength ps ON ps.post_id = p.post_id
                 WHERE o.organisation_category_id = @orgCategory AND o.organisation_id != 4
                 GROUP BY dc.department_category_name
                 ORDER BY dc.department_category_name;
@@ -10111,132 +10205,50 @@ async function getTotalManpowerClassWiseReport(req, res) {
 }
 
 async function getHRStaffingOverviewReport(req, res) {
-  const orgCategory = req.params.orgCategory;
+  const { period, error: periodError } = readMisPeriod(req);
+  if (periodError) return res.status(400).json({ error: periodError });
+  const orgCategory = Number.parseInt(req.params.orgCategory, 10);
+  if (!Number.isInteger(orgCategory)) return res.status(400).json({ error: "Invalid organisation category." });
 
   const conn = await pool;
   const request = await conn.request();
-
+  request.input("orgCategory", sql.Int, orgCategory);
   try {
+    if (!(await ensureMisSnapshot(conn, period, res))) return;
+    // Officers: class 1 & 2; non-officers: class 3 & 4
     const query = `
-            SELECT
+${misSourceSql(request, period)}
+
+SELECT
     ROW_NUMBER() OVER (ORDER BY o.organisation_name) AS [Sl No],
     o.organisation_name AS [Organisation],
-
-    -- Regular Officers
-    ISNULL((SELECT SUM(sanctioned_strength)
-            FROM mmt_hr_post
-            WHERE class_id IN (1,2) AND organisation_id = o.organisation_id), 0) AS [Reg Officers Sanctioned],
-
-    ISNULL((SELECT COUNT(ps.post_code)
-            FROM tbl_hr_post_strength ps
-            INNER JOIN mmt_hr_post p ON ps.post_id = p.post_id
-            WHERE p.class_id IN (1,2) AND ps.vacant_or_filled = 'filled' AND ps.organisation_id = o.organisation_id), 0) AS [Reg Officers Actual],
-
-    -- Regular Non-Officers
-    ISNULL((SELECT SUM(sanctioned_strength)
-            FROM mmt_hr_post
-            WHERE class_id IN (3,4) AND organisation_id = o.organisation_id), 0) AS [Reg Non-Officers Sanctioned],
-
-    ISNULL((SELECT COUNT(ps.post_code)
-            FROM tbl_hr_post_strength ps
-            INNER JOIN mmt_hr_post p ON ps.post_id = p.post_id
-            WHERE p.class_id IN (3,4) AND ps.vacant_or_filled = 'filled' AND ps.organisation_id = o.organisation_id), 0) AS [Reg Non-Officers Actual],
-
-    -- Regular Total
-    ISNULL((SELECT SUM(sanctioned_strength)
-            FROM mmt_hr_post
-            WHERE organisation_id = o.organisation_id), 0) AS [Reg Total Sanctioned],
-
-    ISNULL((SELECT COUNT(post_code)
-            FROM tbl_hr_post_strength
-            WHERE vacant_or_filled = 'filled' AND organisation_id = o.organisation_id), 0) AS [Reg Total Actual],
-
-    -- Contract Officers
-    ISNULL((SELECT
-            SUM(ISNULL(officers_direct_engagement,0) + ISNULL(officers_retired_from_govt,0) +
-                ISNULL(officers_retd_from_own_organ,0) + ISNULL(officers_through_agency,0) +
-                ISNULL(officers_for_ministry,0))
-            FROM tbl_hr_contract_data
-            WHERE organisation_id = o.organisation_id), 0) AS [Contract Officers],
-
-    -- Contract Non-Officers
-    ISNULL((SELECT
-            SUM(ISNULL(non_officers_direct_engagement,0) + ISNULL(non_officers_retired_from_govt,0) +
-                ISNULL(non_officers_retd_from_own_organ,0) + ISNULL(non_officers_through_agency,0) +
-                ISNULL(non_officers_for_ministry,0))
-            FROM tbl_hr_contract_data
-            WHERE organisation_id = o.organisation_id), 0) AS [Contract Non-Officers],
-
-    -- Contract Total
-    ISNULL((SELECT
-            SUM(ISNULL(officers_direct_engagement,0) + ISNULL(officers_retired_from_govt,0) +
-                ISNULL(officers_retd_from_own_organ,0) + ISNULL(officers_through_agency,0) +
-                ISNULL(officers_for_ministry,0))
-            FROM tbl_hr_contract_data
-            WHERE organisation_id = o.organisation_id), 0)
-    +
-    ISNULL((SELECT
-            SUM(ISNULL(non_officers_direct_engagement,0) + ISNULL(non_officers_retired_from_govt,0) +
-                ISNULL(non_officers_retd_from_own_organ,0) + ISNULL(non_officers_through_agency,0) +
-                ISNULL(non_officers_for_ministry,0))
-            FROM tbl_hr_contract_data
-            WHERE organisation_id = o.organisation_id), 0) AS [Contract Total],
-
-    -- Total Officers (Regular + Contract)
-    ISNULL((SELECT COUNT(ps.post_code)
-            FROM tbl_hr_post_strength ps
-            INNER JOIN mmt_hr_post p ON ps.post_id = p.post_id
-            WHERE p.class_id IN (1,2) AND ps.vacant_or_filled = 'filled' AND ps.organisation_id = o.organisation_id), 0)
-    +
-    ISNULL((SELECT
-            SUM(ISNULL(officers_direct_engagement,0) + ISNULL(officers_retired_from_govt,0) +
-                ISNULL(officers_retd_from_own_organ,0) + ISNULL(officers_through_agency,0) +
-                ISNULL(officers_for_ministry,0))
-            FROM tbl_hr_contract_data
-            WHERE organisation_id = o.organisation_id), 0) AS [Total Officers],
-
-    -- Total Non-Officers (Regular + Contract)
-    ISNULL((SELECT COUNT(ps.post_code)
-            FROM tbl_hr_post_strength ps
-            INNER JOIN mmt_hr_post p ON ps.post_id = p.post_id
-            WHERE p.class_id IN (3,4) AND ps.vacant_or_filled = 'filled' AND ps.organisation_id = o.organisation_id), 0)
-    +
-    ISNULL((SELECT
-            SUM(ISNULL(non_officers_direct_engagement,0) + ISNULL(non_officers_retired_from_govt,0) +
-                ISNULL(non_officers_retd_from_own_organ,0) + ISNULL(non_officers_through_agency,0) +
-                ISNULL(non_officers_for_ministry,0))
-            FROM tbl_hr_contract_data
-            WHERE organisation_id = o.organisation_id), 0) AS [Total Non-Officers],
-
-    -- Grand Total (All)
-    (
-        ISNULL((SELECT COUNT(ps.post_code)
-                FROM tbl_hr_post_strength ps
-                INNER JOIN mmt_hr_post p ON ps.post_id = p.post_id
-                WHERE p.class_id IN (1,2) AND ps.vacant_or_filled = 'filled' AND ps.organisation_id = o.organisation_id), 0)
-        +
-        ISNULL((SELECT COUNT(ps.post_code)
-                FROM tbl_hr_post_strength ps
-                INNER JOIN mmt_hr_post p ON ps.post_id = p.post_id
-                WHERE p.class_id IN (3,4) AND ps.vacant_or_filled = 'filled' AND ps.organisation_id = o.organisation_id), 0)
-        +
-        ISNULL((SELECT
-                SUM(ISNULL(officers_direct_engagement,0) + ISNULL(officers_retired_from_govt,0) +
-                    ISNULL(officers_retd_from_own_organ,0) + ISNULL(officers_through_agency,0) +
-                    ISNULL(officers_for_ministry,0))
-                FROM tbl_hr_contract_data
-                WHERE organisation_id = o.organisation_id), 0)
-        +
-        ISNULL((SELECT
-                SUM(ISNULL(non_officers_direct_engagement,0) + ISNULL(non_officers_retired_from_govt,0) +
-                    ISNULL(non_officers_retd_from_own_organ,0) + ISNULL(non_officers_through_agency,0) +
-                    ISNULL(non_officers_for_ministry,0))
-                FROM tbl_hr_contract_data
-                WHERE organisation_id = o.organisation_id), 0)
-    ) AS [Grand Total]
-
+    ISNULL(r.officers_sanctioned, 0) AS [Reg Officers Sanctioned],
+    ISNULL(r.officers_actual, 0) AS [Reg Officers Actual],
+    ISNULL(r.non_officers_sanctioned, 0) AS [Reg Non-Officers Sanctioned],
+    ISNULL(r.non_officers_actual, 0) AS [Reg Non-Officers Actual],
+    ISNULL(r.total_sanctioned, 0) AS [Reg Total Sanctioned],
+    ISNULL(r.total_actual, 0) AS [Reg Total Actual],
+    ISNULL(c.officers, 0) AS [Contract Officers],
+    ISNULL(c.non_officers, 0) AS [Contract Non-Officers],
+    ISNULL(c.officers, 0) + ISNULL(c.non_officers, 0) AS [Contract Total],
+    ISNULL(r.officers_actual, 0) + ISNULL(c.officers, 0) AS [Total Officers],
+    ISNULL(r.non_officers_actual, 0) + ISNULL(c.non_officers, 0) AS [Total Non-Officers],
+    ISNULL(r.officers_actual, 0) + ISNULL(r.non_officers_actual, 0)
+        + ISNULL(c.officers, 0) + ISNULL(c.non_officers, 0) AS [Grand Total]
 FROM mmt_organisation o
-WHERE o.organisation_category_id = ${orgCategory} AND o.organisation_id != 4
+LEFT JOIN (
+    SELECT organisation_id,
+        SUM(CASE WHEN class_id IN (1,2) THEN sanctioned_strength END) AS officers_sanctioned,
+        SUM(CASE WHEN class_id IN (1,2) THEN filled END) AS officers_actual,
+        SUM(CASE WHEN class_id IN (3,4) THEN sanctioned_strength END) AS non_officers_sanctioned,
+        SUM(CASE WHEN class_id IN (3,4) THEN filled END) AS non_officers_actual,
+        SUM(sanctioned_strength) AS total_sanctioned,
+        SUM(filled) AS total_actual
+    FROM #hr_post
+    GROUP BY organisation_id
+) r ON r.organisation_id = o.organisation_id
+LEFT JOIN #hr_contract c ON c.organisation_id = o.organisation_id
+WHERE o.organisation_category_id = @orgCategory AND o.organisation_id != 4
 ORDER BY o.organisation_name;
         `;
 

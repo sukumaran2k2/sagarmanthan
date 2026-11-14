@@ -69,6 +69,7 @@ import candidateCaDocumentTab from "./controllers/HR/caAppointmentOrderUploader.
 import hrDepartmentTab from "./controllers/HR/hrDepartment.js";
 import hrPostTab from "./controllers/HR/hrPost.js";
 import hrManagementTab from "./controllers/HR/hrManagement.js";
+import hrSnapshotTab from "./controllers/HR/hrSnapshot.js";
 import hrEmployeeTab from "./controllers/HR/hrEmployee.js";
 import hrTrainingTab from "./controllers/HR/hrTraining.js";
 import vacancyStatusTab from "./controllers/HR/vacancyStatus.js";
@@ -1174,6 +1175,9 @@ router.get("/get-total-filled-post-details/:organisationID", auth, requireModule
 router.get("/get-total-vacant-posts-details/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrManagementTab.getTotalVacantPosts);
 router.get("/get-abolised-vacant-posts-details/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrManagementTab.getAbolishedVacantPosts);
 router.get("/get-year-and-month/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getYearAndMonth);
+// HR monthly snapshot runs (superadmin only)
+router.get("/hr/snapshots/runs", auth, requireSuperAdmin, hrSnapshotTab.getSnapshotRuns);
+router.post("/hr/snapshots/run", auth, requireSuperAdmin, hrSnapshotTab.runSnapshot);
 
 router.post("/revised-hr-post", auth, requireModulePermission("HR_MANAGEMENT", "create"), revisedHrPost.createRevisedHrPost);
 router.get("/revised-hr-post/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), revisedHrPost.getRevisedHrPost);
