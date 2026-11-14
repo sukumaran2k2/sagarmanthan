@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
-import { Home, Users, ListTodo, Boxes, LayoutList, ChevronLeft } from 'lucide-react';
+import { Home, Users, Boxes, LayoutList, ChevronLeft } from 'lucide-react';
 import api, { rbacApi } from './rbacApi';
 import './UserMatrix.css';
 import { colorFromString } from './utils';
@@ -35,14 +35,12 @@ const MOBILE_PATTERN = /^[6-9]\d{9}$/;
 
 const TAB_PATHS = {
   users: 'users',
-  userlist: 'user-list',
   modules: 'modules',
   module_permission_list: 'module-permission-list',
 };
 
 const PERMISSION_TABS = [
   { id: 'users', label: 'Users Update', icon: Users },
-  { id: 'userlist', label: 'Users List', icon: ListTodo },
   { id: 'modules', label: 'Modules Update', icon: Boxes },
   { id: 'module_permission_list', label: 'Modules List', icon: LayoutList },
 ];
@@ -69,7 +67,6 @@ const TAB_META = {
 function getTabKeyFromPath(pathname = '') {
   const path = pathname.toLowerCase();
   if (path.includes('/module-permission-list')) return 'module_permission_list';
-  if (path.includes('/user-list') || path.endsWith('/userlist')) return 'userlist';
   if (path.includes('/modules')) return 'modules';
   if (path.includes('/users')) return 'users';
   return 'users';
@@ -1171,7 +1168,6 @@ export default function UserMatrix({ onGoHome, mode = 'permissions', triggerNoti
       ) : (
         <Routes>
           <Route path="users" element={renderWorkbench(userPermissionsPanel)} />
-          <Route path="user-list" element={renderWorkbench(userListPanel)} />
           <Route path="modules" element={renderWorkbench(modulePermissionsPanel)} />
           <Route path="module-permission-list" element={renderWorkbench(modulePermissionListPanel)} />
           <Route index element={<Navigate to="users" replace />} />
