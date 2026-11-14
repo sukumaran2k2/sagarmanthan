@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url';
 import { access, stat } from 'fs/promises';
 import { createReadStream } from 'fs';
 import fs from 'fs';
-import { isWideRole } from "../../middleware/dataScope.js";
+import { isWideRole, getDataScope, MOPSW_ORGANISATION_ID } from "../../middleware/dataScope.js";
 // import mssql from "mssql";
 
 async function getMIVOrgWisePerformanceReport(req, res) {
@@ -1188,8 +1188,6 @@ async function getCategoryWiseMIVPerformanceReport(req,res) {
     }
 }
 
-const ALL_ORGANISATION_ROLES = [1, 2, 3, 4, 5, 8];
-
 
 async function getSummaryReportOverdueInitiatives(req, res) {
     try {
@@ -1221,16 +1219,10 @@ async function getSummaryReportOverdueInitiatives(req, res) {
             });
         }
 
-        const {
-            role_id,
-            organisation_id
-        } = userResult.recordset[0];
-
-        const userRoleId = Number(role_id);
-        const userOrganisationId = Number(organisation_id);
-
-        const canViewAllOrganisations =
-            ALL_ORGANISATION_ROLES.includes(userRoleId);
+        // Access from the logged-in user, not the user id in the address: Ministry / master scope and
+        // MoPSW's own staff see every organisation; other organisation users only their own
+        const { isWide, organisationId: userOrganisationId } = getDataScope(req.user);
+        const canViewAllOrganisations = isWide || userOrganisationId === MOPSW_ORGANISATION_ID;
 
         if (
             !canViewAllOrganisations &&
@@ -1419,16 +1411,10 @@ async function detailedReportDelayedOverdueInitiatives(req, res) {
             });
         }
 
-        const {
-            role_id,
-            organisation_id
-        } = userResult.recordset[0];
-
-        const userRoleId = Number(role_id);
-        const userOrganisationId = Number(organisation_id);
-
-        const canViewAllOrganisations =
-            ALL_ORGANISATION_ROLES.includes(userRoleId);
+        // Access from the logged-in user, not the user id in the address: Ministry / master scope and
+        // MoPSW's own staff see every organisation; other organisation users only their own
+        const { isWide, organisationId: userOrganisationId } = getDataScope(req.user);
+        const canViewAllOrganisations = isWide || userOrganisationId === MOPSW_ORGANISATION_ID;
 
         if (
             !canViewAllOrganisations &&

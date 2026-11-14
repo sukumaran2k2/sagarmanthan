@@ -3,6 +3,7 @@ import { AgGridReact } from 'ag-grid-react';
 import { ChevronLeft, FileSpreadsheet, Download, Search, Loader2, RefreshCw, X, TrendingUp, Copy } from 'lucide-react';
 import TablePagination from './TablePagination';
 import { exportGridToExcel, exportGridToPdf } from '../utils/exportGridReport';
+import { createNotifier, COMMON_TOASTS, toastError } from '../utils/notify';
 
 export default function ReportTable({
   title,
@@ -217,7 +218,7 @@ export default function ReportTable({
     const fileName = type === 'Excel'
       ? exportGridToExcel(options)
       : exportGridToPdf({ ...options, brand: brandColor });
-    triggerNotification?.(`Report exported successfully! (${fileName})`);
+    createNotifier(triggerNotification)(COMMON_TOASTS.excelExported(fileName, 'The report'));
   };
 
   const handleExport = (type) => {
@@ -225,13 +226,13 @@ export default function ReportTable({
       handleReportExport(type);
     } catch (err) {
       console.error("Export error caught safely:", err);
-      triggerNotification?.('An error occurred during export.');
+      createNotifier(triggerNotification)(toastError('Export Failed', 'The report could not be exported. Please try again.'));
     }
   };
 
   const handleCopy = () => {
     if (!gridRef.current?.api) {
-      triggerNotification?.('Grid is not ready for copy yet.', 'warning');
+      createNotifier(triggerNotification)(COMMON_TOASTS.tableNotReady('copy'));
       return;
     }
     let tsv = '';
@@ -251,11 +252,11 @@ export default function ReportTable({
 
     navigator.clipboard.writeText(tsv)
       .then(() => {
-        triggerNotification?.('Report copied to clipboard!', 'success');
+        createNotifier(triggerNotification)(COMMON_TOASTS.copySuccess(effectiveData.length, 'from the report'));
       })
       .catch((err) => {
         console.error('Copy failed', err);
-        triggerNotification?.('Failed to copy report data.', 'error');
+        createNotifier(triggerNotification)(COMMON_TOASTS.copyFailed());
       });
   };
 

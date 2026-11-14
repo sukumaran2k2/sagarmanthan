@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { FileSpreadsheet, FileText, ChevronDown } from 'lucide-react';
+import { createNotifier, COMMON_TOASTS, toastError } from '../utils/notify';
 
 export default function ExportDropdown({
   onExportExcel,
@@ -52,7 +53,7 @@ export default function ExportDropdown({
 
     const rowList = getEffectiveRows();
     if (!rowList || rowList.length === 0) {
-      triggerNotification?.('No data available to export.', 'warning');
+      createNotifier(triggerNotification)(COMMON_TOASTS.nothingToExport());
       return;
     }
 
@@ -77,10 +78,10 @@ export default function ExportDropdown({
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Report');
       XLSX.writeFile(wb, `${fileName.replace(/\s+/g, '_')}.xlsx`);
-      triggerNotification?.('Exported to Excel successfully!', 'success');
+      createNotifier(triggerNotification)(COMMON_TOASTS.excelExported(`${fileName.replace(/\s+/g, '_')}.xlsx`, 'The report'));
     } catch (err) {
       console.error('Excel export error:', err);
-      triggerNotification?.('Export failed. Please try again.', 'error');
+      createNotifier(triggerNotification)(toastError('Export Failed', 'The report could not be exported. Please try again.'));
     }
   };
 
@@ -90,12 +91,11 @@ export default function ExportDropdown({
 
     const rowList = getEffectiveRows();
     if (!rowList || rowList.length === 0) {
-      triggerNotification?.('No data available to export.', 'warning');
+      createNotifier(triggerNotification)(COMMON_TOASTS.nothingToExport());
       return;
     }
 
-    triggerNotification?.('Generating PDF…', 'info');
-    try {
+        try {
       const { default: jsPDF } = await import('jspdf');
       const { default: autoTable } = await import('jspdf-autotable');
 
@@ -146,10 +146,10 @@ export default function ExportDropdown({
       }
 
       doc.save(`${fileName.replace(/\s+/g, '_')}.pdf`);
-      triggerNotification?.('PDF exported successfully!', 'success');
+      createNotifier(triggerNotification)(COMMON_TOASTS.excelExported(`${fileName.replace(/\s+/g, '_')}.pdf`, 'The report'));
     } catch (err) {
       console.error('PDF export error:', err);
-      triggerNotification?.('PDF generation failed. Please try again.', 'error');
+      createNotifier(triggerNotification)(toastError('Export Failed', 'The PDF could not be created. Please try again.'));
     }
   };
 
