@@ -385,6 +385,8 @@ export default function Tabs({ activeTab, setActiveTab }) {
       id: 'nmp',
       label: 'National Monetisation Pipeline',
       icon: DollarSign,
+      // Clicking the menu itself opens the dashboard rather than only revealing the sub-menu.
+      landingTab: 'NMP Dashboard',
       align: 'left-0',
       width: 'w-[280px]',
       items: [
@@ -580,8 +582,12 @@ export default function Tabs({ activeTab, setActiveTab }) {
 
             return (
               <div key={menu.id} className="relative group flex-shrink-0">
-                {/* Main Menu Button */}
+                {/* Main Menu Button.
+                    A menu with `landingTab` also opens that page when its label is clicked;
+                    the sub-menu still appears on hover. Without it the parent is hover-only. */}
                 <button
+                  type="button"
+                  onClick={menu.landingTab ? () => handleItemClick(menu.landingTab) : undefined}
                   className={`flex flex-col items-center space-y-0.5 py-1 px-1.5 text-center transition-all duration-200 cursor-pointer rounded-lg hover:bg-slate-50 min-w-16 relative ${
                     isMainMenuActive ? 'text-blue-700 font-bold' : 'text-slate-655 font-semibold hover:text-slate-900'
                   }`}
