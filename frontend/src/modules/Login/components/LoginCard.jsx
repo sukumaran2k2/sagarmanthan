@@ -29,7 +29,7 @@ export default function LoginCard({
             SAGARMANTHAN
           </h2>
           <span className="block text-[9px] text-cyan-300 font-mono tracking-widest uppercase mt-0.5">
-            National Database Portal
+            Ministry of Ports, Shipping and Waterways
           </span>
         </div>
       </div>

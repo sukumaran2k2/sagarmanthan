@@ -136,7 +136,9 @@ export default function Header({ onLogout, onProfileClick, onUserManagementClick
                   {lang === 'HI' ? 'सागरमंथन' : 'SAGARMANTHAN'}
                 </span>
                 <span className="block text-[8px] sm:text-[9px] text-cyan-300 font-mono tracking-widest uppercase -mt-1">
-                  {lang === 'HI' ? 'समुद्री डेटा पोर्टल' : 'Maritime Data Portal'}
+                  {lang === 'HI'
+                    ? 'पत्तन, पोत परिवहन और जलमार्ग मंत्रालय'
+                    : 'Ministry of Ports, Shipping and Waterways'}
                 </span>
               </div>
             </div>
