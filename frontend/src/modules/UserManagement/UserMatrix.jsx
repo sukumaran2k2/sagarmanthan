@@ -1,10 +1,11 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
-import { Home, Users, ListTodo, Boxes, LayoutList, ChevronLeft } from 'lucide-react';
+import { Home, Users, Boxes, LayoutList, ChevronLeft } from 'lucide-react';
 import api, { rbacApi } from './rbacApi';
 import './UserMatrix.css';
 import { colorFromString } from './utils';
 import { PERMS } from './constants';
+import { withoutHiddenModules } from '../../config/moduleRegistry';
 import { getCurrentUserId, getSessionOrganisationId, getSessionOrganisationName, isNodalOfficerRole, isOrgSeniorOfficer } from '../../utils/authSession';
 import { TAB_USER_MODULE_PERMISSION, TAB_USER_LIST } from '../../utils/moduleAccess';
 import InternalNavigation from '../../components/InternalNavigation';
@@ -34,14 +35,12 @@ const MOBILE_PATTERN = /^[6-9]\d{9}$/;
 
 const TAB_PATHS = {
   users: 'users',
-  userlist: 'user-list',
   modules: 'modules',
   module_permission_list: 'module-permission-list',
 };
 
 const PERMISSION_TABS = [
   { id: 'users', label: 'Users Update', icon: Users },
-  { id: 'userlist', label: 'Users List', icon: ListTodo },
   { id: 'modules', label: 'Modules Update', icon: Boxes },
   { id: 'module_permission_list', label: 'Modules List', icon: LayoutList },
 ];
@@ -68,7 +67,6 @@ const TAB_META = {
 function getTabKeyFromPath(pathname = '') {
   const path = pathname.toLowerCase();
   if (path.includes('/module-permission-list')) return 'module_permission_list';
-  if (path.includes('/user-list') || path.endsWith('/userlist')) return 'userlist';
   if (path.includes('/modules')) return 'modules';
   if (path.includes('/users')) return 'users';
   return 'users';
@@ -183,8 +181,10 @@ export default function UserMatrix({ onGoHome, mode = 'permissions', triggerNoti
       .then((res) => setCategories(res.data || []))
       .catch(() => showToast('Failed to load categories', '#EF4444'));
 
+    // Filtered here rather than in the table, so the bulk "toggle all" and the save payload
+    // below never touch a module the administrator cannot see.
     rbacApi.getModules()
-      .then((res) => setMasterModules(res.data || []))
+      .then((res) => setMasterModules(withoutHiddenModules(res.data || [])))
       .catch(() => showToast('Failed to load modules', '#EF4444'));
 
     rbacApi.getOrganisations()
@@ -254,7 +254,7 @@ export default function UserMatrix({ onGoHome, mode = 'permissions', triggerNoti
     rbacApi
       .getAllowedModules(selectedOrg)
       .then((res) => {
-        const mods = (res.data || []).map((m) => ({
+        const mods = withoutHiddenModules(res.data || []).map((m) => ({
           id: m.module_id,
           name: m.module_name,
           code: m.module_code,
@@ -1168,7 +1168,6 @@ export default function UserMatrix({ onGoHome, mode = 'permissions', triggerNoti
       ) : (
         <Routes>
           <Route path="users" element={renderWorkbench(userPermissionsPanel)} />
-          <Route path="user-list" element={renderWorkbench(userListPanel)} />
           <Route path="modules" element={renderWorkbench(modulePermissionsPanel)} />
           <Route path="module-permission-list" element={renderWorkbench(modulePermissionListPanel)} />
           <Route index element={<Navigate to="users" replace />} />

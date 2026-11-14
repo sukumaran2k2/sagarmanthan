@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Landmark, TrendingUp, Target, FileSignature, Check, ChevronDown } from 'lucide-react';
+import { Landmark, TrendingUp, Target, FileSignature, Check, ChevronDown, AlertTriangle } from 'lucide-react';
 import {
   ResponsiveContainer,
   BarChart,
@@ -198,6 +198,26 @@ export default function NmpDashboard() {
 
   return (
     <div className="space-y-7 animate-fade-in">
+
+      {/*
+        Every figure below comes from the static demo data at the top of this file, not from the
+        database. This notice stays until the dashboard is wired to live endpoints.
+      */}
+      <div
+        role="status"
+        className="flex items-start gap-3 rounded-2xl border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-4 py-3"
+      >
+        <AlertTriangle className="h-5 w-5 flex-shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+        <div>
+          <p className="text-xs font-black uppercase tracking-wider text-amber-900 dark:text-amber-200">
+            Mock-up dashboard
+          </p>
+          <p className="text-xs font-semibold text-amber-800 dark:text-amber-300 mt-0.5">
+            The figures shown here are sample data for layout purposes only. Live data will be
+            shown soon &mdash; we are working on it.
+          </p>
+        </div>
+      </div>
 
       {/* Filters */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4">

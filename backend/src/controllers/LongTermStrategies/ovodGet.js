@@ -356,15 +356,22 @@ async function getOVODOrgAllData(req, res) {
 
     try {
         const userResult = await request.query(`SELECT role_id FROM tbl_user WHERE user_id = @userID`);
+        if (!userResult.recordset.length || !userResult.recordset[0]) {
+            return res.json([]);
+        }
         const role_id = userResult.recordset[0].role_id;
         const userOrg = await request.query(`SELECT organisation_id FROM tbl_user WHERE user_id = @userID`);
-        const idOrg = userOrg.recordset[0].organisation_id;
-        request.input("idOrg", idOrg);
-        const orgCodeGet = await request.query(`SELECT organisation_code FROM mmt_organisation WHERE organisation_id = @idOrg`);
-        const orgCode = orgCodeGet.recordset[0].organisation_code;
+        const idOrg = userOrg.recordset?.[0]?.organisation_id;
+        request.input("idOrg", idOrg || null);
+        const orgCodeGet = idOrg
+            ? await request.query(`SELECT organisation_code FROM mmt_organisation WHERE organisation_id = @idOrg`)
+            : { recordset: [] };
+        const orgCode = orgCodeGet.recordset?.[0]?.organisation_code || null;
         request.input("orgCode", orgCode);
-        const orgMainId = await request.query(`SELECT ia_id FROM mmt_implementing_agency WHERE ia_code = @orgCode`);
-        const organisation_id = orgMainId.recordset[0].ia_id; 
+        const orgMainId = orgCode
+            ? await request.query(`SELECT ia_id FROM mmt_implementing_agency WHERE ia_code = @orgCode`)
+            : { recordset: [] };
+        const organisation_id = orgMainId.recordset?.[0]?.ia_id || null;
 
         request.input("organisation_id", organisation_id);
 

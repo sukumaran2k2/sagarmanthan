@@ -380,6 +380,21 @@ export default function LandingView() {
           .sm3-stage { --sm3-oh: clamp(70px, 12vh, 110px); }
         }
 
+        /* small screens: reduce hero and chapter sizes */
+        @media (max-width: 640px) {
+          .sm3-hero { flex-basis: clamp(160px, 28vh, 240px); min-height:130px; }
+          .sm3-hero-pad { padding: clamp(12px,2.2vh,24px) calc(var(--sm3-gutter, 14px) + 4px); }
+          .sm3-chapters { padding: clamp(12px,2.4vh,30px) 0 clamp(8px,1.4vh,16px); gap:8px; }
+          .sm3-body { font-size:clamp(10.5px,0.95vw,13.5px); line-height:1.55; }
+        }
+
+        /* very small screens: tighter padding */
+        @media (max-width: 480px) {
+          .sm3-hero-pad { padding: clamp(10px,2vh,20px) calc(var(--sm3-gutter, 12px) + 4px); }
+          .sm3-chapters { padding: clamp(10px,2vh,24px) 0 clamp(6px,1vh,12px); gap:8px; }
+          .sm3-body { font-size:clamp(10px,0.9vw,13px); line-height:1.5; }
+        }
+
         /* ───────── reduced motion ───────── */
         @media (prefers-reduced-motion: reduce) {
           .sm3-stage *, .sm3-stage *::before, .sm3-stage *::after {

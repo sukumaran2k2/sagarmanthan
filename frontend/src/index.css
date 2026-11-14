@@ -56,6 +56,11 @@ body {
 #root {
   zoom: 1.06;
 }
+@media (max-width: 1024px) {
+  #root {
+    zoom: 1;
+  }
+}
 
 /* Custom Scrollbars */
 ::-webkit-scrollbar {
@@ -115,6 +120,20 @@ body {
   --ag-row-hover-color: #f8fafc/60 !important;
   --ag-font-family: var(--font-sans, 'Google Sans', system-ui, -apple-system, sans-serif) !important;
   --ag-font-size: 11.5px !important;
+}
+@media (max-width: 1024px) {
+  .ag-theme-quartz {
+    --ag-font-size: 11px !important;
+    --ag-row-height: 38px !important;
+    --ag-header-height: 38px !important;
+  }
+}
+@media (max-width: 640px) {
+  .ag-theme-quartz {
+    --ag-font-size: 10.5px !important;
+    --ag-row-height: 36px !important;
+    --ag-header-height: 36px !important;
+  }
 }
 
 /* Custom CSS to style header text & properties */

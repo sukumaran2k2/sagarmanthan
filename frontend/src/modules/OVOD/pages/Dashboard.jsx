@@ -133,23 +133,23 @@ function shapeLevel(payload) {
 function StatCard({ value, label, icon: Icon, accent, tint, iconColor, loading }) {
   return (
     <div
-      className={`relative overflow-hidden rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-4 shadow-xs hover:shadow-md transition-all border-l-4 ${accent}`}
+      className={`relative overflow-hidden rounded-xl sm:rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-3 sm:p-4 shadow-xs hover:shadow-md transition-all border-l-4 ${accent}`}
     >
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center justify-between gap-2 sm:gap-3">
         <div className="min-w-0">
           {loading ? (
-            <div className="h-7 w-20 rounded-md bg-slate-100 dark:bg-slate-800 animate-pulse" />
+            <div className="h-6 sm:h-7 w-16 sm:w-20 rounded-md bg-slate-100 dark:bg-slate-800 animate-pulse" />
           ) : (
-            <span className="block text-2xl font-black text-slate-800 dark:text-slate-100 font-display truncate">
+            <span className="block text-xl sm:text-2xl font-black text-slate-800 dark:text-slate-100 font-display truncate">
               {value}
             </span>
           )}
-          <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-0.5">
+          <p className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-0.5">
             {label}
           </p>
         </div>
-        <div className={`h-10 w-10 shrink-0 rounded-xl flex items-center justify-center shadow-xs ${tint}`}>
-          <Icon className={`h-5 w-5 ${iconColor}`} />
+        <div className={`h-8 w-8 sm:h-10 sm:w-10 shrink-0 rounded-xl flex items-center justify-center shadow-xs ${tint}`}>
+          <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${iconColor}`} />
         </div>
       </div>
     </div>
@@ -239,9 +239,24 @@ function Segmented({ value, onChange, options }) {
   );
 }
 
+function useSmallScreen() {
+  const [small, setSmall] = useState(() => typeof window !== 'undefined' && window.innerWidth < 640);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    const handler = (e) => setSmall(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return small;
+}
+
 /* Horizontal bar: split of interventions across categories (or progress mix per category) */
 function CategoryBarChart({ data, mode, theme, total, selectedCategory, onBarClick }) {
-  const truncate = (s) => (s.length > 26 ? `${s.slice(0, 25)}…` : s);
+  const isNarrow = useSmallScreen();
+  const truncate = (s) => {
+    const max = isNarrow ? 16 : 26;
+    return s.length > max ? `${s.slice(0, max - 1)}…` : s;
+  };
   const height = Math.max(220, data.length * 34 + 30);
 
   const handleBarClick = (barData) => {
@@ -264,7 +279,7 @@ function CategoryBarChart({ data, mode, theme, total, selectedCategory, onBarCli
           <YAxis
             type="category"
             dataKey="name"
-            width={170}
+            width={isNarrow ? 100 : 170}
             tick={{ fontSize: 11, fill: 'currentColor' }}
             tickFormatter={truncate}
             axisLine={false}
@@ -315,12 +330,13 @@ function CategoryBarChart({ data, mode, theme, total, selectedCategory, onBarCli
 /* Donut: interventions by overall progress bucket, with a legend that doubles as a data table */
 function StatusDonut({ status, total, theme }) {
   const [active, setActive] = useState(null);
+  const isSmall = useSmallScreen();
   const data = status.filter((s) => s.value > 0);
   const colorOf = (key) => theme.ramp[BUCKETS.findIndex((b) => b.key === key)];
 
   return (
     <div className="flex flex-col sm:flex-row items-center gap-4">
-      <div className="relative h-56 w-56 shrink-0 text-slate-500 dark:text-slate-400">
+      <div className="relative h-44 w-44 sm:h-56 sm:w-56 shrink-0 text-slate-500 dark:text-slate-400">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Tooltip content={<ChartTooltip total={total} />} />
@@ -328,8 +344,8 @@ function StatusDonut({ status, total, theme }) {
               data={data}
               dataKey="value"
               nameKey="label"
-              innerRadius={66}
-              outerRadius={104}
+              innerRadius={isSmall ? 50 : 66}
+              outerRadius={isSmall ? 80 : 104}
               paddingAngle={0}
               startAngle={90}
               endAngle={-270}
@@ -419,7 +435,7 @@ function LevelAnalytics({ code, title, description, level, loading, error, theme
       </div>
 
       {hasData && !loading && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <Insight label="Interventions" value={fmtInt(total)} sub={`across ${categories.length} categories`} />
           <Insight
             label="Largest category"
@@ -441,7 +457,7 @@ function LevelAnalytics({ code, title, description, level, loading, error, theme
         </div>
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
         <ChartCard
           title={`${code} Level – Split of Interventions across Categories`}
           subtitle={mode === 'count' ? 'Number of interventions per category' : 'Progress mix within each category'}
@@ -633,7 +649,7 @@ export default function Dashboard({ triggerNotification }) {
   const labelOf = (f) => f.options.find((o) => String(o.id) === String(f.value))?.label || f.value;
 
   return (
-    <div className="space-y-6 animate-fade-in text-slate-800 dark:text-slate-100">
+    <div className="space-y-4 sm:space-y-6 animate-fade-in text-slate-800 dark:text-slate-100">
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -678,7 +694,7 @@ export default function Dashboard({ triggerNotification }) {
 
       {/* Filter panel */}
       {showFilterPanel && (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs animate-fade-in">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-xs animate-fade-in">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {filterDefs.map((f) => (
               <FilterSelect key={f.id} label={f.label} value={f.value} onChange={f.set} options={f.options} />
@@ -706,7 +722,7 @@ export default function Dashboard({ triggerNotification }) {
 
       {/* Stat cards: A row — ministry users only */}
       {!isOrgUser && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
           <StatCard loading={loading} value={fmtInt(levelA.totals.goals)} label="Total Goals [A1]" icon={Star} accent="border-l-violet-500" tint="bg-violet-50 dark:bg-violet-950/50" iconColor="text-violet-500" />
           <StatCard loading={loading} value={fmtInt(levelA.totals.interventions)} label="Total Interventions [A2]" icon={Layers} accent="border-l-blue-500" tint="bg-blue-50 dark:bg-blue-950/50" iconColor="text-blue-500" />
           <StatCard loading={loading} value={fmtInt(levelA.totals.actions)} label="Total Action Items [A3]" icon={Users} accent="border-l-cyan-500" tint="bg-cyan-50 dark:bg-cyan-950/50" iconColor="text-cyan-600" />
@@ -715,7 +731,7 @@ export default function Dashboard({ triggerNotification }) {
       )}
 
       {/* Stat cards: B row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         <StatCard loading={loading} value={fmtInt(levelB.totals.goals)} label="Total Goals [B1]" icon={Star} accent="border-l-orange-500" tint="bg-orange-50 dark:bg-orange-950/50" iconColor="text-orange-500" />
         <StatCard loading={loading} value={fmtInt(levelB.totals.interventions)} label="Total Interventions [B2]" icon={Layers} accent="border-l-indigo-500" tint="bg-indigo-50 dark:bg-indigo-950/50" iconColor="text-indigo-500" />
         <StatCard loading={loading} value={fmtInt(levelB.totals.actions)} label="Total Action Items [B3]" icon={Users} accent="border-l-teal-500" tint="bg-teal-50 dark:bg-teal-950/50" iconColor="text-teal-600" />

@@ -157,18 +157,20 @@ async function createMmt(req, res) {
         case "mmt_ministry":
             query = "INSERT into mmt_ministry (ministry_name) values (@name)";
             break;
-       case "mmt_organisation":
-        organisationName = req.body.organisationName;
-        organisationCode = req.body.organisationCode;
-        organisationCategory = req.body.organisationCategory;
+              case "mmt_organisation":
+                organisationName = req.body.organisationName;
+                organisationCode = req.body.organisationCode;
+                organisationCategory = req.body.organisationCategory;
 
-        request.input("organisationName", organisationName);
-        request.input("organisationCode", organisationCode);
-        request.input("organisationCategory", organisationCategory);
+                request.input("organisationName", organisationName);
+                request.input("organisationCode", organisationCode);
+                request.input("organisationCategory", organisationCategory);
+                request.input("wingId", req.body.wing ?? null);
+                request.input("divisionId", req.body.division ?? null);
 
             query = `
-                    INSERT INTO mmt_organisation (organisation_name, organisation_code, organisation_category_id)
-                    VALUES (@organisationName, @organisationCode, @organisationCategory);
+                    INSERT INTO mmt_organisation (organisation_name, organisation_code, organisation_category_id, wing_id, division_id)
+                    VALUES (@organisationName, @organisationCode, @organisationCategory, @wingId, @divisionId);
                 `;
             break;
 
@@ -560,6 +562,17 @@ async function getDropDownData(req, res) {
             query = "SELECT * FROM mmt_hr_activities";
             break;
 
+        // The Consultant Appointment Data List filters by stage_name, so its stage options
+        // have to come from this master table.
+        case "mmt_consultant_appointment_stage":
+            query = "SELECT stage_id, stage_name FROM mmt_consultant_appointment_stage ORDER BY stage_id";
+            break;
+
+
+        // Official Foreign Visit workflow stages (Proposed / Sanctioned / Visited / Not Visited / Rejected)
+        case "mmt_ofv_stage":
+            query = "SELECT fv_stage_id, fv_stage_name FROM mmt_ofv_stage WHERE status = 1 ORDER BY fv_stage_id";
+            break;
         case "tbl_project_sub_stage":
             query = "SELECT sub_stage_id, sub_stage_name FROM tbl_project_sub_stage WHERE sub_stage_id BETWEEN 3 AND 10 ORDER BY sub_stage_id";
             break;
@@ -568,6 +581,11 @@ async function getDropDownData(req, res) {
         //     query = "SELECT project_id, project_name FROM tbl_project WHERE status = 1 AND project_stage_id != 14 ORDER BY project_name";
         //     break;
 
+    }
+    // No case matched: querying with an undefined statement throws a confusing 500,
+    // so report the unknown table instead.
+    if (!query) {
+        return res.status(400).json({ message: `No dropdown query defined for "${tid}"` });
     }
     try {
         const result = await conn.query(query);
@@ -854,7 +872,10 @@ async function updateMmt(req, res)
 {
     const tid = req.body.TID;
     const ID = req.body.rowID;
-    const name = req.body.name;
+    const name = req.body.name ?? req.body.organisationName;
+    const category = req.body.category ?? req.body.organisationCategory;
+    const code = req.body.code?? req.body.organisationCode?? req.body.wingCode?? req.body.divisionCode?? req.body.iaCode ?? req.body.departmentCode;;
+    const clearenceName = req.body.name;
     const wingId = req.body.wingId;
     const divId = req.body.divId;
     const stateId = req.body.stateId;
@@ -862,8 +883,9 @@ async function updateMmt(req, res)
     const projectOutputId = req.body.projectOutputId;
     const division = req.body.division;
     const district = req.body.district;
-    const category = req.body.category;
-    const code = req.body.code;
+    const status = req.body.status;
+
+   
     const portalCategory = req.body.portalCategory;
     const empID = req.body.empID;
     const Designation = req.body.Designation;
@@ -873,16 +895,18 @@ async function updateMmt(req, res)
     const conn = await pool;
     const request = conn.request();
     request.input("ID", ID);
+    request.input("code", code);
+    request.input("clearenceName", clearenceName);
     request.input("name", name);
-
     request.input("divId", divId);
     request.input("wingId", wingId);
+    request.input("status", status === undefined ? null : Number(status));
 
     let query;
     switch (tid) {
         case "mmt_source_of_funding":
-            query = "UPDATE mmt_source_of_funding SET source_of_funding_name = @name WHERE source_of_funding_id = @ID";
-            break;
+        query = "UPDATE mmt_source_of_funding SET source_of_funding_name = @name, status = COALESCE(@status, status) WHERE source_of_funding_id = @ID";
+        break;
 
         case "mmt_nationalwaterways":
             query = "UPDATE mmt_nationalwaterways SET nationalwaterways_name = @name WHERE nationalwaterways_id = @ID";
@@ -914,48 +938,45 @@ async function updateMmt(req, res)
             break;
 
         case "mmt_project_category":
-            query = "UPDATE mmt_project_category SET project_category_name = @name WHERE project_category_id = @ID";
+            query = "UPDATE mmt_project_category SET project_category_name = @name, status = COALESCE(@status, status) WHERE project_category_id = @ID";
             break;
 
         case "mmt_wings":
-            query = "UPDATE mmt_wings SET wing_name = @name WHERE wing_id = @ID";
+            query = "UPDATE mmt_wings SET wing_name = @name, status = COALESCE(@status, status) WHERE wing_id = @ID";
             break;
 
         case "mmt_department":
-            query = "UPDATE mmt_department SET department_name = @name WHERE department_id = @ID";
+            
+            query = "UPDATE mmt_department SET department_name = @name,department_code=@code, status = COALESCE(@status, status) WHERE department_id = @ID";
             break;
 
         case "mmt_scheme":
-            query = "UPDATE mmt_scheme SET scheme_name = @name WHERE scheme_id = @ID";
+            query = "UPDATE mmt_scheme SET scheme_name = @name,status = @status WHERE scheme_id = @ID";
             break;
 
         case "mmt_initiative":
-            query = "UPDATE mmt_initiative SET initiative_name = @name WHERE initiative_id = @ID";
+            query = "UPDATE mmt_initiative SET initiative_name = @name, status = COALESCE(@status, status) WHERE initiative_id = @ID";
             break;
 
-        case "mmt_division":
-            query = "UPDATE mmt_division SET division_name = @name, wing_id = @wingId WHERE division_id = @ID";
+         case "mmt_division":
+            query = "UPDATE mmt_division SET division_name = @name, wing_id = @wingId, status = COALESCE(@status, status) WHERE division_id = @ID";
             break;
 
         case "mmt_section":
-            query = "UPDATE mmt_section SET section_name = @name, division_id = @divId WHERE section_id = @ID";
+            query = "UPDATE mmt_section SET section_name = @name, division_id = @divId, status = COALESCE(@status, status) WHERE section_id = @ID";
             break;
 
         case "mmt_mp_constituency":
             request.input("stateId", stateId);
-            query = "UPDATE mmt_mp_constituency SET mpc_name = @name, state_id = @stateId WHERE mpc_id = @ID";
-            break;
-
-        case "mmt_project_category":
-            query = "UPDATE mmt_project_category SET project_category_name = @name WHERE project_category_id = @ID";
+            query = "UPDATE mmt_mp_constituency SET mpc_name = @name, status = @status,state_id = @stateId WHERE mpc_id = @ID";
             break;
 
         case "mmt_funding_agency":
-            query = "UPDATE mmt_funding_agency SET fa_name = @name WHERE fa_id = @ID";
+            query = "UPDATE mmt_funding_agency SET fa_name = @name,status = @status WHERE fa_id = @ID";
             break;
 
         case "mmt_implementing_agency":
-            query = "UPDATE mmt_implementing_agency SET ia_name = @name WHERE ia_id = @ID";
+            query = "UPDATE mmt_implementing_agency SET ia_name = @name,status = @status WHERE ia_id = @ID";
             break;
 
         case "mmt_state":
@@ -999,13 +1020,21 @@ async function updateMmt(req, res)
             break;
 
         case "mmt_organisation":
-            request.input("stateId", stateId);
-            request.input("division", division);
-            request.input("district", district);
-            request.input("category", category);
-            request.input("code", code);
-            query = "UPDATE mmt_organisation SET organisation_name = @name, organisation_code = @code, organisation_category_id = @category, state_id = @stateId, district_id = @district, wing_id = @wingId, division_id = @division WHERE organisation_id = @ID";
-            break;
+        request.input("stateId", stateId);
+        request.input("division", division);
+        request.input("district", district);
+        request.input("category", category);
+        request.input("code", code);
+        request.input("wing", req.body.wing ?? null);
+        query = `UPDATE mmt_organisation
+                SET organisation_name = @name,
+                    organisation_code = @code,
+                    organisation_category_id = COALESCE(@category, organisation_category_id),
+                    wing_id = COALESCE(@wing, wing_id),
+                    division_id = COALESCE(@division, division_id),
+                    status = COALESCE(@status, status)
+                WHERE organisation_id = @ID`;
+        break;
 
         case "mmt_employee_info":
             request.input("empID", empID);
@@ -1021,7 +1050,7 @@ async function updateMmt(req, res)
             const organizationID = orgIDResult.recordset[0].organization_id;
 
             request.input("organizationID", organizationID);
-            query = "UPDATE mmt_employee_info SET Emp_Name = @name, organization_id = @organizationID, Designation = @Designation, level = @designationLevel WHERE Emp_Id = @empID";
+            query = "UPDATE mmt_employee_info SET Emp_Name = @name, organization_id = @organizationID, Designation = @Designation, level = @designationLevel, status = COALESCE(@status, status) WHERE Emp_Id = @empID";
             break;
     }
 

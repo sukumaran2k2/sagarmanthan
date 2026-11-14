@@ -4,10 +4,8 @@ import { Building2 } from 'lucide-react';
 import { fetchYpReport, fetchYpWingCandidates, fetchYPDivisionWiseCandidates, fetchYoungProfessionals } from '../api';
 import { useNotifier, getErrorMessage, toastError } from '../../../utils/notify';
 import ReportTable from '../../../components/ReportTable';
-import { useAICopilot } from '../../../context/AICopilotContext';
 
 export default function Reports({ triggerNotification }) {
-  const { registerReport, clearReport } = useAICopilot();
   const notify = useNotifier(triggerNotification);
   const [reportView, setReportView] = useState('all');
 
@@ -565,23 +563,6 @@ export default function Reports({ triggerNotification }) {
     }
   }), []);
 
-  useEffect(() => {
-    if (aggregatedData && aggregatedData.length > 0) {
-      registerReport?.({
-        moduleName: 'Young Professionals',
-        reportTitle: currentView.title,
-        activeView: currentView.type === 'summary' ? `Summary (${reportView})` : 'Drilldown List',
-        columns: columns,
-        data: aggregatedData,
-        rowCount: aggregatedData.length,
-        pinnedBottom: pinnedBottomRowData,
-        autoOpen: false
-      });
-    }
-    return () => {
-      clearReport?.();
-    };
-  }, [aggregatedData, currentView, columns, reportView, registerReport, clearReport, pinnedBottomRowData]);
 
   const subtitle = useMemo(() => {
     const now = new Date();

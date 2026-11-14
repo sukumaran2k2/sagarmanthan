@@ -21,14 +21,14 @@ function appointmentLabel(row) {
 
 function KpiCard({ label, value, subtext, icon: Icon, valueColorClass, iconWrapClass, subtextColorClass }) {
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 flex items-center justify-between shadow-sm">
-      <div>
-        <span className="text-[10px] font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-widest block">{label}</span>
-        <span className={`text-2xl font-black block mt-1 ${valueColorClass}`}>{value ?? '—'}</span>
-        {subtext && <span className={`text-[10px] font-semibold block mt-0.5 ${subtextColorClass}`}>{subtext}</span>}
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 sm:p-5 flex items-center justify-between shadow-sm">
+      <div className="min-w-0">
+        <span className="text-[9px] sm:text-[10px] font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-widest block truncate">{label}</span>
+        <span className={`text-xl sm:text-2xl font-black block mt-1 ${valueColorClass}`}>{value ?? '—'}</span>
+        {subtext && <span className={`text-[9px] sm:text-[10px] font-semibold block mt-0.5 ${subtextColorClass} truncate`}>{subtext}</span>}
       </div>
-      <div className={`p-3.5 rounded-xl border flex-shrink-0 ${iconWrapClass}`}>
-        <Icon className="h-5 w-5" />
+      <div className={`p-2.5 sm:p-3.5 rounded-xl border flex-shrink-0 ${iconWrapClass}`}>
+        <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
       </div>
     </div>
   );
@@ -75,11 +75,11 @@ function PendingDays({ days }) {
 
 function Section({ number, title, note, actions, children }) {
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden h-[460px] flex flex-col">
-      <div className="bg-gradient-to-r from-[#1e1b4b] to-[#6366f1] px-5 py-3 flex items-center justify-between flex-shrink-0">
-        <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl sm:rounded-2xl overflow-hidden h-auto sm:h-[360px] md:h-[400px] lg:h-[460px] flex flex-col">
+      <div className="bg-gradient-to-r from-[#1e1b4b] to-[#6366f1] px-3 sm:px-5 py-2.5 sm:py-3 flex items-center justify-between flex-shrink-0">
+        <h3 className="text-[10px] sm:text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
           <span className="text-indigo-200">{number}.</span> {title}
-          {note && <span className="text-[10px] font-medium text-indigo-200/80 ml-1 normal-case">{note}</span>}
+          {note && <span className="text-[9px] sm:text-[10px] font-medium text-indigo-200/80 ml-1 normal-case">{note}</span>}
         </h3>
         {actions}
       </div>
@@ -151,12 +151,12 @@ export default function ConsultantAppointmentDashboard() {
   ]);
 
   return (
-    <div className="space-y-5 bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-indigo-950/25 dark:via-slate-950 dark:to-purple-950/20 rounded-3xl p-6">
+    <div className="space-y-3 sm:space-y-4 md:space-y-5 bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-indigo-950/25 dark:via-slate-950 dark:to-purple-950/20 rounded-xl sm:rounded-2xl md:rounded-3xl p-3 sm:p-4 md:p-6">
       <p className="text-[10px] text-slate-700 dark:text-slate-300 font-semibold">
         Last updated date: {formatDate(lastDataUpdate)}
       </p>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
         <KpiCard
           label="Total consultant appointments"
           value={kpi?.total}
@@ -195,7 +195,7 @@ export default function ConsultantAppointmentDashboard() {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 items-start">
         <Section
           number={1}
           title="Stage-wise heat map"
@@ -241,7 +241,7 @@ export default function ConsultantAppointmentDashboard() {
         </Section>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 items-start">
         <Section
           number={3}
           title="Wing-wise pending appointments (active)"

@@ -6,7 +6,6 @@ import Footer from '../components/Footer';
 import Toast from '../components/Toast';
 import NetworkCheckView from '../components/NetworkCheckView';
 import RestrictedAccess from '../components/RestrictedAccess';
-import SagarBot from '../components/SagarBot';
 import { 
   canAccessTab, 
   normalizeTab, 
@@ -84,6 +83,11 @@ export const ROUTE_MAP = {
   'VIP Reference - Data List': 'governance/vip-reference/data-list',
   'VIP Reference - Input Form': 'governance/vip-reference/input-form',
   'VIP Reference - Reports': 'governance/vip-reference/reports',
+  'Foreign Visit': 'governance/foreign-visit/dashboard',
+  'Foreign Visit - Dashboard': 'governance/foreign-visit/dashboard',
+  'Foreign Visit - Data List': 'governance/foreign-visit/data-list',
+  'Foreign Visit - Input Form': 'governance/foreign-visit/input-form',
+  'Foreign Visit - Reports': 'governance/foreign-visit/reports',
   'Media Outreach': 'governance/media-outreach/broadcast',
   'Parliamentary Issue': 'governance/parliamentary-issues/dashboard',
   'Parliamentary Issues': 'governance/parliamentary-issues/dashboard',
@@ -122,11 +126,16 @@ export const ROUTE_MAP = {
   'GMIS Data List': 'strategies/gmis-mou/data-list',
   'GMIS Input Form': 'strategies/gmis-mou/input-form',
   'GMIS Reports': 'strategies/gmis-mou/reports',
+  // The module is shown as OVOD. The "Drishti Portal" names are kept as aliases so a stored
+  // tab or an old link still resolves; the route slug is unchanged.
+  'OVOD': 'strategies/drishti-portal/dashboard',
+  'OVOD Input Form': 'strategies/drishti-portal/input-form',
+  'OVOD Data List': 'strategies/drishti-portal/data-list',
+  'OVOD Reports': 'strategies/drishti-portal/performance-report',
+  'Intervention List': 'strategies/drishti-portal/intervention-list',
   'Drishti Portal': 'strategies/drishti-portal/dashboard',
   'Drishti Portal (OVOD)': 'strategies/drishti-portal/dashboard',
   'One Vision One Document': 'strategies/drishti-portal/dashboard',
-  'OVOD': 'strategies/drishti-portal/dashboard',
-  'Intervention List': 'strategies/drishti-portal/intervention-list',
   'Drishti Portal - Input Form': 'strategies/drishti-portal/input-form',
   'Drishti Portal - Data List': 'strategies/drishti-portal/data-list',
   'Drishti Portal - Report': 'strategies/drishti-portal/performance-report',
@@ -219,7 +228,7 @@ export const ROUTE_MAP = {
   'CSR Reports': 'projects/csr-projects/reports',
 
   // Finance / NMP routes
-  'National Monetization Plan': 'finance/nmp/dashboard',
+  'National Monetisation Pipeline': 'finance/nmp/dashboard',
   'NMP Dashboard': 'finance/nmp/dashboard',
   'NMP Data List': 'finance/nmp/data-list',
   'NMP Input Form': 'finance/nmp/input-form',
@@ -268,11 +277,12 @@ export const getTabFromSlug = (slug) => {
   if (cleanSlug.startsWith('hr/consultant-appointment')) return 'Consultant Data List';
   if (cleanSlug.startsWith('strategies/gmis-mou')) return 'GMIS & IMW MoUs';
   if (cleanSlug.startsWith('strategies/miv-2030')) return 'MIV 2030';
-  if (cleanSlug.startsWith('strategies/drishti-portal') || cleanSlug.startsWith('strategies/ovod') || cleanSlug.startsWith('strategies/one-vision-one-document')) return 'Drishti Portal';
-  if (cleanSlug.startsWith('finance/nmp')) return 'National Monetization Plan';
+  if (cleanSlug.startsWith('strategies/drishti-portal') || cleanSlug.startsWith('strategies/ovod') || cleanSlug.startsWith('strategies/one-vision-one-document')) return 'OVOD';
+  if (cleanSlug.startsWith('finance/nmp')) return 'National Monetisation Pipeline';
   if (cleanSlug.startsWith('finance/capex')) return 'Capex';
   if (cleanSlug.startsWith('governance/gem-procurements')) return 'GEM Procurements';
   if (cleanSlug.startsWith('governance/vip-reference')) return 'VIP Reference';
+  if (cleanSlug.startsWith('governance/foreign-visit')) return 'Foreign Visit';
   if (cleanSlug.startsWith('governance/audit-paras')) return 'Audit Paras';
   if (cleanSlug.startsWith('governance/cabinet-notes-other-ministry')) return 'Cabinet Notes - Other Ministries';
   if (cleanSlug.startsWith('governance/cabinet-notes')) return 'Cabinet Notes - MoPSW';
@@ -352,8 +362,6 @@ const getBreadcrumbs = (tab) => {
     'SCI Input Form': ['KPI', 'SCI'],
     'SCI Data List': ['KPI', 'SCI'],
     'SCI Reports': ['KPI', 'SCI'],
-    'CMEC Input Form': ['KPI', 'CMEC'],
-    'CMEC Reports': ['KPI', 'CMEC'],
   };
   if (kpiItems[tab]) return ['Home', ...kpiItems[tab], tab];
 
@@ -401,8 +409,8 @@ const getBreadcrumbs = (tab) => {
   if (tab === 'Media Outreach') return ['Home', 'Media Outreach - (Input Form)'];
   if (governanceItems.includes(tab)) return ['Home', 'Governance', tab];
 
-  const nmpItems = ['National Monetization Plan', 'NMP Dashboard', 'NMP Data List', 'NMP Input Form'];
-  if (nmpItems.includes(tab)) return ['Home', 'Finance', 'National Monetization Plan', tab === 'National Monetization Plan' ? 'Dashboard' : tab];
+  const nmpItems = ['National Monetisation Pipeline', 'NMP Dashboard', 'NMP Data List', 'NMP Input Form'];
+  if (nmpItems.includes(tab)) return ['Home', 'Finance', 'National Monetisation Pipeline', tab === 'National Monetisation Pipeline' ? 'Dashboard' : tab];
 
   const legalItems = ['Courtcases', 'Bills/PreConstitutions Act', 'Acts & Rules'];
   if (legalItems.includes(tab)) return ['Home', 'Legal', tab];
@@ -413,8 +421,8 @@ const getBreadcrumbs = (tab) => {
   const gmisItems = ['GMIS & IMW MoUs', 'GMIS-MoU', 'GMIS Dashboard', 'GMIS Data List', 'GMIS Input Form', 'GMIS Reports'];
   if (gmisItems.includes(tab)) return ['Home', 'Long Term Strategies', 'GMIS & IMW MoUs', tab === 'GMIS & IMW MoUs' ? 'Dashboard' : tab];
 
-  const ovodItems = ['Drishti Portal', 'Drishti Portal (OVOD)', 'One Vision One Document', 'Intervention List'];
-  if (ovodItems.includes(tab)) return ['Home', 'Long Term Strategies', 'Drishti Portal (Ministry View)', tab === 'Drishti Portal' ? 'Dashboard' : tab];
+  const ovodItems = ['OVOD', 'OVOD Input Form', 'OVOD Data List', 'OVOD Reports', 'Intervention List', 'Drishti Portal', 'Drishti Portal (OVOD)', 'One Vision One Document'];
+  if (ovodItems.includes(tab)) return ['Home', 'Long Term Strategies', 'OVOD', tab === 'OVOD' || tab === 'Drishti Portal' ? 'Dashboard' : tab];
 
   const visionItems = ['Vision 2047', 'Maritime India Summit', 'Blue Economy Policy'];
   if (visionItems.includes(tab)) return ['Home', 'Long Term Strategies', tab];
@@ -512,14 +520,16 @@ export default function MainLayout({
       />
 
       {/* Main Content Viewport */}
-      <main className="flex-grow w-full max-w-full px-4 sm:px-6 lg:px-8 pb-12">
+      <main className="flex-grow w-full max-w-full px-3 sm:px-6 lg:px-8 pb-12">
+        {/* Breadcrumb bar: w-fit keeps it only as wide as the crumbs, max-w-full stops it
+            overflowing the viewport, and flex-wrap lets a long trail fall onto a second line. */}
         {!usesOwnPageHeader(activeTab) && tabAllowed && (
-          <div className="flex items-center space-x-2 text-slate-400 text-xs font-semibold px-2 mb-6 mt-3 animate-fade-in select-none bg-white py-2.5 px-4 rounded-xl border border-slate-200 shadow-sm w-fit">
-            <Home className="h-3.5 w-3.5 text-slate-500 cursor-pointer hover:text-blue-700 transition-colors" onClick={() => goToTab('landing')} />
+          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 sm:gap-x-2 text-slate-400 text-[10px] sm:text-xs font-semibold mb-4 sm:mb-6 mt-2 sm:mt-3 animate-fade-in select-none bg-white py-2 sm:py-2.5 px-3 sm:px-4 rounded-lg sm:rounded-xl border border-slate-200 shadow-sm w-fit max-w-full">
+            <Home className="h-3.5 w-3.5 shrink-0 text-slate-500 cursor-pointer hover:text-blue-700 transition-colors" onClick={() => goToTab('landing')} />
             {getBreadcrumbs(activeTab).slice(1).map((crumb, idx, arr) => (
-              <div key={idx} className="flex items-center space-x-2">
-                <span className="text-slate-350">/</span>
-                <span className={idx === arr.length - 1 ? "text-blue-800 font-bold" : "text-slate-550"}>
+              <div key={idx} className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                <span className="text-slate-350 shrink-0">/</span>
+                <span className={`break-words ${idx === arr.length - 1 ? "text-blue-800 font-bold" : "text-slate-550"}`}>
                   {idx === arr.length - 1 ? (getKpiSubTabCrumb(location.pathname, liveSearch) || crumb) : crumb}
                 </span>
               </div>
@@ -542,7 +552,6 @@ export default function MainLayout({
       <Footer />
 
       {/* Intelligent Maritime ChatBot Assistant (Temporarily disabled) */}
-      {/* <SagarBot /> */}
     </div>
   );
 }

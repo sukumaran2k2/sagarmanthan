@@ -238,3 +238,51 @@
 .module-form-table-select {
   background-color: var(--module-form-input-bg);
 }
+
+/* ── Responsive: Tablet ────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .module-form-banner {
+    padding: 0.875rem 1.25rem;
+    flex-wrap: wrap;
+    gap: 0.625rem;
+  }
+  .module-form-banner-title {
+    font-size: 0.8125rem;
+  }
+  .module-form-input,
+  .module-form-select,
+  .module-form-textarea,
+  .module-form-input-readonly {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
+  }
+}
+
+/* ── Responsive: Mobile ─────────────────────────────────────── */
+@media (max-width: 640px) {
+  .module-form-banner {
+    padding: 0.75rem 1rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .module-form-banner-title {
+    font-size: 0.75rem;
+  }
+  .module-form-section-title {
+    margin-top: 1.25rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.6875rem;
+  }
+  .module-form-input,
+  .module-form-select,
+  .module-form-textarea,
+  .module-form-input-readonly {
+    padding: 0.5rem 0.625rem;
+    font-size: 0.6875rem;
+    border-radius: 0.5rem;
+  }
+  .module-form-label {
+    font-size: 0.625rem;
+    margin-bottom: 0.25rem;
+  }
+}

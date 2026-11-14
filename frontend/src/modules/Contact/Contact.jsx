@@ -22,7 +22,7 @@ const CONTACTS_DATA = [
     initials: "US",
     name: "Under Secretary",
     division: "IC Division",
-    modules: ["Foreign Visit", "KPI CMEC"],
+    modules: ["Foreign Visit"],
     email: "usic-psw@gov.in",
     phone: "011-23719207"
   },
@@ -110,7 +110,7 @@ const CONTACTS_DATA = [
     initials: "US",
     name: "Under Secretary(Coord-I&II)",
     division: "Coordination Division",
-    modules: ["Gem procurement", "Cabinet notes-MOPSW", "Cabinet notes-other ministries", "VIP reference", "Audit paras", "Interstate and Interministerial Issues", "Drishti portal", "Knowledge repository", "Senior Officer Meetings", "MOPSW Tracker"],
+    modules: ["Gem procurement", "Cabinet notes-MOPSW", "Cabinet notes-other ministries", "VIP reference", "Audit paras", "Interstate and Interministerial Issues", "OVOD", "Knowledge repository", "Senior Officer Meetings", "MOPSW Tracker"],
     email: "uscoord1-psw@gov.in",
     phone: "011-23711139"
   }

@@ -790,26 +790,31 @@ router.put("/file-disposal-update", auth, ministryOnly, eofficeUpdate, EofficeFi
 
 
 // Official Foreign Visit
-router.get("/OFV-data/:userID/:organisationID", pinOwnUser(), pinOwnOrganisation(), officialForeignVisitTab.getOFVData);
-router.post("/add-OFV-data", officialForeignVisitTab.addOFVData);
-router.post("/OFV/upload-files", officialForeignVisitTab.upload.single('file'), officialForeignVisitTab.addOFVDocument);
-router.get("/OFV/download/:id", officialForeignVisitTab.downloadTour);
+// Login is already enforced globally, but these routes carried no module check, so any signed-in
+// user could read or write every organisation's foreign visits. Guard them like the other modules.
+const fvRead = requireModulePermission("FOREIGN_VISIT", "read");
+const fvCreate = requireModulePermission("FOREIGN_VISIT", "create");
+const fvUpdate = requireModulePermission("FOREIGN_VISIT", "update");
+
+router.get("/OFV-data/:userID/:organisationID", fvRead, pinOwnUser(), pinOwnOrganisation(), officialForeignVisitTab.getOFVData);
+router.post("/add-OFV-data", fvCreate, officialForeignVisitTab.addOFVData);
+router.post("/OFV/upload-files", fvUpdate, officialForeignVisitTab.upload.single('file'), officialForeignVisitTab.addOFVDocument);
+router.get("/OFV/download/:id", fvRead, officialForeignVisitTab.downloadTour);
 // router.get("/get-OFV-report/:type", officialForeignVisitTab.getOFVReport);
-router.post("/get-OFV-report", officialForeignVisitTab.getOFVReport);
+router.post("/get-OFV-report", fvRead, officialForeignVisitTab.getOFVReport);
 
-router.get("/get-OFV-update/:ID", officialForeignVisitTab.getUpdateOFVData);
-router.get("/get-OFV-year/:year/:type", officialForeignVisitTab.getDetailYearOFVReport);
-router.get("/get-OFV-name/:name/:type", officialForeignVisitTab.getDetailNameOFVReport);
-router.get("/get-OFV-detail/:id", officialForeignVisitTab.getDetailedInfoOFV);
-router.get("/get-foreign-chart/:orgID/:roleId/:desigID/:officerName", officialForeignVisitTab.getOFVChart);
-router.post("/get-foreign-count", officialForeignVisitTab.getCountOFV);
-router.get("/get-foreign-onGoing/:orgID/:roleId/:desigID/:officerName", officialForeignVisitTab.getOnGoingListOFV);
-router.get("/get-OFV-upload/:ID", officialForeignVisitTab.getUploadData);
+router.get("/get-OFV-update/:ID", fvRead, officialForeignVisitTab.getUpdateOFVData);
+router.get("/get-OFV-year/:year/:type", fvRead, officialForeignVisitTab.getDetailYearOFVReport);
+router.get("/get-OFV-name/:name/:type", fvRead, officialForeignVisitTab.getDetailNameOFVReport);
+router.get("/get-OFV-detail/:id", fvRead, officialForeignVisitTab.getDetailedInfoOFV);
+router.get("/get-foreign-chart/:orgID/:roleId/:desigID/:officerName", fvRead, officialForeignVisitTab.getOFVChart);
+router.post("/get-foreign-count", fvRead, officialForeignVisitTab.getCountOFV);
+router.get("/get-foreign-onGoing/:orgID/:roleId/:desigID/:officerName", fvRead, officialForeignVisitTab.getOnGoingListOFV);
+router.get("/get-OFV-upload/:ID", fvRead, officialForeignVisitTab.getUploadData);
 
-router.post("/update-propsed-info", officialForeignVisitTab.updateProposedInformation);
-router.post("/update-sanctioned-info", officialForeignVisitTab.updateSanctionedInfo);
-router.post("/update-visit-tab", officialForeignVisitTab.updateVisitTab);
-
+router.post("/update-propsed-info", fvUpdate, officialForeignVisitTab.updateProposedInformation);
+router.post("/update-sanctioned-info", fvUpdate, officialForeignVisitTab.updateSanctionedInfo);
+router.post("/update-visit-tab", fvUpdate, officialForeignVisitTab.updateVisitTab);
 
 // Flagged ship
 router.get("/get-flag-data", flaggedShipTab.getFSData);
@@ -3143,41 +3148,48 @@ router.get('/knowledge-rep-key/:docID', KRTab.getKnowledgeRepositoryKey);
 router.delete("/delete-knowledge-rep/:id/:documentType", auth, KRTab.deleteKnowledgeRepository);
 router.get("/kr/user-manual", userManualMenu.krManual);
 
-// One vision one document
-router.get("/OVD-datas/:ID", OVDTab.getUpdateOVD);
-router.post('/OVD-data', OVDTab.createOVDData);
-router.post('/OVD-L2-data', OVDTab.createOVDL2Data);
-router.post('/api/OVD-L2-data', OVDTab.createOVDL2Data);
-router.post('/save-ovod-b2-b3', OVDTab.createOVDL2Data);
-router.put('/OVD-datas', OVDTab.updateOVDData);
-router.post("/ovd-document", OVDTab.upload.single('file'), OVDTab.ovdUploadDocument);
-router.get('/OVD-data-count/:wingID/:orgID/:vision/:priority/:vibhasID/:userID/:mivChapterSelect/:makvThemeSelect', OVDTab.getOvdCount);
-router.get('/OVD-data-report/:wingID/:orgID/:vision/:priority/:vibhasID/:userID/:mivChapterSelect/:makvThemeSelect/:statusCurrent', OVDTab.getAllResultOVDData);
-router.get('/OVD-ministry-chart/:wingID/:orgID/:vision/:priority/:vibhasID/:mivChapterSelect/:makvThemeSelect', OVDTab.getMinistryOVDChart);
-router.get('/OVD-ministry-b2-chart/:wingID/:orgID/:vision/:priority/:vibhasID/:mivChapterSelect/:makvThemeSelect', OVDTab.getMinistryOVDChartB2);
-router.get('/OVD-organisation-chart/:userID/:vision/:priority/:vibhasID/:mivChapterSelect/:makvThemeSelect', OVDTab.getOrganisationOVDChart);
-router.get('/get-intervention-documents/:ID', OVDTab.getInterventionDocuments);
-router.delete("/delete-intervention-document/:ID/:nameDoc", OVDTab.deleteInterventionDocument);
-router.get("/download-intervention-document/:ID", OVDTab.downloadInterventionDocument);
-router.post("/ovod-finance-document", OVDTab.upload.single('file'), OVDTab.ovodFinanceDocument);
-router.get('/get-ovod-finance-documents/:ID/:sourceOfFundList', OVDTab.getFinanceDocuments);
-router.delete("/delete-ovod-finance-document/:ID/:nameDoc", OVDTab.deleteFinanceDocument);
-router.get("/download-ovod-finance-document/:ID", OVDTab.downloadFinanceDocument);
-router.put('/update-ovod-action', OVDTab.updateOVODActions);
-router.delete('/delete-ovod-action/:ID/:userID', OVDTab.deleteOVODAction);
+// One vision one document (Drishti Portal / OVOD)
+// These routes carried no module check, so any signed-in user could read and write every
+// organisation's OVOD data straight from the API. The module code is DRISHTI_PORTAL, which is
+// the row that exists in tbl_modules; ONE_VISION_ONE_DOCUMENT and OVOD are aliases of it.
+const ovodRead = requireModulePermission('DRISHTI_PORTAL', 'read');
+const ovodCreate = requireModulePermission('DRISHTI_PORTAL', 'create');
+const ovodUpdate = requireModulePermission('DRISHTI_PORTAL', 'update');
+const ovodDelete = requireModulePermission('DRISHTI_PORTAL', 'delete');
+router.get("/OVD-datas/:ID", ovodRead, OVDTab.getUpdateOVD);
+router.post('/OVD-data', ovodCreate, OVDTab.createOVDData);
+router.post('/OVD-L2-data', ovodCreate, OVDTab.createOVDL2Data);
+router.post('/api/OVD-L2-data', ovodCreate, OVDTab.createOVDL2Data);
+router.post('/save-ovod-b2-b3', ovodCreate, OVDTab.createOVDL2Data);
+router.put('/OVD-datas', ovodUpdate, OVDTab.updateOVDData);
+router.post("/ovd-document", ovodCreate, OVDTab.upload.single('file'), OVDTab.ovdUploadDocument);
+router.get('/OVD-data-count/:wingID/:orgID/:vision/:priority/:vibhasID/:userID/:mivChapterSelect/:makvThemeSelect', ovodRead, OVDTab.getOvdCount);
+router.get('/OVD-data-report/:wingID/:orgID/:vision/:priority/:vibhasID/:userID/:mivChapterSelect/:makvThemeSelect/:statusCurrent', ovodRead, OVDTab.getAllResultOVDData);
+router.get('/OVD-ministry-chart/:wingID/:orgID/:vision/:priority/:vibhasID/:mivChapterSelect/:makvThemeSelect', ovodRead, OVDTab.getMinistryOVDChart);
+router.get('/OVD-ministry-b2-chart/:wingID/:orgID/:vision/:priority/:vibhasID/:mivChapterSelect/:makvThemeSelect', ovodRead, OVDTab.getMinistryOVDChartB2);
+router.get('/OVD-organisation-chart/:userID/:vision/:priority/:vibhasID/:mivChapterSelect/:makvThemeSelect', ovodRead, OVDTab.getOrganisationOVDChart);
+router.get('/get-intervention-documents/:ID', ovodRead, OVDTab.getInterventionDocuments);
+router.delete("/delete-intervention-document/:ID/:nameDoc", ovodDelete, OVDTab.deleteInterventionDocument);
+router.get("/download-intervention-document/:ID", ovodRead, OVDTab.downloadInterventionDocument);
+router.post("/ovod-finance-document", ovodCreate, OVDTab.upload.single('file'), OVDTab.ovodFinanceDocument);
+router.get('/get-ovod-finance-documents/:ID/:sourceOfFundList', ovodRead, OVDTab.getFinanceDocuments);
+router.delete("/delete-ovod-finance-document/:ID/:nameDoc", ovodDelete, OVDTab.deleteFinanceDocument);
+router.get("/download-ovod-finance-document/:ID", ovodRead, OVDTab.downloadFinanceDocument);
+router.put('/update-ovod-action', ovodUpdate, OVDTab.updateOVODActions);
+router.delete('/delete-ovod-action/:ID/:userID', ovodDelete, OVDTab.deleteOVODAction);
 
 // OVOD
-router.get('/OVD-data/:userID/:wingId', OVDDataTab.getOVDData);
-router.get('/OVD-data/:userID/:wingId/:vibhasId', OVDDataTab.getOVDVibhasData);
-router.get('/OVD-status-data/:type', OVDDataTab.getDEStatusDetail);
-router.get('/api/OVD-status-data/:type', OVDDataTab.getDEStatusDetail);
-router.get("/ovod-org-status/:organisation", OVDDataTab.getOVODStatusData);
-router.get("/ovod-org-list-data/:userID", OVDDataTab.getOVODOrgAllData);
-router.get("/ovod-org-filter/:tid/:orgId", OVDDataTab.getOVODDropDownData);
-router.get("/get-ovod-org-id/:orgId", OVDDataTab.getOVODImpId);
-router.get("/OVD-percentage/:ID", OVDDataTab.getPercentageOVD);
-router.get('/OVD-init-drop/:wingID/:orgID/:vision/:priority/:vibhasID/:mivChapterSelect/:makvThemeSelect/:userID', OVDDataTab.getCountInitDetail);
-router.get('/get-ovod-add-data/:goalA1/:a2Intervention/:goalB1/:interventionB2/:type/:impId', OVDDataTab.getAddOVDData);
+router.get('/OVD-data/:userID/:wingId', ovodRead, OVDDataTab.getOVDData);
+router.get('/OVD-data/:userID/:wingId/:vibhasId', ovodRead, OVDDataTab.getOVDVibhasData);
+router.get('/OVD-status-data/:type', ovodRead, OVDDataTab.getDEStatusDetail);
+router.get('/api/OVD-status-data/:type', ovodRead, OVDDataTab.getDEStatusDetail);
+router.get("/ovod-org-status/:organisation", ovodRead, OVDDataTab.getOVODStatusData);
+router.get("/ovod-org-list-data/:userID", ovodRead, OVDDataTab.getOVODOrgAllData);
+router.get("/ovod-org-filter/:tid/:orgId", ovodRead, OVDDataTab.getOVODDropDownData);
+router.get("/get-ovod-org-id/:orgId", ovodRead, OVDDataTab.getOVODImpId);
+router.get("/OVD-percentage/:ID", ovodRead, OVDDataTab.getPercentageOVD);
+router.get('/OVD-init-drop/:wingID/:orgID/:vision/:priority/:vibhasID/:mivChapterSelect/:makvThemeSelect/:userID', ovodRead, OVDDataTab.getCountInitDetail);
+router.get('/get-ovod-add-data/:goalA1/:a2Intervention/:goalB1/:interventionB2/:type/:impId', ovodRead, OVDDataTab.getAddOVDData);
 
 
 // chatbot
@@ -3416,12 +3428,13 @@ router.post('/ai/report-copilot', reportCopilotTab.chatReportCopilot);
 // ── NMP (National Monetization Plan) ─────────────────────────────────────────
 import nmpTab from "./controllers/Finance/nmp.js";
 router.get("/nmp/dashboard", auth, nmpTab.getNmpDashboard);
-router.get("/nmp/land-abstract", auth, nmpTab.getLandAbstractList);
-router.get("/nmp/past-land", auth, nmpTab.getPastLandList);
-router.get("/nmp/future-land", auth, nmpTab.getFutureLandList);
+router.get("/nmp/land-abstract/:userId", auth, nmpTab.getLandAbstractList);
+router.get("/nmp/past-land/:userId",     auth, nmpTab.getPastLandList);
+router.get("/nmp/future-land/:userId",   auth, nmpTab.getFutureLandList);
 router.get("/nmp/:id", auth, nmpTab.getNmpById);
 router.post("/nmp", auth, nmpTab.createNmpEntry);
 router.put("/nmp", auth, nmpTab.updateNmpEntry);
 router.delete("/nmp/:id/:userId", auth, nmpTab.deleteNmpEntry);
+router.get("/get-last-nmp-no/:organisationID", nmpTab.getnmpCaseNumber);
 
 export default router;

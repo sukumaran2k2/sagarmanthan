@@ -16,6 +16,8 @@ import DataList from './pages/DataList';
 import Reports from './pages/Reports';
 import DataEntryStatusReport from './pages/DataEntryStatusReport';
 import { isOrganisationUser } from '../../utils/authSession';
+import RestrictedAccess from '../../components/RestrictedAccess';
+import { useOvodPermissions } from './hooks/useOvodPermissions';
 
 export default function OVODModule({
   subTab: initialSubTab,
@@ -24,6 +26,7 @@ export default function OVODModule({
   const location = useLocation();
   const navigate = useNavigate();
   const isOrgUser = isOrganisationUser();
+  const { canAdd, canEdit, canRemove, canView } = useOvodPermissions();
 
   // The record being edited travels with the route entry, so it is gone as soon as the user
   // opens the form any other way (tab, sidebar, new session) and can never reopen stale
@@ -40,16 +43,22 @@ export default function OVODModule({
     return 'dashboard';
   }, [location.pathname]);
 
+  // The Input Form is offered only to users who may create, or who may update and arrived here
+  // to edit an existing record -- a read-only user has nothing to do on it.
+  const canOpenForm = canAdd || (canEdit && !!editingItem);
+
   const tabs = useMemo(() => [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'interventions', label: 'Intervention List', icon: ClipboardList },
-    { id: 'input-form', label: editingItem ? 'Update Initiative' : 'Input Form', icon: PlusCircle },
+    ...(canOpenForm
+      ? [{ id: 'input-form', label: editingItem ? 'Update Initiative' : 'Input Form', icon: PlusCircle }]
+      : []),
     { id: 'data-list', label: 'Data List', icon: Layers },
     ...(!isOrgUser ? [
       { id: 'performance-report', label: 'Performance Report', icon: BarChart2 },
       { id: 'data-entry-status', label: 'Data Entry Status', icon: FileBarChart },
     ] : []),
-  ], [editingItem, isOrgUser]);
+  ], [editingItem, isOrgUser, canOpenForm]);
 
   const handleTabChange = (tabId) => {
     if (tabId === 'dashboard') {
@@ -84,6 +93,10 @@ export default function OVODModule({
     navigate('/strategies/drishti-portal/data-list');
   }, [navigate]);
 
+  if (!canView && !canAdd && !canEdit) {
+    return <RestrictedAccess moduleName="OVOD" />;
+  }
+
   return (
     <div className="module-page-container space-y-6 animate-fade-in">
 
@@ -91,7 +104,7 @@ export default function OVODModule({
       <div className="module-header-container">
         <div>
           <h1 className="module-header-title">
-            Drishti Portal (One Vision One Document)
+            OVOD (One Vision One Document)
           </h1>
           <p className="module-header-subtitle">
             Strategic tracking, goal alignment, and action item monitoring across Ministry wings and organisations.
@@ -113,20 +126,30 @@ export default function OVODModule({
         {currentTab === 'interventions' && (
           <InterventionList triggerNotification={triggerNotification} />
         )}
+        {/* Guarded as well as hidden, so the route cannot be reached by URL. */}
         {currentTab === 'input-form' && (
-          <InputForm
-            key={editingItem?.id ?? 'new'}
-            editData={editingItem}
-            onSuccess={handleFormSuccess}
-            onCancel={handleFormCancel}
-            triggerNotification={triggerNotification} 
-          />
+          canOpenForm ? (
+            <InputForm
+              key={editingItem?.id ?? 'new'}
+              editData={editingItem}
+              onSuccess={handleFormSuccess}
+              onCancel={handleFormCancel}
+              triggerNotification={triggerNotification}
+              canAdd={canAdd}
+              canEdit={canEdit}
+            />
+          ) : (
+            <RestrictedAccess moduleName="OVOD — Input Form" />
+          )
         )}
         {currentTab === 'data-list' && (
           <DataList
             onAddNew={handleAddNew}
             onEdit={handleEdit}
             triggerNotification={triggerNotification}
+            canAdd={canAdd}
+            canEdit={canEdit}
+            canRemove={canRemove}
           />
         )}
         {!isOrgUser && currentTab === 'performance-report' && (

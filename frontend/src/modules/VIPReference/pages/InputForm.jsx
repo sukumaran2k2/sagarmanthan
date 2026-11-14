@@ -15,16 +15,6 @@ const SCHEMA_LIMITS = {
   remarks: { maxWords: 250, maxChars: 2000 },
 };
 
-const addDays = (dateStr, days) => {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  const dt = new Date(y, m - 1, d);
-  dt.setDate(dt.getDate() + days);
-  const yyyy = dt.getFullYear();
-  const mm = String(dt.getMonth() + 1).padStart(2, '0');
-  const dd = String(dt.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
-};
-
 const getWordCount = (text) => (text.trim() ? text.trim().split(/\s+/).length : 0);
 
 export default function InputForm({
@@ -110,10 +100,6 @@ export default function InputForm({
           remark: editData.statusRemarks?.[i] || '',
         };
       }
-    } else {
-      const d = new Date();
-      d.setDate(d.getDate() + 15);
-      initDeadline = d.toISOString().split('T')[0];
     }
 
     setSubject(initSubject);
@@ -220,7 +206,6 @@ export default function InputForm({
     setStages(prev => {
       const updated = { ...prev };
       updated[num] = { ...updated[num], [field]: val };
-      if (num === 1 && field === 'date' && val) setDeadline(addDays(val, 15));
       if (field === 'date' && !val) {
         for (let i = num + 1; i <= 6; i++) updated[i] = { date: '', remark: '' };
       }
@@ -429,9 +414,9 @@ export default function InputForm({
 
             {/* Deadline */}
             <div className="space-y-1.5">
-              <label className="module-form-label">Deadline (Auto-calculated: +15 days)</label>
-              <input type="date" value={deadline} readOnly
-                className="module-form-input opacity-60 cursor-not-allowed" />
+              <label className="module-form-label">Deadline</label>
+              <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)}
+                className="module-form-input" />
             </div>
           </div>
 

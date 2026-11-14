@@ -12,6 +12,7 @@ import {
 } from '../utils/moduleAccess';
 import { canCreateModule } from '../utils/modulePermissions';
 import { useHRPermissions } from '../modules/HR/hooks/useHRPermissions';
+import { useGMISPermissions } from '../modules/GMISMOU/hooks/useGMISPermissions';
 import { hrViewAllows } from '../modules/HR/utils/hrViews';
 import {
   Home,
@@ -24,6 +25,7 @@ import {
   TrendingUp,
   BookMarked,
   FileEdit,
+  Plane,
   UserCheck,
   PhoneCall,
   ChevronDown,
@@ -112,6 +114,19 @@ export default function Tabs({ activeTab, setActiveTab }) {
   const canCreateYp = canCreateModule('YOUNG_PROFESSIONAL');
   const canCreateCapex = canCreateModule('CAPEX');
   const canCreateAuditPara = canCreateModule('AUDIT_PARAS');
+
+  // Modules whose page offers its Input Form only with Create, so the menu hides it without Create.
+  // Major Ports is left out: its Input Form item also opens the Targets/Actuals lists.
+  const INPUT_FORM_MODULES = [
+    'CSR_PROJECTS', 'KPI_DGLL', 'KPI_CSL', 'KPI_IMU', 'KPI_SCI', 'CABINET_NOTES_OTHER_MINISTRIES',
+    'VIP_REFERENCE', 'FOREIGN_VISIT', 'MEDIA_OUTREACH', 'BILLS_PRE_CONSTITUTION', 'NMP', 'MIV_2030',
+    'DRISHTI_PORTAL',
+  ];
+  const canCreateIn = Object.fromEntries(INPUT_FORM_MODULES.map((code) => [code, canCreateModule(code)]));
+  // GMIS has its own rules (ministry roles, users with no row), so it uses the module's own hook
+  const { canAdd: canCreateGmis } = useGMISPermissions();
+  const inputFormKey = `${INPUT_FORM_MODULES.map((code) => (canCreateIn[code] ? 1 : 0)).join('')}${canCreateGmis ? 1 : 0}`;
+  const withCreate = (allowed, items) => (allowed ? items : []);
   // HR pages follow the user's HR view (Major Port / non-port / Secretary / ministry), as in the HR tab bar
   const { hrView, canViewVacancy: canViewHrVacancy, canViewAdministration: canViewHrAdmin } = useHRPermissions();
 
@@ -120,7 +135,12 @@ export default function Tabs({ activeTab, setActiveTab }) {
     const claims = getSessionClaims();
     if (!claims) return createFlags;
     const codes = claims.allowedModuleCodes;
-    return `${claims.roleCode || ''}|${Array.isArray(codes) ? codes.join(',') : ''}|${createFlags}`;
+    // Read ticks decide which modules the menu shows, so a change to them must rebuild it
+    const readCodes = (Array.isArray(claims.modulePermissions) ? claims.modulePermissions : [])
+      .filter((p) => p.read ?? p.canRead ?? p.can_read)
+      .map((p) => p.moduleCode || p.module_code)
+      .join(',');
+    return `${claims.roleCode || ''}|${Array.isArray(codes) ? codes.join(',') : ''}|read:${readCodes}|${createFlags}`;
   })();
 
   const m = (moduleCode, item) => ({ ...item, moduleCode });
@@ -155,7 +175,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
                 m('CSR_PROJECTS', { label: 'CSR Dashboard', tab: 'CSR Dashboard', icon: LayoutDashboard }),
                 m('CSR_PROJECTS', { label: 'CSR Fund Details', tab: 'CSR Fund Details', icon: Coins }),
                 m('CSR_PROJECTS', { label: 'CSR Project List', tab: 'CSR Project List', icon: ListTodo }),
-                m('CSR_PROJECTS', { label: 'Input Form', tab: 'CSR Input Form', icon: PlusCircle }),
+                ...withCreate(canCreateIn.CSR_PROJECTS, [m('CSR_PROJECTS', { label: 'Input Form', tab: 'CSR Input Form', icon: PlusCircle })]),
                 m('CSR_PROJECTS', { label: 'Reports', tab: 'CSR Reports', icon: FilePieChart }),
               ]
             : [
@@ -200,7 +220,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           title: 'DGLL',
           icon: Compass,
           items: [
-            m('KPI_DGLL', { label: 'Input Form', tab: 'DGLL Input Form', icon: FileEdit }),
+            ...withCreate(canCreateIn.KPI_DGLL, [m('KPI_DGLL', { label: 'Input Form', tab: 'DGLL Input Form', icon: FileEdit })]),
             m('KPI_DGLL', { label: 'Data List', tab: 'DGLL Data List', icon: ClipboardList }),
             m('KPI_DGLL', { label: 'Reports', tab: 'DGLL Reports', icon: FilePieChart }),
           ]
@@ -209,7 +229,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           title: 'CSL',
           icon: Layers,
           items: [
-            m('KPI_CSL', { label: 'Input Form', tab: 'CSL Input Form', icon: FileEdit }),
+            ...withCreate(canCreateIn.KPI_CSL, [m('KPI_CSL', { label: 'Input Form', tab: 'CSL Input Form', icon: FileEdit })]),
             m('KPI_CSL', { label: 'Data List', tab: 'CSL Data List', icon: ClipboardList }),
             m('KPI_CSL', { label: 'Reports', tab: 'CSL Reports', icon: FilePieChart }),
           ]
@@ -218,7 +238,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           title: 'IMU',
           icon: GraduationCap,
           items: [
-            m('KPI_IMU', { label: 'Input Form', tab: 'IMU Input Form', icon: FileEdit }),
+            ...withCreate(canCreateIn.KPI_IMU, [m('KPI_IMU', { label: 'Input Form', tab: 'IMU Input Form', icon: FileEdit })]),
             m('KPI_IMU', { label: 'Data List', tab: 'IMU Data List', icon: ClipboardList }),
             m('KPI_IMU', { label: 'Reports', tab: 'IMU Reports', icon: FilePieChart }),
           ]
@@ -227,19 +247,11 @@ export default function Tabs({ activeTab, setActiveTab }) {
           title: 'SCI',
           icon: Ship,
           items: [
-            m('KPI_SCI', { label: 'Input Form', tab: 'SCI Input Form', icon: FileEdit }),
+            ...withCreate(canCreateIn.KPI_SCI, [m('KPI_SCI', { label: 'Input Form', tab: 'SCI Input Form', icon: FileEdit })]),
             m('KPI_SCI', { label: 'Data List', tab: 'SCI Data List', icon: ClipboardList }),
             m('KPI_SCI', { label: 'Reports', tab: 'SCI Reports', icon: FilePieChart }),
           ]
         },
-        {
-          title: 'CMEC',
-          icon: Layers,
-          items: [
-            m('KPI_CMEC', { label: 'Input Form', tab: 'CMEC Input Form', icon: FileEdit }),
-            m('KPI_CMEC', { label: 'Reports', tab: 'CMEC Reports', icon: FilePieChart }),
-          ]
-        }
       ]
     },
     {
@@ -257,7 +269,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           subItems: [
             { label: 'Dashboard', tab: 'Cabinet Notes - Other Ministries', targetSubTab: 'Dashboard', icon: LayoutDashboard },
             { label: 'Data List', tab: 'Cabinet Notes - Other Ministries', targetSubTab: 'Data List', icon: ClipboardList },
-            { label: 'Input Form', tab: 'Cabinet Notes - Other Ministries', targetSubTab: 'Input Form', icon: FileEdit },
+            ...withCreate(canCreateIn.CABINET_NOTES_OTHER_MINISTRIES, [{ label: 'Input Form', tab: 'Cabinet Notes - Other Ministries', targetSubTab: 'Input Form', icon: FileEdit }]),
             { label: 'Reports', tab: 'Cabinet Notes - Other Ministries', targetSubTab: 'Reports', icon: FilePieChart },
           ]
         }),
@@ -294,15 +306,25 @@ export default function Tabs({ activeTab, setActiveTab }) {
           subItems: [
             { label: 'Dashboard', tab: 'VIP Reference - Dashboard', targetSubTab: 'Dashboard', icon: LayoutDashboard },
             { label: 'Data List', tab: 'VIP Reference - Data List', targetSubTab: 'Data List', icon: ClipboardList },
-            { label: 'Input Form', tab: 'VIP Reference - Input Form', targetSubTab: 'Input Form', icon: FileEdit },
+            ...withCreate(canCreateIn.VIP_REFERENCE, [{ label: 'Input Form', tab: 'VIP Reference - Input Form', targetSubTab: 'Input Form', icon: FileEdit }]),
             { label: 'Reports', tab: 'VIP Reference - Reports', targetSubTab: 'Reports', icon: FilePieChart },
+          ]
+        }),
+        m('FOREIGN_VISIT', {
+          label: 'Foreign Visit', icon: Plane,
+          targetTab: 'Foreign Visit',
+          subItems: [
+            { label: 'Dashboard', tab: 'Foreign Visit - Dashboard', targetSubTab: 'Dashboard', icon: LayoutDashboard },
+            { label: 'Data List', tab: 'Foreign Visit - Data List', targetSubTab: 'Data List', icon: ClipboardList },
+            ...withCreate(canCreateIn.FOREIGN_VISIT, [{ label: 'Input Form', tab: 'Foreign Visit - Input Form', targetSubTab: 'Input Form', icon: FileEdit }]),
+            { label: 'Reports', tab: 'Foreign Visit - Reports', targetSubTab: 'Reports', icon: FilePieChart },
           ]
         }),
         m('MEDIA_OUTREACH', {
           label: 'Media Outreach', icon: Globe,
           targetTab: 'Media Outreach',
           subItems: [
-            { label: 'Input Form', tab: 'Media Outreach', mediaType: 'add_details', icon: FileEdit },
+            ...withCreate(canCreateIn.MEDIA_OUTREACH, [{ label: 'Input Form', tab: 'Media Outreach', mediaType: 'add_details', icon: FileEdit }]),
             { label: 'Broadcast / TV Media', tab: 'Media Outreach', mediaType: 'broadcast', icon: FileText },
             { label: 'Print Media', tab: 'Media Outreach', mediaType: 'print_media', icon: FileText },
             { label: 'Online', tab: 'Media Outreach', mediaType: 'online', icon: Globe },
@@ -380,7 +402,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           subItems: [
             { label: 'Dashboard', tab: 'Bills/PreConstitutions Act', targetSubTab: 'Dashboard', icon: LayoutDashboard },
             { label: 'Data List', tab: 'Bills/PreConstitutions Act', targetSubTab: 'Data List', icon: ClipboardList },
-            { label: 'Input Form', tab: 'Bills/PreConstitutions Act', targetSubTab: 'Input Form', icon: FileEdit },
+            ...withCreate(canCreateIn.BILLS_PRE_CONSTITUTION, [{ label: 'Input Form', tab: 'Bills/PreConstitutions Act', targetSubTab: 'Input Form', icon: FileEdit }]),
             { label: 'Reports', tab: 'Bills/PreConstitutions Act', targetSubTab: 'Reports', icon: FilePieChart },
           ]
         }),
@@ -389,22 +411,32 @@ export default function Tabs({ activeTab, setActiveTab }) {
     },
     {
       id: 'nmp',
-      label: 'National Monetization Plan',
+      label: 'National Monetization Pipeline',
+      tab: 'NMP Dashboard',
       icon: DollarSign,
+      // Clicking the menu itself opens the dashboard rather than only revealing the sub-menu.
+      landingTab: 'NMP Dashboard',
       align: 'left-0',
       width: 'w-[280px]',
+      defaultTab: 'NMP Dashboard', 
       items: [
         { label: 'NMP Dashboard', icon: LayoutDashboard, tab: 'NMP Dashboard' },
+        ...withCreate(canCreateIn.NMP, [{ label: 'NMP Input Form', icon: FileEdit, tab: 'NMP Input Form' }]),
         { label: 'NMP Data List', icon: ClipboardList, tab: 'NMP Data List' },
-        { label: 'NMP Input Form', icon: FileEdit, tab: 'NMP Input Form' },
+        
       ]
     },
     {
       id: 'vision',
       label: 'Long Term Strategies',
       icon: TrendingUp,
-      align: 'left-0',
+      // Right-aligned so the panel grows leftwards; at left-0 it overflows the viewport whenever
+      // this menu lands near the right edge of the nav bar.
+      align: 'right-0',
       width: 'w-[260px]',
+      // This menu sits near the right end of the nav bar. At left-full the sub-panel would start
+      // roughly 476px right of the button and run off the viewport, so open it leftwards instead.
+      flyoutSide: 'left',
       items: [
         m('MIV_2030', {
           label: 'MIV 2030',
@@ -413,7 +445,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           subItems: [
             { label: 'Dashboard', tab: 'MIV Dashboard', targetSubTab: 'Dashboard', icon: LayoutDashboard },
             { label: 'Data List', tab: 'MIV Data List', targetSubTab: 'Data List', icon: ClipboardList },
-            { label: 'Input Form', tab: 'MIV Input Form', targetSubTab: 'Input Form', icon: FileEdit },
+            ...withCreate(canCreateIn.MIV_2030, [{ label: 'Input Form', tab: 'MIV Input Form', targetSubTab: 'Input Form', icon: FileEdit }]),
             { label: 'MIV Meetings', tab: 'MIV Meetings', targetSubTab: 'MIV Meetings', icon: Users },
             { label: 'Report', tab: 'MIV Reports', targetSubTab: 'Reports', icon: FilePieChart },
           ]
@@ -425,21 +457,21 @@ export default function Tabs({ activeTab, setActiveTab }) {
           subItems: [
             { label: 'Dashboard', tab: 'GMIS & IMW MoUs', targetSubTab: 'Dashboard', icon: LayoutDashboard },
             { label: 'Data List', tab: 'GMIS & IMW MoUs', targetSubTab: 'Data List', icon: ClipboardList },
-            { label: 'Input Form', tab: 'GMIS & IMW MoUs', targetSubTab: 'Input Form', icon: FileEdit },
+            ...withCreate(canCreateGmis, [{ label: 'Input Form', tab: 'GMIS & IMW MoUs', targetSubTab: 'Input Form', icon: FileEdit }]),
             { label: 'Reports', tab: 'GMIS & IMW MoUs', targetSubTab: 'Reports', icon: FilePieChart },
           ]
         }),
         m('DRISHTI_PORTAL', {
-          label: 'Drishti Portal (OVOD)',
+          label: 'OVOD',
           icon: Globe,
-          tab: 'Drishti Portal',
-          targetTab: 'Drishti Portal',
+          tab: 'OVOD',
+          targetTab: 'OVOD',
           subItems: [
-            { label: 'Dashboard', tab: 'Drishti Portal', targetSubTab: 'Dashboard', icon: LayoutDashboard },
+            { label: 'Dashboard', tab: 'OVOD', targetSubTab: 'Dashboard', icon: LayoutDashboard },
             { label: 'Intervention List', tab: 'Intervention List', targetSubTab: 'Interventions', icon: ClipboardList },
-            { label: 'Input Form', tab: 'Drishti Portal - Input Form', targetSubTab: 'Input-Form', icon: FileEdit },
-            { label: 'Data List', tab: 'Drishti Portal - Data List', targetSubTab: 'Data-List', icon: Layers },
-            { label: 'Report', tab: 'Drishti Portal - Report', targetSubTab: 'Report', icon: FilePieChart },
+            ...withCreate(canCreateIn.DRISHTI_PORTAL, [{ label: 'Input Form', tab: 'OVOD Input Form', targetSubTab: 'Input-Form', icon: FileEdit }]),
+            { label: 'Data List', tab: 'OVOD Data List', targetSubTab: 'Data-List', icon: Layers },
+            { label: 'Report', tab: 'OVOD Reports', targetSubTab: 'Report', icon: FilePieChart },
           ]
         }),
       ]
@@ -487,7 +519,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
       directTab: 'Contact Us',
     },
   ]),
-    [accessKey, isOrgUser, canCreateParliamentary, canCreateCabinetMopsw, canCreateConsultant, canCreateYp, canCreateCapex, canCreateAuditPara, canViewHrVacancy, canViewHrAdmin, hrView]
+    [accessKey, inputFormKey, isOrgUser, canCreateParliamentary, canCreateCabinetMopsw, canCreateConsultant, canCreateYp, canCreateCapex, canCreateAuditPara, canViewHrVacancy, canViewHrAdmin, hrView]
   );
 
   // Modules that keep their sub-tab in a store rather than in the URL read the opening tab from
@@ -594,8 +626,12 @@ export default function Tabs({ activeTab, setActiveTab }) {
 
             return (
               <div key={menu.id} className="relative group flex-shrink-0">
-                {/* Main Menu Button */}
+                {/* Main Menu Button.
+                    A menu with `landingTab` also opens that page when its label is clicked;
+                    the sub-menu still appears on hover. Without it the parent is hover-only. */}
                 <button
+                  type="button"
+                  onClick={menu.landingTab ? () => handleItemClick(menu.landingTab) : undefined}
                   className={`flex flex-col items-center space-y-0.5 py-1 px-1.5 text-center transition-all duration-200 cursor-pointer rounded-lg hover:bg-slate-50 min-w-16 relative ${
                     isMainMenuActive ? 'text-blue-700 font-bold' : 'text-slate-655 font-semibold hover:text-slate-900'
                   }`}
@@ -619,6 +655,8 @@ export default function Tabs({ activeTab, setActiveTab }) {
                     {hasDropdown && <ChevronDown className="h-2.5 w-2.5 opacity-60" />}
                   </span>
                 </button>
+
+                
 
                 {/* Dropdown Menu Container */}
                 {hasDropdown && (
@@ -733,10 +771,10 @@ export default function Tabs({ activeTab, setActiveTab }) {
                                     {ItemIcon && <ItemIcon className="h-4 w-4 text-slate-400" />}
                                     <span>{item.label}</span>
                                   </div>
-                                  <ChevronRight className="h-3 w-3 text-slate-350 group-hover/flyoutbtn:text-blue-500 transition-colors" />
+                                  <ChevronRight className={`h-3 w-3 text-slate-350 group-hover/flyoutbtn:text-blue-500 transition-colors ${menu.flyoutSide === 'left' ? 'rotate-180' : ''}`} />
                                 </button>
                                 {/* Flyout sub-panel on hover */}
-                                <div className="absolute left-full top-0 ml-2 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl rounded-2xl p-3 z-[60] transition-all duration-200 origin-left scale-95 opacity-0 invisible group-hover/flyout:scale-100 group-hover/flyout:opacity-100 group-hover/flyout:visible space-y-1">
+                                <div className={`absolute top-0 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl rounded-2xl p-3 z-[60] transition-all duration-200 scale-95 opacity-0 invisible group-hover/flyout:scale-100 group-hover/flyout:opacity-100 group-hover/flyout:visible space-y-1 ${menu.flyoutSide === 'left' ? 'right-full mr-2 origin-right' : 'left-full ml-2 origin-left'}`}>
                                   {item.clickableHeader ? (
                                     <button
                                       onClick={() => openModule(item)}

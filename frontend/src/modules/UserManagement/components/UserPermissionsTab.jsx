@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { getInits, getModuleIconAndColor, roleClassName } from '../utils';
 import { PERMS } from '../constants';
 import { isRowFullyGranted } from '../userModuleCrud';
+import { groupModulesByNav, withoutHiddenModules } from '../../../config/moduleRegistry';
 
 export default function UserPermissionsTab({
   selectedCategory,
@@ -35,6 +37,41 @@ export default function UserPermissionsTab({
   usersLoading = false,
   saving = false,
 }) {
+  // Modules arranged the way the navigation presents them, so an administrator looks for
+  // "OVOD" under Long Term Strategies rather than scanning one flat alphabetical list.
+  const moduleGroups = useMemo(
+    () => groupModulesByNav(withoutHiddenModules(activeModules)),
+    [activeModules]
+  );
+
+  // Hidden modules are excluded from the counts too, so the totals match what is on screen.
+  const visibleModules = useMemo(() => withoutHiddenModules(activeModules), [activeModules]);
+
+  // Collapsed by section id. Everything starts open so nothing is hidden by surprise.
+  const [collapsed, setCollapsed] = useState(() => new Set());
+  const toggleGroup = (id) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  /** Granted / total across a section, for the count shown on its header. */
+  const groupGranted = (modules) =>
+    modules.reduce(
+      (sum, m) => sum + PERMS.filter((p) => draft[m.id]?.[p] === true).length,
+      0
+    );
+
+  /** Turn every permission in a section on, or off when all are already on. */
+  const toggleGroupAll = (modules) => {
+    const everythingOn = modules.every((m) => isRowFullyGranted(draft[m.id]));
+    modules.forEach((m) => {
+      PERMS.forEach((p) => handleCheck(m.id, p, !everythingOn));
+    });
+  };
+
   return (
     <>
       <div className="sidebar">
@@ -281,7 +318,7 @@ export default function UserPermissionsTab({
                       Loading users…
                     </td>
                   </tr>
-                ) : activeModules.length === 0 ? (
+                ) : visibleModules.length === 0 ? (
                   <tr>
                     <td colSpan="6" className="empty">
                       No modules enabled for this organisation. Assign them first under Modules → Update.
@@ -294,14 +331,59 @@ export default function UserPermissionsTab({
                     </td>
                   </tr>
                 ) : (
-                  activeModules.map((m) => {
-                    const {
-                      Icon: ModIcon,
-                      color: modColor,
-                      bg: modBg,
-                    } = getModuleIconAndColor(m.name);
-                    const rowOn = isRowFullyGranted(draft[m.id]);
+                  moduleGroups.map((group) => {
+                    const isCollapsed = collapsed.has(group.id);
+                    const total = group.modules.length * PERMS.length;
+                    const granted = groupGranted(group.modules);
+                    const allOn = group.modules.every((m) => isRowFullyGranted(draft[m.id]));
+
                     return (
+                      <React.Fragment key={group.id}>
+                        {/* Section header -- click anywhere on it to fold the section away */}
+                        <tr className="mod-group-row">
+                          <td colSpan={PERMS.length + 1}>
+                            <button
+                              type="button"
+                              className="mod-group-toggle"
+                              onClick={() => toggleGroup(group.id)}
+                              aria-expanded={!isCollapsed}
+                            >
+                              <ChevronDown
+                                size={14}
+                                className={`mod-group-chevron ${isCollapsed ? 'is-collapsed' : ''}`}
+                              />
+                              <span className="mod-group-label">{group.label}</span>
+                              <span className="mod-group-count">
+                                {group.modules.length} module{group.modules.length === 1 ? '' : 's'}
+                                {' · '}
+                                {granted}/{total} granted
+                              </span>
+                            </button>
+                          </td>
+                          <td className="c">
+                            <button
+                              type="button"
+                              className={`row-all-btn ${allOn ? 'is-clear' : ''}`}
+                              onClick={() => toggleGroupAll(group.modules)}
+                              title={
+                                allOn
+                                  ? `Clear every permission in ${group.label}`
+                                  : `Select every permission in ${group.label}`
+                              }
+                            >
+                              {allOn ? 'Clear' : 'All'}
+                            </button>
+                          </td>
+                        </tr>
+
+                        {!isCollapsed && group.modules.map((m) => {
+                          const {
+                            Icon: ModIcon,
+                            color: modColor,
+                            bg: modBg,
+                          } = getModuleIconAndColor(m.name);
+                          const rowOn = isRowFullyGranted(draft[m.id]);
+                          return (
                       <tr key={m.id}>
                         <td>
                           <div className="mod-cell">
@@ -344,6 +426,9 @@ export default function UserPermissionsTab({
                           </button>
                         </td>
                       </tr>
+                          );
+                        })}
+                      </React.Fragment>
                     );
                   })
                 )}
@@ -353,9 +438,9 @@ export default function UserPermissionsTab({
               <span>
                 {selectedCategory !== "all" &&
                   selectedUsers.length > 0 &&
-                  activeModules.length > 0 && (
+                  visibleModules.length > 0 && (
                     <>
-                      {grantedCount} / {activeModules.length * 4}{" "}
+                      {grantedCount} / {visibleModules.length * 4}{" "}
                       permissions granted
                       {mixedCount > 0
                         ? ` · ${mixedCount} mixed (varies across selected users)`

@@ -7,7 +7,11 @@ const ORGANISATION_FIELDS = [
   { name: 'organisation_code', label: 'Organisation Code', type: 'text', required: true, placeholder: 'Enter organisation code', maxLength: 10, uppercase: true },
   { name: 'organisation_category_id', label: 'Organisation Category', type: 'select', required: true,
     optionsFrom: 'mmt_organisation_category', optionValue: 'organisation_category_id', optionLabel: 'organisation_category_name', placeholder: '--Select Category--' },
-  
+  { name: 'wing_id', label: 'Wing', type: 'select', required: true,
+    optionsFrom: 'mmt_wings', optionValue: 'wing_id', optionLabel: 'wing_name', placeholder: '--Select Wing--' },
+  { name: 'division_id', label: 'Division', type: 'select', required: true,
+    optionsFrom: 'mmt_division', optionValue: 'division_id', optionLabel: 'division_name', placeholder: '--Select Division--',
+    dependsOn: 'wing_id', filterBy: 'wing_id' },
 ];
 const OUTPUT_FIELDS = [
   { name: 'project_output_name', label: 'Project Output Name', type: 'text', required: true, placeholder: 'Enter project output name' },
@@ -32,7 +36,10 @@ const POST_FIELDS = [
   { name: 'department_id', label: 'Department', type: 'select', required: true,
     optionsFrom: 'mmt_department', optionValue: 'department_id', optionLabel: 'department_name', placeholder: '--Select Department--' },
 ];
-
+const STATE_FIELDS = [
+  { name: 'state_name', label: 'State Name', type: 'text', required: true, placeholder: 'Enter state name' },
+  { name: 'district_name', label: 'District Name', type: 'text', required: true, placeholder: 'Enter district name' },
+];
 const isPostMeta = (meta) =>
   /(^|[\s_-])posts?([\s_-]|$)/i.test(`${meta?.table ?? ''} ${meta?.key ?? ''} ${meta?.label ?? ''}`);
 
@@ -47,9 +54,36 @@ const isAgencyMeta = (meta) =>
 
 const isOutputMeta = (meta) =>
   /output/i.test(`${meta?.table ?? ''} ${meta?.key ?? ''} ${meta?.label ?? ''}`);
-export default function InputForm({ meta, columns = [], onBack, fetchData, triggerNotification }) {
-  const [values, setValues] = useState({});
-  const [options, setOptions] = useState({});
+export default function InputForm({
+  meta,
+  columns = [],
+  initialForm = null,
+  idField,
+  onBack,
+  onSuccess,
+  fetchData,
+  triggerNotification,
+}) {
+  const isEdit = !!initialForm;
+  console.log(isEdit,"isEdit")
+
+
+  const [values, setValues] = useState(() => {
+    if (!initialForm) return {};
+    const v = Object.fromEntries(
+      Object.entries(initialForm).map(([k, val]) => [k, val == null ? '' : String(val)])
+    );
+    // Organisations list returns category_id, the form field is organisation_category_id
+    if (!v.organisation_category_id && v.category_id) {
+      v.organisation_category_id = v.category_id;
+    }
+    // MP Constituency list may return mp_constituency_name, the form field is mpc_name
+    if (!v.mpc_name && v.mp_constituency_name) {
+      v.mpc_name = v.mp_constituency_name;
+    }
+    return v;
+  });
+    const [options, setOptions] = useState({});
   const [touched, setTouched] = useState({});
   const [formSubmitted, setFormSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -60,6 +94,8 @@ export default function InputForm({ meta, columns = [], onBack, fetchData, trigg
 
   // Explicit fields if the master defines them, otherwise derive from columns
 const fields = useMemo(() => {
+ console.log('EDIT initialForm →', initialForm);
+
   let base = meta?.fields
     ? meta.fields
     : columns
@@ -175,41 +211,70 @@ const fields = useMemo(() => {
   const isFormValid = Object.keys(validationErrors).length === 0;
   const shouldShowError = (name) => (touched[name] || formSubmitted) && validationErrors[name];
 
+const resolveTable = () => {
+  const label = `${meta?.table ?? ''} ${meta?.key ?? ''} ${meta?.label ?? ''}`;
+  const isOrg = /organi[sz]ation/i.test(label);
+  return (
+    meta?.table ??
+    (isOrg ? 'mmt_organisation'
+      : isOutputMeta(meta) ? 'mmt_output'
+      : isAgencyMeta(meta) ? 'mmt_implementing_agency'
+      : isPostMeta(meta) ? 'mmt_post'
+      : isConstituencyMeta(meta) ? 'mmt_mp_constituency'
+      : isFundingAgencyMeta(meta) ? 'mmt_funding_agency'
+      : undefined)
+  );
+};
+
 const handleSubmit = async (e) => {
   e.preventDefault();
   setFormSubmitted(true);
   if (!isFormValid) return;
 
-  // trim text values so stray spaces never reach the DB
-  const payload = Object.fromEntries(
-    Object.entries(values).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v])
-  );
-
   setSubmitting(true);
   try {
-    const isOrg = /organi[sz]ation/i.test(`${meta?.table ?? ''} ${meta?.key ?? ''} ${meta?.label ?? ''}`);
-    const table = meta?.table ?? (isOrg ? 'mmt_organisation' : isOutputMeta(meta) ? 'mmt_output' : isAgencyMeta(meta) ? 'mmt_implementing_agency' : isPostMeta(meta) ? 'mmt_post' : isConstituencyMeta(meta) ? 'mmt_mp_constituency' : isFundingAgencyMeta(meta) ? 'mmt_funding_agency' : undefined);
-    await rbacApi.insertMmtData(table, payload);
-    notifyRef.current?.(`${meta.label} saved`, 'success');
-    fetchData?.();
-    setValues({});
-    setTouched({});
-    setFormSubmitted(false);
-  }  catch (err) {
-  console.error('Save failed →', {
-    status: err?.response?.status,
-    data: err?.response?.data,
-    url: err?.config?.url,
-    sent: err?.config?.data,
-    message: err?.message,
-  });
-  notifyRef.current?.(
-    err?.response?.data?.message ||
-      err?.response?.data?.error ||
-      `Failed to save ${meta.label}`,
-    'error'
-  );
-}finally {
+    const table = resolveTable();
+
+    if (isEdit) {
+    const pkField = idField ?? Object.keys(initialForm)[0];
+    const updatePayload = {
+      ...(initialForm.status != null && initialForm.status !== ''
+        ? { status: initialForm.status }
+        : {}),
+      ...Object.fromEntries(
+        fields.map((f) => [f.name, String(values[f.name] ?? '').trim()])
+      ),
+    };
+    await rbacApi.updateMmtData(table, initialForm[pkField], updatePayload);
+      notifyRef.current?.(`${meta.label} updated`, 'success');
+      onSuccess?.();
+    } else {
+      const payload = Object.fromEntries(
+        Object.entries(values).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v])
+      );
+      await rbacApi.insertMmtData(table, payload);
+      notifyRef.current?.(`${meta.label} saved`, 'success');
+      fetchData?.();
+      setValues({});
+      setTouched({});
+      setFormSubmitted(false);
+      // onBack?.();  // uncomment if you want to return to the list after adding
+    }
+  } catch (err) {
+    console.error('Save failed →', {
+      status: err?.response?.status,
+      data: err?.response?.data,
+      url: err?.config?.url,
+      sent: err?.config?.data,
+      message: err?.message,
+    });
+    notifyRef.current?.(
+      err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        `Failed to ${isEdit ? 'update' : 'save'} ${meta.label}`,
+      'error'
+    );
+  } finally {
     setSubmitting(false);
   }
 };
@@ -228,7 +293,7 @@ const handleSubmit = async (e) => {
         <div>
           <h3 className="text-sm font-black uppercase tracking-wider font-display flex items-center gap-2">
             <FileText className="h-4 w-4" />
-            <span>Add {meta?.label}</span>
+            <span>{isEdit ? 'Edit' : 'Add'} {meta?.label}</span>
           </h3>
           <p className="text-[10px] text-blue-200 font-semibold tracking-wide mt-0.5">
             Ministry of Ports, Shipping and Waterways
@@ -342,7 +407,7 @@ const handleSubmit = async (e) => {
               }`}
             >
               <Save className="h-4 w-4" />
-              <span>{submitting ? 'Saving...' : `Save ${meta?.label}`}</span>
+              <span>{submitting ? 'Saving...' : `${isEdit ? 'Update' : 'Save'} ${meta?.label}`}</span>
             </button>
           </div>
         </div>

@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { ChevronDown, ChevronRight, Building2 } from 'lucide-react';
 import { getOrgIconAndColor, getModuleIconAndColor } from '../utils';
+import { groupModulesByNav, withoutHiddenModules } from '../../../config/moduleRegistry';
 
 export default function ModulePermissionsTab({
   organisations = [],
@@ -15,6 +16,20 @@ export default function ModulePermissionsTab({
   saving = false,
 }) {
   const [expandedParents, setExpandedParents] = useState(() => new Set());
+
+  // Modules arranged the way the navigation presents them, matching the User Permissions tab.
+  const visibleModules = useMemo(() => withoutHiddenModules(masterModules), [masterModules]);
+  const moduleGroups = useMemo(() => groupModulesByNav(visibleModules), [visibleModules]);
+
+  // Collapsed by section id; everything starts open so nothing is hidden by surprise.
+  const [collapsedGroups, setCollapsedGroups] = useState(() => new Set());
+  const toggleGroup = (id) =>
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   const orgsByCategory = useMemo(() => {
     const map = {};
@@ -281,21 +296,71 @@ export default function ModulePermissionsTab({
                 </tr>
               </thead>
               <tbody>
-                {masterModules.length === 0 ? (
+                {visibleModules.length === 0 ? (
                   <tr>
                     <td colSpan="2" className="empty">
                       No modules found
                     </td>
                   </tr>
                 ) : (
-                  masterModules.map((m) => {
-                    const modStatus = getModuleStatus(m.module_id);
-                    const {
-                      Icon: ModIcon,
-                      color: modColor,
-                      bg: modBg,
-                    } = getModuleIconAndColor(m.module_name);
+                  moduleGroups.map((group) => {
+                    const isCollapsed = collapsedGroups.has(group.id);
+                    const statuses = group.modules.map((m) => getModuleStatus(m.module_id));
+                    const enabled = statuses.filter((s) => s === true).length;
+                    const allOn = enabled === group.modules.length;
+                    const noOrgSelected = selectedModuleOrgIds.size === 0;
+
                     return (
+                      <React.Fragment key={group.id}>
+                        {/* Section header -- click to fold the section away */}
+                        <tr className="mod-group-row">
+                          <td>
+                            <button
+                              type="button"
+                              className="mod-group-toggle"
+                              onClick={() => toggleGroup(group.id)}
+                              aria-expanded={!isCollapsed}
+                            >
+                              <ChevronDown
+                                size={14}
+                                className={`mod-group-chevron ${isCollapsed ? 'is-collapsed' : ''}`}
+                              />
+                              <span className="mod-group-label">{group.label}</span>
+                              <span className="mod-group-count">
+                                {enabled}/{group.modules.length} enabled
+                              </span>
+                            </button>
+                          </td>
+                          <td className="c">
+                            {/* Turns every module in the section on, or off once all are on. */}
+                            <button
+                              type="button"
+                              className={`row-all-btn ${allOn ? 'is-clear' : ''}`}
+                              disabled={noOrgSelected}
+                              onClick={() =>
+                                group.modules.forEach((m) => toggleOrgModule(m.module_id, !allOn))
+                              }
+                              title={
+                                noOrgSelected
+                                  ? 'Select at least one organisation first'
+                                  : allOn
+                                    ? `Disable every module in ${group.label}`
+                                    : `Enable every module in ${group.label}`
+                              }
+                            >
+                              {allOn ? 'Disable all' : 'Enable all'}
+                            </button>
+                          </td>
+                        </tr>
+
+                        {!isCollapsed && group.modules.map((m) => {
+                          const modStatus = getModuleStatus(m.module_id);
+                          const {
+                            Icon: ModIcon,
+                            color: modColor,
+                            bg: modBg,
+                          } = getModuleIconAndColor(m.module_name);
+                          return (
                       <tr key={m.module_id}>
                         <td>
                           <div className="mod-cell">
@@ -337,6 +402,9 @@ export default function ModulePermissionsTab({
                           </div>
                         </td>
                       </tr>
+                          );
+                        })}
+                      </React.Fragment>
                     );
                   })
                 )}

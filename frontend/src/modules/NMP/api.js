@@ -8,20 +8,14 @@ export function fetchNmpDashboard(params = {}) {
 
 // ── Land Abstract List ──
 
-export function fetchLandAbstractList(params = {}, config = {}) {
-  return axiosInstance.get('/nmp/land-abstract', { params, ...config });
+export function fetchLandAbstractList(userId, config = {}) {
+  return axiosInstance.get(`/nmp/land-abstract/${userId}`, config);
 }
-
-// ── Past Land - NMP Plan for Ports ──
-
-export function fetchPastLandList(params = {}, config = {}) {
-  return axiosInstance.get('/nmp/past-land', { params, ...config });
+export function fetchPastLandList(userId, config = {}) {
+  return axiosInstance.get(`/nmp/past-land/${userId}`, config);
 }
-
-// ── Future Land - NMP Plan for Ports ──
-
-export function fetchFutureLandList(params = {}, config = {}) {
-  return axiosInstance.get('/nmp/future-land', { params, ...config });
+export function fetchFutureLandList(userId, config = {}) {
+  return axiosInstance.get(`/nmp/future-land/${userId}`, config);
 }
 
 // ── CRUD ──
@@ -41,3 +35,6 @@ export function deleteNmpEntry(id, userId, formType = 'future-land') {
 export function fetchNmpById(id, formType = 'future-land') {
   return axiosInstance.get(`/nmp/${id}`, { params: { form_type: formType } });
 }
+
+export const getNmpCaseNumber = (organisationId) =>
+  axiosInstance.get(`/get-last-nmp-no/${organisationId}`);
