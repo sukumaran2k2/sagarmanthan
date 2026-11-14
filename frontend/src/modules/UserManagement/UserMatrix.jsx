@@ -5,6 +5,7 @@ import api, { rbacApi } from './rbacApi';
 import './UserMatrix.css';
 import { colorFromString } from './utils';
 import { PERMS } from './constants';
+import { withoutHiddenModules } from '../../config/moduleRegistry';
 import { getCurrentUserId, getSessionOrganisationId, getSessionOrganisationName, isNodalOfficerRole, isOrgSeniorOfficer } from '../../utils/authSession';
 import { TAB_USER_MODULE_PERMISSION, TAB_USER_LIST } from '../../utils/moduleAccess';
 import InternalNavigation from '../../components/InternalNavigation';
@@ -183,8 +184,10 @@ export default function UserMatrix({ onGoHome, mode = 'permissions', triggerNoti
       .then((res) => setCategories(res.data || []))
       .catch(() => showToast('Failed to load categories', '#EF4444'));
 
+    // Filtered here rather than in the table, so the bulk "toggle all" and the save payload
+    // below never touch a module the administrator cannot see.
     rbacApi.getModules()
-      .then((res) => setMasterModules(res.data || []))
+      .then((res) => setMasterModules(withoutHiddenModules(res.data || [])))
       .catch(() => showToast('Failed to load modules', '#EF4444'));
 
     rbacApi.getOrganisations()
@@ -254,7 +257,7 @@ export default function UserMatrix({ onGoHome, mode = 'permissions', triggerNoti
     rbacApi
       .getAllowedModules(selectedOrg)
       .then((res) => {
-        const mods = (res.data || []).map((m) => ({
+        const mods = withoutHiddenModules(res.data || []).map((m) => ({
           id: m.module_id,
           name: m.module_name,
           code: m.module_code,

@@ -371,12 +371,16 @@ export const MODULE_PAGES = {
       'OVOD Reports',
     ],
     uiTabs: [
+      'OVOD',
+      'OVOD Input Form',
+      'OVOD Data List',
+      'OVOD Reports',
+      'Intervention List',
+      'Data List',
+      // Older names, kept so a stored tab still resolves.
       'Drishti Portal',
       'Drishti Portal (OVOD)',
       'One Vision One Document',
-      'OVOD',
-      'Intervention List',
-      'Data List',
     ],
   },
 
@@ -394,12 +398,16 @@ export const MODULE_PAGES = {
       'OVOD Reports',
     ],
     uiTabs: [
+      'OVOD',
+      'OVOD Input Form',
+      'OVOD Data List',
+      'OVOD Reports',
+      'Intervention List',
+      'Data List',
+      // Older names, kept so a stored tab still resolves.
       'Drishti Portal',
       'Drishti Portal (OVOD)',
       'One Vision One Document',
-      'OVOD',
-      'Intervention List',
-      'Data List',
     ],
   },
 
@@ -540,4 +548,35 @@ export function groupModulesByNav(modules = []) {
 
   if (other.length) groups.push({ id: 'other', label: 'Other Modules', modules: other });
   return groups;
+}
+
+/**
+ * Modules hidden from the User / Module Permission screens.
+ *
+ * These stay active in tbl_modules and keep whatever grants they already have -- this list only
+ * removes them from the two permission tables, so administrators are not offered modules the
+ * portal does not present. To stop a module being *used*, set is_active = 0 on its row instead:
+ * the login query filters on it, so that revokes access, whereas this list only hides the row.
+ */
+export const HIDDEN_PERMISSION_MODULE_CODES = new Set([
+  'KPI_CMEC',
+  'AKV_2047',
+  'CPGRAMS',
+  'CRUISE_SHIPPING',
+  'EXPENDITURE',
+  'FLAGSHIP_FOB_BASIS',
+  'INTERSTATE_INTERMINISTERIAL',
+  'KNOWLEDGE_REPOSITORY',
+  'KPI_IWAI',
+  'MOM_MINISTRY_MEETINGS',
+  'MOPSW_TRACKER',
+  'REVIEW_ITEMS',
+  'SENIOR_OFFICE_MEETINGS',
+]);
+
+/** Drops the hidden modules from a list, whichever key shape the caller uses. */
+export function withoutHiddenModules(modules = []) {
+  return modules.filter(
+    (m) => !HIDDEN_PERMISSION_MODULE_CODES.has(String(m?.code || m?.module_code || '').toUpperCase())
+  );
 }

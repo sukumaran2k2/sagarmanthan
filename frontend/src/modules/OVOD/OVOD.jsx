@@ -94,7 +94,7 @@ export default function OVODModule({
   }, [navigate]);
 
   if (!canView && !canAdd && !canEdit) {
-    return <RestrictedAccess moduleName="Drishti Portal (OVOD)" />;
+    return <RestrictedAccess moduleName="OVOD" />;
   }
 
   return (
@@ -104,7 +104,7 @@ export default function OVODModule({
       <div className="module-header-container">
         <div>
           <h1 className="module-header-title">
-            Drishti Portal (One Vision One Document)
+            OVOD (One Vision One Document)
           </h1>
           <p className="module-header-subtitle">
             Strategic tracking, goal alignment, and action item monitoring across Ministry wings and organisations.
@@ -139,7 +139,7 @@ export default function OVODModule({
               canEdit={canEdit}
             />
           ) : (
-            <RestrictedAccess moduleName="Drishti Portal (OVOD) — Input Form" />
+            <RestrictedAccess moduleName="OVOD — Input Form" />
           )
         )}
         {currentTab === 'data-list' && (

@@ -3,7 +3,7 @@ import { ChevronDown } from 'lucide-react';
 import { getInits, getModuleIconAndColor, roleClassName } from '../utils';
 import { PERMS } from '../constants';
 import { isRowFullyGranted } from '../userModuleCrud';
-import { groupModulesByNav } from '../../../config/moduleRegistry';
+import { groupModulesByNav, withoutHiddenModules } from '../../../config/moduleRegistry';
 
 export default function UserPermissionsTab({
   selectedCategory,
@@ -39,7 +39,13 @@ export default function UserPermissionsTab({
 }) {
   // Modules arranged the way the navigation presents them, so an administrator looks for
   // "OVOD" under Long Term Strategies rather than scanning one flat alphabetical list.
-  const moduleGroups = useMemo(() => groupModulesByNav(activeModules), [activeModules]);
+  const moduleGroups = useMemo(
+    () => groupModulesByNav(withoutHiddenModules(activeModules)),
+    [activeModules]
+  );
+
+  // Hidden modules are excluded from the counts too, so the totals match what is on screen.
+  const visibleModules = useMemo(() => withoutHiddenModules(activeModules), [activeModules]);
 
   // Collapsed by section id. Everything starts open so nothing is hidden by surprise.
   const [collapsed, setCollapsed] = useState(() => new Set());
@@ -312,7 +318,7 @@ export default function UserPermissionsTab({
                       Loading users…
                     </td>
                   </tr>
-                ) : activeModules.length === 0 ? (
+                ) : visibleModules.length === 0 ? (
                   <tr>
                     <td colSpan="6" className="empty">
                       No modules enabled for this organisation. Assign them first under Modules → Update.
@@ -420,6 +426,9 @@ export default function UserPermissionsTab({
                           </button>
                         </td>
                       </tr>
+                          );
+                        })}
+                      </React.Fragment>
                     );
                   })
                 )}
@@ -429,9 +438,9 @@ export default function UserPermissionsTab({
               <span>
                 {selectedCategory !== "all" &&
                   selectedUsers.length > 0 &&
-                  activeModules.length > 0 && (
+                  visibleModules.length > 0 && (
                     <>
-                      {grantedCount} / {activeModules.length * 4}{" "}
+                      {grantedCount} / {visibleModules.length * 4}{" "}
                       permissions granted
                       {mixedCount > 0
                         ? ` · ${mixedCount} mixed (varies across selected users)`

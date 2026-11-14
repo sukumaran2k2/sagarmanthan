@@ -30,21 +30,21 @@ const REPORTS = [
     id: 'wing',
     code: 'Report 1.1',
     label: 'MOPSW Wing',
-    fullTitle: 'Report No. 1.1 - MOPSW Wing Action Items (A3) & Status Report - Drishti Portal (OVOD)',
+    fullTitle: 'Report No. 1.1 - MOPSW Wing Action Items (A3) & Status Report - OVOD',
     icon: Building2
   },
   {
     id: 'port',
     code: 'Report 1.2',
     label: 'Major Ports',
-    fullTitle: 'Report No. 1.2 - Major Ports Performance Ranking Report - Drishti Portal (OVOD)',
+    fullTitle: 'Report No. 1.2 - Major Ports Performance Ranking Report - OVOD',
     icon: Anchor
   },
   {
     id: 'org',
     code: 'Report 1.3',
     label: 'Other Organisations',
-    fullTitle: 'Report No. 1.3 - Other Organisations Performance Ranking Report - Drishti Portal (OVOD)',
+    fullTitle: 'Report No. 1.3 - Other Organisations Performance Ranking Report - OVOD',
     icon: Network
   },
 ];

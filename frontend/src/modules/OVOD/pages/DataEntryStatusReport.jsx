@@ -815,7 +815,7 @@ export default function DataEntryStatusReport({ triggerNotification }) {
             />
             <div className="flex items-center justify-between px-3 py-2 text-xs font-bold text-stone-500 dark:text-stone-400">
               <span>Total Rows: <strong className="text-stone-800 dark:text-stone-200 font-mono">{filteredRows.length}</strong></span>
-              <span className="text-[11px] font-medium text-stone-400">Data source: Drishti Portal (OVOD)</span>
+              <span className="text-[11px] font-medium text-stone-400">Data source: OVOD</span>
             </div>
           </>
         )}

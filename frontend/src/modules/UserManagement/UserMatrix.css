@@ -668,3 +668,76 @@ input:checked + .toggle-slider:before { transform: translateX(20px); }
 .dark .um-reset-btn:hover {
   background: #273549 !important;
 }
+
+/* ── Module permission sections ──────────────────────────────────
+   The permission table groups modules the way the navigation does
+   (Governance, Long Term Strategies, …) so an administrator can find
+   a module where they expect it. Each header folds its section away. */
+
+.user-matrix-container .mod-group-row > td {
+  background: #f1f5f9;
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0;
+}
+
+.user-matrix-container .mod-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 14px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+.user-matrix-container .mod-group-toggle:hover {
+  background: #e2e8f0;
+}
+
+.user-matrix-container .mod-group-chevron {
+  color: #475569;
+  transition: transform .18s ease;
+  flex-shrink: 0;
+}
+
+/* Points right when the section is folded, down when it is open. */
+.user-matrix-container .mod-group-chevron.is-collapsed {
+  transform: rotate(-90deg);
+}
+
+.user-matrix-container .mod-group-label {
+  font-size: .8125rem;
+  font-weight: 800;
+  color: #0f172a;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+
+.user-matrix-container .mod-group-count {
+  font-size: .6875rem;
+  font-weight: 600;
+  color: #64748b;
+  margin-left: auto;
+  padding-right: 4px;
+  white-space: nowrap;
+}
+
+/* ── Dark mode ──────────────────────────────────────────────── */
+
+.dark .user-matrix-container .mod-group-row > td {
+  background: #0f172a;
+  border-top-color: #1e293b;
+  border-bottom-color: #1e293b;
+}
+
+.dark .user-matrix-container .mod-group-toggle:hover {
+  background: #1e293b;
+}
+
+.dark .user-matrix-container .mod-group-chevron { color: #94a3b8; }
+.dark .user-matrix-container .mod-group-label { color: #e2e8f0; }
+.dark .user-matrix-container .mod-group-count { color: #94a3b8; }
