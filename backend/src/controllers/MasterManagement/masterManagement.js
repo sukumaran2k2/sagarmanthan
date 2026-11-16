@@ -951,31 +951,31 @@ async function updateMmt(req, res)
             break;
 
         case "mmt_state":
-            query = "UPDATE mmt_state SET state_name = @name WHERE state_id = @ID";
+            query = "UPDATE mmt_state SET state_name = COALESCE(@name, state_name), status = COALESCE(@status, status) WHERE state_id = @ID";
             break;
 
         case "mmt_district":
             request.input("stateId", stateId);
-            query = "UPDATE mmt_district SET district_name = @name, state_id = @stateId WHERE district_id = @ID";
+            query = "UPDATE mmt_district SET district_name = COALESCE(@name, district_name), state_id = COALESCE(@stateId, state_id), status = COALESCE(@status, status) WHERE district_id = @ID";
             break;
 
         case "mmt_output":
             request.input("units", units);
-            query = "UPDATE mmt_output SET project_output_name = @name, project_output_units = @units WHERE project_output_id = @ID";
+            query = "UPDATE mmt_output SET project_output_name = COALESCE(@name, project_output_name), project_output_units = COALESCE(@units, project_output_units), status = COALESCE(@status, status) WHERE project_output_id = @ID";
             break;
 
         case "mmt_outcome":
             request.input("units", units);
             request.input("projectOutputId", projectOutputId);
-            query = "UPDATE mmt_outcome SET project_outcome_name = @name, project_outcome_units = @units, project_output_id = @projectOutputId WHERE project_outcome_id = @ID";
+            query = "UPDATE mmt_outcome SET project_outcome_name = COALESCE(@name, project_outcome_name), project_outcome_units = COALESCE(@units, project_outcome_units), project_output_id = COALESCE(@projectOutputId, project_output_id), status = COALESCE(@status, status) WHERE project_outcome_id = @ID";
             break;
 
         case "mmt_clearance":
-            query = "UPDATE mmt_clearance SET clearance_name = @name WHERE clearance_id = @ID";
+            query = "UPDATE mmt_clearance SET clearance_name = COALESCE(@name, clearance_name), status = COALESCE(@status, status) WHERE clearance_id = @ID";
             break;
 
         case "mmt_ministry":
-            query = "UPDATE mmt_ministry SET ministry_name = @name WHERE ministry_id = @ID";
+            query = "UPDATE mmt_ministry SET ministry_name = COALESCE(@name, ministry_name), status = COALESCE(@status, status) WHERE ministry_id = @ID";
             break;
 
         case "mmt_dredger":
@@ -990,16 +990,13 @@ async function updateMmt(req, res)
             query = "UPDATE mmt_shipyard SET shipyard_name = @name WHERE shipyard_id = @ID";
             break;
 
-        case "mmt_organisation":
-        request.input("stateId", stateId);
+       case "mmt_organisation":
         request.input("division", division);
-        request.input("district", district);
         request.input("category", category);
-        request.input("code", code);
         request.input("wing", req.body.wing ?? null);
         query = `UPDATE mmt_organisation
-                SET organisation_name = @name,
-                    organisation_code = @code,
+                SET organisation_name = COALESCE(@name, organisation_name),
+                    organisation_code = COALESCE(@code, organisation_code),
                     organisation_category_id = COALESCE(@category, organisation_category_id),
                     wing_id = COALESCE(@wing, wing_id),
                     division_id = COALESCE(@division, division_id),
