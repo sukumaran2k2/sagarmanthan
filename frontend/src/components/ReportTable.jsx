@@ -170,10 +170,15 @@ export default function ReportTable({
   };
 
   const handlePageSizeChange = (newSize) => {
+    // The select is controlled by pageSize, and pageSize also feeds the grid's
+    // paginationPageSize option, so the state update has to happen whether or not the grid
+    // api is ready yet.
+    setPageSize(newSize);
     if (gridRef.current?.api) {
-      gridRef.current.api.paginationSetPageSize(newSize);
+      // AG Grid dropped api.paginationSetPageSize() in v32; page size is now a managed grid
+      // option. Setting it here applies the new size before paging back to the first page.
+      gridRef.current.api.setGridOption('paginationPageSize', newSize);
       gridRef.current.api.paginationGoToFirstPage();
-      setPageSize(newSize);
     }
   };
 
