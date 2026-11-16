@@ -110,8 +110,8 @@ export const fetchCsrProjectsYearWiseSummary = async (orgId = 'all') => {
   return response.data;
 };
 
-export const fetchCsrProjectsOrgWiseSummary = async () => {
-  const response = await api.get(`/get-csr-projects-org-wise-summary`);
+export const fetchCsrProjectsOrgWiseSummary = async (fy = 'all', orgId = '') => {
+  const response = await api.get('/get-csr-projects-org-wise-summary', { params: { fy, orgId: orgId || undefined } });
   return response.data;
 };
 
