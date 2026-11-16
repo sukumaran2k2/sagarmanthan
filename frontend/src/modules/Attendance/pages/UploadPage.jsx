@@ -82,7 +82,9 @@ export default function UploadPage({ notify, onUploaded }) {
     flex: 1,
     minWidth: 120,
     cellClass: 'text-slate-700 font-semibold text-center flex items-center justify-center',
-    valueFormatter: (p) => formatTimeStr(p.value),
+    // Only time / hours columns are times; formatting the rest cut names at a capital T and
+    // showed plain numbers as times
+    valueFormatter: (p) => (/time|hour/i.test(key) ? formatTimeStr(p.value) : (p.value ?? '')),
   })) : []), [previewRows]);
 
   const year = financialYear && month ? calendarYear(financialYear, month) : null;
