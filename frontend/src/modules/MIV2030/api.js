@@ -130,4 +130,9 @@ export function detailedReportDelayedOverdueInitiatives(userId) {
   return api.get(`/detailed-report-delayed-overdue-initiatives/${userId}`);
 }
 
+
+export function downloadMOMFile(id) {
+  return `/meeting/download/${id}`;
+}
+
 export default api;

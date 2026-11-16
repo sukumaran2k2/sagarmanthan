@@ -9,7 +9,8 @@ export async function openBackendFile(path, { params, fileName, download = false
   const tab = download ? null : window.open('', '_blank');
   try {
     const res = await api.get(path, { params, responseType: 'blob' });
-    const url = URL.createObjectURL(res.data);
+    const blob = new Blob([res.data], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
     if (tab) {
       tab.location.href = url;
     } else {

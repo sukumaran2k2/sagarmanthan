@@ -32,9 +32,12 @@ const NATURE_OF_SECOND_PARTY_OPTIONS = [
 ];
 
 const STATUS_OPTIONS = [
-  'Under Implementation',
-  'Completed',
-  'Yet to Start',
+  'To be started',
+  'Approval phase',
+  'Work under implementation',
+  'Work completed',
+  'Tendering stage',
+  'Feasibility/ DPR/ Planning/ Study phase',
   'Dropped'
 ];
 
