@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { Search, X, Edit, Trash2, BarChart3, List, ChevronDown, Filter } from 'lucide-react';
+import { Search, X, Edit, Eye, Trash2, BarChart3, List, ChevronDown, Filter } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
@@ -90,6 +90,7 @@ export default function DataList({
   triggerNotification,
   canEdit = false,
   canRemove = false,
+  canView = false,
 }) {
   const notify = useNotifier(triggerNotification);
 
@@ -306,7 +307,7 @@ export default function DataList({
     notify(COMMON_TOASTS.excelExported(file, 'Every filtered reference'));
   };
 
-  const showActions = canEdit || canRemove;
+  const showActions = canEdit || canRemove || canView;
 
   const colDefs = useMemo(() => [
     {
@@ -421,7 +422,7 @@ export default function DataList({
       cellClass: 'text-center flex items-center justify-center gap-1',
       cellRenderer: (params) => (
         <>
-          {canEdit && (
+          {canEdit ? (
             <button
               type="button"
               onClick={() => onEdit?.(params.data)}
@@ -429,6 +430,16 @@ export default function DataList({
               title="Update VIP Letter status"
             >
               <Edit className="h-4 w-4" />
+            </button>
+          ) : canView && (
+            /* Read without update: the reference still opens, in the read-only form */
+            <button
+              type="button"
+              onClick={() => onEdit?.(params.data)}
+              className="p-1.5 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-lg text-[#0f417a] hover:text-[#1e5ea8] dark:text-blue-400 transition cursor-pointer"
+              title="View VIP Reference"
+            >
+              <Eye className="h-4 w-4" />
             </button>
           )}
           {canRemove && (
@@ -444,7 +455,7 @@ export default function DataList({
         </>
       ),
     },
-  ], [visibleCols, onEdit, activeCategory, canEdit, canRemove, showActions, handleDelete]);
+  ], [visibleCols, onEdit, activeCategory, canEdit, canView, canRemove, showActions, handleDelete]);
 
   const stageOptions = useMemo(() => Object.values(STAGE_STEPS)
     .filter(stage => activeCategory === 'disposed' ? stage === 'Disposed' : stage !== 'Disposed'),
@@ -470,7 +481,7 @@ export default function DataList({
       </div>
 
       <div className="module-card space-y-4">
-        <div className="flex flex-col lg:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
+        <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
           <div className="flex items-center gap-2.5 w-full lg:w-auto">
             <button
               type="button"
@@ -503,8 +514,8 @@ export default function DataList({
 
           <div className="hidden lg:block flex-1" />
 
-          <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-end">
-            <div className="relative min-w-[200px] flex-1 sm:flex-initial">
+          <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-start lg:justify-end">
+            <div className="relative w-full sm:w-auto sm:min-w-[200px] flex-1 sm:flex-initial">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
               <input
                 type="text"

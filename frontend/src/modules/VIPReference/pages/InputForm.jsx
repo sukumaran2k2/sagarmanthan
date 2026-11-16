@@ -29,6 +29,12 @@ export default function InputForm({
   const notify = useNotifier(triggerNotification);
   const [submitting, setSubmitting] = useState(false);
 
+  // Read in the user matrix is enough to open a reference, but without update (or create
+  // for a new one) the form is for looking at only: every field is disabled and the save
+  // bar is hidden, so a read-only user can still see the per-stage dates and remarks that
+  // the Data List grid does not show.
+  const readOnly = isEdit ? !canEdit : !canAdd;
+
   const wings = useVipStore(state => state.wings);
   const divisions = useVipStore(state => state.divisions);
   const loadWingsAndDivisions = useVipStore(state => state.loadWingsAndDivisions);
@@ -320,7 +326,7 @@ export default function InputForm({
         <div>
           <h3 className="module-form-banner-title">
             <FileText className="h-4 w-4" />
-            <span>{isEdit ? 'UPDATE VIP REFERENCE' : 'REGISTER NEW VIP REFERENCE'}</span>
+            <span>{readOnly ? 'VIEW VIP REFERENCE (READ-ONLY)' : isEdit ? 'UPDATE VIP REFERENCE' : 'REGISTER NEW VIP REFERENCE'}</span>
           </h3>
           <p className="module-form-banner-subtext">Ministry of Ports, Shipping and Waterways</p>
         </div>
@@ -343,6 +349,10 @@ export default function InputForm({
           </div>
         )}
 
+        {/* One disabled fieldset instead of a disabled prop on each control: the browser
+            disables every descendant, so a field added later cannot miss the read-only
+            rule. `contents` keeps the fieldset out of the layout. */}
+        <fieldset disabled={readOnly} className="contents">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           <div className="lg:col-span-5 space-y-4 pr-0 lg:pr-2">
             {/* Subject */}
@@ -454,7 +464,7 @@ export default function InputForm({
                   <div
                     key={stageNum}
                     className={`flex flex-col gap-2 p-3.5 border rounded-xl shadow-xs transition-all duration-200 ${
-                      isStageDisabled ? 'bg-slate-100/50 dark:bg-slate-900/30 border-slate-100 dark:border-slate-850 opacity-60'
+                      isStageDisabled ? 'bg-slate-100/50 dark:bg-slate-900/30 border-slate-100 dark:border-slate-800 opacity-60'
                         : isStageCompleted ? 'bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/50'
                           : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
                     } ${hasStageError ? 'border-rose-500 ring-1 ring-rose-500' : ''}`}
@@ -514,14 +524,18 @@ export default function InputForm({
             </div>
           </div>
         </div>
+        </fieldset>
 
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-6 pt-4 border-t border-slate-200 dark:border-slate-800">
-          <span className="text-xs text-rose-500 font-bold italic">* Asterisks marked with red are mandatory fields</span>
+          <span className="text-xs text-rose-500 font-bold italic">
+            {readOnly ? '' : '* Asterisks marked with red are mandatory fields'}
+          </span>
           <div className="flex items-center space-x-3">
             <button type="button" onClick={onBack}
               className="px-4 py-2 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer">
-              Cancel
+              {readOnly ? 'Back to List' : 'Cancel'}
             </button>
+            {!readOnly && (
             <button
               type="submit"
               disabled={submitting || (isEdit && !isDirty)}
@@ -534,6 +548,7 @@ export default function InputForm({
               <Save className="h-4 w-4" />
               <span>{submitting ? 'Saving...' : isEdit ? 'Update Reference' : 'Save VIP Letter'}</span>
             </button>
+            )}
           </div>
         </div>
       </form>

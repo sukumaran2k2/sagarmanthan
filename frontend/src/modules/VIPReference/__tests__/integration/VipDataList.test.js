@@ -1,5 +1,5 @@
 /* global jest, describe, it, expect, beforeEach, afterEach */
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react';
 import DataList from '../../pages/DataList';
 import { useVipStore } from '../../store/useVipStore';
 import { resetAllStores } from '../../../../stores/resetRegistry';
@@ -180,7 +180,8 @@ describe('VIP Reference Data List — export columns', () => {
     expect(headersOf(exportRowsToFile.mock.calls[0])).toContain('Wing');
 
     exportRowsToFile.mockClear();
-    useVipStore.getState().setVisibleCols((prev) => ({ ...prev, wing: false }));
+    // Through act(), so React has re-rendered with the column hidden before the next click
+    act(() => useVipStore.getState().setVisibleCols((prev) => ({ ...prev, wing: false })));
 
     fireEvent.click(screen.getByText('export-excel'));
     expect(headersOf(exportRowsToFile.mock.calls[0])).not.toContain('Wing');

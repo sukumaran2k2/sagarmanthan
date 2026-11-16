@@ -110,14 +110,17 @@ export default function VIPReference({ triggerNotification }) {
                   triggerNotification={triggerNotification}
                   canEdit={canEdit}
                   canRemove={canRemove}
+                  canView={canView}
                 />
               )
               : <RestrictedAccess moduleName="VIP References" />}
           />
 
+          {/* Read is enough to open an existing reference: InputForm renders read-only
+              without update rights. A blank form still needs create. */}
           <Route
             path="input-form"
-            element={(canAdd || canEdit)
+            element={(canAdd || canEdit || (canView && editData))
               ? (
                 <InputForm
                   key={editData?.id ?? 'new'}

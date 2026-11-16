@@ -2,7 +2,23 @@ import { create } from 'zustand';
 import { fetchWings, fetchDivisions } from '../api';
 import { registerStoreReset } from '../../../stores/resetRegistry';
 
-const initialState = {
+// The two report modes each open on their own wing-wise summary
+export const REPORT_SUMMARIES = {
+  abstract: {
+    type: 'summary',
+    source: 'abstractWings',
+    title: 'Report No.: 5.1A - Abstract ( Wing Wise ) - VIP References',
+  },
+  pendency: {
+    type: 'summary',
+    source: 'pendencyWings',
+    title: 'Report No.: 5.1A - Pendency ( Wing Wise ) - VIP References',
+  },
+};
+
+// A factory, not a shared literal: reset() must hand back fresh nested objects, or every
+// session after the first would share one visibleCols / report object.
+const createInitialState = () => ({
   wings: [],
   divisions: [],
   loadingMetadata: false,
@@ -28,12 +44,23 @@ const initialState = {
     deadline: false,
     lastUpdated: true,
   },
-};
+
+  // Which report is open, how it is filtered and how far the user has drilled in, so
+  // leaving the Reports tab and coming back reopens the same view rather than resetting
+  // to the wing-wise summary. The rows themselves stay in the page and are refetched.
+  report: {
+    type: 'abstract', // 'abstract' | 'pendency'
+    wingFilter: '',
+    filterOpen: false,
+    abstractPath: [REPORT_SUMMARIES.abstract],
+    pendencyPath: [REPORT_SUMMARIES.pendency],
+  },
+});
 
 const resolve = (updater, prev) => (typeof updater === 'function' ? updater(prev) : updater);
 
 export const useVipStore = create((set, get) => ({
-  ...initialState,
+  ...createInitialState(),
 
   setActiveCategory: (activeCategory) => set({ activeCategory, selectedStage: 'All' }),
   setSearchTerm: (searchTerm) => set({ searchTerm }),
@@ -68,7 +95,26 @@ export const useVipStore = create((set, get) => ({
     selectedStage: 'All',
   }),
 
-  reset: () => set(initialState),
+  // A new report mode starts from its own summary with no wing filter
+  setReportType: (type) => set((state) => ({
+    report: { ...state.report, type, wingFilter: '' },
+  })),
+
+  setReportWingFilter: (wingFilter) => set((state) => ({
+    report: { ...state.report, wingFilter },
+  })),
+
+  setReportFilterOpen: (updater) => set((state) => ({
+    report: { ...state.report, filterOpen: resolve(updater, state.report.filterOpen) },
+  })),
+
+  // Drills into whichever report mode is open; each keeps its own trail
+  setReportPath: (updater) => set((state) => {
+    const key = state.report.type === 'pendency' ? 'pendencyPath' : 'abstractPath';
+    return { report: { ...state.report, [key]: resolve(updater, state.report[key]) } };
+  }),
+
+  reset: () => set(createInitialState()),
 
   loadWingsAndDivisions: async () => {
     const { wings, divisions, loadingMetadata } = get();

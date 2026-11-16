@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import ReportTable from '../../../components/ReportTable';
+import { useVipStore } from '../store/useVipStore';
 import {
   fetchWings,
   fetchVIPWingWiseReport,
@@ -12,8 +14,13 @@ import {
   fetchVIPPendencyDivisionDetail,
 } from '../api';
 import { STAGE_MAPPING, PENDENCY_AGE_MAPPING } from '../utils/constants';
-import { FileText, Clock } from 'lucide-react';
+import { FileText, Clock, Filter, ChevronDown, RotateCcw } from 'lucide-react';
 import { useNotifier, COMMON_TOASTS } from '../../../utils/notify';
+
+// The report endpoints answer 404 "No data available" when a wing or division simply has
+// no references. That is an ordinary empty result, not a failure, so it must not raise the
+// red "could not load" toast.
+const isEmptyResult = (err) => err?.response?.status === 404;
 
 // Every view in the drilldown names one of these instead of carrying a URL string, so the
 // endpoints stay in api.js rather than being rebuilt by hand in the cell renderers.
@@ -31,28 +38,23 @@ const REPORT_SOURCES = {
 export default function Reports({ triggerNotification }) {
   const notify = useNotifier(triggerNotification);
 
-  // Active Report Type: 'abstract' | 'pendency'
-  const [reportType, setReportType] = useState('abstract');
+  // Report mode, wing filter and both drill-down trails live in the store, so the report
+  // reopens where the user left it instead of resetting on every tab switch.
+  const {
+    type: reportType,
+    wingFilter: selectedWingFilter,
+    filterOpen,
+    abstractPath,
+    pendencyPath,
+  } = useVipStore(useShallow((state) => state.report));
+  const setReportType = useVipStore((state) => state.setReportType);
+  const setSelectedWingFilter = useVipStore((state) => state.setReportWingFilter);
+  const setFilterOpen = useVipStore((state) => state.setReportFilterOpen);
+  const setDrillDownPath = useVipStore((state) => state.setReportPath);
+
   const [wingsList, setWingsList] = useState([]);
-  const [selectedWingFilter, setSelectedWingFilter] = useState('');
 
   // Drilldown navigation stacks for both report modes
-  const [abstractDrillDown, setAbstractDrillDown] = useState([
-    {
-      type: 'summary',
-      source: 'abstractWings',
-      title: 'Report No.: 5.1A - Abstract ( Wing Wise ) - VIP References'
-    }
-  ]);
-
-  const [pendencyDrillDown, setPendencyDrillDown] = useState([
-    {
-      type: 'summary',
-      source: 'pendencyWings',
-      title: 'Report No.: 5.1A - Pendency ( Wing Wise ) - VIP References'
-    }
-  ]);
-
   const [loading, setLoading] = useState(true);
   const [reportData, setReportData] = useState([]);
   const [reportCols, setReportCols] = useState([]);
@@ -69,8 +71,7 @@ export default function Reports({ triggerNotification }) {
     return () => { cancelled = true; };
   }, [notify]);
 
-  const currentDrillDown = reportType === 'abstract' ? abstractDrillDown : pendencyDrillDown;
-  const setDrillDownPath = reportType === 'abstract' ? setAbstractDrillDown : setPendencyDrillDown;
+  const currentDrillDown = reportType === 'abstract' ? abstractPath : pendencyPath;
   const currentView = currentDrillDown[currentDrillDown.length - 1];
 
   // Every navigation flips `loading` here rather than inside the fetching effect, so the
@@ -90,8 +91,7 @@ export default function Reports({ triggerNotification }) {
   const handleSwitchReportType = (type) => {
     if (type === reportType) return;
     setLoading(true);
-    setReportType(type);
-    setSelectedWingFilter('');
+    setReportType(type); // also clears the wing filter
   };
 
   // Fetch report data for one view using the JWT-authenticated API instance.
@@ -113,9 +113,10 @@ export default function Reports({ triggerNotification }) {
       })
       .catch((err) => {
         if (cancelled) return;
-        console.error('VIP Reference report fetch failed:', err);
         setReportData([]);
         setReportCols([]);
+        if (isEmptyResult(err)) return;
+        console.error('VIP Reference report fetch failed:', err);
         notify(COMMON_TOASTS.loadFailed('This VIP Reference report'));
       })
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -551,6 +552,68 @@ export default function Reports({ triggerNotification }) {
     }
   }), []);
 
+  // Only the summary filters by wing - a drill-down is already scoped to one.
+  const canFilter = currentView.type === 'summary';
+  const activeFilterCount = selectedWingFilter ? 1 : 0;
+
+  // A collapsible Filter button beside the report's Rows selector, with its body opening
+  // under the toolbar through ReportTable's filterPanel slot - the same control the Data
+  // List and the Cabinet Notes report use.
+  const filterButton = canFilter ? (
+    <button
+      type="button"
+      onClick={() => setFilterOpen(open => !open)}
+      aria-expanded={filterOpen}
+      title={filterOpen ? 'Hide report filters' : 'Show report filters'}
+      className={`inline-flex items-center gap-1.5 px-3 py-[7px] rounded-[9px] border text-xs font-bold transition cursor-pointer ${
+        filterOpen || activeFilterCount > 0
+          ? 'bg-[#f7f3f3] border-[#d7c4b7] text-[#4b2424] dark:bg-slate-800 dark:border-slate-600 dark:text-[#eadede]'
+          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800'
+      }`}
+    >
+      <Filter size={14} className="text-[#4b2424] dark:text-[#eadede]" />
+      <span>Filter</span>
+      {activeFilterCount > 0 && (
+        <span className="bg-[#4b2424] dark:bg-[#8c5757] text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">
+          {activeFilterCount}
+        </span>
+      )}
+      <ChevronDown size={14} className={`transition-transform duration-200 ${filterOpen ? 'rotate-180' : ''}`} />
+    </button>
+  ) : null;
+
+  const filterBody = canFilter && filterOpen ? (
+    <div className="flex flex-wrap items-end gap-3">
+      <div className="w-full sm:w-auto sm:min-w-[260px] flex-1 sm:max-w-sm">
+        <label className="block text-[11px] font-extrabold text-[#4b2424] dark:text-[#eadede] mb-1 uppercase tracking-wider">
+          Wing
+        </label>
+        <select
+          value={selectedWingFilter}
+          onChange={(e) => setSelectedWingFilter(e.target.value)}
+          className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-800 border border-[#d7c4b7] dark:border-slate-700 rounded-xl font-bold text-[#4b2424] dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#8c5757]/30 cursor-pointer truncate"
+        >
+          <option value="">-- Show All --</option>
+          {wingsList.map(w => (
+            <option key={w.wing_id || w.wing_name} value={w.wing_id || w.wing_name}>
+              {w.wing_name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setSelectedWingFilter('')}
+        disabled={activeFilterCount === 0}
+        className="px-3.5 py-2 bg-[#f5eeea] dark:bg-slate-800 hover:bg-[#ebdcd0] dark:hover:bg-slate-700 text-[#4b2424] dark:text-[#eadede] font-bold text-xs rounded-xl flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#f5eeea] dark:disabled:hover:bg-slate-800"
+      >
+        <RotateCcw size={14} />
+        <span>Reset Filter</span>
+      </button>
+    </div>
+  ) : null;
+
   return (
     <div className="space-y-6 animate-fade-in w-full">
       
@@ -607,25 +670,8 @@ export default function Reports({ triggerNotification }) {
           triggerNotification={triggerNotification}
           exportSubtitle={exportSubtitle}
           autoHeaderHeight={true}
-          toolbarExtra={
-            currentView.type === 'summary' && (
-              <div className="flex items-center space-x-2">
-                <label className="text-xs font-bold text-[#4b2424]">Wing:</label>
-                <select
-                  value={selectedWingFilter}
-                  onChange={(e) => setSelectedWingFilter(e.target.value)}
-                  className="px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-[#e8d5d5] rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-200 shadow-sm focus:outline-none focus:ring-1 focus:ring-[#4b2424]"
-                >
-                  <option value="">-- Show All --</option>
-                  {wingsList.map(w => (
-                    <option key={w.wing_id || w.wing_name} value={w.wing_id || w.wing_name}>
-                      {w.wing_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )
-          }
+          toolbarExtra={filterButton}
+          filterPanel={filterBody}
         />
       </div>
     </div>

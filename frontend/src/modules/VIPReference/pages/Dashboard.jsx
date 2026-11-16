@@ -5,9 +5,8 @@ import * as am5xy from '@amcharts/amcharts5/xy';
 import am5themes_Animated from '@amcharts/amcharts5/themes/Animated';
 import { fetchVIPReferenceDashboard } from '../api';
 import ChartExportMenu from '../../../components/ChartExportMenu';
+import TableExportMenu from '../../../components/TableExportMenu';
 import { chartColors, useIsDark } from '../../../utils/amCharts';
-import { MoreVertical, FileSpreadsheet, Printer } from 'lucide-react';
-import { exportRowsToFile } from '../../../utils/exportGridReport';
 import { useNotifier, COMMON_TOASTS } from '../../../utils/notify';
 
 function KpiCard({ label, value, subtext, icon: Icon, valueColorClass, iconWrapClass, subtextColorClass }) {
@@ -98,61 +97,6 @@ function PendingDays({ days }) {
   return <span className={`font-bold text-xs ${cls}`}>{days}</span>;
 }
 
-function TableExportMenu({ headers, data, fileName = 'export', title = 'Report' }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const menuRef = useRef(null);
-
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (menuRef.current && !menuRef.current.contains(event.target)) setIsOpen(false);
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // Excel (.xlsx) and PDF straight to a file (no print dialog or new tab)
-  const download = (type) => {
-    setIsOpen(false);
-    if (!data?.length) return;
-    exportRowsToFile(type, { title, headers, rows: data.map((row) => Object.values(row)), fileName });
-  };
-  const handleExcel = () => download('excel');
-  const handlePrint = () => download('pdf');
-
-  return (
-    <div className="relative inline-block" ref={menuRef}>
-      <button
-        type="button"
-        onClick={() => setIsOpen((v) => !v)}
-        title="Export options"
-        className="flex items-center justify-center w-8 h-8 rounded-lg bg-transparent border-none text-white/90 hover:bg-white/10 transition cursor-pointer"
-      >
-        <MoreVertical className="h-4 w-4" />
-      </button>
-      {isOpen && (
-        <div className="absolute right-0 top-full mt-1.5 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden">
-          <button
-            type="button"
-            onClick={handleExcel}
-            className="flex items-center gap-2.5 w-full px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer border-none bg-transparent text-left"
-          >
-            <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-            <span>Excel (.xlsx)</span>
-          </button>
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="flex items-center gap-2.5 w-full px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer border-none bg-transparent text-left border-t border-slate-100 dark:border-slate-800"
-          >
-            <Printer className="h-4 w-4 text-rose-600 dark:text-rose-400" />
-            <span>PDF</span>
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default function VIPReferenceDashboard({ triggerNotification }) {
   const notify = useNotifier(triggerNotification);
   const [data, setData] = useState(null);
@@ -200,21 +144,22 @@ export default function VIPReferenceDashboard({ triggerNotification }) {
     </div>
   );
 
-  const heatMapExportData = heatMap.map((row) => ({
-    Stage: row.stage_name,
-    Count: row.note_count,
-    'Avg days': row.note_count ? row.avg_days : '—',
-    'Max days': row.note_count ? row.max_days : '—',
-  }));
+  // The shared TableExportMenu takes rows as arrays, in the same order as its headers
+  const heatMapExportRows = heatMap.map((row) => [
+    row.stage_name,
+    row.note_count,
+    row.note_count ? row.avg_days : '—',
+    row.note_count ? row.max_days : '—',
+  ]);
 
-  const longPendingExportData = longPending.map((row, i) => ({
-    'S.No': i + 1,
-    Subject: row.subject,
-    Wing: row.wing_name,
-    'Current stage': row.current_stage,
-    'Last Updated': row.updated_date ? new Date(row.updated_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
-    Days: row.pending_days,
-  }));
+  const longPendingExportRows = longPending.map((row, i) => [
+    i + 1,
+    row.subject,
+    row.wing_name,
+    row.current_stage,
+    row.updated_date ? new Date(row.updated_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
+    row.pending_days,
+  ]);
 
   return (
     <div className="space-y-3 sm:space-y-4 md:space-y-5 bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-indigo-950/25 dark:via-slate-950 dark:to-purple-950/20 rounded-xl sm:rounded-2xl md:rounded-3xl p-3 sm:p-4 md:p-6">
@@ -273,14 +218,14 @@ export default function VIPReferenceDashboard({ triggerNotification }) {
             </h3>
             <TableExportMenu
               headers={['Stage', 'Count', 'Avg days', 'Max days']}
-              data={heatMapExportData}
+              rows={heatMapExportRows}
               fileName="vip_reference_stage_heat_map"
               title="VIP Reference Stage-wise Heat Map"
             />
           </div>
-          <div className="overflow-hidden flex-1 p-2 sm:p-3">
+          <div className="flex-1 p-2 sm:p-3 overflow-auto">
             <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800">
-            <table className="w-full text-[10px] sm:text-[11px] border-collapse">
+            <table className="w-full min-w-[420px] text-[10px] sm:text-[11px] border-collapse">
               <thead>
                 <tr className="bg-[#4f46e5] text-white relative z-10">
                   {['Stage','Count','Avg days','Max days'].map((h) => (
@@ -343,7 +288,7 @@ export default function VIPReferenceDashboard({ triggerNotification }) {
             </h3>
             <TableExportMenu
               headers={['S.No', 'Subject', 'Wing', 'Current stage', 'Last Updated', 'Days']}
-              data={longPendingExportData}
+              rows={longPendingExportRows}
               fileName="long_pending_vip_references"
               title="Long Pending VIP References (Top 10)"
             />
@@ -351,7 +296,7 @@ export default function VIPReferenceDashboard({ triggerNotification }) {
           <div className="flex-1 p-3 overflow-hidden flex flex-col">
             <div className="overflow-auto flex-1">
             <div className="rounded-xl border border-slate-200 dark:border-slate-800">
-            <table className="w-full text-[11px] border-separate border-spacing-0 [&_thead_tr:first-child_th:first-child]:rounded-tl-xl [&_thead_tr:first-child_th:last-child]:rounded-tr-xl [&_tbody_tr:last-child_td:first-child]:rounded-bl-xl [&_tbody_tr:last-child_td:last-child]:rounded-br-xl">
+            <table className="w-full min-w-[640px] text-[11px] border-separate border-spacing-0 [&_thead_tr:first-child_th:first-child]:rounded-tl-xl [&_thead_tr:first-child_th:last-child]:rounded-tr-xl [&_tbody_tr:last-child_td:first-child]:rounded-bl-xl [&_tbody_tr:last-child_td:last-child]:rounded-br-xl">
               <thead className="sticky top-0 z-20">
                 <tr className="bg-[#4f46e5] text-white relative z-10">
                   {['S.No','Subject','Wing','Current stage','Last Updated','Days'].map((h) => (
