@@ -1,15 +1,21 @@
-import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { Search, X, Edit, BarChart3, List, ChevronDown, Filter } from 'lucide-react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { useShallow } from 'zustand/react/shallow';
+import { Search, X, Edit, Trash2, BarChart3, List, ChevronDown, Filter } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
-import { fetchVIPReferences } from '../api';
+import ConfirmModal from '../../../components/ConfirmModal';
+import FilterSelect from '../../../components/FilterSelect';
+import { fetchVIPReferences, deleteVIPReference } from '../api';
 import { STAGE_STEPS } from '../utils/constants';
 import { useVipStore } from '../store/useVipStore';
-import { useNotifier, COMMON_TOASTS } from '../../../utils/notify';
-import { exportRowsToFile, exportGridApiToExcel } from '../../../utils/exportGridReport';
+import { getCurrentUserId } from '../../../utils/authSession';
+import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { VIP_TOASTS } from '../toastMessages';
+import { exportRowsToFile } from '../../../utils/exportGridReport';
 
+const BRAND = '#0f417a';
 const COLORS = ['#0f417a', '#1e5ea8', '#3b82f6', '#60a5fa', '#93c5fd', '#10b981'];
 
 function getRefStageText(steps) {
@@ -22,42 +28,115 @@ function getRefStageText(steps) {
   return currentStage;
 }
 
+// One definition of what a VIP Reference looks like outside the grid, so Copy, Excel and PDF
+// all produce the same columns and all three follow the Visibility toggles.
+// `key` matches a key in the store's visibleCols.
+const EXPORT_COLUMNS = [
+  { key: 'subject', label: 'Subject', value: (r) => r.subject || '' },
+  { key: 'wing', label: 'Wing', value: (r) => r.wing || '' },
+  { key: 'division', label: 'Division', value: (r) => r.division || '' },
+  { key: 'stage', label: 'Reference Stage', value: (r) => getRefStageText(r.stageSteps) },
+  { key: 'refNumber', label: 'Reference Letter No', value: (r) => r.refNumber || '' },
+  { key: 'receivedFrom', label: 'Received From', value: (r) => r.receivedFrom || '' },
+  { key: 'remarks', label: 'Remarks', value: (r) => r.remarks || '' },
+  { key: 'deadline', label: 'Deadline', value: (r) => r.deadline || '' },
+  { key: 'lastUpdated', label: 'Last Updated', value: (r) => r.lastUpdated || '' },
+];
+
+const toRow = (r, idx) => {
+  const day = (v) => (v ? new Date(v).toISOString().split('T')[0] : '');
+  const steps = {
+    1: r.received_at_ministry_date ? 'Yes' : 'No',
+    2: r.submitted_for_approval_date ? 'Yes' : 'No',
+    3: r.comments_sought_date ? 'Yes' : 'No',
+    4: r.comments_received_date ? 'Yes' : 'No',
+    5: r.reply_furnished_date ? 'Yes' : 'No',
+    6: r.disposed_date ? 'Yes' : 'No',
+  };
+  return {
+    sNo: idx + 1,
+    id: r.vip_reference_id,
+    subject: r.subject || '',
+    eofficeFile: r.eoffice_file_number || '',
+    wing: r.wing_name || '',
+    division: r.division_name || '',
+    refNumber: r.ref_letter_num || '',
+    receivedFrom: r.received_from || '',
+    remarks: r.remarks || '',
+    deadline: day(r.deadline),
+    stageSteps: steps,
+    statusDates: {
+      1: day(r.received_at_ministry_date),
+      2: day(r.submitted_for_approval_date),
+      3: day(r.comments_sought_date),
+      4: day(r.comments_received_date),
+      5: day(r.reply_furnished_date),
+      6: day(r.disposed_date),
+    },
+    statusRemarks: {
+      1: r.vip_received_ministry_remark || '',
+      2: r.vip_submitted_for_approval_remark || '',
+      3: r.vip_comments_sought_remark || '',
+      4: r.vip_comments_received_remark || '',
+      5: r.vip_reply_furnished_remark || '',
+      6: r.vip_disposed_remark || '',
+    },
+    lastUpdated: day(r.updated_date),
+  };
+};
+
 export default function DataList({
   onEdit,
   triggerNotification,
-  canEdit = true,
+  canEdit = false,
+  canRemove = false,
 }) {
   const notify = useNotifier(triggerNotification);
 
-  const wings = useVipStore(state => state.wings);
-  const divisions = useVipStore(state => state.divisions);
+  const { wings, divisions } = useVipStore(useShallow(state => ({
+    wings: state.wings,
+    divisions: state.divisions,
+  })));
 
-  const activeCategory = useVipStore(state => state.activeCategory);
-  const searchTerm = useVipStore(state => state.searchTerm);
-  const debouncedSearch = useVipStore(state => state.debouncedSearch);
-  const selectedWing = useVipStore(state => state.selectedWing);
-  const selectedDivision = useVipStore(state => state.selectedDivision);
-  const selectedStage = useVipStore(state => state.selectedStage);
-  const showFilterPanel = useVipStore(state => state.showFilterPanel);
-  const pageSize = useVipStore(state => state.pageSize);
-  const viewMode = useVipStore(state => state.viewMode);
-  const visibleCols = useVipStore(state => state.visibleCols);
+  const {
+    activeCategory, searchTerm, debouncedSearch, selectedWing, selectedDivision,
+    selectedStage, showFilterPanel, pageSize, viewMode, visibleCols,
+  } = useVipStore(useShallow(state => ({
+    activeCategory: state.activeCategory,
+    searchTerm: state.searchTerm,
+    debouncedSearch: state.debouncedSearch,
+    selectedWing: state.selectedWing,
+    selectedDivision: state.selectedDivision,
+    selectedStage: state.selectedStage,
+    showFilterPanel: state.showFilterPanel,
+    pageSize: state.pageSize,
+    viewMode: state.viewMode,
+    visibleCols: state.visibleCols,
+  })));
 
-  const setActiveCategory = useVipStore(state => state.setActiveCategory);
-  const setSearchTerm = useVipStore(state => state.setSearchTerm);
-  const setDebouncedSearch = useVipStore(state => state.setDebouncedSearch);
-  const setSelectedWing = useVipStore(state => state.setSelectedWing);
-  const setSelectedDivision = useVipStore(state => state.setSelectedDivision);
-  const setSelectedStage = useVipStore(state => state.setSelectedStage);
-  const setShowFilterPanel = useVipStore(state => state.setShowFilterPanel);
-  const setPageSize = useVipStore(state => state.setPageSize);
-  const setViewMode = useVipStore(state => state.setViewMode);
-  const setVisibleCols = useVipStore(state => state.setVisibleCols);
-  const resetFilters = useVipStore(state => state.resetFilters);
+  const {
+    setActiveCategory, setSearchTerm, setDebouncedSearch, setSelectedWing, setSelectedDivision,
+    setSelectedStage, setShowFilterPanel, setPageSize, setViewMode, setVisibleCols, resetFilters,
+  } = useVipStore(useShallow(state => ({
+    setActiveCategory: state.setActiveCategory,
+    setSearchTerm: state.setSearchTerm,
+    setDebouncedSearch: state.setDebouncedSearch,
+    setSelectedWing: state.setSelectedWing,
+    setSelectedDivision: state.setSelectedDivision,
+    setSelectedStage: state.setSelectedStage,
+    setShowFilterPanel: state.setShowFilterPanel,
+    setPageSize: state.setPageSize,
+    setViewMode: state.setViewMode,
+    setVisibleCols: state.setVisibleCols,
+    resetFilters: state.resetFilters,
+  })));
 
   const [rowData, setRowData] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [gridApi, setGridApi] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [reloadToken, setReloadToken] = useState(0);
+
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const colDropdownRef = useRef(null);
@@ -79,64 +158,29 @@ export default function DataList({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const fetchData = useCallback(() => {
-    setLoading(true);
+  // Nothing is set synchronously here: `loading` starts true, and a reload flips it before
+  // bumping reloadToken, so the effect body never triggers an extra render pass.
+  useEffect(() => {
+    let cancelled = false;
     fetchVIPReferences()
       .then(res => {
-        const dataArray = Array.isArray(res.data) ? res.data : (res.data.data || []);
-        const mapped = dataArray.map((r, idx) => {
-          const steps = {
-            1: r.received_at_ministry_date ? 'Yes' : 'No',
-            2: r.submitted_for_approval_date ? 'Yes' : 'No',
-            3: r.comments_sought_date ? 'Yes' : 'No',
-            4: r.comments_received_date ? 'Yes' : 'No',
-            5: r.reply_furnished_date ? 'Yes' : 'No',
-            6: r.disposed_date ? 'Yes' : 'No',
-          };
-          const dates = {
-            1: r.received_at_ministry_date ? new Date(r.received_at_ministry_date).toISOString().split('T')[0] : '',
-            2: r.submitted_for_approval_date ? new Date(r.submitted_for_approval_date).toISOString().split('T')[0] : '',
-            3: r.comments_sought_date ? new Date(r.comments_sought_date).toISOString().split('T')[0] : '',
-            4: r.comments_received_date ? new Date(r.comments_received_date).toISOString().split('T')[0] : '',
-            5: r.reply_furnished_date ? new Date(r.reply_furnished_date).toISOString().split('T')[0] : '',
-            6: r.disposed_date ? new Date(r.disposed_date).toISOString().split('T')[0] : '',
-          };
-          const remarksByStage = {
-            1: r.vip_received_ministry_remark || '',
-            2: r.vip_submitted_for_approval_remark || '',
-            3: r.vip_comments_sought_remark || '',
-            4: r.vip_comments_received_remark || '',
-            5: r.vip_reply_furnished_remark || '',
-            6: r.vip_disposed_remark || '',
-          };
-          return {
-            sNo: idx + 1,
-            id: r.vip_reference_id,
-            subject: r.subject || '',
-            eofficeFile: r.eoffice_file_number || '',
-            wing: r.wing_name || '',
-            division: r.division_name || '',
-            refNumber: r.ref_letter_num || '',
-            receivedFrom: r.received_from || '',
-            remarks: r.remarks || '',
-            deadline: r.deadline ? new Date(r.deadline).toISOString().split('T')[0] : '',
-            stageSteps: steps,
-            statusDates: dates,
-            statusRemarks: remarksByStage,
-            lastUpdated: r.updated_date ? new Date(r.updated_date).toISOString().split('T')[0] : '',
-          };
-        });
-        setRowData(mapped);
+        if (cancelled) return;
+        const dataArray = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+        setRowData(dataArray.map(toRow));
       })
       .catch(() => {
+        if (cancelled) return;
+        setRowData([]);
         notify(COMMON_TOASTS.loadFailed('VIP References'));
       })
-      .finally(() => setLoading(false));
-  }, [notify]);
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [notify, reloadToken]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  const reload = useCallback(() => {
+    setLoading(true);
+    setReloadToken(t => t + 1);
+  }, []);
 
   const filteredDivisions = useMemo(() => {
     if (selectedWing === 'All') return divisions.map(d => d.division_name);
@@ -193,60 +237,76 @@ export default function DataList({
     }));
   }, [filteredData]);
 
-  const handleExport = (type) => {
-    const headers = ['S.No', 'Subject', 'Wing', 'Division', 'Reference Stage', 'Reference Letter No', 'Received From', 'Remarks', 'Deadline', 'Last Updated'];
+  const handleDelete = useCallback((row) => setPendingDelete(row), []);
 
-    const buildRowValues = (row, idx) => [
-      idx + 1,
-      row.subject || '',
-      row.wing || '',
-      row.division || '',
-      getRefStageText(row.stageSteps),
-      row.refNumber || '',
-      row.receivedFrom || '',
-      row.remarks || '',
-      row.deadline || '',
-      row.lastUpdated || '',
-    ];
+  const confirmDelete = async () => {
+    const row = pendingDelete;
+    const userId = getCurrentUserId();
+    if (!userId) {
+      notify(VIP_TOASTS.deleteFailed(row?.subject, 'Your session has expired. Please log in again.'));
+      setPendingDelete(null);
+      return;
+    }
+    setDeleting(true);
+    try {
+      await deleteVIPReference(row.id, userId);
+      notify(VIP_TOASTS.deleted(row.subject));
+      reload();
+    } catch (err) {
+      console.error('Error deleting VIP reference:', err);
+      notify(VIP_TOASTS.deleteFailed(row.subject, getErrorMessage(err)));
+    } finally {
+      setDeleting(false);
+      setPendingDelete(null);
+    }
+  };
+
+  const exportCols = useCallback(
+    () => EXPORT_COLUMNS.filter(c => visibleCols[c.key]),
+    [visibleCols]
+  );
+
+  const handleExport = (type) => {
+    const cols = exportCols();
+    const rows = filteredData;
+    const scopeTitle = `VIP References - ${activeCategory.toUpperCase()}`;
+
+    if (cols.length === 0) {
+      notify(COMMON_TOASTS.nothingToExport());
+      return;
+    }
 
     if (type === 'Copy') {
-      if (filteredData.length === 0) {
+      if (rows.length === 0) {
         notify(COMMON_TOASTS.nothingToCopy());
         return;
       }
-      let tsv = headers.join('\t') + '\n';
-      filteredData.forEach((row, idx) => {
-        tsv += buildRowValues(row, idx).join('\t') + '\n';
+      let tsv = ['S.No', ...cols.map(c => c.label)].join('\t') + '\n';
+      rows.forEach((row, i) => {
+        tsv += [i + 1, ...cols.map(c => String(c.value(row)).replace(/[\t\n]/g, ' '))].join('\t') + '\n';
       });
-      navigator.clipboard.writeText(tsv)
-        .then(() => notify(COMMON_TOASTS.copySuccess(filteredData.length)))
-        .catch(() => notify(COMMON_TOASTS.copyFailed()));
-    } else if (type === 'Excel') {
-      if (filteredData.length === 0) {
-        notify(COMMON_TOASTS.nothingToExport());
-        return;
-      }
-      // Excel (.xlsx): the table as shown, or the same rows when the grid is not ready
-      const fileName = `VIP_References_${activeCategory}`;
-      const file = gridApi
-        ? exportGridApiToExcel(gridApi, { title: `VIP References - ${activeCategory.toUpperCase()}`, fileName })
-        : exportRowsToFile('excel', { title: `VIP References - ${activeCategory.toUpperCase()}`, headers, rows: filteredData.map((row, idx) => buildRowValues(row, idx)), fileName });
-      notify(COMMON_TOASTS.excelExported(file));
-    } else if (type === 'PDF') {
-      if (filteredData.length === 0) {
-        notify(COMMON_TOASTS.nothingToExport());
-        return;
-      }
-      // PDF straight to a file (no print dialog or new tab): the columns on show
-      const file = exportRowsToFile('pdf', {
-        title: `VIP References - ${activeCategory.toUpperCase()}`,
-        headers: ['S.No', 'Subject', 'Wing / Division', 'Stage', 'Received From', 'Last Updated'],
-        rows: filteredData.map((row, idx) => [idx + 1, row.subject, `${row.wing ?? ''} / ${row.division ?? ''}`, getRefStageText(row.stageSteps), row.receivedFrom, row.lastUpdated]),
-        fileName: `VIP_References_${activeCategory}`,
-      });
-      notify(COMMON_TOASTS.excelExported(file));
+      navigator.clipboard.writeText(tsv).then(
+        () => notify(COMMON_TOASTS.copySuccess(rows.length, 'matching the filters')),
+        () => notify(COMMON_TOASTS.copyFailed()),
+      );
+      return;
     }
+
+    if (rows.length === 0) {
+      notify(COMMON_TOASTS.nothingToExport());
+      return;
+    }
+    // Excel (.xlsx) / PDF of every filtered row, straight to a file (no print dialog or new tab)
+    const file = exportRowsToFile(type === 'PDF' ? 'pdf' : 'excel', {
+      title: scopeTitle,
+      headers: ['S.No', ...cols.map(c => c.label)],
+      rows: rows.map((row, i) => [i + 1, ...cols.map(c => c.value(row))]),
+      fileName: `VIP_References_${activeCategory}`,
+    });
+    notify(COMMON_TOASTS.excelExported(file, 'Every filtered reference'));
   };
+
+  const showActions = canEdit || canRemove;
 
   const colDefs = useMemo(() => [
     {
@@ -354,25 +414,41 @@ export default function DataList({
     {
       headerName: 'Action',
       field: 'id',
-      width: 90,
-      minWidth: 90,
+      width: 110,
+      minWidth: 110,
       pinned: 'right',
-      cellClass: 'text-center flex items-center justify-center',
-      cellRenderer: (params) => {
-        if (!canEdit) return null;
-        return (
-          <button
-            type="button"
-            onClick={() => onEdit?.(params.data)}
-            className="p-1.5 hover:bg-orange-50 dark:hover:bg-slate-800 rounded-lg text-orange-500 hover:text-orange-600 dark:text-orange-400 transition cursor-pointer"
-            title="Update VIP Letter status"
-          >
-            <Edit className="h-4 w-4" />
-          </button>
-        );
-      },
+      hide: !showActions,
+      cellClass: 'text-center flex items-center justify-center gap-1',
+      cellRenderer: (params) => (
+        <>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => onEdit?.(params.data)}
+              className="p-1.5 hover:bg-orange-50 dark:hover:bg-slate-800 rounded-lg text-orange-500 hover:text-orange-600 dark:text-orange-400 transition cursor-pointer"
+              title="Update VIP Letter status"
+            >
+              <Edit className="h-4 w-4" />
+            </button>
+          )}
+          {canRemove && (
+            <button
+              type="button"
+              onClick={() => handleDelete(params.data)}
+              className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg text-red-600 dark:text-red-400 transition cursor-pointer"
+              title="Delete VIP Reference"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+        </>
+      ),
     },
-  ], [visibleCols, onEdit, activeCategory, canEdit]);
+  ], [visibleCols, onEdit, activeCategory, canEdit, canRemove, showActions, handleDelete]);
+
+  const stageOptions = useMemo(() => Object.values(STAGE_STEPS)
+    .filter(stage => activeCategory === 'disposed' ? stage === 'Disposed' : stage !== 'Disposed'),
+  [activeCategory]);
 
   return (
     <div className="space-y-4 animate-fade-in relative">
@@ -401,10 +477,10 @@ export default function DataList({
               onClick={() => setShowFilterPanel(prev => !prev)}
               className={`module-filter-btn ${showFilterPanel || activeFiltersCount > 0 ? 'active' : ''}`}
             >
-              <Filter className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
+              <Filter className="h-4 w-4" style={{ color: BRAND }} />
               <span>Filter</span>
               {activeFiltersCount > 0 && (
-                <span className="bg-[#0f417a] dark:bg-blue-500 text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">
+                <span className="text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none" style={{ backgroundColor: BRAND }}>
                   {activeFiltersCount}
                 </span>
               )}
@@ -418,7 +494,7 @@ export default function DataList({
                   resetFilters();
                   notify(COMMON_TOASTS.filtersReset());
                 }}
-                className="px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 dark:bg-rose-950/40 rounded-xl border border-rose-200 dark:border-rose-900 transition cursor-pointer"
+                className="module-reset-btn"
               >
                 Reset
               </button>
@@ -442,18 +518,20 @@ export default function DataList({
                   type="button"
                   onClick={() => setSearchTerm('')}
                   className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  aria-label="Clear search"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
               )}
             </div>
 
-            <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-xs select-none dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200">
+            <div className="module-toolbar-chip">
               <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
               <select
                 value={pageSize}
                 onChange={(e) => setPageSize(Number(e.target.value))}
-                className="bg-transparent border-none text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
+                className="bg-transparent border-none text-xs font-bold focus:outline-none cursor-pointer p-0"
+                aria-label="Rows per page"
               >
                 <option value="10">10</option>
                 <option value="25">25</option>
@@ -462,7 +540,7 @@ export default function DataList({
               </select>
             </div>
 
-            <div className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
+            <div className="module-toolbar-chip uppercase tracking-wider">
               Total: {filteredData.length}
             </div>
 
@@ -470,30 +548,30 @@ export default function DataList({
               <button
                 type="button"
                 onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold hover:bg-slate-50 transition cursor-pointer flex items-center space-x-1.5 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800"
+                className="module-toolbar-chip cursor-pointer"
               >
                 <span>Visibility</span>
                 <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
               </button>
               {dropdownOpen && (
                 <div className="absolute right-0 mt-1.5 w-48 bg-white border border-slate-200 rounded-xl shadow-lg p-2 z-50 animate-fade-in flex flex-col space-y-0.5 dark:bg-slate-900 dark:border-slate-800">
-                  {Object.keys(visibleCols).map(col => (
-                    <label key={col} className="flex items-center space-x-2 px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 capitalize cursor-pointer select-none">
+                  {EXPORT_COLUMNS.map(col => (
+                    <label key={col.key} className="flex items-center space-x-2 px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
                       <input
                         type="checkbox"
-                        checked={visibleCols[col]}
-                        onChange={() => setVisibleCols(prev => ({ ...prev, [col]: !prev[col] }))}
+                        checked={!!visibleCols[col.key]}
+                        onChange={() => setVisibleCols(prev => ({ ...prev, [col.key]: !prev[col.key] }))}
                         className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
                       />
-                      <span>{col === 'refNumber' ? 'Ref Number' : col === 'receivedFrom' ? 'Received From' : col === 'lastUpdated' ? 'Last Updated' : col}</span>
+                      <span>{col.label}</span>
                     </label>
                   ))}
                 </div>
               )}
             </div>
 
-            <CopyButton onCopy={() => handleExport('Copy')} color="#0f417a" hoverBg="#f1f5f9" />
-            <ExportDropdown onExportExcel={() => handleExport('Excel')} onExportPdf={() => handleExport('PDF')} color="#0f417a" hoverColor="#1e5ea8" />
+            <CopyButton onCopy={() => handleExport('Copy')} color={BRAND} hoverBg="#f1f5f9" />
+            <ExportDropdown onExportExcel={() => handleExport('Excel')} onExportPdf={() => handleExport('PDF')} color={BRAND} hoverColor="#1e5ea8" />
 
             <div className="flex items-center border border-slate-200 rounded-xl p-0.5 bg-slate-50 dark:bg-slate-800 dark:border-slate-700">
               <button
@@ -517,59 +595,28 @@ export default function DataList({
         </div>
 
         {showFilterPanel && (
-          <div className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200/80 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 animate-fade-in">
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Wing</label>
-              <div className="relative">
-                <select
-                  value={selectedWing}
-                  onChange={(e) => setSelectedWing(e.target.value)}
-                  className="appearance-none w-full text-xs pl-2.5 pr-8 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
-                >
-                  <option value="All">All Wings</option>
-                  {wings.map(w => (
-                    <option key={w.wing_id || w.wing_name} value={w.wing_name}>{w.wing_name}</option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Division</label>
-              <div className="relative">
-                <select
-                  value={selectedDivision}
-                  onChange={(e) => setSelectedDivision(e.target.value)}
-                  className="appearance-none w-full text-xs pl-2.5 pr-8 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
-                >
-                  <option value="All">All Divisions</option>
-                  {filteredDivisions.map(d => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status / Stage</label>
-              <div className="relative">
-                <select
-                  value={selectedStage}
-                  onChange={(e) => setSelectedStage(e.target.value)}
-                  className="appearance-none w-full text-xs pl-2.5 pr-8 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
-                >
-                  <option value="All">All Statuses</option>
-                  {Object.values(STAGE_STEPS)
-                    .filter(stage => activeCategory === 'disposed' ? stage === 'Disposed' : stage !== 'Disposed')
-                    .map(stage => (
-                      <option key={stage} value={stage}>{stage}</option>
-                    ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-              </div>
-            </div>
+          <div className="module-filter-panel grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 animate-fade-in">
+            <FilterSelect
+              label="Wing"
+              value={selectedWing}
+              onChange={setSelectedWing}
+              options={wings.map(w => w.wing_name)}
+              allLabel="All Wings"
+            />
+            <FilterSelect
+              label="Division"
+              value={selectedDivision}
+              onChange={setSelectedDivision}
+              options={filteredDivisions}
+              allLabel="All Divisions"
+            />
+            <FilterSelect
+              label="Status / Stage"
+              value={selectedStage}
+              onChange={setSelectedStage}
+              options={stageOptions}
+              allLabel="All Statuses"
+            />
           </div>
         )}
 
@@ -580,13 +627,11 @@ export default function DataList({
               columnDefs={colDefs}
               pagination={true}
               paginationPageSize={pageSize}
-              paginationPageSizeSelector={[10, 25, 50, 100]}
               loading={loading}
-              onGridReady={(params) => setGridApi(params.api)}
             />
           </div>
         ) : (
-          <div className="w-full h-[350px] p-4 flex items-center justify-center bg-slate-50/50 dark:bg-slate-800/30 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
+          <div className="w-full h-[280px] sm:h-[350px] p-2 sm:p-4 flex items-center justify-center bg-slate-50/50 dark:bg-slate-800/30 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
             {chartData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
@@ -594,9 +639,9 @@ export default function DataList({
                   <YAxis stroke="#64748b" fontSize={11} fontWeight={600} />
                   <Tooltip cursor={{ fill: 'rgba(15, 65, 122, 0.05)' }} />
                   <Legend verticalAlign="top" height={36} />
-                  <Bar dataKey="Pending References" fill="#0f417a" radius={[6, 6, 0, 0]}>
+                  <Bar dataKey="Pending References" fill={BRAND} radius={[6, 6, 0, 0]}>
                     {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      <Cell key={`cell-${entry.name}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -607,6 +652,17 @@ export default function DataList({
           </div>
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={!!pendingDelete}
+        onClose={() => !deleting && setPendingDelete(null)}
+        onConfirm={confirmDelete}
+        loading={deleting}
+        title="Delete VIP Reference"
+        message={pendingDelete
+          ? `"${pendingDelete.subject}" will be deleted along with its stage history. This cannot be undone.`
+          : ''}
+      />
     </div>
   );
 }

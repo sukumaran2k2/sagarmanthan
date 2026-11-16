@@ -9,10 +9,6 @@ export function fetchVIPReferenceDashboard() {
   return axiosInstance.get('/vip-reference-dashboard');
 }
 
-export function fetchVIPReferenceById(id) {
-  return axiosInstance.get(`/vip-reference/${id}`);
-}
-
 export function createVIPReference(payload) {
   return axiosInstance.post('/vip-reference', payload);
 }
@@ -76,10 +72,3 @@ export function fetchVIPPendencyWingDetail(wingId, countDate) {
 export function fetchVIPPendencyDivisionDetail(divisionId, countDate) {
   return axiosInstance.get(`/getvippendency-divisionwise/${divisionId}/${countDate}`);
 }
-
-// ── Generic Report Fetch ──
-
-export function fetchVipReportByUrl(url) {
-  return axiosInstance.get(url);
-}
-

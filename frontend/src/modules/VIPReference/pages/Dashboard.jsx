@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react';
+import { useState, useEffect, useRef, useLayoutEffect, useMemo, useCallback } from 'react';
 import { RefreshCw, TrendingUp, BarChart3, Layers, Clock } from 'lucide-react';
 import * as am5 from '@amcharts/amcharts5';
 import * as am5xy from '@amcharts/amcharts5/xy';
@@ -8,6 +8,7 @@ import ChartExportMenu from '../../../components/ChartExportMenu';
 import { chartColors, useIsDark } from '../../../utils/amCharts';
 import { MoreVertical, FileSpreadsheet, Printer } from 'lucide-react';
 import { exportRowsToFile } from '../../../utils/exportGridReport';
+import { useNotifier, COMMON_TOASTS } from '../../../utils/notify';
 
 function KpiCard({ label, value, subtext, icon: Icon, valueColorClass, iconWrapClass, subtextColorClass }) {
   return (
@@ -55,7 +56,7 @@ function StageDistributionChart({ data, onRootReady }) {
     series.data.setAll(sorted);
     chart.appear(600, 100);
     return () => { root.dispose(); onRootReady?.(null); };
-  }, [data, dark]);
+  }, [data, dark, onRootReady]);
   return <div ref={divRef} style={{ width: '100%', height: '100%', overflow: 'hidden' }} />;
 }
 
@@ -88,7 +89,7 @@ function WingWiseChart({ data, onRootReady }) {
     series.data.setAll(sorted);
     chart.appear(600, 100);
     return () => { root.dispose(); onRootReady?.(null); };
-  }, [data, dark]);
+  }, [data, dark, onRootReady]);
   return <div ref={divRef} style={{ width: '100%', height: '100%', overflow: 'hidden' }} />;
 }
 
@@ -152,23 +153,36 @@ function TableExportMenu({ headers, data, fileName = 'export', title = 'Report' 
   );
 }
 
-export default function VIPReferenceDashboard() {
+export default function VIPReferenceDashboard({ triggerNotification }) {
+  const notify = useNotifier(triggerNotification);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [distChartRoot, setDistChartRoot] = useState(null);
   const [wingChartRoot, setWingChartRoot] = useState(null);
 
+  // No setState in the body: loading already starts true, so the first run has nothing to set
+  // up front. Keeping it out means the effect does not trigger a second render on mount.
+  const runLoad = useCallback(() => {
+    let cancelled = false;
+    fetchVIPReferenceDashboard()
+      .then((res) => { if (!cancelled) setData(res.data); })
+      .catch(() => {
+        if (cancelled) return;
+        setError('Failed to load dashboard data.');
+        notify(COMMON_TOASTS.loadFailed('The VIP Reference dashboard'));
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [notify]);
+
+  useEffect(() => runLoad(), [runLoad]);
+
   const load = () => {
     setLoading(true);
     setError(null);
-    fetchVIPReferenceDashboard()
-      .then((res) => setData(res.data))
-      .catch(() => setError('Failed to load dashboard data.'))
-      .finally(() => setLoading(false));
+    runLoad();
   };
-
-  useEffect(() => { load(); }, []);
 
   const { kpi, lastDataUpdate, heatMap = [], wingWise = [], longPending = [] } = data || {};
   const distData = useMemo(() => heatMap.filter((s) => s.stage_id !== 6), [heatMap]);

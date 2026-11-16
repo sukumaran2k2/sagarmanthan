@@ -671,6 +671,7 @@ router.get("/get-works-procurement/:worksGemID", auth, requireModulePermission("
 
 router.get("/get-organisation-names/:organisationID", auth, requireModulePermission("GEM_PROCUREMENT", "read"), financialParameterTab.getOrganisationName);
 // Vip
+const vipRead = requireModulePermission("VIP_REFERENCE", "read");
 router.get(
   "/vip-reference-dashboard",
   auth,
@@ -711,12 +712,11 @@ router.delete(
   "/vip-reference/:vipReferenceID/:userID",
   auth,
   requireModulePermission("VIP_REFERENCE", "delete"),
+  // The deletion log records :userID. Taken straight from the URL any caller could name
+  // someone else, so it is pinned to the authenticated user before the handler reads it.
+  pinOwnUser(),
   vipReferenceTab.deleteVipReference
 );
-// router.get("/get-vip-wing-chart", vipReferenceTab.getVipWingChartData);
-// router.get("/get-vip-division-chart", vipReferenceTab.getVipDivisionChartData);
-// router.get("/get-vip-stage-chart", vipReferenceTab.getVipStageChartData);
-// router.get("/get-vip-deadline-chart", vipReferenceTab.getVipDeadlineChartData);
 
 // Audit Para: signed-in users with the AUDIT_PARAS rights; the user and their scope come from
 // the token, not from the request
@@ -1521,17 +1521,17 @@ router.get("/wingwise-cacandidate/:wingID/", auth, requireModulePermission("CONS
 router.get("/divisionwise-cacandidate/:divisionID/", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultAppReportTab.getCaDivisionWiseCandidateReport);
 
 // Vip Reference 
-router.get("/vipwingwise-report", vipReportTab.vipWingWiseReport);
-router.get("/vipdivisionwise-report/:wingID/", vipReportTab.vipDivisionWiseReport);
-router.get("/getvip-wingwise/:wingID/:vipStage", vipReportTab.getDetailVipWingWise);
-router.get("/getvip-divisionwise/:divisionID/:vipStage", vipReportTab.getDetailVipDivisionWise);
+router.get("/vipwingwise-report", auth, vipRead, vipReportTab.vipWingWiseReport);
+router.get("/vipdivisionwise-report/:wingID/", auth, vipRead, vipReportTab.vipDivisionWiseReport);
+router.get("/getvip-wingwise/:wingID/:vipStage", auth, vipRead, vipReportTab.getDetailVipWingWise);
+router.get("/getvip-divisionwise/:divisionID/:vipStage", auth, vipRead, vipReportTab.getDetailVipDivisionWise);
 router.get("/getCurrentDate", vipReportTab.getCurrentDate);
 
 // Pendency Vip Reference
-router.get("/vip-pendencywingwise-report", vipReportTab.vipPendencyWingWiseReport);
-router.get("/vip-pendencydivisionwise-report/:wingID/", vipReportTab.vipPendencyDivisionWiseReport);
-router.get("/getvippendency-wingwise/:wingID/:countDate", vipReportTab.getDetailVipPendencyWingWise);
-router.get("/getvippendency-divisionwise/:divisionID/:countDate", vipReportTab.getDetailVipPendencyDivisionWise);
+router.get("/vip-pendencywingwise-report", auth, vipRead, vipReportTab.vipPendencyWingWiseReport);
+router.get("/vip-pendencydivisionwise-report/:wingID/", auth, vipRead, vipReportTab.vipPendencyDivisionWiseReport);
+router.get("/getvippendency-wingwise/:wingID/:countDate", auth, vipRead, vipReportTab.getDetailVipPendencyWingWise);
+router.get("/getvippendency-divisionwise/:divisionID/:countDate", auth, vipRead, vipReportTab.getDetailVipPendencyDivisionWise);
 
 // Social Media & Outreach
 router.post(

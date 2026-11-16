@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, Save, AlertCircle, CheckCircle2, Calendar, FileText } from 'lucide-react';
 import { createVIPReference, updateVIPReference } from '../api';
 import { STAGE_STEPS as STATUS_STEPS } from '../utils/constants';
@@ -66,68 +66,80 @@ export default function InputForm({
     stages: { 1: { date: '', remark: '' }, 2: { date: '', remark: '' }, 3: { date: '', remark: '' }, 4: { date: '', remark: '' }, 5: { date: '', remark: '' }, 6: { date: '', remark: '' } },
   });
 
-  useEffect(() => {
-    let initSubject = '', initEofficeFile = '', initWing = '', initDivision = '';
-    let initRefNumber = '', initReceivedFrom = '', initRemarks = '', initDeadline = '';
-    let initStages = { 1: { date: '', remark: '' }, 2: { date: '', remark: '' }, 3: { date: '', remark: '' }, 4: { date: '', remark: '' }, 5: { date: '', remark: '' }, 6: { date: '', remark: '' } };
-
-    if (editData) {
-      initSubject = editData.subject || '';
-      initEofficeFile = editData.eofficeFile || '';
-      initRefNumber = editData.refNumber || '';
-      initReceivedFrom = editData.receivedFrom || '';
-      initRemarks = editData.remarks || '';
-      initDeadline = editData.deadline || '';
-
-      const editWingValue = String(editData.wing || '').trim().toLowerCase();
-      const matchedWing = wings.find(
-        w => String(w.wing_id) === String(editData.wing) ||
-          String(w.wing_name || '').trim().toLowerCase() === editWingValue
-      );
-      if (matchedWing) initWing = String(matchedWing.wing_id);
-
-      const editDivisionValue = String(editData.division || '').trim().toLowerCase();
-      const matchedDivision = divisions.find(
-        d => String(d.wing_id) === String(initWing) &&
-          (String(d.division_id) === String(editData.division) ||
-            String(d.division_name || '').trim().toLowerCase() === editDivisionValue)
-      );
-      if (matchedDivision) initDivision = String(matchedDivision.division_id);
-
-      for (let i = 1; i <= 6; i++) {
-        initStages[i] = {
-          date: editData.statusDates?.[i] || '',
-          remark: editData.statusRemarks?.[i] || '',
-        };
-      }
+  // The form's starting values. Wing and division can only be resolved once the store has
+  // loaded them, which happens after the first render, so this is recomputed when they arrive.
+  const seed = useMemo(() => {
+    const blankStages = { 1: { date: '', remark: '' }, 2: { date: '', remark: '' }, 3: { date: '', remark: '' }, 4: { date: '', remark: '' }, 5: { date: '', remark: '' }, 6: { date: '', remark: '' } };
+    if (!editData) {
+      return { subject: '', eofficeFile: '', wing: '', division: '', refNumber: '', receivedFrom: '', remarks: '', deadline: '', stages: blankStages };
     }
 
-    setSubject(initSubject);
-    setEofficeFile(initEofficeFile);
-    setWing(initWing);
-    setDivision(initDivision);
-    setRefNumber(initRefNumber);
-    setReceivedFrom(initReceivedFrom);
-    setRemarks(initRemarks);
-    setDeadline(initDeadline);
-    setStages(initStages);
-    setInitialValues({ subject: initSubject, eofficeFile: initEofficeFile, wing: initWing, division: initDivision, refNumber: initRefNumber, receivedFrom: initReceivedFrom, remarks: initRemarks, deadline: initDeadline, stages: initStages });
+    const editWingValue = String(editData.wing || '').trim().toLowerCase();
+    const matchedWing = wings.find(
+      w => String(w.wing_id) === String(editData.wing) ||
+        String(w.wing_name || '').trim().toLowerCase() === editWingValue
+    );
+    const initWing = matchedWing ? String(matchedWing.wing_id) : '';
+
+    const editDivisionValue = String(editData.division || '').trim().toLowerCase();
+    const matchedDivision = divisions.find(
+      d => String(d.wing_id) === String(initWing) &&
+        (String(d.division_id) === String(editData.division) ||
+          String(d.division_name || '').trim().toLowerCase() === editDivisionValue)
+    );
+
+    const initStages = {};
+    for (let i = 1; i <= 6; i++) {
+      initStages[i] = {
+        date: editData.statusDates?.[i] || '',
+        remark: editData.statusRemarks?.[i] || '',
+      };
+    }
+
+    return {
+      subject: editData.subject || '',
+      eofficeFile: editData.eofficeFile || '',
+      wing: initWing,
+      division: matchedDivision ? String(matchedDivision.division_id) : '',
+      refNumber: editData.refNumber || '',
+      receivedFrom: editData.receivedFrom || '',
+      remarks: editData.remarks || '',
+      deadline: editData.deadline || '',
+      stages: initStages,
+    };
+  }, [editData, wings, divisions]);
+
+  // Applying the seed during render rather than in an effect: React re-renders with the new
+  // values before anything is painted, so the form never flashes its empty state first.
+  const [appliedSeed, setAppliedSeed] = useState(null);
+  if (appliedSeed !== seed) {
+    setAppliedSeed(seed);
+    setSubject(seed.subject);
+    setEofficeFile(seed.eofficeFile);
+    setWing(seed.wing);
+    setDivision(seed.division);
+    setRefNumber(seed.refNumber);
+    setReceivedFrom(seed.receivedFrom);
+    setRemarks(seed.remarks);
+    setDeadline(seed.deadline);
+    setStages(seed.stages);
+    setInitialValues(seed);
     setTouched({});
     setFormSubmitted(false);
-  }, [editData, wings, divisions]);
+  }
 
   const filteredDivisions = useMemo(() => {
     if (!wing) return [];
     return divisions.filter(d => String(d.wing_id) === String(wing));
   }, [wing, divisions]);
 
-  useEffect(() => {
-    if (!wing || divisions.length === 0) return;
-    const divisionExists = divisions.some(
-      d => String(d.wing_id) === String(wing) && String(d.division_id) === String(division)
-    );
-    if (!divisionExists) setDivision('');
-  }, [wing, division, divisions]);
+  // If the held division does not belong to the selected wing (the list can load after a wing
+  // was already picked), drop it. Adjusted during render for the same reason as the seed.
+  const divisionBelongsToWing = !wing || divisions.length === 0 || !division ||
+    divisions.some(d => String(d.wing_id) === String(wing) && String(d.division_id) === String(division));
+  if (!divisionBelongsToWing) {
+    setDivision('');
+  }
 
   const handleWingChange = (e) => {
     setWing(e.target.value);
@@ -356,7 +368,7 @@ export default function InputForm({
             </div>
 
             {/* Wing & Division */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="module-form-label">Wing <span className="text-rose-500">*</span></label>
                 <select value={wing} onChange={handleWingChange} onBlur={() => handleBlur('wing')}

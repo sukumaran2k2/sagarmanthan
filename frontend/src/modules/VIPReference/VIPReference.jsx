@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
@@ -8,22 +8,29 @@ import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
 import { useVipPermissions } from './hooks/useVipPermissions';
 import { useVipStore } from './store/useVipStore';
+import { useNotifier, COMMON_TOASTS } from '../../utils/notify';
+
+const BASE = '/governance/vip-reference';
 
 export default function VIPReference({ triggerNotification }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const permissions = useVipPermissions();
-  const { canAdd, canEdit, canRemove, canView } = permissions;
+  const notify = useNotifier(triggerNotification);
+  const { canAdd, canEdit, canRemove, canView } = useVipPermissions();
 
   const loadWingsAndDivisions = useVipStore(state => state.loadWingsAndDivisions);
+  const metadataError = useVipStore(state => state.metadataError);
 
   const editData = location.state?.item ?? null;
 
   const tabs = useMemo(() => {
-    const list = [{ id: 'dashboard', label: 'Dashboard' }];
+    const list = [];
+    if (canView) list.push({ id: 'dashboard', label: 'Dashboard' });
     if (canAdd) list.push({ id: 'input-form', label: 'Input Form' });
-    if (canView) list.push({ id: 'data-list', label: 'Data List' });
-    if (canView) list.push({ id: 'reports', label: 'Report' });
+    if (canView) {
+      list.push({ id: 'data-list', label: 'Data List' });
+      list.push({ id: 'reports', label: 'Report' });
+    }
     return list;
   }, [canAdd, canView]);
 
@@ -39,17 +46,26 @@ export default function VIPReference({ triggerNotification }) {
     loadWingsAndDivisions();
   }, [loadWingsAndDivisions]);
 
+  // The store records a metadata failure but nothing used to show it, so the wing and division
+  // dropdowns would just come up empty with no explanation.
+  useEffect(() => {
+    if (metadataError) notify(COMMON_TOASTS.loadFailed('Wings and divisions'));
+  }, [metadataError, notify]);
+
   const handleEdit = useCallback((row) => {
-    navigate('/governance/vip-reference/input-form', { state: { item: row } });
+    navigate(`${BASE}/input-form`, { state: { item: row } });
   }, [navigate]);
 
   const handleSuccess = useCallback(() => {
-    navigate('/governance/vip-reference/data-list', { replace: true });
+    navigate(`${BASE}/data-list`, { replace: true });
   }, [navigate]);
 
   const handleBack = useCallback(() => {
-    navigate('/governance/vip-reference/data-list');
+    navigate(`${BASE}/data-list`);
   }, [navigate]);
+
+  // The tab a user is allowed to land on, used for both the index route and any unknown path
+  const fallbackTab = canView ? 'dashboard' : 'input-form';
 
   if (!canAdd && !canView && !canEdit) {
     return <RestrictedAccess moduleName="VIP References" />;
@@ -70,47 +86,61 @@ export default function VIPReference({ triggerNotification }) {
         <InternalNavigation
           tabs={tabs}
           currentTab={currentTab}
-          onTabChange={(tabId) => {
-            if (tabId === 'dashboard') navigate('/governance/vip-reference/dashboard');
-            else if (tabId === 'input-form') navigate('/governance/vip-reference/input-form');
-            else if (tabId === 'reports') navigate('/governance/vip-reference/reports');
-            else navigate('/governance/vip-reference/data-list');
-          }}
+          onTabChange={(tabId) => navigate(`${BASE}/${tabId}`)}
         />
       </div>
 
       <div className="space-y-8">
         <Routes>
-          <Route path="dashboard" element={<Dashboard />} />
+          {/* Each route repeats its tab's permission check: hiding a tab is not access control,
+              the path can still be typed in or bookmarked. */}
+          <Route
+            path="dashboard"
+            element={canView
+              ? <Dashboard triggerNotification={triggerNotification} />
+              : <RestrictedAccess moduleName="VIP References" />}
+          />
 
-          <Route path="data-list" element={
-            <DataList
-              onEdit={handleEdit}
-              triggerNotification={triggerNotification}
-              canEdit={canEdit}
-              canAdd={canAdd}
-              canRemove={canRemove}
-            />
-          } />
+          <Route
+            path="data-list"
+            element={canView
+              ? (
+                <DataList
+                  onEdit={handleEdit}
+                  triggerNotification={triggerNotification}
+                  canEdit={canEdit}
+                  canRemove={canRemove}
+                />
+              )
+              : <RestrictedAccess moduleName="VIP References" />}
+          />
 
-          <Route path="input-form" element={
-            <InputForm
-              key={editData?.id ?? 'new'}
-              onBack={handleBack}
-              onSuccess={handleSuccess}
-              triggerNotification={triggerNotification}
-              editData={editData}
-              canEdit={canEdit}
-              canAdd={canAdd}
-            />
-          } />
+          <Route
+            path="input-form"
+            element={(canAdd || canEdit)
+              ? (
+                <InputForm
+                  key={editData?.id ?? 'new'}
+                  onBack={handleBack}
+                  onSuccess={handleSuccess}
+                  triggerNotification={triggerNotification}
+                  editData={editData}
+                  canEdit={canEdit}
+                  canAdd={canAdd}
+                />
+              )
+              : <RestrictedAccess moduleName="VIP References" />}
+          />
 
-          <Route path="reports" element={
-            <Reports triggerNotification={triggerNotification} />
-          } />
+          <Route
+            path="reports"
+            element={canView
+              ? <Reports triggerNotification={triggerNotification} />
+              : <RestrictedAccess moduleName="VIP References" />}
+          />
 
-          <Route index element={<Navigate to="dashboard" replace />} />
-          <Route path="*" element={<Navigate to="dashboard" replace />} />
+          <Route index element={<Navigate to={fallbackTab} replace />} />
+          <Route path="*" element={<Navigate to={fallbackTab} replace />} />
         </Routes>
       </div>
     </div>

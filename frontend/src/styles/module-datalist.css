@@ -46,6 +46,18 @@
   --module-badge-border: #e2e8f0;
   --module-badge-font-size: 0.75rem;
 
+  /* ── 4. Filter panel & its selects ──────────────────────────── */
+  --module-filter-panel-bg: #f8fafc;
+  --module-filter-panel-border: rgba(226, 232, 240, 0.8);
+  --module-filter-label-color: #64748b;
+  --module-filter-select-bg: #ffffff;
+  --module-filter-select-border: #e2e8f0;
+  --module-filter-select-text: #334155;
+  --module-filter-select-focus: #0f417a;
+  --module-reset-btn-bg: #fff1f2;
+  --module-reset-btn-border: #fecdd3;
+  --module-reset-btn-color: #e11d48;
+
   --datalist-table-font-family: var(--font-sans, 'Google Sans', system-ui, -apple-system, sans-serif);
   --datalist-table-border-radius: 16px;
   --datalist-table-border-color: #e2e8f0;
@@ -95,6 +107,17 @@
   --module-badge-bg: #1e293b;
   --module-badge-text: #94a3b8;
   --module-badge-border: #334155;
+
+  --module-filter-panel-bg: rgba(15, 23, 42, 0.6);
+  --module-filter-panel-border: #1e293b;
+  --module-filter-label-color: #94a3b8;
+  --module-filter-select-bg: #0f172a;
+  --module-filter-select-border: #1e293b;
+  --module-filter-select-text: #e2e8f0;
+  --module-filter-select-focus: #60a5fa;
+  --module-reset-btn-bg: rgba(136, 19, 55, 0.4);
+  --module-reset-btn-border: #881337;
+  --module-reset-btn-color: #fb7185;
 
   /* AG Grid Dark Theme */
   --datalist-table-border-color: #1e293b;
@@ -198,6 +221,85 @@
   background-color: var(--module-filter-active-bg);
   border-color: var(--module-filter-active-border);
   color: var(--module-filter-active-color);
+}
+
+/* Reset-filters button, shown next to the filter button when a filter is on */
+.module-reset-btn {
+  font-family: var(--font-sans, 'Google Sans', sans-serif);
+  padding: 0.375rem 0.625rem;
+  border-radius: 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-color: var(--module-reset-btn-bg);
+  border: 1px solid var(--module-reset-btn-border);
+  color: var(--module-reset-btn-color);
+}
+.module-reset-btn:hover {
+  filter: brightness(0.96);
+}
+
+/* Collapsible filter panel under the toolbar */
+.module-filter-panel {
+  padding: 1rem;
+  border-radius: 0.75rem;
+  background-color: var(--module-filter-panel-bg);
+  border: 1px solid var(--module-filter-panel-border);
+}
+
+/* Label above a filter dropdown */
+.module-filter-label {
+  display: block;
+  font-family: var(--font-sans, 'Google Sans', sans-serif);
+  font-size: 0.6875rem; /* 11px */
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--module-filter-label-color);
+}
+
+/* Filter dropdown. The caret is drawn by the FilterSelect component, so the
+   native arrow is removed and room is left for it on the right. */
+.module-filter-select {
+  appearance: none;
+  -webkit-appearance: none;
+  font-family: var(--font-sans, 'Google Sans', sans-serif);
+  width: 100%;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.625rem 2rem 0.625rem 0.625rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-color: var(--module-filter-select-bg);
+  border: 1px solid var(--module-filter-select-border);
+  color: var(--module-filter-select-text);
+}
+.module-filter-select:focus {
+  outline: none;
+  border-color: var(--module-filter-select-focus);
+  box-shadow: 0 0 0 2px var(--module-filter-select-focus);
+}
+.module-filter-select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Small bordered pill in the toolbar: row-count selector, totals badge, etc. */
+.module-toolbar-chip {
+  font-family: var(--font-sans, 'Google Sans', sans-serif);
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.625rem;
+  border-radius: 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  user-select: none;
+  background-color: var(--module-filter-btn-bg);
+  border: 1px solid var(--module-filter-btn-border);
+  color: var(--module-filter-btn-color);
 }
 
 /* ==============================================================================

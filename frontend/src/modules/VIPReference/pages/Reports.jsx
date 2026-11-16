@@ -1,10 +1,36 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import ReportTable from '../../../components/ReportTable';
-import { fetchVipReportByUrl, fetchWings } from '../api';
+import {
+  fetchWings,
+  fetchVIPWingWiseReport,
+  fetchVIPDivisionWiseReport,
+  fetchVIPWingDetail,
+  fetchVIPDivisionDetail,
+  fetchVIPPendencyWingWiseReport,
+  fetchVIPPendencyDivisionWiseReport,
+  fetchVIPPendencyWingDetail,
+  fetchVIPPendencyDivisionDetail,
+} from '../api';
 import { STAGE_MAPPING, PENDENCY_AGE_MAPPING } from '../utils/constants';
-import { FileText, Clock, Filter } from 'lucide-react';
+import { FileText, Clock } from 'lucide-react';
+import { useNotifier, COMMON_TOASTS } from '../../../utils/notify';
+
+// Every view in the drilldown names one of these instead of carrying a URL string, so the
+// endpoints stay in api.js rather than being rebuilt by hand in the cell renderers.
+const REPORT_SOURCES = {
+  abstractWings: () => fetchVIPWingWiseReport(),
+  abstractDivisions: ({ wingId }) => fetchVIPDivisionWiseReport(wingId),
+  abstractWingDetail: ({ wingId, stageId }) => fetchVIPWingDetail(wingId, stageId),
+  abstractDivisionDetail: ({ divisionId, stageId }) => fetchVIPDivisionDetail(divisionId, stageId),
+  pendencyWings: () => fetchVIPPendencyWingWiseReport(),
+  pendencyDivisions: ({ wingId }) => fetchVIPPendencyDivisionWiseReport(wingId),
+  pendencyWingDetail: ({ wingId, countDate }) => fetchVIPPendencyWingDetail(wingId, countDate),
+  pendencyDivisionDetail: ({ divisionId, countDate }) => fetchVIPPendencyDivisionDetail(divisionId, countDate),
+};
 
 export default function Reports({ triggerNotification }) {
+  const notify = useNotifier(triggerNotification);
+
   // Active Report Type: 'abstract' | 'pendency'
   const [reportType, setReportType] = useState('abstract');
   const [wingsList, setWingsList] = useState([]);
@@ -14,7 +40,7 @@ export default function Reports({ triggerNotification }) {
   const [abstractDrillDown, setAbstractDrillDown] = useState([
     {
       type: 'summary',
-      url: '/vipwingwise-report',
+      source: 'abstractWings',
       title: 'Report No.: 5.1A - Abstract ( Wing Wise ) - VIP References'
     }
   ]);
@@ -22,71 +48,101 @@ export default function Reports({ triggerNotification }) {
   const [pendencyDrillDown, setPendencyDrillDown] = useState([
     {
       type: 'summary',
-      url: '/vip-pendencywingwise-report',
+      source: 'pendencyWings',
       title: 'Report No.: 5.1A - Pendency ( Wing Wise ) - VIP References'
     }
   ]);
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [reportData, setReportData] = useState([]);
   const [reportCols, setReportCols] = useState([]);
 
   // Fetch wings list for the filter dropdown via centralized API service
   useEffect(() => {
+    let cancelled = false;
     fetchWings()
-      .then(res => setWingsList(Array.isArray(res.data) ? res.data : []))
-      .catch(err => console.warn('Could not fetch wings dropdown:', err.message));
-  }, []);
+      .then(res => { if (!cancelled) setWingsList(Array.isArray(res.data) ? res.data : []); })
+      .catch(() => {
+        if (cancelled) return;
+        notify(COMMON_TOASTS.loadFailed('The wing filter list'));
+      });
+    return () => { cancelled = true; };
+  }, [notify]);
 
   const currentDrillDown = reportType === 'abstract' ? abstractDrillDown : pendencyDrillDown;
   const setDrillDownPath = reportType === 'abstract' ? setAbstractDrillDown : setPendencyDrillDown;
   const currentView = currentDrillDown[currentDrillDown.length - 1];
 
+  // Every navigation flips `loading` here rather than inside the fetching effect, so the
+  // spinner shows straight away and the effect body stays free of setState.
+  const pushView = useCallback((view) => {
+    setLoading(true);
+    setDrillDownPath(prev => [...prev, view]);
+  }, [setDrillDownPath]);
+
   const handleBack = () => {
     if (currentDrillDown.length > 1) {
+      setLoading(true);
       setDrillDownPath(prev => prev.slice(0, -1));
     }
   };
 
   const handleSwitchReportType = (type) => {
     if (type === reportType) return;
+    setLoading(true);
     setReportType(type);
     setSelectedWingFilter('');
   };
 
-  // Fetch report data on view changes using JWT-authenticated API instance
-  const fetchReportData = useCallback(async () => {
+  // Fetch report data for one view using the JWT-authenticated API instance.
+  // Returns a cancel function: drilling down quickly starts a second request while the first
+  // is still in flight, and without this the slower one could overwrite the newer view's rows.
+  const loadReportData = useCallback((view) => {
+    const source = REPORT_SOURCES[view.source];
+    const request = source
+      ? source(view)
+      : Promise.reject(new Error(`Unknown VIP report source: ${view.source}`));
+
+    let cancelled = false;
+    request
+      .then((response) => {
+        if (cancelled) return;
+        const data = response.data || {};
+        setReportData(Array.isArray(data.rowData) ? data.rowData : (Array.isArray(data) ? data : []));
+        setReportCols(Array.isArray(data.columnDefs) ? data.columnDefs : []);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('VIP Reference report fetch failed:', err);
+        setReportData([]);
+        setReportCols([]);
+        notify(COMMON_TOASTS.loadFailed('This VIP Reference report'));
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+
+    return () => { cancelled = true; };
+  }, [notify]);
+
+  // Kept for ReportTable's refresh button, which is an event handler, not an effect
+  const fetchReportData = useCallback(() => {
     setLoading(true);
-    try {
-      const response = await fetchVipReportByUrl(currentView.url);
-      const data = response.data || {};
-      
-      const rawRows = Array.isArray(data.rowData) ? data.rowData : (Array.isArray(data) ? data : []);
-      const rawCols = Array.isArray(data.columnDefs) ? data.columnDefs : [];
-      
-      setReportData(rawRows);
-      setReportCols(rawCols);
-    } catch (err) {
-      console.warn("VIP Reference report fetch notice:", err.response?.data?.error || err.message);
-      setReportData([]);
-      setReportCols([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [currentView.url]);
+    loadReportData(currentView);
+  }, [loadReportData, currentView]);
 
-  useEffect(() => {
-    fetchReportData();
-  }, [fetchReportData]);
+  // No synchronous setState in the body: `loading` starts true and every navigation sets it
+  // before the view changes, so this never forces an extra render pass.
+  useEffect(() => loadReportData(currentView), [loadReportData, currentView]);
 
-  // Recursively map cell renderers for drilldown links
+  // Recursively map cell renderers for drilldown links.
+  // The recursion goes through the inner `mapAll`, so the callback never refers to itself
+  // before it is declared.
   const mapColumnRenderers = useCallback((cols) => {
-    return cols.map((col) => {
+    const mapAll = (list) => list.map((col) => {
       // Handle nested column children
       if (col.children) {
         return {
           ...col,
-          children: mapColumnRenderers(col.children)
+          children: mapAll(col.children)
         };
       }
 
@@ -110,29 +166,21 @@ export default function Reports({ triggerNotification }) {
               <button
                 type="button"
                 onClick={() => {
-                  if (reportType === 'abstract') {
-                    setDrillDownPath(prev => [
-                      ...prev,
-                      {
-                        type: 'division',
-                        wingId,
-                        wingName,
-                        url: `/vipdivisionwise-report/${wingId}/`,
-                        title: `Report No.: 5.1B - Abstract ( Division Wise ) - VIP References (Wing: ${wingName})`
-                      }
-                    ]);
-                  } else {
-                    setDrillDownPath(prev => [
-                      ...prev,
-                      {
-                        type: 'division',
-                        wingId,
-                        wingName,
-                        url: `/vip-pendencydivisionwise-report/${wingId}/`,
-                        title: `Report No.: 5.1B - Pendency ( Division Wise ) - VIP References (Wing: ${wingName})`
-                      }
-                    ]);
-                  }
+                  pushView(reportType === 'abstract'
+                    ? {
+                      type: 'division',
+                      source: 'abstractDivisions',
+                      wingId,
+                      wingName,
+                      title: `Report No.: 5.1B - Abstract ( Division Wise ) - VIP References (Wing: ${wingName})`
+                    }
+                    : {
+                      type: 'division',
+                      source: 'pendencyDivisions',
+                      wingId,
+                      wingName,
+                      title: `Report No.: 5.1B - Pendency ( Division Wise ) - VIP References (Wing: ${wingName})`
+                    });
                 }}
                 style={{
                   background: 'none',
@@ -195,34 +243,34 @@ export default function Reports({ triggerNotification }) {
               const stageId = STAGE_MAPPING[fieldName];
               const stageLabel = fieldName;
 
-              let detailUrl = '';
-              let detailTitle = '';
+              let detailView = null;
 
               if (currentView.type === 'division' && divisionId) {
                 const divName = p.data['Division Name'] || 'Division';
-                detailUrl = `/getvip-divisionwise/${divisionId}/${stageId}`;
-                detailTitle = `VIP Reference Details - Division: ${divName} | Stage: ${stageLabel}`;
+                detailView = {
+                  type: 'detail',
+                  source: 'abstractDivisionDetail',
+                  divisionId,
+                  stageId,
+                  title: `VIP Reference Details - Division: ${divName} | Stage: ${stageLabel}`,
+                };
               } else if (wingId) {
                 const wingName = p.data['Wing Name'] || p.data['Wing'] || currentView.wingName || 'Wing';
-                detailUrl = `/getvip-wingwise/${wingId}/${stageId}`;
-                detailTitle = `VIP Reference Details - Wing: ${wingName} | Stage: ${stageLabel}`;
+                detailView = {
+                  type: 'detail',
+                  source: 'abstractWingDetail',
+                  wingId,
+                  stageId,
+                  title: `VIP Reference Details - Wing: ${wingName} | Stage: ${stageLabel}`,
+                };
               }
 
-              if (!detailUrl) return p.value;
+              if (!detailView) return p.value;
 
               return (
                 <button
                   type="button"
-                  onClick={() => {
-                    setDrillDownPath(prev => [
-                      ...prev,
-                      {
-                        type: 'detail',
-                        url: detailUrl,
-                        title: detailTitle
-                      }
-                    ]);
-                  }}
+                  onClick={() => pushView(detailView)}
                   style={{
                     background: 'none',
                     border: 'none',
@@ -282,34 +330,34 @@ export default function Reports({ triggerNotification }) {
               const divisionId = p.data['Division Id'] || p.data['Division ID'];
               const countDate = PENDENCY_AGE_MAPPING[fieldName];
 
-              let detailUrl = '';
-              let detailTitle = '';
+              let detailView = null;
 
               if (currentView.type === 'division' && divisionId) {
                 const divName = p.data['Division Name'] || 'Division';
-                detailUrl = `/getvippendency-divisionwise/${divisionId}/${countDate}`;
-                detailTitle = `Pending VIP References - Division: ${divName} | Age: ${fieldName}`;
+                detailView = {
+                  type: 'detail',
+                  source: 'pendencyDivisionDetail',
+                  divisionId,
+                  countDate,
+                  title: `Pending VIP References - Division: ${divName} | Age: ${fieldName}`,
+                };
               } else if (wingId) {
                 const wingName = p.data['Wing'] || p.data['Wing Name'] || currentView.wingName || 'Wing';
-                detailUrl = `/getvippendency-wingwise/${wingId}/${countDate}`;
-                detailTitle = `Pending VIP References - Wing: ${wingName} | Age: ${fieldName}`;
+                detailView = {
+                  type: 'detail',
+                  source: 'pendencyWingDetail',
+                  wingId,
+                  countDate,
+                  title: `Pending VIP References - Wing: ${wingName} | Age: ${fieldName}`,
+                };
               }
 
-              if (!detailUrl) return p.value;
+              if (!detailView) return p.value;
 
               return (
                 <button
                   type="button"
-                  onClick={() => {
-                    setDrillDownPath(prev => [
-                      ...prev,
-                      {
-                        type: 'detail',
-                        url: detailUrl,
-                        title: detailTitle
-                      }
-                    ]);
-                  }}
+                  onClick={() => pushView(detailView)}
                   style={{
                     background: 'none',
                     border: 'none',
@@ -394,7 +442,9 @@ export default function Reports({ triggerNotification }) {
         autoHeight: true
       };
     });
-  }, [currentView, reportType, setDrillDownPath]);
+
+    return mapAll(cols);
+  }, [currentView, reportType, pushView]);
 
   // Filter raw rows based on Wing Dropdown Filter if selected
   const filteredData = useMemo(() => {
