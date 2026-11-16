@@ -679,7 +679,11 @@ async function getEmployeeListByOrgDepPost(req, res) {
   try {
     const conn = await pool;
     const request = conn.request();
-    request.input('roleID', sql.Int, roleID);
+    // dbo.GetEmployeeListByOrgDepPost limits rows to @orgID only for 2.0's organisation role
+    // numbers (6, 7); 3.0's organisation roles are 7 and 8, so a role-8 user got every
+    // organisation's employees. Organisation-scope users are passed as role 7 (always filtered
+    // to their own organisation); everyone else keeps their own role.
+    request.input('roleID', sql.Int, isOrganisation ? 7 : roleID);
     request.input('orgID', sql.Int, orgID);
     const result = await request.execute('dbo.GetEmployeeListByOrgDepPost');
     return res.json(result.recordset);

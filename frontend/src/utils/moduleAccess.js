@@ -1,4 +1,9 @@
-import { getSessionClaims, isOrgSeniorOfficer, isSuperAdmin } from './authSession';
+import {
+  getSessionClaims,
+  isOrgSeniorOfficer,
+  isSuperAdmin,
+  isViewOnlyAdmin,
+} from './authSession';
 import {
   TAB_TO_MODULE,
   PUBLIC_UI_TABS,
@@ -47,10 +52,16 @@ export function getAllowedModuleCodes() {
 }
 
 /**
- * Codes that mean the same module. Only DRISHTI_PORTAL exists in tbl_modules; the other two are
- * spellings the UI still uses, so a grant under any of them satisfies all three.
+ * Codes that mean the same module, so a grant under any spelling satisfies all of them.
+ * DRISHTI_PORTAL is the tbl_modules code; ONE_VISION_ONE_DOCUMENT and OVOD are spellings the UI
+ * still uses. The other groups mirror MODULE_ALIASES in backend/src/middleware/modulePermission.js.
  */
-const CODE_ALIASES = [['DRISHTI_PORTAL', 'ONE_VISION_ONE_DOCUMENT', 'OVOD']];
+const CODE_ALIASES = [
+  ['DRISHTI_PORTAL', 'ONE_VISION_ONE_DOCUMENT', 'OVOD'],
+  ['GMIS_MOU', 'GMIS_IMW_MOU_TRACKING'],
+  ['MIV_2030', 'MIV2030'],
+  ['CABINET_NOTES_OTHER_MINISTRIES', 'CABINET_NOTES_OTHER_MINISTRY'],
+];
 
 /** Every spelling of a module code, so a lookup matches however the grant was stored. */
 export function moduleCodeAliases(moduleCode) {
@@ -61,14 +72,30 @@ export function moduleCodeAliases(moduleCode) {
 
 export function hasModuleAccess(moduleCode) {
   if (!moduleCode || isSuperAdmin()) return false;
-  const upper = String(moduleCode).toUpperCase();
   const allowed = getAllowedModuleCodes();
+  return moduleCodeAliases(moduleCode).some((code) => allowed.includes(code));
+}
 
-  if (upper === 'DRISHTI_PORTAL' || upper === 'ONE_VISION_ONE_DOCUMENT' || upper === 'OVOD') {
-    return allowed.includes('DRISHTI_PORTAL') || allowed.includes('ONE_VISION_ONE_DOCUMENT') || allowed.includes('OVOD');
-  }
+/**
+ * Whether the user may see a module in the menu and open its pages: the organisation must have
+ * the module and the user's own permission row must have Read ticked. No row, or Read off,
+ * means no access, even when Create/Update/Delete are ticked. View Only Admin reads every module
+ * the organisation has.
+ */
+export function hasModuleReadAccess(moduleCode) {
+  if (!hasModuleAccess(moduleCode)) return false;
+  if (isViewOnlyAdmin()) return true;
 
-  return allowed.includes(upper);
+  const claims = getSessionClaims();
+  const list = Array.isArray(claims?.modulePermissions) ? claims.modulePermissions : [];
+  const aliases = moduleCodeAliases(moduleCode);
+  const match = list.find((p) => {
+    const pCode = String(p.moduleCode || p.module_code || '').toUpperCase();
+    return !!pCode && aliases.includes(pCode);
+  });
+  if (!match) return false;
+
+  return !!(match.read ?? match.canRead ?? match.can_read);
 }
 
 export function isSuperAdminTab(tab) {
@@ -99,12 +126,12 @@ export function canAccessTab(tab) {
 
   const code = getModuleCodeForTab(key) || TAB_TO_MODULE[key];
   if (!code) return false;
-  return hasModuleAccess(code);
+  return hasModuleReadAccess(code);
 }
 
 export function canAccessMenuItem(item) {
   if (!item) return false;
-  if (item.moduleCode) return hasModuleAccess(item.moduleCode);
+  if (item.moduleCode) return hasModuleReadAccess(item.moduleCode);
   return canAccessTab(item.tab || item.targetTab || item.label);
 }
 

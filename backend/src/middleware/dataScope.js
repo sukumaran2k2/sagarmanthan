@@ -56,6 +56,19 @@ export default {
 // The Ministry of Ports, Shipping and Waterways in mmt_organisation (2.0 numbering)
 export const MOPSW_ORGANISATION_ID = 14;
 
+// For routes that take a user id in the address and decide access from that user's role:
+// always use the signed-in user, so nobody can borrow a Ministry user's access by changing the id.
+export function pinOwnUser(paramName = 'userID') {
+  return (req, res, next) => {
+    const userId = Number(req.user?.userId);
+    if (!(Number.isFinite(userId) && userId > 0)) {
+      return res.status(401).json({ message: 'Unauthorized!' });
+    }
+    req.params[paramName] = String(userId);
+    return next();
+  };
+}
+
 // Ministry-internal modules (Audit Paras, E-Office, Attendance) hold MoPSW data with no
 // organisation column, so only Ministry / master scope and MoPSW's own staff may use them -
 // not another organisation's login, whatever rights are ticked for it (QC AP-01). MoPSW staff

@@ -137,12 +137,13 @@ export default function CapexOrgSummaryReport({ notify }) {
   const handleExportPdf = () => {
     const data = buildExportData();
     if (!data.length) return;
-    exportRowsToFile('pdf', {
+    const file = exportRowsToFile('pdf', {
       title: 'Capex - Organisation Summary Report',
       headers: Object.keys(data[0]),
       rows: data.map((row) => Object.values(row)),
       fileName: 'Capex_Org_Summary_Report',
     });
+    if (file) notify?.(COMMON_TOASTS.excelExported(file, 'The report'));
   };
 
   const orgLabel = rows[0]?.organisation_name || 'Your organisation';

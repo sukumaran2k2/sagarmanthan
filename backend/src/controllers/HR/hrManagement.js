@@ -520,6 +520,15 @@ async function getPermanentAbolishedPost(req, res) {
     const fiscalYearEnd = `${endYear}-03-31`;
     const previousYrEnd = `${startYear}-03-31`;
 
+    // Ministry / master scope see every organisation; organisation users only their own
+    const { isWide, isOrganisation, organisationId } = getDataScope(req.user);
+    let scopeSql = '';
+    if (!isWide) {
+        if (!isOrganisation || !(organisationId > 0)) return res.status(403).json({ message: "You may not view this data." });
+        request.input("scopeOrganisationId", organisationId);
+        scopeSql = 'AND h.organisation_id = @scopeOrganisationId';
+    }
+
     try {
         const query1 = `
     SELECT
@@ -544,7 +553,8 @@ async function getPermanentAbolishedPost(req, res) {
     LEFT JOIN
         [mmt_class] c ON p.class_id = c.class_id
     WHERE
-        (h.vacant_or_filled='vacant' AND h.date_of_arise_in_vacancy < DATEADD(YEAR, -5, GETDATE())) OR h.revival_stage_id = 9;
+        ((h.vacant_or_filled='vacant' AND h.date_of_arise_in_vacancy < DATEADD(YEAR, -5, GETDATE())) OR h.revival_stage_id = 9)
+        ${scopeSql};
 `;
 
 const [result1] = await Promise.all([
