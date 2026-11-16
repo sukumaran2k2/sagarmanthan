@@ -33,15 +33,17 @@ const FETCHERS = {
   'fund-org-wise-report': ({ fy }) => fetchCsrFundOrgWiseReport(fy),
   'fund-org-trend-report': ({ org }) => fetchCsrFundOrgTrendReport(org || 'all'),
   'projects-year-wise-summary': () => fetchCsrProjectsYearWiseSummary('all'),
-  'projects-org-wise-summary': () => fetchCsrProjectsOrgWiseSummary(),
+  'projects-org-wise-summary': ({ fy, org }) => fetchCsrProjectsOrgWiseSummary(fy, org),
   'projects-focus-wise-summary': () => fetchCsrProjectsFocusWiseSummary('all'),
 };
 
 // Which filter a report offers: the FY reports take a year; the fund trend needs an
-// organisation (organisation users always get their own, so they have nothing to choose)
+// organisation (organisation users always get their own, so they have nothing to choose);
+// the organisation-wise projects summary takes a year and an organisation
 const filterKind = (reportType, isOrgUser) => {
   if (reportType === 'fund-org-wise-report') return 'fy';
   if (reportType === 'fund-org-trend-report' && !isOrgUser) return 'org';
+  if (reportType === 'projects-org-wise-summary') return 'fy-org';
   return null;
 };
 
@@ -69,14 +71,41 @@ export default function Reports({ notify, triggerNotification, isOrgUser }) {
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
+  // The fund trend is for one organisation at a time. Only organisations with a CSR fund
+  // entry are offered (any other gives an empty report), and the first one opens by default.
+  const [fundOrgs, setFundOrgs] = useState(null); // [{ id, name }] once loaded
+  useEffect(() => {
+    if (filter !== 'org' || fundOrgs) return undefined;
+    let cancelled = false;
+    fetchCsrFundOrgWiseReport('all')
+      .then((rows) => {
+        if (cancelled) return;
+        const byId = new Map();
+        (Array.isArray(rows) ? rows : []).forEach((r) => {
+          if (r.Organisation_Id != null && !byId.has(String(r.Organisation_Id))) {
+            byId.set(String(r.Organisation_Id), { id: String(r.Organisation_Id), name: r.Organisation_Name });
+          }
+        });
+        setFundOrgs([...byId.values()].sort((a, b) => String(a.name).localeCompare(String(b.name))));
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('CSR fund organisations fetch failed:', err);
+        setFundOrgs([]);
+      });
+    return () => { cancelled = true; };
+  }, [filter, fundOrgs]);
+  const trendOrg = filter === 'org' ? (reportOrg || fundOrgs?.[0]?.id || '') : reportOrg;
+  const trendOrgName = filter === 'org' ? fundOrgs?.find((o) => o.id === String(trendOrg))?.name : null;
+
   // Rows tagged with the request they answer; the fund trend waits for an organisation
-  const needsOrg = filter === 'org' && !reportOrg;
-  const requestKey = JSON.stringify([reportType, reportFY, reportOrg, reloadKey]);
+  const needsOrg = filter === 'org' && !trendOrg;
+  const requestKey = JSON.stringify([reportType, reportFY, trendOrg, reloadKey]);
   const [result, setResult] = useState(null); // { key, rows }
   useEffect(() => {
     if (needsOrg) return undefined;
     let cancelled = false;
-    FETCHERS[reportType]({ fy: reportFY, org: reportOrg })
+    FETCHERS[reportType]({ fy: reportFY, org: trendOrg })
       .then((res) => {
         if (!cancelled) setResult({ key: requestKey, rows: Array.isArray(res) ? res : [] });
       })
@@ -87,7 +116,7 @@ export default function Reports({ notify, triggerNotification, isOrgUser }) {
         notify(COMMON_TOASTS.loadFailed(report.label));
       });
     return () => { cancelled = true; };
-  }, [requestKey, reportType, reportFY, reportOrg, needsOrg, report.label, notify]);
+  }, [requestKey, reportType, reportFY, trendOrg, needsOrg, report.label, notify]);
   const loading = !needsOrg && result?.key !== requestKey;
   // The server returns amounts in lakh (the *_Lakh fields); they are shown in crore, so the
   // grid, the totals row and the exports all read the same figures. Each row also carries its
@@ -102,7 +131,10 @@ export default function Reports({ notify, triggerNotification, isOrgUser }) {
     }));
   }, [needsOrg, result, requestKey]);
 
-  const hasActiveFilters = filter === 'fy' ? reportFY !== 'all' : filter === 'org' ? !!reportOrg : false;
+  const activeFilterCount = filter === 'fy' ? Number(reportFY !== 'all')
+    : filter === 'org' ? Number(!!reportOrg)
+      : filter === 'fy-org' ? Number(reportFY !== 'all') + Number(!!reportOrg) : 0;
+  const hasActiveFilters = activeFilterCount > 0;
   const resetFilters = () => {
     resetReportFilters();
     notify(COMMON_TOASTS.filtersReset());
@@ -700,7 +732,7 @@ export default function Reports({ notify, triggerNotification, isOrgUser }) {
         <Filter size={14} className="text-[#4b2424] dark:text-amber-400" />
         <span>Filter</span>
         {hasActiveFilters && (
-          <span className="bg-[#4b2424] dark:bg-amber-500 text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">1</span>
+          <span className="bg-[#4b2424] dark:bg-amber-500 text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">{activeFilterCount}</span>
         )}
         <ChevronDown size={14} className={`transition-transform duration-200 ${showFilterPanel ? 'rotate-180' : ''}`} />
       </button>
@@ -732,21 +764,31 @@ export default function Reports({ notify, triggerNotification, isOrgUser }) {
           </button>
         )}
       </div>
-      <div className="max-w-md">
-        {filter === 'org' ? (
+      <div className={filter === 'fy-org' ? 'grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-3xl' : 'max-w-md'}>
+        {filter === 'org' && (
           <div>
-            <label className="module-form-label">Organisation</label>
-            <select value={reportOrg} onChange={(e) => setReportOrg(e.target.value)} className="module-form-select">
-              <option value="">-- Select an Organisation --</option>
-              {organisations.map((o) => <option key={o.organisation_id} value={o.organisation_id}>{o.organisation_name}</option>)}
+            <label className="module-form-label" htmlFor="csr-report-trend-org">Organisation</label>
+            <select id="csr-report-trend-org" value={trendOrg} onChange={(e) => setReportOrg(e.target.value)} className="module-form-select">
+              {!fundOrgs?.length && <option value="">{fundOrgs ? 'No organisation has a CSR fund entry' : 'Loading…'}</option>}
+              {(fundOrgs || []).map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
             </select>
           </div>
-        ) : (
+        )}
+        {(filter === 'fy' || filter === 'fy-org') && (
           <div>
-            <label className="module-form-label">Financial Year</label>
-            <select value={reportFY} onChange={(e) => setReportFY(e.target.value)} className="module-form-select">
+            <label className="module-form-label" htmlFor="csr-report-fy">Financial Year</label>
+            <select id="csr-report-fy" value={reportFY} onChange={(e) => setReportFY(e.target.value)} className="module-form-select">
               <option value="all">Show All Financial Years</option>
               {FINANCIAL_YEARS.map((fy) => <option key={fy} value={fy}>{fy}</option>)}
+            </select>
+          </div>
+        )}
+        {filter === 'fy-org' && (
+          <div>
+            <label className="module-form-label" htmlFor="csr-report-org">Organisation</label>
+            <select id="csr-report-org" value={reportOrg} onChange={(e) => setReportOrg(e.target.value)} className="module-form-select">
+              <option value="">All Organisations</option>
+              {organisations.map((o) => <option key={o.organisation_id} value={o.organisation_id}>{o.organisation_name}</option>)}
             </select>
           </div>
         )}
@@ -770,16 +812,16 @@ export default function Reports({ notify, triggerNotification, isOrgUser }) {
         ))}
       </div>
 
-      {needsOrg && (
+      {needsOrg && fundOrgs && (
         <div className="flex items-center gap-2.5 px-4 py-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-xl text-xs font-semibold text-amber-800 dark:text-amber-300">
           <Filter className="h-3.5 w-3.5 flex-shrink-0" />
-          <span>Select an organisation from the Filter panel to generate this report.</span>
+          <span>No organisation has a CSR fund entry yet, so there is no fund trend to show.</span>
         </div>
       )}
 
       <ReportTable
         title={report.title}
-        subtitle={null}
+        subtitle={trendOrgName ? `Organisation: ${trendOrgName} (change it from the Filter panel)` : null}
         eyebrow={report.label}
         showBackButton={false}
         loading={loading}
