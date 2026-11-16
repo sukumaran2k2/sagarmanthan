@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Search, X, Edit, ChevronDown, Filter, Plus, Download, FileWarning } from 'lucide-react';
+import { Search, X, Edit, ChevronDown, Filter, Download, FileWarning } from 'lucide-react';
 import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
@@ -15,7 +15,7 @@ import { FV_TOASTS } from '../toastMessages';
 const designationOf = (row) => row.other_designation?.trim() || row.designation || '--';
 const visitTypeOf = (row) => row.other_visit_type?.trim() || row.visit_type_name || '--';
 
-export default function DataList({ onEdit, onAdd, triggerNotification, canEdit, canAdd }) {
+export default function DataList({ onEdit, triggerNotification, canEdit }) {
   const notify = useNotifier(triggerNotification);
 
   const activeTab = useFvStore((s) => s.activeTab);
@@ -360,13 +360,6 @@ export default function DataList({ onEdit, onAdd, triggerNotification, canEdit, 
               hoverColor="#1e5ea8"
             />
 
-            {canAdd && (
-              <button type="button" onClick={onAdd}
-                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition cursor-pointer">
-                <Plus className="h-4 w-4" />
-                <span>Add Visit Proposal</span>
-              </button>
-            )}
           </div>
         </div>
 

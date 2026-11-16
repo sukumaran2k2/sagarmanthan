@@ -41,7 +41,6 @@ export default function ForeignVisit({ triggerNotification }) {
 
   const goToList = useCallback(() => navigate(`${BASE}/data-list`), [navigate]);
   const goToListReplacing = useCallback(() => navigate(`${BASE}/data-list`, { replace: true }), [navigate]);
-  const goToAdd = useCallback(() => navigate(`${BASE}/input-form`), [navigate]);
   const goToUpdate = useCallback((row) => navigate(`${BASE}/update/${row.id}`), [navigate]);
 
   if (!canView && !canAdd && !canEdit) {
@@ -77,10 +76,8 @@ export default function ForeignVisit({ triggerNotification }) {
           <Route path="data-list" element={
             <DataList
               onEdit={goToUpdate}
-              onAdd={goToAdd}
               triggerNotification={triggerNotification}
               canEdit={canEdit}
-              canAdd={canAdd}
               canRemove={canRemove}
             />
           } />
