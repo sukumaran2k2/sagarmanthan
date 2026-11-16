@@ -102,6 +102,7 @@ const fields = useMemo(() => {
         .map((c) => c.field)
         .filter(Boolean)
         .slice(1)
+        .filter((k) => k !== 'status') 
         .map((k) => ({
           name: k,
           label: k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
@@ -258,7 +259,7 @@ const handleSubmit = async (e) => {
       setValues({});
       setTouched({});
       setFormSubmitted(false);
-      // onBack?.();  // uncomment if you want to return to the list after adding
+      onBack?.();  
     }
   } catch (err) {
     console.error('Save failed →', {

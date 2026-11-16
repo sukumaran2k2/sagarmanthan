@@ -40,7 +40,7 @@ const MASTERS = {
     ...mmt('mmt_project_category'),
     hideColumns: ['broad_category_id', 'project_core_category'],   // <-- ADD
     fields: [
-      { name: 'name', label: 'Project Category Name', type: 'text', required: true },
+      { name: 'project_category_name', label: 'Project Category Name', type: 'text', required: true },
     ],
   },
   wings:                { label: 'Wings',                    note: 'Wings of the Ministry.',                     ...mmt('mmt_wings') },
@@ -98,7 +98,20 @@ districts: {
   label: 'Districts',
   note: 'Districts under each state.',
   table: 'mmt_district',
-  load: () => rbacApi.getMmtList('mmt_district'),
+  load: async () => {
+    const [list, states] = await Promise.all([
+      rbacApi.getMmtList('mmt_district'),
+      rbacApi.getMmtData('mmt_state'),
+    ]);
+    const stateMap = Object.fromEntries(
+      (states.data || []).map((s) => [String(s.state_id), s.state_name])
+    );
+    const rows = (Array.isArray(list.data) ? list.data : []).map((r) => {
+      const { status, ...rest } = r;
+      return { ...rest, state_name: stateMap[String(r.state_id)] ?? '', status };
+    });
+    return { data: rows };
+  },
   fields: [
     { name: 'state_id', label: 'State', type: 'select', required: true,
       optionsFrom: 'mmt_state', optionValue: 'state_id', optionLabel: 'state_name',
@@ -172,6 +185,14 @@ mpConstituency: {
     { name: 'clearance_name', label: 'Clearance Name', type: 'text', required: true, placeholder: 'Enter clearance name' },
   ],
 },
+otherMinistry: {
+  label: 'Other Ministry',
+  note: 'Other ministries linked to projects.',
+  ...mmt('mmt_ministry'),
+  fields: [
+    { name: 'ministry_name', label: 'Ministry Name', type: 'text', required: true, placeholder: 'Enter ministry name' },
+  ],
+},
 schemes: {
   label: 'Schemes',
   note: 'Government schemes.',
@@ -180,13 +201,29 @@ schemes: {
     { name: 'scheme_name', label: 'Scheme Name', type: 'text', required: true, placeholder: 'Enter scheme name' },
   ],
 },
-  organisations: {
-    label: 'Organisations',
-    note: 'All organisations registered on the portal.',
-    table: 'mmt_organisation',      
-    load: () => rbacApi.getOrganisations(),
-    categoryFilter: true,
+organisations: {
+  label: 'Organisations',
+  note: 'All organisations registered on the portal.',
+  table: 'mmt_organisation',
+  categoryFilter: true,
+  load: async () => {
+    const res = await rbacApi.getMmtList('mmt_organisation');
+    const rows = (Array.isArray(res.data) ? res.data : []).map((r) => ({
+      organisation_id: r.organisation_id,              // first key = primary key
+      organisation_name: r.organisation_name,
+      organisation_code: r.organisation_code,
+      category_name: r.organisation_category_name,
+      category_id: r.organisation_category_id,         // used by the Category filter
+      organisation_category_id: r.organisation_category_id,
+      wing_id: r.wing_id,
+      division_id: r.division_id,
+      wing_name: r.wing_name ?? '',
+      division_name: r.division_name ?? '',
+      status: r.status,
+    }));
+    return { data: rows };
   },
+},
 };
 
 const TABS = [
@@ -219,7 +256,10 @@ export default function MasterManagement({ onGoHome, triggerNotification }) {
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [categories, setCategories] = useState([]);
+  const [orgCategories, setOrgCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedWing, setSelectedWing] = useState('all');          
+const [selectedDivision, setSelectedDivision] = useState('all'); 
   const [refreshKey, setRefreshKey] = useState(0);
   const [mode, setMode] = useState('list');
   const [formData, setFormData] = useState(null);
@@ -262,10 +302,17 @@ const handleStatusToggle = useCallback(
 
     try {
       await rbacApi.updateMmtData(meta.table, row[idField], { ...row, status: newStatus });
+      triggerNotification?.(
+        `${meta.label} ${newStatus === 1 ? 'activated' : 'deactivated'} successfully`,
+        'success'
+      );
     } catch (err) {
       console.error(err);
       setStatus(oldStatus);
-      triggerNotification?.('Failed to update status', 'error');
+      triggerNotification?.(
+        `Failed to ${newStatus === 1 ? 'activate' : 'deactivate'} ${meta.label}`,
+        'error'
+      );
     }
   },
   [meta, triggerNotification]
@@ -288,11 +335,19 @@ const handleStatusToggle = useCallback(
   }, []);
 
   useEffect(() => {
+  rbacApi.getMmtData('mmt_organisation_category')
+    .then((res) => setOrgCategories(res.data || []))
+    .catch(() => {});
+}, []);
+
+  useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setRowData([]);
     setSearchTerm('');
     setSelectedCategory('all');
+    setSelectedWing('all');        
+    setSelectedDivision('all'); 
 
     MASTERS[activeMainTab]
       .load()
@@ -336,17 +391,36 @@ const handleStatusToggle = useCallback(
     setStateFilter(null);
     setActiveMainTab('states');
   };
+const wingOptions = useMemo(() => {
+  const m = new Map();
+  rowData.forEach((r) => { if (r.wing_id && r.wing_name) m.set(String(r.wing_id), r.wing_name); });
+  return [...m].map(([id, name]) => ({ id, name }));
+}, [rowData]);
+
+const divisionOptions = useMemo(() => {
+  const m = new Map();
+  rowData.forEach((r) => {
+    if (!r.division_id || !r.division_name) return;
+    if (selectedWing !== 'all' && String(r.wing_id) !== String(selectedWing)) return;
+    m.set(String(r.division_id), r.division_name);
+  });
+  return [...m].map(([id, name]) => ({ id, name }));
+}, [rowData, selectedWing]);
+
 const filteredRows = useMemo(() => {
   if (meta.table === 'mmt_outcome' && outputFilter) {
     return rowData.filter((r) => String(r.project_output_id) === String(outputFilter.id));
   }
-    if (meta.table === 'mmt_district' && stateFilter) {
+  if (meta.table === 'mmt_district' && stateFilter) {
     return rowData.filter((r) => String(r.state_id) === String(stateFilter.id));
   }
-
-  if (!meta.categoryFilter || selectedCategory === 'all') return rowData;
-  return rowData.filter((r) => String(r.category_id) === String(selectedCategory));
-}, [rowData, selectedCategory, meta, outputFilter, stateFilter]);
+  if (!meta.categoryFilter) return rowData;
+  return rowData.filter((r) =>
+    (selectedCategory === 'all' || String(r.category_id) === String(selectedCategory)) &&
+    (selectedWing === 'all' || String(r.wing_id) === String(selectedWing)) &&
+    (selectedDivision === 'all' || String(r.division_id) === String(selectedDivision))
+  );
+}, [rowData, selectedCategory, selectedWing, selectedDivision, meta, outputFilter, stateFilter]);
 
   const columnDefs = useMemo(() => {
     const dropped = meta.hideColumns || [];
@@ -552,12 +626,14 @@ const filteredRows = useMemo(() => {
         <InternalNavigation tabs={TABS} currentTab={currentTab} onTabChange={goTab} />
       </div>
 
-      <div className={`user-matrix-container w-full ${currentTab === 'data-list' ? 'h-[85vh]' : 'h-auto'} bg-[#F8FAFC] dark:bg-[#0b0f19] text-[#1E293B] dark:text-slate-100 flex flex-col font-sans relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700`}>
+      <div className={`user-matrix-container w-full ${
+  currentTab === 'data-list' && mode !== 'form' ? 'h-[85vh]' : 'h-auto'
+} bg-[#F8FAFC] dark:bg-[#0b0f19] text-[#1E293B] dark:text-slate-100 flex flex-col font-sans relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700`}>
         <div className="topbar">
           <div className="topbar-left">
             <div className="topbar-brand">
               <div className="dot"></div>
-              <h1>{meta.label} Master</h1>
+              <h1>{meta.label} </h1>
             </div>
             <p className="topbar-note">{meta.note}</p>
           </div>
@@ -579,23 +655,51 @@ const filteredRows = useMemo(() => {
             </div>
 
             {currentTab === 'data-list' && meta.categoryFilter && (
-              <div className="filter-field">
-                <label htmlFor="mm-filter-category">Category</label>
-                <select
-                  id="mm-filter-category"
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                >
-                  <option value="all">All categories</option>
-                  {categories.map((c) => (
-                    <option key={c.category_id} value={c.category_id}>
-                      {c.category_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
+              <>
+               <div className="filter-field">
+              <label htmlFor="mm-filter-category">Category</label>
+              <select
+                id="mm-filter-category"
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+              >
+                <option value="all">All categories</option>
+                {orgCategories.map((c) => (
+                  <option key={c.organisation_category_id} value={c.organisation_category_id}>
+                    {c.organisation_category_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+                <div className="filter-field">
+                  <label htmlFor="mm-filter-wing">Wing</label>
+                  <select
+                    id="mm-filter-wing"
+                    value={selectedWing}
+                    onChange={(e) => { setSelectedWing(e.target.value); setSelectedDivision('all'); }}
+                  >
+                    <option value="all">All wings</option>
+                    {wingOptions.map((w) => (
+                      <option key={w.id} value={w.id}>{w.name}</option>
+                    ))}
+                  </select>
+                </div>
 
+                <div className="filter-field">
+                  <label htmlFor="mm-filter-division">Division</label>
+                  <select
+                    id="mm-filter-division"
+                    value={selectedDivision}
+                    onChange={(e) => setSelectedDivision(e.target.value)}
+                  >
+                    <option value="all">All divisions</option>
+                    {divisionOptions.map((d) => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
             {currentTab === 'data-list' && (
               <div className="filter-field">
                 <label htmlFor="mm-search">Search</label>
