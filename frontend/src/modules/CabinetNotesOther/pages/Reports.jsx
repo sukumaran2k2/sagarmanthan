@@ -2,13 +2,19 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useCabinetNotesOtherStore } from '../store/useCabinetNotesOtherStore';
 import ReportTable from '../../../components/ReportTable';
-import { Filter, ChevronUp, ChevronDown, RotateCcw } from 'lucide-react';
+import { Filter, ChevronDown, RotateCcw } from 'lucide-react';
 import {
   fetchCabinetMinistryReport,
   fetchDetailMinistryReport,
   fetchCabinetMinistryPendencyReport,
   fetchDetailMinistryPendencyReport
 } from '../api';
+import { useNotifier, COMMON_TOASTS } from '../../../utils/notify';
+
+// The reports answer 404 "No data available" for an empty selection, which is a normal
+// empty state, not a failure. Anything else is a real error the user should be told about,
+// rather than being shown an empty report that looks like "no notes".
+const isEmptyResult = (err) => err?.response?.status === 404;
 
 const STAGE_MAP = {
   'No of Cabinet Notes': 'all',
@@ -69,6 +75,7 @@ export default function Reports({ triggerNotification }) {
     drillDownPath,
   } = useCabinetNotesOtherStore(useShallow((state) => state.report));
   const reportActions = useCabinetNotesOtherStore((state) => state.reportActions);
+  const notify = useNotifier(triggerNotification);
   const setDrillDownPath = reportActions.setDrillDownPath;
   const setSelectedMinistry = reportActions.setMinistry;
   const ministryList = useCabinetNotesOtherStore((state) => state.ministries);
@@ -118,6 +125,7 @@ export default function Reports({ triggerNotification }) {
             }
           } catch (err) {
             console.warn("Backend report endpoint error:", err);
+            if (!isEmptyResult(err)) notify(COMMON_TOASTS.loadFailed('The abstract report'));
             setData([]);
             setReportCols([]);
           }
@@ -138,6 +146,7 @@ export default function Reports({ triggerNotification }) {
             }
           } catch (err) {
             console.warn("Backend pendency report endpoint error:", err);
+            if (!isEmptyResult(err)) notify(COMMON_TOASTS.loadFailed('The pendency report'));
             setData([]);
             setReportCols([]);
           }
@@ -160,6 +169,7 @@ export default function Reports({ triggerNotification }) {
             }
           } catch (err) {
             console.warn("Backend detail endpoint error:", err);
+            if (!isEmptyResult(err)) notify(COMMON_TOASTS.loadFailed('The ministry details'));
             setData([]);
             setReportCols([]);
           }
@@ -188,6 +198,7 @@ export default function Reports({ triggerNotification }) {
             }
           } catch (err) {
             console.warn("Backend pendency detail endpoint error:", err);
+            if (!isEmptyResult(err)) notify(COMMON_TOASTS.loadFailed('The pendency details'));
             setData([]);
             setReportCols([]);
           }
@@ -200,7 +211,7 @@ export default function Reports({ triggerNotification }) {
     } finally {
       setLoading(false);
     }
-  }, [currentView, reportType]);
+  }, [currentView, reportType, notify]);
 
   useEffect(() => {
     fetchReportData();
@@ -518,6 +529,72 @@ export default function Reports({ triggerNotification }) {
     return [totalRow];
   }, [filteredData, currentView.type]);
 
+  // Only the summary filters by ministry - a drill-down is already scoped to one.
+  const canFilter = drillDownPath.length === 1;
+  const activeFilterCount = selectedMinistry ? 1 : 0;
+
+  // The filter is a toolbar button sitting beside the report's Rows selector; its body
+  // opens directly under the toolbar through ReportTable's filterPanel slot, instead of
+  // the full-width card that used to sit above the report.
+  const filterButton = canFilter ? (
+    <button
+      type="button"
+      onClick={() => reportActions.setFilterOpen(open => !open)}
+      aria-expanded={isFilterOpen}
+      title={isFilterOpen ? 'Hide report filters' : 'Show report filters'}
+      className={`inline-flex items-center gap-1.5 px-3 py-[7px] rounded-[9px] border text-xs font-bold transition cursor-pointer ${
+        isFilterOpen || activeFilterCount > 0
+          ? 'bg-[#f7f3f3] border-[#d7c4b7] text-[#4b2424] dark:bg-slate-800 dark:border-slate-600 dark:text-[#eadede]'
+          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800'
+      }`}
+    >
+      <Filter size={14} className="text-[#4b2424] dark:text-[#eadede]" />
+      <span>Filter</span>
+      {activeFilterCount > 0 && (
+        <span className="bg-[#4b2424] dark:bg-[#8c5757] text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">
+          {activeFilterCount}
+        </span>
+      )}
+      <ChevronDown size={14} className={`transition-transform duration-200 ${isFilterOpen ? 'rotate-180' : ''}`} />
+    </button>
+  ) : null;
+
+  const filterBody = canFilter && isFilterOpen ? (
+    <div className="flex flex-wrap items-end gap-3">
+      <div className="w-full sm:w-auto sm:min-w-[260px] flex-1 sm:max-w-sm">
+        <label className="block text-[11px] font-extrabold text-[#4b2424] dark:text-[#eadede] mb-1 uppercase tracking-wider">
+          Ministry
+        </label>
+        <select
+          value={selectedMinistry}
+          onChange={(e) => setSelectedMinistry(e.target.value)}
+          className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-800 border border-[#d7c4b7] dark:border-slate-700 rounded-xl font-bold text-[#4b2424] dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#8c5757]/30 cursor-pointer truncate"
+        >
+          <option value="">-- All Ministries --</option>
+          {ministryList.map((m) => {
+            const id = m.ministry_id || m.id;
+            const name = cleanMinistryName(m.ministry_name || m.name);
+            return (
+              <option key={id || name} value={id || name}>
+                {name}
+              </option>
+            );
+          })}
+        </select>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setSelectedMinistry('')}
+        disabled={activeFilterCount === 0}
+        className="px-3.5 py-2 bg-[#f5eeea] dark:bg-slate-800 hover:bg-[#ebdcd0] dark:hover:bg-slate-700 text-[#4b2424] dark:text-[#eadede] font-bold text-xs rounded-xl flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#f5eeea] dark:disabled:hover:bg-slate-800"
+      >
+        <RotateCcw size={14} />
+        <span>Reset Filters</span>
+      </button>
+    </div>
+  ) : null;
+
   return (
     <div className="space-y-4 animate-fade-in">
       {/* Sub-tabs toolbar (1st ABSTRACT & DETAILED REPORT, 2nd PENDENCY REPORT) */}
@@ -546,76 +623,6 @@ export default function Reports({ triggerNotification }) {
         </button>
       </div>
 
-      {/* Collapsible Filter Section (Capex Report Style) */}
-      {drillDownPath.length === 1 && (
-        <div className="border border-[#e8d5c8] rounded-xl overflow-hidden bg-[#fcf9f7] dark:bg-slate-900 dark:border-slate-800 shadow-sm">
-          {/* Toggle Header */}
-          <button
-            type="button"
-            onClick={() => reportActions.setFilterOpen(open => !open)}
-            className="w-full px-4 py-3 bg-[#f5eeea] dark:bg-slate-800 hover:bg-[#ebdcd0] dark:hover:bg-slate-700 transition flex items-center justify-between text-xs font-extrabold text-[#4b2424] dark:text-[#eadede] cursor-pointer select-none"
-          >
-            <div className="flex items-center space-x-2">
-              <Filter size={15} className="text-[#4b2424] dark:text-[#eadede]" />
-              <span>Report Filters & Controls</span>
-              {selectedMinistry !== '' && (
-                <span className="px-2 py-0.5 bg-[#4b2424] text-white text-[10px] rounded-full font-bold">
-                  Active Filters
-                </span>
-              )}
-            </div>
-            <div className="flex items-center space-x-1">
-              <span className="text-[11px] text-[#6e3939] dark:text-slate-300 font-bold">
-                {isFilterOpen ? 'Collapse' : 'Expand Filters'}
-              </span>
-              {isFilterOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-            </div>
-          </button>
-
-          {/* Collapsible Filter Body */}
-          {isFilterOpen && (
-            <div className="p-4 space-y-4 border-t border-[#e8d5c8] dark:border-slate-800 bg-white dark:bg-slate-900 animate-fade-in text-left">
-              <div className="flex flex-wrap items-end justify-between gap-4">
-                {/* Ministry Dropdown Filter */}
-                <div className="min-w-[260px] flex-1 max-w-sm">
-                  <label className="block text-xs font-extrabold text-[#4b2424] dark:text-[#eadede] mb-1">
-                    Ministry
-                  </label>
-                  <select
-                    value={selectedMinistry}
-                    onChange={(e) => setSelectedMinistry(e.target.value)}
-                    className="w-full text-xs px-3 py-2 bg-[#fcf9f7] dark:bg-slate-800 border border-[#d7c4b7] dark:border-slate-700 rounded-xl font-bold text-[#4b2424] dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#8c5757]/30 cursor-pointer truncate"
-                  >
-                    <option value="">-- All Ministries --</option>
-                    {ministryList.map((m) => {
-                      const id = m.ministry_id || m.id;
-                      const name = cleanMinistryName(m.ministry_name || m.name);
-                      return (
-                        <option key={id || name} value={id || name}>
-                          {name}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
-
-                {/* Reset Filters Button */}
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedMinistry('')}
-                    className="px-3.5 py-2 bg-[#f5eeea] dark:bg-slate-800 hover:bg-[#ebdcd0] dark:hover:bg-slate-700 text-[#4b2424] dark:text-[#eadede] font-bold text-xs rounded-xl flex items-center space-x-1.5 transition cursor-pointer"
-                  >
-                    <RotateCcw size={14} />
-                    <span>Reset Filters</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Main Container Card */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
         <ReportTable
@@ -638,6 +645,8 @@ export default function Reports({ triggerNotification }) {
           oddRowColor="#f8faf6"
           themeClass="yp-pro-grid"
           triggerNotification={triggerNotification}
+          toolbarExtra={filterButton}
+          filterPanel={filterBody}
         />
       </div>
     </div>

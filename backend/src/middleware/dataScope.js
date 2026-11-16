@@ -48,9 +48,55 @@ export function applyDataScope(request, user, options = {}) {
   };
 }
 
+/**
+ * The same data scope as applyDataScope(), but as a single SQL boolean expression
+ * instead of a JOIN + WHERE pair.
+ *
+ * Dashboards and reports aggregate with LEFT JOINs and GROUP BY, where adding the
+ * INNER JOIN that applyDataScope() returns would silently turn an outer join into an
+ * inner one and drop the zero-count rows those reports exist to show. This predicate
+ * drops into a WHERE clause or into a LEFT JOIN's ON clause without changing the
+ * shape of the join.
+ *
+ * Returns '1 = 1' for Ministry / master scope, '1 = 0' when the user has no usable
+ * scope (fail closed), and an EXISTS / column test for organisation scope.
+ */
+export function dataScopePredicate(request, user, options = {}) {
+  const {
+    strategy = 'directOrgColumn',
+    alias = 't',
+    createdByColumn = 'created_by',
+    orgColumn = 'organisation_id',
+    paramName = 'dataScopeOrgId',
+  } = options;
+
+  const { organisationId, isWide, isOrganisation } = getDataScope(user);
+
+  if (isWide) return '1 = 1';
+  if (!isOrganisation) return '1 = 0';
+  if (!Number.isFinite(organisationId) || organisationId <= 0) return '1 = 0';
+
+  // mssql rejects a second input() under the same name, so one request object can
+  // build several scoped queries without re-declaring the parameter.
+  if (!request.parameters || !request.parameters[paramName]) {
+    request.input(paramName, organisationId);
+  }
+
+  if (strategy === 'viaCreatedBy') {
+    return `EXISTS (
+      SELECT 1 FROM tbl_user AS scope_user
+      WHERE scope_user.user_id = ${alias}.${createdByColumn}
+        AND scope_user.organisation_id = @${paramName}
+    )`;
+  }
+
+  return `${alias}.${orgColumn} = @${paramName}`;
+}
+
 export default {
   getDataScope,
   applyDataScope,
+  dataScopePredicate,
 };
 
 // The Ministry of Ports, Shipping and Waterways in mmt_organisation (2.0 numbering)

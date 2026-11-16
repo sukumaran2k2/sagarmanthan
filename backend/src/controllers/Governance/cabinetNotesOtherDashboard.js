@@ -1,4 +1,5 @@
 import { pool } from "../../db.js";
+import { dataScopePredicate } from "../../middleware/dataScope.js";
 
 // Each stage's own "entered stage" date column, matching mmt_cabinet_ministry_stage.cab_ministry_stage_id
 const STAGE_DATE_CASE = `
@@ -14,8 +15,19 @@ const STAGE_DATE_CASE = `
 async function getCabinetNotesOtherDashboard(req, res) {
   const conn = await pool;
   try {
+    // Notes carry no organisation_id, so the scope follows the creating user's
+    // organisation - the same rule the Data List uses. Ministry / master scope sees
+    // everything; a user with no scope sees nothing. Without this the stage counts and,
+    // more importantly, the subjects and file details in "long pending" would expose
+    // another organisation's notes to any user who can open the dashboard.
+    const request = conn.request();
+    const inScope = dataScopePredicate(request, req.user, {
+      strategy: 'viaCreatedBy',
+      alias: 'notes',
+    });
+
     // ── 1. KPI counters + average age of active notes ──────────────────────
-    const kpiResult = await conn.query(`
+    const kpiResult = await request.query(`
       SELECT
         COUNT(*)                                                        AS total_notes,
         SUM(CASE WHEN notes.stage_id != 5 THEN 1 ELSE 0 END)          AS active_notes,
@@ -28,12 +40,15 @@ async function getCabinetNotesOtherDashboard(req, res) {
         AS INT)                                                         AS avg_age_active_days,
         MAX(notes.updated_date)                                         AS last_data_update
       FROM tbl_cabinet_notes_ministry AS notes
+      WHERE ${inScope}
     `);
 
     const kpi = kpiResult.recordset[0] || {};
 
     // ── 2. Stage-wise heat map ─────────────────────────────────────────────
-    const heatResult = await conn.query(`
+    // The scope sits in the LEFT JOIN's ON clause so stages with no notes still
+    // report a zero instead of dropping out of the table.
+    const heatResult = await request.query(`
       SELECT
         stage.cab_ministry_stage_id                                     AS stage_id,
         stage.cab_ministry_stage_name                                   AS stage_name,
@@ -50,6 +65,7 @@ async function getCabinetNotesOtherDashboard(req, res) {
       LEFT JOIN tbl_cabinet_notes_ministry AS notes
         ON notes.stage_id = stage.cab_ministry_stage_id
         AND notes.stage_id != 5
+        AND ${inScope}
       GROUP BY stage.cab_ministry_stage_id, stage.cab_ministry_stage_name
       ORDER BY stage.cab_ministry_stage_id
     `);
@@ -64,7 +80,7 @@ async function getCabinetNotesOtherDashboard(req, res) {
 
     // ── 3. Ministry-wise pending (active, non-completed) notes ────────────
     // Falls back to the stored ministry_name when the ministry isn't in mmt_ministry
-    const ministryResult = await conn.query(`
+    const ministryResult = await request.query(`
       SELECT
         ISNULL(ministries.ministry_name, notes.ministry_name)           AS ministry_name,
         COUNT(notes.cabinet_notes_ministry_id)                          AS pending_count
@@ -72,12 +88,13 @@ async function getCabinetNotesOtherDashboard(req, res) {
       LEFT JOIN mmt_ministry AS ministries
         ON ministries.ministry_id = notes.ministry_id
       WHERE notes.stage_id != 5
+        AND ${inScope}
       GROUP BY ISNULL(ministries.ministry_name, notes.ministry_name)
       ORDER BY pending_count DESC
     `);
 
     // ── 4. Long pending cabinet notes (top 10 by pending days) ────────────
-    const longPendingResult = await conn.query(`
+    const longPendingResult = await request.query(`
       SELECT TOP 10
         notes.cabinet_notes_ministry_id,
         notes.subject,
@@ -94,6 +111,7 @@ async function getCabinetNotesOtherDashboard(req, res) {
       INNER JOIN mmt_cabinet_ministry_stage AS stage
         ON stage.cab_ministry_stage_id = notes.stage_id
       WHERE notes.stage_id != 5
+        AND ${inScope}
       ORDER BY pending_days DESC
     `);
 

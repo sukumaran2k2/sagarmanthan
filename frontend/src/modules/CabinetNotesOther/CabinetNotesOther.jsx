@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { CheckCircle2 } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
 import ConfirmModal from '../../components/ConfirmModal';
@@ -10,6 +9,8 @@ import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
 import { fetchCabinetMinistry, deleteCabinetMinistry } from './api';
 import { useCabinetNotesOtherStore } from './store/useCabinetNotesOtherStore';
+import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../utils/notify';
+import { CABINET_NOTES_OTHER_TOASTS as TOASTS } from './toastMessages';
 
 const INIT_TAB_KEY = 'cabinetNotesOtherInitTab';
 
@@ -35,19 +36,10 @@ export default function CabinetNotesOther({
   const [loading, setLoading] = useState(false);
   const [rowData, setRowData] = useState([]);
   const [editData, setEditData] = useState(null);
-  const [toast, setToast] = useState(null);
 
-  const notify = useCallback(
-    (message, type = 'success') => {
-      if (typeof triggerNotification === 'function') {
-        triggerNotification(message, type);
-        return;
-      }
-      setToast({ message, type });
-      setTimeout(() => setToast(null), 3000);
-    },
-    [triggerNotification]
-  );
+  // One standard toast style, wording and timing for the whole module (utils/notify.js):
+  // green for success, red for failure, amber when the user has to act, navy for progress.
+  const notify = useNotifier(triggerNotification);
 
   // Ministries, stages and wings for every tab, loaded once
   useEffect(() => { loadMasters(); }, [loadMasters]);
@@ -60,7 +52,7 @@ export default function CabinetNotesOther({
       })
       .catch(err => {
         console.error("Error loading Cabinet Notes Other Ministry data:", err);
-        notify(err.response?.data?.error || "Could not load cabinet notes. Please try again.", "error");
+        notify(COMMON_TOASTS.loadFailed('Cabinet notes'));
       })
       .finally(() => setLoading(false));
   }, [notify]);
@@ -122,9 +114,12 @@ export default function CabinetNotesOther({
     [permissions.uiViewCode]
   );
 
+  // Opens a note. Read in the user matrix is enough to look at one - the form itself is
+  // read-only without update, so a read-only user can still see the stage and wing detail
+  // that the grid does not show.
   const handleEdit = (note) => {
-    if (!permissions.canEdit) {
-      notify("You do not have permission to edit records.", "error");
+    if (!permissions.canView) {
+      notify(TOASTS.editNotAllowed());
       return;
     }
     setEditData(note);
@@ -133,7 +128,7 @@ export default function CabinetNotesOther({
 
   const handleDelete = (note) => {
     if (!permissions.canRemove) {
-      notify("You do not have permission to delete records.", "error");
+      notify(TOASTS.deleteNotAllowed());
       return;
     }
     const noteId = note?.cabinet_notes_ministry_id;
@@ -154,12 +149,12 @@ export default function CabinetNotesOther({
     setDeleteModal(prev => ({ ...prev, loading: true }));
     try {
       await deleteCabinetMinistry(noteId);
-      notify("Cabinet Notes Ministry record deleted successfully.");
+      notify(TOASTS.deleted());
       setDeleteModal({ open: false, note: null, loading: false });
       fetchData();
     } catch (err) {
       console.error("Delete error:", err);
-      notify(err.response?.data?.error || "Error deleting record. Please try again.", "error");
+      notify(TOASTS.deleteFailed(getErrorMessage(err)));
       setDeleteModal(prev => ({ ...prev, loading: false }));
     }
   };
@@ -186,18 +181,6 @@ export default function CabinetNotesOther({
 
   return (
     <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800 dark:text-slate-100">
-      {toast && (
-        <div className="fixed top-6 right-6 z-55 flex items-center space-x-2.5 bg-slate-900 border border-slate-800 text-white px-4.5 py-3 rounded-xl shadow-2xl animate-fade-in">
-          <div className={`p-1 rounded-lg ${toast.type === 'error' ? 'bg-rose-500' : 'bg-emerald-500'}`}>
-            <CheckCircle2 className="h-4.5 w-4.5 text-white" />
-          </div>
-          <div>
-            <p className="text-xs font-bold font-display leading-tight">Notification</p>
-            <p className="text-[10px] text-slate-400 leading-tight mt-0.5">{toast.message}</p>
-          </div>
-        </div>
-      )}
-
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4 mb-6 select-none">
         <div>
           <h1 className="text-xl font-black text-[#0f417a] dark:text-blue-300 tracking-wide uppercase font-display">
@@ -225,14 +208,14 @@ export default function CabinetNotesOther({
 
       {/* Dynamic Tab Render Area */}
       <div className="space-y-8">
-        {activeSubTab === 'dashboard' && <Dashboard />}
+        {activeSubTab === 'dashboard' && <Dashboard triggerNotification={triggerNotification} />}
 
         {activeSubTab === 'list' && (
           editData ? (
             <InputForm
               onBack={handleBack}
               onSuccess={handleSuccess}
-              triggerNotification={notify}
+              triggerNotification={triggerNotification}
               editData={editData}
               wingsList={wingsList}
               readOnly={!permissions.canEdit}
@@ -242,11 +225,12 @@ export default function CabinetNotesOther({
               rowData={rowData}
               loading={loading}
               canEdit={permissions.canEdit}
+              canView={permissions.canView}
               canDelete={permissions.canRemove}
               onEdit={handleEdit}
               onDelete={handleDelete}
               onRefresh={fetchData}
-              triggerNotification={notify}
+              triggerNotification={triggerNotification}
             />
           )
         )}
@@ -255,7 +239,7 @@ export default function CabinetNotesOther({
           <InputForm
             onBack={handleBack}
             onSuccess={handleSuccess}
-            triggerNotification={notify}
+            triggerNotification={triggerNotification}
             editData={null}
             wingsList={wingsList}
             readOnly={false}
@@ -263,9 +247,7 @@ export default function CabinetNotesOther({
         )}
 
         {activeSubTab === 'report' && (
-          <Reports
-            triggerNotification={notify}
-          />
+          <Reports triggerNotification={triggerNotification} />
         )}
       </div>
 

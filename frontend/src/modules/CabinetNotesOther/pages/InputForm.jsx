@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, Save, X } from 'lucide-react';
 import { createCabinetMinistry, updateCabinetMinistry } from '../api';
 import { useCabinetNotesOtherStore } from '../store/useCabinetNotesOtherStore';
+import { useNotifier, getErrorMessage } from '../../../utils/notify';
+import { CABINET_NOTES_OTHER_TOASTS as TOASTS } from '../toastMessages';
 
 // Wings that have their own date/remarks columns (backend: cabinetNotesMinistryFields.js).
 // name: mmt_wings.wing_name; column: <column>_date/_remarks on the note; key: <key>Date/<key>Remarks in the request
@@ -50,6 +52,7 @@ export default function InputForm({
 }) {
   const isEdit = !!editData;
   const [submitting, setSubmitting] = useState(false);
+  const notify = useNotifier(triggerNotification);
 
   // Trimmed so names match the wingDetails keys (the master has 'Sagarmala ' with a trailing space)
   const wings = useMemo(
@@ -306,8 +309,13 @@ export default function InputForm({
     e.preventDefault();
     setTouched({ subject: true, ministryId: true, eofficeFileNumber: true });
 
-    if (!isFormValid || errors.remarks) {
-      triggerNotification?.("Please fill in all required mandatory fields correctly.", 'error');
+    // Amber, not red: nothing failed yet, the user just has to complete the form.
+    if (errors.remarks) {
+      notify(TOASTS.remarksTooLong());
+      return;
+    }
+    if (!isFormValid) {
+      notify(TOASTS.missingRequired());
       return;
     }
 
@@ -350,14 +358,12 @@ export default function InputForm({
       } else {
         await createCabinetMinistry(payload);
       }
-      if (triggerNotification) {
-        triggerNotification(isEdit ? "Cabinet Note updated successfully." : "Cabinet Note created successfully.");
-      }
+      notify(isEdit ? TOASTS.updated() : TOASTS.created());
       onSuccess();
     } catch (err) {
       console.error("Save error details:", err.response?.data || err.message || err);
-      // Backend 400s (e.g. "Please select a valid ministry.") carry a user-facing message
-      triggerNotification?.(err.response?.data?.error || "Failed to save Cabinet Note. Please try again.", 'error');
+      // Backend 400s (e.g. "Please select a valid ministry.") carry a user-facing reason
+      notify(TOASTS.saveFailed(isEdit, getErrorMessage(err)));
     } finally {
       setSubmitting(false);
     }
@@ -405,7 +411,7 @@ export default function InputForm({
                 maxLength={MAX_TEXT}
                 placeholder="Enter subject name"
                 disabled={readOnly}
-                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border ${isFieldInvalid('subject', subject) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200`}
+                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border ${isFieldInvalid('subject', subject) ? 'border-red-500 focus:border-red-500' : 'border-slate-200 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200`}
               />
               {isFieldInvalid('subject', subject) && (
                 <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>
@@ -425,7 +431,7 @@ export default function InputForm({
                 }}
                 onBlur={() => handleBlur('ministryId')}
                 disabled={readOnly}
-                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border ${isFieldInvalid('ministryId', ministryId) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 cursor-pointer`}
+                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border ${isFieldInvalid('ministryId', ministryId) ? 'border-red-500 focus:border-red-500' : 'border-slate-200 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 cursor-pointer`}
               >
                 <option value="">--Select Ministry--</option>
                 {ministries.map(m => {
@@ -453,7 +459,7 @@ export default function InputForm({
                 maxLength={MAX_TEXT}
                 placeholder="Enter file number"
                 disabled={readOnly}
-                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border ${isFieldInvalid('eofficeFileNumber', eofficeFileNumber) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200`}
+                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border ${isFieldInvalid('eofficeFileNumber', eofficeFileNumber) ? 'border-red-500 focus:border-red-500' : 'border-slate-200 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200`}
               />
               {isFieldInvalid('eofficeFileNumber', eofficeFileNumber) && (
                 <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>
@@ -487,7 +493,7 @@ export default function InputForm({
                 rows={4}
                 placeholder="Enter remarks..."
                 disabled={readOnly}
-                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border ${errors.remarks ? 'border-red-500 focus:border-red-500' : 'border-slate-250 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200`}
+                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border ${errors.remarks ? 'border-red-500 focus:border-red-500' : 'border-slate-200 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200`}
               />
               {errors.remarks && <p className="text-[10px] font-bold text-red-500 mt-1">{errors.remarks}</p>}
             </div>
@@ -566,7 +572,7 @@ export default function InputForm({
                     {/* Stage 2: Concerned wings multi-select dropdown & tag pool */}
                     {stageNum === 2 && !isStageDisabled && (
                       <div className="border-t border-slate-100 dark:border-slate-800 pt-2.5 space-y-2">
-                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                           SELECT CONCERNED WINGS<span className="text-red-500 font-bold ml-0.5">*</span>
                         </label>
 
@@ -579,7 +585,7 @@ export default function InputForm({
                                 handleAddWing(e.target.value);
                               }
                             }}
-                            className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 focus:border-[#0f417a] rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 cursor-pointer"
+                            className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-[#0f417a] rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 cursor-pointer"
                           >
                             <option value="">--Select Wing--</option>
                             {/* Only wings that have their own date/remarks columns in tbl_cabinet_notes_ministry */}
@@ -619,7 +625,7 @@ export default function InputForm({
                     {/* Stage 3: Wing-wise Received Dates & Remarks */}
                     {stageNum === 3 && !isStageDisabled && selectedWings.length > 0 && (
                       <div className="border-t border-slate-100 dark:border-slate-800 pt-2.5 space-y-2">
-                        <span className="text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider block">
+                        <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
                           CONCERNED WINGS RECEIVED DATES & REMARKS
                         </span>
                         <div className="space-y-2">
@@ -689,7 +695,7 @@ export default function InputForm({
         {/* Submit Bar matching CabinetNotesMOPSW */}
         <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
           <span className="text-xs text-rose-500 font-bold italic">
-            * Asterisks marked with red are mandatory fields
+            {readOnly ? '' : '* Asterisks marked with red are mandatory fields'}
           </span>
           {!readOnly && (
             <div className="flex items-center space-x-3">

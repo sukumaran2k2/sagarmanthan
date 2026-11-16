@@ -1,6 +1,14 @@
 
 import { pool } from "../../db.js";
 import { WING_FIELDS } from "../Governance/cabinetNotesMinistryFields.js";
+import { dataScopePredicate } from "../../middleware/dataScope.js";
+
+// Notes carry no organisation_id, so the scope follows the creating user's organisation -
+// the same rule the Data List uses. Ministry / master scope sees every note; a user with no
+// scope sees none. Without this, every one of these reports (and its drill-down, which lists
+// subjects and e-Office file numbers) would show another organisation's notes.
+const noteScope = (request, user, alias) =>
+    dataScopePredicate(request, user, { strategy: "viaCreatedBy", alias });
 
 // Days a note has been pending since it was received (0 = received today)
 const PENDING_DAYS = `DATEDIFF(day, n.received_ministry_date, CAST(GETDATE() AS date))`;
@@ -26,27 +34,34 @@ function serverError(res, report, err) {
 
 async function cabinetMinistryReport (req, res)
 {
-    const conn = await pool;
     try
     {
-        const result = await conn.query(`
+        const conn = await pool;
+        const request = conn.request();
+        // In the LEFT JOIN's ON clause, so a ministry with no notes in scope still
+        // appears with zero counts rather than dropping out of the abstract.
+        const inScope = noteScope(request, req.user, 'n');
+
+        const result = await request.query(`
         SELECT
             ROW_NUMBER() OVER (ORDER BY mmt_ministry.ministry_id) AS [S No],
             mmt_ministry.ministry_name AS [Name of the Ministry/Department Received from],
             mmt_ministry.ministry_id AS [Ministry Id],
-            COUNT(tbl_cabinet_notes_ministry.cabinet_notes_ministry_id) AS [No of Cabinet Notes],
-            COUNT(CASE WHEN mmt_cabinet_ministry_stage.cab_ministry_stage_id = 0 THEN tbl_cabinet_notes_ministry.cabinet_notes_ministry_id END) AS [Status Not Recorded],
-            COUNT(CASE WHEN mmt_cabinet_ministry_stage.cab_ministry_stage_id = 1 THEN tbl_cabinet_notes_ministry.cabinet_notes_ministry_id END) AS [Received but yet to be sent for Comments],
-            COUNT(CASE WHEN mmt_cabinet_ministry_stage.cab_ministry_stage_id = 2 THEN tbl_cabinet_notes_ministry.cabinet_notes_ministry_id END) AS [Sent for Comments],
-            COUNT(CASE WHEN mmt_cabinet_ministry_stage.cab_ministry_stage_id = 3 THEN tbl_cabinet_notes_ministry.cabinet_notes_ministry_id END) AS [Comments Received],
-            COUNT(CASE WHEN mmt_cabinet_ministry_stage.cab_ministry_stage_id = 4 THEN tbl_cabinet_notes_ministry.cabinet_notes_ministry_id END) AS [File submitted for Approval],
-            COUNT(CASE WHEN mmt_cabinet_ministry_stage.cab_ministry_stage_id = 5 THEN tbl_cabinet_notes_ministry.cabinet_notes_ministry_id END) AS [Reply furnished to other ministry]
+            COUNT(n.cabinet_notes_ministry_id) AS [No of Cabinet Notes],
+            COUNT(CASE WHEN mmt_cabinet_ministry_stage.cab_ministry_stage_id = 0 THEN n.cabinet_notes_ministry_id END) AS [Status Not Recorded],
+            COUNT(CASE WHEN mmt_cabinet_ministry_stage.cab_ministry_stage_id = 1 THEN n.cabinet_notes_ministry_id END) AS [Received but yet to be sent for Comments],
+            COUNT(CASE WHEN mmt_cabinet_ministry_stage.cab_ministry_stage_id = 2 THEN n.cabinet_notes_ministry_id END) AS [Sent for Comments],
+            COUNT(CASE WHEN mmt_cabinet_ministry_stage.cab_ministry_stage_id = 3 THEN n.cabinet_notes_ministry_id END) AS [Comments Received],
+            COUNT(CASE WHEN mmt_cabinet_ministry_stage.cab_ministry_stage_id = 4 THEN n.cabinet_notes_ministry_id END) AS [File submitted for Approval],
+            COUNT(CASE WHEN mmt_cabinet_ministry_stage.cab_ministry_stage_id = 5 THEN n.cabinet_notes_ministry_id END) AS [Reply furnished to other ministry]
         FROM
             mmt_ministry
         LEFT JOIN
-            tbl_cabinet_notes_ministry ON mmt_ministry.ministry_id = tbl_cabinet_notes_ministry.ministry_id
+            tbl_cabinet_notes_ministry AS n
+                ON mmt_ministry.ministry_id = n.ministry_id
+                AND ${inScope}
         LEFT JOIN
-            mmt_cabinet_ministry_stage ON mmt_cabinet_ministry_stage.cab_ministry_stage_id = tbl_cabinet_notes_ministry.stage_id
+            mmt_cabinet_ministry_stage ON mmt_cabinet_ministry_stage.cab_ministry_stage_id = n.stage_id
         GROUP BY
             mmt_ministry.ministry_id,
             mmt_ministry.ministry_name
@@ -132,6 +147,7 @@ async function getMinistryDetailsReport (req, res)
         const request = conn.request();
         request.input("ministryId", ministryId);
         if (stageId !== null) request.input("stageId", stageId);
+        const inScope = noteScope(request, req.user, 'n');
 
         const [notesResult, wingsResult] = await Promise.all([
             request.query(`
@@ -151,6 +167,7 @@ async function getMinistryDetailsReport (req, res)
                 FROM tbl_cabinet_notes_ministry AS n
                 INNER JOIN mmt_ministry ON mmt_ministry.ministry_id = n.ministry_id
                 WHERE n.ministry_id = @ministryId
+                    AND ${inScope}
                     ${stageId !== null ? 'AND n.stage_id = @stageId' : ''}
                 ORDER BY n.cabinet_notes_ministry_id
             `),
@@ -198,7 +215,10 @@ async function cabinetMinistryPendencyReport (req, res)
     try
     {
         const conn = await pool;
-        const result = await conn.query(`
+        const request = conn.request();
+        const inScope = noteScope(request, req.user, 'n');
+
+        const result = await request.query(`
         SELECT
             ROW_NUMBER() OVER (ORDER BY mmt_ministry.ministry_id) AS [S No],
             mmt_ministry.ministry_name AS [Name of the Ministry/Department Received from],
@@ -214,6 +234,7 @@ async function cabinetMinistryPendencyReport (req, res)
                 ON n.ministry_id = mmt_ministry.ministry_id
                 AND n.stage_id <> 5
                 AND n.received_ministry_date <= CAST(GETDATE() AS date)
+                AND ${inScope}
         GROUP BY
             mmt_ministry.ministry_id,
             mmt_ministry.ministry_name
@@ -250,6 +271,7 @@ async function getDetailMinistryPendencyReport (req, res)
         request.input("ministryId", ministryId);
         request.input("minDays", bucket.min);
         if (bucket.max !== null) request.input("maxDays", bucket.max);
+        const inScope = noteScope(request, req.user, 'n');
 
         const result = await request.query(`
             SELECT
@@ -268,6 +290,7 @@ async function getDetailMinistryPendencyReport (req, res)
             INNER JOIN mmt_ministry ON mmt_ministry.ministry_id = n.ministry_id
             WHERE n.ministry_id = @ministryId
                 AND n.stage_id <> 5
+                AND ${inScope}
                 AND ${PENDING_DAYS} >= @minDays
                 ${bucket.max !== null ? `AND ${PENDING_DAYS} <= @maxDays` : ''}
             ORDER BY n.subject, n.eoffice_file_number

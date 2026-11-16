@@ -4,13 +4,14 @@ import Table from '../../../components/Table';
 import TablePagination from '../../../components/TablePagination';
 import CopyButton from '../../../components/CopyButton';
 import ExportDropdown from '../../../components/ExportDropdown';
-import { Search, Edit, Trash2, Filter, ChevronDown, X } from 'lucide-react';
+import { Search, Edit, Eye, Trash2, Filter, ChevronDown, X } from 'lucide-react';
 import { useCabinetNotesOtherStore } from '../store/useCabinetNotesOtherStore';
 import { exportRowsToFile } from '../../../utils/exportGridReport';
 import {
   getWrapColumnProps,
   renderWrappedText,
 } from '../../../utils/tableCellWrap';
+import { useNotifier, COMMON_TOASTS } from '../../../utils/notify';
 
 // Column visibility defaults; the store keeps only the user's changes over these.
 const DEFAULT_VISIBLE_COLS = {
@@ -28,6 +29,7 @@ export default function DataList({
   rowData = [],
   loading = false,
   canEdit = true,
+  canView = true,
   canDelete = false,
   onEdit,
   onDelete,
@@ -47,6 +49,7 @@ export default function DataList({
     visibleCols: colChanges,
   } = useCabinetNotesOtherStore(useShallow((state) => state.list));
   const actions = useCabinetNotesOtherStore((state) => state.listActions);
+  const notify = useNotifier(triggerNotification);
   const visibleCols = useMemo(() => ({ ...DEFAULT_VISIBLE_COLS, ...colChanges }), [colChanges]);
 
   // Ministry and stage masters, loaded once by the module shell
@@ -136,7 +139,7 @@ export default function DataList({
 
   const handleResetFilters = () => {
     actions.resetFilters();
-    triggerNotification?.('Filters have been reset', 'info');
+    notify(COMMON_TOASTS.filtersReset());
   };
 
   // Ministry and search: everything but the tab and the (Active-only) stage
@@ -349,7 +352,7 @@ export default function DataList({
         if (!note) return null;
         return (
           <div className="flex items-center justify-center w-full h-full space-x-1.5">
-            {canEdit && (
+            {canEdit ? (
               <button
                 type="button"
                 onClick={() => onEdit(note)}
@@ -357,6 +360,16 @@ export default function DataList({
                 title="Update Note"
               >
                 <Edit className="h-4.5 w-4.5" />
+              </button>
+            ) : canView && (
+              /* Read without update: the note still opens, in the read-only form */
+              <button
+                type="button"
+                onClick={() => onEdit(note)}
+                className="p-1.5 hover:bg-blue-50 dark:hover:bg-blue-950/30 text-[#0f417a] hover:text-[#1e5ea8] dark:text-blue-400 rounded-lg transition cursor-pointer"
+                title="View Note"
+              >
+                <Eye className="h-4.5 w-4.5" />
               </button>
             )}
             {canDelete && onDelete && (
@@ -373,7 +386,7 @@ export default function DataList({
         );
       }
     }
-  ], [onEdit, onDelete, canEdit, canDelete, visibleCols, currentPage, pageSize]);
+  ], [onEdit, onDelete, canEdit, canView, canDelete, visibleCols, currentPage, pageSize]);
 
   const toggleableCols = useMemo(() => [
     { key: 'sNo', label: 'S.No' },
@@ -383,8 +396,8 @@ export default function DataList({
     { key: 'stage', label: 'Stage' },
     { key: 'remarks', label: 'Remarks' },
     { key: 'lastUpdatedDate', label: 'Last Updated Date' },
-    ...(canEdit || (canDelete && onDelete) ? [{ key: 'actions', label: 'Actions' }] : [])
-  ], [canEdit, canDelete, onDelete]);
+    ...(canEdit || canView || (canDelete && onDelete) ? [{ key: 'actions', label: 'Actions' }] : [])
+  ], [canEdit, canView, canDelete, onDelete]);
 
   const handleShowAllCols = () => {
     actions.setVisibleCols(Object.fromEntries(Object.keys(DEFAULT_VISIBLE_COLS).map((key) => [key, true])));
@@ -400,8 +413,12 @@ export default function DataList({
     autoHeaderHeight: true
   }), []);
 
-  // Copy to clipboard handler
+  // Copy to clipboard handler: every row matching the current tab, filters and search
   const handleCopy = () => {
+    if (!filteredData.length) {
+      notify(COMMON_TOASTS.nothingToCopy());
+      return;
+    }
     let tsv = '';
     const activeCols = columnDefs.filter(c => c.headerName && c.headerName !== 'ACTIONS' && !c.hide);
     tsv += activeCols.map(c => c.headerName).join('\t') + '\n';
@@ -420,12 +437,16 @@ export default function DataList({
     });
 
     navigator.clipboard.writeText(tsv)
-      .then(() => triggerNotification?.('Table data copied to clipboard!', 'success'))
-      .catch(() => triggerNotification?.('Failed to copy table data.', 'error'));
+      .then(() => notify(COMMON_TOASTS.copySuccess(filteredData.length, 'matching the filters')))
+      .catch(() => notify(COMMON_TOASTS.copyFailed()));
   };
 
   // Export: Excel (.xlsx) / PDF of every filtered note, straight to a file (no print dialog or new tab)
   const handleExport = (type) => {
+    if (!filteredData.length) {
+      notify(COMMON_TOASTS.nothingToExport());
+      return;
+    }
     const activeCols = columnDefs.filter(c => c.headerName && c.headerName !== 'ACTIONS' && !c.hide);
     const cellValue = (col, row, rowIndex) => {
       if (col.field === 'sNo' || col.headerName === 'S.NO') return rowIndex + 1;
@@ -439,19 +460,19 @@ export default function DataList({
       rows: filteredData.map((row, rowIndex) => activeCols.map(col => cellValue(col, row, rowIndex))),
       fileName: 'Cabinet_Notes_Other_Ministries',
     });
-    triggerNotification?.(`Exported ${filteredData.length} notes as ${name}`, 'success');
+    notify(COMMON_TOASTS.excelExported(name, `The filtered list of ${filteredData.length} notes`));
   };
 
   return (
     <div className="space-y-4 animate-fade-in">
       {/* Category Sub-tabs (Active Notes vs Completed Notes) */}
-      <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-1 select-none px-1">
+      <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-1 select-none px-1 overflow-x-auto">
         <button
           onClick={() => handleCategoryChange('active')}
           className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
             activeCategory === 'active'
               ? 'border-[#0f417a] text-[#0f417a] dark:border-blue-400 dark:text-blue-400 bg-blue-50/50 dark:bg-slate-800 rounded-t-lg'
-              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
+              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
           }`}
         >
           ACTIVE NOTES ({activeCount})
@@ -461,7 +482,7 @@ export default function DataList({
           className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
             activeCategory === 'completed'
               ? 'border-[#0f417a] text-[#0f417a] dark:border-blue-400 dark:text-blue-400 bg-blue-50/50 dark:bg-slate-800 rounded-t-lg'
-              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
+              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
           }`}
         >
           COMPLETED NOTES ({completedCount})
@@ -469,10 +490,10 @@ export default function DataList({
       </div>
 
       {/* Main Container Card matching CSR Projects format */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 sm:p-5 shadow-xs space-y-4">
 
         {/* Toolbar matching CSR Projects */}
-        <div className="flex flex-col lg:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
+        <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
           
           {/* Left: Dedicated Filter Button + Reset Filters */}
           <div className="flex items-center gap-2.5 w-full lg:w-auto">
@@ -507,10 +528,10 @@ export default function DataList({
           </div>
 
           {/* Right-aligned Tools: Search bar, Rows, Total, Visibility, Copy, Export */}
-          <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-end">
+          <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-start lg:justify-end">
             
             {/* Search Input */}
-            <div className="relative min-w-[200px] flex-1 sm:flex-initial">
+            <div className="relative w-full sm:w-auto sm:min-w-[200px] flex-1 sm:flex-initial">
               <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
               <input
                 type="text"

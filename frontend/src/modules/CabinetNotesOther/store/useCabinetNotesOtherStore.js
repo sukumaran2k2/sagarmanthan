@@ -40,7 +40,7 @@ const createInitialState = () => ({
   report: {
     type: 'stagewise', // 'stagewise' | 'pendency'
     ministry: '',
-    filterOpen: true,
+    filterOpen: false, // the Reports toolbar Filter button opens it
     drillDownPath: summaryPath('stagewise'),
   },
 });
