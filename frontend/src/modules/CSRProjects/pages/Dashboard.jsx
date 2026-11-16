@@ -49,6 +49,21 @@ const CARD_THEME = {
   sky: 'bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 border-sky-100 dark:border-sky-900',
 };
 
+// One status segment of a stacked bar. Its width follows its share of the bar, and it always
+// shows its number (projects, or value in ₹ Cr): a small segment is widened just enough to fit.
+function BarSegment({ value, metric, color, title }) {
+  const text = metric === 'projects' ? count(value) : formatCrore(value);
+  return (
+    <div
+      title={`${title}: ${metric === 'projects' ? `${count(value)} projects` : cr(value)}`}
+      className="h-full flex items-center justify-center px-[3px] text-[9px] font-bold text-white whitespace-nowrap"
+      style={{ flex: `${value} 1 0px`, minWidth: `${String(text).length * 6 + 8}px`, backgroundColor: color }}
+    >
+      {text}
+    </div>
+  );
+}
+
 function KpiCard({ label, icon: Icon, theme, children, foot }) {
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex flex-col">
@@ -495,20 +510,11 @@ export default function Dashboard({ notify, isOrgUser }) {
                         <td className="px-3 py-2 text-slate-800 dark:text-slate-100 font-semibold">{o.organisationName}</td>
                         <td className="px-3 py-2">
                           {/* Stacked bar, scaled to the largest organisation in the table */}
-                          <div className="flex gap-[2px] h-5 rounded overflow-hidden" style={{ width: `${Math.max(2, (rowTotal / orgMax) * 100)}%` }}>
+                          <div className="flex gap-[2px] h-5 rounded overflow-hidden" style={{ width: `${Math.max(2, (rowTotal / orgMax) * 100)}%`, minWidth: 'fit-content' }}>
                             {rowTotal > 0 && orgStatuses.map((s) => {
                               const v = statusValue(o, s.key);
                               if (!v) return null;
-                              return (
-                                <div
-                                  key={s.key}
-                                  title={`${o.organisationName} – ${s.label}: ${orgMetric === 'projects' ? `${count(v)} projects` : cr(v)}`}
-                                  className="h-full flex items-center justify-center text-[9px] font-bold text-white overflow-hidden"
-                                  style={{ width: `${(v / rowTotal) * 100}%`, backgroundColor: s.color }}
-                                >
-                                  {orgMetric === 'projects' && (v / orgMax) > 0.06 ? v : ''}
-                                </div>
-                              );
+                              return <BarSegment key={s.key} value={v} metric={orgMetric} color={s.color} title={`${o.organisationName} – ${s.label}`} />;
                             })}
                           </div>
                         </td>
@@ -555,21 +561,13 @@ export default function Dashboard({ notify, isOrgUser }) {
                 return (
                   <div key={f.focusId} className="grid grid-cols-[minmax(120px,220px)_1fr_auto] items-center gap-3">
                     <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-200 truncate" title={f.focusName}>{f.focusName}</span>
-                    {/* Stacked bar, scaled to the largest focus area */}
-                    <div className="flex gap-[2px] h-5 rounded overflow-hidden" style={{ width: `${Math.max(1, (rowTotal / focusMax) * 100)}%` }}>
+                    {/* Stacked bar, scaled to the largest focus area. Every segment shows its
+                        number; a small segment is widened just enough to fit it. */}
+                    <div className="flex gap-[2px] h-5 rounded overflow-hidden" style={{ width: `${Math.max(1, (rowTotal / focusMax) * 100)}%`, minWidth: 'fit-content' }}>
                       {rowTotal > 0 && focusStatuses.map((s) => {
                         const v = f.statuses[s.key]?.[focusMetric] || 0;
                         if (!v) return null;
-                        return (
-                          <div
-                            key={s.key}
-                            title={`${f.focusName} – ${s.label}: ${focusMetric === 'projects' ? `${count(v)} projects` : cr(v)}`}
-                            className="h-full flex items-center justify-center text-[9px] font-bold text-white overflow-hidden"
-                            style={{ width: `${(v / rowTotal) * 100}%`, backgroundColor: s.color }}
-                          >
-                            {focusMetric === 'projects' && (v / focusMax) > 0.06 ? v : ''}
-                          </div>
-                        );
+                        return <BarSegment key={s.key} value={v} metric={focusMetric} color={s.color} title={`${f.focusName} – ${s.label}`} />;
                       })}
                     </div>
                     <span className="text-[11px] font-black text-slate-800 dark:text-slate-100 text-right min-w-[88px] whitespace-nowrap">

@@ -1478,6 +1478,12 @@ async function getCsrProjectsOrgWiseSummary(req, res) {
       return res.status(200).json([]);
     }
 
+    // Optional filters: ?fy=2024-2025 (the project's financial year) and ?orgId=<id>
+    const fy = typeof req.query.fy === 'string' && req.query.fy !== 'all' ? req.query.fy.trim() : null;
+    const orgId = Number.parseInt(req.query.orgId, 10);
+    request.input("financialYear", fy || null);
+    request.input("organisationId", Number.isInteger(orgId) && orgId > 0 ? orgId : null);
+
     // Report 1.5 - Organisation-wise CSR Projects Summary.
     // One row per organisation with a total project count and the 4
     // stage-wise counts. No fund figures in this report per spec (unlike
@@ -1492,6 +1498,8 @@ async function getCsrProjectsOrgWiseSummary(req, res) {
         SUM(CASE WHEN p.project_status = 'Completed' THEN 1 ELSE 0 END) AS Completed
       FROM tbl_csr_projects p
       INNER JOIN mmt_organisation o ON p.organisation_id = o.organisation_id
+      WHERE (@financialYear IS NULL OR LTRIM(RTRIM(p.financial_year)) = @financialYear)
+        AND (@organisationId IS NULL OR p.organisation_id = @organisationId)
       GROUP BY o.organisation_name
       ORDER BY o.organisation_name;
     `;
