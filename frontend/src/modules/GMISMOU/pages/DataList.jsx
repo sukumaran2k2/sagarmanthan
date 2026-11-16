@@ -186,6 +186,7 @@ export default function GMISDataList({ onEdit, notify, organisations, categories
 
   // MoU opened in the detail view
   const [selectedMou, setSelectedMou] = useState(null);
+  const [exporting, setExporting] = useState(false);
 
   // Column visibility dropdown
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -436,17 +437,47 @@ export default function GMISDataList({ onEdit, notify, organisations, categories
       ),
     },
   ], [visibleCols, currentPage, pageSize, summit, onEdit]);
+  
+  
+  const fetchAllRows = async () => {
+    const CHUNK = 500;
+    const all = [];
+    let page = 1;
+    let pages = 1;
+    do {
+      const res = await fetchGmisMouPaginated({ ...params, page, pageSize: CHUNK });
+      all.push(...(res.data?.data || []));
+      pages = res.data?.totalPages || 1;
+      page += 1;
+    } while (page <= pages);
+    return all;
+  };
 
-  const handleExport = (type) => {
+
+  const handleExport = async (type) => {
     if (loading) return notify(COMMON_TOASTS.tableNotReady(type === 'copy' ? 'copy' : 'export'));
-    if (!rows.length) return notify(type === 'copy' ? COMMON_TOASTS.nothingToCopy() : COMMON_TOASTS.nothingToExport());
-    return exportTableRows(type, {
-      columns: EXPORT_COLUMNS,
-      rows,
-      fileName: `GMIS_IMW_MoUs_Page_${currentPage}`,
-      title: 'GMIS & IMW MoUs Registry',
-      notify,
-    });
+    if (!totalCount) return notify(type === 'copy' ? COMMON_TOASTS.nothingToCopy() : COMMON_TOASTS.nothingToExport());
+    if (exporting) return;
+
+    setExporting(true);
+    try {
+      const allRows = await fetchAllRows();
+      if (!allRows.length) {
+        return notify(type === 'copy' ? COMMON_TOASTS.nothingToCopy() : COMMON_TOASTS.nothingToExport());
+      }
+      return exportTableRows(type, {
+        columns: EXPORT_COLUMNS,
+        rows: allRows,
+        fileName: 'GMIS_IMW_MoUs',
+        title: 'GMIS & IMW MoUs Registry',
+        notify,
+      });
+    } catch (err) {
+      console.error('Export failed:', err);
+      notify(COMMON_TOASTS.loadFailed('The export data'));
+    } finally {
+      setExporting(false);
+    }
   };
 
   const clearFilters = () => {
@@ -662,15 +693,19 @@ export default function GMISDataList({ onEdit, notify, organisations, categories
           />
         </div>
 
-        <TablePagination
-          currentPage={currentPage}
+         <TablePagination
+          currentPage={currentPage - 1}
           totalPages={totalPages}
           totalRows={totalCount}
           pageSize={pageSize}
-          onPageChange={(page) => { if (page >= 1 && page <= totalPages) setCurrentPage(page); }}
-          onPageSizeChange={(size) => setPageSize(Number(size))}
+          onPageChange={(index) => {
+            const page = index + 1;
+            if (page >= 1 && page <= totalPages) setCurrentPage(page);
+          }}
         />
       </div>
     </div>
+    
   );
 }
+

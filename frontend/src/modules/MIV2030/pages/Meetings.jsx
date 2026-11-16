@@ -8,7 +8,7 @@ import Table from '../../../components/Table';
 import Loader from '../../../components/Loader';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
-import { fetchMIVMeetingsData, fetchOrganisations, fetchMeetingLogsByOrg, createMeeting as apiCreateMeeting, deleteMeeting as apiDeleteMeeting } from '../api';
+import { fetchMIVMeetingsData, fetchOrganisations, fetchMeetingLogsByOrg, createMeeting as apiCreateMeeting, deleteMeeting as apiDeleteMeeting ,downloadMOMFile} from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
 import ConfirmModal from '../../../components/ConfirmModal';
 
@@ -326,7 +326,15 @@ const confirmDeleteMeeting = async () => {
           <div className="flex items-center h-full py-1">
             <a
               href="#"
-              onClick={(e) => { e.preventDefault(); openBackendFile(`/meeting/download/${id}`).catch((err) => console.error('Meeting document could not be opened:', err)); }}
+              onClick={async (e) => {
+              e.preventDefault();
+              try {
+                await openBackendFile(downloadMOMFile(id));
+              } catch (err) {
+                console.error('Meeting document could not be opened:', err);
+                triggerNotification?.('Could not download the document. Please try again.');
+              }
+            }}
               className="inline-flex items-center space-x-2 px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 rounded-xl text-xs font-bold transition border border-blue-200 dark:border-blue-800 shadow-sm"
             >
               <Download className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />

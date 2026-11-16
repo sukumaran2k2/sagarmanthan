@@ -906,31 +906,33 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 async function downloadMeeting(req, res) {
-    try {
-        const id = req.params.id;
-        const conn = await pool;
+  try {
+    const id = req.params.id;
+    const conn = await pool;
 
-        const request = conn.request();
-        request.input('id', id);
-        
-        const result = await request.query(`SELECT file_name FROM tbl_meeting_document WHERE meeting_document_id = @id`);
-        const fileName = result.recordset[0].file_name;
-        const file_path = path.join(__dirname, "../../../fileuploads/MIV/meeting", fileName);
+    const request = conn.request();
+    request.input('id', id);
+    const result = await request.query(
+      `SELECT file_name FROM tbl_meeting_document WHERE meeting_document_id = @id`
+    );
 
-        if (fs.existsSync(file_path)) {
-            res.setHeader('Content-Type', 'application/octet-stream');
-            res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-            res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
-            res.setHeader('Content-Length', fs.statSync(file_path).size);
+    const fileName = result.recordset[0]?.file_name;
+    if (!fileName) {
+      return res.status(404).send({ message: "Meeting document not found" });
+    }
 
-            // Create a readable stream and pipe it to the response
-            const fileStream = fs.createReadStream(file_path);
-            fileStream.pipe(res);
+    const file_path = path.join(__dirname, "../../../fileuploads/MIV/meeting", path.basename(fileName));
 
-        } else {
-            console.error("File not found on the server.");
-            res.status(404).send({ message: "File not found" });
+    if (!fs.existsSync(file_path)) {
+        return res.status(404).send({ message: "File not found on the server" });
         }
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+        res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+        res.setHeader('Content-Length', fs.statSync(file_path).size);
+
+        fs.createReadStream(file_path).pipe(res);
     } catch (err) {
         console.error(err);
         res.status(500).send({ message: err.message });
