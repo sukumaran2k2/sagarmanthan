@@ -175,6 +175,44 @@ export default function MIVDataList({
     fetchData();
   }, [fetchData]);
 
+  // Fetch EVERY row matching the current filters (ignores on-screen pagination).
+  // Used only by the Excel and PDF exports. Loops page by page so it still
+  // works if the backend caps the `limit` value.
+  const fetchAllForExport = async () => {
+    const all = [];
+    let page = 1;
+    let pages = 1;
+
+    do {
+      const res = await fetchMIVData({
+        userId,
+        page,
+        limit: 500,
+        search: debouncedSearch,
+        organisation: selectedOrg,
+        category: selectedCategory,
+        status: activeStatusTab === 'all' ? '' : activeStatusTab
+      });
+
+      const payload = res.data;
+
+      if (payload && payload.data && payload.pagination) {
+        const batch = payload.data || [];
+        all.push(...batch);
+        pages = payload.pagination.totalPages || 1;
+        if (batch.length === 0) break;
+      } else {
+        // API returned a plain array (no pagination) -> it is already everything
+        all.push(...(Array.isArray(payload) ? payload : []));
+        break;
+      }
+
+      page += 1;
+    } while (page <= pages);
+
+    return all.map((item, idx) => ({ ...item, sNo: idx + 1 }));
+  };
+
   // Categories list
   const CATEGORIES = [
     'General', 'Infrastructure', 'Digital / IT', 'Policy & Regulatory',
@@ -425,7 +463,16 @@ export default function MIVDataList({
     ];
   }, [counts]);
 
-  const handleExport = (type) => {
+  const handleExport = async (type) => {
+    // Columns included in Excel / PDF exports (visible columns, without the Action column)
+    const exportCols = columnDefs.filter(col => col.headerName && col.headerName !== 'Action' && !col.hide);
+    const getCell = (col, row) => {
+      const raw = row[col.field];
+      return typeof col.valueFormatter === 'function'
+        ? col.valueFormatter({ value: raw, data: row })
+        : (raw ?? '');
+    };
+
     if (type === 'Copy') {
       if (gridApi) {
         let tsv = '';
@@ -486,32 +533,115 @@ export default function MIVDataList({
         if (triggerNotification) triggerNotification('No data available to copy.', 'warning');
       }
     } else if (type === 'Excel') {
-      if (gridApi) {
-        // Excel (.xlsx) of the table as shown
-        const file = exportGridApiToExcel(gridApi, { title: 'Maritime India Vision 2030 - Initiatives', fileName: `MIV_2030_Initiatives_Page_${currentPage}` });
+      try {
         if (triggerNotification) {
-          triggerNotification(`Exported ${file}`);
+          triggerNotification('Preparing Excel file with all records...');
         }
-      } else {
-        alert("Grid is not ready for export yet.");
+
+        // Get ALL records (not only the current page)
+        const allRows = await fetchAllForExport();
+
+        if (!allRows.length) {
+          if (triggerNotification) triggerNotification('No data available to export.', 'warning');
+          return;
+        }
+
+        const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+        const csv = [
+          exportCols.map(col => esc(col.headerName)).join(','),
+          ...allRows.map(row => exportCols.map(col => esc(getCell(col, row))).join(','))
+        ].join('\n');
+
+        // \uFEFF keeps the ₹ symbol and other special characters correct in Excel
+        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'MIV_2030_Initiatives_All.csv';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        if (triggerNotification) {
+          triggerNotification(`Exported ${allRows.length} records to CSV successfully!`);
+        }
+      } catch (err) {
+        console.error('Excel export error:', err);
+        if (triggerNotification) triggerNotification('Failed to export Excel.', 'error');
       }
     } else if (type === 'PDF') {
-      if (triggerNotification) {
-        triggerNotification(`Preparing PDF document...`);
+      // Open the window FIRST (before any await), otherwise the browser blocks it as a popup
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        if (triggerNotification) triggerNotification('Popup blocked. Please allow popups and try again.', 'error');
+        return;
       }
+      printWindow.document.write('<p style="font-family:sans-serif;padding:20px">Preparing PDF with all records...</p>');
 
-      // PDF straight to a file (no print dialog or new tab): the columns on show
-      const pdfCols = columnDefs.filter((col) => col.headerName && col.headerName !== 'Action' && !col.hide);
-      const pdfCell = (col, row) => {
-        const raw = row[col.field];
-        return typeof col.valueFormatter === 'function' ? col.valueFormatter({ value: raw, data: row }) : (raw ?? '');
-      };
-      exportRowsToFile('pdf', {
-        title: 'Maritime India Vision 2030 - Initiatives',
-        headers: pdfCols.map((col) => col.headerName),
-        rows: data.map((row) => pdfCols.map((col) => pdfCell(col, row))),
-        fileName: `MIV_2030_Initiatives_Page_${currentPage}`,
-      });
+      try {
+        if (triggerNotification) {
+          triggerNotification(`Preparing PDF document with all records...`);
+        }
+
+        // Get ALL records (not only the current page)
+        const allRows = await fetchAllForExport();
+        const title = 'Maritime India Vision 2030 - Initiatives';
+        const safe = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+        let headersHtml = '';
+        exportCols.forEach(col => {
+          headersHtml += `<th style="border: 1px solid #cbd5e1; padding: 10px; text-align: left; background-color: #f8fafc; font-size: 11px; font-weight: bold; text-transform: uppercase;">${safe(col.headerName)}</th>`;
+        });
+
+        let rowsHtml = '';
+        allRows.forEach((row) => {
+          rowsHtml += '<tr>';
+          exportCols.forEach(col => {
+            rowsHtml += `<td style="border: 1px solid #e2e8f0; padding: 8px; font-size: 11px;">${safe(getCell(col, row))}</td>`;
+          });
+          rowsHtml += '</tr>';
+        });
+
+        printWindow.document.open();
+        printWindow.document.write(`
+          <html>
+            <head>
+              <title>${title}</title>
+              <style>
+                body { font-family: system-ui, -apple-system, sans-serif; color: #1e293b; padding: 20px; }
+                h1 { font-size: 18px; margin-bottom: 5px; color: #0f417a; }
+                table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+                thead { display: table-header-group; }
+                tr { page-break-inside: avoid; }
+              </style>
+            </head>
+            <body>
+              <h1>${title}</h1>
+              <p style="font-size: 11px; color: #64748b; margin-top: 0; margin-bottom: 20px;">Generated on: ${new Date().toLocaleDateString()} | Total records: ${allRows.length}</p>
+              <table>
+                <thead>
+                  <tr>${headersHtml}</tr>
+                </thead>
+                <tbody>
+                  ${rowsHtml}
+                </tbody>
+              </table>
+              <script>
+                window.onload = function() {
+                  window.print();
+                  window.close();
+                };
+              </script>
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+      } catch (err) {
+        console.error('PDF export error:', err);
+        printWindow.close();
+        if (triggerNotification) triggerNotification('Failed to export PDF.', 'error');
+      }
     }
   };
 
