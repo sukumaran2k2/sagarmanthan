@@ -801,7 +801,7 @@ router.post("/add-OFV-data", fvCreate, officialForeignVisitTab.addOFVData);
 router.post("/OFV/upload-files", fvUpdate, officialForeignVisitTab.upload.single('file'), officialForeignVisitTab.addOFVDocument);
 router.get("/OFV/download/:id", fvRead, officialForeignVisitTab.downloadTour);
 // router.get("/get-OFV-report/:type", officialForeignVisitTab.getOFVReport);
-router.post("/get-OFV-report", fvRead, officialForeignVisitTab.getOFVReport);
+router.post("/get-OFV-report/:orgID/:roleId", fvRead, officialForeignVisitTab.getOFVReport);
 
 router.get("/get-OFV-update/:ID", fvRead, officialForeignVisitTab.getUpdateOFVData);
 router.get("/get-OFV-year/:year/:type", fvRead, officialForeignVisitTab.getDetailYearOFVReport);
