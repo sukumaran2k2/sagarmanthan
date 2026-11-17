@@ -45,6 +45,8 @@ import {
   ListTodo,
   FolderSync,
   FilePieChart,
+  Gavel,
+  Handshake,
   UserX,
   UserPlus,
   BookOpen,
@@ -395,6 +397,20 @@ export default function Tabs({ activeTab, setActiveTab }) {
       align: 'left-0',
       width: 'w-[260px]',
       items: [
+        m('COURT_CASES', {
+          label: 'Court Cases', icon: Gavel,
+          targetTab: 'Court Cases',
+          clickableHeader: true,
+          subItems: [
+            { label: 'Arbitration',  tab: 'Court Cases', targetSubTab: 'Arbitration',  icon: Handshake },
+            { label: 'Litigation',   tab: 'Court Cases', targetSubTab: 'Litigation',   icon: Gavel },
+            { label: 'Conciliation', tab: 'Court Cases', targetSubTab: 'Conciliation', icon: Users },
+            ...withCreate(canCreateIn.COURT_CASES, [
+              { label: 'Input Form', tab: 'Court Cases', targetSubTab: 'Input Form', icon: FileEdit },
+            ]),
+            { label: 'Reports',      tab: 'Court Cases', targetSubTab: 'Reports',      icon: FilePieChart },
+          ]
+        }),
         m('BILLS_PRE_CONSTITUTION', {
           label: 'Bills/PreConstitutions Act', icon: BookMarked,
           targetTab: 'Bills/PreConstitutions Act',

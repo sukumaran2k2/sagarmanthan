@@ -107,6 +107,8 @@ export const ROUTE_MAP = {
   'Courtcases': 'legal/courtcases',
   'Bills/PreConstitutions Act': 'legal/acts-rules',
   'Acts & Rules': 'legal/acts-and-rules',
+  'Court cases': 'legal/court-cases',
+
 
   // Strategies nested routes
   'MIV 2030': 'strategies/miv-2030/dashboard',

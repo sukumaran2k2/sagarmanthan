@@ -291,7 +291,8 @@ export const MODULE_PAGES = {
   },
 
   COURT_CASES: {
-    tabs: ['Courtcases'],
+    tabs: ['Court cases'],
+    uiTabs: ['Court cases'],
   },
 
   BILLS_PRE_CONSTITUTION: {

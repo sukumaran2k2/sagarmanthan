@@ -43,6 +43,7 @@ const UserMatrix = lazy(() => import('./modules/UserManagement/UserMatrix'));
 const FormBuilderView = lazy(() => import('./modules/FormBuilder/FormBuilder'));
 const MasterManagement = lazy(() => import("./modules/MasterManagement/pages/masterManagement"));
 const ContactUs = lazy(() => import('./modules/Contact/Contact'));
+const CourtCasesView = lazy(() => import('./modules/CourtCases/CourtCases'));
 
 // Major Ports Components
 import { PortsDashboardView, PortsEntryAccessView, PortsInputFormView, PortsReportsView } from './modules/MajorPorts/MajorPorts';
@@ -565,7 +566,7 @@ export default function App() {
             <Route path="governance/gem-procurements/*" element={<GEMProcurementView triggerNotification={triggerNotification} />} />
 
             {/* Legal Routes */}
-            <Route path="legal/courtcases" element={<ActsAndRulesView triggerNotification={triggerNotification} />} />
+            <Route path="legal/court-cases" element={<CourtCasesView triggerNotification={triggerNotification} />} />
             <Route path="legal/acts-rules/*" element={<BillsPreConstitutionsView triggerNotification={triggerNotification} />} />
             <Route path="legal/acts-and-rules" element={<ActsAndRulesView triggerNotification={triggerNotification} />} />
 
