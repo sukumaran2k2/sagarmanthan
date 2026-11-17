@@ -24,6 +24,23 @@ const textCell = (className) => (params) => (
 );
 
 const stepsSaved = (row) => `${row.sections_saved ?? 0} / ${row.sections_total ?? 14}`;
+const pickRows = (body) => {
+  if (Array.isArray(body)) return body;
+  for (const key of ['rows', 'data', 'items', 'results', 'records']) {
+    if (Array.isArray(body?.[key])) return body[key];
+  }
+  for (const key of ['data', 'result', 'payload']) {
+    if (body?.[key] && typeof body[key] === 'object') {
+      const nested = pickRows(body[key]);
+      if (nested.length) return nested;
+    }
+  }
+  return [];
+};
+
+const pickTotal = (body) =>
+  body?.total ?? body?.totalCount ?? body?.count ?? body?.pagination?.total ??
+  body?.data?.total ?? body?.data?.totalCount ?? body?.data?.pagination?.total ?? null;
 
 /** Lead columns (period, organisation) and the trailing status columns of every view. */
 function buildFixedColumns(isMinistryView) {
@@ -119,6 +136,34 @@ export default function PortPerformanceDataList({
     request: fetchPortPerformanceActuals,
     onError: handleLoadError,
   });
+  const [exporting, setExporting] = useState(false);
+
+const fetchAllRows = useCallback(async () => {
+  const EXPORT_PAGE_SIZE = 100; // lower to 50 or 10 if the API returns a 400
+  const MAX_PAGES = 200;
+  const { page: _p, limit: _l, ...filters } = params;
+
+  let all = [];
+  let firstKey = null;
+
+  for (let page = 1; page <= MAX_PAGES; page += 1) {
+    const res = await fetchPortPerformanceActuals({ ...filters, page, limit: EXPORT_PAGE_SIZE });
+    const body = res?.data ?? res;
+    const batch = pickRows(body);
+    if (!batch.length) break;
+
+    // Stop if the server ignores `page` and repeats the first page
+    const key = JSON.stringify(batch[0]);
+    if (page === 1) firstKey = key;
+    else if (key === firstKey) break;
+
+    all = all.concat(batch);
+    const knownTotal = pickTotal(body);
+    if (knownTotal != null && all.length >= Number(knownTotal)) break;
+  }
+
+  return all.map((row, index) => ({ ...row, sNo: index + 1 }));
+}, [params]);
   // Copy / export only what is on screen once the newest page has arrived
   const busy = loading || refreshing;
 
@@ -242,30 +287,56 @@ export default function PortPerformanceDataList({
     ],
     [allColumns, visibleCols]
   );
-  const exportBaseName = `Port_Performance_${VIEW_LABELS[activeView].replace(/[^A-Za-z]+/g, '_')}_Page_${currentPage}`;
+const exportBaseName = `Port_Performance_${VIEW_LABELS[activeView].replace(/[^A-Za-z]+/g, '_')}_All`;
 
-  const handleCopy = () => {
-    if (busy) return notify(COMMON_TOASTS.tableNotReady('copy'));
-    return copyRowsToClipboard(visibleExportColumns, rowsWithSerial)
-      .then(() => notify(COMMON_TOASTS.copySuccess(rowsWithSerial.length)))
-      .catch(() => notify(COMMON_TOASTS.copyFailed()));
-  };
+const handleCopy = async () => {
+  if (busy || exporting) return notify(COMMON_TOASTS.tableNotReady('copy'));
+  setExporting(true);
+  try {
+    const allRows = await fetchAllRows();
+    await copyRowsToClipboard(visibleExportColumns, allRows);
+    notify(COMMON_TOASTS.copySuccess(allRows.length));
+  } catch (err) {
+    console.error('Copy failed:', err);
+    notify(COMMON_TOASTS.copyFailed());
+  } finally {
+    setExporting(false);
+  }
+};
 
-  const handleExcel = () => {
-    if (busy) return notify(COMMON_TOASTS.tableNotReady('export'));
-    const fileName = downloadExcel(visibleExportColumns, rowsWithSerial, exportBaseName, VIEW_LABELS[activeView]);
-    return notify(COMMON_TOASTS.excelExported(fileName));
-  };
+const handleExcel = async () => {
+  if (busy || exporting) return notify(COMMON_TOASTS.tableNotReady('export'));
+  setExporting(true);
+  try {
+    const allRows = await fetchAllRows();
+    const fileName = downloadExcel(visibleExportColumns, allRows, exportBaseName, VIEW_LABELS[activeView]);
+    notify(COMMON_TOASTS.excelExported(fileName));
+  } catch (err) {
+    console.error('Excel export failed:', err, err?.response?.data);
+    notify(COMMON_TOASTS.loadFailed('Port performance data'));
+  } finally {
+    setExporting(false);
+  }
+};
 
-  const handlePdf = () => {
-    if (busy) return notify(COMMON_TOASTS.tableNotReady('export'));
-    return downloadPdf(
+const handlePdf = async () => {
+  if (busy || exporting) return notify(COMMON_TOASTS.tableNotReady('export'));
+  setExporting(true);
+  try {
+    const allRows = await fetchAllRows();
+    downloadPdf(
       `Port Performance - ${VIEW_LABELS[activeView]}`,
       visibleExportColumns.filter((c) => c.field !== 'sNo'),
-      rowsWithSerial,
+      allRows,
       exportBaseName
     );
-  };
+  } catch (err) {
+    console.error('PDF export failed:', err);
+    notify(COMMON_TOASTS.loadFailed('Port performance data'));
+  } finally {
+    setExporting(false);
+  }
+};
 
   const confirmDelete = async () => {
     const period = describePeriod(pendingDelete.fiscal_year, pendingDelete.month);
