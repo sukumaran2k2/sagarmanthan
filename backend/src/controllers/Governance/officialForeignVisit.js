@@ -635,111 +635,342 @@ async function addOFVDocument(req, res) {
 }
 
 async function getOFVReport(req, res) {
-    const conn = await pool;
-    const request = conn.request();
-
-    const { year,fromDate,toDate,officerName,visit,status,organisation,country, designation } = req.body;
-
-    request.input("year", year);
-    request.input("fromDate", fromDate);
-    request.input("toDate", toDate);
-    request.input("officerName", officerName);
-    request.input("visit", visit);
-    request.input("status", status);
-    request.input("organisation", organisation);
-    request.input("country", country);
-    request.input("designation", designation);
-
     try {
-        let whereClause = [];
-        if (year !== 0) whereClause.push("tbl_official_foreign_visit.year = @year");
-        if (fromDate !== 0) whereClause.push("tbl_official_foreign_visit.from_date >= @fromDate");
-        if (toDate !== 0) whereClause.push("tbl_official_foreign_visit.to_date <= @toDate");
-        if (officerName !== 0) whereClause.push("tbl_official_foreign_visit.name = @officerName");
-        if (visit !== 0) whereClause.push("tbl_official_foreign_visit.visit_type = @visit");
-        if (status !== 0) whereClause.push("mmt_ofv_stage.fv_stage_name = @status");
-        if (organisation !== 0) whereClause.push("tbl_official_foreign_visit.organisation = @organisation");    
-        // if (country !== 0) whereClause.push("tbl_official_foreign_visit.country_visited = @country");
-        if (country !== 0) whereClause.push("tbl_official_foreign_visit.country_visited LIKE '%' + @country + '%'");
-        if (designation !== 0) {
-            whereClause.push("tbl_official_foreign_visit.designation_organisation = @designation");
+        const conn = await pool;
+        const request = conn.request();
+
+        const {
+            year,
+            fromDate,
+            toDate,
+            officerName,
+            visit,
+            status,
+            organisation,
+            country,
+            designation          
+        } = req.body;
+        
+        const { orgID, roleId } = req.params;
+
+        console.log("OFV Report Filters:", req.body);
+
+        const whereClause = [];
+
+        // Treat 0, empty string, null, and undefined as unset filters.
+        const isFilterApplied = (value) =>
+            value !== undefined &&
+            value !== null &&
+            value !== '' &&
+            value !== 0 &&
+            value !== '0';
+
+            // Role 6 and 7: Restrict data to their own organisation
+            if ([6, 7].includes(Number(roleId))) {
+
+                if (isFilterApplied(orgID)) {
+                    request.input("orgID", Number(orgID));
+
+                    whereClause.push(
+                        "tbl_official_foreign_visit.organisation = @orgID"
+                    );
+                } else {
+                    // Prevent organisation users from viewing all data
+                    whereClause.push("1 = 0");
+                }
+            }
+
+            // Role 2, 3, 4, 5, 8: Can view all organisations
+            // If an organisation filter is selected, apply that filter.
+            else if ([2, 3, 4, 5, 8].includes(Number(roleId))) {
+
+                if (isFilterApplied(organisation)) {
+                    // Organisation filter is already handled above.
+                    // No additional condition required here.
+                }
+            }
+        if (isFilterApplied(year)) {
+            request.input("year", year);
+            whereClause.push(
+                "tbl_official_foreign_visit.year = @year"
+            );
         }
-        let whereCatgeoryCondition = whereClause.length > 0 ? 'WHERE ' + whereClause.join(' AND ') : '';
 
-        const result = await request.query(`SELECT 
+        if (isFilterApplied(fromDate)) {
+            request.input("fromDate", fromDate);
+            whereClause.push(
+                "tbl_official_foreign_visit.from_date >= @fromDate"
+            );
+        }
+
+        if (isFilterApplied(toDate)) {
+            request.input("toDate", toDate);
+            whereClause.push(
+                "tbl_official_foreign_visit.to_date <= @toDate"
+            );
+        }
+
+        if (isFilterApplied(officerName)) {
+            request.input("officerName", officerName);
+            whereClause.push(
+                "LTRIM(RTRIM(tbl_official_foreign_visit.name)) = @officerName"
+            );
+        }
+
+        if (isFilterApplied(visit)) {
+            request.input("visit", visit);
+            whereClause.push(
+                "tbl_official_foreign_visit.visit_type = @visit"
+            );
+        }
+
+        if (isFilterApplied(status)) {
+            request.input("status", status);
+            whereClause.push(
+                "mmt_ofv_stage.fv_stage_name = @status"
+            );
+        }
+
+        if (isFilterApplied(organisation)) {
+            request.input("organisation", organisation);
+            whereClause.push(
+                "tbl_official_foreign_visit.organisation = @organisation"
+            );
+        }
+
+        if (isFilterApplied(country)) {
+            request.input("country", country);
+            whereClause.push(
+                "tbl_official_foreign_visit.country_visited LIKE '%' + @country + '%'"
+            );
+        }
+
+        if (isFilterApplied(designation)) {
+            request.input("designation", designation);
+            whereClause.push(
+                "tbl_official_foreign_visit.designation_organisation = @designation"
+            );
+        }
+
+        const whereCondition = whereClause.length
+            ? `WHERE ${whereClause.join(" AND ")}`
+            : "";
+
+        const result = await request.query(`
+            SELECT
                 tbl_official_foreign_visit.id,
-                tbl_official_foreign_visit.fv_id AS [Foreign Visit ID], 
-                year AS Year, 
-                mmt_ofv_stage.fv_stage_name AS Visit,
-               -- visit AS Visit,
-                mmt_organisation.organisation_name AS Organisation, 
-                from_date AS [From Date],
-                to_date AS [To Date],
-                name AS [Name of the Officer], 
-                ISNULL(tbl_official_foreign_visit.GOI_designation,mmt_designation.designation) AS Designation, 
-                --duration AS [Number of days], 
-                visit_type_name AS [Visit Type], 
-                purpose AS [Purpose/Keywords], 
-                country_visited AS Country,
-                MAX(CASE WHEN filtered_ofv_doc.doc_related IN ('Tour', 'TourReport') THEN filtered_ofv_doc.file_name END) AS [Tour File],
-                MAX(CASE WHEN filtered_ofv_doc.doc_related = 'Sanction' THEN filtered_ofv_doc.file_name END) AS [Sanctioned Report],
-                Remarks
-            FROM 
-                tbl_official_foreign_visit
-            LEFT JOIN (
-                SELECT 
-                    ofv_id,
-                    file_name,
-                    doc_related
-                FROM 
-                    tbl_ofv_doc
-            ) AS filtered_ofv_doc ON filtered_ofv_doc.ofv_id = tbl_official_foreign_visit.id
-            LEFT JOIN 
-                mmt_organisation ON mmt_organisation.organisation_id = tbl_official_foreign_visit.organisation
-            LEFT JOIN
-                mmt_ofv_visit_type ON mmt_ofv_visit_type.Id = tbl_official_foreign_visit.visit_type
-            LEFT JOIN
-                mmt_designation ON mmt_designation.id = tbl_official_foreign_visit.designation_organisation
-            INNER JOIN 
-                mmt_ofv_stage ON mmt_ofv_stage.fv_stage_id = tbl_official_foreign_visit.visit
-            ${whereCatgeoryCondition}
-            GROUP BY 
-                tbl_official_foreign_visit.id,   tbl_official_foreign_visit.fv_id, 
-                year, 
-                name, 
-                fv_stage_name,
-                Designation,
-                tbl_official_foreign_visit.GOI_designation,
-                mmt_designation.designation, 
-                mmt_organisation.organisation_name, 
-                from_date,
-                to_date,
-                duration, 
-                visit_type_name,
-                country_visited,
-                purpose,
-                Remarks
-            ORDER BY visit ASC,
-            year DESC;`);
+                tbl_official_foreign_visit.fv_id AS [Foreign Visit ID],
+                tbl_official_foreign_visit.year AS [Year],
+                mmt_ofv_stage.fv_stage_name AS [Visit],
+                mmt_organisation.organisation_name AS [Organisation],
+                tbl_official_foreign_visit.from_date AS [From Date],
+                tbl_official_foreign_visit.to_date AS [To Date],
+                tbl_official_foreign_visit.name AS [Name of the Officer],
 
-        const rowData = result.recordset;  
-            // console.log("rowdatas", rowData);
+                ISNULL(
+                    tbl_official_foreign_visit.GOI_designation,
+                    mmt_designation.designation
+                ) AS [Designation],
+
+                mmt_ofv_visit_type.visit_type_name AS [Visit Type],
+                tbl_official_foreign_visit.purpose AS [Purpose/Keywords],
+                tbl_official_foreign_visit.country_visited AS [Country],
+
+                MAX(
+                    CASE
+                        WHEN filtered_ofv_doc.doc_related IN ('Tour', 'TourReport')
+                        THEN filtered_ofv_doc.file_name
+                    END
+                ) AS [Tour File],
+
+                MAX(
+                    CASE
+                        WHEN filtered_ofv_doc.doc_related = 'Sanction'
+                        THEN filtered_ofv_doc.file_name
+                    END
+                ) AS [Sanctioned Report],
+
+                tbl_official_foreign_visit.Remarks
+
+            FROM tbl_official_foreign_visit
+
+            LEFT JOIN tbl_ofv_doc AS filtered_ofv_doc
+                ON filtered_ofv_doc.ofv_id = tbl_official_foreign_visit.id
+
+            LEFT JOIN mmt_organisation
+                ON mmt_organisation.organisation_id =
+                   tbl_official_foreign_visit.organisation
+
+            LEFT JOIN mmt_ofv_visit_type
+                ON mmt_ofv_visit_type.Id =
+                   tbl_official_foreign_visit.visit_type
+
+            LEFT JOIN mmt_designation
+                ON mmt_designation.id =
+                   tbl_official_foreign_visit.designation_organisation
+
+            INNER JOIN mmt_ofv_stage
+                ON mmt_ofv_stage.fv_stage_id =
+                   tbl_official_foreign_visit.visit
+
+            ${whereCondition}
+
+            GROUP BY
+                tbl_official_foreign_visit.id,
+                tbl_official_foreign_visit.fv_id,
+                tbl_official_foreign_visit.year,
+                tbl_official_foreign_visit.name,
+                mmt_ofv_stage.fv_stage_name,
+                tbl_official_foreign_visit.GOI_designation,
+                mmt_designation.designation,
+                mmt_organisation.organisation_name,
+                tbl_official_foreign_visit.from_date,
+                tbl_official_foreign_visit.to_date,
+                tbl_official_foreign_visit.duration,
+                mmt_ofv_visit_type.visit_type_name,
+                tbl_official_foreign_visit.country_visited,
+                tbl_official_foreign_visit.purpose,
+                tbl_official_foreign_visit.Remarks
+
+            ORDER BY
+                [Visit] ASC,
+                [Year] DESC;
+        `);
+
+        const rowData = result.recordset;
+
         if (rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available for this selection' });
+            return res.status(404).json({
+                error: "No data available for this selection"
+            });
         }
 
         const columnDefs = Object.keys(rowData[0]).map(key => ({
-            headerName: key.charAt(0).toUpperCase() + key.slice(1), 
-            field: key,
+            headerName: key,
+            field: key
         }));
-        
-        res.json({ columnDefs, rowData });
+
+        return res.json({
+            columnDefs,
+            rowData
+        });
 
     } catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
+        console.error("getOFVReport Error:", err);
+        return res.status(500).json({
+            error: "Failed to fetch OFV report",
+            details: err.message
+        });
     }
 }
+
+
+// async function getOFVReport(req, res) {
+//     const conn = await pool;
+//     const request = conn.request();
+
+//     const { year,fromDate,toDate,officerName,visit,status,organisation,country, designation } = req.body;
+// console.log(req.body)
+//     request.input("year", year);
+//     request.input("fromDate", fromDate);
+//     request.input("toDate", toDate);
+//     request.input("officerName", officerName);
+//     request.input("visit", visit);
+//     request.input("status", status);
+//     request.input("organisation", organisation);
+//     request.input("country", country);
+//     request.input("designation", designation);
+
+//     try {
+//         let whereClause = [];
+//         if (year !== 0) whereClause.push("tbl_official_foreign_visit.year = @year");
+//         if (fromDate !== 0) whereClause.push("tbl_official_foreign_visit.from_date >= @fromDate");
+//         if (toDate !== 0) whereClause.push("tbl_official_foreign_visit.to_date <= @toDate");
+//         if (officerName !== 0) whereClause.push("tbl_official_foreign_visit.name = @officerName");
+//         if (visit !== 0) whereClause.push("tbl_official_foreign_visit.visit_type = @visit");
+//         if (status !== 0) whereClause.push("mmt_ofv_stage.fv_stage_name = @status");
+//         if (organisation !== 0) whereClause.push("tbl_official_foreign_visit.organisation = @organisation");    
+//         // if (country !== 0) whereClause.push("tbl_official_foreign_visit.country_visited = @country");
+//         if (country !== 0) whereClause.push("tbl_official_foreign_visit.country_visited LIKE '%' + @country + '%'");
+//         if (designation !== 0) {
+//             whereClause.push("tbl_official_foreign_visit.designation_organisation = @designation");
+//         }
+//         let whereCatgeoryCondition = whereClause.length > 0 ? 'WHERE ' + whereClause.join(' AND ') : '';
+
+//         const result = await request.query(`SELECT 
+//                 tbl_official_foreign_visit.id,
+//                 tbl_official_foreign_visit.fv_id AS [Foreign Visit ID], 
+//                 year AS Year, 
+//                 mmt_ofv_stage.fv_stage_name AS Visit,
+//                -- visit AS Visit,
+//                 mmt_organisation.organisation_name AS Organisation, 
+//                 from_date AS [From Date],
+//                 to_date AS [To Date],
+//                 name AS [Name of the Officer], 
+//                 ISNULL(tbl_official_foreign_visit.GOI_designation,mmt_designation.designation) AS Designation, 
+//                 --duration AS [Number of days], 
+//                 visit_type_name AS [Visit Type], 
+//                 purpose AS [Purpose/Keywords], 
+//                 country_visited AS Country,
+//                 MAX(CASE WHEN filtered_ofv_doc.doc_related IN ('Tour', 'TourReport') THEN filtered_ofv_doc.file_name END) AS [Tour File],
+//                 MAX(CASE WHEN filtered_ofv_doc.doc_related = 'Sanction' THEN filtered_ofv_doc.file_name END) AS [Sanctioned Report],
+//                 Remarks
+//             FROM 
+//                 tbl_official_foreign_visit
+//             LEFT JOIN (
+//                 SELECT 
+//                     ofv_id,
+//                     file_name,
+//                     doc_related
+//                 FROM 
+//                     tbl_ofv_doc
+//             ) AS filtered_ofv_doc ON filtered_ofv_doc.ofv_id = tbl_official_foreign_visit.id
+//             LEFT JOIN 
+//                 mmt_organisation ON mmt_organisation.organisation_id = tbl_official_foreign_visit.organisation
+//             LEFT JOIN
+//                 mmt_ofv_visit_type ON mmt_ofv_visit_type.Id = tbl_official_foreign_visit.visit_type
+//             LEFT JOIN
+//                 mmt_designation ON mmt_designation.id = tbl_official_foreign_visit.designation_organisation
+//             INNER JOIN 
+//                 mmt_ofv_stage ON mmt_ofv_stage.fv_stage_id = tbl_official_foreign_visit.visit
+//             ${whereCatgeoryCondition}
+//             GROUP BY 
+//                 tbl_official_foreign_visit.id,   tbl_official_foreign_visit.fv_id, 
+//                 year, 
+//                 name, 
+//                 fv_stage_name,
+//                 Designation,
+//                 tbl_official_foreign_visit.GOI_designation,
+//                 mmt_designation.designation, 
+//                 mmt_organisation.organisation_name, 
+//                 from_date,
+//                 to_date,
+//                 duration, 
+//                 visit_type_name,
+//                 country_visited,
+//                 purpose,
+//                 Remarks
+//             ORDER BY visit ASC,
+//             year DESC;`);
+
+//         const rowData = result.recordset;  
+//             // console.log("rowdatas", rowData);
+//         if (rowData.length === 0) {
+//             return res.status(404).json({ error: 'No data available for this selection' });
+//         }
+
+//         const columnDefs = Object.keys(rowData[0]).map(key => ({
+//             headerName: key.charAt(0).toUpperCase() + key.slice(1), 
+//             field: key,
+//         }));
+        
+//         res.json({ columnDefs, rowData });
+
+//     } catch (err) {
+//         console.log(err);
+//         return res.sendStatus(500);
+//     }
+// }
 
 
 

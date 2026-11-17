@@ -106,8 +106,11 @@ export function fetchForeignVisitOngoing({ orgId, roleId, designationId, officer
  * '' or null would be treated as a real filter value and return nothing.
  * Responds { columnDefs, rowData }, or 404 when nothing matches.
  */
+
 export function fetchForeignVisitReport(filters) {
-  return axiosInstance.post('/get-OFV-report', filters);
+  const { orgID, roleId, ...reportFilters } = filters;
+
+  return axiosInstance.post(`/get-OFV-report/${orgID}/${roleId}`, reportFilters);
 }
 
 export function fetchForeignVisitByYear(year, type) {
