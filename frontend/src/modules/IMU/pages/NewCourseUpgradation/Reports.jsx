@@ -153,7 +153,7 @@ export default function NewCourseUpgradationReports({ notify }) {
     let tsv = columnDefs.map((c) => c.headerName).join('\t') + '\n';
     filteredRowData.forEach((row) => { tsv += columnDefs.map((c) => row[c.field] ?? '').join('\t') + '\n'; });
     navigator.clipboard.writeText(tsv).then(
-      () => notify?.(COMMON_TOASTS.copySuccess(filteredRowData.length)),
+      () => notify?.(COMMON_TOASTS.copySuccess(filteredRowData.length, 'from the report')),
       () => notify?.(COMMON_TOASTS.copyFailed()),
     );
   };
@@ -162,7 +162,7 @@ export default function NewCourseUpgradationReports({ notify }) {
     if (type === 'Excel') {
       // Works in Chart view too: the table (and its grid) only exists in Table view
       const file = exportGridToExcel({ title, columns: columnDefs, rows: filteredRowData, fileName: 'imu_new_course_upgradation_report' });
-      notify?.(COMMON_TOASTS.excelExported(file));
+      notify?.(COMMON_TOASTS.excelExported(file, 'The report'));
     }
     else if (type === 'PDF') {
       exportReportToPdf({
@@ -171,8 +171,8 @@ export default function NewCourseUpgradationReports({ notify }) {
         columnDefs,
         rowData: filteredRowData,
         fileName: 'imu_new_course_upgradation_report',
-      });
-      notify?.(COMMON_TOASTS.downloadStarted('imu_new_course_upgradation_report.pdf'));
+      }).then((file) => notify?.(COMMON_TOASTS.excelExported(file, 'The report')))
+        .catch((err) => { console.error('PDF export failed:', err); notify?.(COMMON_TOASTS.exportFailed()); });
     }
   };
 

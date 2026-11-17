@@ -230,8 +230,7 @@ async function sciVeslAvailUtilTimeandVoyageTankerReport(req,res) {
         UNION ALL
 
         SELECT
-            ''Total No. of days of Tankers on Time 
-			Charter'' AS Metric, ' + @columns + '
+            ''Total No. of days of Tankers on Time Charter'' AS Metric, ' + @columns + '
         FROM (
             SELECT financial_year, total_no_days_on_time_charter
             FROM tbl_sci_time_voyage_tanker

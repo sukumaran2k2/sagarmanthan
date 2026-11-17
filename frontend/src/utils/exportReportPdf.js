@@ -88,9 +88,12 @@ export async function exportReportToPdf({
     });
   }
 
+  // Same date stamp as the Excel export (YYYY-MM-DD_HHMM), so a report's files sort together
   const now = new Date();
-  const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
-  doc.save(`${fileName}_${stamp}.pdf`);
+  const pad = (n) => String(n).padStart(2, '0');
+  const name = `${fileName}_${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}.pdf`;
+  doc.save(name);
+  return name;
 }
 
 // Same idea as exportReportToPdf, but for a Data List (no chart, no report
@@ -150,8 +153,11 @@ export function exportDataListToPdf({
     alternateRowStyles: { fillColor: [248, 250, 246] },
   });
 
+  // Same date stamp as the Excel export (YYYY-MM-DD_HHMM), so a report's files sort together
   const now = new Date();
-  const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
-  doc.save(`${fileName}_${stamp}.pdf`);
+  const pad = (n) => String(n).padStart(2, '0');
+  const name = `${fileName}_${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}.pdf`;
+  doc.save(name);
+  return name;
 }
 
