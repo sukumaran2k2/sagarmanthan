@@ -126,9 +126,9 @@ const PARCEL_STAGES = [
 ];
 
 const PAST_STAGES = [
-  { id: 1, title: 'Basic Details', desc: 'Parcel & allotment' },
-  { id: 2, title: 'Financial Details', desc: 'Lease & rental values' },
-  { id: 3, title: 'Lessee & Milestones', desc: 'Lessee & dates' },
+  { id: 1, title: 'Basic Details', desc: 'Parcel, milestones & allotment' },
+  { id: 2, title: 'Lessee Details', desc: 'Lessee & lease expiry' },
+  { id: 3, title: 'Financial Details', desc: 'Lease & rental values' },
   { id: 4, title: 'Review & Submit', desc: 'Remarks & final check' },
 ];
 
@@ -230,7 +230,7 @@ function normalizeEditData(data) {
     }
   }
 
-  const dateKeys = ['nit_original', 'nit_actual', 'agreement_original', 'agreement_actual', 'construction_original', 'construction_actual', 'allotment_original', 'allotment_actual',
+ const dateKeys = ['nit_original', 'nit_actual', 'agreement_original', 'agreement_actual', 'construction_original', 'construction_actual', 'allotment_original', 'allotment_actual', 'lease_expiration_date',
   ...['nit', 'agreement', 'construction', 'allotment'].flatMap((prefix) => revisedKeysFor(prefix))];
   for (const k of dateKeys) {
     if (out[k]) out[k] = fmtDate(out[k]);
@@ -286,20 +286,52 @@ function validatePastStage(stage, formData) {
         (formData.purpose_id !== 4 || filled(formData.other_purpose)) &&     // Purpose = Others
         (formData.sector_id !== 11 || filled(formData.other_sector))         // Sector = Other
       );
-    case 2:
-      return !!(formData.upfront_premium != null || formData.annual_base_lease_rental || formData.lease_tenure);
-    case 3:
+        case 2: // Lessee Details
       return !!(
-        has(formData.agreement_signed_id) &&has(formData.allotment_original) && 
-        (formData.type_of_lessee_id !== 5 || filled(formData.other_agency))  // Lessee type = Others
+        has(formData.agreement_signed_id) && has(formData.allotment_original) &&
+        (formData.type_of_lessee_id !== 5 || filled(formData.other_agency))
       );
+    case 3: // Financial Details
+      return !!(formData.upfront_premium != null || formData.annual_base_lease_rental || formData.lease_tenure);
     case 4:
       return true;
     default:
       return false;
   }
 }
+function getMissingPastFields(stage, formData) {
+  const blank = (v) => !(v ?? '').toString().trim();
 
+  if (stage === 1) {
+    const req = [
+      ['parcel_detail', 'Parcel Detail'],
+      ['area_acres', 'Area (Acres)'],
+      ['industry_name', 'Industry/commercial activities'],
+      ['purpose_id', 'Purpose'],
+      ['sector_id', 'Sector'],
+      ['allotment_original', 'Date of Allotment of Land (Original Target Date)'],
+      ['year_of_allotment', 'Year of Allotment'],
+      ['mode_of_allotment_id', 'Mode of Allotment'],
+      ['status_id', 'Land Allotment Status'],
+    ];
+    const missing = req.filter(([k]) => !has(formData[k])).map(([, l]) => l);
+    if (formData.purpose_id === 4 && blank(formData.other_purpose)) missing.push('Other Purpose');
+    if (formData.sector_id === 11 && blank(formData.other_sector)) missing.push('Other Sector');
+    return missing.join(', ');
+  }
+    if (stage === 2) {
+    const missing = [];
+    if (!has(formData.agreement_signed_id)) missing.push('Agreement Signed');
+    if (!has(formData.allotment_original)) missing.push('Date of Allotment of Land (Original Target Date)');
+    if (formData.type_of_lessee_id === 5 && blank(formData.other_agency)) missing.push('Other Lessee Type');
+    return missing.join(', ');
+  }
+  if (stage === 3) {
+    return (formData.upfront_premium != null || formData.annual_base_lease_rental || formData.lease_tenure)
+      ? '' : 'Fill at least one financial field';
+  }
+  return '';
+}
 function getMissingFields(stage, formData, isFuture) {
   const blank = (v) => !(v ?? '').toString().trim();
 
@@ -877,59 +909,100 @@ function PastLandForm({ formData, onChange, stage = 1 }) {
   return (
     <div className="space-y-1 text-xs">
       {stage === 1 && (<>
-        <Section number={1} title="Basic and land parcel details" id="pl-s1">
-  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-    <div>
-      <FLabel label="Parcel Detail" required />
-      <input type="text" value={formData.parcel_detail || ''} onChange={e => onChange('parcel_detail', e.target.value)} className={inputCls} />
+  <Section number={1} title="Basic land details" id="pl-s1">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+      <div>
+        <FLabel label="Parcel Detail" required />
+        <input type="text" value={formData.parcel_detail || ''} onChange={e => onChange('parcel_detail', e.target.value)} className={inputCls} />
+      </div>
+      <div>
+        <FLabel label="Area (Acres)" required />
+        <input type="number" step="any" value={formData.area_acres || ''} onChange={e => onChange('area_acres', e.target.value)} className={inputCls} />
+      </div>
+      <div>
+        <FLabel label="Name of Specific Industry/Commercial Activities" required />
+        <input type="text" value={formData.industry_name || ''} onChange={e => onChange('industry_name', e.target.value)} className={inputCls} />
+      </div>
     </div>
-    <div>
-      <FLabel label="Area (Acres)" required />
-      <input type="number" step="any" value={formData.area_acres || ''} onChange={e => onChange('area_acres', e.target.value)} className={inputCls} />
-    </div>
-    <div>
-      <FLabel label="Name of Specific Industry/Commercial Activities" required />
-      <input type="text" value={formData.industry_name || ''} onChange={e => onChange('industry_name', e.target.value)} className={inputCls} />
-    </div>
-    
-  </div>
 
-  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
-    <div className="space-y-3">
-      <SelectField label="Purpose" required name="purpose_id" options={NMP_PURPOSE_OPTIONS} formData={formData} onChange={onChange} />
-      {formData.purpose_id === 4 && (
-        <OtherField label="Other Purpose" name="other_purpose" formData={formData} onChange={onChange} />
-      )}
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+      <div className="space-y-3">
+        <SelectField label="Purpose" required name="purpose_id" options={NMP_PURPOSE_OPTIONS} formData={formData} onChange={onChange} />
+        {formData.purpose_id === 4 && (
+          <OtherField label="Other Purpose" name="other_purpose" formData={formData} onChange={onChange} />
+        )}
+      </div>
+      <div className="space-y-3">
+        <SelectField label="Sector" required name="sector_id" options={NMP_SECTOR_OPTIONS} formData={formData} onChange={onChange} />
+        {formData.sector_id === 11 && (
+          <OtherField label="Other Sector" name="other_sector" formData={formData} onChange={onChange} />
+        )}
+      </div>
     </div>
-    <div className="space-y-3">
-      <SelectField label="Sector" required name="sector_id" options={NMP_SECTOR_OPTIONS} formData={formData} onChange={onChange} />
-      {formData.sector_id === 11 && (
-        <OtherField label="Other Sector" name="other_sector" formData={formData} onChange={onChange} />
-      )}
-    </div>
-    
-  </div>
-</Section>
-        <Section number={2} title="Allotment and status" id="pl-s2">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div><FLabel label="Year of allotment (FY)" required /><select value={formData.year_of_allotment || ''} onChange={e => onChange('year_of_allotment', e.target.value)} className={inputCls}><option value="">--Select Year--</option>{FY_OPTIONS.map(y => <option key={y} value={y}>{y}</option>)}</select></div>
-            <SelectField label="Mode of Allotment" required name="mode_of_allotment_id" options={NMP_MODE_OPTIONS} formData={formData} onChange={onChange} />
-            <SelectField label="Land Allotment Status" required name="status_id" options={NMP_STATUS_OPTIONS} formData={formData} onChange={onChange} />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <SelectField label="Lease Status" name="lease_status_id" options={PAST_LEASE_STATUS_OPTIONS} formData={formData} onChange={onChange} />
-          </div>
-        </Section>
-      </>)}
+  </Section>
 
-      {stage === 2 && (<>
-        <Section number={3} title="Financial and Lease Details" id="pl-s3">
+  <div className="mb-3 px-1">
+  <h3 className="text-sm font-extrabold text-slate-800 dark:text-slate-100">Milestone Details</h3>
+</div>
+
+<div className="space-y-4 mb-5">
+  <MilestoneRow title="NIT Date" keyPrefix="nit" formData={formData} onChange={onChange} />
+
+  <MilestoneRow title="Agreement Date" keyPrefix="agreement" formData={formData} onChange={onChange} />
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 px-4">
+  <SelectField label="Agreement Signed" required name="agreement_signed_id" options={AGREEMENT_SIGNED_OPTIONS} formData={formData} onChange={onChange} />
+</div>
+
+  <MilestoneRow title="Completion of construction" keyPrefix="construction" formData={formData} onChange={onChange} />
+  <MilestoneRow title="Date of Allotment of Land" keyPrefix="allotment" formData={formData} onChange={onChange} />
+</div>
+
+  <Section number={2} title="Allotment status" id="pl-s2">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div>
+        <FLabel label="Year of allotment (FY)" required />
+        <select value={formData.year_of_allotment || ''} onChange={e => onChange('year_of_allotment', e.target.value)} className={inputCls}>
+          <option value="">--Select Year--</option>
+          {FY_OPTIONS.map(y => <option key={y} value={y}>{y}</option>)}
+        </select>
+      </div>
+      <SelectField label="Mode of Allotment" required name="mode_of_allotment_id" options={NMP_MODE_OPTIONS} formData={formData} onChange={onChange} />
+      <SelectField label="Land Allotment Status" required name="status_id" options={NMP_STATUS_OPTIONS} formData={formData} onChange={onChange} />
+    </div>
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <SelectField label="Lease Status" name="lease_status_id" options={PAST_LEASE_STATUS_OPTIONS} formData={formData} onChange={onChange} />
+    </div>
+  </Section>
+</>)}
+
+{stage === 2 && (
+  <Section number={3} title="Lessee Details" id="pl-s5">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+      <div>
+        <FLabel label="Lessee Name" />
+        <input type="text" value={formData.lessee_name || ''} onChange={e => onChange('lessee_name', e.target.value)} className={inputCls} />
+      </div>
+      <div className="space-y-3">
+        <SelectField label="Type of Lessee" name="type_of_lessee_id" options={NMP_LESSEE_TYPE_OPTIONS} formData={formData} onChange={onChange} />
+        {formData.type_of_lessee_id === 5 && (
+          <OtherField label="Other Lessee Type" name="other_agency" formData={formData} onChange={onChange} />
+        )}
+      </div>
+      <div>
+        <FLabel label="Date of Lease Expiration" />
+        <input type="date" value={formData.lease_expiration_date || ''} onChange={e => onChange('lease_expiration_date', e.target.value)} className={inputCls} />
+      </div>
+    </div>
+  </Section>
+)}
+      {stage === 3 && (<>
+        <Section number={3} title="Financial  Details" id="pl-s3">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div><FLabel label="Upfront Premium Received in Year of Allotment [A] (INR Cr)" /><input type="number" step="any" value={formData.upfront_premium || ''} onChange={e => onChange('upfront_premium', e.target.value)} className={inputCls} /></div>
             <div><FLabel label="Investment Done by Private Player [C] (INR Cr)" /><input type="number" step="any" value={formData.estimated_private_investment || ''} onChange={e => onChange('estimated_private_investment', e.target.value)} className={inputCls} /></div>
           </div>
         </Section>
-        <Section number={4} title="Lease and Rental Details" id="pl-s4">
+    
           <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
             <table className="w-full text-[11px] min-w-[960px]">
               <thead>
@@ -977,30 +1050,10 @@ function PastLandForm({ formData, onChange, stage = 1 }) {
               <div className={autoCls} style={{ width: 160 }}>{totalValue ?? '—'}</div>
             </div>
           </div>
-        </Section>
+        
       </>)}
 
-      {stage === 3 && (<>
-       <Section number={5} title="Lessee and Milestone Details" id="pl-s5">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-        <SelectField label="Type of Lessee" name="type_of_lessee_id" options={NMP_LESSEE_TYPE_OPTIONS} formData={formData} onChange={onChange} />
-        {formData.type_of_lessee_id === 5 && (
-          <OtherField label="Other Lessee Type" name="other_agency" formData={formData} onChange={onChange} />
-        )}
-      </div>
-    </Section>
-        <MilestoneRow title="NIT Date" keyPrefix="nit" formData={formData} onChange={onChange} />
-        <div className="mb-1" />
-        <MilestoneRow title="Agreement Date" keyPrefix="agreement" formData={formData} onChange={onChange} />
-        <div className="px-5 py-3">
-          <div className="max-w-xs">
-            <SelectField label="Agreement Signed" required name="agreement_signed_id" options={AGREEMENT_SIGNED_OPTIONS} formData={formData} onChange={onChange} />
-          </div>
-        </div>
-        <MilestoneRow title="Completion of construction" keyPrefix="construction" formData={formData} onChange={onChange} />
-        <div className="mb-1" />
-<MilestoneRow title="Date of Allotment of Land" keyPrefix="allotment" formData={formData} onChange={onChange} />
-      </>)}
+
 
       {stage === 4 && (
         <Section number={6} title="Remarks and Data Quality" id="pl-s6">
@@ -1079,15 +1132,17 @@ export default function NmpInputForm({ editData, onSuccess, onCancel, triggerNot
   }, [currentStage, formData, isAbstract, isPast, isFuture]);
 
   const handleNext = useCallback(() => {
-    if (!canAdvance) {
-      const missing = getMissingFields(currentStage, formData, isFuture);
-      setStageError(missing ? `Missing: ${missing}` : 'Complete the required fields to proceed');
-      return;
-    }
-    setStageError('');
-    setCompletedStages((prev) => new Set([...prev, currentStage]));
-    if (currentStage < 4) setCurrentStage(currentStage + 1);
-  }, [canAdvance, currentStage, formData, isFuture]);
+  if (!canAdvance) {
+    const missing = isPast
+      ? getMissingPastFields(currentStage, formData)
+      : getMissingFields(currentStage, formData, isFuture);
+    setStageError(missing ? `Missing: ${missing}` : 'Complete the required fields to proceed');
+    return;
+  }
+  setStageError('');
+  setCompletedStages((prev) => new Set([...prev, currentStage]));
+  if (currentStage < 4) setCurrentStage(currentStage + 1);
+}, [canAdvance, currentStage, formData, isFuture, isPast]);
 
   const handlePrev = useCallback(() => {
     if (currentStage > 1) {
