@@ -1023,16 +1023,12 @@ async function updateMmt(req, res)
         request.input("division", division);
         request.input("category", category);
         request.input("wing", req.body.wing ?? null);
-        // Wing and Division are optional: when the form sends them (even empty) they are saved as sent,
-        // so they can be cleared; when a caller leaves them out, the saved values stay
-        const hasWingDivision = ["wing", "division"].every((k) => Object.prototype.hasOwnProperty.call(req.body, k));
         query = `UPDATE mmt_organisation
                 SET organisation_name = COALESCE(@name, organisation_name),
                     organisation_code = COALESCE(@code, organisation_code),
                     organisation_category_id = COALESCE(@category, organisation_category_id),
-                    ${hasWingDivision
-                      ? "wing_id = @wing, division_id = @division,"
-                      : "wing_id = COALESCE(@wing, wing_id), division_id = COALESCE(@division, division_id),"}
+                    wing_id = COALESCE(@wing, wing_id),
+                    division_id = COALESCE(@division, division_id),
                     status = COALESCE(@status, status)
                 WHERE organisation_id = @ID`;
         break;
