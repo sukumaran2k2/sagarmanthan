@@ -52,9 +52,27 @@ async function createMmt(req, res) {
             query = "INSERT into mmt_terminal_jetty (terminal_name, type, national_waterway_id, state_id, district_id, latitude, longitude) OUTPUT INSERTED.terminal_id values (@name, @type, @nationalWaterway, @state, @district, @latitude, @longitude)";
             break;
 
-        case "mmt_project_category":
-            query = "INSERT into mmt_project_category (project_category_name) values (@name)";
+        case "mmt_project_category": {
+            // project_category_id is not an IDENTITY column, and broad_category_id and status are
+            // NOT NULL with no default, so all three are set here. The next id is taken under a
+            // lock so two adds at the same moment cannot get the same id.
+            const broadCategoryId = Number(req.body.broadCategoryId);
+            const broad = Number.isInteger(broadCategoryId) && broadCategoryId > 0
+                ? await conn.request().input("broadCategoryId", broadCategoryId)
+                    .query("SELECT 1 AS ok FROM mmt_broad_category WHERE broad_category_id = @broadCategoryId AND status = 1")
+                : { recordset: [] };
+            if (!broad.recordset.length) {
+                return res.status(400).json({ message: "Select a broad category for the project category." });
+            }
+            request.input("broadCategoryId", broadCategoryId);
+            query = `SET XACT_ABORT ON;
+                BEGIN TRANSACTION;
+                INSERT into mmt_project_category (project_category_id, project_category_name, broad_category_id, status)
+                SELECT ISNULL(MAX(project_category_id), 0) + 1, @name, @broadCategoryId, 1
+                FROM mmt_project_category WITH (UPDLOCK, HOLDLOCK);
+                COMMIT TRANSACTION;`;
             break;
+        }
 
         case "mmt_wings":
             wingCode = req.body.wingCode;
@@ -100,9 +118,6 @@ async function createMmt(req, res) {
             query = "INSERT into mmt_mp_constituency (mpc_name, state_id) values (@name, @stateId)";
             break;
 
-        case "mmt_project_category":
-            query = "INSERT into mmt_project_category (project_category_name) values (@name)";
-            break;
 
         case "mmt_funding_agency":
             query = "INSERT into mmt_funding_agency (fa_name) values (@name)";
@@ -321,6 +336,9 @@ async function getDropDownData(req, res) {
 
         case "mmt_project_category":
             query = "SELECT project_category_id, project_category_name FROM mmt_project_category WHERE status = 1 ORDER BY project_category_name";
+            break;
+        case "mmt_broad_category":
+            query = "SELECT broad_category_id, broad_category_name FROM mmt_broad_category WHERE status = 1 ORDER BY broad_category_name";
             break;
 
         case "mmt_scheme":
@@ -746,9 +764,6 @@ async function getMmt(req, res) {
             query = "SELECT * FROM mmt_mp_constituency";
             break;
 
-        case "mmt_project_category":
-            query = "SELECT * FROM mmt_project_category";
-            break;
 
         case "mmt_funding_agency":
             query = "SELECT * FROM mmt_funding_agency";
@@ -884,6 +899,7 @@ async function updateMmt(req, res)
     const division = req.body.division;
     const district = req.body.district;
     const status = req.body.status;
+    const broadCategoryId = Number.isInteger(Number(req.body.broadCategoryId)) && Number(req.body.broadCategoryId) > 0 ? Number(req.body.broadCategoryId) : null;
 
    
     const portalCategory = req.body.portalCategory;
@@ -901,6 +917,7 @@ async function updateMmt(req, res)
     request.input("divId", divId);
     request.input("wingId", wingId);
     request.input("status", status === undefined ? null : Number(status));
+    request.input("broadCategoryId", broadCategoryId);
 
     let query;
     switch (tid) {
@@ -938,7 +955,7 @@ async function updateMmt(req, res)
             break;
 
         case "mmt_project_category":
-            query = "UPDATE mmt_project_category SET project_category_name = @name, status = COALESCE(@status, status) WHERE project_category_id = @ID";
+            query = "UPDATE mmt_project_category SET project_category_name = @name, broad_category_id = COALESCE(@broadCategoryId, broad_category_id), status = COALESCE(@status, status) WHERE project_category_id = @ID";
             break;
 
         case "mmt_wings":
@@ -1092,7 +1109,7 @@ async function toggleStatusMmt(req, res) {
     let query;
     switch (tid) {
         case "mmt_source_of_funding":
-            query = "UPDATE mmt_source_of_funding SET source_of_funding_name = @name WHERE source_of_funding_id = @rowID";
+            query = "UPDATE mmt_source_of_funding SET status = @status WHERE source_of_funding_id = @rowID";
             break;
 
         case "mmt_nationalwaterways":
@@ -1143,9 +1160,6 @@ async function toggleStatusMmt(req, res) {
             query = "UPDATE mmt_mp_constituency SET status = @status WHERE mpc_id = @rowID";
             break;
 
-        case "mmt_project_category":
-            query = "UPDATE mmt_project_category SET project_category_name = @name WHERE project_category_id = @rowID";
-            break;
 
         case "mmt_organisation":
             query = "UPDATE mmt_organisation SET status = @status WHERE organisation_id = @rowID";
