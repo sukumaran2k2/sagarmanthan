@@ -38,9 +38,13 @@ const MASTERS = {
     label: 'Project Category',
     note: 'Categories used to classify projects.',
     ...mmt('mmt_project_category'),
-    hideColumns: ['broad_category_id', 'project_core_category'],   // <-- ADD
+    hideColumns: ['broad_category_id', 'project_core_category'],
     fields: [
       { name: 'project_category_name', label: 'Project Category Name', type: 'text', required: true },
+      // every project category belongs to a broad category (required by the database)
+      { name: 'broad_category_id', label: 'Broad Category', type: 'select', required: true,
+        optionsFrom: 'mmt_broad_category', optionValue: 'broad_category_id', optionLabel: 'broad_category_name',
+        placeholder: '--Select Broad Category--' },
     ],
   },
   wings:                { label: 'Wings',                    note: 'Wings of the Ministry.',                     ...mmt('mmt_wings') },

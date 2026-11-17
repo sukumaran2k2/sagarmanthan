@@ -8,6 +8,7 @@ const MMT_INSERT_MAP = {
   mmt_division:          { name: 'division_name', extras: { wingId: 'wing_id', divisionCode: 'division_code' } },
   mmt_wings:             { name: 'wing_name',     extras: { wingCode: 'wing_code' } },
   mmt_source_of_funding: { name: 'source_of_funding_name', extras: {} },
+  mmt_project_category: { name: 'project_category_name', extras: { broadCategoryId: 'broad_category_id' } },
   mmt_output: { name: 'project_output_name', extras: { units: 'project_output_units' } },
   mmt_mp_constituency: { name: 'mpc_name', extras: { stateId: 'state_id' } },
   mmt_district: { name: 'district_name', extras: { stateId: 'state_id' } },
