@@ -1,20 +1,21 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Handshake, Gavel, Users, FileEdit, FilePieChart } from "lucide-react";
 
-import ArbitrationList from "./lists/ArbitrationList";
-import LitigationList from "./lists/LitigationList";
-import ConciliationList from "./lists/ConciliationList";
+import ArbitrationList from "./pages/ArbitrationList";
+import LitigationList from "./pages/LitigationList";
+import ConciliationList from "./pages/ConciliationList";
 import ArbitrationForm from "./forms/ArbitrationForm";
 import LitigationForm from "./forms/LitigationForm";
 import ConciliationForm from "./forms/ConciliationForm";
-import CourtCaseReports from "./CourtCaseReports";
+import CourtCaseReports from "./pages/Reports";
 
 const MAIN_TABS = [
-  { key: "Arbitration",  label: "Arbitration",  icon: Handshake },
-  { key: "Litigation",   label: "Litigation",   icon: Gavel },
-  { key: "Conciliation", label: "Conciliation", icon: Users },
-  { key: "Input Form",   label: "Input Form",   icon: FileEdit },
-  { key: "Reports",      label: "Reports",      icon: FilePieChart },
+  { key: "arbitration",   label: "Arbitration",  icon: Handshake },
+  { key: "litigation",    label: "Litigation",   icon: Gavel },
+  { key: "conciliation",  label: "Conciliation", icon: Users },
+  { key: "input-form",    label: "Input Form",   icon: FileEdit },
+  { key: "reports",       label: "Reports",      icon: FilePieChart },
 ];
 
 const FORM_TABS = [
@@ -22,6 +23,8 @@ const FORM_TABS = [
   { key: "Litigation",   label: "Litigation",   icon: Gavel },
   { key: "Conciliation", label: "Conciliation", icon: Users },
 ];
+
+const BASE_PATH = "/legal/court-cases";
 
 const TabButton = ({ active, onClick, icon: Icon, label, small }) => (
   <button
@@ -34,25 +37,25 @@ const TabButton = ({ active, onClick, icon: Icon, label, small }) => (
   </button>
 );
 
-export default function CourtCases({ targetSubTab }) {
-  const [mainTab, setMainTab] = useState(targetSubTab || "Arbitration");
+export default function CourtCases() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [formTab, setFormTab] = useState("Arbitration");
 
-  // react when the navbar dropdown changes the sub tab
-  useEffect(() => {
-    if (targetSubTab) setMainTab(targetSubTab);
-  }, [targetSubTab]);
+  const subPath = location.pathname.replace(/^\/legal\/court-cases\/?/, "").replace(/\/$/, "") || "arbitration";
+  const mainTab = MAIN_TABS.find((t) => t.key === subPath)?.key || "arbitration";
+
+  const goToTab = (key) => navigate(`${BASE_PATH}/${key}`);
 
   const renderContent = () => {
     switch (mainTab) {
-      case "Arbitration":  return <ArbitrationList />;
-      case "Litigation":   return <LitigationList />;
-      case "Conciliation": return <ConciliationList />;
-      case "Reports":      return <CourtCaseReports />;
-      case "Input Form":
+      case "arbitration":  return <ArbitrationList />;
+      case "litigation":   return <LitigationList />;
+      case "conciliation": return <ConciliationList />;
+      case "reports":      return <CourtCaseReports />;
+      case "input-form":
         return (
           <>
-            {/* second-level tabs, only inside Input Form */}
             <div className="flex gap-2 border-b border-slate-200 pb-3 mb-6">
               {FORM_TABS.map((t) => (
                 <TabButton
@@ -86,7 +89,7 @@ export default function CourtCases({ targetSubTab }) {
             <TabButton
               key={t.key}
               active={mainTab === t.key}
-              onClick={() => setMainTab(t.key)}
+              onClick={() => goToTab(t.key)}
               icon={t.icon} label={t.label}
             />
           ))}
