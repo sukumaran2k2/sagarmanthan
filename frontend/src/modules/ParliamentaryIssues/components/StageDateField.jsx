@@ -1,5 +1,5 @@
 const labelClass =
-  'block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider';
+  'block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider';
 const inputClass =
   'w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-250 dark:border-slate-800 rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200 disabled:opacity-60 disabled:cursor-not-allowed dark:[color-scheme:dark]';
 

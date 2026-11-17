@@ -220,14 +220,14 @@ export default function NoteForm({
                     setForm((prev) => ({ ...prev, wing: e.target.value, division: '' }));
                   }}
                 >
-                  <option value="" className="dark:bg-slate-955 dark:text-slate-300">
+                  <option value="" className="dark:bg-slate-950 dark:text-slate-300">
                     Select Wing
                   </option>
                   {wings.map((w) => (
                     <option
                       key={w.wing_id}
                       value={w.wing_id}
-                      className="dark:bg-slate-955 dark:text-slate-300"
+                      className="dark:bg-slate-950 dark:text-slate-300"
                     >
                       {w.wing_name}
                     </option>
@@ -245,14 +245,14 @@ export default function NoteForm({
                   disabled={readOnly}
                   onChange={(e) => setField('division', e.target.value)}
                 >
-                  <option value="" className="dark:bg-slate-955 dark:text-slate-300">
+                  <option value="" className="dark:bg-slate-950 dark:text-slate-300">
                     Select Division
                   </option>
                   {filteredDivisions.map((d) => (
                     <option
                       key={d.division_id}
                       value={d.division_id}
-                      className="dark:bg-slate-955 dark:text-slate-300"
+                      className="dark:bg-slate-950 dark:text-slate-300"
                     >
                       {d.division_name}
                     </option>
@@ -278,7 +278,7 @@ export default function NoteForm({
               {!readOnly && (
                 <div className="space-y-1.5">
                   <label className={labelClass}>Cabinet Note Document</label>
-                  <div className="flex items-center justify-center border-2 border-dashed border-slate-250 dark:border-slate-800 rounded-xl p-4 hover:bg-white dark:hover:bg-slate-900/50 transition cursor-pointer relative">
+                  <div className="flex items-center justify-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl p-4 hover:bg-white dark:hover:bg-slate-900/50 transition cursor-pointer relative">
                     <input
                       type="file"
                       ref={fileInputRef}
@@ -289,7 +289,7 @@ export default function NoteForm({
                     />
                     <div className="text-center space-y-1 pointer-events-none">
                       <Upload className="mx-auto h-6 w-6 text-slate-400" />
-                      <p className="text-[11px] font-bold text-slate-655 dark:text-slate-400 uppercase tracking-wide">
+                      <p className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
                         Upload PDF file
                       </p>
                       <p className="text-[9px] text-slate-400 font-semibold">
@@ -336,7 +336,7 @@ export default function NoteForm({
                           >
                             <span>View current document:</span>
                             <span
-                              className="text-slate-600 dark:text-slate-450 font-semibold truncate max-w-[200px]"
+                              className="text-slate-600 dark:text-slate-400 font-semibold truncate max-w-[200px]"
                               title={doc.cabinet_notes_mopsw_document}
                             >
                               {doc.cabinet_notes_mopsw_document}
@@ -401,7 +401,7 @@ export default function NoteForm({
           <button
             type="button"
             onClick={onBack}
-            className="px-4.5 py-2.5 border border-slate-250 dark:border-slate-800 text-slate-655 dark:text-slate-400 rounded-xl text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-900 hover:text-slate-800 dark:hover:text-slate-200 transition cursor-pointer"
+            className="px-4.5 py-2.5 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-900 hover:text-slate-800 dark:hover:text-slate-200 transition cursor-pointer"
           >
             {readOnly ? 'Back' : 'Discard'}
           </button>
@@ -411,7 +411,7 @@ export default function NoteForm({
               disabled={submitting || wordCount > 250}
               className={`px-5.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 submitting || wordCount > 250
-                  ? 'bg-slate-300 dark:bg-slate-800 text-slate-500 dark:text-slate-550 cursor-not-allowed border border-slate-200 dark:border-slate-700'
+                  ? 'bg-slate-300 dark:bg-slate-800 text-slate-500 dark:text-slate-500 cursor-not-allowed border border-slate-200 dark:border-slate-700'
                   : 'bg-[#0f417a] hover:bg-[#1a5ba3] text-white shadow-md shadow-blue-900/10 hover:shadow-lg dark:bg-[#0f417a] dark:hover:bg-[#0a2d55]'
               }`}
             >

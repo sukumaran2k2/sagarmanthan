@@ -26,6 +26,7 @@ export default function InputForm({
   onBack,
   onSuccess,
   triggerNotification,
+  readOnly = false,
 }) {
   const isEdit = !!editData;
   const notify = useNotifier(triggerNotification);
@@ -170,13 +171,17 @@ export default function InputForm({
       <div className="module-form-banner">
         <div>
           <h3 className="module-form-banner-title">
-            {isEdit ? 'Update Audit Para Entry' : 'Register New Audit Para'}
+            {readOnly ? 'View Audit Para (Read-only)' : isEdit ? 'Update Audit Para Entry' : 'Register New Audit Para'}
           </h3>
           <p className="module-form-banner-subtext">Ministry of Ports, Shipping and Waterways</p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="p-6">
+        {/* One disabled fieldset instead of a disabled prop on each control: the browser
+            disables every descendant, so a field added later cannot miss the read-only
+            rule. `contents` keeps the fieldset out of the layout. */}
+        <fieldset disabled={readOnly} className="contents">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <div className="lg:col-span-5 space-y-5">
             <div className="space-y-1.5">
@@ -274,8 +279,8 @@ export default function InputForm({
                     key={stageNum}
                     className={`flex flex-col gap-3 p-3 border rounded-xl shadow-xs transition-all duration-200 ${
                       isStageDisabled
-                        ? 'bg-slate-100/50 dark:bg-slate-900/30 border-slate-100 dark:border-slate-850 opacity-55'
-                        : 'bg-white dark:bg-slate-900 border-slate-150 dark:border-slate-800 hover:border-slate-250'
+                        ? 'bg-slate-100/50 dark:bg-slate-900/30 border-slate-100 dark:border-slate-800 opacity-55'
+                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-3">
@@ -309,7 +314,7 @@ export default function InputForm({
                               checked={currentStage.checked}
                               disabled={isStageDisabled}
                               onChange={(e) => handleStage4Toggle(e.target.checked)}
-                              className="rounded border-slate-350 text-blue-800 focus:ring-blue-500 h-4 w-4 cursor-pointer disabled:cursor-not-allowed"
+                              className="rounded border-slate-300 text-blue-800 focus:ring-blue-500 h-4 w-4 cursor-pointer disabled:cursor-not-allowed"
                             />
                             <span>Applicable</span>
                           </label>
@@ -331,7 +336,7 @@ export default function InputForm({
                             onChange={(e) => handleStageRemarkChange(stageNum, e.target.value)}
                             onFocus={() => setFocusedStage(stageNum)}
                             onBlur={() => setFocusedStage(null)}
-                            className="w-full text-[11px] px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-lg focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-medium text-slate-700 dark:text-slate-300 placeholder-slate-400"
+                            className="w-full text-[11px] px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-medium text-slate-700 dark:text-slate-300 placeholder-slate-400"
                           />
                         </div>
                       </div>
@@ -343,15 +348,18 @@ export default function InputForm({
           </div>
         </div>
 
+        </fieldset>
+
         <div className="flex items-center justify-end space-x-3 pt-5 border-t border-slate-200 dark:border-slate-700">
           {onBack && (
             <button
               type="button" onClick={onBack}
-              className="px-4.5 py-2.5 border border-slate-250 dark:border-slate-700 text-slate-655 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-850 dark:hover:text-slate-100 transition cursor-pointer"
+              className="px-4.5 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-100 transition cursor-pointer"
             >
-              Discard
+              {readOnly ? 'Back to List' : 'Discard'}
             </button>
           )}
+          {!readOnly && (
           <button
             type="submit" disabled={submitting}
             className="flex items-center space-x-2 px-5.5 py-2.5 bg-[#0f417a] hover:bg-[#1a5ba3] text-white rounded-xl text-xs font-bold shadow-md shadow-blue-900/10 hover:shadow-lg transition-all cursor-pointer disabled:opacity-60"
@@ -359,6 +367,7 @@ export default function InputForm({
             <Save className="h-4 w-4" />
             <span>{submitting ? 'Saving...' : 'Save Audit Para'}</span>
           </button>
+          )}
         </div>
       </form>
     </div>

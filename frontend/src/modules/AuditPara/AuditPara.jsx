@@ -10,7 +10,6 @@ import Reports from './pages/Reports';
 import { useAuditParaPermissions } from './hooks/useAuditParaPermissions';
 import { useAuditParaStore } from './store/useAuditParaStore';
 import { fetchAuditParas, deleteAuditPara } from './api';
-import { getCurrentUserId } from '../../utils/authSession';
 import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../utils/notify';
 import { AUDIT_PARA_TOASTS } from './toastMessages';
 
@@ -100,7 +99,7 @@ export default function AuditParaView({ triggerNotification }) {
   const loadParas = useCallback(() => {
     const requestId = ++latestRequestRef.current;
     const isStale = () => requestId !== latestRequestRef.current;
-    return fetchAuditParas(getCurrentUserId())
+    return fetchAuditParas()
       .then((res) => {
         if (!isStale()) setRowData((res.data || []).map(parseAuditParaRow));
       })
@@ -215,13 +214,16 @@ export default function AuditParaView({ triggerNotification }) {
               onEdit={handleEdit}
               onDelete={handleDelete}
               canEdit={canEdit}
+              canView={canView}
               canRemove={canRemove}
               triggerNotification={triggerNotification}
             />
           ) : <Navigate to={`${BASE}/input-form`} replace />} />
 
-          {/* Editing needs edit rights; adding needs add rights */}
-          <Route path="input-form" element={(editData ? canEdit : canAdd) ? (
+          {/* Adding needs add rights. Opening an existing para needs only read: without
+              edit rights InputForm renders read-only, so a read-only user can still see
+              the per-stage dates and remarks the grid does not show. */}
+          <Route path="input-form" element={(editData ? (canEdit || canView) : canAdd) ? (
             <InputForm
               key={editData?.id ?? 'new'}
               wings={wings}
@@ -230,6 +232,7 @@ export default function AuditParaView({ triggerNotification }) {
               onSuccess={handleSuccess}
               triggerNotification={triggerNotification}
               editData={editData}
+              readOnly={!!editData && !canEdit}
             />
           ) : <Navigate to={`${BASE}/list-view`} replace />} />
 

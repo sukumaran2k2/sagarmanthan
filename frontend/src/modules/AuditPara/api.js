@@ -4,8 +4,11 @@ export { API_BASE };
 
 const api = createApiClient();
 
-export function fetchAuditParas(userID) {
-  return api.get('/audit-para', { params: { userID } });
+// The backend scopes the list from the signed-in user's token and ignores any userID sent
+// here, so none is passed - a parameter that looks like it selects whose paras you get,
+// but does not, invites someone to start trusting it later.
+export function fetchAuditParas() {
+  return api.get('/audit-para');
 }
 
 // Dashboard figures; wingId and category ('' = all) narrow them

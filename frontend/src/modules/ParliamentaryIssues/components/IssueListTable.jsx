@@ -334,7 +334,7 @@ export default function IssueListTable({
       </div>
 
       <div className="module-card space-y-4">
-        <div className="flex flex-col lg:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
+        <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
           <div className="flex items-center gap-2.5 w-full lg:w-auto">
             <button
               type="button"
@@ -367,7 +367,7 @@ export default function IssueListTable({
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-end">
-            <div className="relative min-w-[200px] flex-1 sm:flex-initial">
+            <div className="relative w-full sm:w-auto sm:min-w-[200px] flex-1 sm:flex-initial">
               <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
               <input
                 type="text"

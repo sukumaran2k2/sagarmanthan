@@ -5,9 +5,10 @@ import * as am5xy from '@amcharts/amcharts5/xy';
 import am5themes_Animated from '@amcharts/amcharts5/themes/Animated';
 import { fetchCabinetMopswDashboard, fetchWings } from '../api';
 import ChartExportMenu from '../../../components/ChartExportMenu';
+import TableExportMenu from '../../../components/TableExportMenu';
 import { chartColors, useIsDark } from '../../../utils/amCharts';
-import { MoreVertical, FileSpreadsheet, Printer, Filter, ChevronDown } from 'lucide-react';
-import { exportRowsToFile } from '../../../utils/exportGridReport';
+import { Filter, ChevronDown } from 'lucide-react';
+import { COMMON_TOASTS } from '../../../utils/notify';
 
 function KpiCard({ label, value, subtext, icon: Icon, valueColorClass, iconWrapClass, subtextColorClass }) {
   return (
@@ -123,62 +124,7 @@ function PendingDays({ days }) {
   return <span className={`font-bold text-xs ${cls}`}>{days}</span>;
 }
 
-function TableExportMenu({ headers, data, fileName = 'export', title = 'Report' }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const menuRef = useRef(null);
-
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (menuRef.current && !menuRef.current.contains(event.target)) setIsOpen(false);
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // Excel (.xlsx) and PDF straight to a file (no print dialog or new tab)
-  const download = (type) => {
-    setIsOpen(false);
-    if (!data?.length) return;
-    exportRowsToFile(type, { title, headers, rows: data.map((row) => Object.values(row)), fileName });
-  };
-  const handleExcel = () => download('excel');
-  const handlePrint = () => download('pdf');
-
-  return (
-    <div className="relative inline-block" ref={menuRef}>
-      <button
-        type="button"
-        onClick={() => setIsOpen((v) => !v)}
-        title="Export options"
-        className="flex items-center justify-center w-8 h-8 rounded-lg bg-transparent border-none text-white/90 hover:bg-white/10 transition cursor-pointer"
-      >
-        <MoreVertical className="h-4 w-4" />
-      </button>
-      {isOpen && (
-        <div className="absolute right-0 top-full mt-1.5 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden">
-          <button
-            type="button"
-            onClick={handleExcel}
-            className="flex items-center gap-2.5 w-full px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer border-none bg-transparent text-left"
-          >
-            <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-            <span>Excel (.xlsx)</span>
-          </button>
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="flex items-center gap-2.5 w-full px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer border-none bg-transparent text-left border-t border-slate-100 dark:border-slate-800"
-          >
-            <Printer className="h-4 w-4 text-rose-600 dark:text-rose-400" />
-            <span>PDF</span>
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-export default function CabinetNotesMopswDashboard() {
+export default function CabinetNotesMopswDashboard({ notify }) {
   const [distChartRoot, setDistChartRoot] = useState(null);
   const [wingChartRoot, setWingChartRoot] = useState(null);
   const [wings, setWings] = useState([]);
@@ -193,9 +139,15 @@ export default function CabinetNotesMopswDashboard() {
     let cancelled = false;
     fetchCabinetMopswDashboard(selectedWing)
       .then((res) => { if (!cancelled) setResult({ key: requestKey, data: res.data, error: null }); })
-      .catch(() => { if (!cancelled) setResult({ key: requestKey, data: null, error: 'Failed to load dashboard data.' }); });
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('Cabinet Notes (MoPSW) dashboard:', err);
+        setResult({ key: requestKey, data: null, error: 'Failed to load dashboard data.' });
+        // The inline message alone is easy to miss on a long page
+        notify?.(COMMON_TOASTS.loadFailed('The cabinet notes dashboard'));
+      });
     return () => { cancelled = true; };
-  }, [requestKey, selectedWing]);
+  }, [requestKey, selectedWing, notify]);
   const loading = result?.key !== requestKey;
   const data = loading ? null : result.data;
   const error = loading ? null : result.error;
@@ -237,26 +189,27 @@ export default function CabinetNotesMopswDashboard() {
     </div>
   );
 
-  const heatMapExportData = heatMap
+  // The shared TableExportMenu takes rows as arrays, in the same order as its headers
+  const heatMapExportRows = heatMap
     .filter((row) => row.stage_id !== 11)
-    .map((row) => ({
-      Stage: row.stage_name,
-      Count: row.note_count,
-      'Avg days': row.note_count ? row.avg_days : '—',
-      'Max days': row.note_count ? row.max_days : '—',
-    }));
+    .map((row) => [
+      row.stage_name,
+      row.note_count,
+      row.note_count ? row.avg_days : '—',
+      row.note_count ? row.max_days : '—',
+    ]);
 
-  const longPendingExportData = longPending.map((row, i) => ({
-    'S.No': i + 1,
-    Subject: row.subject,
-    Wing: row.wing_name,
-    'Current stage': row.current_stage,
-    'Last Updated': row.updated_date ? new Date(row.updated_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
-    Days: row.pending_days,
-  }));
+  const longPendingExportRows = longPending.map((row, i) => [
+    i + 1,
+    row.subject,
+    row.wing_name,
+    row.current_stage,
+    row.updated_date ? new Date(row.updated_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
+    row.pending_days,
+  ]);
 
   return (
-    <div className="space-y-5 bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-indigo-950/25 dark:via-slate-950 dark:to-purple-950/20 rounded-3xl p-6">
+    <div className="space-y-5 bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-indigo-950/25 dark:via-slate-950 dark:to-purple-950/20 rounded-2xl sm:rounded-3xl p-3 sm:p-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <p className="text-[10px] text-slate-700 dark:text-slate-300 font-semibold">
@@ -303,7 +256,7 @@ export default function CabinetNotesMopswDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiCard
           label="Total cabinet notes"
           value={kpi?.total}
@@ -350,7 +303,7 @@ export default function CabinetNotesMopswDashboard() {
             </h3>
             <TableExportMenu
               headers={['Stage', 'Count', 'Avg days', 'Max days']}
-              data={heatMapExportData}
+              rows={heatMapExportRows}
               fileName="stage_wise_heat_map"
               title="Stage-wise Heat Map"
             />
@@ -423,7 +376,7 @@ export default function CabinetNotesMopswDashboard() {
             </h3>
             <TableExportMenu
               headers={['S.No', 'Subject', 'Wing', 'Current stage', 'Last Updated', 'Days']}
-              data={longPendingExportData}
+              rows={longPendingExportRows}
               fileName="long_pending_cabinet_notes"
               title="Long Pending Cabinet Notes (Top 10)"
             />

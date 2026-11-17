@@ -101,7 +101,7 @@ export default function ParliamentaryIssues({
 
       <div className="space-y-8">
         <Routes>
-          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="dashboard" element={<Dashboard notify={notify} />} />
           <Route path="data-list" element={
             <ListView notify={notify} onEdit={handleEdit} onGoHome={onGoHome} />
           } />

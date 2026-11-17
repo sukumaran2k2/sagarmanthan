@@ -77,12 +77,14 @@ describe('Audit Para store', () => {
   it('resetAllStores restores defaults (logout)', () => {
     state().setSearchTerm('cag');
     state().setSelectedWing('Ports');
-    state().setVisibleCols((cols) => ({ ...cols, remarks: false }));
+    // Remarks is unticked by default, so turn it ON to make the reset observable
+    state().setVisibleCols((cols) => ({ ...cols, remarks: true }));
     state().setReportView('all');
     resetAllStores();
     expect(state()).toMatchObject({
       searchTerm: '', selectedWing: '', currentPage: 1, pageSize: 10, showFilterPanel: false, reportView: 'wing',
     });
-    expect(state().visibleCols.remarks).toBe(true);
+    expect(state().visibleCols.remarks).toBe(false);
+    expect(state().visibleCols.subject).toBe(true);
   });
 });

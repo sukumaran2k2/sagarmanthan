@@ -307,7 +307,7 @@ export default function AuditParaDashboard({ notify, wings = [], onOpenList }) {
   const undated = data?.droppedWithoutDate || 0;
 
   return (
-    <div className="space-y-5 bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-indigo-950/25 dark:via-slate-950 dark:to-purple-950/20 rounded-3xl p-6">
+    <div className="space-y-5 bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-indigo-950/25 dark:via-slate-950 dark:to-purple-950/20 rounded-2xl sm:rounded-3xl p-3 sm:p-6">
       <div className="flex flex-wrap items-center gap-3">
         <p className="text-[10px] text-slate-700 dark:text-slate-300 font-semibold">Last updated date: {formatDate(lastDataUpdate)}</p>
         <FilterDropdown
@@ -325,7 +325,7 @@ export default function AuditParaDashboard({ notify, wings = [], onOpenList }) {
         {onOpenList && <p className="text-[10px] text-slate-600 dark:text-slate-400">Click a stage, bar or pending para to see those paras in the Data List.</p>}
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiCard label="Total paras" value={kpi?.total} subtext={[selectedWing ? selectedWingName : 'Across all wings', selectedCategory].filter(Boolean).join(' · ')} icon={Layers}
           valueColorClass="text-[#6366f1] dark:text-indigo-400" subtextColorClass="text-indigo-600 dark:text-indigo-400"
           iconWrapClass="bg-indigo-50 dark:bg-indigo-950/40 text-[#6366f1] dark:text-indigo-400 border-indigo-100 dark:border-indigo-900" />

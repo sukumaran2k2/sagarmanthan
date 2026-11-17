@@ -346,15 +346,22 @@ export default function Reports({ triggerNotification }) {
     if (activeTab === 'wing') {
       return BASELINE_WINGS_REPORT.map((w) => {
         const matched = allRows.filter((r) => {
+          const a3 = r['Action (A3)'] || r.action_a3;
+          if (!a3) return false;
+
           const rw = String(r.Wing || r.wing || '').toLowerCase().trim();
           if (!rw) return false;
           const target = w.name.toLowerCase();
-          if (!rw.includes(target) && !target.includes(rw)) return false;
+          if (rw !== target) return false;
 
-          if (selectedVision === '1' && r.is_miv !== 1 && !String(r.goal_a1 || '').includes('MIV')) return false;
-          if (selectedVision === '2' && r.is_makv !== 1 && !String(r.goal_a1 || '').includes('MAKV')) return false;
-          if (selectedVision === '3' && r.is_sgos !== 1 && !String(r.goal_a1 || '').includes('SGOS')) return false;
-          if (selectedVision === '4' && r.is_additional_item !== 1) return false;
+          const miv = String(r['Part of MIV'] ?? r.is_miv ?? '').toLowerCase();
+          const makv = String(r['Part of MAKV'] ?? r.is_makv ?? '').toLowerCase();
+          const sgos = String(r['Part of SGOS'] ?? r.is_sgos ?? '').toLowerCase();
+          const addItem = String(r.is_additional_item ?? '').toLowerCase();
+          if (selectedVision === '1' && miv !== 'yes' && miv !== '1' && !String(r['Goal (A1)'] || r.goal_a1 || '').includes('MIV')) return false;
+          if (selectedVision === '2' && makv !== 'yes' && makv !== '1' && !String(r['Goal (A1)'] || r.goal_a1 || '').includes('MAKV')) return false;
+          if (selectedVision === '3' && sgos !== 'yes' && sgos !== '1' && !String(r['Goal (A1)'] || r.goal_a1 || '').includes('SGOS')) return false;
+          if (selectedVision === '4' && addItem !== '1' && addItem !== 'yes') return false;
 
           return true;
         });
@@ -401,10 +408,11 @@ export default function Reports({ triggerNotification }) {
 
     if (activeTab === 'port') {
       return MAJOR_PORTS_NAMES.map((portName, idx) => {
-        const portKey = portName.toLowerCase().split(' ').slice(0, 2).join(' ');
+        const portLower = portName.toLowerCase();
         const matched = allRows.filter((r) => {
-          const org = String(r.ia_name || r.organisation_name || '').toLowerCase();
-          return org.includes(portKey) || portKey.includes(org.split(' ').slice(0, 2).join(' '));
+          const org = String(r.ia_name || r.organisation_name || '').toLowerCase().trim();
+          if (!org) return false;
+          return org === portLower || org.startsWith(portLower.split('(')[0].trim()) || portLower.startsWith(org.split('(')[0].trim());
         });
 
         let yts = 0, onTime = 0, del = 0, comp = 0, na = 0, drop = 0, ytu = 0, cost = 0;
@@ -445,10 +453,11 @@ export default function Reports({ triggerNotification }) {
 
     if (activeTab !== 'org') return [];
     return OTHER_ORGS_NAMES.map((orgName, idx) => {
-      const orgKey = orgName.toLowerCase().split(' ').slice(0, 2).join(' ');
+      const orgLower = orgName.toLowerCase();
       const matched = allRows.filter((r) => {
-        const org = String(r.ia_name || r.organisation_name || '').toLowerCase();
-        return org.includes(orgKey) || orgKey.includes(org.split(' ').slice(0, 2).join(' '));
+        const org = String(r.ia_name || r.organisation_name || '').toLowerCase().trim();
+        if (!org) return false;
+        return org === orgLower || org.startsWith(orgLower.split('(')[0].trim()) || orgLower.startsWith(org.split('(')[0].trim());
       });
 
       let yts = 0, onTime = 0, del = 0, comp = 0, na = 0, drop = 0, ytu = 0, cost = 0;
@@ -492,12 +501,12 @@ export default function Reports({ triggerNotification }) {
     const count = row[statusKey];
     if (!count || count === 0) return;
 
-    const nameKey = row.name.toLowerCase().split(' ').slice(0, 2).join(' ');
+    const rowName = row.name.toLowerCase().trim();
     let items = (row.matchedItems && row.matchedItems.length > 0)
       ? row.matchedItems
       : allRows.filter((r) => {
-          const rw = String(r.Wing || r.wing || r.ia_name || r.organisation_name || '').toLowerCase();
-          return rw.includes(nameKey) || nameKey.includes(rw.split(' ').slice(0, 2).join(' '));
+          const rw = String(r.Wing || r.wing || r.ia_name || r.organisation_name || '').toLowerCase().trim();
+          return rw === rowName || rw.startsWith(rowName.split('(')[0].trim()) || rowName.startsWith(rw.split('(')[0].trim());
         });
 
     const getStatus = (i) => String(i['Current Status'] || i.current_status || '').toLowerCase();

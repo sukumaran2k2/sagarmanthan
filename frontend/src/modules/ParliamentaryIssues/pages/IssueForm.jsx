@@ -405,7 +405,7 @@ export default function IssueForm({
 
                 {selectedCommentWings.length > 0 && (
                   <div className="space-y-3 rounded-2xl border border-slate-200 bg-white px-4 py-4 dark:border-slate-800 dark:bg-slate-900">
-                    <p className="text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">
+                    <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                       Wing-wise Comments Received
                     </p>
                     <div className="space-y-3">

@@ -12,7 +12,9 @@ import { registerStoreReset } from '../../../stores/resetRegistry';
  * The record being edited is NOT kept here; it travels with the route
  * (location.state.item). Fetched audit paras stay in component state.
  */
-const initialState = {
+// A factory, not a shared literal: reset() must hand back a fresh visibleCols object, or
+// every session after the first would share (and could corrupt) the defaults.
+const createInitialState = () => ({
   // Reference data
   wings: [],
   divisions: [],
@@ -44,13 +46,13 @@ const initialState = {
   reportView: 'wing', // 'wing' | 'division' | 'all'
   reportCategory: 'all',
   reportSearch: '',
-};
+});
 
 // Accepts either a value or an updater function, like React's setState
 const resolve = (updater, prev) => (typeof updater === 'function' ? updater(prev) : updater);
 
 export const useAuditParaStore = create((set, get) => ({
-  ...initialState,
+  ...createInitialState(),
 
   // The list filters in the browser, so search applies as the user types (no debounce)
   setSearchTerm: (searchTerm) => set({ searchTerm, currentPage: 1 }),
@@ -80,7 +82,7 @@ export const useAuditParaStore = create((set, get) => ({
   setReportSearch: (reportSearch) => set({ reportSearch }),
 
   // Restore defaults (called on logout so nothing carries over to the next session)
-  reset: () => set(initialState),
+  reset: () => set(createInitialState()),
 
   // Fetch wings and divisions once and cache them
   loadWingsAndDivisions: async () => {
