@@ -60,7 +60,7 @@ export default function TimeVoyageBulkReports({ notify }) {
     let tsv = columnDefs.map((c) => c.headerName).join('\t') + '\n';
     filteredRowData.forEach((row) => { tsv += columnDefs.map((c) => row[c.field] ?? '').join('\t') + '\n'; });
     navigator.clipboard.writeText(tsv).then(
-      () => notify?.(COMMON_TOASTS.copySuccess(filteredRowData.length)),
+      () => notify?.(COMMON_TOASTS.copySuccess(filteredRowData.length, 'from the report')),
       () => notify?.(COMMON_TOASTS.copyFailed()),
     );
   };
@@ -69,7 +69,7 @@ export default function TimeVoyageBulkReports({ notify }) {
     if (type === 'Excel') {
       // Works in Chart view too: the table (and its grid) only exists in Table view
       const file = exportGridToExcel({ title, columns: columnDefs, rows: filteredRowData, fileName: 'sci_time_voyage_bulk_report' });
-      notify?.(COMMON_TOASTS.excelExported(file));
+      notify?.(COMMON_TOASTS.excelExported(file, 'The report'));
     }
     else if (type === 'PDF') {
       exportReportToPdf({
@@ -78,8 +78,8 @@ export default function TimeVoyageBulkReports({ notify }) {
         columnDefs,
         rowData: filteredRowData,
         fileName: 'sci_time_voyage_bulk_report',
-      });
-      notify?.(COMMON_TOASTS.downloadStarted('sci_time_voyage_bulk_report.pdf'));
+      }).then((file) => notify?.(COMMON_TOASTS.excelExported(file, 'The report')))
+        .catch((err) => { console.error('PDF export failed:', err); notify?.(COMMON_TOASTS.exportFailed()); });
     }
   };
 

@@ -103,6 +103,8 @@ export const COMMON_TOASTS = {
     toastWarning('Table Still Loading', `Please wait for the table to finish loading, then ${action} again.`),
   excelExported: (fileName, scope = 'The current page') =>
     toastSuccess('Export Complete', `${scope} was downloaded as ${fileName}.`),
+  exportFailed: () =>
+    toastError('Export Failed', 'The report could not be exported. Please try again.'),
   pdfPreparing: () =>
     toastInfo('Preparing PDF', 'The print dialog will open shortly. Choose "Save as PDF" as the destination to download it.'),
   popupBlocked: () =>
