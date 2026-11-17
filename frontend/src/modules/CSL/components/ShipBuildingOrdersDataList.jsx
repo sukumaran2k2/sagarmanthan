@@ -68,14 +68,14 @@ export default function ShipBuildingOrdersDataList({
       const file = exportGridApiToExcel(gridRef.current?.api, { title: 'CSL Ship Building Orders Data List', fileName: 'csl_ship_building_orders' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'CSL Ship Building Orders Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: rowData,
         fileName: 'csl_ship_building_orders',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('csl_ship_building_orders.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

@@ -62,14 +62,14 @@ export default function NAISUptimeDataList({
       const file = exportGridApiToExcel(gridRef.current?.api, { title: 'NAIS Uptime Data List', fileName: 'nais_uptime' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'NAIS Uptime Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: rowData,
         fileName: 'nais_uptime',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('nais_uptime.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

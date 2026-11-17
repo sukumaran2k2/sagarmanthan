@@ -76,14 +76,14 @@ export default function StudentEnrollmentDataList({
       const file = exportGridApiToExcel(gridRef.current?.api, { title: 'IMU Student Enrollment Data List', fileName: 'imu_student_enrollment' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'IMU Student Enrollment Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: rowData,
         fileName: 'imu_student_enrollment',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('imu_student_enrollment.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

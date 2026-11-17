@@ -68,14 +68,14 @@ export default function PartnershipDataList({
       const file = exportGridApiToExcel(gridRef.current?.api, { title: 'IMU Partnership Data List', fileName: 'imu_partnership' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'IMU Partnership Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: rowData,
         fileName: 'imu_partnership',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('imu_partnership.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

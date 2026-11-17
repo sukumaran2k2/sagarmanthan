@@ -85,14 +85,14 @@ export default function SecondhandVesselProcurementDataList({
       const file = exportDataListToExcel({ columnLabels: COLUMN_LABELS, visibleCols, rowData: filteredData, fileName: 'sci_secondhand_vessel_procurement', title: 'SCI Secondhand Vessel Procurement Data List' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'SCI Secondhand Vessel Procurement Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: filteredData,
         fileName: 'sci_secondhand_vessel_procurement',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('sci_secondhand_vessel_procurement.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

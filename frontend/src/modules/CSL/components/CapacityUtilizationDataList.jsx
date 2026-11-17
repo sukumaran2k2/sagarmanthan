@@ -64,14 +64,14 @@ export default function CapacityUtilizationDataList({
       const file = exportGridApiToExcel(gridRef.current?.api, { title: 'CSL Capacity Utilization Data List', fileName: 'csl_capacity_utilization' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'CSL Capacity Utilization Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: rowData,
         fileName: 'csl_capacity_utilization',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('csl_capacity_utilization.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

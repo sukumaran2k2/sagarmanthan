@@ -80,14 +80,14 @@ export default function FacilitiesDataList({
       const file = exportGridApiToExcel(gridRef.current?.api, { title: 'IMU Facilities Data List', fileName: 'imu_facilities' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'IMU Facilities Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: rowData,
         fileName: 'imu_facilities',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('imu_facilities.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

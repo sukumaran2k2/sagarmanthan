@@ -85,14 +85,14 @@ export default function ManningOfOwnedShipsDataList({
       const file = exportDataListToExcel({ columnLabels: COLUMN_LABELS, visibleCols, rowData: filteredData, fileName: 'sci_manning_of_owned_ships', title: 'SCI Manning of Owned Ships Data List' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'SCI Manning of Owned Ships Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: filteredData,
         fileName: 'sci_manning_of_owned_ships',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('sci_manning_of_owned_ships.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

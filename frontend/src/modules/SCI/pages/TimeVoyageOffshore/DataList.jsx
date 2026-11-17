@@ -89,14 +89,14 @@ export default function TimeVoyageOffshoreDataList({
       const file = exportDataListToExcel({ columnLabels: COLUMN_LABELS, visibleCols, rowData: filteredData, fileName: 'sci_time_voyage_offshore', title: 'SCI Time Voyage Offshore Data List' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'SCI Time Voyage Offshore Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: filteredData,
         fileName: 'sci_time_voyage_offshore',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('sci_time_voyage_offshore.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

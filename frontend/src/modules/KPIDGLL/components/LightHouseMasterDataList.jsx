@@ -75,14 +75,14 @@ export default function LightHouseMasterDataList({
       const file = exportGridApiToExcel(gridRef.current?.api, { title: 'Light House Master Data List', fileName: 'light_house_master' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'Light House Master Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: rowData,
         fileName: 'light_house_master',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('light_house_master.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

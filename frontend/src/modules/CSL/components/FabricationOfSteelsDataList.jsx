@@ -66,14 +66,14 @@ export default function FabricationOfSteelsDataList({
       const file = exportGridApiToExcel(gridRef.current?.api, { title: 'CSL Fabrication of Steels Data List', fileName: 'csl_fabrication_of_steels' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'CSL Fabrication of Steels Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: rowData,
         fileName: 'csl_fabrication_of_steels',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('csl_fabrication_of_steels.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

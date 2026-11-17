@@ -87,14 +87,14 @@ export default function ShipManagementBusinessDataList({
       const file = exportDataListToExcel({ columnLabels: COLUMN_LABELS, visibleCols, rowData: filteredData, fileName: 'sci_ship_management_business', title: 'SCI Ship Management Business Data List' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'SCI Ship Management Business Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: filteredData,
         fileName: 'sci_ship_management_business',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('sci_ship_management_business.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

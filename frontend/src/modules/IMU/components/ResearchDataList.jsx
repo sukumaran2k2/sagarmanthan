@@ -72,14 +72,14 @@ export default function ResearchDataList({
       const file = exportGridApiToExcel(gridRef.current?.api, { title: 'IMU Research Data List', fileName: 'imu_research' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'IMU Research Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: rowData,
         fileName: 'imu_research',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('imu_research.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

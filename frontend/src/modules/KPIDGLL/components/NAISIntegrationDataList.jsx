@@ -64,14 +64,14 @@ export default function NAISIntegrationDataList({
       const file = exportGridApiToExcel(gridRef.current?.api, { title: 'NAIS Integration Data List', fileName: 'nais_integration' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'NAIS Integration Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: rowData,
         fileName: 'nais_integration',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('nais_integration.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

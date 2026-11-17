@@ -83,14 +83,14 @@ export default function VesselAvailabilityOwnShipsDataList({
       const file = exportDataListToExcel({ columnLabels: COLUMN_LABELS, visibleCols, rowData: filteredData, fileName: 'sci_vessel_availability_own_ships', title: 'SCI Vessel Availability (Own Ships) Data List' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'SCI Vessel Availability (Own Ships) Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: filteredData,
         fileName: 'sci_vessel_availability_own_ships',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('sci_vessel_availability_own_ships.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

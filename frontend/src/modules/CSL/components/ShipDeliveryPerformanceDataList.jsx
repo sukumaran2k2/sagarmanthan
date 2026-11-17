@@ -68,14 +68,14 @@ export default function ShipDeliveryPerformanceDataList({
       const file = exportGridApiToExcel(gridRef.current?.api, { title: 'CSL Ship Delivery Performance Data List', fileName: 'csl_ship_delivery_performance' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'CSL Ship Delivery Performance Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: rowData,
         fileName: 'csl_ship_delivery_performance',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('csl_ship_delivery_performance.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

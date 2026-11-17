@@ -85,14 +85,14 @@ export default function VesselAvailabilityLinerDataList({
       const file = exportDataListToExcel({ columnLabels: COLUMN_LABELS, visibleCols, rowData: filteredData, fileName: 'sci_vessel_availability_liner', title: 'SCI Vessel Availability (Liner) Data List' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'SCI Vessel Availability (Liner) Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: filteredData,
         fileName: 'sci_vessel_availability_liner',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('sci_vessel_availability_liner.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

@@ -158,14 +158,14 @@ export default function TouristDestinationsDataList({
       });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: isDestination ? 'Tourist Destinations Data List' : 'Tourist Destinations Target Details Data List',
         columnLabels,
         visibleCols,
         rowData: rows,
         fileName: fileNameBase,
       });
-      notify?.(COMMON_TOASTS.downloadStarted(`${fileNameBase}.pdf`));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

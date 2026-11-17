@@ -62,14 +62,14 @@ export default function VTMSIntegrationDataList({
       const file = exportGridApiToExcel(gridRef.current?.api, { title: 'VTMS Integration Data List', fileName: 'vtms_integration' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'VTMS Integration Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: rowData,
         fileName: 'vtms_integration',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('vtms_integration.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

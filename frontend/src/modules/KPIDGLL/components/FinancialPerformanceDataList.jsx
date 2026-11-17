@@ -77,14 +77,14 @@ export default function FinancialPerformanceDataList({
       const file = exportGridApiToExcel(gridRef.current?.api, { title: 'Financial Performance Data List', fileName: 'financial_performance' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'Financial Performance Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: rowData,
         fileName: 'financial_performance',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('financial_performance.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 
