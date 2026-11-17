@@ -1,5 +1,6 @@
 
 import { pool } from "../../db.js";
+import { getDataScope } from "../../middleware/dataScope.js";
 import fs from 'fs';
 
 // Stage flags are BIT columns; the form sends 'Yes' / 'No' (true / 1 are accepted too).
@@ -49,20 +50,16 @@ const IS_DRAFT = "tbl_audit_para.category = 'Draft Para'";
 const CATEGORY_OF = "ISNULL(NULLIF(LTRIM(RTRIM(tbl_audit_para.category)), ''), 'Audit Para')";
 
 
-// Which paras the signed-in user may see, as a condition on tbl_audit_para (same rule as Bills):
-// Ministry users, the organisation nodal officer and users with no wing see every para; anyone
-// else sees their wing's paras and the ones they created.
-async function auditScope(request, userId) {
-    request.input("scopeUserId", userId);
-    const result = await request.query(`SELECT u.role_id, u.wing_id, ds.data_scope_code
-        FROM tbl_user u
-        LEFT JOIN tbl_rbac_role_data_scope rds ON rds.role_id = u.role_id
-        LEFT JOIN mmt_rbac_data_scope ds ON ds.data_scope_id = rds.data_scope_id
-        WHERE u.user_id = @scopeUserId`);
-    const { role_id, wing_id, data_scope_code } = result.recordset[0] || {};
-    if (!result.recordset.length) return '1 = 0';
-    if (data_scope_code === 'MINISTRY' || role_id === 8 || wing_id === null || wing_id === undefined) return '1 = 1';
-    request.input("userWingId", wing_id);
+// Which paras the signed-in user may see, as a condition on tbl_audit_para. Decided from the
+// sign-in token, like the other modules (no database lookup per request): users with the MASTER
+// or MINISTRY data scope, and users with no wing, see every para; anyone else sees their wing's
+// paras and the ones they created. Organisation users never reach this - the routes are ministryOnly.
+function auditScope(request, user) {
+    if (getDataScope(user).isWide) return '1 = 1';
+    const wingId = Number(user?.wingId);
+    if (!Number.isInteger(wingId) || wingId <= 0) return '1 = 1';
+    request.input("scopeUserId", Number(user.userId));
+    request.input("userWingId", wingId);
     return '(tbl_audit_para.wing = @userWingId OR tbl_audit_para.created_by = @scopeUserId)';
 }
 
@@ -159,7 +156,7 @@ async function createAuditPara(req, res) {
         return res.sendStatus(201);
     } catch (err) {
         console.error('Audit Para create error:', err);
-        return res.sendStatus(500);
+        return res.status(500).json({ error: 'The server hit an error and the para was not saved.' });
     }
 }
 
@@ -167,7 +164,7 @@ async function getAuditPara(req, res) {
     const conn = await pool;
     try {
         const request = conn.request();
-        const scope = await auditScope(request, req.user.userId);
+        const scope = auditScope(request, req.user);
         // A para whose wing, division or stage is missing (or not in the master) is still listed,
         // as "Not specified" / "No Status", as on the dashboard (inner joins used to drop it)
         const result = await request.query(`SELECT audit_para_id, tbl_audit_para.stage_id, para_number, subject,
@@ -185,7 +182,7 @@ async function getAuditPara(req, res) {
         return res.json(result.recordset);
     } catch (err) {
         console.error('Audit Para list error:', err);
-        return res.sendStatus(500);
+        return res.status(500).json({ error: 'The server hit an error while loading the audit paras.' });
     }
 }
 
@@ -205,7 +202,7 @@ async function updateAuditPara(req, res) {
         if (values.error) return res.status(400).json({ message: values.error });
 
         const request = conn.request();
-        const scope = await auditScope(request, req.user.userId);
+        const scope = auditScope(request, req.user);
         request.input("auditParaID", id);
         request.input("paraNumber", values.paraNumber);
         request.input("subject", values.subject);
@@ -224,7 +221,7 @@ async function updateAuditPara(req, res) {
         return res.sendStatus(200);
     } catch (err) {
         console.error('Audit Para update error:', err);
-        return res.sendStatus(500);
+        return res.status(500).json({ error: 'The server hit an error and the changes were not saved.' });
     }
 }
 
@@ -237,7 +234,7 @@ async function deleteAuditPara(req, res) {
     const conn = await pool;
     try {
         const request = conn.request();
-        const scope = await auditScope(request, userID);
+        const scope = auditScope(request, req.user);
         request.input("auditParaID", id);
         request.input("userID", userID);
         const result = await request.query(`
@@ -273,7 +270,7 @@ async function deleteAuditPara(req, res) {
         return res.sendStatus(201);
     } catch (err) {
         console.error('Audit Para delete error:', err);
-        return res.sendStatus(500);
+        return res.status(500).json({ error: 'The server hit an error and the para was not deleted.' });
     }
 }
 
@@ -289,7 +286,7 @@ async function getAuditParaDashboard(req, res) {
         const category = CATEGORIES.includes(req.query.category) ? req.query.category : null;
         const query = async (sql, { byWing = true } = {}) => {
             const request = conn.request();
-            const conditions = [await auditScope(request, req.user.userId)];
+            const conditions = [auditScope(request, req.user)];
             if (byWing && filterWing) {
                 request.input("filterWingId", wingId);
                 conditions.push('tbl_audit_para.wing = @filterWingId');
@@ -399,7 +396,7 @@ async function getAuditParaDashboard(req, res) {
         });
     } catch (err) {
         console.error('Audit Para dashboard error:', err);
-        return res.sendStatus(500);
+        return res.status(500).json({ error: 'The server hit an error while loading the dashboard.' });
     }
 }
 
