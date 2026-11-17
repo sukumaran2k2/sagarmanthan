@@ -1525,7 +1525,7 @@ router.get("/vipwingwise-report", auth, vipRead, vipReportTab.vipWingWiseReport)
 router.get("/vipdivisionwise-report/:wingID/", auth, vipRead, vipReportTab.vipDivisionWiseReport);
 router.get("/getvip-wingwise/:wingID/:vipStage", auth, vipRead, vipReportTab.getDetailVipWingWise);
 router.get("/getvip-divisionwise/:divisionID/:vipStage", auth, vipRead, vipReportTab.getDetailVipDivisionWise);
-router.get("/getCurrentDate", vipReportTab.getCurrentDate);
+router.get("/getCurrentDate", auth, vipReportTab.getCurrentDate);
 
 // Pendency Vip Reference
 router.get("/vip-pendencywingwise-report", auth, vipRead, vipReportTab.vipPendencyWingWiseReport);
@@ -1753,13 +1753,13 @@ router.post('/add-kpi2-3-2', KpiDGS_2_3_Tab.createDgsKpi2_3_2Data);
 router.get("/kpi2-3-2-list", KpiDGS_2_3_Tab.getKpi2_3_2_List);
 
 // MoPSWTracker
-router.get("/tracker-list", mopswTracker.trackerList);
+router.get("/tracker-list", auth, requireModulePermission("CABINET_NOTES_MOPSW", "read"), mopswTracker.trackerList);
 
-router.get("/checkData-tracker/:year/:month/", mopswTracker.checkDataMopswTracker);
-router.get("/get_addtracker_masterdata/:year/:month", mopswTracker.getAddTrackerMasterdata);
-router.post('/add-mopswtracker', mopswTracker.createMopswTracker);
-// Report 
-router.get('/get-mopswtracker-report', mopswTracker.getmopswTrackermonthlyReport);
+router.get("/checkData-tracker/:year/:month/", auth, requireModulePermission("CABINET_NOTES_MOPSW", "read"), mopswTracker.checkDataMopswTracker);
+router.get("/get_addtracker_masterdata/:year/:month", auth, requireModulePermission("CABINET_NOTES_MOPSW", "read"), mopswTracker.getAddTrackerMasterdata);
+router.post('/add-mopswtracker', auth, requireModulePermission("CABINET_NOTES_MOPSW", "create"), mopswTracker.createMopswTracker);
+// Report
+router.get('/get-mopswtracker-report', auth, requireModulePermission("CABINET_NOTES_MOPSW", "read"), mopswTracker.getmopswTrackermonthlyReport);
 
 // 2.3.1
 router.get("/checkData-2-3-1-data/:year/:month", KpiDGS_2_3_Tab.checkData_2_3_1);
