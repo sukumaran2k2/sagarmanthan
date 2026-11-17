@@ -7,9 +7,9 @@ const ORGANISATION_FIELDS = [
   { name: 'organisation_code', label: 'Organisation Code', type: 'text', required: true, placeholder: 'Enter organisation code', maxLength: 10, uppercase: true },
   { name: 'organisation_category_id', label: 'Organisation Category', type: 'select', required: true,
     optionsFrom: 'mmt_organisation_category', optionValue: 'organisation_category_id', optionLabel: 'organisation_category_name', placeholder: '--Select Category--' },
-  { name: 'wing_id', label: 'Wing', type: 'select', required: true,
+  { name: 'wing_id', label: 'Wing', type: 'select', required: false,
     optionsFrom: 'mmt_wings', optionValue: 'wing_id', optionLabel: 'wing_name', placeholder: '--Select Wing--' },
-  { name: 'division_id', label: 'Division', type: 'select', required: true,
+  { name: 'division_id', label: 'Division', type: 'select', required: false,
     optionsFrom: 'mmt_division', optionValue: 'division_id', optionLabel: 'division_name', placeholder: '--Select Division--',
     dependsOn: 'wing_id', filterBy: 'wing_id' },
 ];
