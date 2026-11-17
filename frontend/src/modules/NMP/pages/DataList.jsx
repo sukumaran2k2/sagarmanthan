@@ -5,7 +5,7 @@ import CopyButton from '../../../components/CopyButton';
 import { Search, X, ChevronDown, Edit, Trash2 } from 'lucide-react';
 import { fetchLandAbstractList, fetchPastLandList, fetchFutureLandList, deleteNmpEntry } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
-import ConfirmModal from '../../../components/ConfirmModal';
+import { exportRowsToFile, exportGridApiToExcel } from '../../../utils/exportGridReport';
 
 
 // ── Dropdown options (keep in sync with the add form) ──
@@ -289,8 +289,6 @@ export default function NmpDataList({ onEdit, onAddNew, triggerNotification, can
   const [pageSize, setPageSize] = useState(25);
   const [tabCounts, setTabCounts] = useState({ 'land-abstract': 0, 'past-land': 0, 'future-land': 0 });
   const [pastView, setPastView] = useState('parcel');
-  const [deleteAsk, setDeleteAsk] = useState(null); // the row to delete
-const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const handler = setTimeout(() => setDebouncedSearch(searchTerm), 300);
@@ -337,29 +335,20 @@ const [deleting, setDeleting] = useState(false);
   });
 }, [userId]);
 
-  // Trash icon only opens the modal
-const handleDelete = useCallback((item) => {
-  setDeleteAsk(item);
-}, []);
-
-// Modal "confirm" does the real delete
-const confirmDelete = async () => {
-  const idKey = subTab === 'land-abstract' ? 'land_abstract_id' : subTab === 'past-land' ? 'nmp_past_id' : 'nmp_id';
-  const id = deleteAsk?.[idKey];
-  if (!id) { setDeleteAsk(null); return; }
-  setDeleting(true);
-  try {
-    const userId = getCurrentUserId();
-    await deleteNmpEntry(id, userId, subTab);
-    triggerNotification?.('NMP entry deleted successfully.', 'success');
-    setDeleteAsk(null);
-    fetchData();
-  } catch (err) {
-    triggerNotification?.(err?.response?.data?.message || 'Failed to delete NMP entry.', 'error');
-  } finally {
-    setDeleting(false);
-  }
-};
+  const handleDelete = useCallback(async (item) => {
+    const idKey = subTab === 'land-abstract' ? 'land_abstract_id' : subTab === 'past-land' ? 'nmp_past_id' : 'nmp_id';
+    const id = item[idKey];
+    if (!id) return;
+    if (!window.confirm('Are you sure you want to delete this entry?')) return;
+    try {
+      const userId = getCurrentUserId();
+      await deleteNmpEntry(id, userId, subTab);
+      triggerNotification?.('Entry deleted successfully.', 'success');
+      fetchData();
+    } catch (err) {
+      triggerNotification?.(err?.response?.data?.message || 'Failed to delete entry.', 'error');
+    }
+  }, [subTab, fetchData, triggerNotification]);
 
   const handleEdit = useCallback((item) => {
     const idKey = subTab === 'land-abstract' ? 'land_abstract_id' : subTab === 'past-land' ? 'nmp_past_id' : 'nmp_id';
@@ -561,14 +550,6 @@ const columnDefs = useMemo(() => {
         </div>
 
       </div>
-        <ConfirmModal
-        isOpen={!!deleteAsk}
-        onClose={() => setDeleteAsk(null)}
-        onConfirm={confirmDelete}
-        title="Delete Entry?"
-        message={`Are you sure you want to delete ${deleteAsk?.parcel_details || deleteAsk?.parcel_detail || 'this entry'}? This action cannot be undone.`}
-        loading={deleting}
-      />
     </div>
   );
 }
