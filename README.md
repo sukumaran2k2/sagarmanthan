@@ -1,7 +1,13 @@
 # Sagarmanthan
 
-Sagarmanthan is a web portal for tracking ports, projects, KPIs, governance and HR data.
-It has two parts:
+Sagarmanthan is the monitoring portal of the **Ministry of Ports, Shipping and Waterways (MoPSW)**. It brings the Ministry's data into one place so that progress can be tracked and reviewed without collecting it over email or spreadsheets.
+
+- **Who enters data:** the Ministry's wings and divisions, and the organisations under it – major port authorities, shipping and shipbuilding companies, and other bodies. Each organisation fills in its own figures through input forms, usually every month.
+- **What is tracked:** infrastructure projects and capital spending, port and organisation performance indicators (KPIs), governance work such as cabinet notes, parliamentary matters and pending files, long-term strategy goals, and HR data such as posts, vacancies and employees.
+- **What users get:** dashboards, searchable data lists, and reports that can be downloaded or printed, so senior officers can see the status across all organisations at a glance.
+- **Who sees what:** access is role-based. An administrator decides which modules and pages each user and organisation can view or edit, and each organisation sees only its own data unless it is given wider access.
+
+The application has two parts:
 
 | Part | Folder | Built with | Runs on |
 |------|--------|-----------|---------|
