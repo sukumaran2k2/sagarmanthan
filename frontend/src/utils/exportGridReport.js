@@ -124,7 +124,9 @@ export function exportGridToExcel({ title, subtitle, columns, rows = [], pinnedR
       const v = cellText(col, row);
       return Math.max(max, String(v === null || v === undefined ? '' : v).length);
     }, 0);
-    return { wch: Math.min(60, Math.max(10, headerLen, maxDataLen) + 2) };
+    // Columns are capped at 60 characters; a column with long text that must stay readable
+    // (no wrapping in these files) can raise that with excelMaxWidth
+    return { wch: Math.min(col.excelMaxWidth || 60, Math.max(10, headerLen, maxDataLen) + 2) };
   });
 
   const book = XLSX.utils.book_new();

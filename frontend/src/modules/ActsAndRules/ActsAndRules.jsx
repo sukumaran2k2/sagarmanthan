@@ -65,6 +65,22 @@ export default function ActsAndRules({ triggerNotification }) {
     }))
   ), [rows]);
 
+  // The Excel file: one line per rule (an act's rules packed into one cell ran off the cell, so
+  // most of them could not be seen). S.No, Wing and Act are shown on the first line of their block,
+  // as on the page; grouped rules (e.g. Major / Non-Major Port Rules) carry their group.
+  const excelRows = useMemo(() => rows.flatMap((row) => row.entries.flatMap((entry, ei) => {
+    const lines = entry.ruleGroups
+      ? entry.ruleGroups.flatMap((g) => g.rules.map((rule) => ({ group: g.heading, rule })))
+      : (entry.rules.length ? entry.rules : ['—']).map((rule) => ({ group: '', rule }));
+    return lines.map((line, li) => ({
+      sno: ei === 0 && li === 0 ? row.sno : '',
+      wing: ei === 0 && li === 0 ? row.wing : '',
+      act: li === 0 ? entry.act : '',
+      group: line.group,
+      rule: line.rule,
+    }));
+  })), [rows]);
+
   const handleCopy = () => {
     let tsv = ['S.No', 'Wing', 'Act', 'Rule'].join('\t') + '\n';
     flatRows.forEach((r) => {
@@ -97,10 +113,23 @@ export default function ActsAndRules({ triggerNotification }) {
       rows: flatRows,
       fileName: 'Acts_and_Rules',
     };
+    const hasGroups = excelRows.some((r) => r.group);
+    const excelOptions = {
+      ...options,
+      columns: [
+        { headerName: 'S.No', field: 'sno' },
+        { headerName: 'Wing', field: 'wing' },
+        { headerName: 'Act', field: 'act', excelMaxWidth: 135 },
+        ...(hasGroups ? [{ headerName: 'Rule Type', field: 'group' }] : []),
+        { headerName: 'Rule', field: 'rule', excelMaxWidth: 190 },
+      ],
+      rows: excelRows,
+      sheetName: 'Acts and Rules',
+    };
     try {
       const name = type === 'PDF'
         ? exportGridToPdf(options)
-        : exportGridToExcel({ ...options, sheetName: 'Acts and Rules' });
+        : exportGridToExcel(excelOptions);
       notify(COMMON_TOASTS.excelExported(name, 'Acts & Rules'));
     } catch (err) {
       console.error('Acts & Rules export failed', err);
