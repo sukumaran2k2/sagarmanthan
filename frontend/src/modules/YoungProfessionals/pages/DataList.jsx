@@ -10,7 +10,7 @@ import CopyButton from '../../../components/CopyButton';
 import { useYpStore } from '../store/useYpStore';
 import { useNotifier, COMMON_TOASTS, getErrorMessage, toastError } from '../../../utils/notify';
 import { YP_TOASTS } from '../toastMessages';
-import { exportRowsToFile, exportGridApiToExcel } from '../../../utils/exportGridReport';
+import { exportRowsToFile } from '../../../utils/exportGridReport';
 
 const STATIC_WINGS = [
   'Shipping', 'Vigilance', 'Ports', 'IWT', 'Administration',
@@ -239,63 +239,75 @@ export default function DataList({
     }
   };
 
+  // Fetches every row matching the current filters, not just the page on screen.
+  const fetchAllRows = useCallback(async () => {
+    const res = await fetchYoungProfessionals({
+      all: true,
+      search: debouncedSearch,
+      wing: selectedWing,
+      division: selectedDivision,
+      status: activeStatusTab
+    });
+    const payload = res.data;
+    const list = Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : [];
+    return list.map((item, idx) => ({ ...item, sNo: idx + 1 }));
+  }, [debouncedSearch, selectedWing, selectedDivision, activeStatusTab]);
+
   const handleExport = async (type) => {
+    const pdfCols = columnDefs.filter((col) => col.headerName && col.headerName !== 'Action' && !col.hide);
+    const cellValue = (col, row, rowIndex) => {
+      if (col.field === 'sNo') return row.sNo || rowIndex + 1;
+      if (col.field === 'is_active') return (row[col.field] === 1 || row[col.field] === true) ? 'Active' : 'Relieved';
+      return row[col.field] !== undefined && row[col.field] !== null ? row[col.field] : '';
+    };
+
     if (type === 'Copy') {
-      if (gridApiRef.current) {
-        let tsv = '';
-        const headers = [];
-        columnDefs.forEach(col => {
-          if (col.headerName && col.headerName !== 'Action') {
-            headers.push(col.headerName);
-          }
-        });
-        tsv += headers.join('\t') + '\n';
-        
-        data.forEach((row, rowIndex) => {
-          const line = [];
-          columnDefs.forEach(col => {
-            if (col.headerName && col.headerName !== 'Action') {
-              let val = '';
-              if (col.field === 'sNo') {
-                val = row.sNo || rowIndex + 1;
-              } else if (col.field === 'is_active') {
-                val = (row[col.field] === 1 || row[col.field] === true) ? 'Active' : 'Relieved';
-              } else {
-                val = row[col.field] !== undefined ? row[col.field] : '';
-              }
-              line.push(val);
-            }
-          });
-          tsv += line.join('\t') + '\n';
-        });
-        
-        navigator.clipboard.writeText(tsv)
-          .then(() => notify(COMMON_TOASTS.copySuccess(data.length)))
-          .catch(() => notify(COMMON_TOASTS.copyFailed()));
-      } else {
-        notify(COMMON_TOASTS.tableNotReady('copy'));
+      let allRows;
+      try {
+        allRows = await fetchAllRows();
+      } catch (err) {
+        console.error('Failed to fetch young professionals for copy:', err);
+        notify(COMMON_TOASTS.loadFailed('The young professionals data'));
+        return;
       }
+      const headers = pdfCols.map((col) => col.headerName);
+      let tsv = headers.join('\t') + '\n';
+      allRows.forEach((row, rowIndex) => {
+        tsv += pdfCols.map((col) => cellValue(col, row, rowIndex)).join('\t') + '\n';
+      });
+      navigator.clipboard.writeText(tsv)
+        .then(() => notify(COMMON_TOASTS.copySuccess(allRows.length)))
+        .catch(() => notify(COMMON_TOASTS.copyFailed()));
     } else if (type === 'Excel') {
-      if (gridApiRef.current) {
-        // Excel (.xlsx) of the table as shown
-        const file = exportGridApiToExcel(gridApiRef.current, { title: 'Young Professionals - Data List', fileName: `Young_Professionals_Page_${currentPage}` });
-        notify(COMMON_TOASTS.excelExported(file));
-      } else {
-        notify(COMMON_TOASTS.tableNotReady('export'));
+      let allRows;
+      try {
+        allRows = await fetchAllRows();
+      } catch (err) {
+        console.error('Failed to fetch young professionals for export:', err);
+        notify(COMMON_TOASTS.loadFailed('The young professionals data'));
+        return;
       }
+      const file = exportRowsToFile('excel', {
+        title: 'Young Professionals - Data List',
+        headers: pdfCols.map((col) => col.headerName),
+        rows: allRows.map((row, i) => pdfCols.map((col) => cellValue(col, row, i))),
+        fileName: 'Young_Professionals_Data_List',
+      });
+      notify(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      // PDF straight to a file (no print dialog or new tab): the columns on show
-      const pdfCols = columnDefs.filter((col) => col.headerName && col.headerName !== 'Action' && !col.hide);
-      const pdfCell = (col, row, rowIndex) => {
-        if (col.field === 'sNo') return row.sNo || rowIndex + 1;
-        if (col.field === 'is_active') return (row[col.field] === 1 || row[col.field] === true) ? 'Active' : 'Relieved';
-        return row[col.field] ?? '';
-      };
+      let allRows;
+      try {
+        allRows = await fetchAllRows();
+      } catch (err) {
+        console.error('Failed to fetch young professionals for export:', err);
+        notify(COMMON_TOASTS.loadFailed('The young professionals data'));
+        return;
+      }
       const file = exportRowsToFile('pdf', {
         title: 'Young Professionals - Data List',
         headers: pdfCols.map((col) => col.headerName),
-        rows: data.map((row, i) => pdfCols.map((col) => pdfCell(col, row, i))),
-        fileName: `Young_Professionals_Page_${currentPage}`,
+        rows: allRows.map((row, i) => pdfCols.map((col) => cellValue(col, row, i))),
+        fileName: 'Young_Professionals_Data_List',
       });
       notify(COMMON_TOASTS.excelExported(file));
     }

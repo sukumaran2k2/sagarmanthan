@@ -226,8 +226,8 @@ export default function DataList({
       minWidth: 250,
       pinned: 'left',
       cellStyle: { textAlign: 'center' },
-      cellClass: 'text-center font-semibold text-slate-800 dark:text-slate-200 whitespace-normal leading-normal py-2 border-r border-slate-150 dark:border-slate-800 flex items-center justify-center',
-      headerClass: 'border-r border-slate-150 dark:border-slate-800',
+      cellClass: 'text-center font-semibold text-slate-800 dark:text-slate-200 whitespace-normal leading-normal py-2 border-r border-slate-200 dark:border-slate-800 flex items-center justify-center',
+      headerClass: 'border-r border-slate-200 dark:border-slate-800',
       wrapText: true,
       autoHeight: true,
       hide: !visibleCols.subject
@@ -344,7 +344,7 @@ export default function DataList({
           onClick={() => setActiveCategory('active')}
           className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${activeCategory === 'active'
             ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
-            : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
+            : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
             }`}
         >
           Active Bills ({activeCount})
@@ -353,7 +353,7 @@ export default function DataList({
           onClick={() => setActiveCategory('disposed')}
           className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${activeCategory === 'disposed'
             ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
-            : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
+            : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
             }`}
         >
           Disposed Bills ({disposedCount})
@@ -419,7 +419,7 @@ export default function DataList({
             {/* Rows Limit Select Dropdown */}
             {(
               <>
-                <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-xs select-none dark:bg-slate-950 dark:border-slate-850 dark:text-slate-200">
+                <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-xs select-none dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200">
                   <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
                   <select
                     value={pageSize}
@@ -430,7 +430,7 @@ export default function DataList({
                   </select>
                 </div>
 
-                <div className="text-xs font-bold text-slate-555 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
+                <div className="text-xs font-bold text-slate-600 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
                   Total: {loading ? '...' : filteredData.length}
                 </div>
 
@@ -439,7 +439,7 @@ export default function DataList({
               <div className="relative" ref={colDropdownRef}>
                 <button
                   onClick={() => setDropdownOpen(!dropdownOpen)}
-                  className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 dark:bg-slate-950 dark:border-slate-850 rounded-xl text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-900 transition cursor-pointer flex items-center space-x-1.5 dark:text-slate-200"
+                  className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 dark:bg-slate-950 dark:border-slate-800 rounded-xl text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-900 transition cursor-pointer flex items-center space-x-1.5 dark:text-slate-200"
                 >
                   <span>Visibility</span>
                   <ChevronDown className="h-3.5 w-3.5 text-slate-500" />

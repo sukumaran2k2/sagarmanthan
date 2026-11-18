@@ -20,7 +20,7 @@ function NumberInput({ value, onChange, disabled = false, placeholder = '', clas
   );
 }
 
-const FIELD_CLASS = 'w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:focus:bg-slate-950';
+const FIELD_CLASS = 'w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:focus:bg-slate-950';
 const SOCIAL_INPUT_CLASS = 'w-full text-xs text-center px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#0f417a] font-semibold text-slate-700';
 
 function FormField({ label, value, onChange, disabled = false, placeholder = '' }) {

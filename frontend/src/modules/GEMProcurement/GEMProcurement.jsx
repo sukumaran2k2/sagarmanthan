@@ -492,26 +492,40 @@ export default function GEMProcurementView({
     await updateGemTarget(category, payload);
   };
 
-  const handleCopyData = () => {
+  // Fetches every row matching the current filters, not just the page on screen.
+  const fetchAllGemRows = useCallback(async () => {
+    const category = listCategoryForTab(activeTab);
+    const res = await fetchGemList(category, { ...buildFilterParams(), all: true, limit: 2000 });
+    const payload = res.data || {};
+    return Array.isArray(payload.data) ? payload.data : Array.isArray(payload) ? payload : [];
+  }, [activeTab, buildFilterParams]);
+
+  const handleCopyData = async () => {
     if (!rows.length) {
       notify(COMMON_TOASTS.nothingToCopy());
       return;
     }
-    const text = rows
-      .map((r) => {
-        const category = listCategoryForTab(activeTab);
-        return [
-          r.organisation_name || '',
-          getGemFinancialYear(r),
-          getGemPotential(r, category),
-          proportionalTarget(getGemPotential(r, category), elapsedMonths),
-          r.total_procurement_through_gem || 0,
-          r.total_procurement_outside_gem || 0,
-        ].join('\t');
-      })
+    const category = listCategoryForTab(activeTab);
+    let allRows;
+    try {
+      allRows = await fetchAllGemRows();
+    } catch (err) {
+      console.error('Failed to fetch GEM rows for copy:', err);
+      notify(COMMON_TOASTS.loadFailed('GEM procurement data'));
+      return;
+    }
+    const text = allRows
+      .map((r) => [
+        r.organisation_name || '',
+        getGemFinancialYear(r),
+        getGemPotential(r, category),
+        proportionalTarget(getGemPotential(r, category), elapsedMonths),
+        r.total_procurement_through_gem || 0,
+        r.total_procurement_outside_gem || 0,
+      ].join('\t'))
       .join('\n');
     navigator.clipboard.writeText(text).then(
-      () => notify(COMMON_TOASTS.copySuccess(rows.length)),
+      () => notify(COMMON_TOASTS.copySuccess(allRows.length)),
       () => notify(COMMON_TOASTS.copyFailed()),
     );
   };
@@ -522,12 +536,9 @@ export default function GEMProcurementView({
       return;
     }
     const category = listCategoryForTab(activeTab);
-    // Export every row matching the filters, not just the page on screen.
     let allRows;
     try {
-      const res = await fetchGemList(category, { ...buildFilterParams(), all: true, limit: 2000 });
-      const payload = res.data || {};
-      allRows = Array.isArray(payload.data) ? payload.data : Array.isArray(payload) ? payload : [];
+      allRows = await fetchAllGemRows();
     } catch (err) {
       console.error('Failed to fetch GEM rows for export:', err);
       notify(COMMON_TOASTS.loadFailed('GEM procurement data'));

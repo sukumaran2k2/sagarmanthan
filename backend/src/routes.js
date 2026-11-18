@@ -1520,18 +1520,18 @@ router.get("/cadivision-report/:wingID/", auth, requireModulePermission("CONSULT
 router.get("/wingwise-cacandidate/:wingID/", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultAppReportTab.getCaWingWiseCandidateReport);
 router.get("/divisionwise-cacandidate/:divisionID/", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultAppReportTab.getCaDivisionWiseCandidateReport);
 
-// Vip Reference 
-router.get("/vipwingwise-report", vipReportTab.vipWingWiseReport);
-router.get("/vipdivisionwise-report/:wingID/", vipReportTab.vipDivisionWiseReport);
-router.get("/getvip-wingwise/:wingID/:vipStage", vipReportTab.getDetailVipWingWise);
-router.get("/getvip-divisionwise/:divisionID/:vipStage", vipReportTab.getDetailVipDivisionWise);
-router.get("/getCurrentDate", vipReportTab.getCurrentDate);
+// Vip Reference
+router.get("/vipwingwise-report", auth, requireModulePermission("VIP_REFERENCE", "read"), vipReportTab.vipWingWiseReport);
+router.get("/vipdivisionwise-report/:wingID/", auth, requireModulePermission("VIP_REFERENCE", "read"), vipReportTab.vipDivisionWiseReport);
+router.get("/getvip-wingwise/:wingID/:vipStage", auth, requireModulePermission("VIP_REFERENCE", "read"), vipReportTab.getDetailVipWingWise);
+router.get("/getvip-divisionwise/:divisionID/:vipStage", auth, requireModulePermission("VIP_REFERENCE", "read"), vipReportTab.getDetailVipDivisionWise);
+router.get("/getCurrentDate", auth, vipReportTab.getCurrentDate);
 
 // Pendency Vip Reference
-router.get("/vip-pendencywingwise-report", vipReportTab.vipPendencyWingWiseReport);
-router.get("/vip-pendencydivisionwise-report/:wingID/", vipReportTab.vipPendencyDivisionWiseReport);
-router.get("/getvippendency-wingwise/:wingID/:countDate", vipReportTab.getDetailVipPendencyWingWise);
-router.get("/getvippendency-divisionwise/:divisionID/:countDate", vipReportTab.getDetailVipPendencyDivisionWise);
+router.get("/vip-pendencywingwise-report", auth, requireModulePermission("VIP_REFERENCE", "read"), vipReportTab.vipPendencyWingWiseReport);
+router.get("/vip-pendencydivisionwise-report/:wingID/", auth, requireModulePermission("VIP_REFERENCE", "read"), vipReportTab.vipPendencyDivisionWiseReport);
+router.get("/getvippendency-wingwise/:wingID/:countDate", auth, requireModulePermission("VIP_REFERENCE", "read"), vipReportTab.getDetailVipPendencyWingWise);
+router.get("/getvippendency-divisionwise/:divisionID/:countDate", auth, requireModulePermission("VIP_REFERENCE", "read"), vipReportTab.getDetailVipPendencyDivisionWise);
 
 // Social Media & Outreach
 router.post(
@@ -1753,13 +1753,13 @@ router.post('/add-kpi2-3-2', KpiDGS_2_3_Tab.createDgsKpi2_3_2Data);
 router.get("/kpi2-3-2-list", KpiDGS_2_3_Tab.getKpi2_3_2_List);
 
 // MoPSWTracker
-router.get("/tracker-list", mopswTracker.trackerList);
+router.get("/tracker-list", auth, requireModulePermission("CABINET_NOTES_MOPSW", "read"), mopswTracker.trackerList);
 
-router.get("/checkData-tracker/:year/:month/", mopswTracker.checkDataMopswTracker);
-router.get("/get_addtracker_masterdata/:year/:month", mopswTracker.getAddTrackerMasterdata);
-router.post('/add-mopswtracker', mopswTracker.createMopswTracker);
-// Report 
-router.get('/get-mopswtracker-report', mopswTracker.getmopswTrackermonthlyReport);
+router.get("/checkData-tracker/:year/:month/", auth, requireModulePermission("CABINET_NOTES_MOPSW", "read"), mopswTracker.checkDataMopswTracker);
+router.get("/get_addtracker_masterdata/:year/:month", auth, requireModulePermission("CABINET_NOTES_MOPSW", "read"), mopswTracker.getAddTrackerMasterdata);
+router.post('/add-mopswtracker', auth, requireModulePermission("CABINET_NOTES_MOPSW", "create"), mopswTracker.createMopswTracker);
+// Report
+router.get('/get-mopswtracker-report', auth, requireModulePermission("CABINET_NOTES_MOPSW", "read"), mopswTracker.getmopswTrackermonthlyReport);
 
 // 2.3.1
 router.get("/checkData-2-3-1-data/:year/:month", KpiDGS_2_3_Tab.checkData_2_3_1);

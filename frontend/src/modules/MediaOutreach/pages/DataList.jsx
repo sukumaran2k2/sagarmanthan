@@ -68,17 +68,17 @@ const HEADER_CLASS = 'text-center-header font-bold text-white';
 // Organisation chip panel styles; Ministry has no chip panel
 const CHIP_STYLES = {
   major_port: {
-    panel: 'bg-emerald-50/15 border-emerald-255/30 border-l-4 border-l-emerald-500',
+    panel: 'bg-emerald-50/15 border-emerald-300/30 border-l-4 border-l-emerald-500',
     dot: 'bg-emerald-500',
-    label: 'text-emerald-700 dark:text-emerald-455',
+    label: 'text-emerald-700 dark:text-emerald-400',
     name: 'Major Port',
     all: 'All Major Ports',
     active: 'bg-emerald-600 border-emerald-600 text-white shadow-md transform scale-[1.02]',
   },
   non_port: {
-    panel: 'bg-indigo-50/15 border-indigo-255/30 border-l-4 border-l-indigo-500',
+    panel: 'bg-indigo-50/15 border-indigo-300/30 border-l-4 border-l-indigo-500',
     dot: 'bg-indigo-500',
-    label: 'text-indigo-700 dark:text-indigo-405',
+    label: 'text-indigo-700 dark:text-indigo-400',
     name: 'Non-Port',
     all: 'All Non-Ports',
     active: 'bg-indigo-600 border-indigo-600 text-white shadow-md transform scale-[1.02]',
@@ -551,7 +551,7 @@ export default function DataList({
                   className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer border ${
                     !selectedSubOrgId
                       ? 'bg-slate-800 text-white border-slate-800 shadow-sm transform scale-[1.02] dark:bg-slate-200 dark:text-slate-900 dark:border-slate-200'
-                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-350 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800 dark:hover:bg-slate-800'
+                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800 dark:hover:bg-slate-800'
                   }`}
                 >
                   {chipStyle.all}
@@ -567,7 +567,7 @@ export default function DataList({
                       className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer border ${
                         isSelected
                           ? chipStyle.active
-                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-355 hover:scale-[1.01] dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800 dark:hover:bg-slate-800'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300 hover:scale-[1.01] dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800 dark:hover:bg-slate-800'
                       }`}
                     >
                       {org.organisation_name}

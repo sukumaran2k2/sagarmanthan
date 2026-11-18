@@ -473,21 +473,29 @@ export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, tr
     rowData: rows,
   });
 
-  const handleCopyData = () => {
+  const handleCopyData = async () => {
     if (!capexData?.length) {
       notify(COMMON_TOASTS.nothingToCopy());
       return;
     }
-    const text = [
-      ['S.No', ...exportColumns.map((c) => c.label)].join('\t'),
-      ...capexData.map((r, i) =>
-        [(page - 1) * pageSize + i + 1, ...exportColumns.map((c) => c.value(r))].join('\t')
-      ),
-    ].join('\n');
-    navigator.clipboard.writeText(text).then(
-      () => notify(COMMON_TOASTS.copySuccess(capexData.length)),
-      () => notify(COMMON_TOASTS.copyFailed()),
-    );
+    try {
+      const res = await fetchCapexList({ ...listFilterParams, page: 1, limit: 2000, all: true });
+      const payload = res.data || {};
+      const allRows = Array.isArray(payload.data) ? payload.data : [];
+      const text = [
+        ['S.No', ...exportColumns.map((c) => c.label)].join('\t'),
+        ...allRows.map((r, i) =>
+          [i + 1, ...exportColumns.map((c) => c.value(r))].join('\t')
+        ),
+      ].join('\n');
+      navigator.clipboard.writeText(text).then(
+        () => notify(COMMON_TOASTS.copySuccess(allRows.length)),
+        () => notify(COMMON_TOASTS.copyFailed()),
+      );
+    } catch (err) {
+      console.error('Capex copy failed:', err?.message);
+      notify(COMMON_TOASTS.loadFailed('The Capex rows to copy'));
+    }
   };
 
   const handleExportExcel = async () => {

@@ -50,7 +50,7 @@ export default function CapexOrgSummaryReport({ notify }) {
         organisationId: orgId,
         all: true,
         page: 1,
-        limit: 500,
+        limit: 2000,
       });
       const payload = res.data || {};
       const list = Array.isArray(payload.data)
