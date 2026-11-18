@@ -19,8 +19,8 @@ import {
   updateGemTarget,
 } from './api';
 import { useGemStore } from './store/useGemStore';
-import { GEM_TOASTS } from './toastMessages';
 import { COMMON_TOASTS, useNotifier } from '../../utils/notify';
+import { exportRowsToFile } from '../../utils/exportGridReport';
 import {
   getGemRecordId,
   getGemFinancialYear,
@@ -564,6 +564,42 @@ export default function GEMProcurementView({
     notify(COMMON_TOASTS.excelExported(fileName));
   };
 
+  const handleExportPdf = async () => {
+    if (!rows.length) {
+      notify(COMMON_TOASTS.nothingToExport());
+      return;
+    }
+    const category = listCategoryForTab(activeTab);
+    let allRows;
+    try {
+      allRows = await fetchAllGemRows();
+    } catch (err) {
+      console.error('Failed to fetch GEM rows for export:', err);
+      notify(COMMON_TOASTS.loadFailed('GEM procurement data'));
+      return;
+    }
+    const sheet = allRows.map((r, idx) => ({
+      'Sl.No': idx + 1,
+      Organisation: r.organisation_name || '',
+      'Financial Year': getGemFinancialYear(r),
+      'Planned Procurement': Number(getGemPotential(r, category)).toFixed(2),
+      [`${elapsedMonths} Months Proportional Target`]: proportionalTarget(
+        getGemPotential(r, category),
+        elapsedMonths
+      ).toFixed(2),
+      'Through GEM': Number(r.total_procurement_through_gem || 0).toFixed(2),
+      'Outside GEM': Number(r.total_procurement_outside_gem || 0).toFixed(2),
+    }));
+    exportRowsToFile('pdf', {
+      title: `GEM Procurement — ${categoryTitle}`,
+      subtitle: `Financial Year: ${filterYear || 'All'}`,
+      headers: Object.keys(sheet[0] || {}),
+      rows: sheet.map((row) => Object.values(row)),
+      fileName: `GEM_${categoryTitle}_${filterYear || 'all'}`,
+      brand: '#0f417a',
+    });
+  };
+
   if (!permissions.canView) {
     return <RestrictedAccess moduleName="GEM Procurement" />;
   }
@@ -590,7 +626,7 @@ export default function GEMProcurementView({
         onOpenAddPage={openAddPage}
         handleCopyData={handleCopyData}
         handleExportExcel={handleExportExcel}
-        handleExportPdf={() => notify(GEM_TOASTS.pdfComingSoon())}
+        handleExportPdf={handleExportPdf}
         organisations={organisations}
         filterYear={filterYear}
         setFilterYear={setFilterYear}

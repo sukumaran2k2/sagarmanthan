@@ -1,4 +1,4 @@
-import { toastSuccess, toastError, toastWarning, toastInfo, withReason } from '../../utils/notify';
+import { toastSuccess, toastError, toastWarning, withReason } from '../../utils/notify';
 
 // GEM Procurement wording only; shared cases (copy, export, load failures, required selects) come from COMMON_TOASTS.
 export const GEM_TOASTS = {
@@ -19,6 +19,4 @@ export const GEM_TOASTS = {
     toastError('Save Failed', withReason('The monthly procurement data could not be saved. Please try again.', reason)),
   reportCopied: (reportName) =>
     toastSuccess('Copied to Clipboard', `The ${reportName} was copied. You can paste it into Excel or a document.`),
-  pdfComingSoon: () =>
-    toastInfo('Coming Soon', 'PDF export is not available yet. Use the Excel export for now.'),
 };
