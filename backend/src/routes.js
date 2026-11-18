@@ -706,12 +706,7 @@ router.get(
   requireModulePermission("VIP_REFERENCE", "read"),
   vipReferenceTab.getUpdateVipReferenceData
 );
-router.delete(
-  "/vip-reference/:vipReferenceID/:userID",
-  auth,
-  requireModulePermission("VIP_REFERENCE", "delete"),
-  vipReferenceTab.deleteVipReference
-);
+
 // router.get("/get-vip-wing-chart", vipReferenceTab.getVipWingChartData);
 // router.get("/get-vip-division-chart", vipReferenceTab.getVipDivisionChartData);
 // router.get("/get-vip-stage-chart", vipReferenceTab.getVipStageChartData);
