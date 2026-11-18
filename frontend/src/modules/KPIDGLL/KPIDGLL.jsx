@@ -182,6 +182,17 @@ export default function KPIDGLLView({ activeTab: menuTab, triggerNotification })
   const rows = result?.rows ?? [];
   const pagination = result?.pagination ?? { ...EMPTY_PAGINATION, limit: pageSize };
 
+  const fetchAllRows = useCallback(async () => {
+    const all = [];
+    for (let page = 1, totalPages = 1; page <= totalPages && page <= 200; page += 1) {
+      const res = await list.fetchList({ page, limit: 100, search: debouncedSearch, ...filter });
+      const payload = res?.data || {};
+      all.push(...(Array.isArray(payload.data) ? payload.data : []));
+      totalPages = Number(payload.pagination?.totalPages) || 1;
+    }
+    return all;
+  }, [list, debouncedSearch, filter]);
+
   // A deleted row can leave the page empty; step back so the list doesn't look blank
   useEffect(() => {
     if (!loading && rows.length === 0 && currentPage > 1) listActions.setCurrentPage(currentPage - 1);
@@ -297,6 +308,7 @@ export default function KPIDGLLView({ activeTab: menuTab, triggerNotification })
       ) : (
         <DataList
           rowData={rows}
+          fetchAllRows={fetchAllRows}
           loading={loading}
           onEdit={handleEdit}
           onDelete={handleDelete}

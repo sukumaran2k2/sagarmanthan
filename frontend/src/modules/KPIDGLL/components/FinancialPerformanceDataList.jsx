@@ -6,7 +6,7 @@ import DataListToolbar from '../../../components/DataListToolbar';
 import { exportDataListToPdf } from '../../../utils/exportReportPdf';
 import { COMMON_TOASTS } from '../../../utils/notify';
 import { cellText, lastUpdatedText } from '../../../utils/cellText';
-import { exportGridApiToExcel } from '../../../utils/exportGridReport';
+import { exportGridApiToExcel, exportRowsToFile } from '../../../utils/exportGridReport';
 
 const COLUMN_LABELS = {
   organisation_name: 'Organisation Name',
@@ -34,6 +34,7 @@ const DEFAULT_VISIBLE_COLS = {
 
 export default function FinancialPerformanceDataList({
   rowData = [],
+  fetchAllRows,
   loading = false,
   onEdit,
   onDelete,
@@ -61,27 +62,31 @@ export default function FinancialPerformanceDataList({
   const moneyFmt = (params) => params.value != null ? `₹${Number(params.value).toLocaleString('en-IN')} Cr` : '';
   const MONEY_FIELDS = ['revenue_light_dues_collection', 'revenue_from_tourism', 'subsidies_from_govt', 'operating_costs', 'capital_expenditure', 'tourism_develop_cost'];
 
-  const handleExport = (type) => {
+  const handleExport = async (type) => {
+    const allData = fetchAllRows ? await fetchAllRows() : rowData;
     if (type === 'Copy') {
       const cols = Object.keys(visibleCols).filter((c) => visibleCols[c]);
       let tsv = ['S.No', ...cols.map((c) => COLUMN_LABELS[c])].join('\t') + '\n';
-      rowData.forEach((row, i) => {
+      allData.forEach((row, i) => {
         const line = [i + 1, ...cols.map((c) => MONEY_FIELDS.includes(c) && row[c] != null ? `₹${Number(row[c]).toLocaleString('en-IN')} Cr` : cellText(row[c]))];
         tsv += line.join('\t') + '\n';
       });
       navigator.clipboard.writeText(tsv).then(
-        () => notify?.(COMMON_TOASTS.copySuccess(rowData.length)),
+        () => notify?.(COMMON_TOASTS.copySuccess(allData.length)),
         () => notify?.(COMMON_TOASTS.copyFailed()),
       );
     } else if (type === 'Excel') {
-      const file = exportGridApiToExcel(gridRef.current?.api, { title: 'Financial Performance Data List', fileName: 'financial_performance' });
+      const cols = Object.keys(visibleCols).filter((c) => visibleCols[c]);
+      const headers = ['S.No', ...cols.map((c) => COLUMN_LABELS[c])];
+      const excelRows = allData.map((row, i) => [i + 1, ...cols.map((c) => MONEY_FIELDS.includes(c) && row[c] != null ? `₹${Number(row[c]).toLocaleString('en-IN')} Cr` : cellText(row[c]))]);
+      const file = exportRowsToFile('excel', { title: 'Financial Performance Data List', headers, rows: excelRows, fileName: 'financial_performance' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
       exportDataListToPdf({
         title: 'Financial Performance Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
-        rowData: rowData,
+        rowData: allData,
         fileName: 'financial_performance',
       });
       notify?.(COMMON_TOASTS.downloadStarted('financial_performance.pdf'));

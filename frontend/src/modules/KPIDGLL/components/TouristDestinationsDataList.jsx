@@ -5,7 +5,7 @@ import TablePagination from '../../../components/TablePagination';
 import DataListToolbar from '../../../components/DataListToolbar';
 import { exportDataListToPdf } from '../../../utils/exportReportPdf';
 import { COMMON_TOASTS } from '../../../utils/notify';
-import { exportGridApiToExcel } from '../../../utils/exportGridReport';
+import { exportGridApiToExcel, exportRowsToFile } from '../../../utils/exportGridReport';
 
 const DEST_COLUMN_LABELS = {
   finacial_year: 'Financial Year',
@@ -39,6 +39,7 @@ export default function TouristDestinationsDataList({
   activeTable = 'destination',
   onTableChange,
   rowData: rows = [],
+  fetchAllRows,
   loading = false,
   onEdit,
   onDelete,
@@ -139,22 +140,26 @@ export default function TouristDestinationsDataList({
   const colDefs = isDestination ? destinationColDefs : targetColDefs;
   const fileNameBase = isDestination ? 'tourist_destinations' : 'tourist_destinations_target_details';
 
-  const handleExport = (type) => {
+  const handleExport = async (type) => {
+    const allData = fetchAllRows ? await fetchAllRows() : rows;
     if (type === 'Copy') {
       const cols = Object.keys(visibleCols).filter((c) => visibleCols[c]);
       let tsv = ['S.No', ...cols.map((c) => columnLabels[c])].join('\t') + '\n';
-      rows.forEach((row, i) => {
+      allData.forEach((row, i) => {
         const line = [i + 1, ...cols.map((c) => row[c] ?? '')];
         tsv += line.join('\t') + '\n';
       });
       navigator.clipboard.writeText(tsv).then(
-        () => notify?.(COMMON_TOASTS.copySuccess(rows.length)),
+        () => notify?.(COMMON_TOASTS.copySuccess(allData.length)),
         () => notify?.(COMMON_TOASTS.copyFailed()),
       );
     } else if (type === 'Excel') {
-      const file = exportGridApiToExcel(gridRef.current?.api, {
+      const cols = Object.keys(visibleCols).filter((c) => visibleCols[c]);
+      const headers = ['S.No', ...cols.map((c) => columnLabels[c])];
+      const excelRows = allData.map((row, i) => [i + 1, ...cols.map((c) => row[c] ?? '')]);
+      const file = exportRowsToFile('excel', {
         title: isDestination ? 'Tourist Destinations Data List' : 'Tourist Destinations Target Details Data List',
-        fileName: fileNameBase,
+        headers, rows: excelRows, fileName: fileNameBase,
       });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
@@ -162,7 +167,7 @@ export default function TouristDestinationsDataList({
         title: isDestination ? 'Tourist Destinations Data List' : 'Tourist Destinations Target Details Data List',
         columnLabels,
         visibleCols,
-        rowData: rows,
+        rowData: allData,
         fileName: fileNameBase,
       });
       notify?.(COMMON_TOASTS.downloadStarted(`${fileNameBase}.pdf`));

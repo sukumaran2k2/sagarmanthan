@@ -6,7 +6,7 @@ import DataListToolbar from '../../../components/DataListToolbar';
 import { exportDataListToPdf } from '../../../utils/exportReportPdf';
 import { COMMON_TOASTS } from '../../../utils/notify';
 import { cellText, lastUpdatedText } from '../../../utils/cellText';
-import { exportGridApiToExcel } from '../../../utils/exportGridReport';
+import { exportRowsToFile } from '../../../utils/exportGridReport';
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
@@ -24,6 +24,7 @@ const DEFAULT_VISIBLE_COLS = {
 
 export default function NewCourseUpgradationDataList({
   rowData = [],
+  fetchAllRows,
   loading = false,
   onEdit,
   onDelete,

@@ -6,7 +6,7 @@ import DataListToolbar from '../../../components/DataListToolbar';
 import { exportDataListToPdf } from '../../../utils/exportReportPdf';
 import { COMMON_TOASTS } from '../../../utils/notify';
 import { cellText, lastUpdatedText } from '../../../utils/cellText';
-import { exportGridApiToExcel } from '../../../utils/exportGridReport';
+import { exportGridApiToExcel, exportRowsToFile } from '../../../utils/exportGridReport';
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
@@ -26,6 +26,7 @@ const DEFAULT_VISIBLE_COLS = {
 
 export default function VesselsBuiltDataList({
   rowData = [],
+  fetchAllRows,
   loading = false,
   onEdit,
   onDelete,
@@ -50,27 +51,31 @@ export default function VesselsBuiltDataList({
   });
   const gridRef = useRef(null);
 
-  const handleExport = (type) => {
+  const handleExport = async (type) => {
+    const allData = fetchAllRows ? await fetchAllRows() : rowData;
     if (type === 'Copy') {
-      const headers = Object.keys(visibleCols).filter((c) => visibleCols[c]).map((c) => COLUMN_LABELS[c]);
-      let tsv = ['S.No', ...headers].join('\t') + '\n';
-      rowData.forEach((row, i) => {
-        const line = [i + 1, ...Object.keys(visibleCols).filter((c) => visibleCols[c]).map((c) => cellText(row[c]))];
+      const cols = Object.keys(visibleCols).filter((c) => visibleCols[c]);
+      let tsv = ['S.No', ...cols.map((c) => COLUMN_LABELS[c])].join('\t') + '\n';
+      allData.forEach((row, i) => {
+        const line = [i + 1, ...cols.map((c) => cellText(row[c]))];
         tsv += line.join('\t') + '\n';
       });
       navigator.clipboard.writeText(tsv).then(
-        () => notify?.(COMMON_TOASTS.copySuccess(rowData.length)),
+        () => notify?.(COMMON_TOASTS.copySuccess(allData.length)),
         () => notify?.(COMMON_TOASTS.copyFailed()),
       );
     } else if (type === 'Excel') {
-      const file = exportGridApiToExcel(gridRef.current?.api, { title: 'CSL Vessels Built Data List', fileName: 'csl_vessels_built' });
+      const cols = Object.keys(visibleCols).filter((c) => visibleCols[c]);
+      const headers = ['S.No', ...cols.map((c) => COLUMN_LABELS[c])];
+      const excelRows = allData.map((row, i) => [i + 1, ...cols.map((c) => cellText(row[c]))]);
+      const file = exportRowsToFile('excel', { title: 'CSL Vessels Built Data List', headers, rows: excelRows, fileName: 'csl_vessels_built' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
       exportDataListToPdf({
         title: 'CSL Vessels Built Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
-        rowData: rowData,
+        rowData: allData,
         fileName: 'csl_vessels_built',
       });
       notify?.(COMMON_TOASTS.downloadStarted('csl_vessels_built.pdf'));

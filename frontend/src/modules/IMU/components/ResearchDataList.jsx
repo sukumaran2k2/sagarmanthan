@@ -6,7 +6,7 @@ import DataListToolbar from '../../../components/DataListToolbar';
 import { exportDataListToPdf } from '../../../utils/exportReportPdf';
 import { COMMON_TOASTS } from '../../../utils/notify';
 import { cellText, lastUpdatedText } from '../../../utils/cellText';
-import { exportGridApiToExcel } from '../../../utils/exportGridReport';
+import { exportGridApiToExcel, exportRowsToFile } from '../../../utils/exportGridReport';
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
@@ -32,6 +32,7 @@ const DEFAULT_VISIBLE_COLS = {
 
 export default function ResearchDataList({
   rowData = [],
+  fetchAllRows,
   loading = false,
   onEdit,
   onDelete,
@@ -56,27 +57,31 @@ export default function ResearchDataList({
   });
   const gridRef = useRef(null);
 
-  const handleExport = (type) => {
+  const handleExport = async (type) => {
+    const allData = fetchAllRows ? await fetchAllRows() : rowData;
     if (type === 'Copy') {
       const cols = Object.keys(visibleCols).filter((c) => visibleCols[c]);
       let tsv = ['S.No', ...cols.map((c) => COLUMN_LABELS[c])].join('\t') + '\n';
-      rowData.forEach((row, i) => {
+      allData.forEach((row, i) => {
         const line = [i + 1, ...cols.map((c) => cellText(row[c]))];
         tsv += line.join('\t') + '\n';
       });
       navigator.clipboard.writeText(tsv).then(
-        () => notify?.(COMMON_TOASTS.copySuccess(rowData.length)),
+        () => notify?.(COMMON_TOASTS.copySuccess(allData.length)),
         () => notify?.(COMMON_TOASTS.copyFailed()),
       );
     } else if (type === 'Excel') {
-      const file = exportGridApiToExcel(gridRef.current?.api, { title: 'IMU Research Data List', fileName: 'imu_research' });
+      const cols = Object.keys(visibleCols).filter((c) => visibleCols[c]);
+      const headers = ['S.No', ...cols.map((c) => COLUMN_LABELS[c])];
+      const excelRows = allData.map((row, i) => [i + 1, ...cols.map((c) => cellText(row[c]))]);
+      const file = exportRowsToFile('excel', { title: 'IMU Research Data List', headers, rows: excelRows, fileName: 'imu_research' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
       exportDataListToPdf({
         title: 'IMU Research Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
-        rowData: rowData,
+        rowData: allData,
         fileName: 'imu_research',
       });
       notify?.(COMMON_TOASTS.downloadStarted('imu_research.pdf'));
