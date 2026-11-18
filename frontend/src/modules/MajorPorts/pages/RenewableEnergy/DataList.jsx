@@ -106,6 +106,33 @@ export default function RenewableEnergyDataList({
     request: fetchRenewableEnergyActuals,
     onError: handleLoadError,
   });
+  const [exporting, setExporting] = useState(false);
+
+// Fetch ALL rows matching the current filters/search (not just the visible page)
+const fetchAllRows = useCallback(async () => {
+  const EXPORT_PAGE_SIZE = 100; // lower this if your API rejects bigger limits
+  const { page: _p, limit: _l, ...filters } = params;
+
+  let page = 1;
+  let totalPagesToFetch = 1;
+  let all = [];
+
+  do {
+    const res = await fetchRenewableEnergyActuals({ ...filters, page, limit: EXPORT_PAGE_SIZE });
+    const body = res?.data ?? res;
+    const batch = body?.data ?? body?.rows ?? body?.items ?? (Array.isArray(body) ? body : []);
+    all = all.concat(batch);
+
+    const count = body?.total ?? body?.totalCount ?? body?.pagination?.total;
+    totalPagesToFetch =
+      body?.totalPages ??
+      body?.pagination?.totalPages ??
+      (count ? Math.ceil(count / EXPORT_PAGE_SIZE) : page);
+    page += 1;
+  } while (page <= totalPagesToFetch);
+
+  return all.map((row, index) => ({ ...row, sNo: index + 1 }));
+}, [params]);
   // Copy / export only what is on screen once the newest page has arrived
   const busy = loading || refreshing;
 
@@ -207,30 +234,53 @@ export default function RenewableEnergyDataList({
     () => [{ field: 'sNo', label: 'S.No' }, ...allColumns.filter((c) => visibleCols[c.field] !== false)],
     [allColumns, visibleCols]
   );
-  const exportBaseName = `Renewable_Energy_Page_${currentPage}`;
+  const exportBaseName = 'Renewable_Energy_All';
 
-  const handleCopy = () => {
-    if (busy) return notify(COMMON_TOASTS.tableNotReady('copy'));
-    return copyRowsToClipboard(visibleExportColumns, rowsWithSerial)
-      .then(() => notify(COMMON_TOASTS.copySuccess(rowsWithSerial.length)))
-      .catch(() => notify(COMMON_TOASTS.copyFailed()));
-  };
+const handleCopy = async () => {
+  if (busy || exporting) return notify(COMMON_TOASTS.tableNotReady('copy'));
+  setExporting(true);
+  try {
+    const allRows = await fetchAllRows();
+    await copyRowsToClipboard(visibleExportColumns, allRows);
+    notify(COMMON_TOASTS.copySuccess(allRows.length));
+  } catch {
+    notify(COMMON_TOASTS.copyFailed());
+  } finally {
+    setExporting(false);
+  }
+};
 
-  const handleExcel = () => {
-    if (busy) return notify(COMMON_TOASTS.tableNotReady('export'));
-    const fileName = downloadExcel(visibleExportColumns, rowsWithSerial, exportBaseName, 'Actuals');
-    return notify(COMMON_TOASTS.excelExported(fileName));
-  };
+const handleExcel = async () => {
+  if (busy || exporting) return notify(COMMON_TOASTS.tableNotReady('export'));
+  setExporting(true);
+  try {
+    const allRows = await fetchAllRows();
+    const fileName = downloadExcel(visibleExportColumns, allRows, exportBaseName, 'Actuals');
+    notify(COMMON_TOASTS.excelExported(fileName));
+  } catch {
+    notify(COMMON_TOASTS.loadFailed('Renewable energy'));
+  } finally {
+    setExporting(false);
+  }
+};
 
-  const handlePdf = () => {
-    if (busy) return notify(COMMON_TOASTS.tableNotReady('export'));
-    return downloadPdf(
+const handlePdf = async () => {
+  if (busy || exporting) return notify(COMMON_TOASTS.tableNotReady('export'));
+  setExporting(true);
+  try {
+    const allRows = await fetchAllRows();
+    downloadPdf(
       'Renewable Energy - Actuals',
       visibleExportColumns.filter((c) => c.field !== 'sNo'),
-      rowsWithSerial,
+      allRows,
       exportBaseName
     );
-  };
+  } catch {
+    notify(COMMON_TOASTS.loadFailed('Renewable energy'));
+  } finally {
+    setExporting(false);
+  }
+};
 
   const confirmDelete = async () => {
     const period = describePeriod(pendingDelete.fiscal_year, pendingDelete.month);

@@ -157,6 +157,33 @@ export default function TrafficDataList({
     request: fetchTrafficActuals,
     onError: handleLoadError,
   });
+  const [exporting, setExporting] = useState(false);
+
+// Fetch ALL rows matching the current view, filters and search (not just the visible page)
+const fetchAllRows = useCallback(async () => {
+  const EXPORT_PAGE_SIZE = 100; // lower this if your API rejects bigger limits
+  const { page: _p, limit: _l, ...filters } = params;
+
+  let page = 1;
+  let totalPagesToFetch = 1;
+  let all = [];
+
+  do {
+    const res = await fetchTrafficActuals({ ...filters, page, limit: EXPORT_PAGE_SIZE });
+    const body = res?.data ?? res;
+    const batch = body?.data ?? body?.rows ?? body?.items ?? (Array.isArray(body) ? body : []);
+    all = all.concat(batch);
+
+    const count = body?.total ?? body?.totalCount ?? body?.pagination?.total;
+    totalPagesToFetch =
+      body?.totalPages ??
+      body?.pagination?.totalPages ??
+      (count ? Math.ceil(count / EXPORT_PAGE_SIZE) : page);
+    page += 1;
+  } while (page <= totalPagesToFetch);
+
+  return all.map((row, index) => ({ ...row, sNo: index + 1 }));
+}, [params]);
   // Copy / export only what is on screen once the newest page has arrived
   const busy = loading || refreshing;
 
@@ -282,30 +309,53 @@ export default function TrafficDataList({
     () => [{ field: 'sNo', label: 'S.No' }, ...columns.filter((c) => visibleCols[c.field] !== false)],
     [columns, visibleCols]
   );
-  const exportBaseName = `Traffic_${VIEW_LABELS[activeView].replace(/[^A-Za-z]+/g, '_')}_Page_${currentPage}`;
+const exportBaseName = `Traffic_${VIEW_LABELS[activeView].replace(/[^A-Za-z]+/g, '_')}_All`;
 
-  const handleCopy = () => {
-    if (busy) return notify(COMMON_TOASTS.tableNotReady('copy'));
-    return copyRowsToClipboard(visibleExportColumns, rowsWithSerial)
-      .then(() => notify(COMMON_TOASTS.copySuccess(rowsWithSerial.length)))
-      .catch(() => notify(COMMON_TOASTS.copyFailed()));
-  };
+const handleCopy = async () => {
+  if (busy || exporting) return notify(COMMON_TOASTS.tableNotReady('copy'));
+  setExporting(true);
+  try {
+    const allRows = await fetchAllRows();
+    await copyRowsToClipboard(visibleExportColumns, allRows);
+    notify(COMMON_TOASTS.copySuccess(allRows.length));
+  } catch {
+    notify(COMMON_TOASTS.copyFailed());
+  } finally {
+    setExporting(false);
+  }
+};
 
-  const handleExcel = () => {
-    if (busy) return notify(COMMON_TOASTS.tableNotReady('export'));
-    const fileName = downloadExcel(visibleExportColumns, rowsWithSerial, exportBaseName, VIEW_LABELS[activeView]);
-    return notify(COMMON_TOASTS.excelExported(fileName));
-  };
+const handleExcel = async () => {
+  if (busy || exporting) return notify(COMMON_TOASTS.tableNotReady('export'));
+  setExporting(true);
+  try {
+    const allRows = await fetchAllRows();
+    const fileName = downloadExcel(visibleExportColumns, allRows, exportBaseName, VIEW_LABELS[activeView]);
+    notify(COMMON_TOASTS.excelExported(fileName));
+  } catch {
+    notify(COMMON_TOASTS.loadFailed('Traffic data'));
+  } finally {
+    setExporting(false);
+  }
+};
 
-  const handlePdf = () => {
-    if (busy) return notify(COMMON_TOASTS.tableNotReady('export'));
-    return downloadPdf(
+const handlePdf = async () => {
+  if (busy || exporting) return notify(COMMON_TOASTS.tableNotReady('export'));
+  setExporting(true);
+  try {
+    const allRows = await fetchAllRows();
+    downloadPdf(
       `Traffic - ${VIEW_LABELS[activeView]}`,
       visibleExportColumns.filter((c) => c.field !== 'sNo'),
-      rowsWithSerial,
+      allRows,
       exportBaseName
     );
-  };
+  } catch {
+    notify(COMMON_TOASTS.loadFailed('Traffic data'));
+  } finally {
+    setExporting(false);
+  }
+};
 
   const confirmDelete = async () => {
     const period = describePeriod(pendingDelete.fiscal_year, pendingDelete.month);

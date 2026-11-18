@@ -6,6 +6,8 @@ import { Search, X, ChevronDown, Edit, Trash2 } from 'lucide-react';
 import { fetchLandAbstractList, fetchPastLandList, fetchFutureLandList, deleteNmpEntry } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
 import ConfirmModal from '../../../components/ConfirmModal';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 
 // ── Dropdown options (keep in sync with the add form) ──
@@ -291,6 +293,7 @@ export default function NmpDataList({ onEdit, onAddNew, triggerNotification, can
   const [pastView, setPastView] = useState('parcel');
   const [deleteAsk, setDeleteAsk] = useState(null); // the row to delete
 const [deleting, setDeleting] = useState(false);
+const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     const handler = setTimeout(() => setDebouncedSearch(searchTerm), 300);
@@ -391,42 +394,92 @@ const columnDefs = useMemo(() => {
   return buildFutureLandCols(actions);
 }, [subTab, pastView, handleEdit, handleDelete, canEdit, canRemove]);
 
-  const escHtml = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+ // Every column of the current tab (S.No included), with values as the grid shows them
+const exportColumns = useMemo(
+  () =>
+    columnDefs
+      .filter((c) => c.headerName && c.headerName !== 'Action')
+      .map((c) => ({
+        field: c.field,
+        label: c.headerName,
+        exportValue: (row) => {
+          if (c.field === 'sNo') return row.sNo ?? '';
+          let v = typeof c.valueGetter === 'function' ? c.valueGetter({ data: row }) : row[c.field];
+          if (Array.isArray(v)) v = v[0];
+          if (c.cellRenderer === dateCellRenderer) return fmtDate(v);
+          return v == null || v === '' ? '-' : v;
+        },
+      })),
+  [columnDefs]
+);
 
-  const handleExport = (type) => {
-    if (type === 'Copy') {
-      const headers = columnDefs.filter(c => c.headerName).map(c => c.headerName);
-      let tsv = headers.join('\t') + '\n';
-      tableRows.forEach((row) => {
-        const line = columnDefs.filter(c => c.headerName).map(c => {
-          if (c.field === 'sNo') return row.sNo || '';
-          return row[c.field] !== undefined ? row[c.field] : '';
-        });
-        tsv += line.join('\t') + '\n';
-      });
-      navigator.clipboard.writeText(tsv).catch(() => {});
-    } else if (type === 'Excel') {
-      if (gridApiRef.current) {
-        gridApiRef.current.exportDataAsCsv({ fileName: `NMP_${subTab}_${new Date().toISOString().slice(0, 10)}.csv` });
-      }
-    } else if (type === 'PDF') {
-      const printWindow = window.open('', '_blank');
-      if (!printWindow) return;
-      const title = SUB_TABS.find(t => t.id === subTab)?.label || 'NMP Data';
-      let headersHtml = columnDefs.filter(c => c.headerName).map(c =>
-        `<th style="border:1px solid #cbd5e1;padding:10px;text-align:left;background:#f8fafc;font-size:11px;font-weight:bold;text-transform:uppercase">${escHtml(c.headerName)}</th>`
-      ).join('');
-      let rowsHtml = tableRows.map(row => {
-        const cells = columnDefs.filter(c => c.headerName).map(c => {
-          const val = c.field === 'sNo' ? row.sNo : (row[c.field] ?? '');
-          return `<td style="border:1px solid #e2e8f0;padding:8px;font-size:11px">${escHtml(val)}</td>`;
-        }).join('');
-        return `<tr>${cells}</tr>`;
-      }).join('');
-      printWindow.document.write(`<html><head><title>${title}</title><style>body{font-family:'Google Sans',system-ui,sans-serif;color:#1e293b;padding:20px}h1{font-size:18px;margin-bottom:5px;color:#0f417a}table{width:100%;border-collapse:collapse;margin-top:15px}</style></head><body><h1>${title}</h1><p style="font-size:11px;color:#64748b;margin-top:0;margin-bottom:20px">Generated on: ${new Date().toLocaleDateString()}</p><table><thead><tr>${headersHtml}</tr></thead><tbody>${rowsHtml}</tbody></table><script>window.onload=function(){window.print();window.close()}<\/script></body></html>`);
-      printWindow.document.close();
-    }
-  };
+const exportBaseName = `NMP_${subTab}${isPastSor ? '_SoR' : ''}_${new Date().toISOString().slice(0, 10)}`;
+
+const handlePdf = () => {
+  if (loading || exporting) return;
+  if (!tableRows.length) {
+    triggerNotification?.('There is no data to export.', 'error');
+    return;
+  }
+  setExporting(true);
+  try {
+    const title = SUB_TABS.find((t) => t.id === subTab)?.label || 'NMP Data';
+    const fullTitle = `NMP - ${title}${isPastSor ? ' (SoR Details)' : ''}`;
+
+    const safe = (v) =>
+      String(v ?? '')
+        .replace(/₹/g, 'Rs. ')
+        .replace(/[–—]/g, '-')
+        .replace(/[‘’]/g, "'")
+        .replace(/[“”]/g, '"');
+
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a3' });
+    doc.setFontSize(14);
+    doc.text(safe(fullTitle), 30, 30);
+    doc.setFontSize(9);
+    doc.text(`Generated: ${new Date().toLocaleString()}  |  Records: ${tableRows.length}`, 30, 46);
+
+    // Fixed widths: a wide table continues on extra pages instead of being squeezed
+    const columnStyles = {};
+    exportColumns.forEach((c, i) => {
+      columnStyles[i] = { cellWidth: c.field === 'sNo' ? 40 : 90 };
+    });
+
+    autoTable(doc, {
+      startY: 58,
+      head: [exportColumns.map((c) => safe(c.label))],
+      body: tableRows.map((row) => exportColumns.map((c) => safe(c.exportValue(row)))),
+      columnStyles,
+      styles: { fontSize: 7, cellPadding: 3, overflow: 'linebreak', valign: 'middle' },
+      headStyles: { fillColor: [15, 65, 122], textColor: 255, halign: 'center' },
+      alternateRowStyles: { fillColor: [245, 247, 250] },
+      margin: { left: 30, right: 30, bottom: 30 },
+      horizontalPageBreak: true,
+      horizontalPageBreakRepeat: [0, 1], // repeat S.No and the name column on every page
+    });
+
+    doc.save(`${exportBaseName}.pdf`);
+    triggerNotification?.(`Downloaded ${exportBaseName}.pdf`, 'success');
+  } catch (err) {
+    console.error('NMP PDF export failed:', err);
+    triggerNotification?.('PDF export failed. Please try again.', 'error');
+  } finally {
+    setExporting(false);
+  }
+};
+
+const handleExport = (type) => {
+  if (type === 'Copy') {
+    const headers = exportColumns.map((c) => c.label);
+    const rows = tableRows.map((row) => exportColumns.map((c) => c.exportValue(row)));
+    const tsv = [headers, ...rows].map((r) => r.join('\t')).join('\n') + '\n';
+    navigator.clipboard.writeText(tsv).catch(() => {});
+  } else if (type === 'Excel') {
+    gridApiRef.current?.exportDataAsCsv({
+      fileName: `NMP_${subTab}_${new Date().toISOString().slice(0, 10)}.csv`,
+    });
+  }
+};
 
   return (
     <div className="space-y-4 animate-fade-in relative">
@@ -532,12 +585,12 @@ const columnDefs = useMemo(() => {
             <CopyButton onCopy={() => handleExport('Copy')} color="#0f417a" hoverBg="#f1f5f9" />
 
             {/* Export */}
-            <ExportDropdown
-              onExportExcel={() => handleExport('Excel')}
-              onExportPdf={() => handleExport('PDF')}
-              color="#0f417a"
-              hoverColor="#1d5594"
-            />
+          <ExportDropdown
+          onExportExcel={() => handleExport('Excel')}
+          onExportPdf={handlePdf}
+          color="#0f417a"
+          hoverColor="#1d5594"
+        />
           </div>
         </div>
 
