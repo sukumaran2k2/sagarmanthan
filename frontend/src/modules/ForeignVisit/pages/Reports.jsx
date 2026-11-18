@@ -8,6 +8,7 @@ import {
 import { downloadVisitDocument } from '../utils/downloadDocument';
 import { useFvStore } from '../store/useFvStore';
 import { YEAR_OPTIONS, formatDisplayDate } from '../utils/constants';
+import { getSessionClaims, getSessionOrganisationId } from '../../../utils/authSession';
 import { useNotifier } from '../../../utils/notify';
 import { FV_TOASTS } from '../toastMessages';
 
@@ -40,6 +41,10 @@ const emptyFilters = {
 
 export default function Reports({ triggerNotification }) {
   const notify = useNotifier(triggerNotification);
+
+  const sessionOrgId = getSessionOrganisationId() || 0;
+  const claims = getSessionClaims();
+  const roleId = Number(claims?.roleId ?? claims?.role_id ?? 0);
 
   const organisations = useFvStore((s) => s.organisations);
   const designations = useFvStore((s) => s.designations);
@@ -104,6 +109,10 @@ export default function Reports({ triggerNotification }) {
         organisation: f.organisation || UNSET,
         country: f.country || UNSET,
         designation: f.designation || UNSET,
+
+        // Session details
+        orgID: sessionOrgId,
+        roleId: roleId,
       });
 
       setColumns(res.data?.columnDefs || []);
@@ -122,7 +131,7 @@ export default function Reports({ triggerNotification }) {
     } finally {
       setLoading(false);
     }
-  }, [notify]);
+ }, [notify, sessionOrgId, roleId]);
 
   const runReport = useCallback(() => runReportWith(filters), [runReportWith, filters]);
 
