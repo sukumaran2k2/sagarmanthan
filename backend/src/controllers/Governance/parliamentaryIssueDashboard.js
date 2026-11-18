@@ -9,6 +9,7 @@
 // ============================================================
 
 import { pool } from "../../db.js";
+import { dataScopePredicate } from "../../middleware/dataScope.js";
 
 // Parliamentary issues span 5 issue types (Assurance, Zero Hours, Rule 377,
 // Special Mention, PSC Report), each with its own 6-7 stage sub-sequence in
@@ -45,8 +46,18 @@ const STAGE_DATE_CASE = `
 async function getParliamentaryIssueDashboard(req, res) {
   const conn = await pool;
   try {
+    // Issues carry no organisation_id, so the scope follows the creating user's
+    // organisation - the same rule the Data List uses (QC PI-BE-02). Ministry / master
+    // scope sees everything; a user with no scope sees nothing. Where a LEFT JOIN must keep
+    // its zero-count rows, the predicate sits in the ON clause instead of the WHERE.
+    const request = conn.request();
+    const inScope = dataScopePredicate(request, req.user, {
+      strategy: 'viaCreatedBy',
+      alias: 'tpi',
+    });
+
     // ── 1. KPI counters + average age of active issues ─────────────────────
-    const kpiResult = await conn.query(`
+    const kpiResult = await request.query(`
       SELECT
         COUNT(*)                                                        AS total_notes,
         SUM(CASE WHEN NOT ${COMPLETED_SQL} THEN 1 ELSE 0 END)         AS active_notes,
@@ -61,12 +72,13 @@ async function getParliamentaryIssueDashboard(req, res) {
       FROM tbl_parliamentary_issue AS tpi
       INNER JOIN mmt_parliamentary_stage AS mps
         ON tpi.stage_id = mps.parlia_stage_id
+      WHERE ${inScope}
     `);
 
     const kpi = kpiResult.recordset[0] || {};
 
     // ── 2. Stage-wise heat map (grouped by distinct stage NAME) ────────────
-    const heatResult = await conn.query(`
+    const heatResult = await request.query(`
       SELECT
         stageNames.parlia_stage_name                                     AS stage_name,
         COUNT(tpi.parliamentary_issue_id)                               AS note_count,
@@ -84,6 +96,7 @@ async function getParliamentaryIssueDashboard(req, res) {
       LEFT JOIN tbl_parliamentary_issue AS tpi
         ON tpi.stage_id = mps.parlia_stage_id
         AND NOT ${COMPLETED_SQL}
+        AND ${inScope}
       GROUP BY stageNames.parlia_stage_name
       ORDER BY MIN(mps.parlia_stage_id)
     `);
@@ -96,7 +109,7 @@ async function getParliamentaryIssueDashboard(req, res) {
     }));
 
     // ── 3. Wing-wise pending (active) issues ────────────────────────────────
-    const wingResult = await conn.query(`
+    const wingResult = await request.query(`
       SELECT
         wings.wing_id,
         wings.wing_name,
@@ -104,6 +117,7 @@ async function getParliamentaryIssueDashboard(req, res) {
       FROM mmt_wings AS wings
       LEFT JOIN tbl_parliamentary_issue AS tpi
         ON tpi.wing = wings.wing_id
+        AND ${inScope}
       LEFT JOIN mmt_parliamentary_stage AS mps
         ON mps.parlia_stage_id = tpi.stage_id
       WHERE tpi.parliamentary_issue_id IS NULL
@@ -114,7 +128,7 @@ async function getParliamentaryIssueDashboard(req, res) {
     `);
 
     // ── 4. Long pending issues (top 10 by pending days) ─────────────────────
-    const longPendingResult = await conn.query(`
+    const longPendingResult = await request.query(`
       SELECT TOP 10
         tpi.parliamentary_issue_id,
         tpi.subject,
@@ -131,6 +145,7 @@ async function getParliamentaryIssueDashboard(req, res) {
       INNER JOIN mmt_wings AS wings
         ON wings.wing_id = tpi.wing
       WHERE NOT ${COMPLETED_SQL}
+        AND ${inScope}
       ORDER BY pending_days DESC
     `);
 
@@ -148,7 +163,7 @@ async function getParliamentaryIssueDashboard(req, res) {
     });
   } catch (err) {
     console.error("[ParliamentaryIssueDashboard] Error:", err);
-    return res.sendStatus(500);
+    return res.status(500).json({ error: "Could not load the dashboard. Please try again." });
   }
 }
 

@@ -618,6 +618,7 @@ router.put(
 router.delete(
   "/parliamentary-issue/:parliamentaryIssueID/:userID",
   auth,
+  pinOwnUser(),
   requireModulePermission("PARLIAMENTARY_ISSUES", "delete"),
   parliamentaryIssueTab.deleteParliamentaryIssue
 );
