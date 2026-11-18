@@ -61,6 +61,7 @@ export default function ResearchInputForm({
     setSubmitting(true);
     try {
       await saveResearch({
+        researchId: editData?.research_id, // an edit names its entry; the server checks it still exists
         financialYear,
         domesticJournals: numericValues[0],
         internationalJournals: numericValues[1],

@@ -53,6 +53,7 @@ export default function NewCourseUpgradationInputForm({
     setSubmitting(true);
     try {
       await saveNewCourseUpgradation({
+        courseId: editData?.course_id, // an edit names its entry; the server checks it still exists
         financialYear,
         noOfCourseOffered: numericValues[0],
         noOfCourseUpgraded: numericValues[1],

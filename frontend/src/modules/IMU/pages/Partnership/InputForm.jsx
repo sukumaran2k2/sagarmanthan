@@ -57,6 +57,7 @@ export default function PartnershipInputForm({
     setSubmitting(true);
     try {
       await savePartnership({
+        partnershipId: editData?.partnership_id, // an edit names its entry; the server checks it still exists
         financialYear,
         academicMoUsDomestic: numericValues[0],
         academicMoUsInternational: numericValues[1],

@@ -65,6 +65,7 @@ export default function FinalYearPassPercentageInputForm({
     setSubmitting(true);
     try {
       await saveFinalYearPassPercentage({
+        id: editData?.id, // an edit names its entry; the server checks it still exists
         programme,
         Batch: batch,
         appeared: numericValues[0],

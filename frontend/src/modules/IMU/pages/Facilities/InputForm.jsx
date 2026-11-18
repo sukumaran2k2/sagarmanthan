@@ -73,6 +73,7 @@ export default function FacilitiesInputForm({
     setSubmitting(true);
     try {
       await saveFacilities({
+        facilitiesId: editData?.facilities_id, // an edit names its entry; the server checks it still exists
         financialYear,
         noOfClassrooms: Number(noOfClassrooms),
         noOfLabs: Number(noOfLabs),

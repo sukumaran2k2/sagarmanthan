@@ -66,6 +66,7 @@ export default function StudentEnrollmentInputForm({
     setSubmitting(true);
     try {
       await saveStudentEnrollment({
+        studentId: editData?.student_id, // an edit names its entry; the server checks it still exists
         financialYear,
         noOfStdCapacity: numericFields[0],
         noOfStdEnrolled: numericFields[1],
