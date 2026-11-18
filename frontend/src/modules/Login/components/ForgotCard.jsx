@@ -1,7 +1,7 @@
 import React from 'react';
 import { Eye, EyeOff, CheckCircle2 } from 'lucide-react';
-import ReCAPTCHA from 'react-google-recaptcha';
 import { RECAPTCHA_SITE_KEY } from '../constants';
+import ResponsiveRecaptcha from './ResponsiveRecaptcha';
 
 export default function ForgotCard({
   forgotStep,
@@ -46,16 +46,13 @@ export default function ForgotCard({
           </div>
 
           {/* Google reCAPTCHA Widget for Password Reset */}
-          <div className="w-full flex justify-center bg-white/5 p-2 rounded-lg border border-white/10 shadow-inner overflow-hidden animate-fade-in">
-            <div className="scale-[0.82] xs:scale-90 sm:scale-95 origin-center flex justify-center w-full py-1">
-              <ReCAPTCHA
-                sitekey={RECAPTCHA_SITE_KEY}
-                onChange={(val) => {
-                  dispatch({ type: 'SET_FIELD', field: 'forgotRecaptchaToken', value: val || "" });
-                }}
-                theme="light"
-              />
-            </div>
+          <div className="w-full bg-white/5 p-2 rounded-lg border border-white/10 shadow-inner overflow-hidden animate-fade-in">
+            <ResponsiveRecaptcha
+              sitekey={RECAPTCHA_SITE_KEY}
+              onChange={(val) => {
+                dispatch({ type: 'SET_FIELD', field: 'forgotRecaptchaToken', value: val || "" });
+              }}
+            />
           </div>
 
           {forgotError && (

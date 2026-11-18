@@ -1,8 +1,8 @@
 import React from 'react';
 import { Eye, EyeOff } from 'lucide-react';
-import ReCAPTCHA from 'react-google-recaptcha';
 import sagarmanthanLogo from '../../../assets/sagarmanthan_logo.png';
 import { RECAPTCHA_SITE_KEY } from '../constants';
+import ResponsiveRecaptcha from './ResponsiveRecaptcha';
 
 export default function LoginCard({
   email,
@@ -100,17 +100,14 @@ export default function LoginCard({
       </div>
 
       {/* Google reCAPTCHA Widget */}
-      <div className="w-full flex justify-center bg-white/5 p-2 rounded-lg border border-white/10 shadow-inner overflow-hidden">
-        <div className="scale-[0.82] xs:scale-90 sm:scale-100 origin-center flex justify-center w-full py-1">
-          <ReCAPTCHA
-            sitekey={RECAPTCHA_SITE_KEY}
-            onChange={(val) => {
-              dispatch({ type: 'SET_FIELD', field: 'recaptchaToken', value: val || "" });
-              dispatch({ type: 'SET_FIELD', field: 'captchaVerified', value: !!val });
-            }}
-            theme="light"
-          />
-        </div>
+      <div className="w-full bg-white/5 p-2 rounded-lg border border-white/10 shadow-inner overflow-hidden">
+        <ResponsiveRecaptcha
+          sitekey={RECAPTCHA_SITE_KEY}
+          onChange={(val) => {
+            dispatch({ type: 'SET_FIELD', field: 'recaptchaToken', value: val || "" });
+            dispatch({ type: 'SET_FIELD', field: 'captchaVerified', value: !!val });
+          }}
+        />
       </div>
 
       {/* Error Message */}
