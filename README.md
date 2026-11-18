@@ -82,7 +82,7 @@ sagarmanthan/
 | [Node.js](https://nodejs.org/) | **20 or newer** (Docker images use 20) | Option B | `node -v` |
 | npm | comes with Node.js | Option B | `npm -v` |
 | [Docker Desktop](https://www.docker.com/products/docker-desktop/) | with Docker Compose v2 | Option A | `docker compose version` |
-| [SQL Server](https://www.microsoft.com/sql-server/sql-server-downloads) (Developer or Express edition) | 2019 or newer | both options | – |
+| [SQL Server](https://www.microsoft.com/sql-server/sql-server-downloads) (Developer or Express edition) | same or newer version than the backup you restore | both options | – |
 | [SQL Server Management Studio (SSMS)](https://learn.microsoft.com/sql/ssms/download-sql-server-management-studio-ssms) | any | restoring the database | – |
 | Python 3 + `pip install -r backend/requirements.txt` | optional | only for `backend/projectMediaFileDownload.py` | `python --version` |
 
@@ -105,7 +105,7 @@ The database is **not** in this repo (SQL dumps are git-ignored on purpose). Ask
 4. **Restart the SQL Server service** so the changes take effect.
 5. Test it: connect in SSMS using **SQL Server Authentication** with the user you made, server `localhost`.
 
-> ⚠️ **The database may contain real user email addresses.** Scheduled jobs and some actions send email. Use a test mailbox such as [Mailtrap](https://mailtrap.io/) for `SMTP_*` (see [Environment variables](#environment-variables)) so no real person gets mail from your computer, and never test with real users' emails.
+> ⚠️ **The database may contain real user email addresses.** Some actions in the portal send email (for example creating a user or sending alerts). Use a test mailbox such as [Mailtrap](https://mailtrap.io/) for `SMTP_*` (see [Environment variables](#environment-variables)) so no real person gets mail from your computer, and never test with real users' emails.
 
 ---
 
@@ -304,7 +304,7 @@ Vite reads `.env` only when it starts. **After changing `frontend/.env`, stop `n
 
 ### Step 5 (optional): Run ClamAV for file uploads
 
-Without Docker, most uploads (MoPSW documents, CA appointment orders, Young Professionals, GMIS MoU, One Vision One Document) **refuse** files when ClamAV isn't reachable – you'll get *"File scanning is unavailable"*. Everything else works without it.
+When ClamAV isn't reachable, these uploads **refuse** files and show *"File scanning is unavailable"*: MoPSW documents, Young Professionals and GMIS MoU. Other uploads (e.g. CA appointment orders, One Vision One Document) skip the scan and still work. Everything else in the portal works without ClamAV.
 
 The easiest way is to run only ClamAV in Docker:
 
@@ -343,7 +343,7 @@ The login page needs a reCAPTCHA site key (frontend) and the matching secret key
 
 | Where | Variable | Test value |
 |-------|----------|-----------|
-| `frontend/.env` (and root `.env` for Docker) | `VITE_RECAPTCHA_SITE_KEY` | `6LeIxAcTAAAAAJcZVRqyHnXHDGfnBJcqNx2FwP1J` |
+| `frontend/.env` (and root `.env` for Docker) | `VITE_RECAPTCHA_SITE_KEY` | `6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI` |
 | `backend/.env` | `RECAPTCHA_SECRET_KEY` | `6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe` |
 
 The backend recognises this test secret and lets login through. **Never use these keys on a real server.** Alternatively, use the project's real keys if `localhost` has been added to their allowed domains.
@@ -436,7 +436,7 @@ The log repeats `DB connection failed (...); retrying in 10 s`.
 
 The site key and secret key don't belong together, or the site key doesn't allow `localhost`. Use the [test keys](#recaptcha-keys-for-local-use) in both places. With Docker, rebuild the frontend afterwards (`docker compose up -d --build frontend`); without Docker, restart `npm run dev`.
 
-### Login fails right after entering the password (decryption error in backend log)
+### Login fails with "Decryption failed"
 
 `VITE_RSA_PUBLIC_KEY` (frontend) and `RSA_PRIVATE_KEY` (backend) are not a matching pair. Use the pair from the two `.env.example` files, or generate a new pair and put one half in each.
 
