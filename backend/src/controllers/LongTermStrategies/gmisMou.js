@@ -5,6 +5,8 @@ import sql from "mssql";
 import { pool } from "../../db.js";
 import moment from 'moment';
 import { getDataScope } from '../../middleware/dataScope.js';
+import { scanFile } from '../../utils/clamav.js';
+import { randomUUID } from 'crypto';
 
 // Ministry / master users see every MoU; organisation users only their organisation's.
 // Decided from the signed token only (never from query or URL values). Returns the SQL
@@ -89,41 +91,192 @@ function bindProgress(request, body) {
 const YET_TO_START_SQL = "(tbl_gmis_mou.present_status LIKE '%Yet to%' OR tbl_gmis_mou.present_status LIKE '%to be started%')";
 
 const uploadDestination = "./fileuploads/gmis_mou_fileupload";
-if (!fs.existsSync(uploadDestination)) 
-{
+if (!fs.existsSync(uploadDestination)) {
     fs.mkdirSync(uploadDestination, { recursive: true });
 }
 
-const generateUniqueFileName = (originalName) => {
-    // Get the current date and time in the desired format
-    const currentDateTime = moment().format('YYYY-MM-DD_HH-mm-ss');
-    
-    // Get the file extension from the original file name
-    const fileExtension = path.extname(originalName);
+const MAX_GMIS_FILE_SIZE = 20 * 1024 * 1024;
 
-    // Create the unique filename using the format 'filename_YYYY-MM-DD_HH-mm-ss.extension'
-    const uniqueFileName = `${path.basename(originalName, fileExtension)}_${currentDateTime}${fileExtension}`;
+// Multipart field name the frontend uses for the document. Must match InputForm's FormData key.
+const GMIS_UPLOAD_FIELD = "gmisDocument";
 
-    return uniqueFileName;
+const ALLOWED_GMIS_FILES = {
+    ".pdf": ["application/pdf"],
+    ".doc": ["application/msword"],
+    ".docx": [
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    ]
 };
 
-// Define the storage configuration first
+function generateUniqueFileName(originalName) {
+    const extension = path.extname(originalName).toLowerCase();
+
+    const safeBaseName = path
+        .basename(originalName, path.extname(originalName))
+        .replace(/[^a-zA-Z0-9_-]/g, "_")
+        .substring(0, 80);
+
+    return `${safeBaseName}_${Date.now()}_${randomUUID()}${extension}`;
+}
+
 const storage = multer.diskStorage({
     destination: (req, file, callback) => {
-        callback(null, uploadDestination); // Set the destination folder
+        callback(null, uploadDestination);
     },
+
     filename: (req, file, callback) => {
-        const uniqueFileName = generateUniqueFileName(file.originalname); // Generate the unique file name
-        // req.uniqueFileName = uniqueFileName; // Store the unique file name in the request object
-        console.log(`Generated File Name: ${uniqueFileName}`); // Log the generated file name
-        callback(null, uniqueFileName); // Pass the unique file name to the callback
-    },
+        const uniqueFileName = generateUniqueFileName(file.originalname);
+
+        req.uniqueFileName = uniqueFileName;
+
+        callback(null, uniqueFileName);
+    }
 });
 
- const upload = multer({ 
-    storage: storage,
-    limits: { fileSize: 52428800 }  //50MB
+
+function gmisDocumentFileFilter(req, file, callback) {
+    const extension = path.extname(file.originalname).toLowerCase();
+
+    const allowedMimeTypes = ALLOWED_GMIS_FILES[extension];
+
+    if (!allowedMimeTypes || !allowedMimeTypes.includes(file.mimetype)) {
+        return callback(
+            new GmisFileTypeError("Only PDF, DOC and DOCX documents are allowed.")
+        );
+    }
+
+    callback(null, true);
+}
+
+const upload = multer({
+    storage,
+    limits: {
+        fileSize: MAX_GMIS_FILE_SIZE,
+        files: 1
+    },
+    fileFilter: gmisDocumentFileFilter
 });
+
+async function validateGmisFileSignature(filePath, extension) {
+    const fileHandle = await fs.promises.open(filePath, "r");
+
+    try {
+        const buffer = Buffer.alloc(8);
+
+        const { bytesRead } = await fileHandle.read(
+            buffer,
+            0,
+            8,
+            0
+        );
+
+        const signature = buffer.subarray(0, bytesRead);
+
+        if (extension === ".pdf") {
+            return signature.toString("ascii").startsWith("%PDF-");
+        }
+
+        if (extension === ".doc") {
+            const docSignature = Buffer.from([
+                0xD0, 0xCF, 0x11, 0xE0,
+                0xA1, 0xB1, 0x1A, 0xE1
+            ]);
+
+            return signature.equals(docSignature);
+        }
+
+        if (extension === ".docx") {
+            // DOCX is an Office Open XML ZIP container.
+            return (
+                signature.length >= 4 &&
+                signature[0] === 0x50 &&
+                signature[1] === 0x4B &&
+                signature[2] === 0x03 &&
+                signature[3] === 0x04
+            );
+        }
+
+        return false;
+    } finally {
+        await fileHandle.close();
+    }
+}
+
+// Thrown for bad user input so the handler can return the message as a 400.
+class GmisValidationError extends Error {}
+
+// Thrown by the multer file filter (wrong type) so it can be told apart from real failures.
+class GmisFileTypeError extends Error {}
+
+// A plain stored file name: no folders, no "..", no dot-files.
+function isPlainFileName(name) {
+    return (
+        typeof name === "string" &&
+        name.length > 0 &&
+        name.length <= 255 &&
+        path.basename(name) === name &&
+        !name.startsWith(".")
+    );
+}
+
+// A document name this controller could have generated: plain name + allowed extension.
+function isSafeGmisFileName(name) {
+    return (
+        isPlainFileName(name) &&
+        Object.prototype.hasOwnProperty.call(ALLOWED_GMIS_FILES, path.extname(name).toLowerCase())
+    );
+}
+
+async function gmisFileExistsOnDisk(name) {
+    try {
+        await fs.promises.access(path.resolve(uploadDestination, name));
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+// Returns an error message when the document can't be attached to a MoU, otherwise null.
+// mouId = the MoU being edited (null when creating), so its own current file is allowed.
+async function checkGmisDocument(conn, name, mouId = null) {
+    if (!name) return null;
+    if (!isSafeGmisFileName(name)) return "Invalid document filename.";
+    if (!(await gmisFileExistsOnDisk(name))) {
+        return "Uploaded document not found. Please upload it again.";
+    }
+
+    const request = conn.request();
+    request.input("fileName", sql.NVarChar(500), name);
+    request.input("mouId", sql.Int, mouId);
+    const used = await request.query(`
+        SELECT TOP 1 1 AS ok
+        FROM tbl_gmis_mou
+        WHERE document_uploader = @fileName
+          AND (@mouId IS NULL OR id <> @mouId);
+    `);
+
+    return used.recordset.length ? "This document is already attached to another MoU." : null;
+}
+
+// Deletes a stored document from disk, but only when no MoU still points at it.
+// Never throws: a missing file or a cleanup problem must not fail the request.
+async function removeGmisFileIfUnused(conn, name) {
+    if (!isPlainFileName(name)) return;
+
+    try {
+        const request = conn.request();
+        request.input("fileName", sql.NVarChar(500), name);
+        const used = await request.query(`
+            SELECT TOP 1 1 AS ok FROM tbl_gmis_mou WHERE document_uploader = @fileName;
+        `);
+        if (used.recordset.length) return;
+
+        await fs.promises.unlink(path.resolve(uploadDestination, name));
+    } catch (err) {
+        if (err.code !== "ENOENT") console.error("[GMIS] File cleanup error:", err);
+    }
+}
+
 
 async function getMouCategory(req, res) {
     const conn = await pool;
@@ -141,210 +294,564 @@ async function getMouCategory(req, res) {
 }
 
 async function submitGmisMouData(req, res) {
-    // Organisation users can only add MoUs for their own organisation.
-    const scope = gmisScope(req.user);
-    if (scope.sql === '1 = 0') return res.status(403).send("Not allowed to add MoUs");
-    const eventName = req.body.eventName;
-    const organisationId = scope.orgId || req.body.organisationName;
-    const navicId = req.body.vibhasNavicID;
-    const nameOfMou = req.body.mouProjectName;
-    const nameOfSecondParty = req.body.stakeholderName;
-    const natureOfSecondParty = req.body.natureOfSecondParty;
-    const amount = req.body.amount;
-    const mouCategoryId = parseInt(req.body.mouCategory, 10);
-    const firstPartyName = req.body.firstPartyName;
-    const presentStatus = req.body.presentStatus;
-    const detailedRemarks = req.body.detailedRemarks || null;
-    const reasonForDropping = req.body.reasonForDropping || null;
-    const mouBrief = req.body.mouBrief || null;
-    const revisedAmount = req.body.revisedAmount || null;
-    const userID = req.user?.userId || req.body.userID || null;
-    let uniqueFileName = req.body.gmisDocumentFileName; 
-    const nextSteps = req.body.nextSteps || null;
-
-     if (!uniqueFileName || uniqueFileName === "") {
-        uniqueFileName = null;
-        }
-
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input("eventName", eventName);
-    request.input("organisationId", organisationId);
-    request.input("navicId", navicId);
-    request.input("nameOfMou", nameOfMou);
-    request.input("nameOfSecondParty", nameOfSecondParty);
-    request.input("natureOfSecondParty", natureOfSecondParty);
-    request.input("firstPartyName", firstPartyName);
-    request.input("amount", amount);
-    request.input("mouCategoryId", mouCategoryId);
-    request.input("presentStatus", presentStatus);
-    request.input("detailedRemarks", detailedRemarks);
-    request.input("reasonForDropping", reasonForDropping);
-    request.input("mouBrief", mouBrief);
-    request.input("revisedAmount", revisedAmount);
-    request.input("userID", userID);
-    request.input("uniqueFileName", uniqueFileName);
-    request.input("nextSteps", nextSteps);
-    bindProgress(request, req.body);
-
-    const firstPartyResult = await request.query(`
-        SELECT organisation_name
-        FROM sagarmanthan_revamp.dbo.mmt_organisation
-        WHERE organisation_id = @organisationId;
-    `);
-
-    if (firstPartyResult.recordset.length === 0) {
-        console.error("Organisation not found");
-        return res.status(404).send("Organisation not found");
-    }
-
-    const firstParty = firstPartyResult.recordset[0].organisation_name;
-
-    request.input("firstParty", firstParty);
+    let transaction = null;
+    let transactionStarted = false;
 
     try {
-        // The MoU and its first progress revision are saved together
-        await request.query(`
-        SET XACT_ABORT ON;
-        BEGIN TRANSACTION;
-        INSERT INTO tbl_gmis_mou (
-            organisation_id, event_name, navic_vibhas_id, name_of_mou, name_of_first_party,
-            name_of_second_party, nature_of_second_party, amount, mou_category_id, present_status,
-            reason_for_dropping, remark_or_detailed_status, mou_brief, revised_amount, document_uploader,
-            next_steps, created_on, created_by
-        ) VALUES (
-            @organisationId, @eventName, @navicId, @nameOfMou, @firstParty,
-            @nameOfSecondParty, @natureOfSecondParty, @amount, @mouCategoryId, @presentStatus,
-            @reasonForDropping, @detailedRemarks, @mouBrief, @revisedAmount, @uniqueFileName,
-            @nextSteps, GETDATE(), @userID
+        const body = req.body || {};
+        const scope = gmisScope(req.user);
+
+        if (scope.sql === "1 = 0") {
+            return res.status(403).json({
+                message: "You are not allowed to add MoUs."
+            });
+        }
+
+        const userID = req.user?.user_id ?? req.user?.userId;
+
+        if (!userID) {
+            return res.status(401).json({
+                message: "Authenticated user ID is missing."
+            });
+        }
+
+        const organisationId = Number(
+            scope.orgId ?? body.organisationName
         );
-        DECLARE @progressMouId INT = SCOPE_IDENTITY();
-        ${RECORD_PROGRESS_SQL}
-        COMMIT TRANSACTION;`);
 
-        res.sendStatus(201);
-    } catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
-    }
-}
+        const amount = Number(body.amount);
+        const revisedAmount =
+            body.revisedAmount === "" ||
+            body.revisedAmount === null ||
+            body.revisedAmount === undefined
+                ? null
+                : Number(body.revisedAmount);
 
-async function addNewgmisFileupload(req, res) 
-{
-    // const { folderName } = req.body;
-    try {
-        const conn = await pool; 
-        // console.log("File Details:", req.file);
+        const mouCategoryId = Number.parseInt(body.mouCategory, 10);
 
-        if (!req.file || !req.file.filename) {
-            // console.error("No file or unique file name provided.");
-            return res.status(400).json({ error: "No file uploaded or unique name missing" });
+        const eventName = String(body.eventName || "").trim();
+        const nameOfMou = String(body.mouProjectName || "").trim();
+        const nameOfSecondParty = String(body.stakeholderName || "").trim();
+        const natureOfSecondParty = String(
+            body.natureOfSecondParty || ""
+        ).trim();
+
+        const presentStatus = String(body.presentStatus || "").trim();
+
+        const navicId =
+            body.vibhasNavicID === "" ||
+            body.vibhasNavicID === null ||
+            body.vibhasNavicID === undefined
+                ? null
+                : Number(body.vibhasNavicID);
+
+        // Required-field validation
+        if (
+            !eventName ||
+            !nameOfMou ||
+            !nameOfSecondParty ||
+            !natureOfSecondParty ||
+            !presentStatus
+        ) {
+            return res.status(400).json({
+                message: "Please provide all required MoU fields."
+            });
         }
 
-        const uniqueFileName = req.file.filename;
+        // Organisation validation
+        if (
+            !Number.isInteger(organisationId) ||
+            organisationId <= 0
+        ) {
+            return res.status(400).json({
+                message: "Invalid organisation."
+            });
+        }
 
-        const createDir = `./fileuploads/gmis_mou_fileupload`;
-       
+        // Amount validation
+        if (!Number.isFinite(amount) || amount < 0) {
+            return res.status(400).json({
+                message: "Amount must be a valid non-negative number."
+            });
+        }
 
-        const destinationPath = `${createDir}/${uniqueFileName}`;
+        if (
+            revisedAmount !== null &&
+            (!Number.isFinite(revisedAmount) || revisedAmount < 0)
+        ) {
+            return res.status(400).json({
+                message: "Revised amount must be a valid non-negative number."
+            });
+        }
 
-        // fs.renameSync(req.file.path, destinationPath);
-        res.status(200).json({ status: 'success', uniqueFileName });
+        if (!Number.isInteger(mouCategoryId) || mouCategoryId <= 0) {
+            return res.status(400).json({
+                message: "Please select a valid MoU category."
+            });
+        }
+
+        if (
+            navicId !== null &&
+            (!Number.isInteger(navicId) || navicId <= 0)
+        ) {
+            return res.status(400).json({
+                message: "Invalid NAVIC/VIBHAS selection."
+            });
+        }
+
+        // Progress percentage validation
+        const validatePercentage = (value, fieldName) => {
+            if (value === undefined || value === null || value === "") {
+                return null;
+            }
+
+            const percentage = Number(value);
+
+            if (
+                !Number.isFinite(percentage) ||
+                percentage < 0 ||
+                percentage > 100
+            ) {
+                throw new GmisValidationError(
+                    `${fieldName} must be between 0 and 100.`
+                );
+            }
+
+            return percentage;
+        };
+
+        const physicalPercentage = validatePercentage(
+            body.physicalPercentage,
+            "Physical progress"
+        );
+
+        const financialPercentage = validatePercentage(
+            body.financialPercentage,
+            "Financial progress"
+        );
+
+        const physicalDate = body.physicalProgressDate || null;
+        const financialDate = body.financialProgressDate || null;
+
+        const validateDate = (value, fieldName) => {
+            if (!value) return null;
+
+            const date = moment(value, "YYYY-MM-DD", true);
+
+            if (!date.isValid()) {
+                throw new GmisValidationError(`${fieldName} is invalid.`);
+            }
+
+            if (date.isAfter(moment(), "day")) {
+                throw new GmisValidationError(`${fieldName} cannot be in the future.`);
+            }
+
+            return date.format("YYYY-MM-DD");
+        };
+
+        const validPhysicalDate = validateDate(
+            physicalDate,
+            "Physical progress date"
+        );
+
+        const validFinancialDate = validateDate(
+            financialDate,
+            "Financial progress date"
+        );
+
+        const conn = await pool;
+
+        const request = conn.request();
+
+        request.input("organisationId", sql.Int, organisationId);
+        request.input("mouCategoryId", sql.Int, mouCategoryId);
+
+        const referenceResult = await request.query(`
+            SELECT
+                org.organisation_name,
+                cat.mou_category_id
+            FROM mmt_organisation org
+            CROSS JOIN mmt_mou_category cat
+            WHERE org.organisation_id = @organisationId
+              AND cat.mou_category_id = @mouCategoryId;
+        `);
+
+        if (!referenceResult.recordset.length) {
+            return res.status(400).json({
+                message: "Invalid organisation or MoU category."
+            });
+        }
+
+        const firstParty =
+            referenceResult.recordset[0].organisation_name;
+
+        const uniqueFileName = body.gmisDocumentFileName || null;
+
+        // Must be a real, scanned upload (exists on disk, allowed type, not used by another MoU)
+        const documentError = await checkGmisDocument(conn, uniqueFileName);
+        if (documentError) {
+            return res.status(400).json({ message: documentError });
+        }
+
+
+        transaction = new sql.Transaction(conn);
+        await transaction.begin();
+        transactionStarted = true;
+
+        const insertRequest = new sql.Request(transaction);
+
+        insertRequest.input("eventName", sql.NVarChar(255), eventName);
+        insertRequest.input("organisationId", sql.Int, organisationId);
+        insertRequest.input("navicId", sql.Int, navicId);
+        insertRequest.input("nameOfMou", sql.NVarChar(500), nameOfMou);
+        insertRequest.input("firstParty", sql.NVarChar(255), firstParty);
+        insertRequest.input("nameOfSecondParty", sql.NVarChar(500), nameOfSecondParty);
+        insertRequest.input("natureOfSecondParty", sql.NVarChar(255), natureOfSecondParty);
+        insertRequest.input("amount", sql.Decimal(18, 2), amount);
+        insertRequest.input("mouCategoryId", sql.Int, mouCategoryId);
+        insertRequest.input("presentStatus", sql.NVarChar(255), presentStatus);
+
+        insertRequest.input(
+            "detailedRemarks",
+            sql.NVarChar(sql.MAX),
+            body.detailedRemarks || null
+        );
+
+        insertRequest.input(
+            "reasonForDropping",
+            sql.NVarChar(sql.MAX),
+            body.reasonForDropping || null
+        );
+
+        insertRequest.input(
+            "mouBrief",
+            sql.NVarChar(sql.MAX),
+            body.mouBrief || null
+        );
+
+        insertRequest.input(
+            "revisedAmount",
+            sql.Decimal(18, 2),
+            revisedAmount
+        );
+
+        insertRequest.input(
+            "userID",
+            sql.Int,
+            userID
+        );
+
+        insertRequest.input(
+            "uniqueFileName",
+            sql.NVarChar(500),
+            uniqueFileName
+        );
+
+        insertRequest.input(
+            "nextSteps",
+            sql.NVarChar(sql.MAX),
+            body.nextSteps || null
+        );
+
+        insertRequest.input(
+            "physicalProgressDate",
+            sql.Date,
+            validPhysicalDate
+        );
+
+        insertRequest.input(
+            "physicalPercentage",
+            sql.Decimal(5, 2),
+            physicalPercentage
+        );
+
+        insertRequest.input(
+            "financialProgressDate",
+            sql.Date,
+            validFinancialDate
+        );
+
+        insertRequest.input(
+            "financialPercentage",
+            sql.Decimal(5, 2),
+            financialPercentage
+        );
+
+        await insertRequest.query(`
+            INSERT INTO tbl_gmis_mou (
+                organisation_id,
+                event_name,
+                navic_vibhas_id,
+                name_of_mou,
+                name_of_first_party,
+                name_of_second_party,
+                nature_of_second_party,
+                amount,
+                mou_category_id,
+                present_status,
+                reason_for_dropping,
+                remark_or_detailed_status,
+                mou_brief,
+                revised_amount,
+                document_uploader,
+                next_steps,
+                created_on,
+                created_by
+            )
+            VALUES (
+                @organisationId,
+                @eventName,
+                @navicId,
+                @nameOfMou,
+                @firstParty,
+                @nameOfSecondParty,
+                @natureOfSecondParty,
+                @amount,
+                @mouCategoryId,
+                @presentStatus,
+                @reasonForDropping,
+                @detailedRemarks,
+                @mouBrief,
+                @revisedAmount,
+                @uniqueFileName,
+                @nextSteps,
+                GETDATE(),
+                @userID
+            );
+
+            DECLARE @progressMouId INT = SCOPE_IDENTITY();
+
+            ${RECORD_PROGRESS_SQL}
+        `);
+
+        await transaction.commit();
+        transactionStarted = false;
+
+        return res.status(201).json({
+            success: true,
+            message: "MoU submitted successfully."
+        });
+
     } catch (err) {
-        // console.error("Error in file upload:", err);
-        res.status(500).json({ error: "Internal server error" });
+        if (transactionStarted) {
+            try {
+                await transaction.rollback();
+            } catch (rollbackError) {
+                console.error("GMIS transaction rollback error:", rollbackError);
+            }
+        }
+
+        console.error("submitGmisMouData error:", err);
+
+        // User-input problems are shown as they are; anything else stays generic.
+        if (err instanceof GmisValidationError) {
+            return res.status(400).json({ success: false, message: err.message });
+        }
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to submit MoU."
+        });
     }
 }
-//file upload 
-const fileUploadDestination = './fileuploads/gmis_mou_fileupload';
 
-let fileStorage = multer.diskStorage({
-    destination: (req, file, callback) => {
-        callback(null, fileUploadDestination );
-    },
-    filename: (req, file, callback) => {
-        const uniqueFileName = generateUniqueFileName(file.originalname);
-        req.uniqueFileName = uniqueFileName; 
-        callback(null, uniqueFileName); 
-    },
-});
+async function addNewgmisFileupload(req, res) {
+    let uploadedFilePath = null;
 
-const fileUpload= multer({
-    storage: fileStorage,
-    limits: { fileSize: 10000000}
-});
+    const removeUploadedFile = async () => {
+        if (uploadedFilePath) {
+            await fs.promises.unlink(uploadedFilePath).catch(() => {});
+        }
+    };
+
+    try {
+        // Step 1: a file must have been received
+        if (!req.file || !req.file.filename) {
+            return res.status(400).json({
+                success: false,
+                message: "No file uploaded."
+            });
+        }
+
+        uploadedFilePath = req.file.path;
+
+        const extension = path.extname(req.file.originalname).toLowerCase();
+
+        // Step 2: the file's real content (magic bytes) must match its extension
+        const isValidFile = await validateGmisFileSignature(uploadedFilePath, extension);
+
+        if (!isValidFile) {
+            await removeUploadedFile();
+
+            return res.status(400).json({
+                success: false,
+                message: "The uploaded file content does not match its extension."
+            });
+        }
+
+        // Step 3: antivirus scan (ClamAV)
+        const scanResult = await scanFile(uploadedFilePath);
+
+        // Step 4: infected -> delete and reject (threat name is logged, not sent to the client)
+        if (scanResult.status === "infected") {
+            console.warn(
+                "[GMIS] Malware detected:",
+                scanResult.threat,
+                "| user:", req.user?.user_id ?? req.user?.userId
+            );
+
+            await removeUploadedFile();
+
+            return res.status(422).json({
+                success: false,
+                status: "infected",
+                message: "File rejected: malware or virus detected."
+            });
+        }
+
+        // Step 5: scanner down or errored -> fail closed (never keep an unscanned file)
+        if (scanResult.status !== "clean") {
+            await removeUploadedFile();
+
+            return res.status(503).json({
+                success: false,
+                status: "scanner_error",
+                message: "File scanning service is unavailable. Please try again later."
+            });
+        }
+
+        // Step 6: clean
+        return res.status(200).json({
+            success: true,
+            status: "clean",
+            uniqueFileName: req.file.filename,
+            message: "File uploaded and scanned successfully."
+        });
+
+    } catch (err) {
+        console.error("addNewgmisFileupload error:", err);
+        await removeUploadedFile();
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to upload and scan GMIS document."
+        });
+    }
+}
+
+// Runs multer and turns its errors (wrong type, too large, wrong field) into clean 400s
+// instead of a raw 500. Use this on the upload route instead of upload.single(...).
+function gmisUploadMiddleware(req, res, next) {
+    upload.single(GMIS_UPLOAD_FIELD)(req, res, (err) => {
+        if (!err) return next();
+
+        if (err instanceof GmisFileTypeError) {
+            return res.status(400).json({ success: false, message: err.message });
+        }
+
+        if (err instanceof multer.MulterError) {
+            const message =
+                err.code === "LIMIT_FILE_SIZE"
+                    ? "File is too large. Maximum size is 20 MB."
+                    : err.code === "LIMIT_UNEXPECTED_FILE"
+                        ? "Unexpected file field. Upload a single document."
+                        : "File upload failed.";
+            return res.status(400).json({ success: false, message });
+        }
+
+        console.error("[GMIS] Upload error:", err);
+        return res.status(500).json({ success: false, message: "Failed to upload GMIS document." });
+    });
+}
+
 
 async function updateGmisMouData(req, res) {
-    const mouID = req.body.mouID || req.body.id || req.body.mou_id;
-    const eventName = req.body.eventName || req.body.event_name;
-    // Organisation users keep the MoU in their own organisation.
-    const organisationId = gmisScope(req.user).orgId || req.body.organisationName || req.body.organisation_id;
-    const navicId = req.body.vibhasNavicID || req.body.navic_vibhas_id;
-    const nameOfMou = req.body.mouProjectName || req.body.name_of_mou;
-    const nameOfSecondParty = req.body.stakeholderName || req.body.name_of_second_party;
-    const natureOfSecondParty = req.body.natureOfSecondParty || req.body.nature_of_second_party;
-    const amount = req.body.amount;
-    let revisedAmount = req.body.revisedAmount !== undefined ? req.body.revisedAmount : req.body.revised_amount;
-    const mouCategoryId = req.body.mouCategory || req.body.mou_category_id;
-    const presentStatus = req.body.presentStatus || req.body.present_status;
-    const detailedRemarks = req.body.detailedRemarks || req.body.remark_or_detailed_status || null;
-    const reasonForDropping = req.body.reasonForDropping || req.body.reason_for_dropping || null;
-    const mouBrief = req.body.mouBrief || req.body.mou_brief || null;
-    const userId = req.user?.userId || null; // updated_by: the signed-in user, not a body value
-    let uniqueFileName = req.body.gmisDocumentFileName || req.body.uniqueFileName || req.body.document_uploader || null; 
-    let nextSteps = req.body.nextSteps || req.body.updatenextSteps || req.body.next_steps || null;
-
-    if (revisedAmount === '' || revisedAmount === undefined) {
-        revisedAmount = null;
-    }
-    if (!uniqueFileName || uniqueFileName === '') {
-        uniqueFileName = null;
-    }
-
-    if (!(await canAccessMou(req.user, mouID))) {
-        return res.status(404).send("MoU not found");
-    }
-
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input("mouID", mouID);
-    request.input("eventName", eventName);
-    request.input("organisationId", organisationId);
-    request.input("navicId", navicId);
-    request.input("nameOfMou", nameOfMou);
-    request.input("nameOfSecondParty", nameOfSecondParty);
-    request.input("natureOfSecondParty", natureOfSecondParty);
-    request.input("amount", amount);
-    request.input("revisedAmount", revisedAmount);
-    request.input("mouCategoryId", mouCategoryId);
-    request.input("presentStatus", presentStatus);
-    request.input("detailedRemarks", detailedRemarks);
-    request.input("reasonForDropping", reasonForDropping);
-    request.input("mouBrief", mouBrief);
-    request.input("userId", userId);
-    request.input("uniqueFileName", uniqueFileName);
-    request.input("nextSteps", nextSteps);
-    request.input("progressMouId", mouID);
-    bindProgress(request, req.body);
-
-    const firstPartyResult = await request.query(`
-        SELECT organisation_name
-        FROM sagarmanthan_revamp.dbo.mmt_organisation
-        WHERE organisation_id = @organisationId;
-    `);
-
-    if (firstPartyResult.recordset.length === 0) {
-        console.error("Organisation not found");
-        return res.status(404).send("Organisation not found");
-    }
-
-    const firstParty = firstPartyResult.recordset[0].organisation_name;
-    request.input("firstParty", firstParty);
-
     try {
-        let updateQuery = `
+        const body = req.body || {};
+        const mouID = body.mouID || body.id || body.mou_id;
+        const eventName = body.eventName || body.event_name;
+        // Organisation users keep the MoU in their own organisation.
+        const organisationId = gmisScope(req.user).orgId || body.organisationName || body.organisation_id;
+        const navicId = body.vibhasNavicID || body.navic_vibhas_id;
+        const nameOfMou = body.mouProjectName || body.name_of_mou;
+        const nameOfSecondParty = body.stakeholderName || body.name_of_second_party;
+        const natureOfSecondParty = body.natureOfSecondParty || body.nature_of_second_party;
+        const amount = body.amount;
+        let revisedAmount = body.revisedAmount !== undefined ? body.revisedAmount : body.revised_amount;
+        const mouCategoryId = body.mouCategory || body.mou_category_id;
+        const presentStatus = body.presentStatus || body.present_status;
+        const detailedRemarks = body.detailedRemarks || body.remark_or_detailed_status || null;
+        const reasonForDropping = body.reasonForDropping || body.reason_for_dropping || null;
+        const mouBrief = body.mouBrief || body.mou_brief || null;
+        const userId = req.user?.user_id ?? req.user?.userId ?? null; // updated_by: the signed-in user, not a body value
+        let uniqueFileName = body.gmisDocumentFileName || body.uniqueFileName || body.document_uploader || null;
+        const nextSteps = body.nextSteps || body.updatenextSteps || body.next_steps || null;
+
+        if (revisedAmount === '' || revisedAmount === undefined) {
+            revisedAmount = null;
+        }
+        if (!uniqueFileName || uniqueFileName === '') {
+            uniqueFileName = null;
+        }
+
+        if (!(await canAccessMou(req.user, mouID))) {
+            return res.status(404).json({ success: false, message: "MoU not found" });
+        }
+
+        const conn = await pool;
+        const mouIdNumber = Number(mouID);
+
+        // The document this MoU has now (to validate a changed one, and to clean up a replaced one)
+        const currentDocResult = await conn.request()
+            .input("mouID", sql.Int, mouIdNumber)
+            .query(`SELECT document_uploader FROM tbl_gmis_mou WHERE id = @mouID;`);
+        const currentDoc = currentDocResult.recordset[0]?.document_uploader || null;
+
+        // A new document must be a real, scanned upload that is not attached elsewhere.
+        // (An unchanged existing document is left alone, including older files uploaded
+        // before these checks existed.)
+        if (uniqueFileName && uniqueFileName !== currentDoc) {
+            const documentError = await checkGmisDocument(conn, uniqueFileName, mouIdNumber);
+            if (documentError) {
+                return res.status(400).json({ success: false, message: documentError });
+            }
+        }
+
+        const request = conn.request();
+
+        request.input("mouID", mouID);
+        request.input("eventName", eventName);
+        request.input("organisationId", organisationId);
+        request.input("navicId", navicId);
+        request.input("nameOfMou", nameOfMou);
+        request.input("nameOfSecondParty", nameOfSecondParty);
+        request.input("natureOfSecondParty", natureOfSecondParty);
+        request.input("amount", amount);
+        request.input("revisedAmount", revisedAmount);
+        request.input("mouCategoryId", mouCategoryId);
+        request.input("presentStatus", presentStatus);
+        request.input("detailedRemarks", detailedRemarks);
+        request.input("reasonForDropping", reasonForDropping);
+        request.input("mouBrief", mouBrief);
+        request.input("userId", userId);
+        request.input("uniqueFileName", uniqueFileName);
+        request.input("nextSteps", nextSteps);
+        request.input("progressMouId", mouID);
+        bindProgress(request, body);
+
+        const firstPartyResult = await request.query(`
+            SELECT organisation_name
+            FROM sagarmanthan_revamp.dbo.mmt_organisation
+            WHERE organisation_id = @organisationId;
+        `);
+
+        if (firstPartyResult.recordset.length === 0) {
+            return res.status(404).json({ success: false, message: "Organisation not found" });
+        }
+
+        request.input("firstParty", firstPartyResult.recordset[0].organisation_name);
+
+        const updateQuery = `
             UPDATE tbl_gmis_mou 
             SET organisation_id = @organisationId, 
                 event_name = @eventName, 
@@ -366,14 +873,21 @@ async function updateGmisMouData(req, res) {
                 updated_on = GETDATE()
             WHERE id = @mouID;
         `;
-        // A changed progress value is kept as a new revision, with the MoU's other changes
-        updateQuery = `SET XACT_ABORT ON; BEGIN TRANSACTION; ${updateQuery} ${RECORD_PROGRESS_SQL} COMMIT TRANSACTION;`;
 
-        await request.query(updateQuery);
-        res.status(200).json({ success: true, message: 'MoU updated successfully' });
+        // A changed progress value is kept as a new revision, with the MoU's other changes
+        await request.query(
+            `SET XACT_ABORT ON; BEGIN TRANSACTION; ${updateQuery} ${RECORD_PROGRESS_SQL} COMMIT TRANSACTION;`
+        );
+
+        // The MoU now points at a different document (or none): remove the old file from disk
+        if (currentDoc && currentDoc !== uniqueFileName) {
+            await removeGmisFileIfUnused(conn, currentDoc);
+        }
+
+        return res.status(200).json({ success: true, message: 'MoU updated successfully' });
     } catch (err) {
         console.error('updateGmisMouData Error:', err);
-        return res.status(500).json({ error: 'Failed to update MoU data' });
+        return res.status(500).json({ success: false, error: 'Failed to update MoU data' });
     }
 }
 
@@ -974,48 +1488,43 @@ async function getGmisMouVibhasNavicCell(req, res) {
         }
     }
 
-     async function gmisfileDelete(req, res) 
-        {
-            try {
-                const { fileName } = req.query;
-                // console.log("Received fileName:", fileName);
-        
-                if (!fileName) {
-                    return res.status(400).send({ error: "File name is required" });
-                }
-                if (path.basename(String(fileName)) !== fileName) {
-                    return res.status(400).send({ error: "Invalid file name" });
-                }
-                // Only detach the document of a MoU the user is allowed to see.
-                const scope = gmisScope(req.user);
-        
-                const uploadDestination = './fileuploads/gmis_mou_fileupload'; // Base directory
-                const filePath = path.join(uploadDestination, fileName); // Construct the correct file path
-        
-                // Update the database to set projectcompletion to NULL
-                const conn = await pool;
-                const request = conn.request();
-                request.input('fileName', fileName);
-                if (scope.orgId) request.input('scopeOrgId', scope.orgId);
-        
-                const result = await request.query(`
-                    UPDATE tbl_gmis_mou
-                    SET document_uploader = NULL
-                    WHERE document_uploader = @fileName AND ${scope.sql}
-                `);
-        
-                if (result.rowsAffected[0] > 0) {
-                    // console.log(`Database updated. File ${fileName} removed from document_uploader.`);
-                    res.status(200).send({ message: "File deleted successfully and database updated" });
-                } else {
-                    // console.log(`No database record found for file ${fileName}.`);
-                    res.status(404).send({ error: "No matching database record found" });
-                }
-            } catch (err) {
-                // console.error("Error deleting file or updating database:", err);
-                res.status(500).send({ error: "Internal Server Error" });
-            }
+async function gmisfileDelete(req, res) {
+    try {
+        const fileName = String(req.query.fileName || "");
+
+        if (!fileName) {
+            return res.status(400).send({ error: "File name is required" });
         }
+        if (!isPlainFileName(fileName)) {
+            return res.status(400).send({ error: "Invalid file name" });
+        }
+
+        // Only detach the document of a MoU the user is allowed to see.
+        const scope = gmisScope(req.user);
+
+        const conn = await pool;
+        const request = conn.request();
+        request.input('fileName', fileName);
+        if (scope.orgId) request.input('scopeOrgId', scope.orgId);
+
+        const result = await request.query(`
+            UPDATE tbl_gmis_mou
+            SET document_uploader = NULL
+            WHERE document_uploader = @fileName AND ${scope.sql}
+        `);
+
+        if (result.rowsAffected[0] > 0) {
+            // Remove the file from disk too (skipped if another MoU somehow still uses it)
+            await removeGmisFileIfUnused(conn, fileName);
+            return res.status(200).send({ message: "File deleted successfully and database updated" });
+        }
+
+        return res.status(404).send({ error: "No matching database record found" });
+    } catch (err) {
+        console.error("gmisfileDelete error:", err);
+        return res.status(500).send({ error: "Internal Server Error" });
+    }
+}
 
         
 async function getRevisedfinancialprogressdate(req, res) {
@@ -1905,5 +2414,5 @@ async function getDroppedMousReport(req, res) {
 }
 
 export default {
-    getGmisMouPaginated, getMouCategory, submitGmisMouData, updateGmisMouData, getGmisMouVibhasNavicCell, upload, fileUpload, gmisfileDelete, addRevisedfinancialprogressdate, getRevisedfinancialprogressdate, getRevisedphysicalprogressdate, addNewgmisFileupload, gmisPdfFileDownload, addRevisedphysicalprogressdate, getEventWiseSummary, getorgWisePerformanceRankingReport, getVibascellWiseSummary, getCategoryWiseSummary, getPhysicalAndFinancialProgressWise, getDroppedMousReport
+    getGmisMouPaginated, getMouCategory, submitGmisMouData, updateGmisMouData, getGmisMouVibhasNavicCell, upload, gmisUploadMiddleware, gmisfileDelete, addRevisedfinancialprogressdate, getRevisedfinancialprogressdate, getRevisedphysicalprogressdate, addNewgmisFileupload, gmisPdfFileDownload, addRevisedphysicalprogressdate, getEventWiseSummary, getorgWisePerformanceRankingReport, getVibascellWiseSummary, getCategoryWiseSummary, getPhysicalAndFinancialProgressWise, getDroppedMousReport
 };

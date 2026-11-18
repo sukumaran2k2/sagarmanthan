@@ -490,236 +490,172 @@ async function vipPendencyDivisionWiseReport (req, res)
     }
 };
 
-async function getDetailVipPendencyWingWise (req, res) 
-{   
-    const wingID = req.params.wingID;
-    const countDate = req.params.countDate;
+const PENDENCY_BUCKETS = {
+    30: { minDays: 0, maxDays: 30 },
+    60: { minDays: 31, maxDays: 60 },
+    61: { minDays: 61, maxDays: null },
+};
 
-    const conn = await pool;
-    const request = conn.request();
-    request.input("wingID", wingID);
-    request.input("countDate", countDate);
-  
-        let pendencyWingWiseQuery;
-        if(countDate >= 0 && countDate <= 30)
-        {
-            pendencyWingWiseQuery = (`
-            SELECT 
-                ROW_NUMBER() OVER (ORDER BY mmt_wings.wing_id) AS [S No],
-                subject AS [Subject], 
-                eoffice_file_number AS [Eoffice File Number], 
-                ref_letter_num AS [Reference Letter Number], 
-                received_from AS [Received From], 
-                CONVERT(varchar, received_at_ministry_date, 101) AS [Received but yet to be sent for Comments], 
-                CONVERT(varchar, submitted_for_approval_date, 101) AS [Submitted for Approval], 
-                CONVERT(varchar, comments_sought_date, 101) AS [Comments Sought], 
-                CONVERT(varchar, comments_received_date, 101) AS [Comments Received],  
-                CONVERT(varchar, reply_furnished_date, 101) AS [Reply Furnished],  
-                CONVERT(varchar, disposed_date, 101) AS [Disposed],
-                CONVERT(varchar, deadline, 101) AS [Deadline],  
-                CONVERT(varchar, updated_date, 101) AS [Last Updated Date]
-            FROM tbl_vip_reference 
-                INNER JOIN mmt_wings on mmt_wings.wing_id = tbl_vip_reference.wing       
-                INNER JOIN mmt_vip_stage on mmt_vip_stage.vip_stage_id = tbl_vip_reference.stage_id
-            WHERE (wing = @wingID) AND (stage_id != 6 ) AND (DATEDIFF(D, GETDATE(), received_at_ministry_date) <= 0 AND
-                DATEDIFF(D, GETDATE(), received_at_ministry_date) >= -30)         
-            ;`);
-        }
-        else if(countDate >= 31 && countDate <= 60)
-        {
-            pendencyWingWiseQuery = (`
-            SELECT 
-                ROW_NUMBER() OVER (ORDER BY mmt_wings.wing_id) AS [S No],
-                subject AS [Subject], 
-                eoffice_file_number AS [Eoffice File Number], 
-                ref_letter_num AS [Reference Letter Number], 
-                received_from AS [Received From], 
-                CONVERT(varchar, received_at_ministry_date, 101) AS [Received but yet to be sent for Comments], 
-                CONVERT(varchar, submitted_for_approval_date, 101) AS [Submitted for Approval], 
-                CONVERT(varchar, comments_sought_date, 101) AS [Comments Sought], 
-                CONVERT(varchar, comments_received_date, 101) AS [Comments Received],  
-                CONVERT(varchar, reply_furnished_date, 101) AS [Reply Furnished],  
-                CONVERT(varchar, disposed_date, 101) AS [Disposed],
-                CONVERT(varchar, deadline, 101) AS [Deadline],  
-                CONVERT(varchar, updated_date, 101) AS [Last Updated Date]
-            FROM tbl_vip_reference 
-                INNER JOIN mmt_wings on mmt_wings.wing_id = tbl_vip_reference.wing
-                INNER JOIN mmt_vip_stage on mmt_vip_stage.vip_stage_id = tbl_vip_reference.stage_id
-            WHERE (wing = @wingID) AND (stage_id != 6 ) AND (DATEDIFF(D, GETDATE(), received_at_ministry_date) <= -31 AND
-                DATEDIFF(D, GETDATE(), received_at_ministry_date) >= -60 ) 
-            ;`);
-        }
-        else if(countDate > 60)
-        {
-            pendencyWingWiseQuery = (`
-            SELECT 
-                ROW_NUMBER() OVER (ORDER BY mmt_wings.wing_id) AS [S No],
-                subject AS [Subject], 
-                eoffice_file_number AS [Eoffice File Number], 
-                ref_letter_num AS [Reference Letter Number], 
-                received_from AS [Received From], 
-                CONVERT(varchar, received_at_ministry_date, 101) AS [Received but yet to be sent for Comments], 
-                CONVERT(varchar, submitted_for_approval_date, 101) AS [Submitted for Approval], 
-                CONVERT(varchar, comments_sought_date, 101) AS [Comments Sought], 
-                CONVERT(varchar, comments_received_date, 101) AS [Comments Received],  
-                CONVERT(varchar, reply_furnished_date, 101) AS [Reply Furnished],  
-                CONVERT(varchar, disposed_date, 101) AS [Disposed],
-                CONVERT(varchar, deadline, 101) AS [Deadline],  
-                CONVERT(varchar, updated_date, 101) AS [Last Updated Date]
-                            
-            FROM tbl_vip_reference 
-                INNER JOIN mmt_wings on mmt_wings.wing_id = tbl_vip_reference.wing
-                   
-                INNER JOIN mmt_vip_stage on mmt_vip_stage.vip_stage_id = tbl_vip_reference.stage_id
-            WHERE (wing = @wingID) AND (stage_id != 6 )
-                AND DATEDIFF(D, GETDATE(), received_at_ministry_date) <= -61
-            ;`);
+async function getDetailVipPendency(req, res, dimension) {
+    // Validate the wing/division ID
+    const dimensionID = Number(
+        dimension === "wing" ? req.params.wingID : req.params.divisionID
+    );
+
+    if (!Number.isInteger(dimensionID) || dimensionID <= 0) {
+        return res.status(400).json({
+            error: `Invalid ${dimension} ID.`,
+        });
+    }
+
+    // Validate countDate before executing SQL
+    const days = Number(req.params.countDate);
+
+    if (!Number.isInteger(days) || !Object.prototype.hasOwnProperty.call(PENDENCY_BUCKETS, days)) {
+        return res.status(400).json({
+            error: "Invalid pendency range.",
+        });
+    }
+
+    const bucket = PENDENCY_BUCKETS[days];
+
+    try {
+        const conn = await pool;
+        const request = conn.request();
+
+        request.input("dimensionID", dimensionID);
+        request.input("minDays", bucket.minDays);
+
+        if (bucket.maxDays !== null) {
+            request.input("maxDays", bucket.maxDays);
         }
 
-    try 
-    {   
-        const result = await request.query(pendencyWingWiseQuery);
-        const rowData = result.recordset;  
-    
+        // Apply organisation-level data scope
+        const scope = applyDataScope(request, req.user, {
+            strategy: "viaCreatedBy",
+            alias: "v",
+        });
+
+        // Select the appropriate dimension column and join
+        const dimensionColumn =
+            dimension === "wing" ? "v.wing" : "v.division";
+
+        const dimensionJoin =
+            dimension === "wing"
+                ? `
+                    INNER JOIN mmt_wings w
+                        ON w.wing_id = v.wing
+                `
+                : `
+                    INNER JOIN mmt_division d
+                        ON d.division_id = v.division
+                `;
+
+        // One common query for all three pendency ranges
+        let dateCondition;
+
+        if (bucket.maxDays === null) {
+            dateCondition = `
+                AND DATEDIFF(DAY, v.received_at_ministry_date, GETDATE()) >= @minDays
+            `;
+        } else {
+            dateCondition = `
+                AND DATEDIFF(DAY, v.received_at_ministry_date, GETDATE())
+                    BETWEEN @minDays AND @maxDays
+            `;
+        }
+
+        const query = `
+            SELECT
+                ROW_NUMBER() OVER (
+                    ORDER BY v.subject, v.eoffice_file_number
+                ) AS [S No],
+
+                v.subject AS [Subject],
+                v.eoffice_file_number AS [Eoffice File Number],
+                v.ref_letter_num AS [Reference Letter Number],
+                v.received_from AS [Received From],
+
+                CONVERT(varchar, v.received_at_ministry_date, 101)
+                    AS [Received but yet to be sent for Comments],
+
+                CONVERT(varchar, v.submitted_for_approval_date, 101)
+                    AS [Submitted for Approval],
+
+                CONVERT(varchar, v.comments_sought_date, 101)
+                    AS [Comments Sought],
+
+                CONVERT(varchar, v.comments_received_date, 101)
+                    AS [Comments Received],
+
+                CONVERT(varchar, v.reply_furnished_date, 101)
+                    AS [Reply Furnished],
+
+                CONVERT(varchar, v.disposed_date, 101)
+                    AS [Disposed],
+
+                CONVERT(varchar, v.deadline, 101)
+                    AS [Deadline],
+
+                CONVERT(varchar, v.updated_date, 101)
+                    AS [Last Updated Date]
+
+            FROM tbl_vip_reference AS v
+
+            ${scope.joinSql || ""}
+
+            ${dimensionJoin}
+
+            INNER JOIN mmt_vip_stage s
+                ON s.vip_stage_id = v.stage_id
+
+            WHERE ${dimensionColumn} = @dimensionID
+                AND v.stage_id <> 6
+                ${dateCondition}
+                ${scope.whereSql || ""}
+
+            ORDER BY v.subject, v.eoffice_file_number;
+        `;
+
+        const result = await request.query(query);
+        const rowData = result.recordset || [];
+
         if (rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available' });
+            return res.status(404).json({
+                error: "No data available",
+            });
         }
-        
-        const columnDefs = Object.keys(rowData[0]).map(key => ({
-            headerName: key.charAt(0).toUpperCase() + key.slice(1), 
+
+        const columnDefs = Object.keys(rowData[0]).map((key) => ({
+            headerName: key,
             field: key,
         }));
 
-        res.json({ columnDefs, rowData });
-        // res.json(result.recordset);
-        // console.log(result.recordset)
+        return res.status(200).json({
+            columnDefs,
+            rowData,
+        });
+
+    } catch (err) {
+        console.error(`Get VIP Pendency ${dimension} Wise Error:`, err);
+
+        return res.status(500).json({
+            error: "Failed to fetch VIP pendency details.",
+        });
     }
-    catch(err) 
-    {
-        console.log(err);
-        return res.sendStatus(500);
-    }
+}
 
-};
 
-async function getDetailVipPendencyDivisionWise (req, res) 
-{   
-    const divisionID = req.params.divisionID;
-    const countDate = req.params.countDate;
+// Wing-wise detail report
+async function getDetailVipPendencyWingWise(req, res) {
+    return getDetailVipPendency(req, res, "wing");
+}
 
-    const conn = await pool;
-    const request = conn.request();
-    request.input("divisionID", divisionID);
-    request.input("countDate", countDate);
-   
-    let pendencydivisionWiseQuery;
-    if(countDate > 0 && countDate <= 30)
-    {
-        pendencydivisionWiseQuery = (`
-        SELECT 
-                ROW_NUMBER() OVER (ORDER BY mmt_division.division_id) AS [S No],
-                subject AS [Subject], 
-                eoffice_file_number AS [Eoffice File Number], 
-                ref_letter_num AS [Reference Letter Number], 
-                received_from AS [Received From], 
-                CONVERT(varchar, received_at_ministry_date, 101) AS [Received but yet to be sent for Comments], 
-                CONVERT(varchar, submitted_for_approval_date, 101) AS [Submitted for Approval], 
-                CONVERT(varchar, comments_sought_date, 101) AS [Comments Sought], 
-                CONVERT(varchar, comments_received_date, 101) AS [Comments Received],  
-                CONVERT(varchar, reply_furnished_date, 101) AS [Reply Furnished],  
-                CONVERT(varchar, disposed_date, 101) AS [Disposed],
-                CONVERT(varchar, deadline, 101) AS [Deadline],  
-                CONVERT(varchar, updated_date, 101) AS [Last Updated Date]
-        
-            FROM tbl_vip_reference 
-         --   INNER JOIN mmt_wings on mmt_wings.wing_id= tbl_vip_reference.wing
-            INNER JOIN mmt_division on mmt_division.division_id = tbl_vip_reference.division       
-            INNER JOIN mmt_vip_stage on mmt_vip_stage.vip_stage_id = tbl_vip_reference.stage_id
-            WHERE (division = @divisionID) AND (stage_id != 6 )
-            AND (DATEDIFF(D, GETDATE(), received_at_ministry_date) <= 0 AND
-            DATEDIFF(D, GETDATE(), received_at_ministry_date) >= -30 )         
-        ;`);
-    }
-    else if(countDate > 30 && countDate <= 60)
-    {
-        pendencydivisionWiseQuery = (`
-        SELECT 
-                ROW_NUMBER() OVER (ORDER BY mmt_division.division_id) AS [S No],
-                subject AS [Subject], 
-                eoffice_file_number AS [Eoffice File Number], 
-                ref_letter_num AS [Reference Letter Number], 
-                received_from AS [Received From], 
-                CONVERT(varchar, received_at_ministry_date, 101) AS [Received but yet to be sent for Comments], 
-                CONVERT(varchar, submitted_for_approval_date, 101) AS [Submitted for Approval], 
-                CONVERT(varchar, comments_sought_date, 101) AS [Comments Sought], 
-                CONVERT(varchar, comments_received_date, 101) AS [Comments Received],  
-                CONVERT(varchar, reply_furnished_date, 101) AS [Reply Furnished],  
-                CONVERT(varchar, disposed_date, 101) AS [Disposed],
-                CONVERT(varchar, deadline, 101) AS [Deadline],  
-                CONVERT(varchar, updated_date, 101) AS [Last Updated Date]
-        
-            FROM tbl_vip_reference 
-          --  INNER JOIN mmt_wings on mmt_wings.wing_id= tbl_vip_reference.wing
-            INNER JOIN mmt_division on mmt_division.division_id = tbl_vip_reference.division       
-            INNER JOIN mmt_vip_stage on mmt_vip_stage.vip_stage_id = tbl_vip_reference.stage_id
-            WHERE (division = @divisionID) AND (stage_id != 6 )
-            AND (DATEDIFF(D, GETDATE(), received_at_ministry_date) <= -31 AND
-            DATEDIFF(D, GETDATE(), received_at_ministry_date) >= -60 ) 
-            ORDER BY subject, eoffice_file_number
-        ;`);
-    }
-    else if(countDate > 60)
-    {
-        pendencydivisionWiseQuery = (`
-        SELECT 
-            ROW_NUMBER() OVER (ORDER BY mmt_division.division_id) AS [S No],
-            subject AS [Subject], 
-            eoffice_file_number AS [Eoffice File Number], 
-            ref_letter_num AS [Reference Letter Number], 
-            received_from AS [Received From], 
-            CONVERT(varchar, received_at_ministry_date, 101) AS [Received but yet to be sent for Comments], 
-            CONVERT(varchar, submitted_for_approval_date, 101) AS [Submitted for Approval], 
-            CONVERT(varchar, comments_sought_date, 101) AS [Comments Sought], 
-            CONVERT(varchar, comments_received_date, 101) AS [Comments Received],  
-            CONVERT(varchar, reply_furnished_date, 101) AS [Reply Furnished],  
-            CONVERT(varchar, disposed_date, 101) AS [Disposed],
-            CONVERT(varchar, deadline, 101) AS [Deadline],  
-            CONVERT(varchar, updated_date, 101) AS [Last Updated Date]
-        
-            FROM tbl_vip_reference 
-            INNER JOIN mmt_division on mmt_division.division_id = tbl_vip_reference.division       
-            INNER JOIN mmt_vip_stage on mmt_vip_stage.vip_stage_id = tbl_vip_reference.stage_id
-            WHERE (division = @divisionID) AND (stage_id != 6 )
-            AND DATEDIFF(D, GETDATE(), received_at_ministry_date) <= -61    
-            ORDER BY subject, eoffice_file_number
-        ;`);
-    }
 
-    try 
-    {   
-        const result = await request.query(pendencydivisionWiseQuery);
-        const rowData = result.recordset;  
-    
-        if (rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available' });
-        }
-        
-        const columnDefs = Object.keys(rowData[0]).map(key => ({
-            headerName: key.charAt(0).toUpperCase() + key.slice(1), 
-            field: key,
-        }));
-
-        res.json({ columnDefs, rowData });
-
-    }
-    catch(err) 
-    {
-        console.log(err);
-        return res.sendStatus(500);
-    }
-
-};
-
+// Division-wise detail report
+async function getDetailVipPendencyDivisionWise(req, res) {
+    return getDetailVipPendency(req, res, "division");
+}
 async function getCurrentDate (req, res) 
 {   
     try 

@@ -17,10 +17,6 @@ export function updateVIPReference(payload) {
   return axiosInstance.put('/vip-reference', payload);
 }
 
-export function deleteVIPReference(id, userId) {
-  return axiosInstance.delete(`/vip-reference/${id}/${userId}`);
-}
-
 // ── Dropdowns ──
 
 export function fetchWings() {
