@@ -71,7 +71,7 @@ export const KPI_RULES = {
     "POST /add-imu-k-5-3": { facilitiesId: "idOpt", financialYear: "fy", noOfClassrooms: "num", noOfLabs: "num", noOfSimulators: "num", noOfWorkshops: "num", noOfLibrarybooks: "num", noOfEbooks: "num", noOfEjournals: "num", noOfEdatabases: "num", noOfacadamicSoftware: "num", totalEresources: "num" },
     "POST /add-imu-k-5-4": { partnershipId: "idOpt", financialYear: "fy", academicMoUsDomestic: "num", academicMoUsInternational: "num", industryMoUsDomestic: "num", industryMoUsInternational: "num" },
     "POST /add-imu-k-5-5": { researchId: "idOpt", financialYear: "fy", domesticJournals: "num", internationalJournals: "num", phdAwarded: "num", patentsFiled: "num", startupsFunded: "num", researchAwarded: "num" },
-    "POST /add-imu-k-5-1-1": { programme: "text", Batch: "text", appeared: "num", passed: "num", passPercentage: "pct" },
+    "POST /add-imu-k-5-1-1": { id: "idOpt", programme: "text", Batch: "text", appeared: "num", passed: "num", passPercentage: "pct" },
     "POST /add-vessel-avail-ability": { scifinancialYear: "fy", operatedShips: "num", shipUtilization: "pct" },
     "PUT /sci-vessel-built-edit": { updatescifinancialYear: "fy", updateoperatedShips: "num", updateshipUtilization: "pct", SciVesselIdOrg: "id" },
     "POST /add-sci-time-voyage": { financialYear: "fy", bulkCarriers: "num", timeCharter: "num", voyageCharter: "num", revenue: "num", earnings: "num" },

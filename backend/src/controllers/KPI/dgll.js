@@ -151,7 +151,6 @@ async function getUpdatelightHouseData(req, res)
 
 async function updateLightsHousedata(req,res){
     
-    const data = req.body;
     
     const alolName = req.body.alolName;
     const lightHouseName = req.body.lightHouseName;
@@ -311,7 +310,6 @@ async function getUpdateVtmsdata(req, res)
     
 async function updateVtmsData(req,res){
     
-    const data = req.body;
     
     const updatevtmsfinancialYear = req.body.updatevtmsfinancialYear;
     const updateVtmsSystem = req.body.updateVtmsSystem;
@@ -462,7 +460,6 @@ async function addNaisUptime(req, res) {
     
         async function updateNaisData(req,res){
         
-            const data = req.body;
             
             const updatenaisfinancialYear = req.body.updatenaisfinancialYear;
             const updateNaisUptime = req.body.updateNaisUptime;
@@ -616,7 +613,6 @@ async function addNaisUptime(req, res) {
         
         async function updateNaisIntegrationData(req,res){
         
-            const data = req.body;
             
             const updateFinancialYear = req.body.updateFinancialYear;
             const updateNAISintegrationdata = req.body.updateNAISintegrationdata;
@@ -738,7 +734,6 @@ async function addNaisUptime(req, res) {
 
        async function addTargetDetails(req, res) {
         
-        const data = req.body;
         
         const { year, collectionLightDue, footFallLighthouse } = req.body;
         const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)

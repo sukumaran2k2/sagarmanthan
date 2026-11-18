@@ -1,5 +1,29 @@
 import { pool } from "../../db.js";
-import { deleteKpiEntry } from "./kpiEditChecks.js";
+import { checkEdit, deleteKpiEntry, refuseEdit } from "./kpiEditChecks.js";
+
+const isEmpty = (v) => v === undefined || v === null || String(v).trim() === "";
+
+// Each IMU form saves through one route (QC IMU-B01). An edit sends the entry's id: the entry must
+// still exist and its period must not be another entry's (the DGLL / CSL check). An add (no id) is
+// refused when the period already has an entry, instead of overwriting that entry.
+// Returns 'edit' or 'add', or null after answering the request.
+async function saveMode(res, { table, idColumn, id, period }) {
+    if (!isEmpty(id)) {
+        const check = await checkEdit({ table, idColumn, id: Number(id), period });
+        if (check) { refuseEdit(res, check); return null; }
+        return "edit";
+    }
+    const request = (await pool).request();
+    const columns = Object.keys(period);
+    columns.forEach((column, i) => request.input(`period${i}`, period[column]));
+    const taken = await request.query(`SELECT TOP 1 1 AS taken FROM ${table}
+        WHERE ${columns.map((column, i) => `${column} = @period${i}`).join(" AND ")}`);
+    if (taken.recordset.length) {
+        res.status(409).json({ message: "An entry for this period already exists." });
+        return null;
+    }
+    return "add";
+}
 
 async function createStudentEnrollment(req,res) {
     const { studentId, financialYear, noOfStdCapacity, noOfStdEnrolled, studentsAdmission, studentsonRoll, studentsFinalyear, studentsPassed, noOfStdPlaced, percentagePlacement } = req.body;
@@ -11,13 +35,13 @@ async function createStudentEnrollment(req,res) {
     const conn = await pool;
     const existingRequest = conn.request();
 
-    const checkStudentId = `SELECT * FROM tbl_imu_k_5_1 WHERE financial_year = @financialYear`
     existingRequest.input("financialYear",financialYear);
 
     try{
-        const checkResult = await existingRequest.query(checkStudentId);
+        const mode = await saveMode(res, { table: "tbl_imu_k_5_1", idColumn: "student_id", id: studentId, period: { financial_year: financialYear } });
+        if (!mode) return;
 
-        if(checkResult.recordset.length!=0){
+        if (mode === "edit") {
                 const updateQuery= `
                 UPDATE tbl_imu_k_5_1 SET
                 no_of_seats = @noOfStdCapacity,
@@ -30,9 +54,10 @@ async function createStudentEnrollment(req,res) {
                 placement_percentage = @percentagePlacement,
                 updated_date = GETDATE(),
                updated_by = @userID
-               WHERE financial_year = @financialYear
+               WHERE student_id = @editId
                 `;
                 await existingRequest
+                .input("editId", Number(studentId))
                 .input("noOfStdCapacity",noOfStdCapacity)
                 .input("noOfStdEnrolled",noOfStdEnrolled)
                 .input("studentsAdmission",studentsAdmission)
@@ -163,23 +188,21 @@ async function createimunewCourseUpgradation(req, res) {
     const existingRequest = conn.request();
 
     try {
-        // Check if the courseId already exists in the table
-        const checkCourseId = `SELECT * FROM tbl_imu_k_5_2 WHERE financial_year = @financialYear`;
         existingRequest.input("financialYear", financialYear);
+        const mode = await saveMode(res, { table: "tbl_imu_k_5_2", idColumn: "course_id", id: courseId, period: { financial_year: financialYear } });
+        if (!mode) return;
 
-        const checkResult = await existingRequest.query(checkCourseId);
-
-        if (checkResult.recordset.length !== 0) {
-            // Course exists, so update it
+        if (mode === "edit") {
             const updateQuery = `
                 UPDATE tbl_imu_k_5_2 SET
                     no_of_courses_offered = @noOfCourseOffered,
                     no_of_courses_upgraded = @noOfCourseUpgraded,
                     updated_date = GETDATE(),
                     updated_by = @userID
-                WHERE financial_year = @financialYear
+                WHERE course_id = @editId
             `;
             await existingRequest
+                .input("editId", Number(courseId))
                 .input("noOfCourseOffered", noOfCourseOffered)
                 .input("noOfCourseUpgraded", noOfCourseUpgraded)
                 .input("userID", userID)
@@ -187,7 +210,6 @@ async function createimunewCourseUpgradation(req, res) {
 
             return res.status(201).json({ message: "Updated successfully" });
         } else {
-            // Course doesn't exist, so insert new course record
             const insertQuery = `
                 INSERT INTO tbl_imu_k_5_2(financial_year, no_of_courses_offered, no_of_courses_upgraded, created_by, created_date)
                 OUTPUT INSERTED.course_id
@@ -298,12 +320,11 @@ async function createimuFacilities(req,res) {
         const existingRequest = conn.request();
 
         try{
-            const checkFacilitiesId = `SELECT * FROM tbl_imu_k_5_3 WHERE financial_year = @financialYear`;
             existingRequest.input("financialYear", financialYear);
+            const mode = await saveMode(res, { table: "tbl_imu_k_5_3", idColumn: "facilities_id", id: facilitiesId, period: { financial_year: financialYear } });
+            if (!mode) return;
 
-            const checkResult = await existingRequest.query(checkFacilitiesId);
-
-            if (checkResult.recordset.length !== 0) {
+            if (mode === "edit") {
                 const updateQuery = `
                 UPDATE tbl_imu_k_5_3 SET
                     no_of_classrooms = @noOfClassrooms,
@@ -318,9 +339,10 @@ async function createimuFacilities(req,res) {
                     total_e_resources = @totalEresources,
                     updated_date = GETDATE(),
                     updated_by = @userID
-                WHERE financial_year = @financialYear
+                WHERE facilities_id = @editId
             `;
             await existingRequest
+                .input("editId", Number(facilitiesId))
                 .input("noOfClassrooms", noOfClassrooms)
                 .input("noOfLabs", noOfLabs)
                 .input("noOfSimulators", noOfSimulators)
@@ -358,7 +380,7 @@ async function createimuFacilities(req,res) {
             insertRequest.input("userID", userID);
 
             const result = await insertRequest.query(insertQuery);
-            return res.status(201).json({ courseId: result.recordset[0].course_id });
+            return res.status(201).json({ facilitiesId: result.recordset[0].facilities_id });
         }
     } catch (error) {
         console.error("error",error);
@@ -458,12 +480,12 @@ async function createimuPartnership(req,res) {
         const conn = await pool;
         const existingRequest = conn.request();
 
-        const checkPartnerId = `SELECT * FROM tbl_imu_k_5_4 WHERE financial_year = @financialYear`
         existingRequest.input("financialYear",financialYear);
 
         try{
-        const checkResult = await existingRequest.query(checkPartnerId);
-        if (checkResult.recordset.length !== 0) {
+        const mode = await saveMode(res, { table: "tbl_imu_k_5_4", idColumn: "partnership_id", id: partnershipId, period: { financial_year: financialYear } });
+        if (!mode) return;
+        if (mode === "edit") {
             const updateQuery = `
             UPDATE tbl_imu_k_5_4 SET
             academic_domestic = @academicMoUsDomestic,
@@ -472,9 +494,10 @@ async function createimuPartnership(req,res) {
             industry_international = @industryMoUsInternational,
             updated_date = GETDATE(),
             updated_by = @userID
-        WHERE financial_year = @financialYear
+        WHERE partnership_id = @editId
         `;
         await existingRequest
+                .input("editId", Number(partnershipId))
                 .input("academicMoUsDomestic",academicMoUsDomestic)
                 .input("academicMoUsInternational",academicMoUsInternational)
                 .input("industryMoUsDomestic",industryMoUsDomestic)
@@ -497,7 +520,7 @@ async function createimuPartnership(req,res) {
     insertRequest.input("userID", userID);
 
     const result = await insertRequest.query(insertQuery);
-    return res.status(201).json({ courseId: result.recordset[0].partnership_id });
+    return res.status(201).json({ partnershipId: result.recordset[0].partnership_id });
     }
     } catch (error) {
         console.error("error",error);
@@ -594,11 +617,10 @@ async function createImuResearch(req,res) {
     const existingRequest = conn.request();
 
     try{
-    const checkResearchId = `SELECT * FROM tbl_imu_k_5_5 WHERE financial_year = @financialYear`;
     existingRequest.input("financialYear", financialYear);
-
-    const checkResult = await existingRequest.query(checkResearchId);
-    if (checkResult.recordset.length !== 0) {
+    const mode = await saveMode(res, { table: "tbl_imu_k_5_5", idColumn: "research_id", id: researchId, period: { financial_year: financialYear } });
+    if (!mode) return;
+    if (mode === "edit") {
         const updateQuery = `
         UPDATE tbl_imu_k_5_5 SET
             domestic_journals = @domesticJournals,
@@ -609,9 +631,10 @@ async function createImuResearch(req,res) {
             research_ms_awarded = @researchAwarded,
             updated_date = GETDATE(),
             updated_by = @userID
-        WHERE financial_year = @financialYear
+        WHERE research_id = @editId
     `;
     await existingRequest
+        .input("editId", Number(researchId))
         .input("domesticJournals", domesticJournals)
         .input("internationalJournals", internationalJournals)
         .input("phdAwarded", phdAwarded)
@@ -729,7 +752,7 @@ async function deleteResearch(req, res) {
 }
 
    async function createimuFinalYearpassPercentage(req, res) {
-    const { programme, Batch, appeared, passed, passPercentage } = req.body;
+    const { id: editId, programme, Batch, appeared, passed, passPercentage } = req.body;
     const userID = req.user.userId; // the signed-in user, not a request value (QC KPI-02)
 
     if (!programme || !Batch || !appeared || !passed || !passPercentage || !userID) {
@@ -739,19 +762,11 @@ async function deleteResearch(req, res) {
     try {
         const conn = await pool;
 
-        // check if batch exists
-        const checkReq = conn.request();
-        checkReq.input("Batch", Batch);
-        checkReq.input("programme", programme);
-        const existing = await checkReq.query(`
-      SELECT id 
-      FROM tbl_imu_k_5_1_1 
-      WHERE batch = @Batch AND programme = @programme
-    `);
+        const mode = await saveMode(res, { table: "tbl_imu_k_5_1_1", idColumn: "id", id: editId, period: { programme, batch: Batch } });
+        if (!mode) return;
 
-        if (existing.recordset.length > 0) {
-            // Update if exists
-            const id = existing.recordset[0].id;
+        if (mode === "edit") {
+            const id = Number(editId);
 
             const updateReq = conn.request();
             updateReq.input("id", id);
@@ -776,7 +791,6 @@ async function deleteResearch(req, res) {
 
             return res.status(200).json({ id, message: "Record updated successfully" });
         } else {
-            // Insert if not exists
             const insertReq = conn.request();
             insertReq.input("programme", programme);
             insertReq.input("Batch", Batch);
