@@ -1,13 +1,13 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { Search, X, Edit, Eye, Trash2, BarChart3, List, ChevronDown, Filter } from 'lucide-react';
+import { Search, X, Edit, Eye, BarChart3, List, ChevronDown, Filter } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import ConfirmModal from '../../../components/ConfirmModal';
 import FilterSelect from '../../../components/FilterSelect';
-import { fetchVIPReferences, deleteVIPReference } from '../api';
+import { fetchVIPReferences } from '../api';
 import { STAGE_STEPS } from '../utils/constants';
 import { useVipStore } from '../store/useVipStore';
 import { getCurrentUserId } from '../../../utils/authSession';
@@ -89,7 +89,6 @@ export default function DataList({
   onEdit,
   triggerNotification,
   canEdit = false,
-  canRemove = false,
   canView = false,
 }) {
   const notify = useNotifier(triggerNotification);
@@ -135,9 +134,6 @@ export default function DataList({
   const [rowData, setRowData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [reloadToken, setReloadToken] = useState(0);
-
-  const [pendingDelete, setPendingDelete] = useState(null);
-  const [deleting, setDeleting] = useState(false);
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const colDropdownRef = useRef(null);
@@ -238,29 +234,6 @@ export default function DataList({
     }));
   }, [filteredData]);
 
-  const handleDelete = useCallback((row) => setPendingDelete(row), []);
-
-  const confirmDelete = async () => {
-    const row = pendingDelete;
-    const userId = getCurrentUserId();
-    if (!userId) {
-      notify(VIP_TOASTS.deleteFailed(row?.subject, 'Your session has expired. Please log in again.'));
-      setPendingDelete(null);
-      return;
-    }
-    setDeleting(true);
-    try {
-      await deleteVIPReference(row.id, userId);
-      notify(VIP_TOASTS.deleted(row.subject));
-      reload();
-    } catch (err) {
-      console.error('Error deleting VIP reference:', err);
-      notify(VIP_TOASTS.deleteFailed(row.subject, getErrorMessage(err)));
-    } finally {
-      setDeleting(false);
-      setPendingDelete(null);
-    }
-  };
 
   const exportCols = useCallback(
     () => EXPORT_COLUMNS.filter(c => visibleCols[c.key]),
@@ -307,7 +280,7 @@ export default function DataList({
     notify(COMMON_TOASTS.excelExported(file, 'Every filtered reference'));
   };
 
-  const showActions = canEdit || canRemove || canView;
+  const showActions = canEdit || canView;
 
   const colDefs = useMemo(() => [
     {
@@ -442,20 +415,11 @@ export default function DataList({
               <Eye className="h-4 w-4" />
             </button>
           )}
-          {canRemove && (
-            <button
-              type="button"
-              onClick={() => handleDelete(params.data)}
-              className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg text-red-600 dark:text-red-400 transition cursor-pointer"
-              title="Delete VIP Reference"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          )}
+        
         </>
       ),
     },
-  ], [visibleCols, onEdit, activeCategory, canEdit, canView, canRemove, showActions, handleDelete]);
+  ], [visibleCols, onEdit, activeCategory, canEdit, canView, showActions]);
 
   const stageOptions = useMemo(() => Object.values(STAGE_STEPS)
     .filter(stage => activeCategory === 'disposed' ? stage === 'Disposed' : stage !== 'Disposed'),
@@ -664,16 +628,6 @@ export default function DataList({
         )}
       </div>
 
-      <ConfirmModal
-        isOpen={!!pendingDelete}
-        onClose={() => !deleting && setPendingDelete(null)}
-        onConfirm={confirmDelete}
-        loading={deleting}
-        title="Delete VIP Reference"
-        message={pendingDelete
-          ? `"${pendingDelete.subject}" will be deleted along with its stage history. This cannot be undone.`
-          : ''}
-      />
     </div>
   );
 }
