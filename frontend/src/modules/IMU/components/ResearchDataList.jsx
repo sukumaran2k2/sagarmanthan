@@ -77,14 +77,14 @@ export default function ResearchDataList({
       const file = exportRowsToFile('excel', { title: 'IMU Research Data List', headers, rows: excelRows, fileName: 'imu_research' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'IMU Research Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: allData,
         fileName: 'imu_research',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('imu_research.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

@@ -71,14 +71,14 @@ export default function VesselsBuiltDataList({
       const file = exportRowsToFile('excel', { title: 'CSL Vessels Built Data List', headers, rows: excelRows, fileName: 'csl_vessels_built' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'CSL Vessels Built Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: allData,
         fileName: 'csl_vessels_built',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('csl_vessels_built.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

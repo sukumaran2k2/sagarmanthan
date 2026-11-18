@@ -65,14 +65,14 @@ export default function NewCourseUpgradationDataList({
       const file = exportGridApiToExcel(gridRef.current?.api, { title: 'IMU New Course Upgradation Data List', fileName: 'imu_new_course_upgradation' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'IMU New Course Upgradation Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: rowData,
         fileName: 'imu_new_course_upgradation',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('imu_new_course_upgradation.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

@@ -67,14 +67,14 @@ export default function VTMSIntegrationDataList({
       const file = exportRowsToFile('excel', { title: 'VTMS Integration Data List', headers, rows: excelRows, fileName: 'vtms_integration' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'VTMS Integration Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: allData,
         fileName: 'vtms_integration',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('vtms_integration.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

@@ -89,14 +89,14 @@ export default function TimeVoyageBulkDataList({
       const file = exportDataListToExcel({ columnLabels: COLUMN_LABELS, visibleCols, rowData: filteredData, fileName: 'sci_time_voyage_bulk', title: 'SCI Time Voyage Bulk Data List' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'SCI Time Voyage Bulk Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: filteredData,
         fileName: 'sci_time_voyage_bulk',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('sci_time_voyage_bulk.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

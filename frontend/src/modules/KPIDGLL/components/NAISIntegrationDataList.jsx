@@ -69,14 +69,14 @@ export default function NAISIntegrationDataList({
       const file = exportRowsToFile('excel', { title: 'NAIS Integration Data List', headers, rows: excelRows, fileName: 'nais_integration' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'NAIS Integration Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: allData,
         fileName: 'nais_integration',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('nais_integration.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

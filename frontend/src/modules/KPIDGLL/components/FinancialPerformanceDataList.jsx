@@ -82,14 +82,14 @@ export default function FinancialPerformanceDataList({
       const file = exportRowsToFile('excel', { title: 'Financial Performance Data List', headers, rows: excelRows, fileName: 'financial_performance' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'Financial Performance Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: allData,
         fileName: 'financial_performance',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('financial_performance.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

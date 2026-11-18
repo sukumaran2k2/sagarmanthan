@@ -73,14 +73,14 @@ export default function PartnershipDataList({
       const file = exportRowsToFile('excel', { title: 'IMU Partnership Data List', headers, rows: excelRows, fileName: 'imu_partnership' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'IMU Partnership Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: allData,
         fileName: 'imu_partnership',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('imu_partnership.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

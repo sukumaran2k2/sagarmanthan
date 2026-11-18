@@ -78,14 +78,14 @@ export default function FinalYearPassPercentageDataList({
       const file = exportDataListToExcel({ columnLabels: COLUMN_LABELS, visibleCols, rowData: filteredData, fileName: 'imu_final_year_pass_percentage', title: 'IMU Final Year Pass Percentage Data List' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'IMU Final Year Pass Percentage Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: filteredData,
         fileName: 'imu_final_year_pass_percentage',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('imu_final_year_pass_percentage.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

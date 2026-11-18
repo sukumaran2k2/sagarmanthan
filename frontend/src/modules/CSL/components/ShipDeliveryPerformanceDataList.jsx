@@ -73,14 +73,14 @@ export default function ShipDeliveryPerformanceDataList({
       const file = exportRowsToFile('excel', { title: 'CSL Ship Delivery Performance Data List', headers, rows: excelRows, fileName: 'csl_ship_delivery_performance' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'CSL Ship Delivery Performance Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: allData,
         fileName: 'csl_ship_delivery_performance',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('csl_ship_delivery_performance.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

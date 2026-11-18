@@ -85,14 +85,14 @@ export default function RepairAndMaintenanceDataList({
       const file = exportDataListToExcel({ columnLabels: COLUMN_LABELS, visibleCols, rowData: filteredData, fileName: 'sci_repair_and_maintenance', title: 'SCI Repair & Maintenance Data List' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'SCI Repair & Maintenance Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: filteredData,
         fileName: 'sci_repair_and_maintenance',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('sci_repair_and_maintenance.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

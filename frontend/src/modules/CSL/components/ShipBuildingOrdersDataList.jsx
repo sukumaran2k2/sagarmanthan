@@ -73,14 +73,14 @@ export default function ShipBuildingOrdersDataList({
       const file = exportRowsToFile('excel', { title: 'CSL Ship Building Orders Data List', headers, rows: excelRows, fileName: 'csl_ship_building_orders' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'CSL Ship Building Orders Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: allData,
         fileName: 'csl_ship_building_orders',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('csl_ship_building_orders.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

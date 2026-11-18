@@ -85,14 +85,14 @@ export default function FacilitiesDataList({
       const file = exportRowsToFile('excel', { title: 'IMU Facilities Data List', headers, rows: excelRows, fileName: 'imu_facilities' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'IMU Facilities Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: allData,
         fileName: 'imu_facilities',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('imu_facilities.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

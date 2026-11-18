@@ -83,14 +83,14 @@ export default function ShipDryDockingDataList({
       const file = exportDataListToExcel({ columnLabels: COLUMN_LABELS, visibleCols, rowData: filteredData, fileName: 'sci_ship_dry_docking', title: 'SCI Ship Dry Docking Data List' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'SCI Ship Dry Docking Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: filteredData,
         fileName: 'sci_ship_dry_docking',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('sci_ship_dry_docking.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

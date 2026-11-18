@@ -85,14 +85,14 @@ export default function SaleAndRecyclingDataList({
       const file = exportDataListToExcel({ columnLabels: COLUMN_LABELS, visibleCols, rowData: filteredData, fileName: 'sci_sale_and_recycling', title: 'SCI Sale & Recycling of Old Vessels Data List' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'SCI Sale & Recycling of Old Vessels Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: filteredData,
         fileName: 'sci_sale_and_recycling',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('sci_sale_and_recycling.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

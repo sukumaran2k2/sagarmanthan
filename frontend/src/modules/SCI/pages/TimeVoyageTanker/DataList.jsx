@@ -89,14 +89,14 @@ export default function TimeVoyageTankerDataList({
       const file = exportDataListToExcel({ columnLabels: COLUMN_LABELS, visibleCols, rowData: filteredData, fileName: 'sci_time_voyage_tanker', title: 'SCI Time Voyage Tanker Data List' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'SCI Time Voyage Tanker Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: filteredData,
         fileName: 'sci_time_voyage_tanker',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('sci_time_voyage_tanker.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

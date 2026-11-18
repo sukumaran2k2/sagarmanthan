@@ -71,14 +71,14 @@ export default function FabricationOfSteelsDataList({
       const file = exportRowsToFile('excel', { title: 'CSL Fabrication of Steels Data List', headers, rows: excelRows, fileName: 'csl_fabrication_of_steels' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'CSL Fabrication of Steels Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: allData,
         fileName: 'csl_fabrication_of_steels',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('csl_fabrication_of_steels.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

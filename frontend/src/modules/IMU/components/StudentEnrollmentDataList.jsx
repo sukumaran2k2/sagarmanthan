@@ -81,14 +81,14 @@ export default function StudentEnrollmentDataList({
       const file = exportRowsToFile('excel', { title: 'IMU Student Enrollment Data List', headers, rows: excelRows, fileName: 'imu_student_enrollment' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'IMU Student Enrollment Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: allData,
         fileName: 'imu_student_enrollment',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('imu_student_enrollment.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 

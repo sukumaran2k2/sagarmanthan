@@ -73,14 +73,14 @@ export default function ShipsRepairedDataList({
       const file = exportRowsToFile('excel', { title: 'CSL Ships Repaired Data List', headers, rows: excelRows, fileName: 'csl_ships_repaired' });
       notify?.(COMMON_TOASTS.excelExported(file));
     } else if (type === 'PDF') {
-      exportDataListToPdf({
+      const file = exportDataListToPdf({
         title: 'CSL Ships Repaired Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: allData,
         fileName: 'csl_ships_repaired',
       });
-      notify?.(COMMON_TOASTS.downloadStarted('csl_ships_repaired.pdf'));
+      notify?.(COMMON_TOASTS.excelExported(file));
     }
   };
 
