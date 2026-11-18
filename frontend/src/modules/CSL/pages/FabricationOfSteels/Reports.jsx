@@ -90,8 +90,9 @@ export default function FabricationOfSteelsReports({ notify }) {
       am5xy.XYChart.new(root, { panX: false, panY: false, wheelX: 'none', wheelY: 'none', layout: root.verticalLayout, paddingTop: 10, paddingBottom: 0, paddingRight: 20, paddingLeft: 10 })
     );
 
-    const xRenderer = am5xy.AxisRendererX.new(root, { minGridDistance: 50, cellStartLocation: 0.1, cellEndLocation: 0.9 });
-    xRenderer.labels.template.setAll({ rotation: -45, centerY: am5.p50, centerX: am5.p100, fontSize: 10, fill: am5.color(0x64748b) });
+    // Every month is labelled (minGridDistance small enough that none is skipped), in a smaller font
+    const xRenderer = am5xy.AxisRendererX.new(root, { minGridDistance: 10, cellStartLocation: 0.1, cellEndLocation: 0.9 });
+    xRenderer.labels.template.setAll({ rotation: -45, centerY: am5.p50, centerX: am5.p100, fontSize: 8, fill: am5.color(0x64748b) });
     xRenderer.grid.template.setAll({ stroke: am5.color(0xe2e8f0), strokeWidth: 1 });
 
     const xAxis = chart.xAxes.push(am5xy.CategoryAxis.new(root, { categoryField: 'month', renderer: xRenderer }));
