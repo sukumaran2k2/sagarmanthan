@@ -1359,6 +1359,9 @@ export default function ProjectsListTable({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Organisation users only ever see their own organisation's projects,
+                  so the IA filter has no effect for them and is shown to ministry users only. */}
+              {!isOrgUser && (
               <div>
                 <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
                   Primary Implementing Agency (IA)
@@ -1380,6 +1383,7 @@ export default function ProjectsListTable({
                   })}
                 </select>
               </div>
+              )}
 
               <div>
                 <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">

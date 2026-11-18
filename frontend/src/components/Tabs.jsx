@@ -164,7 +164,8 @@ export default function Tabs({ activeTab, setActiveTab }) {
             m('PROJECTS', { label: 'Projects Less Than 5 Cr', tab: 'projects-less5cr', icon: Coins }),
             // m('PROJECTS', { label: 'Lumpsum - IWAI', tab: 'projects-lumpsum', icon: TrendingUp }),
             ...(!isOrgUser ? [m('PROJECTS', { label: 'View Drop Request', tab: 'projects-dropRequests', icon: FolderSync })] : []),
-            m('PROJECTS', { label: 'Reports', tab: 'projects-reports', icon: FilePieChart }),
+            // Only Data QC reports remain (MIS is hidden), and those are Ministry only
+            ...(!isOrgUser ? [m('PROJECTS', { label: 'Reports', tab: 'projects-reports', icon: FilePieChart })] : []),
           ]
         },
         {
