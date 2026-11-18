@@ -56,6 +56,9 @@ export default function Reports({ notify, triggerNotification, wings = [] }) {
   const setReportView = useBillsStore((state) => state.setReportView);
   const [drillDownPath, setDrillDownPath] = useState([{ type: 'combined' }]);
   const [quickFilter, setQuickFilter] = useState('');
+  // The rows the grid shows after the search box and column filters (null: not reported yet,
+  // i.e. all rows). The Total, Copy and the Excel / PDF files follow these rows.
+  const [shownRows, setShownRows] = useState(null);
 
   const currentView = drillDownPath[drillDownPath.length - 1];
   const isAbstractLevel = currentView.type === 'combined';
@@ -144,13 +147,26 @@ export default function Reports({ notify, triggerNotification, wings = [] }) {
     return [...data].sort((a, b) => (a.Wing || '').localeCompare(b.Wing || '') || (a.Division || '').localeCompare(b.Division || ''));
   }, [data, reportView, isAbstractLevel]);
 
+  // Rows on screen, in the grid's order; a list from an earlier view or reload is ignored
+  const visibleRows = useMemo(() => {
+    if (!shownRows || shownRows.source !== aggregatedData) return aggregatedData;
+    return shownRows.rows;
+  }, [shownRows, aggregatedData]);
+
+  const readShownRows = (api) => {
+    if (!api) return;
+    const rows = [];
+    api.forEachNodeAfterFilterAndSort((node) => { if (node.data) rows.push(node.data); });
+    setShownRows({ source: aggregatedData, rows });
+  };
+
   const pinnedBottomRowData = useMemo(() => {
     if (!isAbstractLevel) return undefined;
     const stageFields = [TOTAL_FIELD, ...Object.keys(COLUMN_STAGE_MAP)];
     const totals = { Wing: 'Total', Division: 'Total', isTotalRow: true };
-    stageFields.forEach((f) => { totals[f] = aggregatedData.reduce((s, r) => s + Number(r[f] || 0), 0); });
+    stageFields.forEach((f) => { totals[f] = visibleRows.reduce((s, r) => s + Number(r[f] || 0), 0); });
     return [totals];
-  }, [aggregatedData, isAbstractLevel]);
+  }, [visibleRows, isAbstractLevel]);
 
   const columns = useMemo(() => {
     if (!isAbstractLevel) return columnDefs.map((c) => ({ ...c, valueFormatter: (p) => cellText(p.value) }));
@@ -196,11 +212,11 @@ export default function Reports({ notify, triggerNotification, wings = [] }) {
 
   const handleCopy = () => {
     let tsv = columns.filter((c) => c.headerName).map((c) => c.headerName).join('\t') + '\n';
-    aggregatedData.forEach((row) => {
+    visibleRows.forEach((row) => {
       tsv += columns.filter((c) => c.headerName).map((c) => cellText(row[c.field]) ?? '').join('\t') + '\n';
     });
     navigator.clipboard.writeText(tsv).then(
-      () => notify?.(COMMON_TOASTS.copySuccess(aggregatedData.length)),
+      () => notify?.(COMMON_TOASTS.copySuccess(visibleRows.length)),
       () => notify?.(COMMON_TOASTS.copyFailed()),
     );
   };
@@ -211,7 +227,7 @@ export default function Reports({ notify, triggerNotification, wings = [] }) {
       const file = exportGridToExcel({
         title: ABSTRACT_TITLE,
         columns: columns.filter((c) => c.headerName),
-        rows: aggregatedData,
+        rows: visibleRows,
         pinnedRows: pinnedBottomRowData || [],
         fileName: 'bills_report',
       });
@@ -221,7 +237,7 @@ export default function Reports({ notify, triggerNotification, wings = [] }) {
       exportReportToPdf({
         title: ABSTRACT_TITLE,
         columnDefs: columns.filter((c) => c.headerName),
-        rowData: [...aggregatedData, ...(pinnedBottomRowData || [])],
+        rowData: [...visibleRows, ...(pinnedBottomRowData || [])],
         fileName: 'bills_report',
       });
       notify?.(COMMON_TOASTS.downloadStarted('bills_report.pdf'));
@@ -318,6 +334,9 @@ export default function Reports({ notify, triggerNotification, wings = [] }) {
               headerHeight={72}
               autoSizeStrategy={{ type: 'fitCellContents', skipHeader: true, scaleUpToFitGridWidth: true }}
               pinnedBottomRowData={pinnedBottomRowData}
+              onFilterChanged={(e) => readShownRows(e.api)}
+              onSortChanged={(e) => readShownRows(e.api)}
+              onRowDataUpdated={(e) => readShownRows(e.api)}
               enableExport={false}
               color="#4b2424"
             />

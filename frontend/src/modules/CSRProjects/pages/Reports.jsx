@@ -29,21 +29,23 @@ const getUtilisationColor = (value) => {
 // How each report is fetched. The server scopes every report by the login: organisation
 // users get their own organisation, and nothing from the ministry-only reports.
 const FETCHERS = {
-  'fund-year-wise-report': () => fetchCsrFundYearWiseReport('all'),
+  'fund-year-wise-report': ({ fy }) => fetchCsrFundYearWiseReport(fy),
   'fund-org-wise-report': ({ fy }) => fetchCsrFundOrgWiseReport(fy),
   'fund-org-trend-report': ({ org }) => fetchCsrFundOrgTrendReport(org || 'all'),
-  'projects-year-wise-summary': () => fetchCsrProjectsYearWiseSummary('all'),
+  'projects-year-wise-summary': ({ org }) => fetchCsrProjectsYearWiseSummary(org || 'all'),
   'projects-org-wise-summary': ({ fy, org }) => fetchCsrProjectsOrgWiseSummary(fy, org),
-  'projects-focus-wise-summary': () => fetchCsrProjectsFocusWiseSummary('all'),
+  'projects-focus-wise-summary': ({ org }) => fetchCsrProjectsFocusWiseSummary(org || 'all'),
 };
 
 // Which filter a report offers: the FY reports take a year; the fund trend needs an
 // organisation (organisation users always get their own, so they have nothing to choose);
 // the organisation-wise projects summary takes a year and an organisation
 const filterKind = (reportType, isOrgUser) => {
-  if (reportType === 'fund-org-wise-report') return 'fy';
+  if (reportType === 'fund-org-wise-report' || reportType === 'fund-year-wise-report') return 'fy';
   if (reportType === 'fund-org-trend-report' && !isOrgUser) return 'org';
   if (reportType === 'projects-org-wise-summary') return 'fy-org';
+  // all organisations by default, or one; organisation users always get their own
+  if ((reportType === 'projects-year-wise-summary' || reportType === 'projects-focus-wise-summary') && !isOrgUser) return 'org-all';
   return null;
 };
 
@@ -132,7 +134,7 @@ export default function Reports({ notify, triggerNotification, isOrgUser }) {
   }, [needsOrg, result, requestKey]);
 
   const activeFilterCount = filter === 'fy' ? Number(reportFY !== 'all')
-    : filter === 'org' ? Number(!!reportOrg)
+    : filter === 'org' || filter === 'org-all' ? Number(!!reportOrg)
       : filter === 'fy-org' ? Number(reportFY !== 'all') + Number(!!reportOrg) : 0;
   const hasActiveFilters = activeFilterCount > 0;
   const resetFilters = () => {
@@ -783,7 +785,7 @@ export default function Reports({ notify, triggerNotification, isOrgUser }) {
             </select>
           </div>
         )}
-        {filter === 'fy-org' && (
+        {(filter === 'fy-org' || filter === 'org-all') && (
           <div>
             <label className="module-form-label" htmlFor="csr-report-org">Organisation</label>
             <select id="csr-report-org" value={reportOrg} onChange={(e) => setReportOrg(e.target.value)} className="module-form-select">
