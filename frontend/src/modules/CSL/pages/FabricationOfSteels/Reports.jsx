@@ -113,8 +113,9 @@ export default function FabricationOfSteelsReports({ notify }) {
     targetSeries.columns.template.setAll({ fill: am5.color(0x87ceeb), stroke: am5.color(0x87ceeb), cornerRadiusTL: 3, cornerRadiusTR: 3, width: am5.percent(70) });
     targetSeries.columns.template.states.create('hover', { fill: am5.color(0x5ba3d0) });
     targetSeries.bullets.push((root) => {
-      const label = am5.Label.new(root, { fill: am5.color(0x1e293b), centerX: am5.p50, centerY: am5.p100, dy: -8, fontSize: 10, fontWeight: '700', populateText: true, text: '{valueY}' });
-      return am5.Bullet.new(root, { sprite: label });
+      // Target on top of its bar, clear of the Actual line that runs through the bars
+      const label = am5.Label.new(root, { fill: am5.color(0x1e293b), centerX: am5.p50, centerY: am5.p100, dy: -2, fontSize: 9, fontWeight: '700', populateText: true, text: '{valueY}' });
+      return am5.Bullet.new(root, { locationY: 1, sprite: label });
     });
     targetSeries.data.setAll(chartData);
 
@@ -131,7 +132,8 @@ export default function FabricationOfSteelsReports({ notify }) {
       sprite: am5.Circle.new(root, { radius: 4, fill: am5.color(0x22c55e), stroke: am5.color(0xffffff), strokeWidth: 2 })
     }));
     actualSeries.bullets.push((root) => {
-      const label = am5.Label.new(root, { fill: am5.color(0x22c55e), centerX: am5.p50, centerY: am5.p0, dy: -26, fontSize: 10, fontWeight: '700', populateText: true, text: '{valueY}' });
+      // Actual just under its point, so it never meets the Target above the bar
+      const label = am5.Label.new(root, { fill: am5.color(0x15803d), centerX: am5.p50, centerY: am5.p0, dy: 6, fontSize: 9, fontWeight: '700', populateText: true, text: '{valueY}' });
       return am5.Bullet.new(root, { sprite: label });
     });
     actualSeries.data.setAll(chartData);
