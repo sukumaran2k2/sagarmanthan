@@ -77,7 +77,7 @@ export default function ProfileView({ triggerNotification }) {
     location: '',
     employeeId: '',
     designation: '',
-    department: '',
+    organization: '',
     state: '',
     district: '',
     wing: '',
@@ -111,7 +111,7 @@ export default function ProfileView({ triggerNotification }) {
             location: matched.district_name ? `${matched.district_name}, ${matched.state_name || ''}` : 'New Delhi, India',
             employeeId: `EMP-2026-${matched.user_id}`,
             designation: matched.designation || 'Officer',
-            department: matched.division_name || matched.organisation_name || 'N/A',
+            organization: matched.organisation_name || 'N/A',
             state: matched.state_name || 'N/A',
             district: matched.district_name || 'N/A',
             wing: matched.wing_name || 'Ports',
@@ -261,7 +261,7 @@ export default function ProfileView({ triggerNotification }) {
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-150 inline-block">
                 {profile.designation}
               </span>
-              <p className="text-xs text-slate-400 font-semibold">{profile.department}</p>
+              <p className="text-xs text-slate-400 font-semibold">{profile.organization}</p>
             </div>
 
             <div className="w-full border-t border-slate-100 my-6 pt-5 space-y-3.5 text-left text-xs">
@@ -466,15 +466,15 @@ export default function ProfileView({ triggerNotification }) {
                   <span>Organization Details</span>
                 </h3>
 
-                {/* Department / Division */}
+                {/* Organization Name */}
                 <div className="space-y-1.5">
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Department / Division</label>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Organization Name</label>
                   <div className="relative">
                     <input
                       type="text"
-                      name="department"
+                      name="organization"
                       disabled
-                      value={profile.department}
+                      value={profile.organization}
                       onChange={handleProfileChange}
                       className="w-full text-xs pl-8.5 pr-3.5 py-2.5 bg-slate-100/80 border border-slate-200 rounded-xl focus:outline-none transition font-semibold text-slate-500 cursor-not-allowed"
                     />
@@ -567,25 +567,6 @@ export default function ProfileView({ triggerNotification }) {
                     <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-455">
                       <ChevronDown className="h-4 w-4" />
                     </div>
-                  </div>
-                </div>
-
-                {/* GIGW v3 Two-Factor Switch */}
-                <div className="space-y-1.5 md:col-span-2">
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">2FA Status</label>
-                  <div className="flex items-center h-10">
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={profile.twoFactor}
-                        onChange={(e) => setProfile(prev => ({ ...prev, twoFactor: e.target.checked }))}
-                        className="sr-only peer"
-                      />
-                      <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
-                      <span className="ml-3 text-xs font-semibold text-slate-600">
-                        {profile.twoFactor ? 'Two-Factor Authentication Enabled' : 'Disabled (Not Recommended)'}
-                      </span>
-                    </label>
                   </div>
                 </div>
 
