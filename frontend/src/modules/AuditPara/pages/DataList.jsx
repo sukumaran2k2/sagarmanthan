@@ -1,11 +1,12 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { Search, ChevronLeft, ChevronRight, Edit, Eye, Trash2, ChevronDown, Filter, ChevronUp, X, MoreVertical, FileSpreadsheet, Printer } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, Edit, Eye, Trash2, ChevronDown, Filter, ChevronUp, X } from 'lucide-react';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import { useShallow } from 'zustand/react/shallow';
 import { STATUS_STEPS, CATEGORIES, ACTIVE_STATUS, getParaStatusText } from '../constants';
 import { useAuditParaStore } from '../store/useAuditParaStore';
 import CopyButton from '../../../components/CopyButton';
+import ExportDropdown from '../../../components/ExportDropdown';
 import { getWrapColumnProps, renderWrappedText } from '../../../utils/tableCellWrap';
 import { useNotifier, COMMON_TOASTS } from '../../../utils/notify';
 import { exportRowsToFile } from '../../../utils/exportGridReport';
@@ -80,8 +81,6 @@ export default function DataList({
   // Dropdown open/closed is view state, so it stays in the component
   const [visibilityOpen, setVisibilityOpen] = useState(false);
   const visibilityRef = useRef(null);
-  const [exportOpen, setExportOpen] = useState(false);
-  const exportRef = useRef(null);
   const gridRef = useRef();
 
   const filteredData = useMemo(() => {
@@ -122,9 +121,6 @@ export default function DataList({
     function handleClickOutside(event) {
       if (visibilityRef.current && !visibilityRef.current.contains(event.target)) {
         setVisibilityOpen(false);
-      }
-      if (exportRef.current && !exportRef.current.contains(event.target)) {
-        setExportOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -303,36 +299,7 @@ export default function DataList({
             Total: {loading ? '...' : totalEntries}
           </div>
           <CopyButton onCopy={handleCopy} color="#0f417a" hoverBg="#f1f5f9" />
-          <div className="relative" ref={exportRef}>
-            <button
-              type="button"
-              onClick={() => setExportOpen((v) => !v)}
-              title="Export options"
-              className="flex items-center justify-center w-8 h-8 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
-            >
-              <MoreVertical className="h-4 w-4" />
-            </button>
-            {exportOpen && (
-              <div className="absolute right-0 top-full mt-1.5 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => { setExportOpen(false); handleExcel(); }}
-                  className="flex items-center gap-2.5 w-full px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer text-left"
-                >
-                  <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                  <span>Excel (.xlsx)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setExportOpen(false); handlePdf(); }}
-                  className="flex items-center gap-2.5 w-full px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer text-left border-t border-slate-100 dark:border-slate-800"
-                >
-                  <Printer className="h-4 w-4 text-rose-600 dark:text-rose-400" />
-                  <span>PDF</span>
-                </button>
-              </div>
-            )}
-          </div>
+          <ExportDropdown onExportExcel={handleExcel} onExportPdf={handlePdf} color="#0f417a" hoverColor="#1e5ea8" />
           <div className="relative" ref={visibilityRef}>
             <button
               type="button"

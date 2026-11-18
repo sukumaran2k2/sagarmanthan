@@ -101,10 +101,11 @@ async function readBill(body, conn, { isNew }) {
     return { bill: { subject, division, remarks, stageId, stages } };
 }
 
-// Binds a bill read by readBill on a request
+// Binds a bill read by readBill on a request. The division is bound only for a new bill: an
+// update keeps the bill's division and its UPDATE does not use it (QC BILLS-BE-02).
 function bindBill(request, bill) {
     request.input("subject", bill.subject);
-    request.input("division", bill.division);
+    if (bill.division !== null) request.input("division", bill.division);
     request.input("remarks", bill.remarks);
     request.input("stageId", bill.stageId);
     bill.stages.forEach((st) => {
@@ -147,15 +148,15 @@ async function createBill(req, res) {
 
 // The bills a user can see, as a condition on tbl_bill (bound on `request`): never a deleted
 // bill. Decided from the sign-in token, like the other modules (no database lookup per request):
-// users with the MASTER or MINISTRY data scope, and users with no wing, see every bill; anyone
-// else sees their wing's bills and the ones they created. Organisation users never get here -
-// the routes are ministryOnly. Used by the list, dashboard and reports and for reading,
+// users with the MASTER or MINISTRY data scope see every bill; anyone else sees their wing's
+// bills and the ones they created, and a user with no wing sees none (QC BILLS-BE-01).
+// Organisation users never get here - the routes are ministryOnly. Used by the list, dashboard and reports and for reading,
 // changing or deleting one bill.
 export async function billScope(request, user) {
     const notDeleted = 'ISNULL(tbl_bill.is_deleted, 0) = 0';
     if (getDataScope(user).isWide) return notDeleted;
     const wingId = Number(user?.wingId);
-    if (!Number.isInteger(wingId) || wingId <= 0) return notDeleted;
+    if (!Number.isInteger(wingId) || wingId <= 0) return '1 = 0';
     request.input("userWingId", wingId);
     request.input("requestingUserId", Number(user.userId));
     return `${notDeleted} AND (${BILL_WING} = @userWingId OR tbl_bill.created_by = @requestingUserId)`;
