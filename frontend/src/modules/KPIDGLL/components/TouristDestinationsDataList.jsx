@@ -5,12 +5,14 @@ import TablePagination from '../../../components/TablePagination';
 import DataListToolbar from '../../../components/DataListToolbar';
 import { exportDataListToPdf } from '../../../utils/exportReportPdf';
 import { COMMON_TOASTS } from '../../../utils/notify';
-import { exportGridApiToExcel, exportRowsToFile } from '../../../utils/exportGridReport';
+import { cellText, lastUpdatedText } from '../../../utils/cellText';
+import { exportRowsToFile } from '../../../utils/exportGridReport';
 
 const DEST_COLUMN_LABELS = {
   finacial_year: 'Financial Year',
   no_lighthouses_developed_tourist_destination: 'No. of Lighthouses Developed as Tourist Destinations',
   annual_tourist_footfall: 'Annual Tourist Footfall',
+  updated_date: 'Last Updated Date',
 };
 
 // NOTE: DB column is collection_of_light_dues / footfall_in_the_lighthouses,
@@ -20,17 +22,20 @@ const TARGET_COLUMN_LABELS = {
   year: 'Target Year',
   collection_of_light_dues: 'No. of Target Lighthouses',
   footfall_in_the_lighthouses: 'Expected Footfall',
+  updated_date: 'Last Updated Date',
 };
 
 const DEST_DEFAULT_VISIBLE_COLS = {
   finacial_year: true,
   no_lighthouses_developed_tourist_destination: true,
   annual_tourist_footfall: true,
+  updated_date: false, // offered in Visibility, unticked (as in 2.0)
 };
 const TARGET_DEFAULT_VISIBLE_COLS = {
   year: true,
   collection_of_light_dues: true,
   footfall_in_the_lighthouses: true,
+  updated_date: false, // offered in Visibility, unticked (as in 2.0)
 };
 
 // Mirrors the legacy site's two-toggle-button list view: "Lighthouse Table"
@@ -76,6 +81,12 @@ export default function TouristDestinationsDataList({
     ...(destVisibleCols.finacial_year ? [{ headerName: 'Financial Year', field: 'finacial_year', wrapText: true, autoHeight: true, flex: 1, minWidth: 140, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
     ...(destVisibleCols.no_lighthouses_developed_tourist_destination ? [{ headerName: 'No. of Lighthouses Developed as Tourist Destinations', field: 'no_lighthouses_developed_tourist_destination', wrapText: true, autoHeight: true, flex: 1.5, minWidth: 240, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
     ...(destVisibleCols.annual_tourist_footfall ? [{ headerName: 'Annual Tourist Footfall', field: 'annual_tourist_footfall', wrapText: true, autoHeight: true, flex: 1.2, minWidth: 180, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(destVisibleCols.updated_date ? [{
+      headerName: 'Last Updated Date', field: 'updated_date', minWidth: 140,
+      cellClass: 'text-center text-slate-600 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700',
+      valueFormatter: (params) => lastUpdatedText(params.value),
+      useValueFormatterForExport: true,
+    }] : []),
     ...(canEdit || canRemove ? [{
       headerName: 'Actions', field: 'tourist_destination_id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,
       cellClass: 'text-center flex items-center justify-center gap-1',
@@ -109,6 +120,12 @@ export default function TouristDestinationsDataList({
     ...(targetVisibleCols.year ? [{ headerName: 'Target Year', field: 'year', wrapText: true, autoHeight: true, flex: 1, minWidth: 140, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
     ...(targetVisibleCols.collection_of_light_dues ? [{ headerName: 'No. of Target Lighthouses', field: 'collection_of_light_dues', wrapText: true, autoHeight: true, flex: 1.5, minWidth: 200, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
     ...(targetVisibleCols.footfall_in_the_lighthouses ? [{ headerName: 'Expected Footfall', field: 'footfall_in_the_lighthouses', wrapText: true, autoHeight: true, flex: 1.2, minWidth: 180, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(targetVisibleCols.updated_date ? [{
+      headerName: 'Last Updated Date', field: 'updated_date', minWidth: 140,
+      cellClass: 'text-center text-slate-600 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700',
+      valueFormatter: (params) => lastUpdatedText(params.value),
+      useValueFormatterForExport: true,
+    }] : []),
     ...(canEdit || canRemove ? [{
       headerName: 'Actions', field: 'tourist_destination_target_id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,
       cellClass: 'text-center flex items-center justify-center gap-1',
@@ -146,7 +163,7 @@ export default function TouristDestinationsDataList({
       const cols = Object.keys(visibleCols).filter((c) => visibleCols[c]);
       let tsv = ['S.No', ...cols.map((c) => columnLabels[c])].join('\t') + '\n';
       allData.forEach((row, i) => {
-        const line = [i + 1, ...cols.map((c) => row[c] ?? '')];
+        const line = [i + 1, ...cols.map((c) => (c === 'updated_date' ? lastUpdatedText(row[c]) : cellText(row[c])))];
         tsv += line.join('\t') + '\n';
       });
       navigator.clipboard.writeText(tsv).then(
@@ -156,7 +173,7 @@ export default function TouristDestinationsDataList({
     } else if (type === 'Excel') {
       const cols = Object.keys(visibleCols).filter((c) => visibleCols[c]);
       const headers = ['S.No', ...cols.map((c) => columnLabels[c])];
-      const excelRows = allData.map((row, i) => [i + 1, ...cols.map((c) => row[c] ?? '')]);
+      const excelRows = allData.map((row, i) => [i + 1, ...cols.map((c) => (c === 'updated_date' ? lastUpdatedText(row[c]) : cellText(row[c])))]);
       const file = exportRowsToFile('excel', {
         title: isDestination ? 'Tourist Destinations Data List' : 'Tourist Destinations Target Details Data List',
         headers, rows: excelRows, fileName: fileNameBase,
