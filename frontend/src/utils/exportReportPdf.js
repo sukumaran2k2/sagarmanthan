@@ -46,8 +46,10 @@ export async function exportReportToPdf({
 
   // Chart(s) -- one image per chart root, stacked vertically, scaled to
   // fit the page width while preserving aspect ratio.
+  // A chart no longer on the page (e.g. the report is in Table view) is skipped:
+  // its root is disposed and would come out as a black block.
   for (const root of chartRoots) {
-    if (!root) continue;
+    if (!root || root.isDisposed?.() || !root.dom?.isConnected) continue;
     try {
       const exporting = am5exporting.Exporting.new(root, { pngOptions: { quality: 1 } });
       const canvas = await exporting.getCanvas({ quality: 1 });
