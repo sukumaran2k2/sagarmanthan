@@ -314,18 +314,24 @@ async function createParliamentaryIssue(req, res) {
 }
 
 async function editParliamentaryIssue(req, res) {
+  // updated_by is the signed-in user, never a value from the request
+  const userID = Number(req.user?.userId);
+  if (!Number.isInteger(userID) || userID <= 0) {
+    return res.status(401).json({ error: "Unauthorized." });
+  }
+
   const conn = await pool;
   const request = conn.request();
-  const body = {
-    ...req.body,
-    userID: req.user?.userId ?? req.body.userID,
-  };
+  const body = { ...req.body, userID };
   request.input("parliamentaryIssueID", body.parliamentaryIssueID);
   bindIssueFields(request, body);
 
   try {
+    // Only an issue inside the caller's data scope can be updated (QC PI-BE-01, fixed with
+    // MOPSW-BE-01). An id outside it matches no row and is answered as "not found" below.
+    const { joinSql, whereSql } = applyDataScope(request, req.user, { strategy: "viaCreatedBy", alias: "tpi" });
     const result = await request.query(`
-      UPDATE tbl_parliamentary_issue SET
+      UPDATE tpi SET
         wing = @wing,
         division = @division,
         subject = @parliamentarySubject,
@@ -379,7 +385,10 @@ async function editParliamentaryIssue(req, res) {
         updated_by = @userID,
         updated_date = getDate()
       OUTPUT INSERTED.parliamentary_issue_id
-      WHERE parliamentary_issue_id = @parliamentaryIssueID
+      FROM tbl_parliamentary_issue AS tpi
+      ${joinSql}
+      WHERE tpi.parliamentary_issue_id = @parliamentaryIssueID
+      ${whereSql}
     `);
 
     if (!result.recordset?.length) {

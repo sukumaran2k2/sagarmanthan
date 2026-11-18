@@ -1,10 +1,94 @@
 import { pool } from "../../db.js";
 import fs from "fs";
+import path from "path";
 import sql from "mssql";
 import { applyDataScope } from "../../middleware/dataScope.js";
+import { MOPSW_UPLOAD_DIR } from "./mopswDocumentUploader.js";
+
+// Column size of tbl_cabinet_notes_mopsw.subject (nvarchar(256))
+const SUBJECT_MAX_LENGTH = 256;
 
 function emptyToNull(value) {
   return value === "" || value === undefined ? null : value;
+}
+
+function parseId(value) {
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+// Notes have no organisation_id; organisation users reach only notes created by their
+// organisation. Every read and write of a single note goes through this.
+function noteScope(request, user) {
+  return applyDataScope(request, user, { strategy: "viaCreatedBy", alias: "notes" });
+}
+
+// created_by / updated_by and the delete log always name the signed-in user, never a value
+// from the request (QC MOPSW-BE-09). null means no usable login: answer 401.
+function signedInUserId(req) {
+  const id = Number(req.user?.userId);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+function serverError(res, action, err) {
+  console.error(`[CabinetNotesMopsw] ${action}:`, err);
+  return res.status(500).json({ error: `Could not ${action}. Please try again.` });
+}
+
+// ---------- request validation (QC MOPSW-BE-10) ----------
+
+// Subject, wing and division are required by the form; wing, division and stage must be
+// real rows in their masters, and the division must belong to the wing (the form only
+// offers that wing's divisions). Sends the 400 itself and returns false when invalid.
+async function validateNoteBody(conn, body, res) {
+  const errors = [];
+
+  const subject = body.subject == null ? "" : String(body.subject).trim();
+  if (!subject) errors.push("Subject is required.");
+  else if (subject.length > SUBJECT_MAX_LENGTH) {
+    errors.push(`Subject cannot exceed ${SUBJECT_MAX_LENGTH} characters.`);
+  }
+
+  const wing = parseId(body.wing);
+  const division = parseId(body.division);
+  const stageRaw = body.selectedCabinetNotesStage ?? body.stage_id ?? 0;
+  const stage = Number(stageRaw);
+  if (!wing) errors.push("Please select a valid wing.");
+  if (!division) errors.push("Please select a valid division.");
+  if (!Number.isInteger(stage) || stage < 0) errors.push("The stage is not valid.");
+
+  if (!errors.length) {
+    const check = await conn
+      .request()
+      .input("wing", sql.Int, wing)
+      .input("division", sql.Int, division)
+      .input("stage", sql.Int, stage)
+      .query(`
+        SELECT
+          (SELECT COUNT(1) FROM mmt_wings WHERE wing_id = @wing) AS wing_ok,
+          (SELECT COUNT(1) FROM mmt_division WHERE division_id = @division) AS division_ok,
+          (SELECT COUNT(1) FROM mmt_division WHERE division_id = @division AND wing_id = @wing) AS division_in_wing,
+          (SELECT COUNT(1) FROM mmt_cabinet_mopsw_stage WHERE mopsw_stage_id = @stage) AS stage_ok
+      `);
+    const row = check.recordset[0] || {};
+    if (!row.wing_ok) errors.push("Please select a valid wing.");
+    if (!row.division_ok) errors.push("Please select a valid division.");
+    else if (row.wing_ok && !row.division_in_wing) {
+      errors.push("The selected division does not belong to the selected wing.");
+    }
+    if (!row.stage_ok) errors.push("The stage is not valid.");
+  }
+
+  if (errors.length) {
+    res.status(400).json({ error: errors[0], errors });
+    return false;
+  }
+
+  body.subject = subject;
+  body.wing = wing;
+  body.division = division;
+  body.selectedCabinetNotesStage = stage;
+  return true;
 }
 
 const LIST_FROM_SQL = `
@@ -105,9 +189,9 @@ function parseDate(val) {
 }
 
 function bindNoteFields(request, body) {
-  request.input("subject", body.subject);
-  request.input("wing", body.wing);
-  request.input("division", body.division);
+  request.input("subject", nvarcharType(SUBJECT_MAX_LENGTH), body.subject);
+  request.input("wing", sql.Int, body.wing);
+  request.input("division", sql.Int, body.division);
   request.input("preliDcnPreparedDate", sql.Date, parseDate(body.preliDcnPreparedDate));
   request.input("preliDcnApprovedDate", sql.Date, parseDate(body.preliDcnApprovedDate));
   request.input("circulatedForImcDate", sql.Date, parseDate(body.circulatedForImcDate));
@@ -124,8 +208,8 @@ function bindNoteFields(request, body) {
   request.input("onHoldDate", sql.Date, parseDate(body.onHoldDate));
   request.input("completedDate", sql.Date, parseDate(body.completedDate));
   request.input("remarks", emptyToNull(body.remarks));
-  request.input("selectedCabinetNotesStage", body.selectedCabinetNotesStage ?? body.stage_id ?? 0);
-  request.input("userID", body.userID ?? null);
+  request.input("selectedCabinetNotesStage", sql.Int, body.selectedCabinetNotesStage);
+  request.input("userID", sql.Int, body.userID);
 
   request.input("preliDcnPreparedRemark", emptyToNull(body.preliDcnPreparedRemark));
   request.input("preliDcnApprovedRemark", emptyToNull(body.preliDcnApprovedRemark));
@@ -256,8 +340,7 @@ async function getCabinetMopsw(req, res) {
       },
     });
   } catch (err) {
-    console.log(err);
-    return res.sendStatus(500);
+    return serverError(res, "load cabinet notes", err);
   }
 }
 
@@ -304,21 +387,23 @@ async function getAllCabinetMopsw(req, res) {
     `);
     res.json(result.recordset);
   } catch (err) {
-    console.log(err);
-    return res.sendStatus(500);
+    return serverError(res, "load cabinet notes", err);
   }
 }
 
 async function createMopswCabinet(req, res) {
-  const conn = await pool;
-  const request = conn.request();
-  const body = {
-    ...req.body,
-    userID: req.user?.userId ?? req.body.userID,
-  };
-  bindNoteFields(request, body);
+  const userID = signedInUserId(req);
+  if (!userID) return res.status(401).json({ error: "Unauthorized." });
 
   try {
+    const conn = await pool;
+    // created_by is the signed-in user, never the userID the form sends
+    const body = { ...req.body, userID };
+    if (!(await validateNoteBody(conn, body, res))) return;
+
+    const request = conn.request();
+    bindNoteFields(request, body);
+
     const result = await request.query(`
       INSERT INTO tbl_cabinet_notes_mopsw (
         stage_id, wing, division, subject,
@@ -356,24 +441,32 @@ async function createMopswCabinet(req, res) {
     const cabinet_notes_mopsw_id = result.recordset[0].cabinet_notes_mopsw_id;
     res.status(201).json({ cabinet_notes_mopsw_id });
   } catch (err) {
-    console.log(err);
-    return res.sendStatus(500);
+    return serverError(res, "save the cabinet note", err);
   }
 }
 
 async function editMopswCabinet(req, res) {
-  const conn = await pool;
-  const request = conn.request();
-  const body = {
-    ...req.body,
-    userID: req.user?.userId ?? req.body.userID,
-  };
-  request.input("mopswCabinetID", body.mopswCabinetID);
-  bindNoteFields(request, body);
+  const userID = signedInUserId(req);
+  if (!userID) return res.status(401).json({ error: "Unauthorized." });
+
+  const mopswCabinetID = parseId(req.body.mopswCabinetID);
+  if (!mopswCabinetID) return res.status(400).json({ error: "Invalid cabinet note." });
 
   try {
+    const conn = await pool;
+    // updated_by is the signed-in user, never the userID the form sends
+    const body = { ...req.body, userID };
+    if (!(await validateNoteBody(conn, body, res))) return;
+
+    const request = conn.request();
+    request.input("mopswCabinetID", sql.Int, mopswCabinetID);
+    bindNoteFields(request, body);
+    // Only a note inside the caller's data scope can be updated (QC MOPSW-BE-01). An id
+    // outside it matches no row and is answered as "not found" below.
+    const { joinSql, whereSql } = noteScope(request, req.user);
+
     const result = await request.query(`
-      UPDATE tbl_cabinet_notes_mopsw SET
+      UPDATE notes SET
         pre_dcn_prepared_date = @preliDcnPreparedDate,
         pre_dcn_prepared_remarks = @preliDcnPreparedRemark,
         pre_dcn_approved_date = @preliDcnApprovedDate,
@@ -404,33 +497,34 @@ async function editMopswCabinet(req, res) {
         stage_id = @selectedCabinetNotesStage,
         updated_date = GETDATE()
       OUTPUT INSERTED.cabinet_notes_mopsw_id
-      WHERE cabinet_notes_mopsw_id = @mopswCabinetID
+      FROM tbl_cabinet_notes_mopsw AS notes
+      ${joinSql}
+      WHERE notes.cabinet_notes_mopsw_id = @mopswCabinetID
+      ${whereSql}
     `);
 
     if (!result.recordset?.length) {
-      return res.status(404).json({ message: "Cabinet note not found" });
+      return res.status(404).json({ error: "Cabinet note not found." });
     }
 
     res.status(201).json({
       cabinet_notes_mopsw_id: result.recordset[0].cabinet_notes_mopsw_id,
     });
   } catch (err) {
-    console.log(err);
-    return res.sendStatus(500);
+    return serverError(res, "update the cabinet note", err);
   }
 }
 
 async function getUpdateMopswData(req, res) {
-  const mopswCabinetID = req.params.mopswCabinetID;
+  const mopswCabinetID = parseId(req.params.mopswCabinetID);
+  if (!mopswCabinetID) return res.status(400).json({ error: "Invalid cabinet note." });
+
   const conn = await pool;
   const request = conn.request();
-  request.input("mopswCabinetID", mopswCabinetID);
+  request.input("mopswCabinetID", sql.Int, mopswCabinetID);
 
   try {
-    const { joinSql, whereSql } = applyDataScope(request, req.user, {
-      strategy: "viaCreatedBy",
-      alias: "notes",
-    });
+    const { joinSql, whereSql } = noteScope(request, req.user);
     const result = await request.query(`
       SELECT notes.*
       FROM tbl_cabinet_notes_mopsw AS notes
@@ -440,21 +534,55 @@ async function getUpdateMopswData(req, res) {
     `);
     res.json(result.recordset);
   } catch (err) {
-    console.log(err);
-    return res.sendStatus(500);
+    return serverError(res, "load the cabinet note", err);
   }
 }
 
-async function createCabinetNotesMopswStage(req, res) {
-  const cabinetNotesMopswID = req.body.cabinetNotesMopswID;
-  const stage = req.body.selectedStage;
-
-  const conn = await pool;
+// Confirms the note exists and is inside the caller's data scope
+async function isNoteInScope(conn, user, noteId) {
   const request = conn.request();
-  request.input("cabinetNotesMopswID", cabinetNotesMopswID);
-  request.input("stage", stage);
+  request.input("noteId", sql.Int, noteId);
+  const { joinSql, whereSql } = noteScope(request, user);
+  const result = await request.query(`
+    SELECT 1 AS ok
+    FROM tbl_cabinet_notes_mopsw AS notes
+    ${joinSql}
+    WHERE notes.cabinet_notes_mopsw_id = @noteId
+    ${whereSql}
+  `);
+  return result.recordset.length > 0;
+}
+
+async function createCabinetNotesMopswStage(req, res) {
+  const cabinetNotesMopswID = parseId(req.body.cabinetNotesMopswID);
+  if (!cabinetNotesMopswID) return res.status(400).json({ error: "Invalid cabinet note." });
 
   try {
+    const conn = await pool;
+
+    // The route proves the user may change some note's stage, not this one (QC MOPSW-BE-08)
+    if (!(await isNoteInScope(conn, req.user, cabinetNotesMopswID))) {
+      return res.status(404).json({ error: "Cabinet note not found." });
+    }
+
+    // The stage must exist in the master (by id or by name) before it is stored
+    const stageId = Number(req.body.selectedStage);
+    const stageRequest = conn.request();
+    stageRequest.input("stageId", sql.Int, Number.isInteger(stageId) ? stageId : -1);
+    stageRequest.input("stageName", nvarcharType(200), String(req.body.selectedStage ?? "").trim());
+    const stageResult = await stageRequest.query(`
+      SELECT TOP 1 mopsw_stage_name
+      FROM mmt_cabinet_mopsw_stage
+      WHERE mopsw_stage_id = @stageId OR mopsw_stage_name = @stageName
+    `);
+    if (!stageResult.recordset.length) {
+      return res.status(400).json({ error: "The stage is not valid." });
+    }
+
+    const request = conn.request();
+    request.input("cabinetNotesMopswID", sql.Int, cabinetNotesMopswID);
+    request.input("stage", req.body.selectedStage);
+
     const checkResult = await request.query(`
       SELECT COUNT(*) AS recordCount
       FROM tbl_cabinet_notes_mopsw_stage
@@ -475,32 +603,44 @@ async function createCabinetNotesMopswStage(req, res) {
     }
     res.sendStatus(201);
   } catch (err) {
-    console.log(err);
-    return res.sendStatus(500);
+    return serverError(res, "save the stage", err);
   }
 }
 
 async function getMopswDocument(req, res) {
-  const mopswCabinetID = req.params.mopswCabinetID;
+  const mopswCabinetID = parseId(req.params.mopswCabinetID);
+  if (!mopswCabinetID) return res.status(400).json({ error: "Invalid cabinet note." });
+
   const conn = await pool;
   const request = conn.request();
-  request.input("mopswCabinetID", mopswCabinetID);
+  request.input("mopswCabinetID", sql.Int, mopswCabinetID);
 
   try {
+    // Only documents of a note inside the caller's data scope (QC MOPSW-BE-04); for any
+    // other note the list is empty, the same answer as a note with no documents.
+    const { joinSql, whereSql } = noteScope(request, req.user);
     const result = await request.query(`
-      SELECT * FROM tbl_cabinet_notes_mopsw_document
-      WHERE mopsw_cabinet_id = @mopswCabinetID;
+      SELECT d.*
+      FROM tbl_cabinet_notes_mopsw_document AS d
+      INNER JOIN tbl_cabinet_notes_mopsw AS notes
+        ON notes.cabinet_notes_mopsw_id = d.mopsw_cabinet_id
+      ${joinSql}
+      WHERE d.mopsw_cabinet_id = @mopswCabinetID
+      ${whereSql};
     `);
     res.json(result.recordset);
   } catch (err) {
-    console.log(err);
-    return res.sendStatus(500);
+    return serverError(res, "load the documents", err);
   }
 }
 
 async function deleteCabinetNotesMopsw(req, res) {
-  const mopswCabinetID = req.params.cabinet_notes_mopsw_id;
-  const userID = req.user?.userId ?? req.params.userID;
+  const mopswCabinetID = parseId(req.params.cabinet_notes_mopsw_id);
+  if (!mopswCabinetID) return res.status(400).json({ error: "Invalid cabinet note." });
+
+  // The log names the signed-in user, never the :userID in the address (QC MOPSW-BE-09)
+  const userID = signedInUserId(req);
+  if (!userID) return res.status(401).json({ error: "Unauthorized." });
 
   const now = new Date();
   const datePart = now.toISOString().slice(0, 10).replace(/-/g, "");
@@ -513,13 +653,10 @@ async function deleteCabinetNotesMopsw(req, res) {
 
   const conn = await pool;
   const request = conn.request();
-  request.input("mopswCabinetID", mopswCabinetID);
+  request.input("mopswCabinetID", sql.Int, mopswCabinetID);
 
   try {
-    const { joinSql, whereSql } = applyDataScope(request, req.user, {
-      strategy: "viaCreatedBy",
-      alias: "notes",
-    });
+    const { joinSql, whereSql } = noteScope(request, req.user);
 
     const result = await request.query(`
       SELECT notes.*
@@ -558,10 +695,11 @@ async function deleteCabinetNotesMopsw(req, res) {
       await request.query(`
         DELETE FROM tbl_cabinet_notes_mopsw_document
         WHERE cabinet_notes_mopsw_document = @${fileParam}
+          AND mopsw_cabinet_id = @mopswCabinetID
       `);
       dbDocDeletions++;
 
-      const filePath = `./fileuploads/cabinet_notes_mopsw/${fileName}`;
+      const filePath = path.join(MOPSW_UPLOAD_DIR, path.basename(String(fileName)));
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
         fileSystemDeletions++;
@@ -590,8 +728,7 @@ async function deleteCabinetNotesMopsw(req, res) {
 
     return res.status(404).send("No data found for deletion. Please Contact Administration");
   } catch (err) {
-    console.error(err);
-    res.status(500).send({ message: err.message });
+    return serverError(res, "delete the cabinet note", err);
   }
 }
 

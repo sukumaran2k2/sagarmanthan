@@ -1,4 +1,4 @@
-import { ministryOnly } from "./middleware/dataScope.js";
+import { ministryOnly, pinOwnUser } from "./middleware/dataScope.js";
 import { validateKpiBody } from "./middleware/kpiValidation.js";
 import { rejectPathTraversal } from "./middleware/pathGuard.js";
 import express from "express";
@@ -514,7 +514,7 @@ router.post(
   "/mopsw-document-uploader",
   auth,
   requireAnyModulePermission("CABINET_NOTES_MOPSW", ["create", "update"]),
-  mopswDocumentTab.upload.array("files[]", 10),
+  mopswDocumentTab.uploadDocuments,
   mopswDocumentTab.mopswDocumentUploader
 );
 router.get(
@@ -532,12 +532,14 @@ router.get(
 router.delete(
   "/cabinet-mopsw-all/:cabinet_notes_mopsw_id/:userID",
   auth,
+  pinOwnUser(),
   requireModulePermission("CABINET_NOTES_MOPSW", "delete"),
   cabinetMopswTab.deleteCabinetNotesMopsw
 );
 router.delete(
   "/cabinet-mopsw/:cabinet_notes_mopsw_id/:userID",
   auth,
+  pinOwnUser(),
   requireModulePermission("CABINET_NOTES_MOPSW", "delete"),
   cabinetMopswTab.deleteCabinetNotesMopsw
 );
