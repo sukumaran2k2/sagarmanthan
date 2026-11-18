@@ -9,11 +9,13 @@ import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../../utils/n
 import { PORT_PERFORMANCE_TOASTS } from '../../toastMessages';
 import { FY_MONTHS, buildFinancialYearOptions, currentFinancialYear } from '../Traffic/trafficConstants';
 import { describePeriod, exportNumber, formatDate, formatQuantity, monthLabel } from '../Traffic/trafficFormat';
-import { copyRowsToClipboard, downloadExcel, downloadPdf } from '../Traffic/trafficExport';
+import { copyRowsToClipboard, downloadExcel } from '../Traffic/trafficExport';
 import { useDebouncedSearch, usePagedList } from '../Traffic/usePagedList';
 import ListToolbar, { FilterSelect, RefreshBar } from '../Traffic/components/ListToolbar';
 import { TRAFFIC_DEFAULT_COL_DEF } from '../Traffic/gridDefaults';
 import { DATA_LIST_VIEWS, viewColumnGroups } from './portPerformanceConfig';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const FY_OPTIONS = buildFinancialYearOptions().map((fy) => ({ value: fy, label: fy }));
 const MONTH_OPTIONS = FY_MONTHS.map((m) => ({ value: String(m.value), label: m.label }));
@@ -324,12 +326,47 @@ const handlePdf = async () => {
   setExporting(true);
   try {
     const allRows = await fetchAllRows();
-    downloadPdf(
-      `Port Performance - ${VIEW_LABELS[activeView]}`,
-      visibleExportColumns.filter((c) => c.field !== 'sNo'),
-      allRows,
-      exportBaseName
-    );
+    const cols = visibleExportColumns; // S.No + every visible column
+
+    const safe = (v) =>
+      String(v ?? '')
+        .replace(/₹/g, 'Rs. ')
+        .replace(/[–—]/g, '-')
+        .replace(/[‘’]/g, "'")
+        .replace(/[“”]/g, '"');
+
+    const cell = (c, r) => {
+      if (c.field === 'sNo') return r.sNo ?? '';
+      const v = c.exportValue ? c.exportValue(r) : r[c.field];
+      return safe(v == null || v === '' ? '-' : v);
+    };
+
+    // Page width grows with the number of columns so none are dropped or squeezed
+    const MARGIN = 24;
+    const widthOf = (c) => (c.field === 'sNo' ? 30 : 70);
+    const pageW = Math.max(842, cols.reduce((s, c) => s + widthOf(c), 0) + MARGIN * 2);
+
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: [pageW, 595], compress: true });
+    doc.setFontSize(12);
+    doc.text(safe(`Port Performance - ${VIEW_LABELS[activeView]}`), MARGIN, 26);
+    doc.setFontSize(8);
+    doc.text(`Generated: ${new Date().toLocaleString()}  |  Records: ${allRows.length}  |  Columns: ${cols.length}`, MARGIN, 40);
+
+    const columnStyles = {};
+    cols.forEach((c, i) => { columnStyles[i] = { cellWidth: widthOf(c) }; });
+
+    autoTable(doc, {
+      startY: 48,
+      head: [cols.map((c) => safe(c.label))],
+      body: allRows.map((r) => cols.map((c) => cell(c, r))),
+      columnStyles,
+      styles: { fontSize: 6, cellPadding: 2, overflow: 'linebreak', valign: 'middle' },
+      headStyles: { fillColor: [15, 65, 122], textColor: 255, halign: 'center', fontSize: 6 },
+      alternateRowStyles: { fillColor: [245, 247, 250] },
+      margin: { left: MARGIN, right: MARGIN, bottom: MARGIN },
+    });
+
+    doc.save(`${exportBaseName}.pdf`);
   } catch (err) {
     console.error('PDF export failed:', err);
     notify(COMMON_TOASTS.loadFailed('Port performance data'));

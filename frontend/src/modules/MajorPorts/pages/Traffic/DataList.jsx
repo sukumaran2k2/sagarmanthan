@@ -7,6 +7,8 @@ import { deleteTrafficPeriod, fetchTrafficActuals } from '../../api';
 import { useTrafficStore } from '../../store/useTrafficStore';
 import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../../utils/notify';
 import { TRAFFIC_TOASTS } from '../../toastMessages';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import {
   DATA_LIST_VIEWS,
   FY_MONTHS,
@@ -344,13 +346,63 @@ const handlePdf = async () => {
   setExporting(true);
   try {
     const allRows = await fetchAllRows();
-    downloadPdf(
-      `Traffic - ${VIEW_LABELS[activeView]}`,
-      visibleExportColumns.filter((c) => c.field !== 'sNo'),
-      allRows,
-      exportBaseName
+    const cols = visibleExportColumns; // S.No + every visible column
+
+    const safe = (v) =>
+      String(v ?? '')
+        .replace(/₹/g, 'Rs. ')
+        .replace(/[–—]/g, '-')
+        .replace(/[‘’]/g, "'")
+        .replace(/[“”]/g, '"');
+
+    // Same values the Excel export uses
+    const cell = (c, r) => {
+      if (c.field === 'sNo') return r.sNo ?? '';
+      const v = c.exportValue ? c.exportValue(r) : r[c.field];
+      return safe(v == null || v === '' ? '-' : v);
+    };
+
+    const MARGIN = 24;
+    const MAX_PAGE_W = 14400; // PDF page size limit
+    const baseWidth = (c) => {
+      if (c.field === 'sNo') return 30;
+      if (c.field === 'organisation_name') return 120;
+      if (c.field === 'commodity_name') return 110;
+      return 64;
+    };
+    const rawTotal = cols.reduce((s, c) => s + baseWidth(c), 0);
+    const scale = rawTotal + MARGIN * 2 > MAX_PAGE_W ? (MAX_PAGE_W - MARGIN * 2) / rawTotal : 1;
+    const widthOf = (c) => baseWidth(c) * scale;
+    const pageW = Math.min(MAX_PAGE_W, Math.max(842, rawTotal * scale + MARGIN * 2));
+
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: [pageW, 595], compress: true });
+    doc.setFontSize(12);
+    doc.text(safe(`Traffic - ${VIEW_LABELS[activeView]}`), MARGIN, 26);
+    doc.setFontSize(8);
+    doc.text(
+      `Generated: ${new Date().toLocaleString()}  |  Records: ${allRows.length}  |  Columns: ${cols.length}`,
+      MARGIN,
+      40
     );
-  } catch {
+
+    const columnStyles = {};
+    cols.forEach((c, i) => { columnStyles[i] = { cellWidth: widthOf(c) }; });
+
+    autoTable(doc, {
+      startY: 48,
+      head: [cols.map((c) => safe(c.label))],
+      body: allRows.map((r) => cols.map((c) => cell(c, r))),
+      columnStyles,
+      styles: { fontSize: 6, cellPadding: 2, overflow: 'linebreak', valign: 'middle' },
+      headStyles: { fillColor: [15, 65, 122], textColor: 255, halign: 'center', fontSize: 6 },
+      alternateRowStyles: { fillColor: [245, 247, 250] },
+      margin: { left: MARGIN, right: MARGIN, bottom: MARGIN },
+    });
+
+    doc.save(`${exportBaseName}.pdf`);
+    notify(COMMON_TOASTS.downloadStarted(`${exportBaseName}.pdf`));
+  } catch (err) {
+    console.error('PDF export failed:', err);
     notify(COMMON_TOASTS.loadFailed('Traffic data'));
   } finally {
     setExporting(false);
