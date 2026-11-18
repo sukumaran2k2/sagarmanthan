@@ -10,6 +10,8 @@ import { fetchGmisMouPaginated } from '../api';
 import { useGmisStore } from '../store/useGmisStore';
 import { COMMON_TOASTS } from '../../../utils/notify';
 import { exportTableRows } from '../../../utils/exportTableRows';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const SUMMIT_TABS = [
   { id: '', label: 'All Summits' },
@@ -436,18 +438,115 @@ export default function GMISDataList({ onEdit, notify, organisations, categories
       ),
     },
   ], [visibleCols, currentPage, pageSize, summit, onEdit]);
+  
+  
+  const fetchAllRows = async () => {
+    const CHUNK = 500;
+    const all = [];
+    let page = 1;
+    let pages = 1;
+    do {
+      const res = await fetchGmisMouPaginated({ ...params, page, pageSize: CHUNK });
+      all.push(...(res.data?.data || []));
+      pages = res.data?.totalPages || 1;
+      page += 1;
+    } while (page <= pages);
+    return all;
+  };
 
-  const handleExport = (type) => {
-    if (loading) return notify(COMMON_TOASTS.tableNotReady(type === 'copy' ? 'copy' : 'export'));
-    if (!rows.length) return notify(type === 'copy' ? COMMON_TOASTS.nothingToCopy() : COMMON_TOASTS.nothingToExport());
+
+ const buildPdf = (allRows) => {
+  // S.No first, then the columns ticked in Visibility (Summit only when a single summit is selected)
+  const cols = [
+    { key: 'sNo', label: 'S.No' },
+    ...EXPORT_COLUMNS.filter((c) => {
+      if (c.key === 'event' && summit === '') return false;
+      return visibleCols[c.key] !== false;
+    }),
+  ];
+
+  const safe = (v) =>
+    String(v ?? '')
+      .replace(/₹/g, 'Rs. ')
+      .replace(/[–—]/g, '-')
+      .replace(/[‘’]/g, "'")
+      .replace(/[“”]/g, '"');
+
+  const cell = (c, r, i) => {
+    if (c.key === 'sNo') return i + 1;
+    const v = c.value(r);
+    return safe(v === '' || v == null ? '-' : v);
+  };
+
+  // Long text columns get more width; the page widens to fit every column
+  const wide = ['name', 'mouBrief', 'remarks', 'nextSteps', 'reasonForDropping'];
+  const MARGIN = 24;
+  const MAX_PAGE_W = 14400;
+  const baseWidth = (c) => {
+    if (c.key === 'sNo') return 30;
+    if (wide.includes(c.key)) return 150;
+    if (['org', 'party2', 'navic', 'category'].includes(c.key)) return 100;
+    return 70;
+  };
+  const rawTotal = cols.reduce((s, c) => s + baseWidth(c), 0);
+  const scale = rawTotal + MARGIN * 2 > MAX_PAGE_W ? (MAX_PAGE_W - MARGIN * 2) / rawTotal : 1;
+  const pageW = Math.min(MAX_PAGE_W, Math.max(842, rawTotal * scale + MARGIN * 2));
+
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: [pageW, 595], compress: true });
+  doc.setFontSize(12);
+  doc.text('GMIS & IMW MoUs Registry', MARGIN, 26);
+  doc.setFontSize(8);
+  doc.text(
+    `Generated: ${new Date().toLocaleString()}  |  Records: ${allRows.length}  |  Columns: ${cols.length}`,
+    MARGIN,
+    40
+  );
+
+  const columnStyles = {};
+  cols.forEach((c, i) => { columnStyles[i] = { cellWidth: baseWidth(c) * scale }; });
+
+  autoTable(doc, {
+    startY: 48,
+    head: [cols.map((c) => safe(c.label))],
+    body: allRows.map((r, i) => cols.map((c) => cell(c, r, i))),
+    columnStyles,
+    styles: { fontSize: 6, cellPadding: 2, overflow: 'linebreak', valign: 'middle' },
+    headStyles: { fillColor: [15, 65, 122], textColor: 255, halign: 'center', fontSize: 6 },
+    alternateRowStyles: { fillColor: [245, 247, 250] },
+    margin: { left: MARGIN, right: MARGIN, bottom: MARGIN },
+  });
+
+  const fileName = `GMIS_IMW_MoUs_${new Date().toISOString().slice(0, 10)}.pdf`;
+  doc.save(fileName);
+  notify(COMMON_TOASTS.downloadStarted(fileName));
+};
+
+const handleExport = async (type) => {
+  if (loading) return notify(COMMON_TOASTS.tableNotReady(type === 'copy' ? 'copy' : 'export'));
+  if (!totalCount) return notify(type === 'copy' ? COMMON_TOASTS.nothingToCopy() : COMMON_TOASTS.nothingToExport());
+  if (exporting) return;
+
+  setExporting(true);
+  try {
+    const allRows = await fetchAllRows();
+    if (!allRows.length) {
+      return notify(type === 'copy' ? COMMON_TOASTS.nothingToCopy() : COMMON_TOASTS.nothingToExport());
+    }
+    if (type === 'pdf') return buildPdf(allRows);
     return exportTableRows(type, {
       columns: EXPORT_COLUMNS,
-      rows,
-      fileName: `GMIS_IMW_MoUs_Page_${currentPage}`,
+      rows: allRows,
+      fileName: 'GMIS_IMW_MoUs',
       title: 'GMIS & IMW MoUs Registry',
       notify,
     });
-  };
+  } catch (err) {
+    console.error('Export failed:', err);
+    notify(COMMON_TOASTS.loadFailed('The export data'));
+  } finally {
+    setExporting(false);
+  }
+};
 
   const clearFilters = () => {
     resetFilters();
