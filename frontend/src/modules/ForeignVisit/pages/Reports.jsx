@@ -43,7 +43,7 @@ export default function Reports({ triggerNotification }) {
   const notify = useNotifier(triggerNotification);
 
   const sessionOrgId = getSessionOrganisationId() || 0;
-  const claims = getSessionClaims();
+  const claims = getSessionClaims();  
   const roleId = Number(claims?.roleId ?? claims?.role_id ?? 0);
 
   const organisations = useFvStore((s) => s.organisations);
@@ -78,7 +78,18 @@ export default function Reports({ triggerNotification }) {
     return () => { cancelled = true; };
   }, []);
 
-  const set = (field) => (e) => setFilters((prev) => ({ ...prev, [field]: e.target.value }));
+  const set = (field) => (e) => {
+    const value = e.target.value;
+
+    setFilters((prev) => {
+      const updated = { ...prev, [field]: value };
+
+      // Automatically run report when a filter changes
+      runReportWith(updated);
+
+      return updated;
+    });
+  };
 
   const handleDownload = useCallback(async (fileName) => {
     try {
@@ -290,14 +301,16 @@ export default function Reports({ triggerNotification }) {
           </select>
         </Field>
 
-        <Field label="Organisation">
-          <select value={filters.organisation} onChange={set('organisation')} className="module-form-select cursor-pointer">
-            <option value="">Show All Organisations</option>
-            {organisations.map((o) => (
-              <option key={o.organisation_id} value={o.organisation_id}>{o.organisation_name}</option>
-            ))}
-          </select>
-        </Field>
+        {!([6, 7].includes(roleId)) && (
+          <Field label="Organisation">
+            <select value={filters.organisation} onChange={set('organisation')} className="module-form-select cursor-pointer">
+              <option value="">Show All Organisations</option>
+              {organisations.map((o) => (
+                <option key={o.organisation_id} value={o.organisation_id}>{o.organisation_name}</option>
+              ))}
+            </select>
+          </Field>
+        )}
 
         <Field label="Country">
           <select value={filters.country} onChange={set('country')} className="module-form-select cursor-pointer">
@@ -316,11 +329,7 @@ export default function Reports({ triggerNotification }) {
 
       <div className="flex flex-wrap items-center gap-2.5 pt-1">
         {/* Nothing re-runs on change -- the server is only called when this is pressed. */}
-        <button type="button" onClick={runReport} disabled={loading}
-          className="flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl bg-[#4b2424] hover:bg-[#6b3535] text-white transition cursor-pointer disabled:opacity-60">
-          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Filter className="h-3.5 w-3.5" />}
-          <span>{loading ? 'Running…' : 'Apply Filters'}</span>
-        </button>
+       
 
         <button type="button" onClick={() => setShowFilterPanel(false)} disabled={loading}
           className="module-report-control-pill !py-2.5 !px-3.5 !rounded-xl hover:opacity-80 transition cursor-pointer disabled:opacity-60">
