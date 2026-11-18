@@ -1,4 +1,5 @@
 import { pool } from "../../db.js";
+import { getDataScope } from "../../middleware/dataScope.js";
 
 // Bills are kept in 2.0's tbl_bill (3.0 had been writing to a separate copy of it).
 // The API and the form keep 3.0's field names; this maps each stage to tbl_bill's columns.
@@ -145,24 +146,18 @@ async function createBill(req, res) {
 }
 
 // The bills a user can see, as a condition on tbl_bill (bound on `request`): never a deleted
-// bill; ministry users (data scope MINISTRY: Secretary down to Wing/Division User and View
-// Only Admin) and the org nodal officer see every bill; anyone else sees their wing's bills
-// and the ones they created. A user with no wing set sees every bill (no wing to limit to;
-// none of the ministry users have one). Used by the list, dashboard and reports and for
-// reading, changing or deleting one bill.
-export async function billScope(request, userID) {
+// bill. Decided from the sign-in token, like the other modules (no database lookup per request):
+// users with the MASTER or MINISTRY data scope, and users with no wing, see every bill; anyone
+// else sees their wing's bills and the ones they created. Organisation users never get here -
+// the routes are ministryOnly. Used by the list, dashboard and reports and for reading,
+// changing or deleting one bill.
+export async function billScope(request, user) {
     const notDeleted = 'ISNULL(tbl_bill.is_deleted, 0) = 0';
-    if (!userID) return notDeleted;
-    request.input("scopeUserId", userID);
-    const userResult = await request.query(`SELECT u.role_id, u.wing_id, ds.data_scope_code
-        FROM tbl_user u
-        LEFT JOIN tbl_rbac_role_data_scope rds ON rds.role_id = u.role_id
-        LEFT JOIN mmt_rbac_data_scope ds ON ds.data_scope_id = rds.data_scope_id
-        WHERE u.user_id = @scopeUserId`);
-    const { role_id, wing_id, data_scope_code } = userResult.recordset[0] || {};
-    if (data_scope_code === 'MINISTRY' || role_id === 8 || wing_id === null || wing_id === undefined) return notDeleted;
-    request.input("userWingId", wing_id);
-    request.input("requestingUserId", userID);
+    if (getDataScope(user).isWide) return notDeleted;
+    const wingId = Number(user?.wingId);
+    if (!Number.isInteger(wingId) || wingId <= 0) return notDeleted;
+    request.input("userWingId", wingId);
+    request.input("requestingUserId", Number(user.userId));
     return `${notDeleted} AND (${BILL_WING} = @userWingId OR tbl_bill.created_by = @requestingUserId)`;
 }
 
@@ -170,7 +165,7 @@ async function getBill(req, res) {
     const conn = await pool;
     try {
         const request = conn.request();
-        const scope = await billScope(request, req.user.userId);
+        const scope = await billScope(request, req.user);
 
         const result = await request.query(`SELECT ${BILL_COLUMNS},
             wing_name, division_name, bill_stage_name
@@ -196,7 +191,7 @@ async function getUpdateBill(req, res) {
     try {
         const request = conn.request();
         request.input("billID", billID);
-        const scope = await billScope(request, req.user.userId);
+        const scope = await billScope(request, req.user);
         const result = await request.query(`SELECT ${BILL_COLUMNS} FROM tbl_bill
             WHERE bill_id = @billID AND ${scope};`);
         if (!result.recordset.length) return res.status(404).json({ message: 'Bill not found.' });
@@ -226,7 +221,7 @@ async function updateBill(req, res) {
         bindBill(request, bill);
         request.input("billID", billID);
         request.input("userID", req.user.userId); // the signed-in user, not a form value
-        const scope = await billScope(request, req.user.userId);
+        const scope = await billScope(request, req.user);
         const result = await request.query(`UPDATE tbl_bill SET
             subject = @subject,
             ${STAGES.map((st) => `${st.column}_date = @${st.param}Date, ${st.remark} = @${st.param}Remark`).join(',\n            ')},
@@ -256,7 +251,7 @@ async function deleteBill(req, res) {
     request.input("billID", billID);
     request.input("userID", userID);
     try {
-        const scope = await billScope(request, userID);
+        const scope = await billScope(request, req.user);
         const result = await request.query(`SET XACT_ABORT ON;
             BEGIN TRANSACTION;
             IF OBJECT_ID('dbo.tbl_bill_delete_log', 'U') IS NOT NULL
@@ -305,7 +300,7 @@ async function getBillDashboard(req, res) {
         const filterWing = Number.isInteger(wingId) && wingId > 0;
         const query = async (sql, { byWing = true } = {}) => {
             const request = conn.request();
-            const conditions = [await billScope(request, req.user.userId)];
+            const conditions = [await billScope(request, req.user)];
             if (byWing && filterWing) {
                 request.input("filterWingId", wingId);
                 conditions.push(`${BILL_WING} = @filterWingId`);

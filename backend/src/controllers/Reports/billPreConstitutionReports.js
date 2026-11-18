@@ -51,7 +51,7 @@ async function billWingWiseData (req, res) {
     const conn = await pool;
     try {
         const request = conn.request();
-        const scope = await billScope(request, req.user.userId);
+        const scope = await billScope(request, req.user);
         const result = await request.query(`SELECT
             mmt_wings.wing_id,
             mmt_wings.wing_name AS Wing,
@@ -74,7 +74,7 @@ async function billDivisionWiseData (req, res) {
     const request = conn.request();
     request.input("wingID", wingID);
     try {
-        const scope = await billScope(request, req.user.userId);
+        const scope = await billScope(request, req.user);
         const result = await request.query(`SELECT
             mmt_division.division_id,
             mmt_division.division_name AS Division,
@@ -97,7 +97,7 @@ async function billAbstractData (req, res) {
     const conn = await pool;
     try {
         const request = conn.request();
-        const scope = await billScope(request, req.user.userId);
+        const scope = await billScope(request, req.user);
         const result = await request.query(`SELECT
             mmt_wings.wing_id,
             mmt_wings.wing_name AS Wing,
@@ -125,7 +125,7 @@ async function getDetailBillWingWise (req, res) {
     request.input("wingID", wingID);
     request.input("billStage", billStage);
     try {
-        const scope = await billScope(request, req.user.userId);
+        const scope = await billScope(request, req.user);
         const result = await request.query(`SELECT ${DETAIL_COLUMNS}
             FROM tbl_bill
             WHERE ${BILL_WING} = @wingID AND tbl_bill.stage_id = @billStage AND ${scope}
@@ -146,7 +146,7 @@ async function getDetailBillDivisionWise (req, res) {
     request.input("divisionID", divisionID);
     request.input("billStage", billStage);
     try {
-        const scope = await billScope(request, req.user.userId);
+        const scope = await billScope(request, req.user);
         const result = await request.query(`SELECT ${DETAIL_COLUMNS}
             FROM tbl_bill
             WHERE division = @divisionID AND tbl_bill.stage_id = @billStage AND ${scope}
