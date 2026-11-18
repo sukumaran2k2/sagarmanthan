@@ -68,6 +68,9 @@ const CATEGORIES = {
   },
 };
 
+// Upper bound for an all=true request (Copy / Excel export of every filtered row)
+const EXPORT_ROW_CAP = 20000;
+
 function parsePositiveInt(value, fallback, min = 1, max = Number.MAX_SAFE_INTEGER) {
   const n = Number.parseInt(value, 10);
   if (!Number.isFinite(n)) return fallback;
@@ -245,8 +248,10 @@ async function listCategory(req, res, cfg) {
       String(req.query.all || "").toLowerCase() === "1" ||
       String(req.query.all || "").toLowerCase() === "true";
     const page = parsePositiveInt(req.query.page, 1, 1);
+    // all=true (Copy / Excel export) returns every matching row up to EXPORT_ROW_CAP,
+    // whatever page size the client sends; normal pages stay capped at 100 (QC GEM-BE-01)
     const limit = fetchAll
-      ? parsePositiveInt(req.query.limit, 2000, 1, 2000)
+      ? EXPORT_ROW_CAP
       : parsePositiveInt(req.query.limit, 10, 1, 100);
     const offset = (page - 1) * limit;
 
@@ -895,8 +900,10 @@ async function getGemProcurementTotalData(req, res) {
       String(req.query.all || "").toLowerCase() === "1" ||
       String(req.query.all || "").toLowerCase() === "true";
     const page = parsePositiveInt(req.query.page, 1, 1);
+    // all=true (Copy / Excel export) returns every matching row up to EXPORT_ROW_CAP,
+    // whatever page size the client sends; normal pages stay capped at 100 (QC GEM-BE-01)
     const limit = fetchAll
-      ? parsePositiveInt(req.query.limit, 2000, 1, 2000)
+      ? EXPORT_ROW_CAP
       : parsePositiveInt(req.query.limit, 10, 1, 100);
     const offset = (page - 1) * limit;
 
@@ -1040,27 +1047,6 @@ async function getGemProcurementTotalData(req, res) {
   }
 }
 
-async function getOrganisationName(req, res) {
-  const organisationID = Number(req.params.organisationID);
-  if (!Number.isFinite(organisationID) || organisationID <= 0) {
-    return res.status(400).json({ error: "Invalid organisationID." });
-  }
-  const conn = await pool;
-  const request = conn.request();
-  request.input("organisationID", sql.Int, organisationID);
-  try {
-    const result = await request.query(`
-      SELECT organisation_name
-      FROM mmt_organisation
-      WHERE organisation_id = @organisationID
-    `);
-    return res.json(result.recordset);
-  } catch (err) {
-    console.error(err);
-    return res.sendStatus(500);
-  }
-}
-
 async function getGemProcurementDataEntry(req, res) {
   const currentYear = new Date().getFullYear();
   // getMonth() is 0-based, so April (3) starts the new financial year.
@@ -1136,7 +1122,6 @@ export default {
   getGemMonthlyServiceData,
   addGemMonthlyWorksData,
   getGemMonthlyWorksData,
-  getOrganisationName,
   getGoodsProcurementPotential,
   getServiceProcurementPotential,
   getWorksProcurementPotential,
