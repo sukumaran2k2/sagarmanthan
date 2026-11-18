@@ -974,6 +974,9 @@ router.get("/project-folder-download/:userID/:emailId", auth, requireModulePermi
 router.get("/project-media-files-download/:fileName", projectListTab.projectMediaLinkDownload)
 
 router.get("/project-list-expenditurelogs/:userID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.getExpLogsData);
+// These four 'capex' routes belong to the Projects module by design (project-level capex data,
+// handled by projectList.js with PROJECTS permissions). They are NOT part of the standalone Capex
+// budget-target module, so do not re-guard them with CAPEX permissions (QC CAPEX-BE-01).
 router.post('/submit-capex-project-data', auth, requireModulePermission("PROJECTS", "create"), projectListTab.submitCapexProjectData);
 router.get('/get-capex-projects-data', auth, requireModulePermission("PROJECTS", "read"), projectListTab.getCapexProjectsData);
 router.get('/get-update-capex-projects-data', auth, requireModulePermission("PROJECTS", "read"), projectListTab.getUpdateCapexProjectsData);
