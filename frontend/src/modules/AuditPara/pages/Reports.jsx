@@ -123,15 +123,25 @@ export default function Reports({ rowData = [], wings = [], divisions = [], load
     setReportView('wing');
   };
 
+  // The rows the grid shows after the search box and column filters; the Total row adds up these,
+  // so searching a wing gives that wing's total, not every wing's (null until the grid reports)
+  const [shownRows, setShownRows] = useState(null);
+  const onModelUpdated = (e) => {
+    const rows = [];
+    e.api.forEachNodeAfterFilter((node) => { if (node.data) rows.push(node.data); });
+    setShownRows((prev) => (prev && prev.length === rows.length && prev.every((r, i) => r === rows[i]) ? prev : rows));
+  };
+
   const pinnedBottomRowData = useMemo(() => {
-    const sum = (key) => aggregatedData.reduce((acc, r) => acc + (r[key] || 0), 0);
+    const shown = shownRows ?? aggregatedData;
+    const sum = (key) => shown.reduce((acc, r) => acc + (r[key] || 0), 0);
     return [{
       Wing: 'Total', Division: 'Total', isTotalRow: true,
       total: sum('total'), received: sum('received'), sought: sum('sought'),
       receivedOrg: sum('receivedOrg'), clarification: sum('clarification'),
       cag: sum('cag'), accepted: sum('accepted'), dropped: sum('dropped'),
     }];
-  }, [aggregatedData]);
+  }, [shownRows, aggregatedData]);
 
   const columns = useMemo(() => {
     const cols = [];
@@ -357,6 +367,7 @@ export default function Reports({ rowData = [], wings = [], divisions = [], load
           headerHeight={46}
           autoSizeStrategy={{ type: 'fitCellContents', skipHeader: false, scaleUpToFitGridWidth: true }}
           pinnedBottomRowData={detail ? undefined : pinnedBottomRowData}
+          onModelUpdated={detail ? undefined : onModelUpdated}
           enableExport={false}
           color="#4b2424"
         />
