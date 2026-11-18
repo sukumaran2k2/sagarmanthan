@@ -18,6 +18,7 @@
 // ============================================================
 
 import { pool } from "../../db.js";
+import { dataScopePredicate } from "../../middleware/dataScope.js";
 
 // Reuse the same COMPLETED definition as the main controller
 const COMPLETED_CONDITION = `(
@@ -29,13 +30,27 @@ const COMPLETED_CONDITION = `(
 async function getCabinetMopswDashboard(req, res) {
   const conn = await pool;
   try {
+    // Notes carry no organisation_id, so the scope follows the creating user's
+    // organisation - the same rule the Data List uses (QC MOPSW-BE-06). Ministry / master
+    // scope sees everything; a user with no scope sees nothing. Where a LEFT JOIN must keep
+    // its zero-count rows, the predicate sits in the ON clause instead of the WHERE.
+    const request = conn.request();
+    const inScope = dataScopePredicate(request, req.user, {
+      strategy: 'viaCreatedBy',
+      alias: 'notes',
+    });
+
     // Optional wing filter — applied to KPI, heat map, and long-pending queries.
     // Chart 3 (wing-wise breakdown) is intentionally left unfiltered since its
     // purpose is comparing across wings.
     const wingIdNum = Number(req.query.wingId);
-    const wingFilter = Number.isInteger(wingIdNum) && wingIdNum > 0 ? ` AND notes.wing = ${wingIdNum}` : '';
+    let wingFilter = '';
+    if (Number.isInteger(wingIdNum) && wingIdNum > 0) {
+      request.input('wingId', wingIdNum);
+      wingFilter = ' AND notes.wing = @wingId';
+    }
     // ── 1. KPI counters + average age of active notes ──────────────────────
-    const kpiResult = await conn.query(`
+    const kpiResult = await request.query(`
       SELECT
         COUNT(*)                                                        AS total_notes,
         SUM(CASE WHEN NOT ${COMPLETED_CONDITION} THEN 1 ELSE 0 END)   AS active_notes,
@@ -52,6 +67,7 @@ async function getCabinetMopswDashboard(req, res) {
       INNER JOIN mmt_cabinet_mopsw_stage AS stage
         ON stage.mopsw_stage_id = notes.stage_id
       WHERE notes.stage_id != 11${wingFilter}
+        AND ${inScope}
     `);
 
     const kpi = kpiResult.recordset[0] || {};
@@ -61,7 +77,7 @@ async function getCabinetMopswDashboard(req, res) {
     //  average days in stage (since the stage's own date column was filled),
     //  and max days.  "Days in stage" = days since the relevant date column
     //  was set (we use created_date as fallback when stage date is null).
-    const heatResult = await conn.query(`
+    const heatResult = await request.query(`
       SELECT
         stage.mopsw_stage_id                                            AS stage_id,
         stage.mopsw_stage_name                                          AS stage_name,
@@ -106,6 +122,7 @@ async function getCabinetMopswDashboard(req, res) {
       LEFT JOIN tbl_cabinet_notes_mopsw AS notes
         ON notes.stage_id = stage.mopsw_stage_id
         AND NOT ${COMPLETED_CONDITION.replace(/notes\./g, 'notes.')}${wingFilter}
+        AND ${inScope}
       WHERE stage.mopsw_stage_id != 11  -- DCM Been Approved excluded: unconfirmed stage not in reference
       GROUP BY stage.mopsw_stage_id, stage.mopsw_stage_name
       ORDER BY stage.mopsw_stage_id
@@ -120,7 +137,7 @@ async function getCabinetMopswDashboard(req, res) {
     }));
 
     // ── 3. Wing-wise pending (active) notes ───────────────────────────────
-    const wingResult = await conn.query(`
+    const wingResult = await request.query(`
       SELECT
         wings.wing_id,
         wings.wing_name,
@@ -133,6 +150,7 @@ async function getCabinetMopswDashboard(req, res) {
       LEFT JOIN tbl_cabinet_notes_mopsw AS notes
         ON notes.wing = wings.wing_id
         AND notes.stage_id != 11
+        AND ${inScope}
       LEFT JOIN mmt_cabinet_mopsw_stage AS stage
         ON stage.mopsw_stage_id = notes.stage_id
       WHERE notes.cabinet_notes_mopsw_id IS NULL
@@ -143,7 +161,7 @@ async function getCabinetMopswDashboard(req, res) {
     `);
 
     // ── 4. Long pending cabinet notes (top 10 by pending days) ────────────
-    const longPendingResult = await conn.query(`
+    const longPendingResult = await request.query(`
       SELECT TOP 10
         notes.cabinet_notes_mopsw_id,
         notes.subject,
@@ -174,6 +192,7 @@ async function getCabinetMopswDashboard(req, res) {
         ON wings.wing_id = notes.wing
       WHERE NOT ${COMPLETED_CONDITION}
         AND notes.stage_id != 11${wingFilter}
+        AND ${inScope}
       ORDER BY pending_days DESC
     `);
 
@@ -191,7 +210,7 @@ async function getCabinetMopswDashboard(req, res) {
     });
   } catch (err) {
     console.error("[CabinetMopswDashboard] Error:", err);
-    return res.sendStatus(500);
+    return res.status(500).json({ error: "Could not load the dashboard. Please try again." });
   }
 }
 

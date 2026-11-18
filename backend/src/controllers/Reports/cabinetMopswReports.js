@@ -1,4 +1,29 @@
 import { pool } from "../../db.js";
+import { dataScopePredicate } from "../../middleware/dataScope.js";
+
+const NOTES = "tbl_cabinet_notes_mopsw";
+
+// Notes carry no organisation_id, so the scope follows the creating user's organisation -
+// the same rule the Data List uses (QC MOPSW-BE-07). Ministry / master scope sees every
+// note; a user with no scope sees none. In the summaries it sits in the LEFT JOIN's ON
+// clause so a wing or division with no notes in scope still appears with zero counts.
+const noteScope = (request, user) =>
+  dataScopePredicate(request, user, { strategy: "viaCreatedBy", alias: NOTES });
+
+function parseId(value) {
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+function parseStage(value) {
+  const id = Number(value);
+  return Number.isInteger(id) && id >= 0 ? id : null;
+}
+
+function serverError(res, report, err) {
+  console.error(`[CabinetMopswReports] ${report}:`, err);
+  return res.status(500).json({ error: `Could not load the ${report}. Please try again.` });
+}
 
 function toColumnDefs(rowData) {
   if (!rowData.length) return [];
@@ -50,7 +75,9 @@ const DETAIL_DATE_SQL = `
 async function getMopswReport(req, res) {
   const conn = await pool;
   try {
-    const result = await conn.query(`
+    const request = conn.request();
+    const inScope = noteScope(request, req.user);
+    const result = await request.query(`
       SELECT
         ROW_NUMBER() OVER (ORDER BY mmt_wings.wing_id) AS [S No],
         mmt_wings.wing_id AS [Wing Id],
@@ -60,6 +87,7 @@ async function getMopswReport(req, res) {
       FROM mmt_wings
       LEFT JOIN tbl_cabinet_notes_mopsw
         ON tbl_cabinet_notes_mopsw.wing = mmt_wings.wing_id
+        AND ${inScope}
       GROUP BY mmt_wings.wing_id, mmt_wings.wing_name
       ORDER BY mmt_wings.wing_name;
     `);
@@ -67,16 +95,18 @@ async function getMopswReport(req, res) {
     const rowData = result.recordset;
     return sendGrid(res, rowData);
   } catch (err) {
-    console.log(err);
-    return res.sendStatus(500);
+    return serverError(res, "wing-wise report", err);
   }
 }
 
 async function getCabinetMopswDivisionReport(req, res) {
-  const wingID = req.params.wingID;
+  const wingID = parseId(req.params.wingID);
+  if (!wingID) return res.status(400).json({ error: "Invalid wing." });
+
   const conn = await pool;
   const request = conn.request();
   request.input("wingID", wingID);
+  const inScope = noteScope(request, req.user);
 
   try {
     const result = await request.query(`
@@ -90,6 +120,7 @@ async function getCabinetMopswDivisionReport(req, res) {
       LEFT JOIN tbl_cabinet_notes_mopsw
         ON mmt_division.division_id = tbl_cabinet_notes_mopsw.division
         AND tbl_cabinet_notes_mopsw.wing = @wingID
+        AND ${inScope}
       WHERE mmt_division.wing_id = @wingID
       GROUP BY mmt_division.division_id, mmt_division.division_name
       ORDER BY mmt_division.division_name;
@@ -98,15 +129,16 @@ async function getCabinetMopswDivisionReport(req, res) {
     const rowData = result.recordset;
     return sendGrid(res, rowData);
   } catch (err) {
-    console.log(err);
-    return res.sendStatus(500);
+    return serverError(res, "division-wise report", err);
   }
 }
 
 async function getCabinetMopswWingDivisionReport(req, res) {
   const conn = await pool;
   try {
-    const result = await conn.query(`
+    const request = conn.request();
+    const inScope = noteScope(request, req.user);
+    const result = await request.query(`
       SELECT
         ROW_NUMBER() OVER (ORDER BY mmt_wings.wing_id, mmt_division.division_id) AS [S No],
         mmt_wings.wing_id AS [Wing Id],
@@ -120,6 +152,7 @@ async function getCabinetMopswWingDivisionReport(req, res) {
       LEFT JOIN tbl_cabinet_notes_mopsw
         ON mmt_division.division_id = tbl_cabinet_notes_mopsw.division
         AND tbl_cabinet_notes_mopsw.wing = mmt_wings.wing_id
+        AND ${inScope}
       GROUP BY
         mmt_wings.wing_id,
         mmt_wings.wing_name,
@@ -131,19 +164,22 @@ async function getCabinetMopswWingDivisionReport(req, res) {
     const rowData = result.recordset;
     return sendGrid(res, rowData);
   } catch (err) {
-    console.log(err);
-    return res.sendStatus(500);
+    return serverError(res, "wing and division report", err);
   }
 }
 
 async function getDetailMopswWingWise(req, res) {
-  const wingID = req.params.wingID;
-  const mopswStage = req.params.mopswStage;
+  const wingID = parseId(req.params.wingID);
+  const mopswStage = parseStage(req.params.mopswStage);
+  if (!wingID || mopswStage === null) {
+    return res.status(400).json({ error: "Invalid wing or stage." });
+  }
 
   const conn = await pool;
   const request = conn.request();
   request.input("wingID", wingID);
   request.input("mopswStage", mopswStage);
+  const inScope = noteScope(request, req.user);
 
   try {
     const result = await request.query(`
@@ -158,26 +194,30 @@ async function getDetailMopswWingWise(req, res) {
       LEFT JOIN mmt_division ON mmt_division.division_id = tbl_cabinet_notes_mopsw.division
       LEFT JOIN mmt_cabinet_mopsw_stage
         ON mmt_cabinet_mopsw_stage.mopsw_stage_id = tbl_cabinet_notes_mopsw.stage_id
-      WHERE wing = @wingID AND ${reportStageWhere(mopswStage)}
+      WHERE wing = @wingID AND ${reportStageWhere()}
+        AND ${inScope}
       ORDER BY subject;
     `);
 
     const rowData = result.recordset;
     return sendGrid(res, rowData);
   } catch (err) {
-    console.log(err);
-    return res.sendStatus(500);
+    return serverError(res, "wing-wise details", err);
   }
 }
 
 async function getDetailMopswDivisionWise(req, res) {
-  const divisionID = req.params.divisionID;
-  const mopswStage = req.params.mopswStage;
+  const divisionID = parseId(req.params.divisionID);
+  const mopswStage = parseStage(req.params.mopswStage);
+  if (!divisionID || mopswStage === null) {
+    return res.status(400).json({ error: "Invalid division or stage." });
+  }
 
   const conn = await pool;
   const request = conn.request();
   request.input("divisionID", divisionID);
   request.input("mopswStage", mopswStage);
+  const inScope = noteScope(request, req.user);
 
   try {
     const result = await request.query(`
@@ -192,15 +232,15 @@ async function getDetailMopswDivisionWise(req, res) {
       LEFT JOIN mmt_division ON mmt_division.division_id = tbl_cabinet_notes_mopsw.division
       LEFT JOIN mmt_cabinet_mopsw_stage
         ON mmt_cabinet_mopsw_stage.mopsw_stage_id = tbl_cabinet_notes_mopsw.stage_id
-      WHERE division = @divisionID AND ${reportStageWhere(mopswStage)}
+      WHERE division = @divisionID AND ${reportStageWhere()}
+        AND ${inScope}
       ORDER BY subject;
     `);
 
     const rowData = result.recordset;
     return sendGrid(res, rowData);
   } catch (err) {
-    console.log(err);
-    return res.sendStatus(500);
+    return serverError(res, "division-wise details", err);
   }
 }
 
