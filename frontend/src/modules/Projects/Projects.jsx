@@ -53,7 +53,8 @@ export default function Projects({
   const isOrgScope = Boolean(permissions.isOrgScope);
   const showInputForm = Boolean(permissions.canAdd && isOrgScope);
   const canAccessDropRequests = Boolean(permissions.canView && !isOrgScope);
-  const canAccessReports = Boolean(permissions.canView);
+  // Only Data QC reports remain (MIS is hidden), and those are Ministry only
+  const canAccessReports = Boolean(permissions.canView && !isOrgScope);
 
   const ListView = useMemo(
     () => resolveProjectsListView(permissions.uiViewCode),
@@ -374,7 +375,7 @@ export default function Projects({
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-sans">
             {isReportsRoute
-              ? 'MIS operational reports and Ministry Data QC (Gap Analysis) for data-quality follow-up.'
+              ? 'Ministry Data QC (Gap Analysis) for data-quality follow-up.'
               : isLess5CrRoute
                 ? 'Organisation-wise yearly summary of CAPEX projects under ₹5 Cr.'
                 : 'Track and monitor infrastructure projects, milestone timelines, financial outlays, and execution progress.'}

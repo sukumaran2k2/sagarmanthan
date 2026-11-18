@@ -1,9 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { FileBarChart2, ShieldCheck } from 'lucide-react';
 import RestrictedAccess from '../../../components/RestrictedAccess';
 import { useProjectsPermissions } from '../hooks/useProjectsPermissions';
 import DataQcGapAnalysis, { DataQcMinistryOnlyNotice } from '../components/reports/DataQcGapAnalysis';
 import MisReports from '../components/reports/mis/MisReports';
+
+// MIS Reports are hidden for now because they are not complete yet.
+// Set this to true to show them again.
+const SHOW_MIS_REPORTS = false;
 
 const CATEGORIES = [
   {
@@ -18,7 +22,7 @@ const CATEGORIES = [
     audience: 'Ministry only',
     icon: ShieldCheck,
   },
-];
+].filter((c) => SHOW_MIS_REPORTS || c.id !== 'mis');
 
 export default function ProjectReportsPage() {
   const permissions = useProjectsPermissions();
@@ -27,18 +31,20 @@ export default function ProjectReportsPage() {
 
   const availableCategories = useMemo(() => {
     if (isMinistryAudience) return CATEGORIES;
-    return CATEGORIES.filter((c) => c.id === 'mis');
+    const orgCategories = CATEGORIES.filter((c) => c.id === 'mis');
+    // With MIS hidden, organisation users still see the Data QC tab,
+    // which shows the "Ministry view only" notice.
+    return orgCategories.length ? orgCategories : CATEGORIES;
   }, [isMinistryAudience]);
 
-  const [activeCategory, setActiveCategory] = useState(() =>
-    isMinistryAudience ? 'data-qc' : 'mis'
+  const [selectedCategory, setActiveCategory] = useState(() =>
+    isMinistryAudience || !SHOW_MIS_REPORTS ? 'data-qc' : 'mis'
   );
 
-  useEffect(() => {
-    if (!availableCategories.some((c) => c.id === activeCategory)) {
-      setActiveCategory(availableCategories[0]?.id || 'mis');
-    }
-  }, [availableCategories, activeCategory]);
+  // Fall back to the first tab if the selected one is not available.
+  const activeCategory = availableCategories.some((c) => c.id === selectedCategory)
+    ? selectedCategory
+    : availableCategories[0]?.id || 'data-qc';
 
   if (!canAccessReports) {
     return <RestrictedAccess moduleName="Projects Reports" />;
@@ -75,7 +81,7 @@ export default function ProjectReportsPage() {
       </div>
 
       <div>
-        {activeCategory === 'mis' ? <MisReports /> : null}
+        {SHOW_MIS_REPORTS && activeCategory === 'mis' ? <MisReports /> : null}
 
         {activeCategory === 'data-qc' ? (
           isMinistryAudience ? <DataQcGapAnalysis /> : <DataQcMinistryOnlyNotice />
