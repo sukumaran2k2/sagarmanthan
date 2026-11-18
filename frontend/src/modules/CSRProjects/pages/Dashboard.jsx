@@ -146,7 +146,8 @@ function TrendChart({ data, onRootReady, dark }) {
     const yRenderer = am5xy.AxisRendererY.new(root, {});
     yRenderer.labels.template.setAll({ fontSize: 9, fill: am5.color(c.muted), fontWeight: '600' });
     yRenderer.grid.template.setAll({ stroke: am5.color(c.grid), strokeDasharray: [3, 3] });
-    const yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, { renderer: yRenderer, min: 0, extraMax: 0.08, numberFormat: '₹#,###' }));
+    // extraMax leaves room above the tallest bar for its value label
+    const yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, { renderer: yRenderer, min: 0, extraMax: 0.12, numberFormat: '₹#,###' }));
     TREND_SERIES.forEach((s) => {
       const color = am5.color(s.color);
       const series = chart.series.push(am5xy.ColumnSeries.new(root, {
@@ -154,6 +155,15 @@ function TrendChart({ data, onRootReady, dark }) {
         tooltip: am5.Tooltip.new(root, { labelText: `{categoryX} – ${s.label}: [bold]₹ {valueY.formatNumber("#,###.##")} Cr[/]` }),
       }));
       series.columns.template.setAll({ fill: color, stroke: color, width: am5.percent(90), cornerRadiusTL: 4, cornerRadiusTR: 4 });
+      // The value (₹ Cr) above each bar; zero years stay unlabelled
+      series.bullets.push(() => {
+        const label = am5.Label.new(root, {
+          text: '{valueY.formatNumber("#,###.##")}', populateText: true, centerX: am5.p50, centerY: am5.p100,
+          paddingBottom: 2, fontSize: 9, fontWeight: '700', fill: am5.color(c.text),
+        });
+        label.adapters.add('text', (text, target) => (Number(target.dataItem?.get('valueY')) ? text : ''));
+        return am5.Bullet.new(root, { locationY: 1, sprite: label });
+      });
       series.data.setAll(data);
     });
     xAxis.data.setAll(data);
@@ -346,6 +356,22 @@ export default function Dashboard({ notify, isOrgUser }) {
 
       {/* KPI cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        {/* Total projects first, with the two progress figures under it (kept compact so the
+            row of cards stays the height of the others) */}
+        <KpiCard
+          label="Project Progress"
+          icon={Activity}
+          theme="emerald"
+          foot={(
+            <span className="flex flex-wrap gap-x-4 gap-y-1">
+              <span className="whitespace-nowrap"><span className="inline-block h-2 w-2 rounded-full bg-blue-600 mr-1.5" /><span className="font-black text-blue-600 dark:text-blue-400">{show(count(kpi.underImplementation))}</span> Under Implementation</span>
+              <span className="whitespace-nowrap"><span className="inline-block h-2 w-2 rounded-full bg-emerald-600 mr-1.5" /><span className="font-black text-emerald-600 dark:text-emerald-400">{show(count(kpi.completed))}</span> Completed</span>
+            </span>
+          )}
+        >
+          <span className="text-2xl font-black text-[#1e1b4b] dark:text-slate-100">{show(count(kpi.projects))}</span>
+          <span className="ml-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">total projects</span>
+        </KpiCard>
         <KpiCard label="CSR Fund Allotted" icon={Coins} theme="indigo" foot={allYears ? 'All financial years' : `For ${yearLabel}`}>
           <span className="text-2xl font-black text-[#4f46e5] dark:text-indigo-400">{show(cr(kpi.fundAllotted))}</span>
         </KpiCard>
@@ -363,18 +389,6 @@ export default function Dashboard({ notify, isOrgUser }) {
             : (allYears ? 'Booked across all years' : `Booked in ${yearLabel}`)}
         >
           <span className="text-2xl font-black text-amber-700 dark:text-amber-400">{show(cr(kpi.expenditure))}</span>
-        </KpiCard>
-        <KpiCard label="Project Progress" icon={Activity} theme="emerald">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <span className="text-2xl font-black text-blue-600 dark:text-blue-400 block">{show(count(kpi.underImplementation))}</span>
-              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Under Implementation</span>
-            </div>
-            <div>
-              <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 block">{show(count(kpi.completed))}</span>
-              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Completed</span>
-            </div>
-          </div>
         </KpiCard>
       </div>
 
