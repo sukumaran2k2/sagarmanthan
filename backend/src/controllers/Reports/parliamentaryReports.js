@@ -1,5 +1,18 @@
 
 import { pool } from "../../db.js";
+import { dataScopePredicate } from "../../middleware/dataScope.js";
+
+// Issues carry no organisation_id, so the scope follows the creating user's organisation -
+// the same rule the Data List uses (QC PI-BE-03). Ministry / master scope sees every issue;
+// a user with no scope sees none. In the summaries it sits in the LEFT JOIN's ON clause, so
+// out-of-scope issues simply do not count and the wing / division rows keep their shape.
+const issueScope = (request, user) =>
+    dataScopePredicate(request, user, { strategy: "viaCreatedBy", alias: "tbl_parliamentary_issue" });
+
+function serverError(res, report, err) {
+    console.error(`[ParliamentaryReports] ${report}:`, err);
+    return res.status(500).json({ error: "Could not load the report. Please try again." });
+}
 
 /** mmt_parliamentary_stage IDs (source of truth). */
 const ASSURANCE_STAGE = {
@@ -140,9 +153,11 @@ function remapPscDrilldownStage(parliamentaryStage) {
 async function assuranceWingWiseReports (req, res)  
 {   
     const conn = await pool;
+    const request = conn.request();
+    const inScope = issueScope(request, req.user);
     try 
     {
-        const result = await conn.query(` 
+        const result = await request.query(` 
             SELECT
                 ROW_NUMBER() OVER (ORDER BY mmt_wings.wing_id) AS [S No],
                 mmt_wings.wing_id AS [Wing Id],
@@ -152,7 +167,7 @@ async function assuranceWingWiseReports (req, res)
             FROM
                 mmt_wings
             LEFT JOIN
-                tbl_parliamentary_issue ON mmt_wings.wing_id = tbl_parliamentary_issue.wing
+                tbl_parliamentary_issue ON mmt_wings.wing_id = tbl_parliamentary_issue.wing AND ${inScope}
             LEFT JOIN
                 mmt_parliamentary_stage ON tbl_parliamentary_issue.stage_id = mmt_parliamentary_stage.parlia_stage_id
             WHERE 
@@ -176,8 +191,7 @@ async function assuranceWingWiseReports (req, res)
     }
     catch(err) 
     {
-        console.log(err);
-        return res.sendStatus(500);
+        return serverError(res, "assuranceWingWiseReports", err);
     }
 };
 
@@ -187,6 +201,7 @@ async function assuranceDivisionWiseReports (req, res)
 
     const conn = await pool;
     const request = conn.request();
+    const inScope = issueScope(request, req.user);
     request.input("wingID", wingID);
     try 
     {
@@ -200,7 +215,7 @@ async function assuranceDivisionWiseReports (req, res)
         FROM
             mmt_division
         LEFT JOIN
-            tbl_parliamentary_issue ON mmt_division.division_id = tbl_parliamentary_issue.division
+            tbl_parliamentary_issue ON mmt_division.division_id = tbl_parliamentary_issue.division AND ${inScope}
         LEFT JOIN
             mmt_parliamentary_stage ON tbl_parliamentary_issue.stage_id = mmt_parliamentary_stage.parlia_stage_id
         WHERE
@@ -227,8 +242,7 @@ async function assuranceDivisionWiseReports (req, res)
     }
     catch(err) 
     {
-        console.log(err);
-        return res.sendStatus(500);
+        return serverError(res, "assuranceDivisionWiseReports", err);
     }
 };
 
@@ -239,6 +253,7 @@ async function getAssuranceWingWise (req, res)
 
     const conn = await pool;
     const request = conn.request();
+    const inScope = issueScope(request, req.user);
     request.input("wingID", wingID);
     request.input("parliamentaryStage", parliamentaryStage);
     // console.log('wingID', wingID);
@@ -289,7 +304,7 @@ async function getAssuranceWingWise (req, res)
             mmt_parliamentary_stage ON mmt_parliamentary_stage.parlia_stage_id = tbl_parliamentary_issue.stage_id
         WHERE
             (wing = @wingID)
-            AND (parliamentary_issue_type = 'Assurance' AND tbl_parliamentary_issue.stage_id = @parliamentaryStage);
+            AND (parliamentary_issue_type = 'Assurance' AND tbl_parliamentary_issue.stage_id = @parliamentaryStage) AND ${inScope};
 
         `);
         // res.json(result.recordset);
@@ -310,8 +325,7 @@ async function getAssuranceWingWise (req, res)
     }
     catch(err) 
     {
-        console.log(err);
-        return res.sendStatus(500);
+        return serverError(res, "getAssuranceWingWise", err);
     }
 
 };
@@ -341,6 +355,7 @@ async function getAssuranceDivisionWise (req, res)
 
     const conn = await pool;
     const request = conn.request();
+    const inScope = issueScope(request, req.user);
     request.input("divisionID", divisionID);
     request.input("parliamentaryStage", parliamentaryStage);
 
@@ -392,7 +407,7 @@ async function getAssuranceDivisionWise (req, res)
                 LEFT JOIN mmt_wings on mmt_wings.wing_id = tbl_parliamentary_issue.wing
                 LEFT JOIN mmt_division on mmt_division.division_id = tbl_parliamentary_issue.division
                 LEFT JOIN mmt_parliamentary_stage on mmt_parliamentary_stage.parlia_stage_id = tbl_parliamentary_issue.stage_id        
-            WHERE (division = @divisionID) AND (parliamentary_issue_type = 'Assurance' AND  tbl_parliamentary_issue.stage_id = @parliamentaryStage);
+            WHERE (division = @divisionID) AND (parliamentary_issue_type = 'Assurance' AND  tbl_parliamentary_issue.stage_id = @parliamentaryStage) AND ${inScope};
         `);
         const rowData = result.recordset;  
 
@@ -409,8 +424,7 @@ async function getAssuranceDivisionWise (req, res)
 }
 catch(err) 
 {
-    console.log(err);
-    return res.sendStatus(500);
+    return serverError(res, "getAssuranceDivisionWise", err);
 }
 
 };
@@ -443,6 +457,7 @@ async function parliaMatterRaisedWingWise (req, res)
     
     const conn = await pool;
     const request = conn.request();
+    const inScope = issueScope(request, req.user);
     request.input("issueType", issueType);
     // console.log('issueType', issueType);
     try 
@@ -458,7 +473,7 @@ async function parliaMatterRaisedWingWise (req, res)
         FROM
             mmt_wings
         LEFT JOIN
-            tbl_parliamentary_issue ON mmt_wings.wing_id = tbl_parliamentary_issue.wing
+            tbl_parliamentary_issue ON mmt_wings.wing_id = tbl_parliamentary_issue.wing AND ${inScope}
         LEFT JOIN
             mmt_parliamentary_stage ON tbl_parliamentary_issue.stage_id = mmt_parliamentary_stage.parlia_stage_id
         WHERE 
@@ -484,8 +499,7 @@ async function parliaMatterRaisedWingWise (req, res)
     }
     catch(err) 
     {
-        console.log(err);
-        return res.sendStatus(500);
+        return serverError(res, "parliaMatterRaisedWingWise", err);
     }
 };
 
@@ -496,6 +510,7 @@ async function parliaMatterDivisionWise (req, res)
 
     const conn = await pool;
     const request = conn.request();
+    const inScope = issueScope(request, req.user);
     request.input("wingID", wingID);
     request.input("issueType", issueType);
     try 
@@ -510,7 +525,7 @@ async function parliaMatterDivisionWise (req, res)
 
             FROM mmt_division 
 
-            LEFT JOIN tbl_parliamentary_issue on tbl_parliamentary_issue.division = mmt_division.division_id 
+            LEFT JOIN tbl_parliamentary_issue on tbl_parliamentary_issue.division = mmt_division.division_id AND ${inScope} 
             LEFT JOIN mmt_parliamentary_stage on mmt_parliamentary_stage.parlia_stage_id = tbl_parliamentary_issue.stage_id
 
             WHERE wing = @wingID AND parliamentary_issue_type = @issueType
@@ -536,8 +551,7 @@ async function parliaMatterDivisionWise (req, res)
     }
     catch(err) 
     {
-        console.log(err);
-        return res.sendStatus(500);
+        return serverError(res, "parliaMatterDivisionWise", err);
     }
 };
 
@@ -557,12 +571,13 @@ async function getMatterWingWise (req, res)
 
     const conn = await pool;
     const request = conn.request();
+    const inScope = issueScope(request, req.user);
     request.input("wingID", wingID);
     request.input("parliamentaryStage", parliamentaryStage);
     request.input("IssueType", IssueType);
     request.input("mappedStageId", mappedStageId);
 
-    const whereCondition = `WHERE (wing = @wingID) AND (parliamentary_issue_type = @IssueType AND tbl_parliamentary_issue.stage_id = @mappedStageId) ;`;
+    const whereCondition = `WHERE (wing = @wingID) AND (parliamentary_issue_type = @IssueType AND tbl_parliamentary_issue.stage_id = @mappedStageId) AND ${inScope} ;`;
     let query;
 
     try 
@@ -650,8 +665,7 @@ async function getMatterWingWise (req, res)
     }
     catch(err) 
     {
-        console.log(err);
-        return res.sendStatus(500);
+        return serverError(res, "getMatterWingWise", err);
     }
 
 };
@@ -669,12 +683,13 @@ async function getMatterDivisionWise (req, res)
 
     const conn = await pool;
     const request = conn.request();
+    const inScope = issueScope(request, req.user);
     request.input("divisionID", divisionID);
     request.input("parliamentaryStage", parliamentaryStage);
     request.input("IssueType", IssueType);
     request.input("mappedStageId", mappedStageId);
 
-    const whereCondition = `WHERE (division = @divisionID) AND (parliamentary_issue_type = @IssueType AND tbl_parliamentary_issue.stage_id = @mappedStageId) ;`;
+    const whereCondition = `WHERE (division = @divisionID) AND (parliamentary_issue_type = @IssueType AND tbl_parliamentary_issue.stage_id = @mappedStageId) AND ${inScope} ;`;
     let query;
 
     try 
@@ -764,8 +779,7 @@ async function getMatterDivisionWise (req, res)
     }
     catch(err) 
     {
-        console.log(err);
-        return res.sendStatus(500);
+        return serverError(res, "getMatterDivisionWise", err);
     }
 
 };
@@ -774,9 +788,11 @@ async function getMatterDivisionWise (req, res)
 async function getPsnReportsData (req, res) 
 {   
     const conn = await pool;
+    const request = conn.request();
+    const inScope = issueScope(request, req.user);
     try 
     {
-        const result = await conn.query(`       
+        const result = await request.query(`       
         SELECT
             ROW_NUMBER() OVER (ORDER BY mmt_wings.wing_id) AS [S No],
             mmt_wings.wing_id AS [Wing Id],
@@ -786,7 +802,7 @@ async function getPsnReportsData (req, res)
         FROM
             mmt_wings
         LEFT JOIN
-            tbl_parliamentary_issue ON mmt_wings.wing_id = tbl_parliamentary_issue.wing
+            tbl_parliamentary_issue ON mmt_wings.wing_id = tbl_parliamentary_issue.wing AND ${inScope}
         LEFT JOIN
             mmt_parliamentary_stage ON tbl_parliamentary_issue.stage_id = mmt_parliamentary_stage.parlia_stage_id
         WHERE 
@@ -810,8 +826,7 @@ async function getPsnReportsData (req, res)
     }
     catch(err) 
     {
-        console.log(err);
-        return res.sendStatus(500);
+        return serverError(res, "getPsnReportsData", err);
     }
 };
 
@@ -821,6 +836,7 @@ async function parliaPscDivisionWise (req, res)
 
     const conn = await pool;
     const request = conn.request();
+    const inScope = issueScope(request, req.user);
     request.input("wingID", wingID);
     try 
     {
@@ -834,7 +850,7 @@ async function parliaPscDivisionWise (req, res)
         FROM
             mmt_division
         LEFT JOIN
-            tbl_parliamentary_issue ON mmt_division.division_id = tbl_parliamentary_issue.division
+            tbl_parliamentary_issue ON mmt_division.division_id = tbl_parliamentary_issue.division AND ${inScope}
         LEFT JOIN
             mmt_parliamentary_stage ON tbl_parliamentary_issue.stage_id = mmt_parliamentary_stage.parlia_stage_id
         WHERE 
@@ -858,8 +874,7 @@ async function parliaPscDivisionWise (req, res)
     }
     catch(err) 
     {
-        console.log(err);
-        return res.sendStatus(500);
+        return serverError(res, "parliaPscDivisionWise", err);
     }
 };
 
@@ -870,6 +885,7 @@ async function getPscWingWise (req, res)
 
     const conn = await pool;
     const request = conn.request();
+    const inScope = issueScope(request, req.user);
     request.input("wingID", wingID);
     request.input("parliamentaryStage", parliamentaryStage);
 
@@ -919,7 +935,7 @@ async function getPscWingWise (req, res)
             LEFT JOIN mmt_wings on mmt_wings.wing_id = tbl_parliamentary_issue.wing
             LEFT JOIN mmt_division on mmt_division.division_id = tbl_parliamentary_issue.division
             LEFT JOIN mmt_parliamentary_stage on mmt_parliamentary_stage.parlia_stage_id = tbl_parliamentary_issue.stage_id        
-        WHERE (wing = @wingID) AND (parliamentary_issue_type = 'PSC Report' AND  tbl_parliamentary_issue.stage_id = @parliamentaryStage) 
+        WHERE (wing = @wingID) AND (parliamentary_issue_type = 'PSC Report' AND  tbl_parliamentary_issue.stage_id = @parliamentaryStage) AND ${inScope} 
         ;`
     }else{
         query = `
@@ -939,7 +955,7 @@ async function getPscWingWise (req, res)
             LEFT JOIN mmt_wings on mmt_wings.wing_id = tbl_parliamentary_issue.wing
             LEFT JOIN mmt_division on mmt_division.division_id = tbl_parliamentary_issue.division
             LEFT JOIN mmt_parliamentary_stage on mmt_parliamentary_stage.parlia_stage_id = tbl_parliamentary_issue.stage_id        
-        WHERE (wing = @wingID) AND (parliamentary_issue_type = 'PSC Report' AND  tbl_parliamentary_issue.stage_id = @parliamentaryStage)
+        WHERE (wing = @wingID) AND (parliamentary_issue_type = 'PSC Report' AND  tbl_parliamentary_issue.stage_id = @parliamentaryStage) AND ${inScope}
         ;`
     }
 
@@ -961,8 +977,7 @@ async function getPscWingWise (req, res)
     }
     catch(err) 
     {
-        console.log(err);
-        return res.sendStatus(500);
+        return serverError(res, "getPscWingWise", err);
     }
 
 };
@@ -974,6 +989,7 @@ async function getPscDivisionWise (req, res)
 
     const conn = await pool;
     const request = conn.request();
+    const inScope = issueScope(request, req.user);
     request.input("divisionID", divisionID);
     request.input("parliamentaryStage", parliamentaryStage);
 
@@ -1025,7 +1041,7 @@ async function getPscDivisionWise (req, res)
                 LEFT JOIN mmt_wings on mmt_wings.wing_id = tbl_parliamentary_issue.wing
                 LEFT JOIN mmt_division on mmt_division.division_id = tbl_parliamentary_issue.division
                 LEFT JOIN mmt_parliamentary_stage on mmt_parliamentary_stage.parlia_stage_id = tbl_parliamentary_issue.stage_id        
-            WHERE (division = @divisionID) AND (parliamentary_issue_type = 'PSC Report' AND  tbl_parliamentary_issue.stage_id = @parliamentaryStage)
+            WHERE (division = @divisionID) AND (parliamentary_issue_type = 'PSC Report' AND  tbl_parliamentary_issue.stage_id = @parliamentaryStage) AND ${inScope}
             ;`
         }else{
             query = `
@@ -1045,7 +1061,7 @@ async function getPscDivisionWise (req, res)
                 LEFT JOIN mmt_wings on mmt_wings.wing_id = tbl_parliamentary_issue.wing
                 LEFT JOIN mmt_division on mmt_division.division_id = tbl_parliamentary_issue.division
                 LEFT JOIN mmt_parliamentary_stage on mmt_parliamentary_stage.parlia_stage_id = tbl_parliamentary_issue.stage_id        
-            WHERE (division = @divisionID) AND (parliamentary_issue_type = 'PSC Report' AND  tbl_parliamentary_issue.stage_id = @parliamentaryStage)
+            WHERE (division = @divisionID) AND (parliamentary_issue_type = 'PSC Report' AND  tbl_parliamentary_issue.stage_id = @parliamentaryStage) AND ${inScope}
         ;`
         }
 
@@ -1065,8 +1081,7 @@ async function getPscDivisionWise (req, res)
     }
     catch(err) 
     {
-        console.log(err);
-        return res.sendStatus(500);
+        return serverError(res, "getPscDivisionWise", err);
     }
 };
 
@@ -1084,8 +1099,10 @@ function sendGrid(res, recordset) {
 
 async function assuranceWingDivisionReports(req, res) {
     const conn = await pool;
+    const request = conn.request();
+    const inScope = issueScope(request, req.user);
     try {
-        const result = await conn.query(`
+        const result = await request.query(`
             SELECT
                 ROW_NUMBER() OVER (ORDER BY mmt_wings.wing_id, mmt_division.division_id) AS [S No],
                 mmt_wings.wing_id AS [Wing Id],
@@ -1097,7 +1114,7 @@ async function assuranceWingDivisionReports(req, res) {
             FROM mmt_wings
             INNER JOIN mmt_division ON mmt_division.wing_id = mmt_wings.wing_id
             LEFT JOIN tbl_parliamentary_issue
-                ON tbl_parliamentary_issue.wing = mmt_wings.wing_id
+                ON tbl_parliamentary_issue.wing = mmt_wings.wing_id AND ${inScope}
                 AND tbl_parliamentary_issue.division = mmt_division.division_id
                 AND (tbl_parliamentary_issue.parliamentary_issue_type = 'Assurance'
                     OR tbl_parliamentary_issue.parliamentary_issue_type IS NULL)
@@ -1111,8 +1128,7 @@ async function assuranceWingDivisionReports(req, res) {
         `);
         return sendGrid(res, result.recordset);
     } catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
+        return serverError(res, "assuranceWingDivisionReports", err);
     }
 }
 
@@ -1120,6 +1136,7 @@ async function parliaMatterWingDivision(req, res) {
     const issueType = req.params.issueType;
     const conn = await pool;
     const request = conn.request();
+    const inScope = issueScope(request, req.user);
     request.input("issueType", issueType);
     try {
         const result = await request.query(`
@@ -1134,7 +1151,7 @@ async function parliaMatterWingDivision(req, res) {
             FROM mmt_wings
             INNER JOIN mmt_division ON mmt_division.wing_id = mmt_wings.wing_id
             LEFT JOIN tbl_parliamentary_issue
-                ON tbl_parliamentary_issue.wing = mmt_wings.wing_id
+                ON tbl_parliamentary_issue.wing = mmt_wings.wing_id AND ${inScope}
                 AND tbl_parliamentary_issue.division = mmt_division.division_id
                 AND (tbl_parliamentary_issue.parliamentary_issue_type = @issueType
                     OR tbl_parliamentary_issue.parliamentary_issue_type IS NULL)
@@ -1148,15 +1165,16 @@ async function parliaMatterWingDivision(req, res) {
         `);
         return sendGrid(res, result.recordset);
     } catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
+        return serverError(res, "parliaMatterWingDivision", err);
     }
 }
 
 async function pscWingDivisionReports(req, res) {
     const conn = await pool;
+    const request = conn.request();
+    const inScope = issueScope(request, req.user);
     try {
-        const result = await conn.query(`
+        const result = await request.query(`
             SELECT
                 ROW_NUMBER() OVER (ORDER BY mmt_wings.wing_id, mmt_division.division_id) AS [S No],
                 mmt_wings.wing_id AS [Wing Id],
@@ -1168,7 +1186,7 @@ async function pscWingDivisionReports(req, res) {
             FROM mmt_wings
             INNER JOIN mmt_division ON mmt_division.wing_id = mmt_wings.wing_id
             LEFT JOIN tbl_parliamentary_issue
-                ON tbl_parliamentary_issue.wing = mmt_wings.wing_id
+                ON tbl_parliamentary_issue.wing = mmt_wings.wing_id AND ${inScope}
                 AND tbl_parliamentary_issue.division = mmt_division.division_id
                 AND tbl_parliamentary_issue.parliamentary_issue_type = 'PSC Report'
             LEFT JOIN mmt_parliamentary_stage
@@ -1181,8 +1199,7 @@ async function pscWingDivisionReports(req, res) {
         `);
         return sendGrid(res, result.recordset);
     } catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
+        return serverError(res, "pscWingDivisionReports", err);
     }
 }
 

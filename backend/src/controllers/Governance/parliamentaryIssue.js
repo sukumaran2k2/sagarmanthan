@@ -7,6 +7,139 @@ function emptyToNull(value) {
   return value === "" || value === undefined ? null : value;
 }
 
+// Positive integer id from the URL or body, or null (QC PI-BE-07)
+function parseId(value) {
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+// created_by / updated_by and the delete log always name the signed-in user, never a value
+// from the request (QC PI-BE-04). null means no usable login: answer 401.
+function signedInUserId(req) {
+  const id = Number(req.user?.userId);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+function serverError(res, action, err) {
+  console.error(`[ParliamentaryIssue] ${action}:`, err);
+  return res.status(500).json({ error: `Could not ${action}. Please try again.` });
+}
+
+// ---------- request validation (QC PI-BE-06) ----------
+
+// Text fields and their column sizes in tbl_parliamentary_issue
+const TEXT_LIMITS = [
+  ["parliamentarySubject", "Subject", 256],
+  ["fileNumber", "File number", 50],
+  ["parliamentHouse", "Parliament house", 50],
+  ["nameOfMP", "Name of the MP(s)", 256],
+];
+
+// Every date the form sends; each is '' (not entered) or YYYY-MM-DD
+const DATE_FIELDS = [
+  ["extensionSought", "Extension sought up to"],
+  ["receivedDate", "Received at Ministry"],
+  ["commentSoughtDate", "Comments sought"],
+  ["commentsReceivedDate", "Comments received"],
+  ["shippingDate", "Shipping"],
+  ["vigilanceDate", "Vigilance"],
+  ["portsDate", "Ports"],
+  ["iwtDate", "IWT"],
+  ["administrationDate", "Administration"],
+  ["coordIDate", "Coord-I"],
+  ["coordIIDate", "Coord-II"],
+  ["dgllDate", "DGLL, Parliament & TRW"],
+  ["developmentDate", "Development"],
+  ["financeDate", "Finance"],
+  ["sagarmalaDate", "Sagarmala"],
+  ["extensionTimeSoughtDate", "Extension of time sought"],
+  ["replySendDate", "Reply sent"],
+  ["debatedInParliamentDate", "Debated in Parliament"],
+  ["impReportFurnishedDate", "Implementation report furnished"],
+  ["matterDisposedDate", "Matter disposed"],
+];
+
+const isBlank = (value) => value === undefined || value === null || String(value).trim() === "";
+
+function isValidDate(value) {
+  const text = String(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return false;
+  const [y, m, d] = text.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
+}
+
+// Checks what the form sends against the column sizes and the masters. It accepts everything
+// the form allows today: the subject is optional (as in the form), and the division is only
+// checked to exist, not to belong to the wing, so older issues can still be saved.
+// Sends the 400 itself and returns false when invalid.
+async function validateIssueBody(conn, body, res) {
+  const errors = [];
+
+  const wing = parseId(body.wing);
+  const division = parseId(body.division);
+  if (!wing) errors.push("Please select a valid wing.");
+  if (!division) errors.push("Please select a valid division.");
+
+  const issueType = isBlank(body.issueType) ? "" : String(body.issueType).trim();
+  if (!issueType) errors.push("Please select the issue type.");
+  else if (issueType.length > 256) errors.push("The issue type is not valid.");
+
+  for (const [field, label, max] of TEXT_LIMITS) {
+    if (!isBlank(body[field]) && String(body[field]).length > max) {
+      errors.push(`${label} cannot exceed ${max} characters.`);
+    }
+  }
+  if (normalizeWings(body.wings).length > 256) errors.push("Too many wings selected.");
+
+  // assurance_number is an int column; the form field is free text
+  if (!isBlank(body.assuranceNumber)) {
+    const text = String(body.assuranceNumber).trim();
+    if (!/^\d+$/.test(text) || Number(text) > 2147483647) {
+      errors.push("Assurance number must be a whole number.");
+    }
+  }
+
+  for (const [field, label] of DATE_FIELDS) {
+    if (!isBlank(body[field]) && !isValidDate(body[field])) {
+      errors.push(`${label} date is not a valid date.`);
+    }
+  }
+
+  const stageGiven = !isBlank(body.parlia_stage_id);
+  const stage = Number(body.parlia_stage_id);
+  if (stageGiven && (!Number.isInteger(stage) || stage < 0)) errors.push("The stage is not valid.");
+
+  // Wing, division, issue type and stage must be real rows in their masters
+  if (!errors.length) {
+    const check = await conn
+      .request()
+      .input("wing", sql.Int, wing)
+      .input("division", sql.Int, division)
+      .input("issueType", nvarcharType(256), issueType)
+      .input("stage", sql.Int, stageGiven ? stage : null)
+      .query(`
+        SELECT
+          (SELECT COUNT(1) FROM mmt_wings WHERE wing_id = @wing) AS wing_ok,
+          (SELECT COUNT(1) FROM mmt_division WHERE division_id = @division) AS division_ok,
+          (SELECT COUNT(1) FROM mmt_parliamentary_stage
+             WHERE LOWER(LTRIM(RTRIM(parlia_issue_type))) = LOWER(LTRIM(RTRIM(@issueType)))) AS type_ok,
+          (SELECT COUNT(1) FROM mmt_parliamentary_stage WHERE parlia_stage_id = @stage) AS stage_ok
+      `);
+    const row = check.recordset[0] || {};
+    if (!row.wing_ok) errors.push("Please select a valid wing.");
+    if (!row.division_ok) errors.push("Please select a valid division.");
+    if (!row.type_ok) errors.push("The issue type is not valid.");
+    if (stageGiven && !row.stage_ok) errors.push("The stage is not valid.");
+  }
+
+  if (errors.length) {
+    res.status(400).json({ error: errors[0], errors });
+    return false;
+  }
+  return true;
+}
+
 function normalizeWings(wings) {
   if (Array.isArray(wings)) return wings.filter(Boolean).join(",");
   if (wings == null) return "";
@@ -260,21 +393,23 @@ async function getParliamentaryIssue(req, res) {
       },
     });
   } catch (err) {
-    console.log(err);
-    return res.sendStatus(500);
+    return serverError(res, "load parliamentary issues", err);
   }
 }
 
 async function createParliamentaryIssue(req, res) {
-  const conn = await pool;
-  const request = conn.request();
-  const body = {
-    ...req.body,
-    userID: req.user?.userId ?? req.body.userID,
-  };
-  bindIssueFields(request, body);
+  const userID = signedInUserId(req);
+  if (!userID) return res.status(401).json({ error: "Unauthorized." });
 
   try {
+    const conn = await pool;
+    // created_by is the signed-in user, never the userID the form sends
+    const body = { ...req.body, userID };
+    if (!(await validateIssueBody(conn, body, res))) return;
+
+    const request = conn.request();
+    bindIssueFields(request, body);
+
     const result = await request.query(`
       INSERT INTO tbl_parliamentary_issue (
         wing, division, subject, file_number, parliamentary_issue_type, remarks, assurance_number,
@@ -308,25 +443,27 @@ async function createParliamentaryIssue(req, res) {
     const parliamentary_issue_id = result.recordset[0].parliamentary_issue_id;
     res.status(201).json({ parliamentary_issue_id });
   } catch (err) {
-    console.log(err);
-    return res.sendStatus(500);
+    return serverError(res, "save the parliamentary issue", err);
   }
 }
 
 async function editParliamentaryIssue(req, res) {
   // updated_by is the signed-in user, never a value from the request
-  const userID = Number(req.user?.userId);
-  if (!Number.isInteger(userID) || userID <= 0) {
-    return res.status(401).json({ error: "Unauthorized." });
-  }
+  const userID = signedInUserId(req);
+  if (!userID) return res.status(401).json({ error: "Unauthorized." });
 
-  const conn = await pool;
-  const request = conn.request();
-  const body = { ...req.body, userID };
-  request.input("parliamentaryIssueID", body.parliamentaryIssueID);
-  bindIssueFields(request, body);
+  const parliamentaryIssueID = parseId(req.body.parliamentaryIssueID);
+  if (!parliamentaryIssueID) return res.status(400).json({ error: "Invalid parliamentary issue." });
 
   try {
+    const conn = await pool;
+    const body = { ...req.body, userID };
+    if (!(await validateIssueBody(conn, body, res))) return;
+
+    const request = conn.request();
+    request.input("parliamentaryIssueID", sql.Int, parliamentaryIssueID);
+    bindIssueFields(request, body);
+
     // Only an issue inside the caller's data scope can be updated (QC PI-BE-01, fixed with
     // MOPSW-BE-01). An id outside it matches no row and is answered as "not found" below.
     const { joinSql, whereSql } = applyDataScope(request, req.user, { strategy: "viaCreatedBy", alias: "tpi" });
@@ -392,23 +529,24 @@ async function editParliamentaryIssue(req, res) {
     `);
 
     if (!result.recordset?.length) {
-      return res.status(404).json({ message: "Parliamentary issue not found" });
+      return res.status(404).json({ error: "Parliamentary issue not found." });
     }
 
     res.status(201).json({
       parliamentary_issue_id: result.recordset[0].parliamentary_issue_id,
     });
   } catch (err) {
-    console.log(err);
-    return res.sendStatus(500);
+    return serverError(res, "update the parliamentary issue", err);
   }
 }
 
 async function getUpdateParliamentaryIssueData(req, res) {
-  const parliamentaryIssueID = req.params.parliamentaryIssueID;
+  const parliamentaryIssueID = parseId(req.params.parliamentaryIssueID);
+  if (!parliamentaryIssueID) return res.status(400).json({ error: "Invalid parliamentary issue." });
+
   const conn = await pool;
   const request = conn.request();
-  request.input("parliamentaryIssueID", parliamentaryIssueID);
+  request.input("parliamentaryIssueID", sql.Int, parliamentaryIssueID);
 
   try {
     const { joinSql, whereSql } = applyDataScope(request, req.user, { strategy: "viaCreatedBy", alias: "tpi" });
@@ -421,14 +559,18 @@ async function getUpdateParliamentaryIssueData(req, res) {
     `);
     res.json(result.recordset);
   } catch (err) {
-    console.log(err);
-    return res.sendStatus(500);
+    return serverError(res, "load the parliamentary issue", err);
   }
 }
 
 async function deleteParliamentaryIssue(req, res) {
-  const parliamentaryIssueID = req.params.parliamentaryIssueID;
-  const userID = req.user?.userId ?? req.params.userID;
+  const parliamentaryIssueID = parseId(req.params.parliamentaryIssueID);
+  if (!parliamentaryIssueID) return res.status(400).json({ error: "Invalid parliamentary issue." });
+
+  // The log names the signed-in user, never the :userID in the address (QC PI-BE-04/05).
+  // Both values are numbers by now, so no request text can reach the log line.
+  const userID = signedInUserId(req);
+  if (!userID) return res.status(401).json({ error: "Unauthorized." });
 
   const now = new Date();
   const datePart = now.toISOString().slice(0, 10).replace(/-/g, "");
@@ -441,7 +583,7 @@ async function deleteParliamentaryIssue(req, res) {
 
   const conn = await pool;
   const request = conn.request();
-  request.input("parliamentaryIssueID", parliamentaryIssueID);
+  request.input("parliamentaryIssueID", sql.Int, parliamentaryIssueID);
 
   try {
     const { joinSql, whereSql } = applyDataScope(request, req.user, { strategy: "viaCreatedBy", alias: "tpi" });
@@ -458,9 +600,13 @@ async function deleteParliamentaryIssue(req, res) {
     }
 
     const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
+    // The DELETE carries the scope itself, not only the SELECT above it (QC PI-BE-08)
     const result = await request.query(`
-      DELETE FROM tbl_parliamentary_issue
-      WHERE parliamentary_issue_id = @parliamentaryIssueID
+      DELETE tpi
+      FROM tbl_parliamentary_issue tpi
+      ${joinSql}
+      WHERE tpi.parliamentary_issue_id = @parliamentaryIssueID
+      ${whereSql}
     `);
 
     if (result.rowsAffected[0] > 0) {
@@ -474,8 +620,7 @@ async function deleteParliamentaryIssue(req, res) {
 
     return res.status(404).send("Data not found");
   } catch (err) {
-    console.log(err);
-    return res.sendStatus(500);
+    return serverError(res, "delete the parliamentary issue", err);
   }
 }
 
