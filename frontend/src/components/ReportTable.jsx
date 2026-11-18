@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ChevronLeft, FileSpreadsheet, Download, Search, Loader2, RefreshCw, X, TrendingUp, Copy } from 'lucide-react';
 import TablePagination from './TablePagination';
@@ -43,6 +43,32 @@ export default function ReportTable({
     if (rowData && rowData.length > 0) return rowData;
     return [];
   }, [viewData, rawData, rowData]);
+
+  const [activePinnedBottom, setActivePinnedBottom] = useState(pinnedBottomRowData);
+
+  useEffect(() => {
+    setActivePinnedBottom(pinnedBottomRowData);
+  }, [pinnedBottomRowData]);
+
+  const recalcPinnedFromVisibleRows = useCallback(() => {
+    const api = gridRef.current?.api;
+    if (!api || !pinnedBottomRowData || pinnedBottomRowData.length === 0) return;
+    const visibleRows = [];
+    api.forEachNodeAfterFilterAndSort((node) => { if (node.data) visibleRows.push(node.data); });
+    if (visibleRows.length === 0) { setActivePinnedBottom(undefined); return; }
+    if (visibleRows.length === effectiveData.length) { setActivePinnedBottom(pinnedBottomRowData); return; }
+
+    const template = pinnedBottomRowData[0];
+    const newTotal = {};
+    for (const key of Object.keys(template)) {
+      if (typeof template[key] === 'number') {
+        newTotal[key] = visibleRows.reduce((acc, row) => acc + (Number(row[key]) || 0), 0);
+      } else {
+        newTotal[key] = template[key];
+      }
+    }
+    setActivePinnedBottom([newTotal]);
+  }, [pinnedBottomRowData, effectiveData.length]);
 
   const effectiveInputCols = useMemo(() => {
     if (columns && columns.length > 0) return columns;
@@ -126,6 +152,10 @@ export default function ReportTable({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (gridRef.current?.api) recalcPinnedFromVisibleRows();
+  }, [quickFilter, recalcPinnedFromVisibleRows]);
 
   // Ensure full width auto-fit whenever columns, data, or drilldown view changes
   useEffect(() => {
@@ -499,7 +529,7 @@ export default function ReportTable({
             rowData={effectiveData}
             // No "No Rows To Show" (also announced to screen readers) while loading (QC CSR-49)
             suppressNoRowsOverlay={loading}
-            pinnedBottomRowData={pinnedBottomRowData}
+            pinnedBottomRowData={activePinnedBottom}
             columnDefs={effectiveColumns}
             defaultColDef={defaultColDef}
             pagination={pagination}
@@ -512,6 +542,7 @@ export default function ReportTable({
             animateRows={true}
             headerHeight={autoHeaderHeight ? undefined : 46}
             autoHeaderHeight={autoHeaderHeight}
+            onFilterChanged={recalcPinnedFromVisibleRows}
             onGridReady={(params) => {
               if (gridRef.current) gridRef.current.api = params.api;
               params.api.sizeColumnsToFit();
