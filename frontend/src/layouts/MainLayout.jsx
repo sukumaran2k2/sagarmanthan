@@ -69,7 +69,6 @@ export const ROUTE_MAP = {
   // Governance nested routes
   'E Office': 'governance/e-office',
   'Attendance': 'governance/attendance',
-  'CPGRAMS': 'governance/cpgrams',
   'Cabinet Notes - MoPSW': 'governance/cabinet-notes/dashboard',
   'Cabinet Notes-MoPSW': 'governance/cabinet-notes/dashboard',
   'Cabinet Notes - MoPSW - Dashboard': 'governance/cabinet-notes/dashboard',
@@ -141,9 +140,7 @@ export const ROUTE_MAP = {
   'Drishti Portal - Report': 'strategies/drishti-portal/performance-report',
   'Performance Report': 'strategies/drishti-portal/performance-report',
   'Data Entry Status Report': 'strategies/drishti-portal/data-entry-status',
-  'Vision 2047': 'strategies/vision-2047',
   'Maritime India Summit': 'strategies/maritime-india-summit',
-  'Blue Economy Policy': 'strategies/blue-economy-policy',
 
   // Knowledge nested routes
   'Research Papers': 'knowledge/research-papers',
@@ -159,15 +156,6 @@ export const ROUTE_MAP = {
   'Form Directory': 'form-builder/directory',
   'Inbox Forms': 'form-builder/inbox',
   'Edit Form': 'form-builder/edit',
-
-  // Tracker nested routes
-  'Project Milestones': 'tracker/project-milestones',
-  'Delay Analysis': 'tracker/delay-analysis',
-
-  // Meetings nested routes
-  'Meeting Schedule': 'meeting/meeting-schedule',
-  'Minutes of Meeting': 'meeting/minutes-of-meeting',
-  'Action Taken Report': 'meeting/action-taken-report',
 
   // Contacts nested routes
   'Ministry Contacts': 'contact/ministry-contacts',
@@ -404,7 +392,7 @@ const getBreadcrumbs = (tab) => {
     'Attendance', 'Cabinet Notes - Other Ministries', 'E Office',
     'Parliamentary Issues', 'GEM Procurements', 'Cabinet Notes - MoPSW',
     'VIP Reference', 'Media Outreach', 'Audit Paras',
-    'Inter State & Inter Ministerial', 'Foreign Visit'
+    'Foreign Visit'
   ];
   if (tab === 'Media Outreach') return ['Home', 'Media Outreach - (Input Form)'];
   if (governanceItems.includes(tab)) return ['Home', 'Governance', tab];
@@ -424,7 +412,7 @@ const getBreadcrumbs = (tab) => {
   const ovodItems = ['OVOD', 'OVOD Input Form', 'OVOD Data List', 'OVOD Reports', 'Intervention List', 'Drishti Portal', 'Drishti Portal (OVOD)', 'One Vision One Document'];
   if (ovodItems.includes(tab)) return ['Home', 'Long Term Strategies', 'OVOD', tab === 'OVOD' || tab === 'Drishti Portal' ? 'Dashboard' : tab];
 
-  const visionItems = ['Vision 2047', 'Maritime India Summit', 'Blue Economy Policy'];
+  const visionItems = ['Maritime India Summit'];
   if (visionItems.includes(tab)) return ['Home', 'Long Term Strategies', tab];
 
   const knowledgeItems = ['Research Papers', 'Policy Documents', 'Guidelines'];
@@ -432,12 +420,6 @@ const getBreadcrumbs = (tab) => {
 
   const formBuilderItems = ['Create Dynamic Form', 'View Submissions', 'Form Studio', 'Form Directory', 'Inbox Forms', 'Form Builder', 'Edit Form'];
   if (formBuilderItems.includes(tab)) return ['Home', 'Form Builder', tab];
-
-  const trackerItems = ['Project Milestones', 'Delay Analysis'];
-  if (trackerItems.includes(tab)) return ['Home', 'MoPSW Tracker', tab];
-
-  const meetingItems = ['Meeting Schedule', 'Minutes of Meeting', 'Action Taken Report'];
-  if (meetingItems.includes(tab)) return ['Home', 'Senior Officers Meeting', tab];
 
   const contactItems = ['Ministry Contacts', 'Helpdesk Support'];
   if (contactItems.includes(tab)) return ['Home', 'Contact Us', tab];

@@ -26,8 +26,6 @@ import attendanceTab from "./controllers/Governance/attendance.js";
 import excelDataTab from "./controllers/Governance/excelDataTab.js";
 import empAttendanceTab from "./controllers/Governance/empAttendance.js";
 //check
-import cpgramsTab from "./controllers/Governance/cpgrams.js";
-import cpgramsDataTab from "./controllers/Governance/cpgramsdata.js";
 import disposalTab from "./controllers/Governance/fileDisposal.js";
 import fileDataTab from "./controllers/Governance/fileData.js";
 import pendencyTab from "./controllers/Governance/pendency.js";
@@ -45,21 +43,11 @@ import gemProcurementTab from "./controllers/Governance/gemProcurement.js";
 import socialmediaTab from "./controllers/Governance/SocialMedia.js";
 import auditParaTab from "./controllers/Governance/auditPara.js";
 import decisionController from "./controllers/Governance/decisionImplement.js";
-import interStateController from "./controllers/Governance/interState.js";
-import interMinisterialController from "./controllers/Governance/interMinisterial.js";
 import eOfficeTab from "./controllers/Governance/eOffice.js";
 import EofficeFilePendancyTab from "./controllers/Governance/eOfficeFilePendancy.js";
 import EofficeReceiptPendancyTab from "./controllers/Governance/eOfficeReceiptPendancy.js";
 import EofficeFileDisposalTab from "./controllers/Governance/eOfficeFileDisposal.js";
-import cpgramController from "./controllers/Governance/cpgramNew.js";
-import cpgramInputController from "./controllers/Governance/cpgramInput.js";
-import cpgramProgressController from "./controllers/Governance/cpgramProgress.js";
-import cpgramPH3Controller from "./controllers/Governance/cpgramPH3.js";
-import cpgramAgeController from "./controllers/Governance/cpgramAge.js";
 import officialForeignVisitTab from "./controllers/Governance/officialForeignVisit.js";
-import flaggedShipTab from "./controllers/Governance/flaggedShip.js";
-import cruisePortsTab from "./controllers/Governance/cruisePorts.js";
-import reviewItemsTab from "./controllers/Governance/reviewItems.js"
 
 //HR
 import youngProfessionalsTab from "./controllers/HR/youngProfessionals.js";
@@ -167,23 +155,8 @@ import sciReportTab from "./controllers/Reports/sciReports.js";
 import imuTab from "./controllers/KPI/imuDetails.js";
 import imuReportTab from "./controllers/Reports/imuReports.js";
 
-import passengerTab from "./controllers/KPI/passenger.js";
 import financialParameterTab from "./controllers/KPI/financialParameter.js";
-import cruiseTab from "./controllers/KPI/cruiseController.js";
-import cargoOperationController from "./controllers/KPI/cargoOperation.js";
-import cargoHandledController from "./controllers/KPI/cargoHandle.js";
-import digitalPortalTab from "./controllers/KPI/digitalPortals.js";
-import DredgersTab from "./controllers/KPI/DredgersController.js";
-import iwaiVesselMovementController from "./controllers/KPI/iwaiVessel.js";
-import JettiesVesselsController from "./controllers/KPI/JettiesVessels.js";
-import PassengerMovementController from "./controllers/KPI/passengerMove.js";
-import iwaiPassengerController from "./controllers/KPI/iwaiPassenger.js";
-import SurveyVesselController from "./controllers/KPI/survey.js";
 import MajorPorts from "./controllers/KPI/majorPorts.js";
-import RoroTab from "./controllers/KPI/roro.js";
-import RoPaxTab from "./controllers/KPI/ropax.js";
-import SurveyVesselTab from "./controllers/KPI/surveyVessel.js";
-import CargoVesselTab from "./controllers/KPI/cargoVessel.js";
 import TrafficTab from "./controllers/KPI/traffic.js";
 import TrafficEntry from "./controllers/KPI/trafficEntry.js";
 import TrafficDashboard from "./controllers/KPI/trafficDashboardAccess.js";
@@ -191,9 +164,6 @@ import PortPerformanceEntry from "./controllers/KPI/portPerformanceEntry.js";
 import FinancialParameterEntry from "./controllers/KPI/financialParameterEntry.js";
 import FinancialDashboard from "./controllers/KPI/financialDashboardAccess.js";
 import CruisePassengerTrafficEntry from "./controllers/KPI/cruisePassengerTrafficEntry.js";
-import vesselMovementTab from "./controllers/KPI/vesselTerminal.js";
-import PassengerTerminalController from "./controllers/KPI/PassengerTerminal.js";
-import cargoTerminalController from "./controllers/KPI/cargoTerminal.js";
 import KpiTimePerformanceTab from "./controllers/KPI/kpiTimePerformance.js";
 import RenewableEnergyEntry from "./controllers/KPI/renewableEnergyEntry.js";
 import MMDTab from "./controllers/KPI/mmdMaster.js";
@@ -203,19 +173,13 @@ import CourseMasterTab from "./controllers/KPI/courseMaster.js";
 import KpiDGS_2_2_Tab from "./controllers/KPI/DGS_2_2.js";
 // import KpiDGS_2_9_Tab from "./controllers/KPI/DGS_2_9.js";
 import KpiDGS_2_3_Tab from "./controllers/KPI/DGS_2_3.js";
-import CMECTabList from "./controllers/KPI/cmec.js";
 
-import mopswTracker from "./controllers/MopswTracker/mopsw_tracker.js";
 
 //Long Term Strategies
 import MIVTab from "./controllers/LongTermStrategies/miv.js";
-import AKVTab from "./controllers/LongTermStrategies/amritKaal.js";
 import gmisMouTab from "./controllers/LongTermStrategies/gmisMou.js";
 import gmisMouDashboard from "./controllers/LongTermStrategies/gmisMouDashboard.js";
 import mivDashboard from "./controllers/LongTermStrategies/mivDashboard.js";
-
-//User manuals
-import userManualMenu from "./controllers/UserManuals/userManual.js";
 
 //Knowledge Repository
 import KRTab from "./controllers/KnowledgeRepository/knowledgeRep.js";
@@ -225,7 +189,6 @@ import OVDTab from "./controllers/LongTermStrategies/oneVision.js";
 import OVDDataTab from "./controllers/LongTermStrategies/ovodGet.js";
 
 import marineTab from "./controllers/KPI/marineCasualty.js";
-import momOfPswMeetingsTab from "./controllers/Governance/addminutesofmeeting.js";
 
 import entryExitTab from "./controllers/KPI/entryExitPerformance.js"
 import conciliationCourtCaseTab from "./controllers/Legal/conciliationCourtCase.js"
@@ -400,49 +363,6 @@ router.get("/attendance/downloadSampleDocument", auth, attRead, attendanceTab.do
 //view Data - Attendance
 router.get("/excelData", auth, attRead, excelDataTab.getExcelData);
 
-router.get("/attendance/user-manual", auth, attRead, userManualMenu.attendanceManual);
-
-//cpgrams
-router.get("/cpgrams", cpgramsTab.getCpgrams);
-router.post("/cpgrams", cpgramsTab.upload.single('file'), cpgramsTab.createCpgrams);
-router.get("/cpgrams/download/:id", cpgramsTab.downloadCpgrams);
-router.delete("/cpgrams/:id", cpgramsTab.deleteCpgrams);
-router.post("/cpgrams/storecsv/:id", cpgramsTab.storeCsvData);
-//viewData-cpgrams
-router.get("/cpgramsData", cpgramsDataTab.getCpgramsData);
-
-//New Cpgram
-//Category
-router.get('/category-cpgram/:Month/:Year', cpgramController.getCategoryReport);
-router.get("/category-cpgram-all", cpgramController.getCategoryAllReport);
-router.post("/category-cpgram-create", cpgramInputController.upload.single('file'), cpgramInputController.addCPGRAMCategory);
-router.put("/category-cpgram-update", cpgramInputController.upload.single('file'), cpgramInputController.updateCPGRAMCategory);
-router.get("/category-cpgram-check", cpgramInputController.getCPGRAMCategoryCheck);
-router.get("/category-cpgram-History", cpgramController.getCPGRAMHistory);
-
-//Progress
-router.get('/progress-cpgram/:Month/:Year', cpgramController.getProgressReport);
-router.get("/progress-cpgram-all", cpgramController.getProgressAllReport);
-router.post("/progress-cpgram-create", cpgramProgressController.upload.single('file'), cpgramProgressController.addCPGRAMProgress);
-router.put("/progress-cpgram-update", cpgramProgressController.upload.single('file'), cpgramProgressController.updateCPGRAMProgress);
-router.get("/progress-cpgram-check", cpgramProgressController.getCPGRAMProgressCheck);
-router.get("/progress-cpgram-History", cpgramController.getCPGRAMProgressHistory);
-
-//Ministry pendancy
-router.get('/PH3-cpgram/:Month/:Year', cpgramController.getPH3Report);
-router.get("/PH3-cpgram-all", cpgramController.getPH3AllReport);
-router.post("/PH3-cpgram-create", cpgramPH3Controller.upload.single('file'), cpgramPH3Controller.addCPGRAMPH3);
-router.put("/PH3-cpgram-update", cpgramPH3Controller.upload.single('file'), cpgramPH3Controller.updateCPGRAMPH3);
-router.get("/PH3-cpgram-check", cpgramPH3Controller.getCPGRAMPH3Check);
-router.get("/PH3-cpgram-History", cpgramController.getCPGRAMPH3History);
-
-//Age pendancy
-router.get('/age-cpgram/:Month/:Year', cpgramController.getAgeReport);
-router.get("/age-cpgram-all", cpgramController.getAgeAllReport);
-router.post("/age-cpgram-create", cpgramAgeController.upload.single('file'), cpgramAgeController.addCPGRAMAge);
-router.put("/age-cpgram-update", cpgramAgeController.upload.single('file'), cpgramAgeController.updateCPGRAMAge);
-router.get("/age-cpgram-check", cpgramAgeController.getCPGRAMAgeCheck);
-router.get("/age-cpgram-History", cpgramController.getCPGRAMAgeHistory);
 
 // disposal
 router.get("/disposal", auth, eofficeRead, disposalTab.getDisposal);
@@ -727,19 +647,6 @@ router.delete("/audit-para/:audit_para_id", auth, ministryOnly, requireModulePer
 
 //Issues Tracking
 
-//Inter Ministrial
-router.get("/inter-ministerial", interMinisterialController.getInterMinisterialData);
-router.post("/inter-ministerial", interMinisterialController.addInterMinisterialData);
-router.put("/inter-ministerial", interMinisterialController.updateInterMinisterialData);
-router.get("/inter-ministerial/:ID", interMinisterialController.getUpdateInterMinisterialData);
-router.post("/inter-ministerial-document", interMinisterialController.upload.single('file'), interMinisterialController.addInterMinisterialDocument);
-
-//Inter state
-router.get("/inter-state", interStateController.getInterStateData);
-router.post("/inter-state", interStateController.addInterStateData);
-router.put("/inter-state", interStateController.updateInterStateData);
-router.get("/inter-state/:ID", interStateController.getUpdateInterStateData);
-router.post("/inter-state-document", interStateController.upload.single('file'), interStateController.addInterStateDocument);
 
 //Decision Implementation
 router.get("/decision-implement", decisionController.getDecisionImplementData);
@@ -814,20 +721,6 @@ router.post("/update-propsed-info", fvUpdate, officialForeignVisitTab.updateProp
 router.post("/update-sanctioned-info", fvUpdate, officialForeignVisitTab.updateSanctionedInfo);
 router.post("/update-visit-tab", fvUpdate, officialForeignVisitTab.updateVisitTab);
 
-// Flagged ship
-router.get("/get-flag-data", flaggedShipTab.getFSData);
-router.get("/get-flag-update-data/:ID", flaggedShipTab.getUpdateFSData);
-router.post("/add-flag-data", flaggedShipTab.addFlaggedShip);
-router.put("/update-flag-data", flaggedShipTab.editFlaggedShip);
-router.post("/get-flag-report", flaggedShipTab.getPFSReport);
-
-router.post("/add-issue-review-items",reviewItemsTab.addIssueReviewItem)
-router.post("/add-review-items",reviewItemsTab.addReviewItems)
-router.get("/get-unique-rid-Number",reviewItemsTab.getUniqueRIDNumber)
-router.get("/get-unique-issue-Number",reviewItemsTab.getUniqueIssueNumber)
-router.get("/get-review-item-data",reviewItemsTab.getReviewItemData)
-router.get("/get-review-item-total/:reviewItemCode",reviewItemsTab.getReviewItemTotal)
-router.get("/get-review-item-code-data-by-id/:reviewItemCode",reviewItemsTab.getReviewItemCodeDataByID)
 
 // LEGAL MENU
 //  Bills/PreConstitutions Act
@@ -987,8 +880,6 @@ router.get("/subproject-id-dropdown/:organisationID/:tid/:projectId", auth, requ
 
 router.get("/view-projectdata/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.viewProjectData);
 router.get("/view-projectimages/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.viewProjectImages);
-
-router.get("/project/user-manual", auth, requireModulePermission("PROJECTS", "read"), userManualMenu.projectManual);
 
 router.get("/viewproject-milestone-data/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.getUnderImplementationDate);
 router.get("/viewproject-tender-data/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.getUnderTenderingDate);
@@ -1753,15 +1644,6 @@ router.get("/checkData-2-3-2-data/:year/:month/:onType", KpiDGS_2_3_Tab.checkDat
 router.post('/add-kpi2-3-2', KpiDGS_2_3_Tab.createDgsKpi2_3_2Data);
 router.get("/kpi2-3-2-list", KpiDGS_2_3_Tab.getKpi2_3_2_List);
 
-// MoPSWTracker
-router.get("/tracker-list", auth, requireModulePermission("CABINET_NOTES_MOPSW", "read"), mopswTracker.trackerList);
-
-router.get("/checkData-tracker/:year/:month/", auth, requireModulePermission("CABINET_NOTES_MOPSW", "read"), mopswTracker.checkDataMopswTracker);
-router.get("/get_addtracker_masterdata/:year/:month", auth, requireModulePermission("CABINET_NOTES_MOPSW", "read"), mopswTracker.getAddTrackerMasterdata);
-router.post('/add-mopswtracker', auth, requireModulePermission("CABINET_NOTES_MOPSW", "create"), mopswTracker.createMopswTracker);
-// Report
-router.get('/get-mopswtracker-report', auth, requireModulePermission("CABINET_NOTES_MOPSW", "read"), mopswTracker.getmopswTrackermonthlyReport);
-
 // 2.3.1
 router.get("/checkData-2-3-1-data/:year/:month", KpiDGS_2_3_Tab.checkData_2_3_1);
 router.post('/add-kpi2-3-1', KpiDGS_2_3_Tab.createDgsKpi2_3_1Data);
@@ -1821,131 +1703,6 @@ router.get("/get-placement-record-details/:year/:month", KpiDGS_2_9_Tab.getPlace
 router.post("/edit-2-9-4-placement-record", KpiDGS_2_9_Tab.editKpi2_9_4_placement_record);
 router.get("/get-2-9-1-4-report", KpiDGS_2_9_Tab.getKpi2_9_1_4_report);
 
-
-router.post('/passenger', passengerTab.addPassengerData);
-router.get('/passenger-data', passengerTab.getPassengerData);
-router.get('/monthly-passenger-data', passengerTab.getMonthlyPassengerData);
-router.get('/quarterly-passenger-data', passengerTab.getQuarterlyPassengerData);
-router.get('/annually-passenger-data', passengerTab.getAnnuallyPassengerData);
-
-//roro
-router.post('/Roro', RoroTab.addRoroData);
-router.get('/Roro-data', RoroTab.getRoroData);
-router.get('/monthly-Roro-data', RoroTab.getMonthlyRoroData);
-router.get('/quarterly-Roro-data', RoroTab.getQuarterlyRoroData);
-router.get('/annually-Roro-data', RoroTab.getAnnuallyRoroData);
-
-//RoPax
-router.post('/RoPax', RoPaxTab.addRoPaxData);
-router.get('/RoPax-data', RoPaxTab.getRoPaxData);
-router.get('/monthly-RoPax-data', RoPaxTab.getMonthlyRoPaxData);
-router.get('/quarterly-RoPax-data', RoPaxTab.getQuarterlyRoPaxData);
-router.get('/annually-RoPax-data', RoPaxTab.getAnnuallyRoPaxData);
-
-//CargoVessel
-router.post('/Cargo-Vessel', CargoVesselTab.addCargoVessel);
-router.get('/Cargo-Vessel-data', CargoVesselTab.getCargoVessel);
-router.get('/monthly-Cargo-Vessel-data', CargoVesselTab.getMonthlyCargoVessel);
-router.get('/quarterly-Cargo-Vessel-data', CargoVesselTab.getQuarterlyCargoVessel);
-router.get('/annually-Cargo-Vessel-data', CargoVesselTab.getAnnuallyCargoVessel);
-
-//SurveyVessel
-router.post('/Survey-Vessel', SurveyVesselTab.addSurveyVessel);
-router.get('/Survey-Vessel-data', SurveyVesselTab.getSurveyVessel);
-router.get('/monthly-Survey-Vessel-data', SurveyVesselTab.getMonthlySurveyVessel);
-router.get('/quarterly-Survey-Vessel-data', SurveyVesselTab.getQuarterlySurveyVessel);
-router.get('/annually-Survey-Vessel-data', SurveyVesselTab.getAnnuallySurveyVessel);
-
-//Cargo operation
-router.post('/cargo-operations-data', cargoOperationController.createCargoOperationsData);
-router.get('/cargo-operations-data', cargoOperationController.getCargoOperationsData);
-router.get('/monthly-cargo-operations-data', cargoOperationController.getMonthlyCargoOperationsData);
-router.get('/quarterly-cargo-operations-data', cargoOperationController.getQuarterlyCargoOperationsData);
-router.get('/annually-cargo-operations-data', cargoOperationController.getAnnuallyCargoOperationsData);
-
-// cruise passenger data
-router.post("/cruise-passenger-data", cruiseTab.createCruisePassengerData);
-router.get("/cruise-passenger-data", cruiseTab.getCruisePassengerData);
-router.get("/monthly-cruise-data", cruiseTab.getMonthlyCruiseData);
-router.get("/quarterly-cruise-data", cruiseTab.getQuarterlyCruiseData);
-router.get("/annually-cruise-data", cruiseTab.getAnnuallyCruiseData);
-
-//Digital portals
-router.post('/digital-data', digitalPortalTab.createDigitalData);
-router.get('/digital-data', digitalPortalTab.getDigitalData);
-router.get('/monthly-digital-data', digitalPortalTab.getMonthlyDigitalData);
-router.get('/quarterly-digital-data', digitalPortalTab.getQuarterlyDigitalData);
-router.get('/annually-digital-data', digitalPortalTab.getAnnuallyDigitalData);
-
-//Dredgers
-router.post("/dredgers-data", DredgersTab.createDredgersData);
-router.get("/dredgers-data", DredgersTab.getDredgersData);
-router.get("/monthly-dredgers-data", DredgersTab.getMonthlyDredgersData);
-router.get("/quarterly-dredgers-data", DredgersTab.getQuarterlyDredgersData);
-router.get("/annually-dredgers-data", DredgersTab.getAnnuallyDredgersData);
-
-//surveyvessel
-router.post("/survey-vessel-data", SurveyVesselController.createSurveyVesselData);
-router.get("/survey-vessel-data", SurveyVesselController.getSurveyVesselData);
-router.get("/monthly-survey-vessel-data", SurveyVesselController.getMonthlySurveyVesselData);
-router.get("/quarterly-survey-vessel-data", SurveyVesselController.getQuarterlySurveyVesselData);
-router.get("/annually-survey-vessel-data", SurveyVesselController.getAnnuallySurveyVesselData);
-
-//Vessel movement-Iwai
-router.post('/iwai-vessel-movement-data', iwaiVesselMovementController.addiwaiVesselMovementData);
-router.get('/iwai-vessel-movement-data', iwaiVesselMovementController.getiwaiVesselMovementData);
-router.get('/monthly-iwai-vessel-movement-data', iwaiVesselMovementController.getMonthlyiwaiVesselMovementData);
-router.get('/quarterly-iwai-vessel-movement-data', iwaiVesselMovementController.getQuarterlyiwaiVesselMovementData);
-router.get('/annually-iwai-vessel-movement-data', iwaiVesselMovementController.getAnnuallyiwaiVesselMovementData);
-
-//passenger movement-terminal
-router.post("/passenger-movement-data", PassengerMovementController.createPassengerMovementData);
-router.get("/passenger-movement-data", PassengerMovementController.getPassengerMovementData);
-router.get("/monthly-passenger-movement-data", PassengerMovementController.getMonthlyPassengerMovementData);
-router.get("/quarterly-passenger-movement-data", PassengerMovementController.getQuarterlyPassengerMovementData);
-router.get("/annually-passenger-movement-data", PassengerMovementController.getAnnuallyPassengerMovementData);
-
-//passenger movement-Iwai
-router.post('/iwai-passenger-movement-data', iwaiPassengerController.addiwaiPassengerMovementData);
-router.get('/iwai-passenger-movement-data', iwaiPassengerController.getiwaiPassengerMovementData);
-router.get('/monthly-iwai-passenger-movement-data', iwaiPassengerController.getMonthlyiwaiPassengerMovementData);
-router.get('/quarterly-iwai-passenger-movement-data', iwaiPassengerController.getQuarterlyiwaiPassengerMovementData);
-router.get('/annually-iwai-passenger-movement-data', iwaiPassengerController.getAnnuallyiwaiPassengerMovementData);
-
-//cargo-terminal
-router.post('/cargo-handled-data', cargoHandledController.addCargoHandledData);
-router.get('/cargo-handled-data', cargoHandledController.getCargoHandledData);
-router.get('/monthly-cargo-handled-data', cargoHandledController.getMonthlyCargoHandledData);
-router.get('/quarterly-cargo-handled-data', cargoHandledController.getQuarterlyCargoHandledData);
-router.get('/annually-cargo-handled-data', cargoHandledController.getAnnuallyCargoHandledData);
-
-//Terminals / Jetties (Vessels)
-router.post('/jetties-vessels-data', JettiesVesselsController.addJettiesVesselsData);
-router.get('/jetties-vessels-data', JettiesVesselsController.getJettiesVesselsData);
-router.get('/monthly-jetties-vessels-data', JettiesVesselsController.getMonthlyJettiesVesselsData);
-router.get('/quarterly-jetties-vessels-data', JettiesVesselsController.getQuarterlyJettiesVesselsData);
-router.get('/annually-jetties-vessels-data', JettiesVesselsController.getAnnuallyJettiesVesselsData);
-
-//Vessel Movement
-router.post('/vessel-movement-data', vesselMovementTab.addVesselMovementData);
-router.get('/vessel-movement-data', vesselMovementTab.getVesselMovementData);
-router.get('/monthly-vessel-movement-data', vesselMovementTab.getMonthlyVesselMovementData);
-router.get('/quarterly-vessel-movement-data', vesselMovementTab.getQuarterlyVesselMovementData);
-router.get('/annually-vessel-movement-data', vesselMovementTab.getAnnuallyVesselMovementData);
-
-//Passenger Movement 
-router.post('/passenger-terminal-data', PassengerTerminalController.addPassengerTerminalData);
-router.get('/passenger-terminal-data', PassengerTerminalController.getPassengerTerminalData);
-router.get('/monthly-passenger-terminal-data', PassengerTerminalController.getMonthlyPassengerTerminalData);
-router.get('/quarterly-passenger-terminal-data', PassengerTerminalController.getQuarterlyPassengerTerminalData);
-router.get('/annually-passenger-terminal-data', PassengerTerminalController.getAnnuallyPassengerTerminalData);
-
-// cargo-terminal
-router.post('/cargo-terminal-data', cargoTerminalController.addCargoTerminalData);
-router.get('/cargo-terminal-data', cargoTerminalController.getCargoTerminalData);
-router.get('/monthly-cargo-terminal-data', cargoTerminalController.getMonthlyCargoTerminalData);
-router.get('/quarterly-cargo-terminal-data', cargoTerminalController.getQuarterlyCargoTerminalData);
-router.get('/annually-cargo-terminal-data', cargoTerminalController.getAnnuallyCargoTerminalData);
 
 
 //Major Ports Data
@@ -3113,31 +2870,6 @@ router.post("/meeting", auth, requireModulePermission("MIV_2030", "create"), MIV
 router.get("/meeting/download/:id", MIVTab.downloadMeeting);
 // router.get('/meeting-no', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getNoOfMeetings);
 
-router.post("/mom-of-psw-meeting", momOfPswMeetingsTab.createMOM);
-router.post("/mom-of-psw-meeting-edit", momOfPswMeetingsTab.createMOMedit);
-router.post("/mom-of-file-psw", momOfPswMeetingsTab.upload.single('file'), momOfPswMeetingsTab.addNewMOMFile);
-router.get('/meeting-status-summary/:roleID/:userID/:organisationID/:WingId', momOfPswMeetingsTab.getMeetingStatusSummary);
-router.get('/meeting-status-summary-edit/:roleID/:userID/:organisationID/:WingId', momOfPswMeetingsTab.getMeetingStatusSummaryedit);
-router.get("/view-post-mom-request/:meetingId/:status", momOfPswMeetingsTab.addMOMRequest);
-router.post("/actionpointdocument", momOfPswMeetingsTab.upload.single('file'),momOfPswMeetingsTab.addNewactionpointsFileupload);
-router.put("/update-action-points-fileupload",momOfPswMeetingsTab.updateActionPointfileupload);
-router.get("/download-actionpoints-pdf-document", momOfPswMeetingsTab.actionpointsPdfFileDownload);
-router.delete("/delete-actionpointsfile", momOfPswMeetingsTab.actionpointsfileDelete);
-router.delete("/delete-momfile", momOfPswMeetingsTab.momfileDelete);
-router.get("/mompsw-report", momOfPswMeetingsTab.getmomofPswReport);
-router.get('/mompsw-report-data/:meetingId', momOfPswMeetingsTab.getmomofPswReportdata);
-
-
-//Amrit Kaal Vision 
-router.get('/AKV-data', AKVTab.getAKVData);
-router.post('/AKV-data', AKVTab.createAKVData);
-router.put('/AKV-data-update', AKVTab.editAKVData);
-router.get("/AKV-datas/:ID", AKVTab.getUpdateAKV);
-router.post('/AKV-data/upload-files', AKVTab.uploadAKVFiles);
-router.get('/akv-report', AKVTab.getAmritReport);
-router.get('/get-akv-initiative-name/:initiativeID', AKVTab.getAKVInitiativeName);
-router.get('/AKV-Entity-data', AKVTab.getAKVEntityData);
-router.get('/MIV-initiative-count', AKVTab.MIVInitiativeID);
 
 //Knowledge Repository
 router.post('/add-knowledge-rep', KRTab.addKnowledgeRepositoryFile);
@@ -3147,7 +2879,6 @@ router.post("/kr/upload-files", KRTab.upload.single('file'), KRTab.krUploadFiles
 router.get("/kr-document/download/:filename", KRTab.downloadKRDocument);
 router.get('/knowledge-rep-key/:docID', KRTab.getKnowledgeRepositoryKey);
 router.delete("/delete-knowledge-rep/:id/:documentType", auth, KRTab.deleteKnowledgeRepository);
-router.get("/kr/user-manual", userManualMenu.krManual);
 
 // One vision one document (Drishti Portal / OVOD)
 // These routes carried no module check, so any signed-in user could read and write every
@@ -3200,14 +2931,6 @@ router.get('/get-logical-queries-mail/:moduleId', dashboardController.getLogical
 router.get('/get-cc-logical-queries-mail/:moduleId', dashboardController.getCCEmailsForLogicalQueries);
 router.get('/get-module-name/:moduleId', dashboardController.getModuleName);
 router.get('/get-user-details-for-mail/:userId', dashboardController.getUserDetailsForMail);
-
-//cruise ports
-router.post('/submit-cruise-port', cruisePortsTab.submitCruisePortsData);
-router.get('/get-cruise-ports-report-data', cruisePortsTab.getCruisePortsReportData);
-router.get('/get-cruise-ports-data', cruisePortsTab.getCruisePortsDataByYearAndMonth);
-router.get("/cruise-list/:roleID/:organisationID", cruisePortsTab. getcruisepassengersData);
-router.get("/update-cruise-shipping-data/:CruiseShippingId", cruisePortsTab.getUpdateCruiseShippingdata);
-router.put('/update-cruise-data-edit',cruisePortsTab.updateCruiseshippingData);
 
 
 // GMIS & IMW MoU Tracking
@@ -3317,33 +3040,6 @@ router.get("/cruise-and-passenger-traffic-actual", getKpiCruiseAndPassengerActua
 router.get("/cruise-and-passenger-traffic-target", getKpiCruiseAndPassengerTarget);
 router.get("/traffic-kpi-actual", getKpiTrafficActual);
 router.get("/kpi-port-performance-actual", getKpiPortPerformanceActual);
-
-// MoPSW Tracker
-router.get("/download-tracker-excel", mopswTracker.downloadTrackerExcel);
-//CMEC
-router.post("/add-cmec-researchers-data",CMECTabList.addcmecResearchersdata);
-router.get("/cmec-Research-list/:userID", CMECTabList.getcmecResearchList);
-router.get("/update-cmec-research-data/:cmecResearchId",CMECTabList.getUpdatecmecResearchdata);
-router.put('/cmec-resaerch-update-data',CMECTabList.updatecmecResearchesData);
-router.get('/get-cmec-year-wise-report',CMECTabList.getCmecYearWiseReport);
-
-router.post("/add-cmec-publications-data",CMECTabList.addcmecPublicationdata);
-router.get("/cmec-Publications-list/:userID",CMECTabList.getcPublicationsdataList);
-router.get("/update-cmec-publications-data/:cmecPublicationsId",CMECTabList.getUpdatecmecPublicationsdata);
-router.put('/cmec-publications-update-data',CMECTabList.updatecmecPublicationsData);
-
-router.post("/add-policy-advisory-data",CMECTabList.addcmecPolicyAdvisoryNotes);
-router.post("/cmecdocumentuploader", CMECTabList.upload.single('file'),CMECTabList.addNewcmecFileupload);
-router.get("/policy-advisory-list/:userID",CMECTabList.getcmecpolicyAdvisorydataList);
-router.get("/cmec-list/:cmecAdvisoryId", CMECTabList.getUpdateCmecAdvisoryData);
-router.get("/download-cmecfile-pdf-document", CMECTabList.cmecPdfFileDownload);
-router.delete("/delete-cmecfile", CMECTabList.cmecfileDelete);
-router.put("/update-cmec-list", CMECTabList.updatecmecpolicyAdvisorydata);
-
-router.post("/add-cmec-maritime-talks-data",CMECTabList.addcmecMaritimetalksdata);
-router.get("/maritime-public-list/:userID",CMECTabList.getcmecmaritimedataList);
-router.get("/update-cmec-maritime-data/:cmecmaritimeId",CMECTabList.getUpdatecmecMaritimedata);
-router.put('/cmec-Maritime-talks-update-data',CMECTabList.updatecmecMaritimeTalksData);
 
 
 router.get("/traffic-liquid-bulk-single-leg", getLiquidBulkSingleLeg);
