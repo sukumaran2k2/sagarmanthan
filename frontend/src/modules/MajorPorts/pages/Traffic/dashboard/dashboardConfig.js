@@ -44,12 +44,13 @@ const callSizeIcon = (index) => CALL_SIZE_ICONS[index % CALL_SIZE_ICONS.length];
 export const DASHBOARD_PANELS = [
   { id: 'overall', label: 'Overall', icon: 'bars', heading: 'Overall KPI Summary', type: 'overall' },
   {
-    id: 'traffic-cargo',
-    label: 'Traffic',
-    icon: 'ship',
-    heading: 'Traffic',
-    sub: 'Overview of traffic and throughput',
-    sections: [{
+  id: 'traffic-cargo',
+  label: 'Traffic',
+  icon: 'ship',
+  heading: 'Traffic',
+  sub: 'Overview of traffic and throughput',
+  sections: [
+    {
       cards: [
         card('Total Traffic (In MMT)', 'ship', 'traffic', 'total_traffic', { drillType: 'traffic', kpi: 'traffic' }),
         card('Traffic - Container (In MMT)', 'up', 'cargo', null, {
@@ -72,6 +73,10 @@ export const DASHBOARD_PANELS = [
           fields: { current: 'total_traffic_container_teus_current', last: 'total_traffic_container_teus_last', yoy: 'total_traffic_yoy_container_teus' },
           drillType: 'cargo', kpi: 'total_traffic_container_teus',
         }),
+      ],
+    },
+    {
+      cards: [
         coastal('Total Coastal Traffic (In MMT)', 'ship', 'total_coastal_traffic', 'total-coastal-traffic'),
         coastal('Coastal Traffic - Container (In MMT)', 'up', 'container_tonnes', 'coastal_traffic_container'),
         coastal('Coastal Traffic - Dry Bulk (In MMT)', 'clock', 'dry', 'coastal_traffic_dry'),
@@ -79,8 +84,9 @@ export const DASHBOARD_PANELS = [
         coastal('Coastal Traffic - Liquid Bulk (In MMT)', 'down', 'liquid', 'coastal_traffic_liquid'),
         coastal('Coastal Traffic - Container (In 000 TEUs)', 'down', 'container_teus', 'coastal_traffic_container_teus', 'WN'),
       ],
-    }],
-  },
+    },
+  ],
+},
   {
     id: 'avg-trt',
     label: 'Turnaround Time',
@@ -326,7 +332,7 @@ export const OVERALL_ROWS = [
 // Commodity codes are the earlier portal's: 4 Container (MMT), 5 Container (TEUs), 2 Dry, 3 Break, 1 Liquid, 6 Overall
 export const SUMMARY_COMMODITIES = [
   { value: '4', label: 'Container(In MMT)' },
-  { value: '5', label: 'Container(In TEUs)' },
+  { value: '5', label: 'Container(In 1000 TEUs)' },
   { value: '2', label: 'Dry Bulk(In MMT)', groupId: 2 },
   { value: '3', label: 'Break Bulk(In MMT)', groupId: 3 },
   { value: '1', label: 'Liquid Bulk(In MMT)', groupId: 1 },

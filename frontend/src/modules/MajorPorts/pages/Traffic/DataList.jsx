@@ -60,7 +60,7 @@ function buildColumns(view, isMinistryView) {
       ...period,
       ...organisation,
       num('ro_ro_traffic', "Ro-Ro Traffic ('000 Tonnes)", { minWidth: 180, emphasis: true }),
-      num('ro_pax_traffic', "Ro-Pax Traffic ('000 Tonnes / Number)", { minWidth: 200 }),
+      num('ro_pax_traffic', "Ro-Pax Traffic ('000 Tonnes )", { minWidth: 200 }),
       { field: 'last_updated', label: 'Last Updated', minWidth: 130, format: formatDate, exportValue: (r) => formatDate(r.last_updated) },
     ];
   }
@@ -71,7 +71,7 @@ function buildColumns(view, isMinistryView) {
     num('total_tonnes', "Total ('000 Tonnes)", { minWidth: 150, emphasis: true }),
     num('total_teu', "Total ('000 TEUs)", { minWidth: 150, emphasis: true }),
     num('ro_ro_traffic', "Ro-Ro ('000 Tonnes)", { minWidth: 140 }),
-    num('ro_pax_traffic', "Ro-Pax ('000 Tonnes / No.)", { minWidth: 160 }),
+    num('ro_pax_traffic', "Ro-Pax ('000 Tonnes.)", { minWidth: 160 }),
     { field: 'commodity_count', label: 'Commodities', minWidth: 120, numeric: true },
     { field: 'last_updated', label: 'Last Updated', minWidth: 130, format: formatDate, exportValue: (r) => formatDate(r.last_updated) },
   ];

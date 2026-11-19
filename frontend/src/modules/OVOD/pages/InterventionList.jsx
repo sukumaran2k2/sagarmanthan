@@ -1749,7 +1749,7 @@ export default function InterventionList({ triggerNotification }) {
     { label: 'Implementing Agency', key: 'orgCode' },
     { label: 'Current Status', key: 'currentStatus' },
     { label: 'Progress (%)', key: 'progress' },
-    { label: 'Total Cost (₹ Cr.)', key: 'totalCost' },
+    { label: 'Total Cost ( Cr.)', key: 'totalCost' },
     { label: 'Target Date', key: 'targetDate' },
     { label: 'Category', key: 'jobTitle' },
     { label: 'Wing', key: 'wing' },
@@ -1830,7 +1830,7 @@ export default function InterventionList({ triggerNotification }) {
       const safeFixed = (v) => { const n = Number(v); return (v == null || v === '-' || isNaN(n)) ? '' : n.toFixed(2).replace(/\.00$/, ''); };
       const safeNum   = (v) => { const n = Number(v); return (v == null || v === '-' || isNaN(n)) ? '' : n; };
 
-      const headers = ['Level','Name','Implementing Agency','Current Status','Progress (%)','Total Cost (₹ Cr.)','Target Date','Category','Wing','Priority','Vibhas','Capital Exp. (₹ Cr.)','Source of Funding','Fund Spent (₹ Cr.)','Fund Req. ≤1 Yr','Fund Req. ≤3 Yr','Fund Req. 3-5 Yr','Fund Req. >5 Yr','Remarks'];
+      const headers = ['Level','Name','Implementing Agency','Current Status','Progress (%)','Total Cost ( Cr.)','Target Date','Category','Wing','Priority','Vibhas','Capital Exp. (₹ Cr.)','Source of Funding','Fund Spent (₹ Cr.)','Fund Req. ≤1 Yr','Fund Req. ≤3 Yr','Fund Req. 3-5 Yr','Fund Req. >5 Yr','Remarks'];
       const sheetRows = [headers];
 
       rawData.forEach(r => {
@@ -1870,23 +1870,30 @@ export default function InterventionList({ triggerNotification }) {
     }
   };
 
-  const handleTreePdfExport = async () => {
+    const handleTreePdfExport = async () => {
     if (!rawData.length) { triggerNotification?.('No data to export.', 'warning'); return; }
     triggerNotification?.('Generating PDF…', 'info');
     try {
       const { default: jsPDF } = await import('jspdf');
       const { default: autoTable } = await import('jspdf-autotable');
       const safeFixed = (v) => { const n = Number(v); return (v == null || v === '-' || isNaN(n)) ? '-' : n.toFixed(2).replace(/\.00$/, ''); };
-      const safeNum   = (v) => { const n = Number(v); return (v == null || v === '-' || isNaN(n)) ? '-' : n; };
+      const safeNum   = (v) => { const n = Number(v); return (v == null || v === '-' || isNaN(n)) ? '-' : String(n); };
 
-      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a3' });
+      // A2 landscape gives enough width for all 19 columns
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a2' });
       const dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-      doc.setFontSize(13); doc.setTextColor(15, 65, 122); doc.setFont(undefined, 'bold');
-      doc.text('OVOD INTERVENTION LIST', 28, 32);
-      doc.setFontSize(8); doc.setTextColor(100, 116, 139); doc.setFont(undefined, 'normal');
-      doc.text(`Ministry of Ports, Shipping and Waterways  |  Generated on: ${dateStr}`, 28, 44);
+      doc.setFontSize(15); doc.setTextColor(15, 65, 122); doc.setFont(undefined, 'bold');
+      doc.text('OVOD INTERVENTION LIST', 28, 34);
+      doc.setFontSize(9); doc.setTextColor(100, 116, 139); doc.setFont(undefined, 'normal');
+      doc.text(`Ministry of Ports, Shipping and Waterways  |  Generated on: ${dateStr}`, 28, 48);
 
-      const colHeaders = ['Level','Intervention / Goal / Action','Implementing Agency','Status','Progress','Total Cost (₹ Cr.)','Target Date','Fund Spent','Remarks'];
+      const colHeaders = [
+        'Level', 'Intervention / Goal / Action', 'Implementing Agency', 'Current Status',
+        'Progress (%)', 'Total Cost ( Cr.)', 'Category', 'Wing', 'Priority', 'Vibhas',
+        'Target Date', 'Capital Expenditure (₹ Cr.)', 'Source of Funding', 'Fund Spent (₹ Cr.)',
+        'Fund Req. 1 Year (₹ Cr.)', 'Fund Req. 3 Years (₹ Cr.)', 'Fund Req. >3 up to 5 Years (₹ Cr.)',
+        'Fund Req. >5 Years (₹ Cr.)', 'Remarks'
+      ];
 
       const body = rawData.map(r => {
         const leftPad = 4 + r.level * 10;
@@ -1897,23 +1904,59 @@ export default function InterventionList({ triggerNotification }) {
           r.currentStatus || '-',
           r.progress != null ? `${r.progress}%` : '0%',
           safeFixed(r.totalCost),
+          r.jobTitle || '-',
+          r.wing || '-',
+          r.employmentType || '-',
+          r.Vibhas || '-',
           r.TargetDate || '-',
+          safeFixed(r.capitalExpenditure),
+          r.sourceOfFunding || '-',
           safeFixed(r.fundSpend),
+          safeNum(r.fundReq1Yr),
+          safeNum(r.fundReq2Yrs),
+          safeNum(r.fundReq2to5Yrs),
+          safeNum(r.fundReqGt5Yrs),
           r.remarks || '-',
         ];
       });
 
+            // A2 landscape = ~1684pt wide; usable width = 1684 - 28 - 28 = 1628pt
+      // Fixed widths below add up to 1456pt, so Remarks gets the remaining ~172pt
       autoTable(doc, {
-        startY: 54,
+        startY: 58,
         head: [colHeaders],
         body,
-        headStyles: { fillColor: [15, 65, 122], textColor: 255, fontStyle: 'bold', fontSize: 7 },
-        styles: { fontSize: 6.5, cellPadding: 3, overflow: 'linebreak', font: 'helvetica' },
-        columnStyles: { 1: { cellWidth: 180 } },
+        tableWidth: 1628,
+        headStyles: {
+          fillColor: [15, 65, 122], textColor: 255, fontStyle: 'bold',
+          fontSize: 8, halign: 'center', valign: 'middle', cellPadding: 4,
+        },
+        styles: { fontSize: 7.5, cellPadding: 4, overflow: 'linebreak', font: 'helvetica', valign: 'middle' },
+        columnStyles: {
+          0:  { cellWidth: 36,  halign: 'center' },  // Level
+          1:  { cellWidth: 260 },                    // Intervention / Goal / Action
+          2:  { cellWidth: 90 },                     // Implementing Agency
+          3:  { cellWidth: 95 },                     // Current Status
+          4:  { cellWidth: 55,  halign: 'center' },  // Progress
+          5:  { cellWidth: 100, halign: 'center' },  // Total Cost
+          6:  { cellWidth: 90 },                     // Category
+          7:  { cellWidth: 70 },                     // Wing
+          8:  { cellWidth: 50,  halign: 'center' },  // Priority
+          9:  { cellWidth: 100 },                    // Vibhas
+          10: { cellWidth: 65,  halign: 'center' },  // Target Date
+          11: { cellWidth: 75,  halign: 'center' },  // Capital Expenditure
+          12: { cellWidth: 90 },                     // Source of Funding
+          13: { cellWidth: 65,  halign: 'center' },  // Fund Spent
+          14: { cellWidth: 60,  halign: 'center' },  // Fund Req 1 Year
+          15: { cellWidth: 60,  halign: 'center' },  // Fund Req 3 Years
+          16: { cellWidth: 70,  halign: 'center' },  // Fund Req >3 up to 5
+          17: { cellWidth: 60,  halign: 'center' },  // Fund Req >5
+          18: { cellWidth: 'auto' },                 // Remarks (remaining width)
+        },
         margin: { left: 28, right: 28 },
         tableLineColor: [226, 232, 240],
         tableLineWidth: 0.3,
-        // Colour each row by its hierarchy level
+        showHead: 'everyPage',
         willDrawCell: (data) => {
           if (data.section !== 'body') return;
           const r = rawData[data.row.index];
@@ -1930,8 +1973,8 @@ export default function InterventionList({ triggerNotification }) {
       const pageH = doc.internal.pageSize.getHeight();
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
-        doc.setFontSize(7); doc.setTextColor(150, 150, 150);
-        doc.text(`Page ${i} of ${totalPages}`, pageW - 60, pageH - 12);
+        doc.setFontSize(8); doc.setTextColor(150, 150, 150);
+        doc.text(`Page ${i} of ${totalPages}`, pageW - 70, pageH - 14);
       }
 
       doc.save('OVOD_Intervention_List.pdf');
