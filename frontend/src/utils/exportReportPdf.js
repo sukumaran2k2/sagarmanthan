@@ -17,18 +17,60 @@ import { cellText } from './cellText';
 //     columnDefs: [{ headerName, field }],  // ag-Grid style column defs
 //     rowData: [{...}],                     // row objects keyed by field
 //     fileName: 'csl_vessels_built_report', // without extension
+//     wideTable: undefined,                 // OPTIONAL, see below
 //   });
+//
+// wideTable (optional):
+//   - not passed (undefined): AUTO. Tables with more than AUTO_WIDE.a4MaxCols
+//     columns use the wide layout below; all others stay on A4 as before.
+//   - null: force the old A4 layout for this report.
+//   - object: override the defaults for this report.
+//   For reports with many columns.
+//   - Few columns (<= a4MaxCols): normal A4 landscape, exactly as before.
+//   - More columns: A3 landscape, fixed column widths, and the extra columns
+//     continue on following pages with the first columns repeated
+//     (e.g. S.NO and DEPARTMENT), so text is never squeezed.
+//   {
+//     colWidth: 85,                // width (pt) of every column not listed below
+//     firstColWidths: [30, 120],   // widths (pt) of the first columns, by index
+//     fontSize: 7,                 // table font size
+//     a4MaxCols: 10,               // up to this many columns stay on A4
+//     repeatCols: 2,               // first N columns repeated on every page
+//   }
+// Default wide layout, applied automatically when a table has many columns.
+const AUTO_WIDE = {
+  firstColWidths: [30, 120], // S.NO, first label column
+  colWidth: 85,
+  fontSize: 7,
+  a4MaxCols: 12,             // up to this many columns stay on A4
+  repeatCols: 2,             // first N columns repeated on every page
+};
+
 export async function exportReportToPdf({
   title,
   chartRoots = [],
   columnDefs = [],
   rowData = [],
   fileName = 'report',
+  wideTable: wideTableOption, // undefined = auto, null = force normal A4
 }) {
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+  const wideTable = wideTableOption === undefined
+    ? (columnDefs.length > AUTO_WIDE.a4MaxCols ? AUTO_WIDE : null)
+    : wideTableOption;
+
+  // Wide layout only when requested AND the table has many columns;
+  // otherwise exactly the old A4 landscape page.
+  const useWide = !!wideTable && columnDefs.length > (wideTable.a4MaxCols ?? 10);
+  const widthOf = (i) =>
+    (wideTable?.firstColWidths?.[i] ?? wideTable?.colWidth ?? 85);
+    // Page grows with the column count so every column fits on one page width
+  const pageW = Math.max(842, columnDefs.length * 58 + 64);
+  const pageH = Math.round(pageW * 0.707);
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: [pageW, pageH] });
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 32;
   let cursorY = margin;
+ 
 
   // Title
   doc.setFontSize(14);
@@ -52,7 +94,10 @@ export async function exportReportToPdf({
       const exporting = am5exporting.Exporting.new(root, { pngOptions: { quality: 1 } });
       const canvas = await exporting.getCanvas({ quality: 1 });
       const imgData = canvas.toDataURL('image/png');
-      const imgWidth = pageWidth - margin * 2;
+      // In wide mode, cap the chart width so it doesn't stretch across the whole wide page
+      const imgWidth = useWide
+        ? Math.min(800, pageWidth - margin * 2)
+        : pageWidth - margin * 2;
       const imgHeight = (canvas.height / canvas.width) * imgWidth;
 
       // Start a new page if the chart won't fit on the current one
@@ -76,15 +121,26 @@ export async function exportReportToPdf({
       const val = row[c.field];
       return val === null || val === undefined ? '' : String(val);
     }));
+    const firstHeader = String(head[0][0] || '').toLowerCase().replace(/[\s.]/g, '');
+const hasSerialCol = ['sno', 'srno', 'slno', 'serialno', '#'].includes(firstHeader);
 
-    autoTable(doc, {
+const columnStyles = hasSerialCol
+  ? { 0: { cellWidth: 34 }, 1: { cellWidth: 130, halign: 'left' } }
+  : { 0: { cellWidth: 130, halign: 'left' } };
+
+        autoTable(doc, {
       head,
       body,
       startY: cursorY,
       margin: { left: margin, right: margin },
-      styles: { fontSize: 8, cellPadding: 5, halign: 'center' },
-      headStyles: { fillColor: [75, 36, 36], textColor: 255, fontStyle: 'bold' },
+      tableWidth: pageWidth - margin * 2,      // fill the full page width
+      showHead: 'everyPage',
+      theme: 'grid',
+      styles: { fontSize: 8, cellPadding: 3, halign: 'center', valign: 'middle', overflow: 'linebreak' },
+      headStyles: { fillColor: [75, 36, 36], textColor: 255, fontStyle: 'bold', fontSize: 7.5, cellPadding: 2 },
       alternateRowStyles: { fillColor: [248, 250, 246] },
+      columnStyles
+      
     });
   }
 
@@ -154,4 +210,3 @@ export function exportDataListToPdf({
   const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
   doc.save(`${fileName}_${stamp}.pdf`);
 }
-
