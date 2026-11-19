@@ -216,40 +216,6 @@ async function krUploadFiles(req, res) {
             `;
            
         } 
-        // else {
-
-        //     const checkRecord = await conn.query(`
-        //         SELECT COUNT(*) AS recordCount
-        //         FROM tbl_IT_inter_state_file
-        //         WHERE Inter_state_ID = ${ID}
-        //     `);
-
-        //     const recordCount = checkRecord.recordset[0].recordCount;
-
-        //     if (recordCount === 1) {
-        //         const docName = await conn.query(`
-        //             SELECT file_name as name
-        //             FROM tbl_IT_inter_state_file
-        //             WHERE Inter_state_ID = ${ID}
-        //         `);
-
-        //         const name = docName.recordset[0].name;
-        //         if (name) {
-        //             deleteFile(name);
-        //         }
-
-        //         sqlQuery = `
-        //             UPDATE tbl_IT_inter_state_file
-        //             SET file_name = @fileName
-        //             WHERE Inter_state_ID = ${ID}
-        //         `;
-        //     } else {
-        //         sqlQuery = `
-        //             INSERT INTO tbl_IT_inter_state_file (Inter_state_ID, file_name)
-        //             VALUES (${ID}, @fileName)
-        //         `;
-        //     }
-        // }
 
         // Execute the SQL query
         await request.query(sqlQuery);
