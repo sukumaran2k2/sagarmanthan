@@ -13,7 +13,8 @@ export default function LoginCard({
   isSubmitting,
   dispatch,
   onSubmit,
-  onForgotPasswordClick
+  onForgotPasswordClick,
+  captchaResetKey
 }) {
   return (
     <form onSubmit={onSubmit} className="space-y-3 sm:space-y-5">
@@ -103,6 +104,7 @@ export default function LoginCard({
       <div className="w-full bg-white/5 p-2 rounded-lg border border-white/10 shadow-inner overflow-hidden">
         <ResponsiveRecaptcha
           sitekey={RECAPTCHA_SITE_KEY}
+          resetKey={captchaResetKey}
           onChange={(val) => {
             dispatch({ type: 'SET_FIELD', field: 'recaptchaToken', value: val || "" });
             dispatch({ type: 'SET_FIELD', field: 'captchaVerified', value: !!val });

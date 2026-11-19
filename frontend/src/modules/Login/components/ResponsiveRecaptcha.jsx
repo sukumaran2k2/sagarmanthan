@@ -9,7 +9,10 @@ import ReCAPTCHA from 'react-google-recaptcha';
 const RECAPTCHA_WIDTH = 304;
 const RECAPTCHA_HEIGHT = 78;
 
-export default function ResponsiveRecaptcha({ sitekey, onChange, theme = 'light' }) {
+// resetKey: change it to redraw a fresh, unticked widget. A reCAPTCHA answer
+// can be checked by the server only once, so after a failed attempt the old
+// tick is used up and the user has to tick again.
+export default function ResponsiveRecaptcha({ sitekey, onChange, theme = 'light', resetKey = 0 }) {
   const containerRef = useRef(null);
   const [scale, setScale] = useState(1);
 
@@ -31,7 +34,7 @@ export default function ResponsiveRecaptcha({ sitekey, onChange, theme = 'light'
   return (
     <div ref={containerRef} className="w-full flex justify-center" style={{ height: RECAPTCHA_HEIGHT * scale }}>
       <div style={{ width: RECAPTCHA_WIDTH, transform: `scale(${scale})`, transformOrigin: 'top center' }}>
-        <ReCAPTCHA sitekey={sitekey} onChange={onChange} theme={theme} />
+        <ReCAPTCHA key={resetKey} sitekey={sitekey} onChange={onChange} theme={theme} />
       </div>
     </div>
   );
