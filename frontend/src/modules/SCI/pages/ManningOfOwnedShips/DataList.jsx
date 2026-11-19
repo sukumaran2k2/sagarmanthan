@@ -97,7 +97,7 @@ export default function ManningOfOwnedShipsDataList({
   };
 
   const colDefs = useMemo(() => [
-    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1 + (page - 1) * pageSize, width: 70, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
+    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1 + (page - 1) * pageSize, width: 90, minWidth: 90, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
     ...(visibleCols.financial_year ? [{ headerName: 'Financial Year', field: 'financial_year', flex: 1, minWidth: 140, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
     ...(visibleCols.no_of_old_vessels_audited_compliance ? [{ headerName: 'Number of Vessels Audited for Compliance', field: 'no_of_old_vessels_audited_compliance', flex: 1.4, minWidth: 250, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
     ...(visibleCols.no_of_ships_fully_complaint_stwc_and_mlc ? [{ headerName: 'Ships Fully Compliant with STCW & MLC', field: 'no_of_ships_fully_complaint_stwc_and_mlc', flex: 1.4, minWidth: 250, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),

@@ -97,7 +97,7 @@ export default function SecondhandVesselProcurementDataList({
   };
 
   const colDefs = useMemo(() => [
-    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1 + (page - 1) * pageSize, width: 70, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
+    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1 + (page - 1) * pageSize, width: 90, minWidth: 90, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
     ...(visibleCols.financial_year ? [{ headerName: 'Financial Year', field: 'financial_year', flex: 1, minWidth: 140, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
     ...(visibleCols.total_no_of_secondhand_ships_procured ? [{ headerName: 'Total Secondhand Ships Procured', field: 'total_no_of_secondhand_ships_procured', flex: 1.3, minWidth: 220, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
     ...(visibleCols.average_age_of_secondhand_ships_procured ? [{ headerName: 'Average Age', field: 'average_age_of_secondhand_ships_procured', flex: 1, minWidth: 140, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700', valueFormatter: (p) => p.value != null && p.value !== '' ? p.value : '—' }] : []),

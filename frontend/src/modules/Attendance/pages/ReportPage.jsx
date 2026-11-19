@@ -169,7 +169,7 @@ export default function ReportPage({ notify, years }) {
 
   const detailKeys = useMemo(() => (detailRows[0] ? Object.keys(detailRows[0]) : []), [detailRows]);
   const detailColumns = useMemo(() => [
-    { headerName: 'S.No', width: 70, pinned: 'left', valueGetter: (p) => p.node.rowIndex + 1, cellClass: 'font-bold text-slate-500 text-center flex items-center justify-center' },
+    { headerName: 'S.No', width: 90, minWidth: 90, pinned: 'left', valueGetter: (p) => p.node.rowIndex + 1, cellClass: 'font-bold text-slate-500 text-center flex items-center justify-center' },
     ...detailKeys.map((key) => ({
       headerName: key,
       field: key,

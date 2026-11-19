@@ -54,7 +54,7 @@ export default function FilesPage({ notify, reloadKey, canDelete, onDeleted }) {
     };
     return [
       {
-        headerName: 'S.No', width: 80, pinned: 'left',
+        headerName: 'S.No', width: 90, minWidth: 90, pinned: 'left',
         valueGetter: (p) => p.node.rowIndex + 1,
         cellClass: 'font-bold text-slate-500 text-center flex items-center justify-center',
       },
