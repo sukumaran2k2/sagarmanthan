@@ -437,7 +437,7 @@ export default function TrafficWizardForm({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {[
               { key: 'roRoTraffic', title: 'Ro-Ro Traffic', label: "Total Ro-Ro Traffic ('000 Tonnes)", value: roRoTraffic, set: setRoRoTraffic, placeholder: 'e.g. 12.50' },
-              { key: 'roPaxTraffic', title: 'Ro-Pax Traffic', label: "Total Ro-Pax Traffic ('000 Tonnes / Number)", value: roPaxTraffic, set: setRoPaxTraffic, placeholder: 'e.g. 3.25' },
+              { key: 'roPaxTraffic', title: 'Ro-Pax Traffic', label: "Total Ro-Pax Traffic ('000 Tonnes)", value: roPaxTraffic, set: setRoPaxTraffic, placeholder: 'e.g. 3.25' },
             ].map((field) => (
               <div key={field.key} className="rounded-2xl border border-slate-200 dark:border-slate-800 p-4">
                 <h4 className="module-form-section-title !mt-0">{field.title}</h4>

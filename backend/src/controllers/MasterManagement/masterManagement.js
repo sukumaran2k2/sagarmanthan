@@ -958,8 +958,8 @@ async function updateMmt(req, res)
             query = "UPDATE mmt_project_category SET project_category_name = @name, broad_category_id = COALESCE(@broadCategoryId, broad_category_id), status = COALESCE(@status, status) WHERE project_category_id = @ID";
             break;
 
-        case "mmt_wings":
-            query = "UPDATE mmt_wings SET wing_name = @name, status = COALESCE(@status, status) WHERE wing_id = @ID";
+       case "mmt_wings":
+            query = "UPDATE mmt_wings SET wing_name = @name, wing_code = COALESCE(@code, wing_code), status = COALESCE(@status, status) WHERE wing_id = @ID";
             break;
 
         case "mmt_department":
@@ -976,11 +976,12 @@ async function updateMmt(req, res)
             break;
 
          case "mmt_division":
-            query = "UPDATE mmt_division SET division_name = @name, wing_id = @wingId, status = COALESCE(@status, status) WHERE division_id = @ID";
+            query = "UPDATE mmt_division SET division_name = @name, wing_id = @wingId, division_code = COALESCE(@code, division_code), status = COALESCE(@status, status) WHERE division_id = @ID";
             break;
 
         case "mmt_section":
-            query = "UPDATE mmt_section SET section_name = @name, division_id = @divId, status = COALESCE(@status, status) WHERE section_id = @ID";
+            request.input("sectionCode", req.body.sectionCode);
+            query = "UPDATE mmt_section SET section_name = @name, division_id = @divId, section_code = COALESCE(@sectionCode, section_code), status = COALESCE(@status, status) WHERE section_id = @ID";
             break;
 
         case "mmt_mp_constituency":

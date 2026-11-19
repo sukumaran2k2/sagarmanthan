@@ -254,6 +254,7 @@ export default function MasterManagement({ onGoHome, triggerNotification }) {
   const location = useLocation();
   const navigate = useNavigate();
   const gridRef = useRef(null);
+  const pageRef = useRef(0);
 
   const [activeMainTab, setActiveMainTab] = useState('sourceOfFunding');
   const [rowData, setRowData] = useState([]);
@@ -329,8 +330,9 @@ const handleStatusToggle = useCallback(
     return 'input-form';
   }, [location.pathname]);
 
-  const goTab = (tabId) => { closeForm(); navigate(`${BASE}/${tabId}`); };
+  const goTab = (tabId) => { pageRef.current = 0; closeForm(); navigate(`${BASE}/${tabId}`); };
   const fetchData = () => setRefreshKey((k) => k + 1);
+  useEffect(() => { pageRef.current = 0; }, [activeMainTab]);
 
   useEffect(() => {
     rbacApi.getCategories()
@@ -597,9 +599,17 @@ const filteredRows = useMemo(() => {
     if (meta.table === 'mmt_outcome' && outputFilter)
       return { label: 'Project Output', name: outputFilter.name, back: backToOutputs, backText: '← Back to Outputs', addText: '+ Add Outcome' };
     if (meta.table === 'mmt_district' && stateFilter)
-            return { label: 'Selected State', name: stateFilter.name, inputOnly: true };
+      return { label: 'Selected State', name: stateFilter.name, inputOnly: true };
     return null;
   }, [meta, outputFilter, stateFilter]);
+
+  const handlePaginationChanged = useCallback((e) => {
+    if (e.newPage) pageRef.current = e.api.paginationGetCurrentPage();
+  }, []);
+
+  const restorePage = useCallback((e) => {
+    if (pageRef.current > 0) e.api.paginationGoToPage(pageRef.current);
+  }, []);
 
 
 
@@ -712,7 +722,7 @@ const filteredRows = useMemo(() => {
                   type="text"
                   value={searchTerm}
                   placeholder="Search this list..."
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => { pageRef.current = 0; setSearchTerm(e.target.value); }}
                   className="h-[38px] px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm"
                 />
               </div>
@@ -771,18 +781,20 @@ const filteredRows = useMemo(() => {
         )}
 
         <div className="ag-theme-quartz w-full">
-          <AgGridReact
-            ref={gridRef}
-            theme="legacy"
-            rowData={filteredRows}
-            columnDefs={gridColumnDefs}
-            defaultColDef={defaultColDef}
-            quickFilterText={searchTerm}
-            pagination={true}
-            paginationPageSize={10}
-            domLayout="autoHeight"
-            overlayNoRowsTemplate="No outcomes found."
-          />
+        <AgGridReact
+  ref={gridRef}
+  theme="legacy"
+  rowData={filteredRows}
+  columnDefs={gridColumnDefs}
+  defaultColDef={defaultColDef}
+  quickFilterText={searchTerm}
+  pagination={true}
+  paginationPageSize={10}
+  domLayout="autoHeight"
+  overlayNoRowsTemplate="No outcomes found."
+  onPaginationChanged={handlePaginationChanged}
+  onFirstDataRendered={restorePage}
+/>
         </div>
       </div>
     )
