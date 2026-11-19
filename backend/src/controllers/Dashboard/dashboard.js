@@ -955,24 +955,6 @@ const moduleConfig = {
     noDataStatus: "No Active Matters",
     completionColumn: "completed_date"
   },
-  "MOM OF PSW Meetings": {
-    table: "tbl_psw_meeting",
-    wingColumn: "wings",
-    dateExpression: "mpm.created_at",
-    alias: "mpm"
-  },
-  "Promotion of Indian Flagged Ships": {
-    table: "tbl_flagged_ship",
-    // wingColumn: "wing",
-    dateExpression: `
-      CASE 
-        WHEN pif.created_date > pif.updated_date 
-        THEN pif.created_date 
-        ELSE pif.updated_date 
-      END
-    `,
-    alias: "pif"
-  },
   "Parliamentary Issues": {
     table: "tbl_parliamentary_issue",
     wingColumn: "wing",
@@ -990,19 +972,6 @@ const moduleConfig = {
         "Reply_send_date"
     ]
   },
-  "Review Items": {
-    table: "tbl_review_items",
-    wingColumn: "primary_coord_wing",
-    dateExpression: `
-      CASE 
-        WHEN ri.created_date > ri.updated_date 
-        THEN ri.created_date 
-        ELSE ri.updated_date 
-      END
-    `,
-    alias: "ri"
-  },
-
   "Foreign Visit": {
   table: "tbl_official_foreign_visit",
 //   wingColumn: "wing",
@@ -1194,7 +1163,7 @@ function buildWingCases(wings, module) {
     }
 
     // Modules without completion columns
-    // Example: Young Professional, Review Items, Foreign Visit, etc.
+    // Example: Young Professional, Foreign Visit, etc.
     return `
       CASE
 
@@ -1311,17 +1280,14 @@ async function getDashboardorganisationview(req, res) {
                 dgll.dgll_last_updated_date,
                 sci.sci_last_updated_date,
                 imu.imu_last_updated_date,
-                cmec.cmec_last_updated_date,
                 ofv.ofv_last_updated_date,
 
                 csr.max_csr_updated_date,
                 emp_last.last_transaction_date AS emp_last_transaction_date,
                 lc.codeCases_max_updated_date,
                 mi.miv_max_updated_date,
-                am.amritkaal_max_updated_date,
                 gm.gmis_max_updated_date,
                 ovd.ovd_last_updated_date,
-                cp.last_cruise_update_date,
                 sm.last_social_media_date
             FROM mmt_organisation o
  
@@ -1378,14 +1344,6 @@ async function getDashboardorganisationview(req, res) {
             ) mi
                 ON mi.organisation_id = o.organisation_id
  
-            -- Amritkaal last updated
-            LEFT JOIN (
-                SELECT organisation_id, MAX(updated_date) AS amritkaal_max_updated_date
-                FROM [sagarmanthan_revamp].[dbo].[tbl_amritkaal]
-                GROUP BY organisation_id
-            ) am
-                ON am.organisation_id = o.organisation_id
- 
             -- GMIS last updated
             LEFT JOIN (
                 SELECT organisation_id, MAX(updated_on) AS gmis_max_updated_date
@@ -1406,14 +1364,6 @@ async function getDashboardorganisationview(req, res) {
             ) ovd
                 ON ovd.organisation_id = o.organisation_id
                 
-            -- Cruise Ports last updated
-            LEFT JOIN (
-                SELECT organisation_id, MAX(CAST(EOMONTH(DATEFROMPARTS(financial_year, month, 1)) AS datetime)) AS last_cruise_update_date
-                FROM tbl_cruise_ports
-                GROUP BY organisation_id
-            ) cp
-                ON cp.organisation_id = o.organisation_id
-
             -- Social Media last updated
                 -- Social Media last updated
 -- Social Media last updated
@@ -1552,17 +1502,6 @@ LEFT JOIN (
             ) x
         ) imu ON 1 = 1
 
-        -- CMEC
-        LEFT JOIN (
-        SELECT MAX(final_date) AS cmec_last_updated_date
-        FROM (
-            SELECT MAX(COALESCE(updated_date, created_date)) AS final_date FROM tbl_cmec_researchers
-            UNION ALL SELECT MAX(COALESCE(updated_date, created_date)) FROM tbl_cmec_maritime_talks_newsletters
-            UNION ALL SELECT MAX(COALESCE(updated_date, created_date)) FROM tbl_cmec_publications
-            UNION ALL SELECT MAX(COALESCE(updated_date, created_date)) FROM tbl_cmec_policy_advisory_notes
-        ) x
-    ) cmec ON 1 = 1
-
       -- Foreign Visit
         LEFT JOIN (
         SELECT MAX(final_date) AS ofv_last_updated_date
@@ -1591,17 +1530,14 @@ LEFT JOIN (
                 dgll.dgll_last_updated_date,
                 sci.sci_last_updated_date,
                 imu.imu_last_updated_date,
-                cmec.cmec_last_updated_date,
                 ofv.ofv_last_updated_date,
 
 
                 emp_last.last_transaction_date,
                 lc.codeCases_max_updated_date,
                 mi.miv_max_updated_date,
-                am.amritkaal_max_updated_date,
                 gm.gmis_max_updated_date,
                 ovd.ovd_last_updated_date,
-                cp.last_cruise_update_date,
                 sm.last_social_media_date
 
                 ORDER BY o.organisation_name
