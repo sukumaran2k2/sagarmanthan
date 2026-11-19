@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 
 /* ------------------------------------------------------------------
    Home — storytelling motion graphic, locked to one screen.
-   Scene 1 : compact hero banner
-   Scene 2 : three chapters that take the middle of the screen
+   A single background video plays behind every scene.
+   Scene 1 : title + the three chapters, stacked left-aligned beneath it
    Scene 3 : the ocean — rolling waves + sailing ship pinned to the
              bottom of the window
    The stage measures the space left under the header/tabs and above
@@ -77,7 +77,18 @@ function WaveBand({ className, opacity, duration, fill }) {
 export default function LandingView() {
   const rootRef = useRef(null);
   const heroRef = useRef(null);
+  const heroVideoRef = useRef(null);
   const [active, setActive] = useState(0);
+
+  /* Respect reduced-motion for the banner video — CSS can disable the rest of
+     the page's animations, but an autoplaying <video> needs a JS pause */
+  useEffect(() => {
+    const v = heroVideoRef.current;
+    if (!v) return;
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      v.pause();
+    }
+  }, []);
 
   /* Fit the stage to whatever height is left on screen */
   useEffect(() => {
@@ -140,16 +151,14 @@ export default function LandingView() {
     };
   }, []);
 
-  /* Wash the whole page in a white → wave-blue gradient while Home is open */
+  /* Wash the whole page in the same deep navy the video is tinted to, so
+     there's no light flash behind it while it loads — text here is light */
   useEffect(() => {
     const el = rootRef.current;
     const shell = el && el.closest('main') ? el.closest('main').parentElement : null;
     if (!shell) return;
-    const isDark = document.documentElement.classList.contains('dark');
     const prev = shell.style.backgroundImage;
-    shell.style.backgroundImage = isDark
-      ? 'linear-gradient(to bottom, #0b0f19 0%, #0b1220 42%, #0d1b2e 72%, #102a43 100%)'
-      : 'linear-gradient(to bottom, #ffffff 0%, #f6fbff 34%, #eaf6fd 62%, #d8eefb 84%, #c6e5f8 100%)';
+    shell.style.backgroundImage = 'linear-gradient(to bottom, #050b16 0%, #0a1830 45%, #071b33 100%)';
     return () => {
       shell.style.backgroundImage = prev;
     };
@@ -198,8 +207,32 @@ export default function LandingView() {
           --px:0; --py:0; --sm3-h:70vh;
           --sm3-oh: clamp(104px, 18vh, 185px);
           --sm3-gutter: 0px;
+          position:relative;
           height: var(--sm3-h);
           display:flex; flex-direction:column;
+        }
+        /* the joined clip plays behind every scene, full-bleed.
+           <video> is a replaced element: position:absolute + width:auto
+           shrinks it to its intrinsic size instead of stretching, so the
+           bleed width is computed explicitly here rather than via
+           .sm3-bleed's width:auto. */
+        .sm3-bg-video {
+          position:absolute; top:0; bottom:0; z-index:0;
+          left: calc(var(--sm3-gutter) * -1);
+          width: calc(100% + var(--sm3-gutter) * 2);
+          height:100%;
+          object-fit:cover; object-position:50% 50%;
+        }
+        /* dims the footage enough for the title, chapter copy and ocean
+           to all stay legible over it, without masking the video */
+        .sm3-bg-tint {
+          position:absolute; inset:0; z-index:1; pointer-events:none;
+          background: linear-gradient(to bottom,
+            rgba(2,6,23,.74) 0%,
+            rgba(2,6,23,.40) 20%,
+            rgba(2,6,23,.34) 52%,
+            rgba(2,6,23,.46) 76%,
+            rgba(2,6,23,.72) 100%);
         }
         /* edge-to-edge rows: pull out by exactly one gutter on each side */
         .sm3-bleed {
@@ -209,7 +242,6 @@ export default function LandingView() {
         }
 
         /* ───────── keyframes ───────── */
-        @keyframes sm3-kb     { from{transform:scale(1)} to{transform:scale(1.04)} }
         @keyframes sm3-mask   { from{transform:translateY(112%) rotate(3deg)} to{transform:translateY(0) rotate(0)} }
         @keyframes sm3-rise   { from{opacity:0;transform:translateY(22px)} to{opacity:1;transform:translateY(0)} }
         @keyframes sm3-fade   { from{opacity:0} to{opacity:1} }
@@ -223,30 +255,17 @@ export default function LandingView() {
         @keyframes sm3-ping   { 0%{box-shadow:0 0 0 0 rgba(34,211,238,.5)} 70%{box-shadow:0 0 0 11px rgba(34,211,238,0)} 100%{box-shadow:0 0 0 0 rgba(34,211,238,0)} }
         @keyframes sm3-sweep  { from{transform:scaleX(0)} to{transform:scaleX(1)} }
 
-        /* ───────── scene 1 : compact hero ───────── */
+        /* ───────── scene 1 : hero — title + chapters stacked together ───────── */
         .sm3-hero {
-          position:relative; overflow:hidden;
-          /* may give height back to the text when the window is short */
-          flex:0 1 clamp(210px, 36vh, 380px); min-height:150px;
-          /* base behind the fitted photo */
-          background:linear-gradient(120deg,#0b2447 0%,#123a6b 52%,#0d2c54 100%);
+          position:relative; overflow:hidden; z-index:2;
+          /* takes all the room left once the ocean strip's fixed height is set aside */
+          flex:1 1 auto; min-height:150px;
         }
-        /* photo spans the full banner width, cropped top/bottom around its
-           centre so the ship stays in the middle of the frame */
-        .sm3-hero-img {
-          position:absolute; inset:0; width:100%; height:100%;
-          object-fit:cover; object-position:50% 50%;
-          transform-origin:50% 50%;
-          opacity:1;
-          animation: sm3-kb 26s ease-out infinite alternate both;
-          will-change: transform;
-        }
-        /* just enough scrim in the bottom-left corner to keep the copy legible —
-           the rest of the photo stays clear */
+        /* extra local scrim behind the title, on top of the page-wide tint */
         .sm3-hero-tint {
           position:absolute; inset:0;
           background:
-            linear-gradient(to top, rgba(2,6,23,.68) 0%, rgba(2,6,23,.26) 26%, rgba(2,6,23,0) 52%),
+            linear-gradient(to bottom, rgba(2,6,23,.68) 0%, rgba(2,6,23,.26) 26%, rgba(2,6,23,0) 52%),
             linear-gradient(to right, rgba(2,6,23,.42) 0%, rgba(2,6,23,0) 48%);
         }
         .sm3-sheen {
@@ -265,7 +284,8 @@ export default function LandingView() {
           animation: sm3-drift 11s ease-in-out infinite, sm3-fade 1.4s ease both;
         }
         .sm3-hero-pad {
-          padding: clamp(16px,2.6vh,34px) calc(var(--sm3-gutter, 20px) + 4px);
+          padding: clamp(20px,4vh,40px) calc(var(--sm3-gutter, 20px) + 4px) clamp(16px,2.6vh,34px);
+          overflow:hidden;
         }
         .sm3-hero-copy {
           position:relative; z-index:3;
@@ -287,20 +307,12 @@ export default function LandingView() {
         }
         .sm3-dot { animation: sm3-ping 2.6s ease-out infinite; }
 
-        /* ───────── scene 2 : chapters ───────── */
+        /* ───────── scene 2 : chapters — a left-aligned stack under the title ───────── */
         .sm3-chapters {
-          flex:1 1 auto; min-height:0;
-          position:relative; z-index:1;
-          /* let the text sit slightly over the rising water */
-          margin-bottom: calc(var(--sm3-oh) * -0.18);
-          display:grid; grid-template-columns:repeat(3,minmax(0,1fr));
-          gap:clamp(14px,2vw,34px);
-          align-content:center;
-          /* already inside the shell's gutters — just air under the banner */
-          padding:clamp(18px,3.6vh,46px) 0 clamp(10px,1.8vh,22px);
-          /* never clip a paragraph: if a short window leaves too little room,
-             this block scrolls on its own rather than hiding its last lines */
-          overflow-y:auto; overscroll-behavior:contain;
+          display:flex; flex-direction:column;
+          gap:clamp(10px,1.6vh,18px);
+          max-width:min(560px, 62vw);
+          margin-top:clamp(14px,2.4vh,26px);
         }
         .sm3-ch {
           position:relative; min-width:0; padding-left:clamp(12px,1.2vw,18px);
@@ -310,27 +322,31 @@ export default function LandingView() {
         }
         .sm3-ch::before {
           content:''; position:absolute; left:0; top:2px; bottom:2px; width:2px; border-radius:99px;
-          background:#e2e8f0;
+          background:rgba(255,255,255,.22);
         }
         .sm3-ch::after {
           content:''; position:absolute; left:0; top:2px; bottom:2px; width:2px; border-radius:99px;
-          background:linear-gradient(#2563eb,#22d3ee);
+          background:linear-gradient(#60a5fa,#22d3ee);
           transform:scaleY(0); transform-origin:top;
           transition: transform .7s cubic-bezier(.22,1,.36,1);
         }
         .sm3-ch.is-on::after { transform:scaleY(1); }
-        .sm3-ch:not(.is-on) { opacity:.62; }
+        .sm3-ch:not(.is-on) { opacity:.72; }
         .sm3-no {
           font-variant-numeric: tabular-nums;
-          background:linear-gradient(135deg,#0f417a,#2563eb 55%,#22d3ee);
+          background:linear-gradient(135deg,#bfe4ff,#60a5fa 55%,#22d3ee);
           -webkit-background-clip:text; background-clip:text;
           -webkit-text-fill-color:transparent; color:transparent;
         }
         .sm3-body {
-          font-size:clamp(11px,1vw,14.5px); line-height:1.6;
+          font-size:clamp(10.5px,0.95vw,13.5px); line-height:1.5;
           overflow-wrap:anywhere; word-break:break-word; hyphens:auto;
+          /* bounds each paragraph's height so the stack never outgrows the
+             space under the title, instead of forcing the page to scroll */
+          display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2;
+          overflow:hidden;
         }
-        .sm3-beat { height:2px; border-radius:99px; background:#e2e8f0; overflow:hidden; }
+        .sm3-beat { height:2px; border-radius:99px; background:rgba(255,255,255,.22); overflow:hidden; }
         .sm3-beat > i { display:block; height:100%; background:linear-gradient(90deg,#2563eb,#22d3ee); transform-origin:left; transform:scaleX(0); }
         .sm3-ch.is-on .sm3-beat > i { animation: sm3-sweep ${BEAT}ms linear forwards; }
 
@@ -338,8 +354,7 @@ export default function LandingView() {
         /* in the flow, as the stage's last row — it ends flush on the footer
            and scrolls with the page instead of being pinned to the viewport */
         .sm3-ocean {
-          position:relative; z-index:0; flex:0 0 var(--sm3-oh);
-          margin-top:auto;
+          position:relative; z-index:2; flex:0 0 var(--sm3-oh);
           background:transparent; overflow:hidden; pointer-events:none;
           /* top of the water dissolves into the page, so the swell drifts up
              behind the three points instead of starting on a hard line */
@@ -371,27 +386,23 @@ export default function LandingView() {
         /* short screens: tighten everything */
         @media (max-height: 720px) {
           .sm3-sheen { display:none; }
-          .sm3-hero { flex-basis: clamp(170px, 30vh, 250px); }
         }
 
-        /* narrow screens: stack the chapters, keep the ocean at the bottom */
+        /* narrow screens: let the stack use most of the width, keep the ocean at the bottom */
         @media (max-width: 860px) {
-          .sm3-chapters { grid-template-columns:1fr; gap:10px; overflow-y:auto; align-content:start; }
+          .sm3-chapters { max-width:100%; gap:8px; }
           .sm3-stage { --sm3-oh: clamp(70px, 12vh, 110px); }
         }
 
         /* small screens: reduce hero and chapter sizes */
         @media (max-width: 640px) {
-          .sm3-hero { flex-basis: clamp(160px, 28vh, 240px); min-height:130px; }
-          .sm3-hero-pad { padding: clamp(12px,2.2vh,24px) calc(var(--sm3-gutter, 14px) + 4px); }
-          .sm3-chapters { padding: clamp(12px,2.4vh,30px) 0 clamp(8px,1.4vh,16px); gap:8px; }
+          .sm3-hero-pad { padding: clamp(24px,5vh,44px) calc(var(--sm3-gutter, 14px) + 4px) clamp(12px,2.2vh,24px); }
           .sm3-body { font-size:clamp(10.5px,0.95vw,13.5px); line-height:1.55; }
         }
 
         /* very small screens: tighter padding */
         @media (max-width: 480px) {
-          .sm3-hero-pad { padding: clamp(10px,2vh,20px) calc(var(--sm3-gutter, 12px) + 4px); }
-          .sm3-chapters { padding: clamp(10px,2vh,24px) 0 clamp(6px,1vh,12px); gap:8px; }
+          .sm3-hero-pad { padding: clamp(20px,4vh,36px) calc(var(--sm3-gutter, 12px) + 4px) clamp(10px,2vh,20px); }
           .sm3-body { font-size:clamp(10px,0.9vw,13px); line-height:1.5; }
         }
 
@@ -405,13 +416,25 @@ export default function LandingView() {
           .sm3-rule { width:min(260px,52%) !important; }
           .sm3-ch { opacity:1 !important; }
           .sm3-ch::after { transform:scaleY(1) !important; }
-          .sm3-hero-img { transform:none !important; }
         }
       `}</style>
 
+      {/* background video plays behind all three scenes */}
+      <video
+        ref={heroVideoRef}
+        className="sm3-bg-video"
+        src="/videos/banner-joined.mp4"
+        poster="/cargo-ship.jpg"
+        aria-hidden="true"
+        autoPlay
+        loop
+        muted
+        playsInline
+      />
+      <div className="sm3-bg-tint sm3-bleed" aria-hidden="true" />
+
       {/* ═════════ SCENE 1 — Opening banner ═════════ */}
-      <section ref={heroRef} className="sm3-hero sm3-bleed border-b border-slate-200/60 shadow-xl shadow-slate-900/20">
-        <img src="/cargo-ship.jpg" alt="" aria-hidden="true" className="sm3-hero-img" />
+      <section ref={heroRef} className="sm3-hero sm3-bleed">
         <div className="sm3-hero-tint" />
         <div className="sm3-sheen" />
 
@@ -421,7 +444,7 @@ export default function LandingView() {
 
         <div className="sm3-vignette" />
 
-        <div className="sm3-hero-pad absolute inset-0 z-10 flex flex-col items-start justify-end">
+        <div className="sm3-hero-pad absolute inset-0 z-10 flex flex-col items-start justify-start">
           <div className="sm3-hero-copy">
             <p className="sm3-eyebrow flex items-center gap-2.5 text-[9px] md:text-[11px] font-mono font-bold uppercase tracking-[0.22em] text-cyan-300">
               <span className="sm3-dot inline-block h-1.5 w-1.5 rounded-full bg-cyan-300" />
@@ -437,33 +460,33 @@ export default function LandingView() {
             </h1>
 
             <div className="sm3-rule" />
+
+            {/* ═════════ Chapters — stacked left-aligned under the title ═════════ */}
+            <div className="sm3-chapters">
+              {CHAPTERS.map((c, i) => (
+                <section
+                  key={c.no}
+                  className={`sm3-ch ${active === i ? 'is-on' : ''}`}
+                  style={{ '--d': `${1150 + i * 180}ms` }}
+                >
+                  <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 min-w-0">
+                    <span className="sm3-no font-display text-lg md:text-2xl font-black leading-none">{c.no}</span>
+                    <span className="min-w-0 text-[9px] md:text-[10px] font-bold uppercase tracking-[0.2em] text-slate-300">
+                      {c.label}
+                    </span>
+                  </div>
+
+                  <p className="sm3-body mt-2 text-slate-100/90">{c.body}</p>
+
+                  <div className="sm3-beat mt-3">
+                    <i key={`${c.no}-${active === i}`} />
+                  </div>
+                </section>
+              ))}
+            </div>
           </div>
         </div>
       </section>
-
-      {/* ═════════ SCENE 2 — Chapters ═════════ */}
-      <div className="sm3-chapters">
-        {CHAPTERS.map((c, i) => (
-          <section
-            key={c.no}
-            className={`sm3-ch ${active === i ? 'is-on' : ''}`}
-            style={{ '--d': `${1150 + i * 180}ms` }}
-          >
-            <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 min-w-0">
-              <span className="sm3-no font-display text-lg md:text-2xl font-black leading-none">{c.no}</span>
-              <span className="min-w-0 text-[9px] md:text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                {c.label}
-              </span>
-            </div>
-
-            <p className="sm3-body mt-2 text-slate-600">{c.body}</p>
-
-            <div className="sm3-beat mt-3">
-              <i key={`${c.no}-${active === i}`} />
-            </div>
-          </section>
-        ))}
-      </div>
 
       {/* ═════════ SCENE 3 — Ocean, sitting on the footer ═════════ */}
       <div className="sm3-ocean sm3-bleed" aria-hidden="true">
