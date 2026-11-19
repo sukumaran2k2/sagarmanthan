@@ -89,7 +89,7 @@ export default function DataListPage({ notify, rows, loading, loadError, onRetry
 
   const columnDefs = useMemo(() => [
     {
-      headerName: 'S.No', width: 70, pinned: 'left',
+      headerName: 'S.No', width: 90, minWidth: 90, pinned: 'left',
       valueGetter: (p) => (p.node && !p.node.rowPinned ? p.node.rowIndex + 1 : ''),
       cellClass: 'font-bold text-slate-500 text-center flex items-center justify-center',
     },
