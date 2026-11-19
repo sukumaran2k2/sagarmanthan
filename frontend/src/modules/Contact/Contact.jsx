@@ -14,7 +14,7 @@ const CONTACTS_DATA = [
     initials: "DD",
     name: "Deputy Director",
     division: "Special Initiatives & Projects",
-    modules: ["MIV 2030", "AKV 2047", "GMIS MOU tracking"],
+    modules: ["MIV 2030", "GMIS MOU tracking"],
     email: "ddports-psw@gov.in",
     phone: "011-23705360"
   },

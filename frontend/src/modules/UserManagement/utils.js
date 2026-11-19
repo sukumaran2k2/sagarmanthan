@@ -18,7 +18,6 @@ import {
   FolderOpen,
   ClipboardList,
   ShoppingCart,
-  MessageSquare,
   FileText,
   Star,
   Megaphone,
@@ -94,7 +93,6 @@ export const getModuleIconAndColor = (name = '') => {
   if (n.includes('file') || n.includes('pendency') || n.includes('receipt') || n.includes('disposal') || n.includes('e office')) return { Icon: FolderOpen, color: '#0284C7', bg: '#F0F9FF' };
   if (n.includes('attendance')) return { Icon: ClipboardList, color: '#16A34A', bg: '#F0FDF4' };
   if (n.includes('gem')) return { Icon: ShoppingCart, color: '#4F46E5', bg: '#EEF2FF' };
-  if (n.includes('cpgrams')) return { Icon: MessageSquare, color: '#E11D48', bg: '#FFF1F2' };
   if (n.includes('cabinet')) return { Icon: FileText, color: '#2563EB', bg: '#EFF6FF' };
   if (n.includes('vip')) return { Icon: Star, color: '#EAB308', bg: '#FEF9C3' };
   if (n.includes('media')) return { Icon: Megaphone, color: '#EA580C', bg: '#FFECE5' };
@@ -105,7 +103,7 @@ export const getModuleIconAndColor = (name = '') => {
   if (n.includes('vision') || n.includes('miv') || n.includes('milestone')) return { Icon: Milestone, color: '#0369A1', bg: '#F0F9FF' };
   
   if (n.includes('report') || n.includes('reports')) return { Icon: FilePieChart, color: '#D946EF', bg: '#FDF4FF' };
-  if (n.includes('iwai') || n.includes('ship') || n.includes('cruise') || n.includes('ships') || n.includes('fob')) return { Icon: Ship, color: '#1D4ED8', bg: '#EFF6FF' };
+  if (n.includes('iwai') || n.includes('ship') || n.includes('ships')) return { Icon: Ship, color: '#1D4ED8', bg: '#EFF6FF' };
   if (n.includes('tracking') || n.includes('tracker')) return { Icon: Compass, color: '#B45309', bg: '#FFF7ED' };
   if (n.includes('knowledge')) return { Icon: BookOpen, color: '#15803D', bg: '#F0FDF4' };
   

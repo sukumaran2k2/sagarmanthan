@@ -19,7 +19,6 @@ const OVODView = lazy(() => import('./modules/OVOD/OVOD'));
 const CapexView = lazy(() => import('./modules/Capex/Capex'));
 const EOfficeView = lazy(() => import('./modules/EOffice/EOffice'));
 const AttendanceView = lazy(() => import('./modules/Attendance/Attendance'));
-const CPGRAMSView = lazy(() => import('./modules/CPGRAMS/CPGRAMS'));
 const CabinetNotes = lazy(() => import('./modules/CabinetNotesMOPSW/CabinetNotesMOPSW'));
 const CabinetNotesOther = lazy(() => import('./modules/CabinetNotesOther/CabinetNotesOther'));
 const ParliamentaryIssues = lazy(() => import('./modules/ParliamentaryIssues/ParliamentaryIssues'));
@@ -553,7 +552,6 @@ export default function App() {
             {/* Governance Routes */}
             <Route path="governance/e-office/*" element={<EOfficeView triggerNotification={triggerNotification} />} />
             <Route path="governance/attendance/*" element={<AttendanceView triggerNotification={triggerNotification} />} />
-            <Route path="governance/cpgrams" element={<CPGRAMSView />} />
             <Route path="governance/cabinet-notes/*" element={<CabinetNotes triggerNotification={triggerNotification} />} />
             <Route path="governance/cabinet-notes-other-ministry/*" element={<CabinetNotesOther triggerNotification={triggerNotification} />} />
             <Route path="governance/vip-reference/*" element={<VIPReferenceView triggerNotification={triggerNotification} />} />

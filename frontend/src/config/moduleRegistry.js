@@ -183,10 +183,6 @@ export const MODULE_PAGES = {
     uiTabs: ['Audit Paras'],
   },
 
-  INTERSTATE_INTERMINISTERIAL: {
-    tabs: ['Inter State & Inter Ministerial'],
-  },
-
   FOREIGN_VISIT: {
     tabs: [
       'Foreign Visit',
@@ -302,10 +298,6 @@ export const MODULE_PAGES = {
   ACTS_AND_RULES: {
     tabs: ['Acts & Rules'],
     uiTabs: ['Acts & Rules'],
-  },
-
-  AKV_2047: {
-    tabs: ['Vision 2047', 'Blue Economy Policy'],
   },
 
   MIV_2030: {
@@ -431,18 +423,6 @@ export const MODULE_PAGES = {
     uiTabs: ['Create Dynamic Form', 'View Submissions', 'Form Builder', 'FormBuilder', 'Form Studio', 'Form Directory', 'Inbox Forms', 'Edit Form'],
   },
 
-  MOPSW_TRACKER: {
-    tabs: ['Project Milestones', 'Delay Analysis'],
-  },
-
-  SENIOR_OFFICE_MEETINGS: {
-    tabs: [
-      'Meeting Schedule',
-      'Minutes of Meeting',
-      'Action Taken Report',
-    ],
-  },
-
 };
 
 /**
@@ -555,8 +535,9 @@ export function groupModulesByNav(modules = []) {
  * the login query filters on it, so that revokes access, whereas this list only hides the row.
  */
 export const HIDDEN_PERMISSION_MODULE_CODES = new Set([
-  // KPI CMEC has no screens any more, but its tbl_modules row still exists, so it has to stay
-  // listed here or it would reappear in the permission matrix.
+  // Every code below except KNOWLEDGE_REPOSITORY is a module whose code has been removed from the
+  // portal (see documentation/removed-modules.md). Their tbl_modules rows still exist, so they
+  // have to stay listed here or they would reappear in the permission matrix.
   'KPI_CMEC',
   'AKV_2047',
   'CPGRAMS',

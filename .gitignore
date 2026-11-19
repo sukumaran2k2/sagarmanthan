@@ -32,3 +32,6 @@ backend/formbuilder_Files/
 
 # Test run reports
 test-reports/
+
+# Runtime delete logs written by the backend
+backend/delete_log/
