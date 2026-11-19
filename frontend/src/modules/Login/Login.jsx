@@ -27,7 +27,10 @@ const initialState = {
   forgotError: "",
   loginError: "",
   isSubmitting: false,
-  forgotRecaptchaToken: ""
+  forgotRecaptchaToken: "",
+  // Goes up after every failed attempt so the captcha is redrawn unticked
+  // (a reCAPTCHA answer works only once)
+  captchaResetKey: 0
 };
 
 function loginReducer(state, action) {
@@ -54,11 +57,23 @@ function loginReducer(state, action) {
     case 'SUBMIT_SUCCESS':
       return { ...state, isSubmitting: false };
     case 'SUBMIT_FAILURE':
-      return { ...state, isSubmitting: false, loginError: action.error };
+      return {
+        ...state,
+        isSubmitting: false,
+        loginError: action.error,
+        recaptchaToken: "",
+        captchaVerified: false,
+        captchaResetKey: state.captchaResetKey + 1
+      };
     case 'SEND_OTP_SUCCESS':
       return { ...state, forgotStep: 2, forgotError: "" };
     case 'SEND_OTP_FAILURE':
-      return { ...state, forgotError: action.error };
+      return {
+        ...state,
+        forgotError: action.error,
+        forgotRecaptchaToken: "",
+        captchaResetKey: state.captchaResetKey + 1
+      };
     case 'VERIFY_OTP_SUCCESS':
       return { ...state, forgotStep: 3, forgotError: "" };
     case 'VERIFY_OTP_FAILURE':
@@ -89,7 +104,8 @@ export default function LoginView({ onLogin, notice = '' }) {
     forgotError,
     loginError,
     isSubmitting,
-    forgotRecaptchaToken
+    forgotRecaptchaToken,
+    captchaResetKey
   } = state;
 
   const handleSubmit = (e) => {
@@ -271,6 +287,7 @@ export default function LoginView({ onLogin, notice = '' }) {
               handleSendOtp={handleSendOtp}
               handleResetFlow={handleResetFlow}
               handleVerifyOtpAndReset={handleVerifyOtpAndReset}
+              captchaResetKey={captchaResetKey}
             />
           ) : (
             <LoginCard
@@ -283,6 +300,7 @@ export default function LoginView({ onLogin, notice = '' }) {
               dispatch={dispatch}
               onSubmit={handleSubmit}
               onForgotPasswordClick={() => dispatch({ type: 'SWITCH_VIEW', view: 'forgot' })}
+              captchaResetKey={captchaResetKey}
             />
           )}
 

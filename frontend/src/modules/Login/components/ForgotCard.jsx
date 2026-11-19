@@ -14,7 +14,8 @@ export default function ForgotCard({
   dispatch,
   handleSendOtp,
   handleResetFlow,
-  handleVerifyOtpAndReset
+  handleVerifyOtpAndReset,
+  captchaResetKey
 }) {
   return (
     <div className="space-y-5">
@@ -49,6 +50,7 @@ export default function ForgotCard({
           <div className="w-full bg-white/5 p-2 rounded-lg border border-white/10 shadow-inner overflow-hidden animate-fade-in">
             <ResponsiveRecaptcha
               sitekey={RECAPTCHA_SITE_KEY}
+              resetKey={captchaResetKey}
               onChange={(val) => {
                 dispatch({ type: 'SET_FIELD', field: 'forgotRecaptchaToken', value: val || "" });
               }}
