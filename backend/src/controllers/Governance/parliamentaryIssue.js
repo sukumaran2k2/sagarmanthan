@@ -146,21 +146,26 @@ function normalizeWings(wings) {
   return String(wings);
 }
 
+// LEFT JOINs, as in the old portal: an issue with no stage or no division (older data) must
+// still be listed, otherwise it cannot be opened and corrected. Such issues land in Active.
 const LIST_FROM_SQL = `
   FROM tbl_parliamentary_issue AS tpi
-  INNER JOIN mmt_parliamentary_stage AS mps
+  LEFT JOIN mmt_parliamentary_stage AS mps
     ON tpi.stage_id = mps.parlia_stage_id
-  INNER JOIN mmt_division ON tpi.division = mmt_division.division_id
-  INNER JOIN mmt_wings ON tpi.wing = mmt_wings.wing_id
+  LEFT JOIN mmt_division ON tpi.division = mmt_division.division_id
+  LEFT JOIN mmt_wings ON tpi.wing = mmt_wings.wing_id
 `;
 
+// ISNULL: an issue with no stage has a NULL stage name, and NOT (NULL LIKE ...) is not true,
+// so without it that issue would match neither tab
+const STAGE_NAME_SQL = `LOWER(ISNULL(mps.parlia_stage_name, N''))`;
 const COMPLETED_SQL = `(
-  LOWER(mps.parlia_stage_name) LIKE N'%matter disposed%'
+  ${STAGE_NAME_SQL} LIKE N'%matter disposed%'
   OR (
-    (LOWER(mps.parlia_stage_name) LIKE N'%reply%' OR LOWER(mps.parlia_stage_name) LIKE N'%replay%')
-    AND (LOWER(mps.parlia_stage_name) LIKE N'%sent%' OR LOWER(mps.parlia_stage_name) LIKE N'%send%')
+    (${STAGE_NAME_SQL} LIKE N'%reply%' OR ${STAGE_NAME_SQL} LIKE N'%replay%')
+    AND (${STAGE_NAME_SQL} LIKE N'%sent%' OR ${STAGE_NAME_SQL} LIKE N'%send%')
   )
-  OR LOWER(LTRIM(RTRIM(mps.parlia_stage_name))) = N'completed'
+  OR LTRIM(RTRIM(${STAGE_NAME_SQL})) = N'completed'
   OR tpi.matter_disposed_date IS NOT NULL
   OR tpi.reply_send_date IS NOT NULL
 )`;
