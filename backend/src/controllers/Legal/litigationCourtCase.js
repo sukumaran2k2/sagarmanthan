@@ -950,63 +950,45 @@ const fileupload= multer({
     limits: { fileSize: 10000000}
 });
 
-async function counterAffidavitDocument(req,res) {
+async function counterAffidavitDocument(req, res) {
     try {
-        const conn = await pool;
-        const request = conn.request();
-
         const caseID = req.body.caseID;
-        const pathFolder = req.body.path; 
+        const pathFolder = req.body.path;
 
-        request.input("caseID", caseID);
-
-        //check if the path is 'Litigation
-        if (pathFolder === 'Litigation') {
-            const fullPath = path.join(filedestination, pathFolder); 
-
-            if (!fs.existsSync(fullPath)) {
-                fs.mkdirSync(fullPath, { recursive: true });
-            }
-            const existingDocResult = await request.query(`
-                SELECT file_of_affidavit FROM tbl_litigation_cases 
-                WHERE case_id = @caseID 
-            `);
-            const existingFileName = existingDocResult.recordset[0]?.file_of_affidavit;
-            
-            if (existingFileName) {
-                const existingFilePath = path.join(fullPath, existingFileName);
-                if (fs.existsSync(existingFilePath)) {
-                    try {
-                        fs.unlinkSync(existingFilePath);
-                    } catch (err) {
-                        console.error("Error deleting file:", err); 
-                    }
-                }
-            }
-
-            const newFileName = req.uniqueFileName;  
-            const filePath = path.join(fullPath, newFileName);
-
-            request.input("newFileName", newFileName);
-
-            if (req.file && req.file.path) {
-                fs.renameSync(req.file.path, filePath); 
-            } else {
-                return res.status(400).json({ error: "No file uploaded." });
-            }
-
-            await request.query(`
-                UPDATE tbl_litigation_cases 
-                SET file_of_affidavit = @newFileName
-                WHERE case_id = @caseID
-                `);
-                res.status(201).json({ message: "Document uploaded successfully" });
-        } else {
+        if (!caseID) return res.status(400).json({ error: "Invalid case ID" });
+        if (pathFolder !== "Litigation")
             return res.status(400).json({ error: "Invalid path. Document upload is only allowed for 'Litigation'." });
+        if (!req.file || !req.file.path)
+            return res.status(400).json({ error: "No file uploaded." });   // checked BEFORE touching the old file
+
+        const fullPath = path.join(filedestination, pathFolder);
+        if (!fs.existsSync(fullPath)) fs.mkdirSync(fullPath, { recursive: true });
+
+        const conn = await pool;
+        const existing = await conn.request()
+            .input("caseID", caseID)
+            .query(`SELECT file_of_affidavit FROM tbl_litigation_cases WHERE case_id = @caseID`);
+        const oldFileName = existing.recordset[0]?.file_of_affidavit;
+
+        const newFileName = req.uniqueFileName;
+        fs.renameSync(req.file.path, path.join(fullPath, newFileName));
+
+        await conn.request()
+            .input("caseID", caseID)
+            .input("newFileName", newFileName)
+            .query(`UPDATE tbl_litigation_cases SET file_of_affidavit = @newFileName WHERE case_id = @caseID`);
+
+        // remove the old file only after the new one is saved
+        if (oldFileName && oldFileName !== newFileName) {
+            const oldPath = path.join(fullPath, oldFileName);
+            try { if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath); }
+            catch (err) { console.error("Error deleting old file:", err); }
         }
+
+        return res.status(201).json({ message: "Document uploaded successfully" });
     } catch (error) {
-        // console.error("Error in createMinistryIntervention:", error);
-        res.status(500).json({ error: "Internal server error" });
+        console.error("counterAffidavitDocument error:", error);   // your catch hid the real error
+        return res.status(500).json({ error: "Internal server error" });
     }
 }
 

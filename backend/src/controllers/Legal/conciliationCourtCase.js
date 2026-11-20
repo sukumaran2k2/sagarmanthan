@@ -620,6 +620,8 @@ async function createConciliationExpenditure(req,res) {
                 caseQuery = `SELECT * FROM tbl_claim_second_parties WHERE case_id = @caseID`
             }else if(typeName == 'Hearing'){
                 caseQuery = `SELECT * FROM tbl_court_case_hearing_for_conciliation WHERE case_id = @caseID`
+            }else if(typeName == 'parties'){
+                caseQuery = `SELECT * FROM tbl_conciliation_first_second_parties WHERE case_id = @caseID`
             }
     
             const result = await request.query(caseQuery);
