@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { Edit, RotateCcw, Shield, X, UserPlus } from 'lucide-react';
+import { Edit, RotateCcw, Shield, X, UserPlus, Copy, Check } from 'lucide-react';
 import Table from '../../../components/Table';
 import { colorFromString, getInits, roleClassName } from '../utils';
 import { rbacApi } from '../rbacApi';
@@ -28,8 +28,35 @@ function CrudDot({ on, label }) {
   );
 }
 
-function NameCell({ data }) {
+function NameCell({ data, showToast }) {
+  const [copied, setCopied] = useState(false);
   if (!data) return null;
+
+  const copyEmail = async (e) => {
+    e.stopPropagation();
+    const email = data.email;
+    if (!email) return;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(email);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = email;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      setCopied(true);
+      showToast?.('Email copied', '#10B981');
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      showToast?.('Could not copy email', '#EF4444');
+    }
+  };
+
   return (
     <div
       style={{
@@ -39,24 +66,84 @@ function NameCell({ data }) {
         gap: '10px',
         height: '100%',
         width: '100%',
+        minWidth: 0,
       }}
     >
       <div
         className="avatar"
         style={{
           background: colorFromString(`${data.name}|${data.email}`),
-          width: '28px',
-          height: '28px',
+          width: '32px',
+          height: '32px',
           fontSize: '.65rem',
           flexShrink: 0,
         }}
       >
         {getInits(data.name || '')}
       </div>
-      <span className="um-name-cell" style={{ fontWeight: 600, textAlign: 'left' }}>
-        {data.title && `${data.title} `}
-        {data.name}
-      </span>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          minWidth: 0,
+          lineHeight: 1.15,
+        }}
+      >
+        <span
+          className="um-name-cell"
+          style={{
+            fontWeight: 600,
+            textAlign: 'left',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {data.title && `${data.title} `}
+          {data.name}
+        </span>
+        {data.email ? (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              fontSize: '11px',
+              fontWeight: 400,
+              marginTop: '2px',
+              minWidth: 0,
+            }}
+            className="text-slate-500 dark:text-slate-400"
+          >
+            <span
+              title={data.email}
+              style={{
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                minWidth: 0,
+              }}
+            >
+              {data.email}
+            </span>
+            <button
+              type="button"
+              onClick={copyEmail}
+              title={copied ? 'Copied!' : 'Copy email'}
+              aria-label="Copy email"
+              className={`p-0.5 rounded cursor-pointer transition-all active:scale-90 flex-shrink-0 ${
+                copied
+                  ? 'text-emerald-600 dark:text-emerald-400'
+                  : 'text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-200'
+              }`}
+              style={{ border: 'none', background: 'transparent', lineHeight: 0 }}
+            >
+              {copied ? <Check size={11} /> : <Copy size={11} />}
+            </button>
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -166,18 +253,23 @@ export default function UserListTab({
       {
         headerName: 'User Name',
         field: 'name',
-        minWidth: 200,
-        flex: 1.4,
+        minWidth: 240,
+        flex: 1.8,
+        autoHeight: true,
         cellClass: 'um-name-col',
         cellStyle: {
           textAlign: 'left',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'flex-start',
+          paddingTop: '6px',
+          paddingBottom: '6px',
         },
-        cellRenderer: NameCell,
+        cellRenderer: (params) => (
+          <NameCell data={params.data} showToast={showToast} />
+        ),
         valueGetter: (params) =>
-          `${params.data?.title ? `${params.data.title} ` : ''}${params.data?.name || ''}`,
+          `${params.data?.title ? `${params.data.title} ` : ''}${params.data?.name || ''} ${params.data?.email || ''}`,
       },
       {
         headerName: 'Designation',
@@ -284,7 +376,7 @@ export default function UserListTab({
         ),
       },
     ],
-    [openAccess, handleOpenEdit, toggleUserStatus, handleResetPassword]
+    [openAccess, handleOpenEdit, toggleUserStatus, handleResetPassword, showToast]
   );
 
   const getRowId = useCallback((params) => String(params.data.user_id), []);

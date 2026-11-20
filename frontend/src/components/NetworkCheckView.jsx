@@ -222,13 +222,13 @@ export default function NetworkCheckView({ onContinue, onCancel, isManual }) {
       <div className="w-full max-w-6xl bg-[#eef2f6] border border-slate-200/80 rounded-3xl p-3.5 sm:p-5 md:p-6 shadow-2xl relative z-10 space-y-4 my-auto">
         
         {isManual && (
-          <button 
-            onClick={onContinue} 
-            className="absolute top-5 right-5 p-2 text-slate-455 hover:text-slate-705 hover:bg-slate-200/60 active:scale-95 rounded-full transition-all cursor-pointer z-20"
+          <button
+            onClick={onContinue}
+            className="absolute top-5 right-5 p-2 text-[#64748b] hover:text-[#0f172a] hover:bg-slate-200/60 active:scale-95 rounded-full transition-all cursor-pointer z-20"
             title="Close Speed Test"
             aria-label="Close"
           >
-            <X className="h-5 w-5" />
+            <X className="h-5 w-5 text-current" />
           </button>
         )}
         
