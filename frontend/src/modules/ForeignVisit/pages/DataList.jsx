@@ -24,6 +24,11 @@ export default function DataList({ onEdit, triggerNotification, canEdit }) {
   const setSearchTerm = useFvStore((s) => s.setSearchTerm);
   const selectedOrganisation = useFvStore((s) => s.selectedOrganisation);
   const setSelectedOrganisation = useFvStore((s) => s.setSelectedOrganisation);
+  const organisations = useFvStore((s) => s.organisations);
+  const stages = useFvStore((s) => s.stages);
+  const visitTypes = useFvStore((s) => s.visitTypes);
+  const loadMetadata = useFvStore((s) => s.loadMetadata);
+
   const selectedStage = useFvStore((s) => s.selectedStage);
   const setSelectedStage = useFvStore((s) => s.setSelectedStage);
   const selectedVisitType = useFvStore((s) => s.selectedVisitType);
@@ -42,6 +47,14 @@ export default function DataList({ onEdit, triggerNotification, canEdit }) {
 
   const userId = getCurrentUserId();
   const organisationId = getSessionOrganisationId() || 0;
+
+  useEffect(() => {
+  loadMetadata();
+}, [loadMetadata]);
+useEffect(() => {
+  console.log('FV STAGE MASTER:', stages);
+}, [stages]);
+
 
   useEffect(() => {
     let cancelled = false;
@@ -82,28 +95,50 @@ export default function DataList({ onEdit, triggerNotification, canEdit }) {
   }, [rows]);
 
   // Filter options come from the rows on the current tab, so a filter can never select nothing.
-  const organisationOptions = useMemo(
-    () => [...new Set(tabRows.map((r) => r.organisation_name).filter(Boolean))].sort(),
-    [tabRows]
-  );
-  const stageOptions = useMemo(
-    () => [...new Set(tabRows.map((r) => r.fv_stage_name).filter(Boolean))].sort(),
-    [tabRows]
-  );
-  const visitTypeOptions = useMemo(
-    () => [...new Set(tabRows.map((r) => visitTypeOf(r)).filter((v) => v && v !== '--'))].sort(),
-    [tabRows]
-  );
-  const yearOptions = useMemo(
-    () => [...new Set(tabRows.map((r) => r.year).filter(Boolean))].sort((a, b) => b - a),
-    [tabRows]
-  );
+ const organisationOptions = useMemo(
+  () =>
+    organisations.map((org) => ({
+      value: String(org.organisation_id),
+      label: org.organisation_name,
+    })),
+  [organisations]
+);
+const stageOptions = useMemo(
+  () =>
+    stages.map((stage) => ({
+      value: String(stage.fv_stage_id),
+      label: stage.fv_stage_name,
+    })),
+  [stages]
+);
+
+const visitTypeOptions = useMemo(
+  () => visitTypes.map((type) => ({
+    value: String(type.visit_type_id),
+    label: type.visit_type_name,
+  })),
+  [visitTypes]
+);
+
+const yearOptions = useMemo(
+  () => [...new Set(rows.map((r) => String(r.year)).filter(Boolean))]
+    .sort((a, b) => b.localeCompare(a)),
+  [rows]
+);
 
   const filteredData = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     return tabRows.filter((r) => {
-      if (selectedOrganisation !== 'All' && r.organisation_name !== selectedOrganisation) return false;
-      if (selectedStage !== 'All' && r.fv_stage_name !== selectedStage) return false;
+      // if (selectedOrganisation !== 'All' && r.organisation_name !== selectedOrganisation) return false;
+      if (
+  selectedOrganisation !== 'All' &&
+  String(r.organisation_id) !== String(selectedOrganisation)
+) return false;
+      // if (selectedStage !== 'All' && r.fv_stage_name !== selectedStage) return false;
+      if (
+  selectedStage !== 'All' &&
+  String(r.visit) !== String(selectedStage)
+) return false;
       if (selectedVisitType !== 'All' && visitTypeOf(r) !== selectedVisitType) return false;
       if (selectedYear !== 'All' && String(r.year) !== String(selectedYear)) return false;
       if (!term) return true;
@@ -401,10 +436,27 @@ function FilterSelect({ label, value, onChange, options }) {
       <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
         {label}
       </label>
-      <select value={value} onChange={(e) => onChange(e.target.value)}
-        className="module-form-select cursor-pointer">
+
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="module-form-select cursor-pointer"
+      >
         <option value="All">Show All</option>
-        {options.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+
+        {options.map((opt) => {
+          const isObject = typeof opt === 'object';
+
+          return (
+            <option
+              // key={isObject ? opt.value : opt}
+              key={`${label}-${isObject ? opt.value : opt}`}
+              value={isObject ? opt.value : opt}
+            >
+              {isObject ? opt.label : opt}
+            </option>
+          );
+        })}
       </select>
     </div>
   );
