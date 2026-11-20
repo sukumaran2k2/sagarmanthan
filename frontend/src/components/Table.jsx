@@ -25,6 +25,10 @@ const Table = forwardRef(({
   onPaginationChanged,
   domLayout = 'autoHeight',
   color = '#28408f',
+  // When true, the ag-Grid container stretches to fill its parent (which must
+  // supply a bounded height) and switches to `normal` layout, so the body
+  // scrolls while the column headers and any pinned rows stay fixed.
+  fillHeight = false,
   ...props
 }, ref) => {
   const localGridRef = useRef();
@@ -331,7 +335,9 @@ const Table = forwardRef(({
         </div>
       )}
 
-      <div className={`ag-theme-quartz ${colorClass} rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden relative shadow-sm bg-white dark:bg-slate-900 transition-all ${loading ? 'min-h-[260px]' : ''}`}>
+      <div
+        className={`ag-theme-quartz ${colorClass} rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden relative shadow-sm bg-white dark:bg-slate-900 transition-all ${loading ? 'min-h-[260px]' : ''} ${fillHeight ? 'flex flex-col' : ''}`}
+      >
         {loading && (
           <div className="absolute inset-0 bg-white/85 dark:bg-slate-950/85 z-30 flex flex-col items-center justify-center p-6 space-y-4 backdrop-blur-[3px] animate-fade-in">
             <div className="w-full absolute top-0 left-0 right-0 h-1 bg-slate-100 dark:bg-slate-800 overflow-hidden">
@@ -365,7 +371,15 @@ const Table = forwardRef(({
           </div>
         )}
 
-        <div className="w-full overflow-x-auto">
+        <div
+          className="w-full overflow-x-auto"
+          // ag-Grid's `domLayout: "normal"` needs a definite pixel height on the
+          // immediate wrapper so its internal `height: 100%` resolves. A
+          // viewport-anchored `height` does this directly; the surrounding
+          // ag-theme-quartz div is left free to size to (grid + pagination),
+          // so there's no empty strip below the pagination.
+          style={fillHeight ? { height: 'calc(100vh - 460px)', minHeight: 280 } : undefined}
+        >
           <AgGridReact
             ref={activeRef}
             theme="legacy"
@@ -386,7 +400,7 @@ const Table = forwardRef(({
             pagination={pagination}
             paginationPageSize={paginationPageSize}
             suppressPaginationPanel={true}
-            domLayout={domLayout}
+            domLayout={fillHeight ? 'normal' : domLayout}
             suppressColumnVirtualisation={true}
             autoSizeStrategy={activeAutoSizeStrategy}
             onGridSizeChanged={handleGridSizeChanged}

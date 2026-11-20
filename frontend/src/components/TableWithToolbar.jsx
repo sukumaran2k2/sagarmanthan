@@ -25,6 +25,10 @@ export default function TableWithToolbar({
   extraRightToolbarContent,
   pagination = true,
   paginationPageSize = 10,
+  // When true the toolbar card fills a flex-column parent (parent must supply
+  // a bounded height via min-h-0 / max-h) and the ag-Grid body scrolls while
+  // the header, toolbar and any pinned rows stay fixed.
+  fillHeight = false,
   ...props
 }) {
   const [gridApi, setGridApi] = useState(null);
@@ -202,7 +206,9 @@ export default function TableWithToolbar({
   };
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm flex flex-col w-full relative dark:bg-slate-950 dark:border-slate-800">
+    <div
+      className={`bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm flex flex-col w-full relative dark:bg-slate-950 dark:border-slate-800 ${fillHeight ? 'flex-1 min-h-0' : ''}`}
+    >
       
       {/* Integrated Toolbar header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#f8fafc]/95 border-b border-slate-200 px-4 py-3 select-none dark:bg-slate-900/95 dark:border-slate-800">
@@ -325,7 +331,7 @@ export default function TableWithToolbar({
       </div>
 
       {/* Styled AG Grid wrapper */}
-      <div className="media-outreach-table-wrapper w-full">
+      <div className={`media-outreach-table-wrapper w-full ${fillHeight ? 'flex-1 min-h-0 flex flex-col' : ''}`}>
         <Table
           rowData={filteredRowData}
           columnDefs={processedColumnDefs}
@@ -338,6 +344,8 @@ export default function TableWithToolbar({
           paginationPageSize={pageSize}
           loading={loading}
           enableExport={false}
+          color={color}
+          fillHeight={fillHeight}
           {...props}
         />
       </div>

@@ -235,8 +235,10 @@ export function fetchCourseType(mtiId, courseId) {
 // =====================================================================
 
 // K-2.1.x Flagging of Vessels
-export const fetchReportKpi2_1_1 = () => api.get('/kpi-dgs-2-1-report');
-export const fetchReportKpi2_1_2 = () => api.get('/kpi-dgs-2-2-report');
+// K-2.1.1 and K-2.1.2 are MMD-wise reports with grouped (Prev FY / Current FY) column
+// headers and come from dedicated endpoints that aggregate `tbl_kpi_dgs_2_1`.
+export const fetchReportKpi2_1_1 = () => api.get('/kpi-dgs-flagging-addition-report');
+export const fetchReportKpi2_1_2 = () => api.get('/kpi-dgs-flagging-deletion-report');
 export const fetchReportKpi2_1_3 = () => api.get('/kpi-dgs-2-3-report');
 export const fetchReportKpi2_1_4 = () => api.get('/kpi-dgs-2-4-report');
 export const fetchReportKpi2_1_5 = () => api.get('/kpi-dgs-2-5-report');

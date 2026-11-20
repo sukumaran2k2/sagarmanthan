@@ -9,6 +9,7 @@ import { useNotifier, COMMON_TOASTS } from '../../../utils/notify';
 export default function GenericReportPage({
   code, title, fetchFn, columns = null, triggerNotification,
   backTo = '/kpi/dgs/reports', backLabel = 'Back to Reports', showBack = true,
+  flat = false,
 }) {
   const navigate = useNavigate();
   const notify = useNotifier(triggerNotification);
@@ -58,7 +59,7 @@ export default function GenericReportPage({
   }, [rows, columns]);
 
   return (
-    <div className="module-card space-y-4">
+    <div className={flat ? 'space-y-4' : 'module-card space-y-4'}>
       <div className="flex items-center justify-between">
         <div>
           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">{code}</span>

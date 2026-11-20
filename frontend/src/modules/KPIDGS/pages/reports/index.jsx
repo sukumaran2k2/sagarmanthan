@@ -1,7 +1,13 @@
 import { useParams } from 'react-router-dom';
 import GenericReportPage from '../../components/GenericReportPage';
+import FlaggingReport from '../../components/FlaggingReport';
 import { REPORTS_LEAVES } from '../../data/reportsIndex';
 import * as api from '../../api';
+
+const CUSTOM_PAGE_BY_SLUG = {
+  'flagging-addition': { Component: FlaggingReport, props: { kind: 'addition' } },
+  'flagging-deletion': { Component: FlaggingReport, props: { kind: 'deletion' } },
+};
 
 // slug → fetch function on api.js
 const FETCH_BY_SLUG = {
@@ -71,6 +77,19 @@ export default function ReportLeaf({ triggerNotification }) {
       <div className="module-card">
         <p className="text-sm text-slate-600">No report is registered for slug "{slug}".</p>
       </div>
+    );
+  }
+
+  const custom = CUSTOM_PAGE_BY_SLUG[slug];
+  if (custom) {
+    const { Component, props } = custom;
+    return (
+      <Component
+        code={leaf.code}
+        fetchFn={fetchFn}
+        triggerNotification={triggerNotification}
+        {...props}
+      />
     );
   }
 

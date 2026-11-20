@@ -1,7 +1,15 @@
 import IndexCardGrid from '../components/IndexCardGrid';
 import REPORTS_INDEX, { REPORTS_LEAVES } from '../data/reportsIndex';
 import GenericReportPage from '../components/GenericReportPage';
+import FlaggingReport from '../components/FlaggingReport';
 import * as api from '../api';
+
+// Slugs whose report page has its own grouped-header layout and cannot be
+// rendered by the generic auto-inferred table.
+const CUSTOM_PAGE_BY_SLUG = {
+  'flagging-addition': { Component: FlaggingReport, props: { kind: 'addition' } },
+  'flagging-deletion': { Component: FlaggingReport, props: { kind: 'deletion' } },
+};
 
 const FETCH_BY_SLUG = {
   'flagging-addition': api.fetchReportKpi2_1_1,
@@ -58,15 +66,29 @@ export default function ReportsIndex({ triggerNotification }) {
       subtitle="Pick a report to open it on the right."
       rows={REPORTS_INDEX}
       routePrefix="/kpi/dgs/reports"
-      renderRight={(slug) => {
+      accentColor="#4b2424"
+      mergedLayout
+      renderRight={(slug, { flat } = {}) => {
         if (!slug) return null;
         const leaf = REPORTS_LEAVES.find((l) => l.slug === slug);
         const fetchFn = FETCH_BY_SLUG[slug];
         if (!leaf || !fetchFn) {
           return (
-            <div className="module-card">
-              <p className="text-sm text-slate-600">No report is registered for slug "{slug}".</p>
-            </div>
+            <p className="text-sm text-slate-600">No report is registered for slug "{slug}".</p>
+          );
+        }
+        const custom = CUSTOM_PAGE_BY_SLUG[slug];
+        if (custom) {
+          const { Component, props } = custom;
+          return (
+            <Component
+              key={slug}
+              code={leaf.code}
+              fetchFn={fetchFn}
+              triggerNotification={triggerNotification}
+              flat={flat}
+              {...props}
+            />
           );
         }
         return (
@@ -77,6 +99,7 @@ export default function ReportsIndex({ triggerNotification }) {
             fetchFn={fetchFn}
             triggerNotification={triggerNotification}
             showBack={false}
+            flat={flat}
           />
         );
       }}

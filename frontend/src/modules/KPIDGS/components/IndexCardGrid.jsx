@@ -24,7 +24,19 @@ const SECTION_ICONS = {
  * `renderRight(slug)` returns the React node for the currently-selected leaf,
  * or null/undefined when no section is selected (the pane shows a prompt then).
  */
-export default function IndexCardGrid({ title, subtitle, rows, routePrefix, renderRight }) {
+// Default accent (blue) matches the other KPI modules. Reports uses brown
+// to line up with the table theme — pass `accentColor` to override per view.
+const DEFAULT_ACCENT = '#0f417a';
+
+export default function IndexCardGrid({
+  title, subtitle, rows, routePrefix, renderRight,
+  accentColor = DEFAULT_ACCENT,
+  // When true, list and right-pane share a single outer card with just a
+  // vertical divider between them (used by the Reports section so the two
+  // panels read as one unit). Inner renderers receive { flat: true } so they
+  // can skip their own module-card wrapper and avoid nested card borders.
+  mergedLayout = false,
+}) {
   const navigate = useNavigate();
   const location = useLocation();
   const [query, setQuery] = useState('');
@@ -68,61 +80,93 @@ export default function IndexCardGrid({ title, subtitle, rows, routePrefix, rend
       .filter(Boolean);
   }, [rows, query]);
 
-  const rightContent = renderRight ? renderRight(activeSlug) : null;
+  const rightContent = renderRight ? renderRight(activeSlug, { flat: mergedLayout }) : null;
+
+  const listPane = (
+    <div
+      className={
+        mergedLayout
+          ? 'overflow-hidden flex flex-col max-h-[calc(100vh-220px)] border-r border-slate-200 dark:border-slate-700'
+          : 'module-card p-0 overflow-hidden flex flex-col max-h-[calc(100vh-220px)]'
+      }
+    >
+      <div className="px-3 py-3 border-b border-slate-200 dark:border-slate-700 text-left">
+        <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 text-left">{title}</h2>
+        {subtitle && (
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 text-left">{subtitle}</p>
+        )}
+        <div className="relative mt-3">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search sections..."
+            className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-[#0f417a] font-semibold text-slate-700 dark:text-slate-200"
+          />
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto">
+        {filteredRows.length === 0 ? (
+          <div className="text-center py-10 text-xs text-slate-500 dark:text-slate-400">
+            No sections match "{query}".
+          </div>
+        ) : (
+          <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+            {filteredRows.map((row) => (
+              <SectionRow
+                key={row.code}
+                row={row}
+                routePrefix={routePrefix}
+                navigate={navigate}
+                activeSlug={activeSlug}
+                isOpen={!!openGroups[row.code] || !!query.trim()}
+                onToggle={() => toggleGroup(row.code)}
+                accent={accentColor}
+              />
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+
+  const rightPane = (
+    <div
+      className={
+        mergedLayout
+          // Fixed height column. The inner report page keeps its title / toolbar
+          // pinned (they're shrink-0), and the ag-Grid body handles its own scroll
+          // instead of the whole card scrolling.
+          ? 'min-w-0 px-3 py-3 max-h-[calc(100vh-220px)] overflow-hidden flex flex-col'
+          : 'min-w-0'
+      }
+    >
+      {rightContent || <EmptyRightPane title={title} flat={mergedLayout} />}
+    </div>
+  );
+
+  if (mergedLayout) {
+    // One card containing both panes, with a vertical divider between them.
+    // Narrower list column (280px) gives the report table more horizontal room.
+    return (
+      <div className="module-card p-0 overflow-hidden grid grid-cols-1 lg:grid-cols-[280px_1fr]">
+        {listPane}
+        {rightPane}
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-4">
-      {/* Left: sections list */}
-      <div className="module-card p-0 overflow-hidden flex flex-col max-h-[calc(100vh-220px)]">
-        <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
-          <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">{title}</h2>
-          {subtitle && (
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{subtitle}</p>
-          )}
-          <div className="relative mt-3">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search sections..."
-              className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-[#0f417a] font-semibold text-slate-700 dark:text-slate-200"
-            />
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto">
-          {filteredRows.length === 0 ? (
-            <div className="text-center py-10 text-xs text-slate-500 dark:text-slate-400">
-              No sections match "{query}".
-            </div>
-          ) : (
-            <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-              {filteredRows.map((row) => (
-                <SectionRow
-                  key={row.code}
-                  row={row}
-                  routePrefix={routePrefix}
-                  navigate={navigate}
-                  activeSlug={activeSlug}
-                  isOpen={!!openGroups[row.code] || !!query.trim()}
-                  onToggle={() => toggleGroup(row.code)}
-                />
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-
-      {/* Right: selected leaf's content */}
-      <div className="min-w-0">
-        {rightContent || <EmptyRightPane title={title} />}
-      </div>
+      {listPane}
+      {rightPane}
     </div>
   );
 }
 
-function SectionRow({ row, routePrefix, navigate, activeSlug, isOpen, onToggle }) {
+function SectionRow({ row, routePrefix, navigate, activeSlug, isOpen, onToggle, accent }) {
   const Icon = SECTION_ICONS[row.code] || Anchor;
   const isLeaf = !row.isGroup;
   const target = isLeaf ? `${routePrefix}/${row.slug}` : null;
@@ -135,46 +179,63 @@ function SectionRow({ row, routePrefix, navigate, activeSlug, isOpen, onToggle }
     else onToggle?.();
   };
 
+  // Accent is a hex string passed in from the parent (defaults to blue). We can't
+  // compose Tailwind arbitrary values at runtime, so active/selected states fall
+  // back to inline style for both the tint (10% alpha via rgba()) and the border.
+  const tint = hexToRgba(accent, 0.1);
+  const activeStyle = (isActive)
+    ? { backgroundColor: tint, borderLeftColor: accent }
+    : (containsActive ? { backgroundColor: 'transparent', borderLeftColor: `${accent}55` } : undefined);
+  const iconStyle = (isActive || containsActive)
+    ? { backgroundColor: accent, color: '#ffffff' }
+    : { backgroundColor: tint, color: accent };
+  const labelStyle = (isActive || containsActive) ? { color: accent } : undefined;
+
   return (
     <li>
       <div
         className={`flex items-center gap-2.5 px-3 py-2.5 transition cursor-pointer border-l-2 ${
-          isActive
-            ? 'bg-[#0f417a]/10 dark:bg-blue-500/10 border-[#0f417a] dark:border-blue-500'
-            : containsActive
-              ? 'bg-slate-50 dark:bg-slate-800/40 border-slate-300 dark:border-slate-600'
-              : 'bg-slate-50/60 dark:bg-slate-800/30 border-transparent hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:border-slate-300'
+          isActive || containsActive
+            ? ''
+            : 'bg-slate-50/60 dark:bg-slate-800/30 border-transparent hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:border-slate-300'
         }`}
+        style={activeStyle}
         onClick={handleHeaderClick}
         role="button"
         tabIndex={0}
         onKeyDown={(e) => { if (e.key === 'Enter') handleHeaderClick(); }}
         aria-expanded={row.isGroup ? isOpen : undefined}
       >
-        <div className={`flex items-center justify-center h-7 w-7 rounded-md flex-shrink-0 ${
-          isActive || containsActive
-            ? 'bg-[#0f417a] text-white'
-            : 'bg-[#0f417a]/10 dark:bg-blue-500/10 text-[#0f417a] dark:text-blue-400'
-        }`}>
+        <div
+          className="flex items-center justify-center h-7 w-7 rounded-md flex-shrink-0"
+          style={iconStyle}
+        >
           <Icon className="h-3.5 w-3.5" />
         </div>
         <div className="min-w-0 flex-1">
           <span className="block text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none">
             {row.code}
           </span>
-          <span className={`block text-[11px] font-bold leading-snug mt-0.5 ${
-            isActive || containsActive ? 'text-[#0f417a] dark:text-blue-400' : 'text-slate-800 dark:text-slate-100'
-          }`}>
+          <span
+            className={`block text-[11px] font-bold leading-snug mt-0.5 ${
+              isActive || containsActive ? '' : 'text-slate-800 dark:text-slate-100'
+            }`}
+            style={labelStyle}
+          >
             {row.label}
           </span>
         </div>
         {isLeaf ? (
-          <ChevronRight className={`h-3.5 w-3.5 flex-shrink-0 ${isActive ? 'text-[#0f417a] dark:text-blue-400' : 'text-slate-400'}`} />
+          <ChevronRight
+            className="h-3.5 w-3.5 flex-shrink-0"
+            style={isActive ? { color: accent } : { color: '#94a3b8' }}
+          />
         ) : (
           <ChevronDown
             className={`h-3.5 w-3.5 flex-shrink-0 transition-transform ${
               isOpen ? 'rotate-0' : '-rotate-90'
-            } ${containsActive ? 'text-[#0f417a] dark:text-blue-400' : 'text-slate-400'}`}
+            }`}
+            style={containsActive ? { color: accent } : { color: '#94a3b8' }}
           />
         )}
       </div>
@@ -183,6 +244,10 @@ function SectionRow({ row, routePrefix, navigate, activeSlug, isOpen, onToggle }
         <ul className="bg-white dark:bg-slate-900">
           {row.children.map((child) => {
             const isChildActive = activeSlug === child.slug;
+            const childRowStyle = isChildActive
+              ? { backgroundColor: tint, borderLeftColor: accent }
+              : undefined;
+            const childTextStyle = isChildActive ? { color: accent } : undefined;
             return (
               <li key={child.code}>
                 <button
@@ -190,25 +255,33 @@ function SectionRow({ row, routePrefix, navigate, activeSlug, isOpen, onToggle }
                   onClick={() => navigate(`${routePrefix}/${child.slug}`)}
                   className={`w-full flex items-center gap-2 pl-12 pr-3 py-2 text-left transition border-l-2 cursor-pointer group ${
                     isChildActive
-                      ? 'bg-[#0f417a]/10 dark:bg-blue-500/10 border-[#0f417a] dark:border-blue-500'
+                      ? ''
                       : 'border-transparent hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:border-slate-300'
                   }`}
+                  style={childRowStyle}
                 >
-                  <span className={`text-[9px] font-black tracking-wider flex-shrink-0 w-14 ${
-                    isChildActive ? 'text-[#0f417a] dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'
-                  }`}>
+                  <span
+                    className={`text-[9px] font-black tracking-wider flex-shrink-0 w-14 ${
+                      isChildActive ? '' : 'text-slate-400 dark:text-slate-500'
+                    }`}
+                    style={childTextStyle}
+                  >
                     {child.code}
                   </span>
-                  <span className={`text-[11px] font-semibold flex-1 min-w-0 ${
-                    isChildActive
-                      ? 'text-[#0f417a] dark:text-blue-400'
-                      : 'text-slate-700 dark:text-slate-200 group-hover:text-[#0f417a] dark:group-hover:text-blue-400'
-                  }`}>
+                  <span
+                    className={`text-[11px] font-semibold flex-1 min-w-0 ${
+                      isChildActive
+                        ? ''
+                        : 'text-slate-700 dark:text-slate-200'
+                    }`}
+                    style={childTextStyle}
+                  >
                     {child.label}
                   </span>
-                  <ChevronRight className={`h-3 w-3 flex-shrink-0 ${
-                    isChildActive ? 'text-[#0f417a] dark:text-blue-400' : 'text-slate-400 group-hover:text-[#0f417a] dark:group-hover:text-blue-400'
-                  }`} />
+                  <ChevronRight
+                    className="h-3 w-3 flex-shrink-0"
+                    style={isChildActive ? { color: accent } : { color: '#94a3b8' }}
+                  />
                 </button>
               </li>
             );
@@ -219,9 +292,24 @@ function SectionRow({ row, routePrefix, navigate, activeSlug, isOpen, onToggle }
   );
 }
 
-function EmptyRightPane({ title }) {
+// Convert a hex string (#rrggbb) to an rgba() with the given alpha. Used so the
+// accent prop can drive the subtle background tint behind active rows.
+function hexToRgba(hex, alpha) {
+  const h = hex.replace('#', '');
+  const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
+  const bigint = parseInt(full, 16);
+  const r = (bigint >> 16) & 255;
+  const g = (bigint >>  8) & 255;
+  const b = (bigint >>  0) & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function EmptyRightPane({ title, flat = false }) {
+  const cls = flat
+    ? 'h-full flex flex-col items-center justify-center text-center py-16'
+    : 'module-card h-full flex flex-col items-center justify-center text-center py-16';
   return (
-    <div className="module-card h-full flex flex-col items-center justify-center text-center py-16">
+    <div className={cls}>
       <MousePointerClick className="h-10 w-10 text-slate-300 dark:text-slate-600 mb-3" />
       <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
         Select a section from the list

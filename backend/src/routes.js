@@ -122,6 +122,7 @@ import projectsDataQcReportTab from "./controllers/Reports/dataQc/index.js";
 import projectsMisReportTab from "./controllers/Reports/projectMis/index.js";
 import kpiDgs1_0Tab from "./controllers/Reports/kpiDgs1_0.js";
 import kpiDgs2_0Tab from "./controllers/Reports/kpiDgs2_0.js";
+import kpiDgsFlaggingReports from "./controllers/Reports/kpiDgsFlagging.js";
 import kpiDgs3_0Tab from "./controllers/Reports/kpiDgs2_3.js";
 import TrafficVesselReportTab from "./controllers/Reports/trafficVesselReports.js";
 import TrafficVesselDrilldownReportTab from "./controllers/Reports/trafficVesselDrilldownReports.js";
@@ -1955,6 +1956,10 @@ router.get('/get-kpi-dgs-k-1-4-3-report', kpiDgsPortPerformanceTab.getPortPerfor
 // KPI DGS report 2.0
 router.get('/kpi-dgs-2-0-report', kpiDgs2_0Tab.getKpiDgs2_0);
 router.get('/kpi-dgs-2-1-report', kpiDgs2_0Tab.getKpiDgs2_1);
+
+// K-2.1.1 and K-2.1.2 — Flagging of Vessels (Addition / Deletion) MMD-wise reports
+router.get('/kpi-dgs-flagging-addition-report', kpiDgsFlaggingReports.getFlaggingAdditionReport);
+router.get('/kpi-dgs-flagging-deletion-report', kpiDgsFlaggingReports.getFlaggingDeletionReport);
 router.get('/kpi-dgs-2-2-report', kpiDgs2_0Tab.getKpiDgs2_2);
 router.get('/kpi-dgs-2-3-report', kpiDgs2_0Tab.getKpiDgs2_3);
 router.get('/kpi-dgs-2-4-report', kpiDgs2_0Tab.getKpiDgs2_4);
