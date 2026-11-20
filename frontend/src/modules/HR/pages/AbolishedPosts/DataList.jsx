@@ -274,16 +274,53 @@ export default function ListAbolishedPosts({ permissions, notify }) {
 
   // Copy / Export: every row matching the filters, visible data columns only.
   // Built on click: it reads the notifier ref, which must not happen during render.
+  const loadAllRows = async () => {
+    const EXPORT_LIMIT = 500;
+    const { page, limit, ...filters } = params; // keep filters + search, drop paging
+
+    // Find the rows array wherever the API put it
+    const pickList = (res) => {
+      if (Array.isArray(res)) return res;
+      const candidates = [
+        res?.rows, res?.data, res?.data?.rows, res?.data?.data,
+        res?.items, res?.data?.items, res?.result, res?.records,
+      ];
+      return candidates.find(Array.isArray) ?? [];
+    };
+    const pickNumber = (res, keys) => {
+      for (const k of keys) {
+        const v = res?.[k] ?? res?.data?.[k] ?? res?.pagination?.[k] ?? res?.data?.pagination?.[k];
+        if (v !== undefined && v !== null && !Number.isNaN(Number(v))) return Number(v);
+      }
+      return undefined;
+    };
+
+    const all = [];
+    let pageNo = 1;
+    let pages = 1;
+    do {
+      const res = await fetchAbolishedPostsPage({ ...filters, page: pageNo, limit: EXPORT_LIMIT });
+      if (pageNo === 1) console.log('abolished export response:', res); // remove once it works
+      const list = pickList(res);
+      all.push(...list);
+      const totalPagesFromApi = pickNumber(res, ['totalPages', 'total_pages', 'pages']);
+      const totalFromApi = pickNumber(res, ['total', 'totalCount', 'total_count', 'count']);
+      pages = totalPagesFromApi ?? (totalFromApi ? Math.ceil(totalFromApi / EXPORT_LIMIT) : 1);
+      pageNo += 1;
+    } while (pageNo <= pages);
+
+    return all.map((row, i) => ({ ...toDisplayRow(row), sNo: i + 1 }));
+  };
   const runExport = (kind) => createTableExporter({
-    loadRows: () => pageRows,
+    loadRows: loadAllRows,
     isBusy: busy,
-    serialStart,
+    serialStart: 0,
     getColumns: () => columnDefs
       .filter((c) => c.field && !NON_DATA_FIELDS.has(c.field))
       .map((c) => ({ field: c.field, label: c.headerName })),
     notify: (toast) => notifyRef.current?.(toast),
-    title: `Abolished Posts (Page ${currentPage})`,
-    fileName: `Abolished_Posts_Page_${currentPage}`,
+    title: 'Abolished Posts',
+    fileName: 'Abolished_Posts',
     label: 'Abolished posts',
   })[kind]();
 

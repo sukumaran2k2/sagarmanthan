@@ -391,9 +391,10 @@ export default function OrganisationStructure({ permissions, notify }) {
 
   // Copy / Export: the rows on the current page, same columns as before
   const pageStart = (currentPage - 1) * pageSize;
+    // Copy / Export: every row matching the filters/search, same columns as before
   const runExport = (kind) => createTableExporter({
-    loadRows: () => filteredPosts.slice(pageStart, pageStart + pageSize),
-    serialStart: pageStart,
+    loadRows: () => filteredPosts,
+    serialStart: 0,
     getColumns: () => [
       { field: 'post_name', label: 'Post Name' },
       ...(isMinistryView ? [{ field: 'organisation_name', label: 'Organisation' }] : []),
@@ -403,8 +404,8 @@ export default function OrganisationStructure({ permissions, notify }) {
     ],
     notify,
     isBusy: loading,
-    title: `Organisation Structure (Page ${currentPage})`,
-    fileName: `Organisation_Structure_Page_${currentPage}`,
+    title: 'Organisation Structure',
+    fileName: 'Organisation_Structure',
     label: 'Organisation structure' })[kind]();
 
   return (
