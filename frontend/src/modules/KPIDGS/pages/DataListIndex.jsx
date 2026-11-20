@@ -5,7 +5,7 @@ import INPUT_FORM_INDEX, { INPUT_FORM_LEAVES } from '../data/inputFormIndex';
 import GenericReportPage from '../components/GenericReportPage';
 import * as api from '../api';
 import { useKPIDGSPermissions } from '../hooks/useKPIDGSPermissions';
-import { examMonthlyColumns, examOverallColumns, HIDDEN_BY_DEFAULT } from '../components/examPerformanceColumns';
+import { examMonthlyColumns, examOverallColumns } from '../components/examPerformanceColumns';
 import { useDgsStore, DGS_STORED_LIST_SLUGS } from '../store/useDgsStore';
 
 const LIST_FETCH_BY_SLUG = {
@@ -40,10 +40,7 @@ const BLUE_HOVER = '#1d5594';
 // Column map the table starts with (same keys the table uses: field, else header)
 function defaultVisibleCols(columns) {
   return Object.fromEntries((columns || [])
-    .map((col) => {
-      const key = col.field || col.headerName;
-      return [key, col.hide !== true && !HIDDEN_BY_DEFAULT.includes(key)];
-    })
+    .map((col) => [col.field || col.headerName, col.hide !== true])
     .filter(([key]) => key));
 }
 

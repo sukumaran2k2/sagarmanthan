@@ -22,10 +22,8 @@ const periodColumns = [
   },
 ];
 
-// Offered under Visibility but unticked at first, as in the other KPI data lists
-export const HIDDEN_BY_DEFAULT = ['updated_date'];
-
-// Latest edit in the month (or month + type); '--' when never edited
+// Latest edit in the month (or month + type); '--' when never edited.
+// Shown from the start; it can be hidden under Visibility.
 const lastUpdatedColumn = {
   headerName: 'Last Updated Date', field: 'updated_date', minWidth: 150,
   cellClass: 'text-center text-slate-600 dark:text-slate-300 flex items-center justify-center',

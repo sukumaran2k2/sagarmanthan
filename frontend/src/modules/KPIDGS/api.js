@@ -1,4 +1,5 @@
 import { API_BASE, createApiClient } from '../../api';
+import { cachedGet, clearDgsCache } from './store/dgsRequestCache';
 
 export { API_BASE };
 
@@ -92,11 +93,15 @@ export function fetchKpi2_3_EditMasterdata(year, month, typeId) {
 export function checkKpi2_3_2_Data(year, month, onType) {
   return api.get(`/checkData-2-3-2-data/${year}/${month}/${onType}`);
 }
+// K-2.3 saves clear the request cache so the Data Lists show the change at once
+const clearingCache = (res) => { clearDgsCache(); return res; };
+
 export function createKpi2_3_2(payload) {
-  return api.post('/add-kpi2-3-2', payload);
+  return api.post('/add-kpi2-3-2', payload).then(clearingCache);
 }
+// Cached for a minute (dgsRequestCache): reopening the Data List is instant
 export function fetchKpi2_3_2_List(params = {}) {
-  return api.get('/kpi2-3-2-list', { params });
+  return cachedGet(`kpi2-3-2-list ${JSON.stringify(params)}`, () => api.get('/kpi2-3-2-list', { params }));
 }
 
 // ---- K-2.3.1 Exam Monthly Performance (Input) ----
@@ -106,16 +111,16 @@ export function checkKpi2_3_1_Data(year, month) {
   return api.get(`/checkData-2-3-1-data/${year}/${month}`);
 }
 export function createKpi2_3_1(payload) {
-  return api.post('/add-kpi2-3-1', payload);
+  return api.post('/add-kpi2-3-1', payload).then(clearingCache);
 }
 export function fetchKpi2_3_1_List(params = {}) {
-  return api.get('/kpi2-3-1-list', { params });
+  return cachedGet(`kpi2-3-1-list ${JSON.stringify(params)}`, () => api.get('/kpi2-3-1-list', { params }));
 }
 export function fetchKpi2_3_1_EditData(year, month) {
   return api.get(`/getedit-2-3-1-data/${year}/${month}`);
 }
 export function updateKpi2_3_1(payload) {
-  return api.put('/edit-2-3-1-data', payload);
+  return api.put('/edit-2-3-1-data', payload).then(clearingCache);
 }
 
 // K-2.4 Entry and Exit of Candidates

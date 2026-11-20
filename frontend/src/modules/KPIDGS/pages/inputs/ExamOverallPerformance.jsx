@@ -1,8 +1,7 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import {
-  checkKpi2_3_2_Data,
   fetchKpi2_3_Masterdata,
   fetchKpi2_3_EditMasterdata,
   createKpi2_3_2,
@@ -41,6 +40,44 @@ function TotalCell({ value }) {
   );
 }
 
+// One grid row. Memoised: typing changes only that row's object, so the other ~100 rows of the
+// grid skip re-rendering (onCellChange is a stable callback).
+const ExamRow = memo(function ExamRow({ row, index, serial, disabled, onCellChange }) {
+  const overPassed = row.candidatesPassed !== '' && n(row.candidatesPassed) > n(row.candidatesAppeared);
+  return (
+    <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+      <td className={`${cellCls} text-center font-bold text-slate-500`}>{serial}</td>
+      <td className={`${cellCls} text-slate-700 dark:text-slate-200 font-semibold`}>{row.codeName}</td>
+      <td className={`${cellCls} text-slate-700 dark:text-slate-200`}>{row.subjectName}</td>
+      <td className={`${cellCls} text-slate-700 dark:text-slate-200`}>{row.frequencyName}</td>
+      <td className={cellCls}>
+        <input
+          type="text"
+          inputMode="numeric"
+          value={row.candidatesAppeared}
+          onChange={(e) => onCellChange(index, 'candidatesAppeared', e.target.value)}
+          disabled={disabled}
+          className={inputCls}
+        />
+      </td>
+      <td className={cellCls}>
+        <input
+          type="text"
+          inputMode="numeric"
+          value={row.candidatesPassed}
+          onChange={(e) => onCellChange(index, 'candidatesPassed', e.target.value)}
+          disabled={disabled}
+          className={overPassed ? inputErrorCls : inputCls}
+          title={overPassed ? 'Candidates passed is more than candidates appeared' : undefined}
+        />
+      </td>
+      <td className={cellCls}>
+        <div className={readCls}>{passPercent(row.candidatesAppeared, row.candidatesPassed)}</div>
+      </td>
+    </tr>
+  );
+});
+
 // K-2.3.2 DGS - Exam Overall Performance Statistics (tbl_kpi_dgs_2_3_2).
 // Year + Month + Type load that type's exam rows (Grade > Code > Subject > Frequency) from
 // mmt_kpi_2_3_data; the user enters candidates appeared / passed and pass % is worked out.
@@ -74,8 +111,9 @@ export default function ExamOverallPerformance({ triggerNotification }) {
   const rows = useMemo(() => current?.rows ?? [], [current]);
   const duplicate = Boolean(current?.duplicate);
 
-  // Load the grid whenever year, month and type are all chosen.
-  // Add first checks that the combination is still free, as the old portal did.
+  // Load the grid whenever year, month and type are all chosen (one request).
+  // The grid comes back as the saved rows when the combination already has data, so on Add
+  // that answer is also the duplicate check (the old portal made a separate check call first).
   useEffect(() => {
     latestLoadRef.current = loadKey;
     if (!loadKey) return;
@@ -83,20 +121,16 @@ export default function ExamOverallPerformance({ triggerNotification }) {
     const isStale = () => latestLoadRef.current !== loadKey;
 
     const load = async () => {
-      if (!isEdit) {
-        const check = await checkKpi2_3_2_Data(y, m, t);
-        if (isStale()) return;
-        if (check.status === 205) {
-          setLoaded({ key: loadKey, rows: [], duplicate: true });
-          notify(DGS_TOASTS.duplicate('year, month and type'));
-          return;
-        }
-      }
       const res = isEdit
         ? await fetchKpi2_3_EditMasterdata(y, m, t)
         : await fetchKpi2_3_Masterdata(y, m, t);
       if (isStale()) return;
       const list = Array.isArray(res.data?.rowData) ? res.data.rowData : [];
+      if (!isEdit && list.some((r) => r.dgs_2_3_2_ID)) {
+        setLoaded({ key: loadKey, rows: [], duplicate: true });
+        notify(DGS_TOASTS.duplicate('year, month and type'));
+        return;
+      }
       setLoaded({
         key: loadKey,
         duplicate: false,
@@ -264,41 +298,16 @@ export default function ExamOverallPerformance({ triggerNotification }) {
                         <td className={`${cellCls} text-center font-bold text-slate-700 dark:text-slate-200`}>{g.passed}</td>
                         <td className={`${cellCls} text-center font-bold text-slate-700 dark:text-slate-200`}>{passPercent(g.appeared, g.passed)}</td>
                       </tr>
-                      {g.items.map(({ row, index, serial }) => {
-                        const overPassed = row.candidatesPassed !== '' && n(row.candidatesPassed) > n(row.candidatesAppeared);
-                        return (
-                          <tr key={row.dgs_2_3_2_ID ?? row.id ?? index} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                            <td className={`${cellCls} text-center font-bold text-slate-500`}>{serial}</td>
-                            <td className={`${cellCls} text-slate-700 dark:text-slate-200 font-semibold`}>{row.codeName}</td>
-                            <td className={`${cellCls} text-slate-700 dark:text-slate-200`}>{row.subjectName}</td>
-                            <td className={`${cellCls} text-slate-700 dark:text-slate-200`}>{row.frequencyName}</td>
-                            <td className={cellCls}>
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                value={row.candidatesAppeared}
-                                onChange={(e) => setCell(index, 'candidatesAppeared', e.target.value)}
-                                disabled={saving}
-                                className={inputCls}
-                              />
-                            </td>
-                            <td className={cellCls}>
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                value={row.candidatesPassed}
-                                onChange={(e) => setCell(index, 'candidatesPassed', e.target.value)}
-                                disabled={saving}
-                                className={overPassed ? inputErrorCls : inputCls}
-                                title={overPassed ? 'Candidates passed is more than candidates appeared' : undefined}
-                              />
-                            </td>
-                            <td className={cellCls}>
-                              <div className={readCls}>{passPercent(row.candidatesAppeared, row.candidatesPassed)}</div>
-                            </td>
-                          </tr>
-                        );
-                      })}
+                      {g.items.map(({ row, index, serial }) => (
+                        <ExamRow
+                          key={row.dgs_2_3_2_ID ?? row.id ?? index}
+                          row={row}
+                          index={index}
+                          serial={serial}
+                          disabled={saving}
+                          onCellChange={setCell}
+                        />
+                      ))}
                     </Fragment>
                   ))}
                   <tr className="bg-slate-50 dark:bg-slate-800/40">

@@ -9,7 +9,7 @@ import { sendError, parseMonth, requirePermission, resolveUserId } from "./kpiEn
 // Queries and responses follow the old portal. Login, KPI_DGS rights and body checks run in
 // routes.js (validateKpiBody); this file adds the checks that depend on what is saved.
 // Who / when: created_by + created_date on add, updated_by + updated_date on edit, always the
-// signed-in user from the JWT (sql/kpi-modules/04_add_dgs_k23_audit_columns.sql adds the columns).
+// signed-in user from the JWT (sql/kpi-dgs/01_add_k23_audit_columns.sql adds the columns).
 
 const MODULE_CODE = "KPI_DGS";
 const NAUTICAL = 1;
@@ -60,7 +60,8 @@ const SAVED_ROWS_SQL = `
     INNER JOIN mmt_kpi_code_2_3 ON mmt_kpi_code_2_3.code_id = tbl_kpi_dgs_2_3_2.code_id
     INNER JOIN mmt_kpi_subject_2_3 ON mmt_kpi_subject_2_3.subject_id = tbl_kpi_dgs_2_3_2.subject_id
     INNER JOIN mmt_kpi_frequency_2_3 ON mmt_kpi_frequency_2_3.frequency_id = tbl_kpi_dgs_2_3_2.frequency_id
-    WHERE year = @year AND month = @month AND tbl_kpi_dgs_2_3_2.type_id = @type`;
+    WHERE year = @year AND month = @month AND tbl_kpi_dgs_2_3_2.type_id = @type
+    ORDER BY dgs_2_3_2_id`;
 
 const MASTER_ROWS_SQL = `
     SELECT id, mmt_kpi_2_3_data.type_id AS typeId, type_name AS typeName,
@@ -74,7 +75,8 @@ const MASTER_ROWS_SQL = `
     INNER JOIN mmt_kpi_grade_2_3 ON mmt_kpi_grade_2_3.grade_id = mmt_kpi_2_3_data.grade_id
     INNER JOIN mmt_kpi_subject_2_3 ON mmt_kpi_subject_2_3.subject_id = mmt_kpi_2_3_data.subject_id
     INNER JOIN mmt_kpi_type_2_3 ON mmt_kpi_type_2_3.type_id = mmt_kpi_2_3_data.type_id
-    WHERE mmt_kpi_2_3_data.type_id = @type`;
+    WHERE mmt_kpi_2_3_data.type_id = @type
+    ORDER BY mmt_kpi_2_3_data.id`;
 
 // Column layout the old portal's ag-grid reads; kept in the response unchanged
 function examColumnDefs({ hidePassPercentage }) {
@@ -114,8 +116,13 @@ async function sendExamGrid(req, res, typeParam, hidePassPercentage) {
         request.input("month", sql.Int, period.month);
         request.input("type", sql.Int, period.type);
 
-        const saved = await request.query(`${SAVED_ROWS_SQL};`);
-        const rowData = saved.recordset.length ? saved.recordset : (await request.query(`${MASTER_ROWS_SQL};`)).recordset;
+        // Saved rows when the year/month/type has data, else the blank master rows (one round trip)
+        const result = await request.query(`
+            IF EXISTS (SELECT 1 FROM tbl_kpi_dgs_2_3_2 WHERE year = @year AND month = @month AND type_id = @type)
+                ${SAVED_ROWS_SQL}
+            ELSE
+                ${MASTER_ROWS_SQL};`);
+        const rowData = result.recordset;
         if (rowData.length === 0) {
             return res.status(404).json({ error: "No data available" });
         }
@@ -178,9 +185,6 @@ async function createDgsKpi2_3_1Data(req, res) {
 
     try {
         const conn = await pool;
-        if (await countMonthlyEntries(conn, year, month) > 0) {
-            return sendError(res, 409, "An entry for this year and month already exists. Edit it from the Data List instead.");
-        }
         const request = conn.request();
         request.input("year", sql.Int, year);
         request.input("month", sql.Int, month);
@@ -188,9 +192,20 @@ async function createDgsKpi2_3_1Data(req, res) {
         request.input("totalExamNautical", sql.Int, totalExamNautical);
         request.input("totalExamEngineering", sql.Int, totalExamEngineering);
         request.input("userId", sql.Int, resolveUserId(req));
-        await request.query(`
+        // Duplicate check and insert in one statement, under lock, so a month is never added twice
+        const result = await request.query(`
+            SET XACT_ABORT ON;
+            BEGIN TRANSACTION;
             INSERT INTO tbl_kpi_dgs_2_3_1 (year, month, type, total_exam_nautical, total_exam_engineering, created_by, created_date)
-            VALUES (@year, @month, @type, @totalExamNautical, @totalExamEngineering, @userId, ${TODAY_SQL});`);
+            SELECT @year, @month, @type, @totalExamNautical, @totalExamEngineering, @userId, ${TODAY_SQL}
+            WHERE NOT EXISTS (
+                SELECT 1 FROM tbl_kpi_dgs_2_3_1 WITH (UPDLOCK, HOLDLOCK) WHERE year = @year AND month = @month);
+            DECLARE @added INT = @@ROWCOUNT;
+            COMMIT TRANSACTION;
+            SELECT @added AS added;`);
+        if (!result.recordset[0].added) {
+            return sendError(res, 409, "An entry for this year and month already exists. Edit it from the Data List instead.");
+        }
         return res.sendStatus(201);
     } catch (err) {
         console.error("K-2.3.1 save failed:", err);
@@ -287,87 +302,104 @@ async function checkData_2_3_2(req, res) {
     }
 }
 
-// Saves the whole grid at once: rows without an id are added, saved rows are updated.
-// Adding needs create rights and updating needs update rights; a failed row undoes the save.
+// Saves the whole grid in ONE database round trip (OPENJSON, as the RBAC matrix save does):
+// rows without an id are added, saved rows are updated, all inside one transaction.
+// Adding needs create rights and updating needs update rights. Nothing is saved when
+//   - a fresh grid's year/month/type already has data (checked under lock, so two people saving
+//     the same month at once cannot both add it)                                       -> 409
+//   - a saved row does not belong to this year/month/type                               -> 409
+//   - a new row is not in the exam master list for this type                            -> 400
+const SAVE_GRID_SQL = `
+    SET XACT_ABORT ON;
+    DECLARE @grid TABLE (id INT NULL, grade_id INT, code_id INT, subject_id INT, frequency_id INT,
+        appeared INT NULL, passed INT NULL);
+    INSERT INTO @grid (id, grade_id, code_id, subject_id, frequency_id, appeared, passed)
+    SELECT id, gradeId, codeId, subjectId, frequencyId, appeared, passed
+    FROM OPENJSON(@rows) WITH (id INT '$.id', gradeId INT '$.gradeId', codeId INT '$.codeId',
+        subjectId INT '$.subjectId', frequencyId INT '$.frequencyId',
+        appeared INT '$.appeared', passed INT '$.passed');
+
+    DECLARE @newCount INT = (SELECT COUNT(*) FROM @grid WHERE id IS NULL);
+    DECLARE @savedCount INT = (SELECT COUNT(*) FROM @grid WHERE id IS NOT NULL);
+
+    BEGIN TRANSACTION;
+
+    IF @savedCount = 0 AND EXISTS (
+        SELECT 1 FROM tbl_kpi_dgs_2_3_2 WITH (UPDLOCK, HOLDLOCK)
+        WHERE year = @year AND month = @month AND type_id = @typeId)
+    BEGIN
+        ROLLBACK TRANSACTION; SELECT 'duplicate' AS outcome; RETURN;
+    END
+
+    UPDATE t
+    SET candidates_appeared = g.appeared,
+        candidate_passed = g.passed,
+        pass_percentage = ROUND((g.passed * 100.0) / NULLIF(g.appeared, 0), 2),
+        updated_by = @userId,
+        updated_date = ${TODAY_SQL}
+    FROM tbl_kpi_dgs_2_3_2 t
+    INNER JOIN @grid g ON g.id = t.dgs_2_3_2_id
+    WHERE t.year = @year AND t.month = @month AND t.type_id = @typeId;
+    IF @@ROWCOUNT <> @savedCount
+    BEGIN
+        ROLLBACK TRANSACTION; SELECT 'mismatch' AS outcome; RETURN;
+    END
+
+    INSERT INTO tbl_kpi_dgs_2_3_2 (year, month, type_id, grade_id, code_id, subject_id, frequency_id,
+        candidates_appeared, candidate_passed, pass_percentage, created_by, created_date)
+    SELECT @year, @month, @typeId, g.grade_id, g.code_id, g.subject_id, g.frequency_id,
+        g.appeared, g.passed, ROUND((g.passed * 100.0) / NULLIF(g.appeared, 0), 2),
+        @userId, ${TODAY_SQL}
+    FROM @grid g
+    WHERE g.id IS NULL AND EXISTS (
+        SELECT 1 FROM mmt_kpi_2_3_data m
+        WHERE m.type_id = @typeId AND m.grade_id = g.grade_id AND m.code_id = g.code_id
+            AND m.subject_id = g.subject_id AND m.frequency_id = g.frequency_id);
+    IF @@ROWCOUNT <> @newCount
+    BEGIN
+        ROLLBACK TRANSACTION; SELECT 'not_in_master' AS outcome; RETURN;
+    END
+
+    COMMIT TRANSACTION;
+    SELECT 'saved' AS outcome;`;
+
+const SAVE_GRID_REFUSALS = {
+    duplicate: [409, "Data for this year, month and type already exists. Edit it from the Data List instead."],
+    mismatch: [409, "Some rows no longer match the saved data. Reopen the entry and try again."],
+    not_in_master: [400, "Some rows are not in the exam master list for this type. Reload the form and try again."],
+};
+
 async function createDgsKpi2_3_2Data(req, res) {
-    const year = Number(req.body.year);
-    const month = Number(req.body.month);
     const rows = req.body.rowData;
-    const type = Number(rows[0].typeId);
-    const newRows = rows.filter((r) => r.dgs_2_3_2_ID === null || r.dgs_2_3_2_ID === undefined || r.dgs_2_3_2_ID === "");
-    const savedRows = rows.filter((r) => !newRows.includes(r));
+    const isNew = (r) => r.dgs_2_3_2_ID === null || r.dgs_2_3_2_ID === undefined || r.dgs_2_3_2_ID === "";
+    if (rows.some(isNew) && !requirePermission(req, res, MODULE_CODE, "create")) return;
+    if (rows.some((r) => !isNew(r)) && !requirePermission(req, res, MODULE_CODE, "update")) return;
 
-    if (newRows.length && !requirePermission(req, res, MODULE_CODE, "create")) return;
-    if (savedRows.length && !requirePermission(req, res, MODULE_CODE, "update")) return;
+    const grid = rows.map((r) => ({
+        id: isNew(r) ? null : Number(r.dgs_2_3_2_ID),
+        gradeId: Number(r.gradeId),
+        codeId: Number(r.codeId),
+        subjectId: Number(r.subjectId),
+        frequencyId: Number(r.frequencyId),
+        appeared: toCount(r.candidatesAppeared),
+        passed: toCount(r.candidatesPassed),
+    }));
 
-    const userId = resolveUserId(req);
-    let tx;
     try {
         const conn = await pool;
-        // A fresh grid for a year/month/type that already has data would save it twice
-        if (!savedRows.length && await countOverallRows(conn, year, month, type) > 0) {
-            return sendError(res, 409, "Data for this year, month and type already exists. Edit it from the Data List instead.");
-        }
-
-        tx = new sql.Transaction(conn);
-        await tx.begin();
-
-        for (const row of rows) {
-            const request = new sql.Request(tx);
-            request.input("year", sql.Int, year);
-            request.input("month", sql.Int, month);
-            request.input("typeId", sql.Int, type);
-            request.input("candidatesAppeared", sql.Int, toCount(row.candidatesAppeared));
-            request.input("candidatesPassed", sql.Int, toCount(row.candidatesPassed));
-            request.input("userId", sql.Int, userId);
-
-            if (newRows.includes(row)) {
-                request.input("gradeId", sql.Int, Number(row.gradeId));
-                request.input("codeId", sql.Int, Number(row.codeId));
-                request.input("subjectId", sql.Int, Number(row.subjectId));
-                request.input("frequencyId", sql.Int, Number(row.frequencyId));
-                // Only an exam row that exists in the master list for this type is added
-                const result = await request.query(`
-                    INSERT INTO tbl_kpi_dgs_2_3_2 (year, month, type_id, grade_id, code_id, subject_id, frequency_id,
-                        candidates_appeared, candidate_passed, pass_percentage, created_by, created_date)
-                    SELECT @year, @month, @typeId, @gradeId, @codeId, @subjectId, @frequencyId,
-                        @candidatesAppeared, @candidatesPassed,
-                        ROUND((@candidatesPassed * 100.0) / NULLIF(@candidatesAppeared, 0), 2),
-                        @userId, ${TODAY_SQL}
-                    WHERE EXISTS (
-                        SELECT 1 FROM mmt_kpi_2_3_data
-                        WHERE type_id = @typeId AND grade_id = @gradeId AND code_id = @codeId
-                            AND subject_id = @subjectId AND frequency_id = @frequencyId
-                    );`);
-                if (!result.rowsAffected[0]) {
-                    await tx.rollback();
-                    return sendError(res, 400, "Some rows are not in the exam master list for this type. Reload the form and try again.");
-                }
-            } else {
-                // Only a row of this year/month/type can be changed through this save
-                request.input("id", sql.Int, Number(row.dgs_2_3_2_ID));
-                const result = await request.query(`
-                    UPDATE tbl_kpi_dgs_2_3_2
-                    SET candidates_appeared = @candidatesAppeared,
-                        candidate_passed = @candidatesPassed,
-                        pass_percentage = ROUND((@candidatesPassed * 100.0) / NULLIF(@candidatesAppeared, 0), 2),
-                        updated_by = @userId,
-                        updated_date = ${TODAY_SQL}
-                    WHERE dgs_2_3_2_id = @id AND year = @year AND month = @month AND type_id = @typeId;`);
-                if (!result.rowsAffected[0]) {
-                    await tx.rollback();
-                    return sendError(res, 409, "Some rows no longer match the saved data. Reopen the entry and try again.");
-                }
-            }
-        }
-
-        await tx.commit();
-        return res.sendStatus(201);
+        const request = conn.request();
+        request.input("year", sql.Int, Number(req.body.year));
+        request.input("month", sql.Int, Number(req.body.month));
+        request.input("typeId", sql.Int, Number(rows[0].typeId));
+        request.input("userId", sql.Int, resolveUserId(req));
+        request.input("rows", sql.NVarChar(sql.MAX), JSON.stringify(grid));
+        const result = await request.query(SAVE_GRID_SQL);
+        const outcome = result.recordset?.[0]?.outcome;
+        if (outcome === "saved") return res.sendStatus(201);
+        const [status, message] = SAVE_GRID_REFUSALS[outcome] || [500, "The data could not be saved. Nothing was changed."];
+        return sendError(res, status, message);
     } catch (err) {
         console.error("K-2.3.2 save failed:", err);
-        if (tx) {
-            try { await tx.rollback(); } catch { /* already rolled back */ }
-        }
         return sendError(res, 500, "The data could not be saved. Nothing was changed.");
     }
 }
