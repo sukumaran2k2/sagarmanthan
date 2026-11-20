@@ -129,15 +129,19 @@ export const ROUTE_MAP = {
   'GMIS Data List': 'strategies/gmis-mou/data-list',
   'GMIS Input Form': 'strategies/gmis-mou/input-form',
   'GMIS Reports': 'strategies/gmis-mou/reports',
-  // The module is shown as OVOD. The "Drishti Portal" names are kept as aliases so a stored
-  // tab or an old link still resolves; the route slug is unchanged.
+  // The module is shown as "Drishti Portal (OVOD)". The plain "OVOD" and "Drishti Portal"
+  // names are kept as aliases so a stored tab or an old link still resolves; the route
+  // slug is unchanged.
+  'Drishti Portal (OVOD)': 'strategies/drishti-portal/dashboard',
+  'Drishti Portal (OVOD) Input Form': 'strategies/drishti-portal/input-form',
+  'Drishti Portal (OVOD) Data List': 'strategies/drishti-portal/data-list',
+  'Drishti Portal (OVOD) Reports': 'strategies/drishti-portal/performance-report',
+  'Intervention List': 'strategies/drishti-portal/intervention-list',
   'OVOD': 'strategies/drishti-portal/dashboard',
   'OVOD Input Form': 'strategies/drishti-portal/input-form',
   'OVOD Data List': 'strategies/drishti-portal/data-list',
   'OVOD Reports': 'strategies/drishti-portal/performance-report',
-  'Intervention List': 'strategies/drishti-portal/intervention-list',
   'Drishti Portal': 'strategies/drishti-portal/dashboard',
-  'Drishti Portal (OVOD)': 'strategies/drishti-portal/dashboard',
   'One Vision One Document': 'strategies/drishti-portal/dashboard',
   'Drishti Portal - Input Form': 'strategies/drishti-portal/input-form',
   'Drishti Portal - Data List': 'strategies/drishti-portal/data-list',
@@ -269,7 +273,7 @@ export const getTabFromSlug = (slug) => {
   if (cleanSlug.startsWith('hr/consultant-appointment')) return 'Consultant Data List';
   if (cleanSlug.startsWith('strategies/gmis-mou')) return 'GMIS & IMW MoUs';
   if (cleanSlug.startsWith('strategies/miv-2030')) return 'MIV 2030';
-  if (cleanSlug.startsWith('strategies/drishti-portal') || cleanSlug.startsWith('strategies/ovod') || cleanSlug.startsWith('strategies/one-vision-one-document')) return 'OVOD';
+  if (cleanSlug.startsWith('strategies/drishti-portal') || cleanSlug.startsWith('strategies/ovod') || cleanSlug.startsWith('strategies/one-vision-one-document')) return 'Drishti Portal (OVOD)';
   if (cleanSlug.startsWith('finance/nmp')) return 'National Monetisation Pipeline';
   if (cleanSlug.startsWith('finance/capex')) return 'Capex';
   if (cleanSlug.startsWith('governance/gem-procurements')) return 'GEM Procurements';
@@ -418,8 +422,19 @@ const getBreadcrumbs = (tab) => {
   const gmisItems = ['GMIS & IMW MoUs', 'GMIS-MoU', 'GMIS Dashboard', 'GMIS Data List', 'GMIS Input Form', 'GMIS Reports'];
   if (gmisItems.includes(tab)) return ['Home', 'Long Term Strategies', 'GMIS & IMW MoUs', tab === 'GMIS & IMW MoUs' ? 'Dashboard' : tab];
 
-  const ovodItems = ['OVOD', 'OVOD Input Form', 'OVOD Data List', 'OVOD Reports', 'Intervention List', 'Drishti Portal', 'Drishti Portal (OVOD)', 'One Vision One Document'];
-  if (ovodItems.includes(tab)) return ['Home', 'Long Term Strategies', 'OVOD', tab === 'OVOD' || tab === 'Drishti Portal' ? 'Dashboard' : tab];
+  const ovodItems = [
+    'Drishti Portal (OVOD)',
+    'Drishti Portal (OVOD) Input Form',
+    'Drishti Portal (OVOD) Data List',
+    'Drishti Portal (OVOD) Reports',
+    'Intervention List',
+    'OVOD', 'OVOD Input Form', 'OVOD Data List', 'OVOD Reports',
+    'Drishti Portal', 'One Vision One Document',
+  ];
+  if (ovodItems.includes(tab)) {
+    const isRoot = tab === 'Drishti Portal (OVOD)' || tab === 'OVOD' || tab === 'Drishti Portal';
+    return ['Home', 'Long Term Strategies', 'Drishti Portal (OVOD)', isRoot ? 'Dashboard' : tab];
+  }
 
   const visionItems = ['Maritime India Summit'];
   if (visionItems.includes(tab)) return ['Home', 'Long Term Strategies', tab];

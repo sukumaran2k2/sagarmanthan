@@ -143,6 +143,15 @@ const hexToRgb = (hex) => {
 
 // jsPDF's built-in font has no ₹: a string containing it is drawn letter-spaced and cut off
 // (e.g. the header "CSR Fund Allotted (₹ Cr)"), so the PDF writes "Rs." instead. Excel keeps ₹.
+
+// A4 landscape always; more columns -> smaller font and tighter padding (same idea as the HR exports)
+const pdfFit = (columnCount) => {
+  if (columnCount <= 8)  return { font: 8,   pad: 3 };
+  if (columnCount <= 12) return { font: 7,   pad: 3 };
+  if (columnCount <= 16) return { font: 6,   pad: 2 };
+  if (columnCount <= 20) return { font: 5.5, pad: 2 };
+  return                        { font: 5,   pad: 1.5 };
+};
 const pdfText = (v) => String(v ?? '').replace(/₹\s?/g, 'Rs. ');
 
 /** Downloads a landscape A4 PDF and returns its name. brand: header colour as "#rrggbb". */
@@ -150,6 +159,7 @@ export function exportGridToPdf({ title, subtitle, columns, rows = [], pinnedRow
   const tree = visibleTree(columns);
   const cols = leaves(tree);
   const { rows: header } = headerRows(tree);
+  const fit = pdfFit(cols.length);
 
   const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -183,8 +193,8 @@ export function exportGridToPdf({ title, subtitle, columns, rows = [], pinnedRow
     body,
     startY: y,
     margin: { left: margin, right: margin },
-    styles: { fontSize: cols.length > 12 ? 6 : 8, cellPadding: 3, halign: 'center', valign: 'middle', lineWidth: 0.5, lineColor: [210, 214, 220] },
-    headStyles: { fillColor: hexToRgb(brand) || [15, 65, 122], textColor: 255, fontStyle: 'bold' },
+    styles: { fontSize: fit.font, cellPadding: fit.pad, halign: 'center', valign: 'middle', lineWidth: 0.5, lineColor: [210, 214, 220], overflow: 'linebreak' },
+    headStyles: { fillColor: hexToRgb(brand) || [15, 65, 122], textColor: 255, fontStyle: 'bold', fontSize: fit.font },
     alternateRowStyles: { fillColor: [248, 250, 246] },
     // Optional per column: pdfWidth (points) and pdfAlign ('left' | 'center' | 'right'), e.g. for
     // long text that should wrap left-aligned inside the page instead of widening the table

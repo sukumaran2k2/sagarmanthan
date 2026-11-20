@@ -10,6 +10,7 @@ import ExportDropdown from '../../../../components/ExportDropdown';
 import CopyButton from '../../../../components/CopyButton';
 import ChartExportMenu from '../../../../components/ChartExportMenu';
 import { exportReportToPdf } from '../../../../utils/exportReportPdf';
+import { keepValueLabelsApart } from '../../../../utils/chartValueLabels';
 import { COMMON_TOASTS } from '../../../../utils/notify';
 import { exportGridToExcel } from '../../../../utils/exportGridReport';
 
@@ -168,6 +169,8 @@ export default function VesselsBuiltReports({ notify }) {
     legend.data.setAll(chart.series.values);
 
     chart.set('cursor', am5xy.XYCursor.new(root, { behavior: 'none', xAxis }));
+    // Numbers that would land on one another are moved apart
+    keepValueLabelsApart(root, chart);
     chart.appear(800, 100);
 
     return () => { root.dispose(); setChartRoot(null); };

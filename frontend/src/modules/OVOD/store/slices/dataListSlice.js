@@ -19,7 +19,9 @@ export const createInitialDataListState = () => ({
     showFilterPanel: false,
     colVisibility: {
       sno: true, org: true, a1: true, a2: true, a3: true,
-      b1: true, b2: true, b3: true, status: true, date: true, actions: true,
+      // "Last Updated Date" defaults to hidden — users can enable it from the column
+      // picker. Rows are still sorted by it (newest first) on initial render.
+      b1: true, b2: true, b3: true, status: true, date: false, actions: true,
     },
   },
 });

@@ -25,8 +25,8 @@ export const DEFAULT_PROJECT_COLS = {
   project_status: true,
   completed_on: true,
   remarks: true,
-  // As in 2.0: Last Updated shown; the other details offered in Visibility, unticked
-  updated_date: true,
+  // Last Updated Date is offered in Visibility, unticked by default (as in 2.0)
+  updated_date: false,
   physical_progress: false,
   financial_progress: false,
   project_received_from: false,
