@@ -86,8 +86,11 @@ export default function FlaggingReport({ kind, code, fetchFn, triggerNotificatio
       headerClass: 'text-center',
       cellClass: 'text-center flex items-center justify-center',
     };
-    const numeric = (field, headerName) => ({
-      headerName, field, minWidth: 140, flex: 1, ...centre,
+    // Per-column minWidth sized to its header text so "NO. OF APPLICATIONS RECEIVED"
+    // doesn't wrap into three awkward lines. Numbers align to approximate pixel
+    // widths of the uppercase header text at the current font / weight.
+    const numeric = (field, headerName, minWidth = 170) => ({
+      headerName, field, minWidth, flex: 1, ...centre,
       valueFormatter: (p) => (p.value == null || p.value === '' ? '0' : String(p.value)),
       cellStyle: (p) => (p.data?._isTotal ? { fontWeight: 700 } : null),
     });
@@ -96,29 +99,30 @@ export default function FlaggingReport({ kind, code, fetchFn, triggerNotificatio
         headerName: 'S.No',
         valueGetter: (p) => (p.data?._isTotal ? 'Total' : (p.node?.rowIndex ?? 0) + 1),
         maxWidth: 90,
+        minWidth: 70,
         ...centre,
         cellStyle: (p) => (p.data?._isTotal ? { fontWeight: 700 } : null),
       },
-      { headerName: 'MMD Name', field: 'mmd_name', minWidth: 140, flex: 1, ...centre,
+      { headerName: 'MMD Name', field: 'mmd_name', minWidth: 160, flex: 1, ...centre,
         cellStyle: (p) => (p.data?._isTotal ? { fontWeight: 700 } : null) },
       {
         headerName: `During the Previous FY (${meta.prevFyLabel || '-'})`,
         headerClass: 'text-center',
         children: [
-          numeric('prev_received',   'No. of Applications Received'),
-          numeric('prev_registered', 'No. of Registered Ships'),
-          numeric('prev_pending',    'No. of Pending Ships'),
-          numeric('prev_tonnage',    'Total Tonnage'),
+          numeric('prev_received',   'No. of Applications Received', 185),
+          numeric('prev_registered', 'No. of Registered Ships',      170),
+          numeric('prev_pending',    'No. of Pending Ships',          160),
+          numeric('prev_tonnage',    'Total Tonnage',                 135),
         ],
       },
       {
         headerName: `During the Current FY-upto ${meta.currFyUpto || '-'}`,
         headerClass: 'text-center',
         children: [
-          numeric('curr_received',   'No. of Applications Received'),
-          numeric('curr_registered', 'No. of Registered Ships'),
-          numeric('curr_pending',    'No. of Pending Ships'),
-          numeric('curr_tonnage',    'Total Tonnage'),
+          numeric('curr_received',   'No. of Applications Received', 185),
+          numeric('curr_registered', 'No. of Registered Ships',      170),
+          numeric('curr_pending',    'No. of Pending Ships',          160),
+          numeric('curr_tonnage',    'Total Tonnage',                 135),
         ],
       },
     ];

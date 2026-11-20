@@ -4,12 +4,20 @@ import { ArrowLeft } from 'lucide-react';
 import TableWithToolbar from '../../../components/TableWithToolbar';
 import { useNotifier, COMMON_TOASTS } from '../../../utils/notify';
 
+// Brown theme used by every DGS *Reports* page (toolbar buttons + table header).
+// Kept in sync with FlaggingReport.jsx so all K-2.x reports read as one module.
+// Data List reuses this same renderer but overrides the colour to blue below.
+const BROWN = '#4b2424';
+const BROWN_HOVER = '#6b3535';
+
 // Generic report renderer: fetches via `fetchFn`, shows a toolbar+ag-grid.
 // Column defs are inferred from the first row when `columns` is omitted.
 export default function GenericReportPage({
   code, title, fetchFn, columns = null, triggerNotification,
   backTo = '/kpi/dgs/reports', backLabel = 'Back to Reports', showBack = true,
   flat = false,
+  color = BROWN,
+  hoverColor = BROWN_HOVER,
 }) {
   const navigate = useNavigate();
   const notify = useNotifier(triggerNotification);
@@ -46,15 +54,21 @@ export default function GenericReportPage({
     return [
       { headerName: 'S.No', valueGetter: (p) => p.node.rowIndex + 1, minWidth: 80, maxWidth: 100,
         cellClass: 'text-center font-bold text-slate-500 flex items-center justify-center' },
-      ...Object.keys(first).map((k) => ({
-        headerName: toHeading(k),
-        field: k,
-        flex: 1,
-        minWidth: 140,
-        wrapText: true,
-        autoHeight: true,
-        cellClass: 'text-center text-slate-700 flex items-center justify-center',
-      })),
+      ...Object.keys(first).map((k) => {
+        const heading = toHeading(k);
+        return {
+          headerName: heading,
+          field: k,
+          flex: 1,
+          // Give each column enough room so its header doesn't shrink to 2-3 lines.
+          // Derived from the header text length so short labels stay compact and
+          // long labels like "No Of Applications Received" get real room.
+          minWidth: headerMinWidth(heading),
+          wrapText: true,
+          autoHeight: true,
+          cellClass: 'text-center text-slate-700 flex items-center justify-center',
+        };
+      }),
     ];
   }, [rows, columns]);
 
@@ -81,8 +95,11 @@ export default function GenericReportPage({
         rowData={rows}
         columnDefs={colDefs}
         loading={loading}
+        color={color}
+        hoverColor={hoverColor}
         searchPlaceholder="Search records..."
         exportFileName={`dgs_${code.replace(/\./g, '_')}`}
+        fillHeight={flat}
         triggerNotification={triggerNotification}
       />
     </div>
@@ -93,4 +110,14 @@ function toHeading(key) {
   return String(key)
     .replace(/_/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// Approximate pixel width for the header text when rendered in the table's
+// uppercase bold style. Caps between 150px (short labels) and 260px (very long
+// labels) so columns never shrink to unreadable widths yet don't eat the viewport.
+function headerMinWidth(heading) {
+  const len = heading.length;
+  // ~8px per uppercase character + ~40px chrome (filter icon, padding).
+  const estimated = len * 8 + 40;
+  return Math.max(150, Math.min(260, estimated));
 }

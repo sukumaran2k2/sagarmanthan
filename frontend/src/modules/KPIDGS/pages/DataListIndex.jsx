@@ -25,6 +25,12 @@ const LIST_FETCH_BY_SLUG = {
   'placement-record': () => api.fetchMtiMasterList(),
 };
 
+// Data List reuses the same merged-layout / sticky-header / scrollable-body
+// pattern as Reports, but keeps the existing blue theme instead of the Reports
+// brown — so Data List and Reports read as siblings of the module, not clones.
+const BLUE = '#0f417a';
+const BLUE_HOVER = '#1d5594';
+
 export default function DataListIndex({ triggerNotification }) {
   return (
     <IndexCardGrid
@@ -32,15 +38,15 @@ export default function DataListIndex({ triggerNotification }) {
       subtitle="Pick a section to view its saved entries on the right."
       rows={INPUT_FORM_INDEX}
       routePrefix="/kpi/dgs/data-list"
-      renderRight={(slug) => {
+      accentColor={BLUE}
+      mergedLayout
+      renderRight={(slug, { flat } = {}) => {
         if (!slug) return null;
         const leaf = INPUT_FORM_LEAVES.find((l) => l.slug === slug);
         const fetchFn = LIST_FETCH_BY_SLUG[slug];
         if (!leaf || !fetchFn) {
           return (
-            <div className="module-card">
-              <p className="text-sm text-slate-600">No data list is registered for slug "{slug}".</p>
-            </div>
+            <p className="text-sm text-slate-600">No data list is registered for slug "{slug}".</p>
           );
         }
         return (
@@ -51,6 +57,9 @@ export default function DataListIndex({ triggerNotification }) {
             fetchFn={fetchFn}
             triggerNotification={triggerNotification}
             showBack={false}
+            flat={flat}
+            color={BLUE}
+            hoverColor={BLUE_HOVER}
           />
         );
       }}
