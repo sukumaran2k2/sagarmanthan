@@ -33,6 +33,48 @@ import { OVOD_TOASTS } from '../toastMessages';
 import { isOrganisationUser } from '../../../utils/authSession';
 import { exportRowsToFile } from '../../../utils/exportGridReport';
 
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// Format a timestamp as "DD MMM YYYY" (e.g. "15 Jul 2024").
+const formatUpdatedAt = (raw) => {
+  const t = parseUpdatedAt(raw);
+  if (t == null) return '—';
+  const d = new Date(t);
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${day} ${MONTH_SHORT[d.getMonth()]} ${d.getFullYear()}`;
+};
+
+// Parse "Last Updated Date" values to a timestamp that can be sorted numerically.
+// Server data arrives in mixed shapes (ISO, DD/MM/YYYY, DD-MM-YYYY, native Date…),
+// so the column's default string comparator sorts by the wrong substring. Returning
+// a millis timestamp (or null for missing) lets the column sort correctly regardless
+// of how the date was formatted for display.
+const parseUpdatedAt = (raw) => {
+  if (raw == null || raw === '' || raw === '-') return null;
+  if (raw instanceof Date) {
+    const t = raw.getTime();
+    return Number.isNaN(t) ? null : t;
+  }
+  const s = String(raw).trim();
+  if (!s) return null;
+  // ISO prefix: 2024-07-15 or 2024-07-15T12:34:56Z
+  const iso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (iso) {
+    const t = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3])).getTime();
+    return Number.isNaN(t) ? null : t;
+  }
+  // Day-first: DD/MM/YYYY or DD-MM-YYYY (also 2-digit year)
+  const dmy = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
+  if (dmy) {
+    const yr = dmy[3].length === 2 ? 2000 + Number(dmy[3]) : Number(dmy[3]);
+    const t = new Date(yr, Number(dmy[2]) - 1, Number(dmy[1])).getTime();
+    return Number.isNaN(t) ? null : t;
+  }
+  // Last resort: hand it to Date.parse
+  const t = Date.parse(s);
+  return Number.isNaN(t) ? null : t;
+};
+
 const COLUMN_LIST = [
   { key: 'sno', label: 'S.No' },
   { key: 'org', label: 'Organisation' },
@@ -153,7 +195,11 @@ export default function DataList({
         intervention_b2: item['Intervention (B2)'] || item.intervention_b2 || '-',
         action_b3: item['Action (B3)'] || item.action_b3 || '-',
         current_status: item['Current Status'] || item.current_status || 'No Update',
-        updated_at: item['Last Updated Date'] ? String(item['Last Updated Date']).slice(0, 10) : '2026-08-31',
+        // Keep the server's raw date on the row so the column comparator can parse it
+        // without depending on the sliced display string. updated_at stays as the
+        // 10-char display value (empty if missing — the formatter shows a fallback).
+        updated_at_raw: item['Last Updated Date'] || null,
+        updated_at: item['Last Updated Date'] ? String(item['Last Updated Date']).slice(0, 10) : '',
         wing: item.Wing || item.wing || '',
         vibhas: item.Vibhas || item.vibhas || ''
       }));
@@ -321,7 +367,7 @@ export default function DataList({
       r.intervention_b2,
       r.action_b3,
       r.current_status,
-      r.updated_at
+      formatUpdatedAt(r.updated_at_raw ?? r.updated_at)
     ].join('\t'));
 
     const text = [headers.join('\t'), ...lines].join('\n');
@@ -347,13 +393,13 @@ export default function DataList({
       'Intervention (B2)': r.intervention_b2,
       'Action (B3)': r.action_b3,
       'Current Status': r.current_status,
-      'Last Updated Date': r.updated_at
+      'Last Updated Date': formatUpdatedAt(r.updated_at_raw ?? r.updated_at)
     }));
 
     const ws = XLSX.utils.json_to_sheet(exportRows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "DataList");
-    const fileName = `OVOD_DataList_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    const fileName = `Drishti_Portal_OVOD_DataList_${new Date().toISOString().slice(0, 10)}.xlsx`;
     XLSX.writeFile(wb, fileName);
     notify(COMMON_TOASTS.excelExported(fileName, 'The filtered list'));
   };
@@ -366,10 +412,10 @@ export default function DataList({
     }
     // PDF straight to a file (no print dialog or new tab): the columns on show
     const file = exportRowsToFile('pdf', {
-      title: 'OVOD - Strategic Action Items',
+      title: 'Drishti Portal (OVOD) - Strategic Action Items',
       headers: ['S.No', 'Organisation', 'Goal (A1)', 'Intervention (A2)', 'Goal (B1)', 'Intervention (B2)', 'Action (B3)', 'Status', 'Date'],
-      rows: filteredData.slice(0, 500).map((r, idx) => [idx + 1, r.organisation_name || '-', r.goal_a1 || '-', r.intervention_a2 || '-', r.goal_b1 || '-', r.intervention_b2 || '-', r.action_b3 || '-', r.current_status || '-', r.updated_at || '-']),
-      fileName: 'OVOD_Strategic_Action_Items',
+      rows: filteredData.slice(0, 500).map((r, idx) => [idx + 1, r.organisation_name || '-', r.goal_a1 || '-', r.intervention_a2 || '-', r.goal_b1 || '-', r.intervention_b2 || '-', r.action_b3 || '-', r.current_status || '-', formatUpdatedAt(r.updated_at_raw ?? r.updated_at)]),
+      fileName: 'Drishti_Portal_OVOD_Strategic_Action_Items',
     });
     notify(COMMON_TOASTS.excelExported(file));
   };
@@ -514,12 +560,29 @@ export default function DataList({
     {
       headerName: "Last Updated Date",
       field: "updated_at",
-      width: 135,
-      minWidth: 120,
+      width: 180,
+      minWidth: 160,
       headerClass: "text-center",
       cellClass: "font-mono text-slate-700 dark:text-slate-300 text-xs font-semibold text-center",
       hide: !colVisibility.date,
-      valueFormatter: (params) => params.value ? String(params.value).slice(0, 10) : '2026-08-31'
+      sortable: true,
+      // On initial render the grid sorts by this column, newest first, so the row
+      // most-recently updated is always on top and missing dates sit at the bottom.
+      sort: 'desc',
+      sortIndex: 0,
+      valueFormatter: (params) => formatUpdatedAt(params.data?.updated_at_raw ?? params.value),
+      // Date-aware comparator so ascending really means oldest→newest and descending
+      // newest→oldest, regardless of the string format the server returned. Missing
+      // dates are pushed to the end in BOTH directions so the first row is always
+      // the most-recent real update.
+      comparator: (valueA, valueB, nodeA, nodeB, isDescending) => {
+        const ta = parseUpdatedAt(nodeA?.data?.updated_at_raw ?? valueA);
+        const tb = parseUpdatedAt(nodeB?.data?.updated_at_raw ?? valueB);
+        if (ta == null && tb == null) return 0;
+        if (ta == null) return isDescending ? -1 : 1;
+        if (tb == null) return isDescending ? 1 : -1;
+        return ta - tb;
+      },
     },
     {
       headerName: "Action",

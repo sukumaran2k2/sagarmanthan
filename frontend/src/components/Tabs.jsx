@@ -463,16 +463,16 @@ export default function Tabs({ activeTab, setActiveTab }) {
           ]
         }),
         m('DRISHTI_PORTAL', {
-          label: 'OVOD',
+          label: 'Drishti Portal (OVOD)',
           icon: Globe,
-          tab: 'OVOD',
-          targetTab: 'OVOD',
+          tab: 'Drishti Portal (OVOD)',
+          targetTab: 'Drishti Portal (OVOD)',
           subItems: [
-            { label: 'Dashboard', tab: 'OVOD', targetSubTab: 'Dashboard', icon: LayoutDashboard },
+            { label: 'Dashboard', tab: 'Drishti Portal (OVOD)', targetSubTab: 'Dashboard', icon: LayoutDashboard },
             { label: 'Intervention List', tab: 'Intervention List', targetSubTab: 'Interventions', icon: ClipboardList },
-            ...withCreate(canCreateIn.DRISHTI_PORTAL, [{ label: 'Input Form', tab: 'OVOD Input Form', targetSubTab: 'Input-Form', icon: FileEdit }]),
-            { label: 'Data List', tab: 'OVOD Data List', targetSubTab: 'Data-List', icon: Layers },
-            { label: 'Report', tab: 'OVOD Reports', targetSubTab: 'Report', icon: FilePieChart },
+            ...withCreate(canCreateIn.DRISHTI_PORTAL, [{ label: 'Input Form', tab: 'Drishti Portal (OVOD) Input Form', targetSubTab: 'Input-Form', icon: FileEdit }]),
+            { label: 'Data List', tab: 'Drishti Portal (OVOD) Data List', targetSubTab: 'Data-List', icon: Layers },
+            { label: 'Report', tab: 'Drishti Portal (OVOD) Reports', targetSubTab: 'Report', icon: FilePieChart },
           ]
         }),
       ]

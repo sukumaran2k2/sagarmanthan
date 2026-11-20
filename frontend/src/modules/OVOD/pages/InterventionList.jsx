@@ -1862,7 +1862,7 @@ export default function InterventionList({ triggerNotification }) {
       ws['!cols'] = headers.map((h, i) => ({ wch: i === 1 ? 70 : Math.min(h.length + 4, 30) }));
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Intervention List');
-      XLSX.writeFile(wb, 'OVOD_Intervention_List.xlsx');
+      XLSX.writeFile(wb, 'Drishti_Portal_OVOD_Intervention_List.xlsx');
       triggerNotification?.('Exported to Excel successfully!', 'success');
     } catch (err) {
       console.error('Excel export error:', err);
@@ -1883,7 +1883,7 @@ export default function InterventionList({ triggerNotification }) {
       const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a2' });
       const dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
       doc.setFontSize(15); doc.setTextColor(15, 65, 122); doc.setFont(undefined, 'bold');
-      doc.text('OVOD INTERVENTION LIST', 28, 34);
+      doc.text('DRISHTI PORTAL (OVOD) INTERVENTION LIST', 28, 34);
       doc.setFontSize(9); doc.setTextColor(100, 116, 139); doc.setFont(undefined, 'normal');
       doc.text(`Ministry of Ports, Shipping and Waterways  |  Generated on: ${dateStr}`, 28, 48);
 
@@ -1977,7 +1977,7 @@ export default function InterventionList({ triggerNotification }) {
         doc.text(`Page ${i} of ${totalPages}`, pageW - 70, pageH - 14);
       }
 
-      doc.save('OVOD_Intervention_List.pdf');
+      doc.save('Drishti_Portal_OVOD_Intervention_List.pdf');
       triggerNotification?.('PDF exported successfully!', 'success');
     } catch (err) {
       console.error('PDF export error:', err);
@@ -2220,7 +2220,7 @@ export default function InterventionList({ triggerNotification }) {
             <ExportDropdown
               onExportExcel={handleTreeExcelExport}
               onExportPdf={handleTreePdfExport}
-              title="OVOD Intervention List"
+              title="Drishti Portal (OVOD) Intervention List"
               triggerNotification={triggerNotification}
             />
 
