@@ -10,6 +10,7 @@ import ExportDropdown from '../../../../components/ExportDropdown';
 import CopyButton from '../../../../components/CopyButton';
 import ChartExportMenu from '../../../../components/ChartExportMenu';
 import { exportReportToPdf } from '../../../../utils/exportReportPdf';
+import { keepValueLabelsApart } from '../../../../utils/chartValueLabels';
 import { COMMON_TOASTS } from '../../../../utils/notify';
 import { exportGridToExcel } from '../../../../utils/exportGridReport';
 
@@ -88,8 +89,9 @@ export default function ShipBuildingOrdersReports({ notify }) {
       am5xy.XYChart.new(root, { panX: false, panY: false, wheelX: 'none', wheelY: 'none', layout: root.verticalLayout, paddingTop: 10, paddingBottom: 0, paddingRight: 45, paddingLeft: 10 })
     );
 
-    const xRenderer = am5xy.AxisRendererX.new(root, { minGridDistance: 50, cellStartLocation: 0.1, cellEndLocation: 0.9 });
-    xRenderer.labels.template.setAll({ rotation: -45, centerY: am5.p50, centerX: am5.p100, fontSize: 10, fill: am5.color(0x64748b) });
+    // Every quarter is labelled (minGridDistance small enough that none is skipped), in a smaller font
+    const xRenderer = am5xy.AxisRendererX.new(root, { minGridDistance: 10, cellStartLocation: 0.1, cellEndLocation: 0.9 });
+    xRenderer.labels.template.setAll({ rotation: -45, centerY: am5.p50, centerX: am5.p100, fontSize: 8, fill: am5.color(0x64748b) });
     xRenderer.grid.template.setAll({ stroke: am5.color(0xe2e8f0), strokeWidth: 1 });
 
     const xAxis = chart.xAxes.push(am5xy.CategoryAxis.new(root, { categoryField: 'financialQuarter', renderer: xRenderer }));
@@ -145,6 +147,8 @@ export default function ShipBuildingOrdersReports({ notify }) {
     legend.data.setAll(chart.series.values);
 
     chart.set('cursor', am5xy.XYCursor.new(root, { behavior: 'none', xAxis }));
+    // Numbers that would land on one another are moved apart
+    keepValueLabelsApart(root, chart);
     chart.appear(800, 100);
 
     return () => { root.dispose(); setChartRoot(null); };
