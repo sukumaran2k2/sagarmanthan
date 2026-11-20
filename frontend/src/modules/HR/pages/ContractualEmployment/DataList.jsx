@@ -247,17 +247,18 @@ export default function ContractualEmployment({ notify }) {
 
   // Copy / Export: the rows on the current page, visible data columns only
   const pageStart = (currentPage - 1) * pageSize;
+   // Copy / Export: every row matching the filters/search, visible data columns only
   const runExport = (kind) => createTableExporter({
-    loadRows: () => filteredStaff.slice(pageStart, pageStart + pageSize)
+    loadRows: () => filteredStaff
       .map((r) => ({ ...r, 'Date Updated': r['Date Updated'] ? String(r['Date Updated']).slice(0, 10) : '--' })),
-    serialStart: pageStart,
+    serialStart: 0,
     getColumns: () => activeColumnDefs
       .filter((c) => c.field && c.field !== 'Actions')
       .map((c) => ({ field: c.field, label: c.headerName })),
     notify,
     isBusy: loading,
-    title: `Contractual Employment (Page ${currentPage})`,
-    fileName: `Contractual_Employment_Page_${currentPage}`,
+    title: 'Contractual Employment',
+    fileName: 'Contractual_Employment',
     label: 'Contractual employment',
   })[kind]();
 

@@ -385,9 +385,10 @@ export default function TrainingDetails({ notify }) {
 
   // Copy / Export: the rows on the current page, same columns as the table
   const pageStart = (currentPage - 1) * pageSize;
+    // Copy / Export: every row matching the filters/search, same columns as the table
   const runExport = (kind) => createTableExporter({
-    loadRows: () => filteredTrainings.slice(pageStart, pageStart + pageSize),
-    serialStart: pageStart,
+    loadRows: () => filteredTrainings,
+    serialStart: 0,
     getColumns: () => (isMinistryView
       ? [
         { field: 'Organisation', label: 'Organisation' },
@@ -409,8 +410,8 @@ export default function TrainingDetails({ notify }) {
       ]),
     notify,
     isBusy: loading,
-    title: `${isMinistryView ? 'HR Training Summary Report' : 'HR Training Details Report'} (Page ${currentPage})`,
-    fileName: `${isMinistryView ? 'HR_Training_Summary_Report' : 'HR_Training_Details_Report'}_Page_${currentPage}`,
+    title: isMinistryView ? 'HR Training Summary Report' : 'HR Training Details Report',
+    fileName: isMinistryView ? 'HR_Training_Summary_Report' : 'HR_Training_Details_Report',
     label: 'Training details',
   })[kind]();
 
