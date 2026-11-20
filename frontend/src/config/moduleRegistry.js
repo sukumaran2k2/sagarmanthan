@@ -99,7 +99,8 @@ export const MODULE_PAGES = {
   },
 
   KPI_DGS: {
-    tabs: ['MMD Master', 'DSG Input Form', 'DSG Reports'],
+    tabs: ['MMD Master', 'DGS Input Form', 'DGS Data List', 'DGS Reports'],
+    uiTabs: ['MMD Master', 'DGS Input Form', 'DGS Data List', 'DGS Reports'],
   },
 
   KPI_DGLL: {
@@ -475,7 +476,7 @@ export function hasImplementedUi(tab) {
  */
 export const MODULE_GROUPS = [
   { id: 'projects', label: 'Projects', codes: ['PROJECTS', 'CSR_PROJECTS', 'CAPEX'] },
-  { id: 'kpi', label: 'KPI', codes: ['KPI_MAJOR_PORTS', 'KPI_DGLL', 'KPI_CSL', 'KPI_IMU', 'KPI_SCI'] },
+  { id: 'kpi', label: 'KPI', codes: ['KPI_MAJOR_PORTS', 'KPI_DGS', 'KPI_DGLL', 'KPI_CSL', 'KPI_IMU', 'KPI_SCI'] },
   {
     id: 'governance',
     label: 'Governance',

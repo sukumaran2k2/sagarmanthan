@@ -536,6 +536,9 @@ async function getDropDownData(req, res) {
         case "mmt_kpi_dgs_grade":
             query = "SELECT * FROM mmt_kpi_dgs_grade";
             break;
+        case "mmt_kpi_dgs_type":
+            query = "SELECT * FROM mmt_kpi_dgs_type";
+            break;
         case "mmt_conciliation_first_party":
             query = "SELECT * FROM mmt_conciliation_first_party";
             break;
