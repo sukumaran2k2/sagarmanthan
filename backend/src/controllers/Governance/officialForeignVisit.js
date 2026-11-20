@@ -48,10 +48,31 @@ async function getOFVData(req, res) {
                 ofv.year, 
                 ofv.name, 
                 ofv.visit,
+                ofv.organisation AS organisation_id,
+                ofv.visit_type AS visit_type_id,
                 ofv.other_visit_type,
                 mmt_ofv_stage.fv_stage_name,
-                desig.designation, 
-                ofv.other_designation,
+                CASE
+                WHEN ofv.organisation = 14 THEN
+                    CASE 
+                        WHEN ofv.GOI_designation = 'Secretary' THEN 'Secretary'
+                        WHEN ofv.GOI_designation = 'SS' THEN 'Special Secretary'
+                        WHEN ofv.GOI_designation = 'AS' THEN 'Additional Secretary'
+                        WHEN ofv.GOI_designation = 'JS' THEN 'Joint Secretary'
+                        WHEN ofv.GOI_designation = 'DIR' THEN 'Director'
+                        WHEN ofv.GOI_designation = 'DS' THEN 'Deputy Secretary'
+                        WHEN ofv.GOI_designation = 'US' THEN 'Under Secretary'
+                        WHEN ofv.GOI_designation = 'SO' THEN 'Section Officer'
+                        WHEN ofv.GOI_designation = 'YP/ASO' THEN 'Young Professionals/Assistant Section Officer'
+                        ELSE ofv.GOI_designation
+                    END
+
+                WHEN ofv.designation_organisation = 115 THEN
+                    ofv.other_designation
+
+                ELSE
+                    desig.designation
+            END AS designation,
                 org.organisation_name, 
                 ofv.to_date,
                 ofv.duration, 
@@ -60,7 +81,7 @@ async function getOFVData(req, res) {
                 ofv.purpose,
                 ofv.visited_completed, 
                 ofv.created_by, 
-                ofv.updated_date,
+                CONVERT(VARCHAR(10), ofv.updated_date, 23) AS updated_date,
                 
                 -- Subquery to fetch latest 'Tour' document
                 (SELECT TOP 1 doc.file_name
@@ -115,10 +136,31 @@ async function getOFVData(req, res) {
                 ofv.year, 
                 ofv.name, 
                 ofv.visit,
+                ofv.organisation AS organisation_id,
+                ofv.visit_type AS visit_type_id,
                 ofv.other_visit_type,
                 mmt_ofv_stage.fv_stage_name,
-                desig.designation, 
-                ofv.other_designation,
+                CASE
+                WHEN ofv.organisation = 14 THEN
+                    CASE 
+                        WHEN ofv.GOI_designation = 'Secretary' THEN 'Secretary'
+                        WHEN ofv.GOI_designation = 'SS' THEN 'Special Secretary'
+                        WHEN ofv.GOI_designation = 'AS' THEN 'Additional Secretary'
+                        WHEN ofv.GOI_designation = 'JS' THEN 'Joint Secretary'
+                        WHEN ofv.GOI_designation = 'DIR' THEN 'Director'
+                        WHEN ofv.GOI_designation = 'DS' THEN 'Deputy Secretary'
+                        WHEN ofv.GOI_designation = 'US' THEN 'Under Secretary'
+                        WHEN ofv.GOI_designation = 'SO' THEN 'Section Officer'
+                        WHEN ofv.GOI_designation = 'YP/ASO' THEN 'Young Professionals/Assistant Section Officer'
+                        ELSE ofv.GOI_designation
+                    END
+
+                WHEN ofv.designation_organisation = 115 THEN
+                    ofv.other_designation
+
+                ELSE
+                    desig.designation
+            END AS designation,
                 org.organisation_name, 
                 ofv.to_date,
                 ofv.duration, 
@@ -127,9 +169,9 @@ async function getOFVData(req, res) {
                 ofv.purpose,
                 ofv.visited_completed, 
                 ofv.created_by, 
-                ofv.updated_date,
+                CONVERT(VARCHAR(10), ofv.updated_date, 23) AS updated_date,
                 ofv.organisation,
-
+     
                 -- Tour document
                 (
                     SELECT TOP 1 doc.file_name
@@ -184,66 +226,6 @@ async function getOFVData(req, res) {
 
         res.json(result.recordset);
     }
-        // SELECT 
-        //         tbl_official_foreign_visit.id, 
-        //         tbl_official_foreign_visit.fv_id,
-        //         year, 
-        //         name, 
-        //         visit,
-        //         mmt_designation.designation, 
-        //         mmt_organisation.organisation_name, 
-        //         duration, 
-        //         visit_type_name,
-        //         check_sanctioned, 
-        //         purpose, 
-        //         MAX(CASE WHEN filtered_ofv_doc.doc_related = 'Tour' THEN filtered_ofv_doc.file_name END) AS tour_file_name,
-        //         MAX(CASE WHEN filtered_ofv_doc.doc_related = 'Sanction' THEN filtered_ofv_doc.file_name END) AS sanction_file_name,
-        //         CASE 
-        //             WHEN GOI_designation = 'Secretary' THEN 'Secretary'
-        //             WHEN GOI_designation = 'SS' THEN 'Special Secretary'
-        //             WHEN GOI_designation = 'AS' THEN 'Additional Secretary'
-        //             WHEN GOI_designation = 'JS' THEN 'Joint Secretary'
-        //             WHEN GOI_designation = 'DIR' THEN 'Director'
-        //             WHEN GOI_designation = 'DS' THEN 'Deputy Secretary'
-        //             WHEN GOI_designation = 'US' THEN 'Under Secretary'
-        //             WHEN GOI_designation = 'SO' THEN 'Section Officer'
-        //             WHEN GOI_designation = 'YP/ASO' THEN 'Young Professionals/Assistant Section Officer'
-        //             ELSE GOI_designation 
-        //         END AS goi_designation
-        //     FROM 
-        //         tbl_official_foreign_visit
-        //     LEFT JOIN (
-        //         SELECT 
-        //             ofv_id,
-        //             file_name,
-        //             doc_related
-        //         FROM 
-        //             tbl_ofv_doc
-        //     ) AS filtered_ofv_doc ON filtered_ofv_doc.ofv_id = tbl_official_foreign_visit.id
-        //     LEFT JOIN 
-        //         mmt_organisation ON mmt_organisation.organisation_id = tbl_official_foreign_visit.organisation
-        //     LEFT JOIN
-        //         mmt_ofv_visit_type ON mmt_ofv_visit_type.Id = tbl_official_foreign_visit.visit_type
-        //     LEFT JOIN
-        //         mmt_designation ON mmt_designation.id = tbl_official_foreign_visit.designation_organisation
-        //     GROUP BY 
-        //         tbl_official_foreign_visit.id, tbl_official_foreign_visit.fv_id,
-        //         year, 
-        //         name, 
-        //         visit,
-        //         mmt_designation.designation, 
-        //         mmt_organisation.organisation_name, 
-        //         duration, 
-        //         visit_type_name, 
-        //         purpose,
-        //         goi_designation,
-        //         check_sanctioned
-        //     ORDER BY 
-        //         tbl_official_foreign_visit.id;
-
-    
-        // res.json(result.recordset);
-        // console.log('result', result);
     } catch (err) {
         console.log(err);
         return res.sendStatus(500);
@@ -405,48 +387,7 @@ async function addOFVData(req, res) {
     const conn = await pool;
     const request = conn.request();
 
-    // if (isNaN(visitType)) {
-
-    //     request.input("visitType", visitType);
-
-    //     const insertVisitTypeID = await request.query(`
-    //         INSERT INTO mmt_ofv_visit_type (visit_type_name) VALUES (@visitType);        
-    //     `);
-
-    //     const visitTypeID = await request.query(`
-    //         SELECT TOP 1 Id
-    //         FROM mmt_ofv_visit_type ORDER BY Id DESC;        
-    //     `);
-    //     visitType = (visitTypeID.recordset[0].Id);
-    // }
-
-//     let finalDesignation;
-
-// if (isNaN(designation)) {
-//     request.input("newDesignation", designation);
-
-//     const result = await request.query(`
-//         INSERT INTO mmt_designation (designation)
-//         OUTPUT INSERTED.id
-//         VALUES (@newDesignation);
-//     `);
-
-//     finalDesignation = result.recordset[0].id;
-// } else {
-//     finalDesignation = designation;
-// }
-
-
-    //   let valueForDbSanctioned;
-    // if (tourSanctioned === 1) {
-    //     valueForDbSanctioned = 1; // User explicitly selected 'Yes'
-    // } else if (tourSanctioned === 0) {
-    //     valueForDbSanctioned = 0; // User explicitly selected 'No'
-    // } else {
-    //     valueForDbSanctioned = null; // User did not select, send NULL to DB
-    // }
-
-
+   
         let valueForDbSanctioned;
         // finalDesignation = designation;
 
@@ -742,6 +683,35 @@ async function getOFVReport(req, res) {
             );
         }
 
+
+        // if (isFilterApplied(designation)) {
+        //     request.input("designation", designation);
+
+        //     whereClause.push(`
+        //         (
+        //             CASE
+        //                 WHEN tbl_official_foreign_visit.organisation = 14 THEN
+        //                     CASE 
+        //                         WHEN tbl_official_foreign_visit.GOI_designation = 'Secretary' THEN 'Secretary'
+        //                         WHEN tbl_official_foreign_visit.GOI_designation = 'SS' THEN 'Special Secretary'
+        //                         WHEN tbl_official_foreign_visit.GOI_designation = 'AS' THEN 'Additional Secretary'
+        //                         WHEN tbl_official_foreign_visit.GOI_designation = 'JS' THEN 'Joint Secretary'
+        //                         WHEN tbl_official_foreign_visit.GOI_designation = 'DIR' THEN 'Director'
+        //                         WHEN tbl_official_foreign_visit.GOI_designation = 'DS' THEN 'Deputy Secretary'
+        //                         WHEN tbl_official_foreign_visit.GOI_designation = 'US' THEN 'Under Secretary'
+        //                         WHEN tbl_official_foreign_visit.GOI_designation = 'SO' THEN 'Section Officer'
+        //                         WHEN tbl_official_foreign_visit.GOI_designation = 'YP/ASO' THEN 'Young Professionals/Assistant Section Officer'
+        //                         ELSE tbl_official_foreign_visit.GOI_designation
+        //                     END
+        //                 WHEN tbl_official_foreign_visit.designation_organisation = 115 THEN
+        //                     tbl_official_foreign_visit.other_designation
+        //                 ELSE
+        //                     mmt_designation.designation
+        //             END
+        //         ) = @designation
+        //     `);
+        // }
+
         const whereCondition = whereClause.length
             ? `WHERE ${whereClause.join(" AND ")}`
             : "";
@@ -757,10 +727,27 @@ async function getOFVReport(req, res) {
                 tbl_official_foreign_visit.to_date AS [To Date],
                 tbl_official_foreign_visit.name AS [Name of the Officer],
 
-                ISNULL(
-                    tbl_official_foreign_visit.GOI_designation,
-                    mmt_designation.designation
-                ) AS [Designation],
+                CASE
+                    WHEN tbl_official_foreign_visit.organisation = 14 THEN
+                        CASE 
+                            WHEN tbl_official_foreign_visit.GOI_designation = 'Secretary' THEN 'Secretary'
+                            WHEN tbl_official_foreign_visit.GOI_designation = 'SS' THEN 'Special Secretary'
+                            WHEN tbl_official_foreign_visit.GOI_designation = 'AS' THEN 'Additional Secretary'
+                            WHEN tbl_official_foreign_visit.GOI_designation = 'JS' THEN 'Joint Secretary'
+                            WHEN tbl_official_foreign_visit.GOI_designation = 'DIR' THEN 'Director'
+                            WHEN tbl_official_foreign_visit.GOI_designation = 'DS' THEN 'Deputy Secretary'
+                            WHEN tbl_official_foreign_visit.GOI_designation = 'US' THEN 'Under Secretary'
+                            WHEN tbl_official_foreign_visit.GOI_designation = 'SO' THEN 'Section Officer'
+                            WHEN tbl_official_foreign_visit.GOI_designation = 'YP/ASO' THEN 'Young Professionals/Assistant Section Officer'
+                            ELSE tbl_official_foreign_visit.GOI_designation
+                        END
+
+                    WHEN tbl_official_foreign_visit.designation_organisation = 115 THEN
+                        tbl_official_foreign_visit.other_designation
+
+                    ELSE
+                        mmt_designation.designation
+                END AS [Designation],
 
                 mmt_ofv_visit_type.visit_type_name AS [Visit Type],
                 tbl_official_foreign_visit.purpose AS [Purpose/Keywords],
@@ -810,8 +797,12 @@ async function getOFVReport(req, res) {
                 tbl_official_foreign_visit.fv_id,
                 tbl_official_foreign_visit.year,
                 tbl_official_foreign_visit.name,
-                mmt_ofv_stage.fv_stage_name,
+                tbl_official_foreign_visit.visit,
+                tbl_official_foreign_visit.organisation,
+                tbl_official_foreign_visit.designation_organisation,
                 tbl_official_foreign_visit.GOI_designation,
+                tbl_official_foreign_visit.other_designation,
+                mmt_ofv_stage.fv_stage_name,
                 mmt_designation.designation,
                 mmt_organisation.organisation_name,
                 tbl_official_foreign_visit.from_date,
