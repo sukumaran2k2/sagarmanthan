@@ -10,6 +10,7 @@ import ExportDropdown from '../../../../components/ExportDropdown';
 import CopyButton from '../../../../components/CopyButton';
 import ChartExportMenu from '../../../../components/ChartExportMenu';
 import { exportReportToPdf } from '../../../../utils/exportReportPdf';
+import { keepValueLabelsApart } from '../../../../utils/chartValueLabels';
 import { COMMON_TOASTS } from '../../../../utils/notify';
 import { exportGridToExcel } from '../../../../utils/exportGridReport';
 
@@ -78,8 +79,9 @@ export default function FinalYearPassPercentageReports({ notify }) {
       am5xy.XYChart.new(root, { panX: false, panY: false, wheelX: 'none', wheelY: 'none', layout: root.verticalLayout, paddingTop: 20, paddingBottom: 10, paddingRight: 20, paddingLeft: 10 })
     );
 
-    const xRenderer = am5xy.AxisRendererX.new(root, { minGridDistance: 60, cellStartLocation: 0.1, cellEndLocation: 0.9 });
-    xRenderer.labels.template.setAll({ rotation: 0, centerY: am5.p0, centerX: am5.p50, fontSize: 11, fill: am5.color(0x64748b), paddingTop: 8 });
+    // Every programme is labelled (slanted, so none is skipped for lack of room)
+    const xRenderer = am5xy.AxisRendererX.new(root, { minGridDistance: 10, cellStartLocation: 0.1, cellEndLocation: 0.9 });
+    xRenderer.labels.template.setAll({ rotation: -45, centerY: am5.p50, centerX: am5.p100, fontSize: 10, fill: am5.color(0x64748b), paddingTop: 4 });
     xRenderer.grid.template.setAll({ stroke: am5.color(0xe2e8f0), strokeWidth: 1 });
 
     const xAxis = chart.xAxes.push(am5xy.CategoryAxis.new(root, { categoryField: 'programmeBatch', renderer: xRenderer }));
@@ -100,7 +102,7 @@ export default function FinalYearPassPercentageReports({ notify }) {
     );
     appearedSeries.columns.template.setAll({ fill: am5.color(0xff5733), stroke: am5.color(0xff5733), cornerRadiusTL: 0, cornerRadiusTR: 0, width: am5.percent(70) });
     appearedSeries.bullets.push((root) => {
-      const label = am5.Label.new(root, { fill: am5.color(0x1e293b), centerX: am5.p50, centerY: am5.p100, dy: -14, fontSize: 10, fontWeight: '700', populateText: true, text: '{valueY}' });
+      const label = am5.Label.new(root, { fill: am5.color(0x1e293b), rotation: -90, centerX: am5.p0, centerY: am5.p50, dy: -4, fontSize: 9, fontWeight: '700', populateText: true, text: '{valueY}' });
       return am5.Bullet.new(root, { sprite: label, locationY: 1 });
     });
     appearedSeries.data.setAll(chartData);
@@ -115,7 +117,7 @@ export default function FinalYearPassPercentageReports({ notify }) {
     );
     passedSeries.columns.template.setAll({ fill: am5.color(0x20b2aa), stroke: am5.color(0x20b2aa), cornerRadiusTL: 0, cornerRadiusTR: 0, width: am5.percent(70) });
     passedSeries.bullets.push((root) => {
-      const label = am5.Label.new(root, { fill: am5.color(0x1e293b), centerX: am5.p50, centerY: am5.p100, dy: -14, fontSize: 10, fontWeight: '700', populateText: true, text: '{valueY}' });
+      const label = am5.Label.new(root, { fill: am5.color(0x1e293b), rotation: -90, centerX: am5.p0, centerY: am5.p50, dy: -4, fontSize: 9, fontWeight: '700', populateText: true, text: '{valueY}' });
       return am5.Bullet.new(root, { sprite: label, locationY: 1 });
     });
     passedSeries.data.setAll(chartData);
@@ -130,7 +132,7 @@ export default function FinalYearPassPercentageReports({ notify }) {
     );
     pctSeries.columns.template.setAll({ fill: am5.color(0xd4e157), stroke: am5.color(0xd4e157), cornerRadiusTL: 0, cornerRadiusTR: 0, width: am5.percent(70) });
     pctSeries.bullets.push((root) => {
-      const label = am5.Label.new(root, { fill: am5.color(0x1e293b), centerX: am5.p50, centerY: am5.p100, dy: -14, fontSize: 10, fontWeight: '700', populateText: true, text: '{valueY}' });
+      const label = am5.Label.new(root, { fill: am5.color(0x1e293b), rotation: -90, centerX: am5.p0, centerY: am5.p50, dy: -4, fontSize: 9, fontWeight: '700', populateText: true, text: '{valueY}' });
       return am5.Bullet.new(root, { sprite: label, locationY: 1 });
     });
     pctSeries.data.setAll(chartData);
@@ -140,6 +142,8 @@ export default function FinalYearPassPercentageReports({ notify }) {
     legend.data.setAll(chart.series.values);
 
     chart.set('cursor', am5xy.XYCursor.new(root, { behavior: 'none', xAxis }));
+    // Numbers that would land on one another are moved apart
+    keepValueLabelsApart(root, chart);
     chart.appear(800, 100);
 
     return () => { root.dispose(); setChartRoot(null); };
