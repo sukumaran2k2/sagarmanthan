@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { RefreshCw, Plane, CheckCircle2, PlaneLanding, XCircle, Loader2 } from 'lucide-react';
+import { RefreshCw, Plane, CheckCircle2, PlaneLanding, XCircle } from 'lucide-react';
 import * as am5 from '@amcharts/amcharts5';
 import * as am5xy from '@amcharts/amcharts5/xy';
 import am5themes_Animated from '@amcharts/amcharts5/themes/Animated';
@@ -179,6 +179,11 @@ export default function Dashboard({ triggerNotification }) {
   const [organisationId, setOrganisationId] = useState(0);
   const [designationId, setDesignationId] = useState(0);
 
+  const hasActiveFilters =
+  officerName !== '0' ||
+  Number(organisationId) !== 0 ||
+  Number(designationId) !== 0;
+  const [isFiltersExpanded, setIsFiltersExpanded] = useState(true);
   const [counts, setCounts] = useState(null);
   const [visitTypeSplit, setVisitTypeSplit] = useState([]);
   const [yearSplit, setYearSplit] = useState([]);
@@ -196,7 +201,7 @@ export default function Dashboard({ triggerNotification }) {
    * until one is picked here; sending their own id unconditionally pinned them to it and made
    * "Show All" do nothing.
    */
-  const pinnedToOwnOrg = roleId === 6 || roleId === 7;
+  const pinnedToOwnOrg = roleId === 6 || roleId === 7 || roleId === 8;
 
   const scope = useMemo(
     () => ({
@@ -207,7 +212,7 @@ export default function Dashboard({ triggerNotification }) {
     }),
     [organisationId, sessionOrgId, pinnedToOwnOrg, roleId, designationId, officerName]
   );
-
+console.log("FV DASHBOARD SCOPE:", scope);
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -255,6 +260,12 @@ export default function Dashboard({ triggerNotification }) {
       setLoading(false);
     }
   }, [scope, notify]);
+
+  const handleReset = () => {
+    setOfficerName('0');
+    setOrganisationId(0);
+    setDesignationId(0);
+  };
 
   useEffect(() => { load(); }, [load]);
 
@@ -322,11 +333,18 @@ export default function Dashboard({ triggerNotification }) {
             </select>
           </div>
 
-          <button type="button" onClick={load} disabled={loading}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white transition cursor-pointer disabled:opacity-60">
-            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-            <span>{loading ? 'Loading…' : 'Refresh'}</span>
-          </button>
+        
+          {hasActiveFilters && (
+            <div className="flex items-end">
+              <button
+                type="button"
+                onClick={handleReset}
+                className="px-3 py-2 text-xs font-semibold text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition"
+              >
+                Reset
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

@@ -665,30 +665,20 @@ async function getOFVReport(req, res) {
             value !== 0 &&
             value !== '0';
 
-            // Role 6 and 7: Restrict data to their own organisation
-            if ([6, 7].includes(Number(roleId))) {
+        const wideRole = await isWideRole(Number(roleId));
 
-                if (isFilterApplied(orgID)) {
-                    request.input("orgID", Number(orgID));
+        if (!wideRole) {
+            if (isFilterApplied(orgID)) {
+                request.input("orgID", Number(orgID));
 
-                    whereClause.push(
-                        "tbl_official_foreign_visit.organisation = @orgID"
-                    );
-                } else {
-                    // Prevent organisation users from viewing all data
-                    whereClause.push("1 = 0");
-                }
+                whereClause.push(
+                    "tbl_official_foreign_visit.organisation = @orgID"
+                );
+            } else {
+                // Prevent users from viewing all organisations
+                whereClause.push("1 = 0");
             }
-
-            // Role 2, 3, 4, 5, 8: Can view all organisations
-            // If an organisation filter is selected, apply that filter.
-            else if ([2, 3, 4, 5, 8].includes(Number(roleId))) {
-
-                if (isFilterApplied(organisation)) {
-                    // Organisation filter is already handled above.
-                    // No additional condition required here.
-                }
-            }
+        }
         if (isFilterApplied(year)) {
             request.input("year", year);
             whereClause.push(
@@ -2049,7 +2039,7 @@ async function getCountOFV(req, res) {
 
     const { year,orgID,roleId,desigID,officerName } = req.body;
 
-    // console.log(req.body,"dadadadaddadada")
+    console.log(req.body,"dadadadaddadada")
 
     request.input("year", year);
     request.input("orgID", orgID);
@@ -2065,15 +2055,22 @@ async function getCountOFV(req, res) {
     // if (roleId == 6 || roleId == 7) {
     //     whereClause.push("organisation = @orgID");
     // }
-
+console.log(orgID, "orgID")
     
-    if ((await isOrganisationRole(roleId)) ||
-        (orgID !== 0 && orgID)
-    ) {
+    const wideRole = await isWideRole(Number(roleId));
+    const numericOrgID = Number(orgID);
+
+    if (!wideRole) {
+        if (numericOrgID > 0) {
+            whereClause.push("organisation = @orgID");
+        } else {
+            whereClause.push("1 = 0");
+        }
+    } else if (numericOrgID > 0) {
+        // Wide-role users can optionally filter by organisation
         whereClause.push("organisation = @orgID");
     }
-// console.log(orgID, "1orgID")
-
+console.log(numericOrgID, wideRole, "orgID")
     if (year !== 0 && year) {
         whereClause.push("year = @year");
     }
