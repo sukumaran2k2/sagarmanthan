@@ -191,7 +191,8 @@ export default function DataList({
     appointmentType: true,
     status: true,
     numResources: true,
-    lastUpdated: true
+    // Last Updated is offered in Visibility, unticked by default (matches 2.0 and other modules)
+    lastUpdated: false
   });
 
   // Debounce search

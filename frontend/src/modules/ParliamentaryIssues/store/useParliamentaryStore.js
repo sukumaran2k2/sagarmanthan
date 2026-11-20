@@ -22,7 +22,8 @@ export const DEFAULT_VISIBLE_COLS = {
   issueType: true,
   status: true,
   remarks: true,
-  lastUpdated: true,
+  // Last Updated is offered in Visibility, unticked by default (as in 2.0)
+  lastUpdated: false,
   actions: true,
 };
 

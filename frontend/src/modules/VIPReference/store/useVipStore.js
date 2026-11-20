@@ -42,7 +42,8 @@ const createInitialState = () => ({
     receivedFrom: true,
     remarks: false,
     deadline: false,
-    lastUpdated: true,
+    // Last Updated is offered in Visibility, unticked by default (as in 2.0)
+    lastUpdated: false,
   },
 
   // Which report is open, how it is filtered and how far the user has drilled in, so
