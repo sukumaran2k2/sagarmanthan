@@ -1,20 +1,16 @@
-import React, { useState, useEffect } from "react";
-import { fetchCourtCaseReport } from "../api";
+import React, { useEffect } from "react";
 import { getCurrentUserId } from "../../../utils/authSession";
+import { useReportStore } from "../store/reportStore";
 
 export default function CourtCaseReports() {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const data = useReportStore((s) => s.data);
+  const loading = useReportStore((s) => s.loading);
+  const error = useReportStore((s) => s.error);
+  const load = useReportStore((s) => s.load);
 
   useEffect(() => {
-    const userID = getCurrentUserId();
-    if (!userID) { setLoading(false); return; }
-    fetchCourtCaseReport(userID)
-      .then((res) => setData(res.data))
-      .catch((err) => setError(err.message || "Failed to load report"))
-      .finally(() => setLoading(false));
-  }, []);
+    load(getCurrentUserId());
+  }, [load]);
 
   if (loading) return <div className="flex justify-center py-16"><div className="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full" /></div>;
   if (error) return <div className="text-center py-12 text-red-500">{error}</div>;

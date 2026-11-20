@@ -1,6 +1,7 @@
 import React from "react";
 import CaseListTable from "./CaseList";
+import { useArbitrationListStore } from "../store/caseListStore";
 
 export default function ArbitrationList() {
-  return <CaseListTable prefix="AR" formKey="arbitration" showCaseInfo />;
+  return <CaseListTable useStore={useArbitrationListStore} formKey="arbitration" showCaseInfo />;
 }

@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { BASE_PATH } from "../CourtCases";
 import CaseForm from "../pages/CaseForm";
 import { conciliationSchema } from "./conciliation.schema";
+import { useConciliationFormStore } from "../store/caseFormStore";
 import { getSessionOrganisationId, getCurrentUserId } from "../../../utils/authSession";
 import {
   useNotifier, toastSuccess, toastError, toastWarning, getErrorMessage, withReason,
@@ -147,9 +148,10 @@ export default function ConciliationForm({ triggerNotification }) {
   const navigate = useNavigate();
   const editId = params.get("edit") || params.get("caseId");
 
-  const [caseID, setCaseID] = useState(editId || "");
-  const [initialValues, setInitialValues] = useState(null);
-  const [loading, setLoading] = useState(!!editId);
+  const useStore = useConciliationFormStore;
+  const caseID = useStore((s) => s.caseID);
+  const loading = useStore((s) => s.loading);
+  const { setCaseID, mergeValues, setLoading, reset } = useStore.getState();
 
   const notifier = useNotifier(triggerNotification);
 
@@ -174,19 +176,22 @@ export default function ConciliationForm({ triggerNotification }) {
 
   // edit mode prefill
   useEffect(() => {
-    if (!editId) return;
-    setCaseID(editId);
-    setLoading(true);
+    reset(editId || "");
+    if (!editId) return () => reset();
+    let cancelled = false;
     (async () => {
       try {
-        setInitialValues(await loadCaseValues(editId));
+        const values = await loadCaseValues(editId);
+        if (!cancelled) mergeValues(values);
       } catch (e) {
+        if (cancelled) return;
         console.error("[ConciliationForm] load failed:", e);
         notify("error", withReason(`Case ${editId} could not be loaded.`, getErrorMessage(e)), "Could Not Load Data");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
+    return () => { cancelled = true; reset(); };
   }, [editId]);
 
   /* ---------------- Step 1: Basic Information ---------------- */
@@ -344,9 +349,8 @@ export default function ConciliationForm({ triggerNotification }) {
 
   return (
     <CaseForm
-      key={editId || "new"}
       schema={conciliationSchema}
-      initialValues={initialValues}
+      useStore={useStore}
       lockedSteps={caseID ? [] : ["status"]}
       onSaveStep={onSaveStep}
       onValidationError={(msg) => notify("warning", msg, "Required Fields Missing")}

@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Pencil, Trash2, FileSpreadsheet, Plus, Columns3 } from "lucide-react";
 import * as XLSX from "xlsx";
-import { fetchCourtCases, deleteCourtCase, fetchAllLitigationData } from "../api";
+import { fetchAllLitigationData } from "../api";
+import { useLitigationListStore as useStore } from "../store/caseListStore";
 import {getSessionOrganisationId ,getCurrentUserId} from "../../../utils/authSession";
 
 
@@ -34,42 +35,28 @@ const sanitizeCell = (value) => {
 
 export default function LitigationList() {
   const navigate = useNavigate();
-  const { roleID, userID } = getSessionOrganisationId();
+  const { roleID, userID, organisationID } = getSessionOrganisationId();
 
   const showOrg = ![6, 7].includes(roleID);        
   const showOrgFilter = [1, 2, 3, 4, 5].includes(roleID);
   const canAdd = ![2, 3, 4, 5, 8].includes(roleID);
   const canDelete = roleID !== 8;
 
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [view, setView] = useState("active");        
-  const [org, setOrg] = useState("");
-  const [status, setStatus] = useState("");
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
+  const rows = useStore((s) => s.rows);
+  const loading = useStore((s) => s.loading);
+  const error = useStore((s) => s.error);
+  const view = useStore((s) => s.tab);
+  const org = useStore((s) => s.org);
+  const status = useStore((s) => s.status);
+  const search = useStore((s) => s.query);
+  const page = useStore((s) => s.page);
+  const hidden = useStore((s) => s.hidden);
+  const {
+    setTab: setView, setOrg, setStatus, setQuery: setSearch, setPage, toggleColumn, load, deleteCase,
+  } = useStore.getState();
   const [colMenu, setColMenu] = useState(false);
-  const [hidden, setHidden] = useState(() => COLUMNS.filter((c) => c.hiddenByDefault).map((c) => c.key));
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const { roleID, organisationID } = getSessionOrganisationId();
-      const res = await fetchCourtCases(roleID, organisationID);
-      const data = res?.data ?? res;
-      const all = Array.isArray(data) ? data : data?.data || [];
-      setRows(all.filter((r) => r.case_id?.startsWith("LI")).map((r) => ({ ...r, caseType: "Litigation" })));
-    } catch {
-      setError("Failed to load litigation cases.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-  useEffect(() => { setPage(1); }, [view, org, status, search]);
+  useEffect(() => { load(roleID, organisationID); }, [load, roleID, organisationID]);
 
   const orgOptions = useMemo(
     () => [...new Set(rows.map((r) => r.organisation_name).filter(Boolean))].sort(),
@@ -94,12 +81,8 @@ export default function LitigationList() {
 
   const handleDelete = async (row) => {
     if (!window.confirm("Deleting the record will also delete the data stored. Are you sure you want to delete?")) return;
-    try {
-      await deleteCourtCase(row.case_id, row.created_by);
-      load();
-    } catch {
-      alert("Delete failed. Please try again later.");
-    }
+    const ok = await deleteCase(row.case_id, row.created_by);
+    if (!ok) alert("Delete failed. Please try again later.");
   };
 
   const exportAll = async () => {
@@ -194,7 +177,7 @@ export default function LitigationList() {
                 {COLUMNS.filter((c) => showOrg || !c.orgOnly).map((c) => (
                   <label key={c.key} className="flex items-center gap-2 px-2 py-1 text-sm">
                     <input type="checkbox" checked={!hidden.includes(c.key)}
-                      onChange={() => setHidden((h) => h.includes(c.key) ? h.filter((k) => k !== c.key) : [...h, c.key])} />
+                      onChange={() => toggleColumn(c.key)} />
                     {c.label}
                   </label>
                 ))}

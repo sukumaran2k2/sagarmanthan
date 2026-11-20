@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { BASE_PATH } from "../CourtCases";
 import CaseForm from "../pages/CaseForm";
 import { arbitrationSchema } from "./arbitration.schema";
 import { getSessionOrganisationId, getCurrentUserId } from "../../../utils/authSession";
 import { toOptions } from "../../../utils/option";
+import { useArbitrationFormStore } from "../store/caseFormStore";
+import { useLookupStore } from "../store/lookupStore";
 // your standard notifier (adjust the path if your notify.js lives elsewhere)
 import {
   useNotifier, toastSuccess, toastError, toastWarning, getErrorMessage, withReason,
@@ -161,9 +163,12 @@ export default function ArbitrationForm({ triggerNotification }) {
   const navigate = useNavigate();
   const editId = params.get("edit") || params.get("caseId");
 
-  const [caseID, setCaseID] = useState(editId || "");
-  const [initialValues, setInitialValues] = useState(null);
-  const [opts, setOpts] = useState({ domain: [], subDomain: [], deptDivision: [] });
+  const useStore = useArbitrationFormStore;
+  const caseID = useStore((s) => s.caseID);
+  const opts = useStore((s) => s.opts);
+  const { setCaseID, setOpt, mergeValues, setLoading, reset } = useStore.getState();
+  const lookup = useLookupStore((s) => s.options);
+  const dynamicOptions = useMemo(() => ({ ...lookup, ...opts }), [lookup, opts]);
 
   /* ---- notifications: your standard notifier (title + message) ---- */
   const notifier = useNotifier(triggerNotification);
@@ -195,29 +200,34 @@ export default function ArbitrationForm({ triggerNotification }) {
   // dropdowns
   useEffect(() => {
     const organisationID = getOrgId();
-    (async () => {
-      try {
-        const [d, dep] = await Promise.all([fetchDomains(), fetchDepartments(organisationID)]);
-        setOpts((p) => ({ ...p, domain: makeOptions("domain", d), deptDivision: makeOptions("deptDivision", dep) }));
-      } catch (e) {
-        notify("error", withReason("The dropdown lists could not be loaded. Refresh the page.", getErrorMessage(e)), "Could Not Load Data");
-      }
-    })();
+    const { load } = useLookupStore.getState();
+    Promise.all([
+      load("domain", async () => makeOptions("domain", await fetchDomains())),
+      load("deptDivision", async () => makeOptions("deptDivision", await fetchDepartments(organisationID))),
+    ]).catch((e) => {
+      notify("error", withReason("The dropdown lists could not be loaded. Refresh the page.", getErrorMessage(e)), "Could Not Load Data");
+    });
   }, []);
 
   // edit mode prefill
   useEffect(() => {
-    if (!editId) return;
+    reset(editId || "");
+    if (!editId) return () => reset();
+    let cancelled = false;
     (async () => {
       try {
         const values = await loadCaseValues(editId);
-        setInitialValues(values);
+        if (cancelled) return;
+        mergeValues(values);
+        setLoading(false);
         if (values.domain) loadSubDomains(values.domain);
       } catch (e) {
+        if (cancelled) return;
         console.error("[ArbitrationForm] load failed:", e);
         notify("error", withReason(`Case ${editId} could not be loaded.`, getErrorMessage(e)), "Could Not Load Data");
       }
     })();
+    return () => { cancelled = true; reset(); };
   }, [editId]);
 
   // endpoint returns ALL sub domains -> filter by the chosen domain when rows carry a domain id
@@ -227,7 +237,7 @@ export default function ArbitrationForm({ triggerNotification }) {
       const rows = asRows(res);
       const hasDomainCol = rows.some((r) => r.domain_id != null);
       const filtered = hasDomainCol ? rows.filter((r) => String(r.domain_id) === String(domainId)) : rows;
-      setOpts((p) => ({ ...p, subDomain: makeOptions("subDomain", { ...res, data: filtered }) }));
+      setOpt("subDomain", makeOptions("subDomain", { ...res, data: filtered }));
     } catch (e) {
       notify("error", withReason("The sub domains could not be loaded.", getErrorMessage(e)), "Could Not Load Data");
     }
@@ -235,7 +245,7 @@ export default function ArbitrationForm({ triggerNotification }) {
 
   const onFieldChange = async (name, val) => {
     if (name !== "domain") return;
-    setOpts((p) => ({ ...p, subDomain: [] }));
+    setOpt("subDomain", []);
     if (val) await loadSubDomains(val);
   };
 
@@ -430,9 +440,9 @@ export default function ArbitrationForm({ triggerNotification }) {
   return (
     <CaseForm
       schema={arbitrationSchema}
-      initialValues={initialValues}
+      useStore={useStore}
       lockedSteps={caseID ? [] : ["status"]}
-      dynamicOptions={opts}
+      dynamicOptions={dynamicOptions}
       onFieldChange={onFieldChange}
       onSaveStep={onSaveStep}
       onValidationError={(msg) => notify("warning", msg, "Required Fields Missing")}

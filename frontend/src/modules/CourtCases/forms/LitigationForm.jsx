@@ -1,10 +1,12 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { BASE_PATH } from "../CourtCases";
 import CaseForm from "../pages/CaseForm";
 import { litigationSchema, COURT } from "./litigation.schema";
 import { getSessionOrganisationId, getCurrentUserId } from "../../../utils/authSession";
 import { toOptions } from "../../../utils/option";
+import { useLitigationFormStore } from "../store/caseFormStore";
+import { useLookupStore } from "../store/lookupStore";
 import {
   useNotifier, toastSuccess, toastError, toastWarning, getErrorMessage, withReason,
 } from "../../../utils/notify";
@@ -284,9 +286,12 @@ export default function LitigationForm({ triggerNotification }) {
   const navigate = useNavigate();
   const editId = params.get("edit") || params.get("caseId");
 
-  const [caseID, setCaseID] = useState(editId || "");
-  const [initialValues, setInitialValues] = useState(null);
-  const [opts, setOpts] = useState({});
+  const useStore = useLitigationFormStore;
+  const caseID = useStore((s) => s.caseID);
+  const opts = useStore((s) => s.opts);
+  const { setCaseID, setOpt, mergeValues, setLoading, reset } = useStore.getState();
+  const lookup = useLookupStore((s) => s.options);
+  const dynamicOptions = useMemo(() => ({ ...lookup, ...opts }), [lookup, opts]);
   const sel = useRef({}); 
 
   const notifier = useNotifier(triggerNotification);
@@ -315,11 +320,16 @@ export default function LitigationForm({ triggerNotification }) {
     fail(withReason(sentence, getErrorMessage(e)), "error", title);
 
   /* ---- dropdowns ---- */
-  const setOpt = (key, list) => setOpts((p) => ({ ...p, [key]: list }));
   const loadFailed = (key, e) => {
     console.error(`Dropdown ${key} failed`, e);
     notify("error", withReason("A dropdown list could not be loaded. Refresh the page.", getErrorMessage(e)), "Could Not Load Data");
   };
+
+  // static master data: cached once in the lookup store and shared by all forms
+  const loadStatic = (key, fn) =>
+    useLookupStore.getState()
+      .load(key, async () => makeOptions(key, await fn()))
+      .catch((e) => loadFailed(key, e));
 
   const loadOpt = async (key, fn) => {
     setOpt(key, []);
@@ -364,10 +374,10 @@ export default function LitigationForm({ triggerNotification }) {
 
   useEffect(() => {
     const organisationID = getOrgId();
-    loadOpt("domain", fetchDomains);
-    loadOpt("deptDivision", () => fetchDepartments(organisationID));
-    loadOpt("act", fetchActsDropdown);
-    loadOpt("otherCourtState", () => fetchStates("mmt_state"));
+    loadStatic("domain", fetchDomains);
+    loadStatic("deptDivision", () => fetchDepartments(organisationID));
+    loadStatic("act", fetchActsDropdown);
+    loadStatic("otherCourtState", () => fetchStates("mmt_state"));
   }, []);
 
   // dependent dropdowns
@@ -409,11 +419,16 @@ export default function LitigationForm({ triggerNotification }) {
   };
 
   useEffect(() => {
-    if (!editId) return;
+    reset(editId || "");
+    sel.current = {};
+    if (!editId) return () => reset();
+    let cancelled = false;
     (async () => {
       try {
         const values = await loadCaseValues(editId);
-        setInitialValues(values);
+        if (cancelled) return;
+        mergeValues(values);
+        setLoading(false);
 
         if (values.courtType) {
           sel.current = { courtType: values.courtType, subCourtType: values.subCourtType };
@@ -427,10 +442,12 @@ export default function LitigationForm({ triggerNotification }) {
         if (values.act) onFieldChange("act", values.act);
         if (values.otherCourtState) onFieldChange("otherCourtState", values.otherCourtState);
       } catch (e) {
+        if (cancelled) return;
         console.error("[LitigationForm] load failed:", e);
         notify("error", withReason(`Case ${editId} could not be loaded.`, getErrorMessage(e)), "Could Not Load Data");
       }
     })();
+    return () => { cancelled = true; reset(); };
   }, [editId]);
 
   const makeForm = (file, docType) => {
@@ -673,9 +690,9 @@ export default function LitigationForm({ triggerNotification }) {
   return (
     <CaseForm
       schema={litigationSchema}
-      initialValues={initialValues}
+      useStore={useStore}
       lockedSteps={caseID ? [] : ["ministry", "status"]}
-      dynamicOptions={opts}
+      dynamicOptions={dynamicOptions}
       onFieldChange={onFieldChange}
       onSaveStep={onSaveStep}
       onValidationError={(msg) => notify("warning", msg, "Required Fields Missing")}

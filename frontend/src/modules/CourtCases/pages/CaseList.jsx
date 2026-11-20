@@ -1,7 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Columns3, FileSpreadsheet, Pencil, Trash2, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
-import { fetchCourtCases, deleteCourtCase } from "../api";
 import { BASE_PATH } from "../CourtCases";
 
 const PAGE_SIZE = 10;
@@ -21,19 +20,20 @@ function getSession() {
 
 const csvCell = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
 
-export default function CaseListTable({ prefix, formKey, label, showCaseInfo = false }) {
+export default function CaseListTable({ useStore, formKey, label = "", showCaseInfo = false }) {
   const navigate = useNavigate();
   const { userID, roleID, organisationID } = getSession();
 
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [tab, setTab] = useState("active"); // active | disposed
-  const [stageFilter, setStageFilter] = useState("all");
-  const [query, setQuery] = useState("");
-  const [page, setPage] = useState(1);
-  const [deletingId, setDeletingId] = useState(null);
-  const [hidden, setHidden] = useState([]);
+  const rows = useStore((s) => s.rows);
+  const loading = useStore((s) => s.loading);
+  const error = useStore((s) => s.error);
+  const tab = useStore((s) => s.tab);
+  const stageFilter = useStore((s) => s.status);
+  const query = useStore((s) => s.query);
+  const page = useStore((s) => s.page);
+  const deletingId = useStore((s) => s.deletingId);
+  const hidden = useStore((s) => s.hidden);
+  const { setTab, setStatus: setStageFilter, setQuery, setPage, toggleColumn, load, deleteCase } = useStore.getState();
   const [colsOpen, setColsOpen] = useState(false);
   const colsRef = useRef(null);
 
@@ -55,27 +55,9 @@ export default function CaseListTable({ prefix, formKey, label, showCaseInfo = f
   );
   const visibleCols = columns.filter((c) => !hidden.includes(c.key));
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const res = await fetchCourtCases(roleID, organisationID);
-      const data = Array.isArray(res.data) ? res.data : [];
-      setRows(
-        data
-          .filter((r) => String(r.case_id || "").toUpperCase().startsWith(prefix))
-          .sort((a, b) => String(a.case_id).localeCompare(String(b.case_id), undefined, { numeric: true }))
-      );
-    } catch {
-      setError("Failed to load cases. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }, [roleID, organisationID, prefix]);
-
   useEffect(() => {
-    load();
-  }, [load]);
+    load(roleID, organisationID);
+  }, [load, roleID, organisationID]);
 
   useEffect(() => {
     const h = (e) => colsRef.current && !colsRef.current.contains(e.target) && setColsOpen(false);
@@ -96,7 +78,7 @@ export default function CaseListTable({ prefix, formKey, label, showCaseInfo = f
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return tabRows.filter((r) => {
-      if (stageFilter !== "all" && r.stage !== stageFilter) return false;
+      if (stageFilter && r.stage !== stageFilter) return false;
       if (!q) return true;
       return [r.organisation_name, r.case_id, r.cnr_number, r.case_number, r.stage]
         .filter(Boolean)
@@ -104,8 +86,6 @@ export default function CaseListTable({ prefix, formKey, label, showCaseInfo = f
     });
   }, [tabRows, stageFilter, query]);
 
-  useEffect(() => setPage(1), [tab, stageFilter, query]);
-  useEffect(() => setStageFilter("all"), [tab]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -115,15 +95,8 @@ export default function CaseListTable({ prefix, formKey, label, showCaseInfo = f
 
   const handleDelete = async (caseId) => {
     if (!window.confirm(`Delete case ${caseId} and all related data? This cannot be undone.`)) return;
-    setDeletingId(caseId);
-    try {
-      await deleteCourtCase(caseId, userID);
-      setRows((prev) => prev.filter((r) => r.case_id !== caseId));
-    } catch {
-      alert("Failed to delete the case.");
-    } finally {
-      setDeletingId(null);
-    }
+    const ok = await deleteCase(caseId, userID);
+    if (!ok) alert("Failed to delete the case.");
   };
 
   const exportCsv = () => {
@@ -206,7 +179,7 @@ export default function CaseListTable({ prefix, formKey, label, showCaseInfo = f
           onChange={(e) => setStageFilter(e.target.value)}
           className="w-full max-w-xl rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-600"
         >
-          <option value="all">Show All</option>
+          <option value="">Show All</option>
           {stageOptions.map((s) => (
             <option key={s} value={s}>{s}</option>
           ))}
@@ -242,9 +215,7 @@ export default function CaseListTable({ prefix, formKey, label, showCaseInfo = f
                       <input
                         type="checkbox"
                         checked={!hidden.includes(c.key)}
-                        onChange={() =>
-                          setHidden((h) => (h.includes(c.key) ? h.filter((k) => k !== c.key) : [...h, c.key]))
-                        }
+                        onChange={() => toggleColumn(c.key)}
                       />
                       {c.label}
                     </label>

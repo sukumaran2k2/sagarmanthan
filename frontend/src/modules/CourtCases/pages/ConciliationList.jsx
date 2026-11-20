@@ -1,6 +1,7 @@
 import React from "react";
 import CaseListTable from "./CaseList";
+import { useConciliationListStore } from "../store/caseListStore";
 
 export default function ConciliationList() {
-  return <CaseListTable prefix="CO" formKey="conciliation" />;
+  return <CaseListTable useStore={useConciliationListStore} formKey="conciliation" />;
 }
