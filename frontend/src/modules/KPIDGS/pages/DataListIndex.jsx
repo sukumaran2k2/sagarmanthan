@@ -1,7 +1,12 @@
+import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import IndexCardGrid from '../components/IndexCardGrid';
 import INPUT_FORM_INDEX, { INPUT_FORM_LEAVES } from '../data/inputFormIndex';
 import GenericReportPage from '../components/GenericReportPage';
 import * as api from '../api';
+import { useKPIDGSPermissions } from '../hooks/useKPIDGSPermissions';
+import { examMonthlyColumns, examOverallColumns, HIDDEN_BY_DEFAULT } from '../components/examPerformanceColumns';
+import { useDgsStore, DGS_STORED_LIST_SLUGS } from '../store/useDgsStore';
 
 const LIST_FETCH_BY_SLUG = {
   'flagging-of-vessels': () => api.fetchKpi2_1_List(),
@@ -10,6 +15,7 @@ const LIST_FETCH_BY_SLUG = {
   'sbfap-shipyard-list': () => api.fetchShipyardList(),
   'sbfap-inprincipal-approval': () => api.fetchKpi2_2_List(),
   'sbfap-financial-assistance': () => api.fetchKpi2_2_Fa_List(),
+  'exam-monthly-performance': () => api.fetchKpi2_3_1_List(),
   'exam-overall-performance': () => api.fetchKpi2_3_2_List(),
   'entry-exit-of-candidates': () => api.fetchEntryExitList(),
   'marine-casualty-previous-current': () => api.fetchKpi2_1_List(),
@@ -31,7 +37,50 @@ const LIST_FETCH_BY_SLUG = {
 const BLUE = '#0f417a';
 const BLUE_HOVER = '#1d5594';
 
+// Column map the table starts with (same keys the table uses: field, else header)
+function defaultVisibleCols(columns) {
+  return Object.fromEntries((columns || [])
+    .map((col) => {
+      const key = col.field || col.headerName;
+      return [key, col.hide !== true && !HIDDEN_BY_DEFAULT.includes(key)];
+    })
+    .filter(([key]) => key));
+}
+
+// Data List for a section whose search text and column visibility are kept in the DGS store,
+// so they survive switching section or tab. Subscribes to its own slot only.
+function StoredDataList({ slug, columns, ...props }) {
+  const slot = useDgsStore((state) => state.lists[slug]);
+  const setListSearch = useDgsStore((state) => state.setListSearch);
+  const setListVisibleCols = useDgsStore((state) => state.setListVisibleCols);
+  const defaults = useMemo(() => defaultVisibleCols(columns), [columns]);
+
+  return (
+    <GenericReportPage
+      {...props}
+      columns={columns}
+      searchTerm={slot.searchTerm}
+      onSearchChange={(value) => setListSearch(slug, value)}
+      visibleCols={slot.visibleCols ?? defaults}
+      onVisibleColsChange={(updater) => setListVisibleCols(slug, updater, defaults)}
+    />
+  );
+}
+
 export default function DataListIndex({ triggerNotification }) {
+  const navigate = useNavigate();
+  const { canEdit } = useKPIDGSPermissions();
+
+  // Sections with their own columns (labels, formatting, Edit action); others infer columns.
+  // Edit opens the section's input form with the row in route state.
+  const columnsBySlug = useMemo(() => {
+    const editIn = (slug) => (item) => navigate(`/kpi/dgs/input-forms/${slug}`, { state: { slug, item } });
+    return {
+      'exam-monthly-performance': examMonthlyColumns({ canEdit, onEdit: editIn('exam-monthly-performance') }),
+      'exam-overall-performance': examOverallColumns({ canEdit, onEdit: editIn('exam-overall-performance') }),
+    };
+  }, [navigate, canEdit]);
+
   return (
     <IndexCardGrid
       title="Data List"
@@ -49,19 +98,20 @@ export default function DataListIndex({ triggerNotification }) {
             <p className="text-sm text-slate-600">No data list is registered for slug "{slug}".</p>
           );
         }
-        return (
-          <GenericReportPage
-            key={slug}
-            code={leaf.code}
-            title={leaf.label}
-            fetchFn={fetchFn}
-            triggerNotification={triggerNotification}
-            showBack={false}
-            flat={flat}
-            color={BLUE}
-            hoverColor={BLUE_HOVER}
-          />
-        );
+        const pageProps = {
+          code: leaf.code,
+          title: leaf.label,
+          fetchFn,
+          columns: columnsBySlug[slug] || null,
+          triggerNotification,
+          showBack: false,
+          flat,
+          color: BLUE,
+          hoverColor: BLUE_HOVER,
+        };
+        return DGS_STORED_LIST_SLUGS.includes(slug)
+          ? <StoredDataList key={slug} slug={slug} {...pageProps} />
+          : <GenericReportPage key={slug} {...pageProps} />;
       }}
     />
   );

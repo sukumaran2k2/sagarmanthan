@@ -19,7 +19,15 @@ const INPUT_FORM_INDEX = [
       { code: 'K-2.2.C', label: 'Financial Assistance Application', slug: 'sbfap-financial-assistance' },
     ],
   },
-  { code: 'K-2.3', label: 'DGS-Exam Overall Performance Statistics', slug: 'exam-overall-performance' },
+  {
+    code: 'K-2.3',
+    label: 'DGS- Exam Performance',
+    isGroup: true,
+    children: [
+      { code: 'K-2.3.1', label: 'Exam Monthly Performance', slug: 'exam-monthly-performance' },
+      { code: 'K-2.3.2', label: 'Exam Overall Performance Statistics', slug: 'exam-overall-performance' },
+    ],
+  },
   { code: 'K-2.4', label: 'DGS- Entry and Exit of Candidates', slug: 'entry-exit-of-candidates' },
   {
     code: 'K-2.5',

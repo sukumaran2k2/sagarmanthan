@@ -19,6 +19,8 @@ export const DGS_TOASTS = {
     toastSuccess('Status Updated', `${name} is now ${status ? 'Active' : 'Inactive'}.`),
   statusFailed: (reason) =>
     toastError('Status Update Failed', withReason('The status could not be changed. Please try again.', reason)),
+  examRowsMissing: (typeName) =>
+    toastWarning('No Exam Rows Found', `No ${typeName} exam subjects are set up in the master list, so there is nothing to fill in.`),
   mmdNameRequired: () =>
     toastWarning('MMD Name Required', 'Enter an MMD name before saving.'),
   mmdDuplicate: () =>

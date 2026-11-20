@@ -1637,20 +1637,25 @@ router.get("/getedit-2-2-fa/:fundAppId", KpiDGS_2_2_Tab.getUpdateMmd_2_2Fa_Data)
 
 router.get("/kpi2-2-fa-template", KpiDGS_2_2_Tab.downloadFASampleDocument);
 
-// 2.3.2
-router.get("/get_addkpi2_3_masterdata/:year/:month/:type", KpiDGS_2_3_Tab.getAddKpi2_3_Masterdata);
-router.get("/get_editkpi2_3_masterdata/:year/:month/:typeId", KpiDGS_2_3_Tab.getEditKpi2_3_Masterdata);
+// DGS K-2.3 Exam Performance: KPI_DGS rights on every route (login is checked for all routes above).
+// The input-form lookups (grid, duplicate check, saved entry) also serve users who can only add or edit.
+const dgs23Read = requireModulePermission("KPI_DGS", "read");
+const dgs23FormLookup = requireAnyModulePermission("KPI_DGS", ["create", "update", "read"]);
 
-router.get("/checkData-2-3-2-data/:year/:month/:onType", KpiDGS_2_3_Tab.checkData_2_3_2);
-router.post('/add-kpi2-3-2', KpiDGS_2_3_Tab.createDgsKpi2_3_2Data);
-router.get("/kpi2-3-2-list", KpiDGS_2_3_Tab.getKpi2_3_2_List);
+// 2.3.2 (the save adds new rows and updates saved ones; the handler checks create / update for each)
+router.get("/get_addkpi2_3_masterdata/:year/:month/:type", dgs23FormLookup, KpiDGS_2_3_Tab.getAddKpi2_3_Masterdata);
+router.get("/get_editkpi2_3_masterdata/:year/:month/:typeId", dgs23FormLookup, KpiDGS_2_3_Tab.getEditKpi2_3_Masterdata);
+
+router.get("/checkData-2-3-2-data/:year/:month/:onType", dgs23FormLookup, KpiDGS_2_3_Tab.checkData_2_3_2);
+router.post('/add-kpi2-3-2', requireAnyModulePermission("KPI_DGS", ["create", "update"]), validateKpiBody, KpiDGS_2_3_Tab.createDgsKpi2_3_2Data);
+router.get("/kpi2-3-2-list", dgs23Read, KpiDGS_2_3_Tab.getKpi2_3_2_List);
 
 // 2.3.1
-router.get("/checkData-2-3-1-data/:year/:month", KpiDGS_2_3_Tab.checkData_2_3_1);
-router.post('/add-kpi2-3-1', KpiDGS_2_3_Tab.createDgsKpi2_3_1Data);
-router.get("/kpi2-3-1-list", KpiDGS_2_3_Tab.getKpi2_3_1_List);
-router.get("/getedit-2-3-1-data/:year/:month", KpiDGS_2_3_Tab.getUpdateMmd_2_3_1Data);
-router.put("/edit-2-3-1-data", KpiDGS_2_3_Tab.editDgsKpi2_3_1Data);
+router.get("/checkData-2-3-1-data/:year/:month", dgs23FormLookup, KpiDGS_2_3_Tab.checkData_2_3_1);
+router.post('/add-kpi2-3-1', requireModulePermission("KPI_DGS", "create"), validateKpiBody, KpiDGS_2_3_Tab.createDgsKpi2_3_1Data);
+router.get("/kpi2-3-1-list", dgs23Read, KpiDGS_2_3_Tab.getKpi2_3_1_List);
+router.get("/getedit-2-3-1-data/:year/:month", dgs23FormLookup, KpiDGS_2_3_Tab.getUpdateMmd_2_3_1Data);
+router.put("/edit-2-3-1-data", requireModulePermission("KPI_DGS", "update"), validateKpiBody, KpiDGS_2_3_Tab.editDgsKpi2_3_1Data);
 
 //2.6.1
 router.get("/checkData-2-6-1-data/:year/:month/:mmdName", dgsTab.checkData_2_6_1);

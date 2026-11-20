@@ -80,7 +80,9 @@ export function downloadKpi2_2_Fa_Template() {
   return api.get('/kpi2-2-fa-template', { responseType: 'blob' });
 }
 
-// ---- K-2.3 Exam Overall Performance (Input) ----
+// ---- K-2.3.2 Exam Overall Performance Statistics (Input) ----
+// The add/edit masterdata calls return saved rows for that year/month/type when they exist,
+// otherwise the blank master rows from mmt_kpi_2_3_data. /add-kpi2-3-2 saves both (upsert).
 export function fetchKpi2_3_Masterdata(year, month, type) {
   return api.get(`/get_addkpi2_3_masterdata/${year}/${month}/${type}`);
 }
@@ -97,9 +99,9 @@ export function fetchKpi2_3_2_List(params = {}) {
   return api.get('/kpi2-3-2-list', { params });
 }
 
-// ---- K-2.4 Entry and Exit of Candidates (Input) ----
-// NOTE: the K-2.3.1 endpoints below are for Exam Overall Performance (nautical/engineering),
-// NOT for Entry/Exit. K-2.4's real endpoints live under /*-entry-exit-data below.
+// ---- K-2.3.1 Exam Monthly Performance (Input) ----
+// Total exams conducted per month (nautical / engineering). checkData answers 205 when the
+// month already has an entry, 201 when it is free.
 export function checkKpi2_3_1_Data(year, month) {
   return api.get(`/checkData-2-3-1-data/${year}/${month}`);
 }

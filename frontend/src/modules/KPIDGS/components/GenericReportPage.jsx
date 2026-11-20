@@ -18,6 +18,11 @@ export default function GenericReportPage({
   flat = false,
   color = BROWN,
   hoverColor = BROWN_HOVER,
+  // Optional saved list state (KPI DGS store). Left undefined, the table keeps its own state.
+  searchTerm,
+  onSearchChange,
+  visibleCols,
+  onVisibleColsChange,
 }) {
   const navigate = useNavigate();
   const notify = useNotifier(triggerNotification);
@@ -101,6 +106,10 @@ export default function GenericReportPage({
         exportFileName={`dgs_${code.replace(/\./g, '_')}`}
         fillHeight={flat}
         triggerNotification={triggerNotification}
+        searchTerm={searchTerm}
+        onSearchChange={onSearchChange}
+        visibleCols={visibleCols}
+        onVisibleColsChange={onVisibleColsChange}
       />
     </div>
   );

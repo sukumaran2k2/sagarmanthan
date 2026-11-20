@@ -28,7 +28,44 @@ const CHECKS = {
     date: (v) => (!Number.isNaN(new Date(String(v)).getTime()) && /^\d{4}-\d{2}-\d{2}/.test(String(v)) ? null : "must be a valid date"),
     lat: (v) => (Number.isFinite(number(v)) && Math.abs(number(v)) <= 90 ? null : "must be a latitude from -90 to 90"),
     lng: (v) => (Number.isFinite(number(v)) && Math.abs(number(v)) <= 180 ? null : "must be a longitude from -180 to 180"),
+    // DGS K-2.3 (calendar year/month, saved as numbers)
+    year: (v) => (isWhole(v) && number(v) >= 2000 && number(v) <= 2100 ? null : "must be a valid year"),
+    monthNo: (v) => (isWhole(v) && number(v) >= 1 && number(v) <= 12 ? null : "must be a month from 1 to 12"),
+    examType: (v) => (EXAM_TYPES.has(number(v)) ? null : "must be Nautical or Engineering"),
+    count: (v) => (isWhole(v) && number(v) >= 0 ? null : "must be a whole number of 0 or more"),
+    examRows: (v) => examRowsProblem(v),
 };
+
+// ---- DGS K-2.3 helpers ----
+const isWhole = (v) => Number.isInteger(number(v));
+const EXAM_TYPES = new Set([1, 2]); // mmt_kpi_type_2_3: 1 Nautical, 2 Engineering
+const MAX_EXAM_ROWS = 1000;
+const EXAM_ROW_IDS = { typeId: "type", gradeId: "grade", codeId: "code", subjectId: "subject", frequencyId: "frequency" };
+const EXAM_ROW_COUNTS = { candidatesAppeared: "candidates appeared", candidatesPassed: "candidates passed" };
+
+// K-2.3.2 grid rows: master ids must be valid, all rows one type, counts blank or whole numbers >= 0
+function examRowsProblem(rows) {
+    if (!Array.isArray(rows) || rows.length === 0) return "must have at least one row";
+    if (rows.length > MAX_EXAM_ROWS) return `can have at most ${MAX_EXAM_ROWS} rows`;
+    const typeId = number(rows[0]?.typeId);
+    for (let i = 0; i < rows.length; i += 1) {
+        const row = rows[i];
+        const at = `(row ${i + 1})`;
+        if (!row || typeof row !== "object") return `${at} is not valid`;
+        for (const [field, name] of Object.entries(EXAM_ROW_IDS)) {
+            if (CHECKS.id(row[field])) return `${at}: ${name} is not a valid record`;
+        }
+        if (number(row.typeId) !== typeId) return `${at}: every row must be for the same type`;
+        if (!empty(row.dgs_2_3_2_ID) && CHECKS.id(row.dgs_2_3_2_ID)) return `${at}: saved row is not a valid record`;
+        for (const [field, name] of Object.entries(EXAM_ROW_COUNTS)) {
+            if (!empty(row[field]) && CHECKS.count(row[field])) return `${at}: ${name} must be a whole number of 0 or more`;
+        }
+    }
+    return CHECKS.examType(typeId) ? "must be for Nautical or Engineering" : null;
+}
+
+// Names used in messages for the K-2.3 kinds (their field names would otherwise read as "financial year")
+const KIND_LABELS = { year: "year", monthNo: "month", examType: "type", examRows: "exam rows" };
 
 // Field names as people read them in the message ("updateTonnageVessels" -> "tonnage vessels")
 const label = (field) => {
@@ -98,6 +135,11 @@ export const KPI_RULES = {
     "PUT /sci-manning-of-ownedships-edit": { updatefinancialYear: "fy", updatenoofVesselsaudited: "num", updatenoofShipsfullycomplaint: "num", ScimanningIdOrg: "id" },
     "POST /add-sci-ship-management-business": { financialYear: "fy", noofShipsManaged: "num", totalManagementcost: "num", revenue: "num", costtoRevenueratio: "num" },
     "PUT /sci-ship-management-business": { updateFinancialyear: "fy", updatenoofShipsManaged: "num", updatetotalManagementcost: "num", updaterevenue: "num", updatecosttoRevenueratio: "num", ScishipmanagementIdOrg: "id" },
+    // DGS K-2.3.1 Exam Monthly Performance (the chosen type's total is checked in the handler)
+    "POST /add-kpi2-3-1": { year: "year", month: "monthNo", type: "examType", totalExamNautical: "countOpt", totalExamEngineering: "countOpt" },
+    "PUT /edit-2-3-1-data": { year: "year", month: "monthNo", totalExamNautical: "count", totalExamEngineering: "count" },
+    // DGS K-2.3.2 Exam Overall Performance Statistics
+    "POST /add-kpi2-3-2": { year: "year", month: "monthNo", rowData: "examRows" },
 };
 
 // Problems with the body for these rules, as one message per field ([] when it is fine)
@@ -107,12 +149,13 @@ export function kpiProblems(rules, body = {}) {
         const optional = rule.endsWith("Opt");
         const kind = optional ? rule.slice(0, -3) : rule;
         const value = body[field];
+        const name = KIND_LABELS[kind] || label(field);
         if (empty(value)) {
-            if (!optional) problems.push(`${label(field)} is required`);
+            if (!optional) problems.push(`${name} is required`);
             continue;
         }
         const problem = CHECKS[kind](value);
-        if (problem) problems.push(`${label(field)} ${problem}`);
+        if (problem) problems.push(`${name} ${problem}`);
     }
     return problems;
 }
