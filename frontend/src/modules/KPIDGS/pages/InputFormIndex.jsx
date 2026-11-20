@@ -3,12 +3,14 @@ import INPUT_FORM_INDEX, { INPUT_FORM_LEAVES } from '../data/inputFormIndex';
 import PlaceholderInputForm from '../components/PlaceholderInputForm';
 import FlaggingShipsTonnage from './inputs/FlaggingShipsTonnage';
 import EntryExitCandidates from './inputs/EntryExitCandidates';
+import VesselPortSurvey from './inputs/VesselPortSurvey';
 
 // slug → the real input-form component for sections that have been built.
 // Any slug missing from this map falls through to PlaceholderInputForm.
 const FORM_BY_SLUG = {
   'flagging-of-vessels': FlaggingShipsTonnage,
   'entry-exit-of-candidates': EntryExitCandidates,
+  'vessel-port-survey': VesselPortSurvey,
 };
 
 const BACKEND_NOTES = {
