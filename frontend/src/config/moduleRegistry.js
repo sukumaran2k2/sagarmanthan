@@ -390,6 +390,21 @@ export const MODULE_PAGES = {
     ],
   },
 
+   NMP: {
+    tabs: [
+      'NMP Dashboard',
+      'NMP Data List',
+      'NMP Input Form',
+      'National Monetisation Pipeline',
+    ],
+    uiTabs: [
+      'NMP Dashboard',
+      'NMP Data List',
+      'NMP Input Form',
+      'National Monetisation Pipeline',
+    ],
+  },
+
   KNOWLEDGE_REPOSITORY: {
     tabs: ['Research Papers', 'Policy Documents', 'Guidelines'],
   },

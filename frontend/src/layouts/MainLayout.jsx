@@ -16,7 +16,7 @@ import {
   TAB_USER_MASTER_MANAGEMENT
 } from '../utils/moduleAccess';
 import { isOrganisationUser } from '../utils/authSession';
-import { endSession } from '../utils/sessionRefresh';
+import { signOut } from '../utils/sessionRefresh';
 import { Home } from 'lucide-react';
 
 export const ROUTE_MAP = {
@@ -202,6 +202,12 @@ export const ROUTE_MAP = {
   'CSR Input Form': 'projects/csr-projects/input-form',
   'CSR Reports': 'projects/csr-projects/reports',
 
+  // Finance / NMP routes
+  'National Monetisation Pipeline': 'finance/nmp/dashboard',
+  'NMP Dashboard': 'finance/nmp/dashboard',
+  'NMP Data List': 'finance/nmp/data-list',
+  'NMP Input Form': 'finance/nmp/input-form',
+
   // Finance / Capex routes
   'Capex': 'finance/capex/data-list',
   'Capex Dashboard': 'finance/capex/dashboard',
@@ -246,7 +252,8 @@ export const getTabFromSlug = (slug) => {
   if (cleanSlug.startsWith('hr/consultant-appointment')) return 'Consultant Data List';
   if (cleanSlug.startsWith('strategies/gmis-mou')) return 'GMIS & IMW MoUs';
   if (cleanSlug.startsWith('strategies/miv-2030')) return 'MIV 2030';
-  if (cleanSlug.startsWith('strategies/drishti-portal') || cleanSlug.startsWith('strategies/ovod') || cleanSlug.startsWith('strategies/one-vision-one-document')) return 'Drishti Portal';
+  if (cleanSlug.startsWith('strategies/drishti-portal') || cleanSlug.startsWith('strategies/ovod') || cleanSlug.startsWith('strategies/one-vision-one-document')) return 'Drishti Portal (OVOD)';
+  if (cleanSlug.startsWith('finance/nmp')) return 'National Monetisation Pipeline';
   if (cleanSlug.startsWith('finance/capex')) return 'Capex';
   if (cleanSlug.startsWith('governance/gem-procurements')) return 'GEM Procurements';
   if (cleanSlug.startsWith('governance/vip-reference')) return 'VIP Reference';
@@ -377,6 +384,9 @@ const getBreadcrumbs = (tab) => {
   if (tab === 'Media Outreach') return ['Home', 'Media Outreach - (Input Form)'];
   if (governanceItems.includes(tab)) return ['Home', 'Governance', tab];
 
+  const nmpItems = ['National Monetisation Pipeline', 'NMP Dashboard', 'NMP Data List', 'NMP Input Form'];
+  if (nmpItems.includes(tab)) return ['Home', 'Finance', 'National Monetisation Pipeline', tab === 'National Monetisation Pipeline' ? 'Dashboard' : tab];
+
   const legalItems = ['Courtcases', 'Bills/PreConstitutions Act', 'Acts & Rules'];
   if (legalItems.includes(tab)) return ['Home', 'Legal', tab];
 
@@ -461,8 +471,6 @@ export default function MainLayout({
           onContinue={() => setShowNetworkCheck(false)}
           onCancel={() => {
             endSession();
-            localStorage.removeItem('accessToken');
-            localStorage.removeItem('refreshToken');
             setIsLoggedIn(false);
             setShowNetworkCheck(false);
           }}

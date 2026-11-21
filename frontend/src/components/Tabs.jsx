@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { axiosInstance as api } from '../api';
-import { getCurrentUserId, isSuperAdmin, getDataScopeCode } from '../utils/authSession';
+import { getCurrentUserId, isSuperAdmin, getDataScopeCode ,getSessionClaims } from '../utils/authSession';
 import sagarmanthanLogo from '../assets/sagarmanthan_logo.png';
 import {
   canAccessTab,
@@ -65,23 +65,8 @@ import {
 } from 'lucide-react';
 
 function getLoggedInUserRole() {
-  try {
-    const token = localStorage.getItem("accessToken") || localStorage.getItem("token");
-    if (!token) return 1;
-    const base64Url = token.split(".")[1];
-    if (!base64Url) return 1;
-    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split("")
-        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-        .join("")
-    );
-    const decoded = JSON.parse(jsonPayload);
-    return Number(decoded.roleId || decoded.role_id || decoded.role || 1);
-  } catch {
-    return 1;
-  }
+   const decoded = getSessionClaims();
+  return decoded ? Number(decoded.roleId || decoded.role_id || decoded.role || 1) : 1;
 }
 
 export default function Tabs({ activeTab, setActiveTab }) {
@@ -138,15 +123,16 @@ export default function Tabs({ activeTab, setActiveTab }) {
   const { hrView, canViewVacancy: canViewHrVacancy, canViewAdministration: canViewHrAdmin } = useHRPermissions();
 
   const accessKey = (() => {
-    try {
-      const t = localStorage.getItem('accessToken');
-      if (!t) return '';
-      const payload = JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-      const codes = payload?.allowedModuleCodes;
-      return `${payload?.roleCode || ''}|${Array.isArray(codes) ? codes.join(',') : ''}|piCreate:${canCreateParliamentary ? 1 : 0}|cnCreate:${canCreateCabinetMopsw ? 1 : 0}|caCreate:${canCreateConsultant ? 1 : 0}|ypCreate:${canCreateYp ? 1 : 0}|cxCreate:${canCreateCapex ? 1 : 0}`;
-    } catch {
-      return `piCreate:${canCreateParliamentary ? 1 : 0}|cnCreate:${canCreateCabinetMopsw ? 1 : 0}|caCreate:${canCreateConsultant ? 1 : 0}|ypCreate:${canCreateYp ? 1 : 0}|cxCreate:${canCreateCapex ? 1 : 0}`;
-    }
+       const createFlags = `piCreate:${canCreateParliamentary ? 1 : 0}|cnCreate:${canCreateCabinetMopsw ? 1 : 0}|caCreate:${canCreateConsultant ? 1 : 0}|ypCreate:${canCreateYp ? 1 : 0}|cxCreate:${canCreateCapex ? 1 : 0}`;
+    const claims = getSessionClaims();
+    if (!claims) return createFlags;
+    const codes = claims.allowedModuleCodes;
+    // Read ticks decide which modules the menu shows, so a change to them must rebuild it
+    const readCodes = (Array.isArray(claims.modulePermissions) ? claims.modulePermissions : [])
+      .filter((p) => p.read ?? p.canRead ?? p.can_read)
+      .map((p) => p.moduleCode || p.module_code)
+      .join(',');
+    return `${claims.roleCode || ''}|${Array.isArray(codes) ? codes.join(',') : ''}|read:${readCodes}|${createFlags}`;
   })();
 
   const m = (moduleCode, item) => ({ ...item, moduleCode });
@@ -409,6 +395,23 @@ export default function Tabs({ activeTab, setActiveTab }) {
         m('ACTS_AND_RULES', { label: 'Acts & Rules', icon: Scale }),
       ]
     },
+    // {
+    //   id: 'nmp',
+    //   label: 'National Monetization Pipeline',
+    //   tab: 'NMP Dashboard',
+    //   icon: DollarSign,
+    //   // Clicking the menu itself opens the dashboard rather than only revealing the sub-menu.
+    //   landingTab: 'NMP Dashboard',
+    //   align: 'left-0',
+    //   width: 'w-[280px]',
+    //   defaultTab: 'NMP Dashboard', 
+    //   items: [
+    //     { label: 'NMP Dashboard', icon: LayoutDashboard, tab: 'NMP Dashboard' },
+    //     ...withCreate(canCreateIn.NMP, [{ label: 'NMP Input Form', icon: FileEdit, tab: 'NMP Input Form' }]),
+    //     { label: 'NMP Data List', icon: ClipboardList, tab: 'NMP Data List' },
+        
+    //   ]
+    // },
     {
       id: 'vision',
       label: 'Long Term Strategies',
