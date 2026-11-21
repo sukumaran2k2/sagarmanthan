@@ -136,7 +136,7 @@ export default function NonPortUploadHistory({ notify, triggerNotification }) {
           headers={EXPORT_HEADERS}
           data={exportRows}
           fileName="Non_Port_Upload_History"
-          title="Non Port Monthly Upload History"
+          title="Monthly Vacancy Upload History"
           triggerNotification={triggerNotification}
           color="#0f417a"
           hoverColor="#134e96"

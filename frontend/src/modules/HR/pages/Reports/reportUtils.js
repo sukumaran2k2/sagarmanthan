@@ -195,6 +195,24 @@ export function yearMonthOptions(rows = []) {
   };
 }
 
+// Snapshot months as options, newest first ("YYYY-M")
+export function snapshotPeriodOptions(rows = []) {
+  const seen = new Set();
+  return rows
+    .map((r) => ({ year: Number(r.log_year), month: Number(r.log_month) }))
+    .filter(({ year, month }) => year > 0 && month >= 1 && month <= 12)
+    .sort((a, b) => b.year - a.year || b.month - a.month)
+    .filter(({ year, month }) => !seen.has(`${year}-${month}`) && seen.add(`${year}-${month}`))
+    .map(({ year, month }) => ({ value: `${year}-${month}`, label: `${MONTH_NAMES[month - 1]} ${year}` }));
+}
+
+export function parseSnapshotPeriod(value) {
+  const match = /^(\d{4})-(\d{1,2})$/.exec(value || '');
+  if (!match) return null;
+  const month = Number(match[2]);
+  return month >= 1 && month <= 12 ? { year: Number(match[1]), month } : null;
+}
+
 // The legacy Contractual report filters on these fixed financial years.
 export const CONTRACT_FINANCIAL_YEARS = [
   '2020-2021', '2021-2022', '2022-2023', '2023-2024',

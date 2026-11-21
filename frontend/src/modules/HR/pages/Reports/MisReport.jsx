@@ -4,6 +4,7 @@ import {
   fetchHrStaffingOverviewReport,
   fetchTotalManpowerClassWiseReport,
   fetchTotalManpowerSanctionActual,
+  fetchVacancyLogYearsAndMonths,
 } from '../../api';
 import { useHRPermissions } from '../../hooks/useHRPermissions';
 import ReportLayout, { FilterSelect, ToggleField } from './components/ReportLayout';
@@ -16,6 +17,8 @@ import {
   leafColumns,
   normaliseOrgName,
   orgNamesIn,
+  parseSnapshotPeriod,
+  snapshotPeriodOptions,
   sortColumns,
   totalRow,
   trimLabels,
@@ -32,7 +35,7 @@ const GENDER_CLASS_SERIAL = { 'CLASS 1': 1, 'CLASS 2': 2, 'CLASS 3': 3, 'CLASS 4
 const MIS = {
   // H-2.1.x  Manpower Overview
   staffingOverview: {
-    fetch: (r) => fetchHrStaffingOverviewReport(r.orgCategory),
+    fetch: (r, f) => fetchHrStaffingOverviewReport(r.orgCategory, f.period),
     labelKey: 'Organisation',
     orgFilter: 'rows',
     totals: true,
@@ -42,7 +45,7 @@ const MIS = {
     // Department is filtered on the page by name, not sent as an id: with clusters the rows are
     // department clusters and the backend ignores the id, and the id list would only cover the
     // signed-in organisation's departments.
-    fetch: (r, f) => fetchTotalManpowerSanctionActual(0, f.classId || 0, r.orgCategory, f.deptCategory),
+    fetch: (r, f) => fetchTotalManpowerSanctionActual(0, f.classId || 0, r.orgCategory, f.deptCategory, f.period),
     labelKey: 'Department',
     orgFilter: 'group',
     sortColumns: true,
@@ -51,7 +54,7 @@ const MIS = {
   },
   // H-2.3.x  Gender Wise Manpower (the backend already includes the Total rows)
   genderWise: {
-    fetch: (r) => fetchHrGenderWiseReport(r.orgCategory),
+    fetch: (r, f) => fetchHrGenderWiseReport(r.orgCategory, f.period),
     labelKey: 'CLASS',
     orgFilter: 'column',
     keep: ['CLASS', 'GENDER'],
@@ -61,7 +64,7 @@ const MIS = {
   },
   // H-2.4.x  Actual Manpower Regular - Class Wise
   classWise: {
-    fetch: (r, f) => fetchTotalManpowerClassWiseReport(r.orgCategory, f.deptCategory),
+    fetch: (r, f) => fetchTotalManpowerClassWiseReport(r.orgCategory, f.deptCategory, f.period),
     labelKey: 'Department',
     orgFilter: 'group',
     totals: true,
@@ -70,7 +73,7 @@ const MIS = {
 
 export default function MisReport({ report, categoryFilter, onBack, notify }) {
   const config = MIS[report.mis];
-  const { isMinistryView, orgName: sessionOrgName } = useHRPermissions();
+  const { isMinistryView, orgId: sessionOrgId, orgName: sessionOrgName } = useHRPermissions();
 
   const [data, setData] = useState({ columnDefs: [], rowData: [] });
   const [loading, setLoading] = useState(true);
@@ -82,15 +85,29 @@ export default function MisReport({ report, categoryFilter, onBack, notify }) {
   const [classId, setClassId] = useState('');
   const [withCluster, setWithCluster] = useState(true);
   const deptCategory = report.clusterToggle && withCluster ? 1 : 0;
+  // '' = current position, else "YYYY-M"
+  const [periodValue, setPeriodValue] = useState('');
+  const [periodOptions, setPeriodOptions] = useState([]);
+  const period = useMemo(() => parseSnapshotPeriod(periodValue), [periodValue]);
 
   const notifyRef = useRef(notify);
   useEffect(() => { notifyRef.current = notify; }, [notify]);
+
+  const scopeOrgId = isMinistryView ? 0 : sessionOrgId;
+  useEffect(() => {
+    if (scopeOrgId == null) return undefined;
+    let alive = true;
+    fetchVacancyLogYearsAndMonths(scopeOrgId, 'mis')
+      .then((res) => { if (alive) setPeriodOptions(snapshotPeriodOptions(Array.isArray(res.data) ? res.data : [])); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [scopeOrgId]);
 
   const load = useCallback(async (signal) => {
     setLoading(true);
     setEmptyMessage('');
     try {
-      const res = await config.fetch(report, { classId, deptCategory });
+      const res = await config.fetch(report, { classId, deptCategory, period });
       if (signal?.aborted) return;
       setData({
         columnDefs: Array.isArray(res.data?.columnDefs) ? res.data.columnDefs : [],
@@ -100,7 +117,7 @@ export default function MisReport({ report, categoryFilter, onBack, notify }) {
       if (signal?.aborted) return;
       setData({ columnDefs: [], rowData: [] });
       if (err?.response?.status === 404) {
-        setEmptyMessage('Data not found.');
+        setEmptyMessage(period ? 'No data was recorded for that month.' : 'Data not found.');
       } else {
         setEmptyMessage('Could not load the report.');
         notifyRef.current?.(COMMON_TOASTS.loadFailed('The report'));
@@ -108,7 +125,7 @@ export default function MisReport({ report, categoryFilter, onBack, notify }) {
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
-  }, [config, report, classId, deptCategory]);
+  }, [config, report, classId, deptCategory, period]);
 
   // Deferred a tick so the load's setState does not run synchronously in the effect;
   // a stale response (filters changed meanwhile) is ignored.
@@ -187,15 +204,24 @@ export default function MisReport({ report, categoryFilter, onBack, notify }) {
     setDepartment('');
     setClassId('');
     setWithCluster(true);
+    setPeriodValue('');
   };
 
   const filtersActive =
-    orgName !== defaultOrg || Boolean(department || classId) || Boolean(report.clusterToggle && !withCluster);
+    orgName !== defaultOrg || Boolean(department || classId || periodValue) || Boolean(report.clusterToggle && !withCluster);
   const clusterLabel = withCluster ? 'With Cluster' : 'Without Cluster';
+  const periodLabel = periodOptions.find((o) => o.value === periodValue)?.label ?? 'Current position';
 
   const filters = (
     <>
       {categoryFilter}
+      <FilterSelect
+        label="Period"
+        value={periodValue}
+        onChange={setPeriodValue}
+        options={periodOptions}
+        placeholder="Current position"
+      />
       <FilterSelect
         label="Organisation"
         value={orgName}
@@ -228,7 +254,7 @@ export default function MisReport({ report, categoryFilter, onBack, notify }) {
   return (
     <ReportLayout
       report={report}
-      meta={report.clusterToggle ? `${portCategoryLabel(report)} • ${clusterLabel}` : portCategoryLabel(report)}
+      meta={[portCategoryLabel(report), report.clusterToggle && clusterLabel, periodLabel].filter(Boolean).join(' • ')}
       onBack={onBack}
       filtersActive={filtersActive}
       rows={rows}

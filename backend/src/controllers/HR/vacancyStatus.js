@@ -737,12 +737,12 @@ async function getDepartmentWiseEmpContByOrg(req, res) {
                 mmtc.class,
                 COALESCE(SUM(CASE WHEN ps.post_code IS NOT NULL THEN 1 ELSE 0 END), 0) AS total_sanctioned_strength,
                 COALESCE(SUM(CASE WHEN ps.vacant_or_filled = 'filled' THEN 1 ELSE 0 END), 0) AS filled_post,
+                -- Live: exempted, under five years vacant, or no arise date
                 COALESCE(SUM(CASE WHEN
                     ps.vacant_or_filled = 'vacant'
-                    AND ps.date_of_arise_in_vacancy IS NOT NULL
-                    AND ((ps.exception_abolish IS NULL OR ps.exception_abolish = 0)
-                    AND DATEADD(YEAR, 5, ps.date_of_arise_in_vacancy) > GETDATE()
-                    OR ps.exception_abolish = 1)
+                    AND (ps.date_of_arise_in_vacancy IS NULL
+                        OR ps.exception_abolish = 1
+                        OR DATEADD(YEAR, 5, ps.date_of_arise_in_vacancy) > GETDATE())
                 THEN 1 ELSE 0 END), 0) AS totalLivePost,
                 COALESCE(SUM(CASE WHEN
                     ps.vacant_or_filled = 'vacant'
@@ -1721,9 +1721,7 @@ async function getCommunityWiseCountByOrg(req, res) {
     }
 }
 
-// Vacancy position as recorded in a month's vacancy log (tbl_hr_post_strength_log is a monthly
-// snapshot of tbl_hr_post_strength). A vacancy counts as abolished once it has been vacant for
-// five years by the end of that month, so a past month reads as it stood then.
+// Vacancy position for a month, read from tbl_hr_strength_snapshot.
 // Returns { year, month, organisationID, clusterID } or sends the error response and returns null.
 function readVacancyLogPeriod(req, res) {
     const organisationID = resolveReportOrganisation(req, req.params.organisationID);
@@ -1741,56 +1739,23 @@ function readVacancyLogPeriod(req, res) {
     return { organisationID, clusterID, year, month };
 }
 
-// The log has no indexes and holds every month, so the month is copied into #vacancy_log once
-// (one scan) and the report aggregates that; joining the log directly gets plans that time out.
-// `select` reads from #vacancy_log m joined to mmt_organisation mo, and may use @asOf: the end
-// of the logged month, when a vacancy counts as abolished after five years.
-function queryVacancyLogMonth(request, { organisationID, clusterID, year, month }, select) {
+// `select` gets the WHERE clause for the month and organisation / cluster.
+function queryVacancySnapshotMonth(request, { organisationID, clusterID, year, month }, select) {
     request.input("year", sql.Int, year);
     request.input("month", sql.Int, month);
     if (organisationID !== 0) request.input("organisationID", sql.Int, organisationID);
     if (clusterID !== 0) request.input("clusterID", sql.Int, clusterID);
-    const where = [];
+    const where = ["s.snapshot_year = @year", "s.snapshot_month = @month"];
     if (organisationID !== 0) where.push("mo.organisation_id = @organisationID");
     if (clusterID !== 0) where.push("mo.hr_cluster_id = @clusterID");
-    return request.query(`
-        SELECT
-            l.organisation_id,
-            TRY_CAST(l.department_id AS INT) AS department_id,
-            TRY_CAST(l.post_id AS INT) AS post_id,
-            l.post_code,
-            l.vacant_or_filled,
-            l.date_of_arise_in_vacancy,
-            l.exception_abolish
-        INTO #vacancy_log
-        FROM tbl_hr_post_strength_log l
-        WHERE l.log_year = @year AND l.log_month = @month;
-
-        DECLARE @asOf DATE = EOMONTH(DATEFROMPARTS(@year, @month, 1));
-
-        ${select(where.length ? `WHERE ${where.join(" AND ")}` : "")}
-
-        DROP TABLE #vacancy_log;
-    `);
+    return request.query(select(`WHERE ${where.join(" AND ")}`));
 }
 
-// Post counts for one group of #vacancy_log rows, as in getDepartmentWiseEmpContByOrg.
-const LOG_POST_COUNTS = `
-    COUNT(m.post_code) AS total_sanctioned_strength,
-    COUNT(CASE WHEN m.vacant_or_filled = 'filled' THEN 1 END) AS filled_post,
-    COUNT(CASE WHEN
-        m.vacant_or_filled = 'vacant'
-        AND m.date_of_arise_in_vacancy IS NOT NULL
-        AND ((m.exception_abolish IS NULL OR m.exception_abolish = 0)
-            AND DATEADD(YEAR, 5, m.date_of_arise_in_vacancy) > @asOf
-            OR m.exception_abolish = 1)
-    THEN 1 END) AS totalLivePost,
-    COUNT(CASE WHEN
-        m.vacant_or_filled = 'vacant'
-        AND m.date_of_arise_in_vacancy IS NOT NULL
-        AND (m.exception_abolish IS NULL OR m.exception_abolish = 0)
-        AND DATEADD(YEAR, 5, m.date_of_arise_in_vacancy) <= @asOf
-    THEN 1 END) AS totalAbolishedPost`;
+const SNAPSHOT_POST_COUNTS = `
+    SUM(s.sanctioned_strength) AS total_sanctioned_strength,
+    SUM(s.filled_post) AS filled_post,
+    SUM(s.live_post) AS totalLivePost,
+    SUM(s.abolished_post) AS totalAbolishedPost`;
 
 async function getHRDashboardContentDataFiltered(req, res) {
     // Organisation users read their own organisation; ministry users any (0 = all)
@@ -1799,10 +1764,10 @@ async function getHRDashboardContentDataFiltered(req, res) {
 
     try {
         const conn = await pool;
-        const result = await queryVacancyLogMonth(conn.request(), period, (where) => `
-            SELECT ${LOG_POST_COUNTS}
-            FROM #vacancy_log m
-            INNER JOIN mmt_organisation mo ON m.organisation_id = mo.organisation_id
+        const result = await queryVacancySnapshotMonth(conn.request(), period, (where) => `
+            SELECT ${SNAPSHOT_POST_COUNTS}
+            FROM tbl_hr_strength_snapshot s
+            INNER JOIN mmt_organisation mo ON s.organisation_id = mo.organisation_id
             ${where};
         `);
 
@@ -1830,23 +1795,21 @@ async function getDepartmentWiseEmpContByOrgFiltered(req, res) {
 
     try {
         const conn = await pool;
-        // Same columns as getDepartmentWiseEmpContByOrg, read from the month's log.
-        const result = await queryVacancyLogMonth(conn.request(), period, (where) => `
+        // Same columns as getDepartmentWiseEmpContByOrg
+        const result = await queryVacancySnapshotMonth(conn.request(), period, (where) => `
             SELECT
                 mo.organisation_id,
                 mo.organisation_name,
-                d.department_id,
-                d.department_name,
-                mmtc.class,
-                ${LOG_POST_COUNTS}
-            FROM #vacancy_log m
-            INNER JOIN mmt_organisation mo ON m.organisation_id = mo.organisation_id
-            LEFT JOIN mmt_hr_department d ON m.department_id = d.department_id
-            LEFT JOIN mmt_hr_post p ON m.post_id = p.post_id
-            LEFT JOIN mmt_class mmtc ON p.class_id = mmtc.class_id
+                s.department_id,
+                s.department_name,
+                s.class,
+                ${SNAPSHOT_POST_COUNTS}
+            FROM tbl_hr_strength_snapshot s
+            INNER JOIN mmt_organisation mo ON s.organisation_id = mo.organisation_id
             ${where}
-            GROUP BY mo.organisation_name, mmtc.class, d.department_id, d.department_name, mo.organisation_id
-            ORDER BY mo.organisation_name, mmtc.class;
+            GROUP BY mo.organisation_name, s.class, s.department_id, s.department_name, mo.organisation_id
+            HAVING SUM(s.sanctioned_strength) > 0
+            ORDER BY mo.organisation_name, s.class;
         `);
 
         res.json(result.recordset);
