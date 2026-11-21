@@ -61,10 +61,9 @@ export default function ContractualEmployment({ notify }) {
   }, [navigate]);
 
   const getRowIds = (row) => ({
-  contractId: row.contract_id ?? row.contractId ?? row.ContractId ?? row.id,
-  organisationID: row.organisation_id ?? row.organisationID ?? row.organisationId ?? row.OrganisationID,
-});
-
+    contractId: row['Contract ID'] ?? row.contract_id ?? row.contractId ?? row.ContractId ?? row.id,
+    organisationID: row.organisation_id ?? row.organisationID ?? row.organisationId ?? row.OrganisationID,
+  });
   // Delete asks in a popup (as other modules), then removes the row
   const [pendingDelete, setPendingDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -72,7 +71,6 @@ export default function ContractualEmployment({ notify }) {
 
   const confirmDelete = async () => {
     const { contractId, organisationID: rowOrgId } = getRowIds(pendingDelete || {});
-    // The record's organisation, else the signed-in user's organisation (never the user id)
     const organisationID = rowOrgId ?? getSessionOrganisationId();
     if (!contractId || !organisationID) {
       console.error('Missing ids for delete. Row was:', pendingDelete);
@@ -82,8 +80,18 @@ export default function ContractualEmployment({ notify }) {
     }
     setDeleting(true);
     try {
-      await deleteContractualData(contractId, organisationID);
-      setStaff(prev => prev.filter(r => getRowIds(r).contractId !== contractId));
+      const res = await deleteContractualData(contractId, organisationID);
+      console.log('Delete response:', res?.status, res?.data); // check this in the browser console
+
+      // The server said no: don't pretend it worked
+      if (res?.data?.success === false) {
+        notify?.(HR_TOASTS.contractualDeleteFailed(res.data?.message));
+        return;
+      }
+
+      // Reload from the database so the list shows what is really saved
+      const fresh = await fetchAllContractualData(getCurrentUserId());
+      setStaff(fresh.data || []);
       notify?.(HR_TOASTS.contractualDeleted());
       setPendingDelete(null);
     } catch (err) {
