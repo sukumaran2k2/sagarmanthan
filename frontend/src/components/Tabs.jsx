@@ -357,7 +357,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           icon: Users,
           items: [
             { page: 'hr-dashboard', label: 'Dashboard', tab: 'HR Dashboard', icon: LayoutDashboard },
-            { page: 'non-port-monthly-upload', label: 'Non Port Monthly Upload', tab: 'Non Port Monthly Upload', icon: FileSpreadsheet },
+            { page: 'non-port-monthly-upload', label: 'Monthly Vacancy Upload', tab: 'Monthly Vacancy Upload', icon: FileSpreadsheet },
             { page: 'employee-database', label: 'Employee Database', tab: 'Employee Database', icon: Users },
             { page: 'abolished-posts', label: isOrgUser ? 'Abolished Posts' : 'List of Abolished Posts', tab: isOrgUser ? 'Abolished Posts' : 'List of Abolished Posts', icon: Users },
             canViewHrVacancy && { page: 'vacancy-management', label: 'Vacancy Management', tab: 'Vacancy Management', icon: Briefcase },
@@ -578,7 +578,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
             const isHrActiveTab = [
               'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Abolished Posts',
               'Vacancy Management', 'HR Administration & Actions', 'Contractual Employment', 'Training Details', 'HR Reports', 'HR Input Form',
-              'Non Port Monthly Upload'
+              'Monthly Vacancy Upload'
             ].includes(activeTab);
             const isMainMenuActive =
               activeTab === menu.directTab ||

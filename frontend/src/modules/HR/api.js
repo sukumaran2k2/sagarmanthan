@@ -376,4 +376,11 @@ export function addNewEmployee(payload) {
   return afterWrite(api.post('/add-new-emplyee', payload));
 }
 
+
+
+
+export function deleteTrainingData(trainingID, organisationID) {
+  return api.delete(`/delete-training-data/${trainingID}/${organisationID}`);
+}
+
 export default api;

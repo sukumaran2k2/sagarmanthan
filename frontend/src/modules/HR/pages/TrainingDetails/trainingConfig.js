@@ -2,17 +2,28 @@
 
 import { ymd } from '../../utils/dates';
 
-export const getParticipantCount = (row) => {
-  const value = row?.NO_OF_PARTICIPANTS;
+// Organisations that enter only a participant count (no staff roster)
+export const COUNT_ONLY_ORG_IDS = [15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 27, 62];
+export const isCountOnlyOrganisation = (orgId) => COUNT_ONLY_ORG_IDS.includes(Number(orgId));
 
-  if (value === null || value === undefined || value === '') {
-    return 0;
+// Field names the participant count may arrive under (list rows, get-by-ID, edit row)
+const COUNT_KEYS = [
+  'NO_OF_PARTICIPANTS', 'No of Participants', 'Number of Participants',
+  'no_of_participants', 'number_of_participants', 'number_of_participant',
+  'NUMBER_OF_PARTICIPANTS', 'numberOfParticipant',
+];
+
+// First usable count in the row, or null when the row has none
+export const readParticipantCount = (row) => {
+  for (const key of COUNT_KEYS) {
+    const v = row?.[key];
+    if (v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v))) return Number(v);
   }
-
-  const count = Number(value);
-
-  return Number.isFinite(count) ? count : 0;
+  return null;
 };
+
+// Count for display: 0 when the row has none
+export const getParticipantCount = (row) => readParticipantCount(row) ?? 0;
 
 // A training date as YYYY-MM-DD ('-' when missing; unreadable values are shown as stored)
 export const formatDateYYYYMMDD = (dateStr) => ymd(dateStr) || (dateStr ? String(dateStr) : '-');

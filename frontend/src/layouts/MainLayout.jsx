@@ -171,10 +171,10 @@ export const ROUTE_MAP = {
   'HR Input Form': 'hr/hr-management/input-form',
   'Input Form': 'hr/hr-management/input-form',
   'Add Post': 'hr/hr-management/input-form/add-post',
-  'Non Port Monthly Upload': 'hr/hr-management/non-port-monthly-upload',
+  'Monthly Vacancy Upload': 'hr/hr-management/non-port-monthly-upload',
   'HR Management': 'hr/hr-management',
   'HR Reports': 'hr/hr-management/reports',
-  'Non Port Monthly Upload': 'hr/hr-management/non-port-monthly-upload',
+  'Monthly Vacancy Upload': 'hr/hr-management/non-port-monthly-upload',
 
   // Young Professionals routes
   'Young Professionals': 'hr/young-professionals/list-view',
@@ -225,10 +225,10 @@ export const getTabFromSlug = (slug) => {
   if (cleanSlug.startsWith('projects/project/view-project') || cleanSlug.startsWith('projects/view-project') || cleanSlug.startsWith('projects/project/detail')) return 'projects-view-project';
   if (cleanSlug.startsWith('projects/project') || cleanSlug.startsWith('projects')) return 'projects-list';
 
-  if (cleanSlug.startsWith('hr/hr-management/non-port-monthly-upload')) return 'Non Port Monthly Upload';
+  if (cleanSlug.startsWith('hr/hr-management/non-port-monthly-upload')) return 'Monthly Vacancy Upload';
   if (cleanSlug.startsWith('hr/hr-management/reports')) return 'HR Reports';
   if (cleanSlug.startsWith('hr/hr-management/hr-dashboard')) return 'HR Dashboard';
-  if (cleanSlug.startsWith('hr/hr-management/non-port-monthly-upload')) return 'Non Port Monthly Upload';
+  if (cleanSlug.startsWith('hr/hr-management/non-port-monthly-upload')) return 'Monthly Vacancy Upload';
   if (cleanSlug.startsWith('hr/hr-management/employee-details')) return 'Employee Details';
   if (cleanSlug.startsWith('hr/hr-management/vacancy-management') || cleanSlug.startsWith('hr/hr-management/vacancy-details')) return 'Vacancy Management';
   if (cleanSlug.startsWith('hr/hr-management/input-form')) return 'HR Input Form';
@@ -346,10 +346,10 @@ const getBreadcrumbs = (tab) => {
     'Contractual Employment': ['HR & Institutional', 'HR Management'],
     'Training Details': ['HR & Institutional', 'HR Management'],
     'HR Input Form': ['HR & Institutional', 'HR Management'],
-    'Non Port Monthly Upload': ['HR & Institutional', 'HR Management'],
+    'Monthly Vacancy Upload': ['HR & Institutional', 'HR Management'],
     'HR Management': ['HR & Institutional'],
     'HR Reports': ['HR & Institutional', 'HR Management'],
-    'Non Port Monthly Upload': ['HR & Institutional', 'HR Management'],
+    'Monthly Vacancy Upload': ['HR & Institutional', 'HR Management'],
     'Young Professionals': ['HR & Institutional', 'Young Professionals'],
     'YP Data List': ['HR & Institutional', 'Young Professionals'],
     'YP Input Form': ['HR & Institutional', 'Young Professionals'],
