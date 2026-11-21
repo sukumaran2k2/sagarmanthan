@@ -81,21 +81,14 @@ export default function HRDashboardView({ onGoHome, triggerNotification }) {
     const offered = (page) => page && hrViewAllows(hrView, page.id) && page;
     const groups = [
       { id: 'hr-dashboard', label: 'Dashboard', icon: LayoutDashboard },
-
-      // moved up: Input Forms right after Dashboard
-      permissions.canUseInputForm && {
-        id: 'input-form',
-        label: isEditMode && currentTab === 'input-form' ? 'Update Form' : 'Input Forms',
-        icon: FileEdit,
-      },
-
-      { id: 'non-port-monthly-upload', label: 'Monthly Vacancy Upload', icon: FileSpreadsheet },
+      { id: 'non-port-monthly-upload', label: 'Non Port Monthly Upload', icon: FileSpreadsheet },
       {
         id: 'posts-vacancies',
         label: 'Posts & Vacancies',
         icon: Building2,
         pages: [
           { id: 'organisation-structure', label: 'Organisation Structure', icon: Building2 },
+          // Vacancy Management: organisation users in the Standard view only
           permissions.canViewVacancy && { id: 'vacancy-management', label: 'Vacancy Management', icon: Briefcase },
           { id: 'abolished-posts', label: isOrg ? 'Abolished Posts' : 'List of Abolished Posts', icon: Archive },
         ],
@@ -117,6 +110,11 @@ export default function HRDashboardView({ onGoHome, triggerNotification }) {
           { id: 'contractual-employment', label: 'Contractual Employment', icon: UserPlus },
           { id: 'training-details', label: 'Training Details', icon: BookOpen },
         ],
+      },
+      permissions.canUseInputForm && {
+        id: 'input-form',
+        label: isEditMode && currentTab === 'input-form' ? 'Update Form' : 'Input Forms',
+        icon: FileEdit,
       },
       { id: 'reports', label: 'Reports', icon: FilePieChart },
     ];

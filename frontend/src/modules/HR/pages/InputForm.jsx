@@ -37,10 +37,9 @@ export default function InputForm({ permissions, notify, triggerNotification }) 
   // Non-port organisations know these forms by their legacy names
   const isNonPort = permissions?.hrView === HR_VIEWS.NON_PORT;
   const tabs = [
-     { id: 'non-port-upload', label: 'Monthly Vacancy Upload Form', icon: CalendarDays },
     {
       id: 'contractual-data',
-      label: isEditMode && currentTab === 'contractual-data' ? 'Update Contractual Data' : (isNonPort ? 'Contractual Employment Form' : 'Contractual Data'),
+      label: isEditMode && currentTab === 'contractual-data' ? 'Update Contractual Data' : (isNonPort ? 'Contractual Training & Employment Form' : 'Contractual Data'),
       icon: FileText,
     },
     {
@@ -50,14 +49,13 @@ export default function InputForm({ permissions, notify, triggerNotification }) 
     },
     { id: 'employee-data', label: isEditMode && currentTab === 'employee-data' ? 'Update Employee Data' : 'Employee Data', icon: UserPlus },
     { id: 'add-post', label: 'Add Post', icon: Briefcase },
-   
+    { id: 'non-port-upload', label: 'Non Port Monthly Upload Form', icon: CalendarDays },
   ];
 
   const bannerTitle = {
-    'non-port-upload': 'Monthly Vacancy Upload Form',
     'contractual-data': isEditMode ? 'Update Contractual Data' : 'Contractual Data Input Form',
     'training-data': isEditMode ? 'Update Training Data' : (isNonPort ? 'Training Details Input Form' : 'Training Data Input Form'),
-    
+    'non-port-upload': 'Non Port Monthly Upload Form',
   }[currentTab];
 
   // Forms this user's view offers: non-port organisations have no posts or employees to add
@@ -106,9 +104,9 @@ export default function InputForm({ permissions, notify, triggerNotification }) 
               <Route path="training-data" element={<TrainingDataForm key={formKey} editData={editItem} notify={notify} />} />
               {/* After a successful upload the form opens the upload history */}
               <Route path="non-port-upload" element={<NonPortMonthlyUploadForm triggerNotification={triggerNotification} />} />
-              <Route index element={<Navigate to="non-port-upload" replace />} />
+              <Route index element={<Navigate to="contractual-data" replace />} />
               {/* Absolute: a relative target inside a splat route is appended to the unknown path */}
-              <Route path="*" element={<Navigate to={`${INPUT_BASE}/non-port-upload`} replace />} />
+              <Route path="*" element={<Navigate to={`${INPUT_BASE}/contractual-data`} replace />} />
             </Routes>
           </div>
         </div>

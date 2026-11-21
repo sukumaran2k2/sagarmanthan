@@ -217,7 +217,7 @@ export const MODULE_PAGES = {
       'HR Reports',
       'HR Input Form',
       'Add Post',
-      'Monthly Vacancy Upload',
+      'Non Port Monthly Upload',
       'hr/hr-management/vacancy-management',
       'hr/hr-management/administration',
       'hr/hr-management/abolished-posts',
@@ -242,7 +242,7 @@ export const MODULE_PAGES = {
       'HR Reports',
       'HR Input Form',
       'Add Post',
-      'Monthly Vacancy Upload',
+      'Non Port Monthly Upload',
     ],
   },
 
@@ -410,6 +410,21 @@ export const MODULE_PAGES = {
       'OVOD Reports',
       'Drishti Portal',
       'One Vision One Document',
+    ],
+  },
+
+  NMP: {
+    tabs: [
+      'NMP Dashboard',
+      'NMP Data List',
+      'NMP Input Form',
+      'National Monetisation Pipeline',
+    ],
+    uiTabs: [
+      'NMP Dashboard',
+      'NMP Data List',
+      'NMP Input Form',
+      'National Monetisation Pipeline',
     ],
   },
 

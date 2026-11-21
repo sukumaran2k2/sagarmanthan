@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useLocation } from 'react-router-dom';
 import { axiosInstance as api } from '../api';
-import { getCurrentUserId, isSuperAdmin, getDataScopeCode } from '../utils/authSession';
+import { getCurrentUserId, isSuperAdmin, getDataScopeCode, getSessionClaims } from '../utils/authSession';
 import sagarmanthanLogo from '../assets/sagarmanthan_logo.png';
 import {
   canAccessTab,
@@ -63,34 +62,16 @@ import {
 } from 'lucide-react';
 
 function getLoggedInUserRole() {
-  try {
-    const token = localStorage.getItem("accessToken") || localStorage.getItem("token");
-    if (!token) return 1;
-    const base64Url = token.split(".")[1];
-    if (!base64Url) return 1;
-    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split("")
-        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-        .join("")
-    );
-    const decoded = JSON.parse(jsonPayload);
-    return Number(decoded.roleId || decoded.role_id || decoded.role || 1);
-  } catch {
-    return 1;
-  }
+  const decoded = getSessionClaims();
+  return decoded ? Number(decoded.roleId || decoded.role_id || decoded.role || 1) : 1;
 }
 
 export default function Tabs({ activeTab, setActiveTab }) {
   const [isOpen, setIsOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState({});
   const [dropRequestCount, setDropRequestCount] = useState(0);
-  // Skip the drop-request count on HR pages
-  const isHrPage = useLocation().pathname.startsWith('/hr/');
 
   useEffect(() => {
-    if (isHrPage) return undefined;
     let isMounted = true;
     const fetchDropRequestsCount = async () => {
       try {
@@ -117,7 +98,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
       clearInterval(interval);
       window.removeEventListener('drop-request-updated', fetchDropRequestsCount);
     };
-  }, [isHrPage]);
+  }, []);
 
   const isOrgUser = useMemo(() => {
     const scope = String(getDataScopeCode() || '').toUpperCase();
@@ -150,15 +131,16 @@ export default function Tabs({ activeTab, setActiveTab }) {
   const { hrView, canViewVacancy: canViewHrVacancy, canViewAdministration: canViewHrAdmin } = useHRPermissions();
 
   const accessKey = (() => {
-    try {
-      const t = localStorage.getItem('accessToken');
-      if (!t) return '';
-      const payload = JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-      const codes = payload?.allowedModuleCodes;
-      return `${payload?.roleCode || ''}|${Array.isArray(codes) ? codes.join(',') : ''}|piCreate:${canCreateParliamentary ? 1 : 0}|cnCreate:${canCreateCabinetMopsw ? 1 : 0}|caCreate:${canCreateConsultant ? 1 : 0}|ypCreate:${canCreateYp ? 1 : 0}|cxCreate:${canCreateCapex ? 1 : 0}`;
-    } catch {
-      return `piCreate:${canCreateParliamentary ? 1 : 0}|cnCreate:${canCreateCabinetMopsw ? 1 : 0}|caCreate:${canCreateConsultant ? 1 : 0}|ypCreate:${canCreateYp ? 1 : 0}|cxCreate:${canCreateCapex ? 1 : 0}`;
-    }
+    const createFlags = `piCreate:${canCreateParliamentary ? 1 : 0}|cnCreate:${canCreateCabinetMopsw ? 1 : 0}|caCreate:${canCreateConsultant ? 1 : 0}|ypCreate:${canCreateYp ? 1 : 0}|cxCreate:${canCreateCapex ? 1 : 0}`;
+    const claims = getSessionClaims();
+    if (!claims) return createFlags;
+    const codes = claims.allowedModuleCodes;
+    // Read ticks decide which modules the menu shows, so a change to them must rebuild it
+    const readCodes = (Array.isArray(claims.modulePermissions) ? claims.modulePermissions : [])
+      .filter((p) => p.read ?? p.canRead ?? p.can_read)
+      .map((p) => p.moduleCode || p.module_code)
+      .join(',');
+    return `${claims.roleCode || ''}|${Array.isArray(codes) ? codes.join(',') : ''}|read:${readCodes}|${createFlags}`;
   })();
 
   const m = (moduleCode, item) => ({ ...item, moduleCode });
@@ -376,7 +358,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           icon: Users,
           items: [
             { page: 'hr-dashboard', label: 'Dashboard', tab: 'HR Dashboard', icon: LayoutDashboard },
-            { page: 'non-port-monthly-upload', label: 'Monthly Vacancy Upload', tab: 'Monthly Vacancy Upload', icon: FileSpreadsheet },
+            { page: 'non-port-monthly-upload', label: 'Non Port Monthly Upload', tab: 'Non Port Monthly Upload', icon: FileSpreadsheet },
             { page: 'employee-database', label: 'Employee Database', tab: 'Employee Database', icon: Users },
             { page: 'abolished-posts', label: isOrgUser ? 'Abolished Posts' : 'List of Abolished Posts', tab: isOrgUser ? 'Abolished Posts' : 'List of Abolished Posts', icon: Users },
             canViewHrVacancy && { page: 'vacancy-management', label: 'Vacancy Management', tab: 'Vacancy Management', icon: Briefcase },
@@ -426,6 +408,23 @@ export default function Tabs({ activeTab, setActiveTab }) {
           ]
         }),
         m('ACTS_AND_RULES', { label: 'Acts & Rules', icon: Scale }),
+      ]
+    },
+    {
+      id: 'nmp',
+      label: 'National Monetization Pipeline',
+      tab: 'NMP Dashboard',
+      icon: DollarSign,
+      // Clicking the menu itself opens the dashboard rather than only revealing the sub-menu.
+      landingTab: 'NMP Dashboard',
+      align: 'left-0',
+      width: 'w-[280px]',
+      defaultTab: 'NMP Dashboard', 
+      items: [
+        { label: 'NMP Dashboard', icon: LayoutDashboard, tab: 'NMP Dashboard' },
+        ...withCreate(canCreateIn.NMP, [{ label: 'NMP Input Form', icon: FileEdit, tab: 'NMP Input Form' }]),
+        { label: 'NMP Data List', icon: ClipboardList, tab: 'NMP Data List' },
+        
       ]
     },
     {
@@ -600,7 +599,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
             const isHrActiveTab = [
               'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Abolished Posts',
               'Vacancy Management', 'HR Administration & Actions', 'Contractual Employment', 'Training Details', 'HR Reports', 'HR Input Form',
-              'Monthly Vacancy Upload'
+              'Non Port Monthly Upload'
             ].includes(activeTab);
             const isMainMenuActive =
               activeTab === menu.directTab ||
