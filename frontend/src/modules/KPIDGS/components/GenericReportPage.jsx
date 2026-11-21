@@ -23,6 +23,10 @@ export default function GenericReportPage({
   onSearchChange,
   visibleCols,
   onVisibleColsChange,
+  // Optional filters. Left undefined, every fetched row is shown and no filter controls appear.
+  filterRows, // (allRows) => rows to show
+  filterToolbar, // node next to the search box (e.g. the Filter button)
+  renderFilterPanel, // (allRows) => node under the toolbar (e.g. the filter panel), or null
 }) {
   const navigate = useNavigate();
   const notify = useNotifier(triggerNotification);
@@ -77,6 +81,8 @@ export default function GenericReportPage({
     ];
   }, [rows, columns]);
 
+  const shownRows = useMemo(() => (filterRows ? filterRows(rows) : rows), [filterRows, rows]);
+
   return (
     <div className={flat ? 'space-y-4' : 'module-card space-y-4'}>
       <div className="flex items-center justify-between">
@@ -97,7 +103,7 @@ export default function GenericReportPage({
       </div>
 
       <TableWithToolbar
-        rowData={rows}
+        rowData={shownRows}
         columnDefs={colDefs}
         loading={loading}
         color={color}
@@ -110,6 +116,8 @@ export default function GenericReportPage({
         onSearchChange={onSearchChange}
         visibleCols={visibleCols}
         onVisibleColsChange={onVisibleColsChange}
+        extraLeftToolbarContent={filterToolbar}
+        belowToolbarContent={renderFilterPanel ? renderFilterPanel(rows) : null}
       />
     </div>
   );

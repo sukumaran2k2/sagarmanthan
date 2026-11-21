@@ -23,6 +23,8 @@ export default function TableWithToolbar({
   onExportPdf,
   extraLeftToolbarContent,
   extraRightToolbarContent,
+  // Optional content shown under the toolbar, above the table (e.g. a collapsible filter panel)
+  belowToolbarContent,
   pagination = true,
   paginationPageSize = 10,
   // When true the toolbar card fills a flex-column parent (parent must supply
@@ -329,6 +331,8 @@ export default function TableWithToolbar({
           )}
         </div>
       </div>
+
+      {belowToolbarContent}
 
       {/* Styled AG Grid wrapper */}
       <div className={`media-outreach-table-wrapper w-full ${fillHeight ? 'flex-1 min-h-0 flex flex-col' : ''}`}>

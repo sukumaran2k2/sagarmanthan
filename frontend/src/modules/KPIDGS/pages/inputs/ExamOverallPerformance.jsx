@@ -1,6 +1,6 @@
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
 import {
   fetchKpi2_3_Masterdata,
   fetchKpi2_3_EditMasterdata,
@@ -24,21 +24,10 @@ const inputErrorCls =
   'w-full h-8 px-2 text-xs text-center border border-red-500 bg-red-50 dark:bg-red-900/20 rounded focus:outline-none font-semibold text-red-700 dark:text-red-300';
 const readCls =
   'w-full h-8 px-2 text-xs text-center border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 rounded text-slate-600 dark:text-slate-300 font-semibold leading-8';
-const totalCls =
-  'relative w-full h-8 pl-2 pr-6 text-xs text-center border border-emerald-500/60 bg-emerald-50 dark:bg-emerald-900/20 rounded text-emerald-700 dark:text-emerald-300 font-bold leading-8';
 
 const toText = (v) => (v === null || v === undefined ? '' : String(v));
 const n = (v) => Number(v) || 0;
 const passPercent = (appeared, passed) => (n(appeared) > 0 ? `${((n(passed) / n(appeared)) * 100).toFixed(2)}%` : '');
-
-function TotalCell({ value }) {
-  return (
-    <div className={totalCls}>
-      {value}
-      <CheckCircle2 className="absolute right-1.5 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-500" />
-    </div>
-  );
-}
 
 // One grid row. Memoised: typing changes only that row's object, so the other ~100 rows of the
 // grid skip re-rendering (onCellChange is a stable callback).
@@ -102,6 +91,8 @@ export default function ExamOverallPerformance({ triggerNotification }) {
   // Grid rows, tagged with the year/month/type they were loaded for
   const [loaded, setLoaded] = useState(null);
   const [saving, setSaving] = useState(false);
+  // Collapsed grade groups, keyed "<year-month-type>|<grade>" so a new grid starts fully expanded
+  const [collapsedGrades, setCollapsedGrades] = useState({});
   const latestLoadRef = useRef('');
 
   const selectionDone = Boolean(year && month && type);
@@ -110,6 +101,12 @@ export default function ExamOverallPerformance({ triggerNotification }) {
   const loadingRows = Boolean(loadKey) && !current;
   const rows = useMemo(() => current?.rows ?? [], [current]);
   const duplicate = Boolean(current?.duplicate);
+
+  const isCollapsed = (gradeKey) => Boolean(collapsedGrades[`${loadKey}|${gradeKey}`]);
+  const toggleGrade = useCallback((gradeKey) => {
+    const id = `${loadKey}|${gradeKey}`;
+    setCollapsedGrades((prev) => ({ ...prev, [id]: !prev[id] }));
+  }, [loadKey]);
 
   // Load the grid whenever year, month and type are all chosen (one request).
   // The grid comes back as the saved rows when the combination already has data, so on Add
@@ -174,15 +171,8 @@ export default function ExamOverallPerformance({ triggerNotification }) {
     return [...byGrade.values()].map((g) => ({
       ...g,
       items: g.items.map((item) => ({ ...item, serial: ++serial })),
-      appeared: g.items.reduce((sum, { row }) => sum + n(row.candidatesAppeared), 0),
-      passed: g.items.reduce((sum, { row }) => sum + n(row.candidatesPassed), 0),
     }));
   }, [rows]);
-
-  const totals = useMemo(() => ({
-    appeared: groups.reduce((sum, g) => sum + g.appeared, 0),
-    passed: groups.reduce((sum, g) => sum + g.passed, 0),
-  }), [groups]);
 
   const goBack = useCallback(() => {
     navigate(isEdit && canView ? `/kpi/dgs/data-list/${SLUG}` : '/kpi/dgs/input-forms');
@@ -288,36 +278,39 @@ export default function ExamOverallPerformance({ triggerNotification }) {
                 <tr><td colSpan={7} className="text-center py-6 text-slate-500">No exam rows found for the selected type.</td></tr>
               ) : (
                 <>
-                  {groups.map((g) => (
-                    <Fragment key={g.key}>
-                      <tr className="bg-slate-100 dark:bg-slate-800">
-                        <td colSpan={4} className="px-3 py-2 border border-slate-200 dark:border-slate-700 font-bold text-[#0f417a] dark:text-blue-400">
-                          Grade: {g.gradeName} <span className="font-semibold text-slate-500">({g.items.length})</span>
-                        </td>
-                        <td className={`${cellCls} text-center font-bold text-slate-700 dark:text-slate-200`}>{g.appeared}</td>
-                        <td className={`${cellCls} text-center font-bold text-slate-700 dark:text-slate-200`}>{g.passed}</td>
-                        <td className={`${cellCls} text-center font-bold text-slate-700 dark:text-slate-200`}>{passPercent(g.appeared, g.passed)}</td>
-                      </tr>
-                      {g.items.map(({ row, index, serial }) => (
-                        <ExamRow
-                          key={row.dgs_2_3_2_ID ?? row.id ?? index}
-                          row={row}
-                          index={index}
-                          serial={serial}
-                          disabled={saving}
-                          onCellChange={setCell}
-                        />
-                      ))}
-                    </Fragment>
-                  ))}
-                  <tr className="bg-slate-50 dark:bg-slate-800/40">
-                    <td colSpan={4} className="px-3 py-2 border border-slate-200 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200">
-                      Total
-                    </td>
-                    <td className={cellCls}><TotalCell value={totals.appeared} /></td>
-                    <td className={cellCls}><TotalCell value={totals.passed} /></td>
-                    <td className={cellCls}><TotalCell value={passPercent(totals.appeared, totals.passed)} /></td>
-                  </tr>
+                  {groups.map((g) => {
+                    const collapsed = isCollapsed(g.key);
+                    const Chevron = collapsed ? ChevronRight : ChevronDown;
+                    return (
+                      <Fragment key={g.key}>
+                        <tr className="bg-slate-100 dark:bg-slate-800">
+                          {/* Grade name and number of subjects only, as in the old portal's group rows.
+                              Click to collapse / expand its subjects (values are kept while hidden). */}
+                          <td colSpan={7} className="p-0 border border-slate-200 dark:border-slate-700">
+                            <button
+                              type="button"
+                              onClick={() => toggleGrade(g.key)}
+                              aria-expanded={!collapsed}
+                              className="w-full flex items-center gap-1.5 px-3 py-2 text-left font-bold text-[#0f417a] dark:text-blue-400 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-700/60"
+                            >
+                              <Chevron className="h-4 w-4 shrink-0" />
+                              Grade: {g.gradeName} <span className="font-semibold text-slate-500">({g.items.length})</span>
+                            </button>
+                          </td>
+                        </tr>
+                        {!collapsed && g.items.map(({ row, index, serial }) => (
+                          <ExamRow
+                            key={row.dgs_2_3_2_ID ?? row.id ?? index}
+                            row={row}
+                            index={index}
+                            serial={serial}
+                            disabled={saving}
+                            onCellChange={setCell}
+                          />
+                        ))}
+                      </Fragment>
+                    );
+                  })}
                 </>
               )}
             </tbody>

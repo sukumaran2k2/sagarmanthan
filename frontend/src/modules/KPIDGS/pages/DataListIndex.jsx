@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import IndexCardGrid from '../components/IndexCardGrid';
 import INPUT_FORM_INDEX, { INPUT_FORM_LEAVES } from '../data/inputFormIndex';
@@ -7,6 +7,11 @@ import * as api from '../api';
 import { useKPIDGSPermissions } from '../hooks/useKPIDGSPermissions';
 import { examMonthlyColumns, examOverallColumns } from '../components/examPerformanceColumns';
 import { useDgsStore, DGS_STORED_LIST_SLUGS } from '../store/useDgsStore';
+import { ExamFilterButton, ExamFilterPanel } from '../components/ExamListFilters';
+import {
+  EXAM_FILTER_FIELDS, countActiveFilters, filterExamRows, yearOptionsFrom,
+} from '../data/examListFilters';
+import { useNotifier, COMMON_TOASTS } from '../../../utils/notify';
 
 const LIST_FETCH_BY_SLUG = {
   'flagging-of-vessels': () => api.fetchKpi2_1_List(),
@@ -44,13 +49,46 @@ function defaultVisibleCols(columns) {
     .filter(([key]) => key));
 }
 
-// Data List for a section whose search text and column visibility are kept in the DGS store,
-// so they survive switching section or tab. Subscribes to its own slot only.
+// Data List for a section whose search text, filters and column visibility are kept in the DGS
+// store, so they survive switching section or tab. Subscribes to its own slot only.
 function StoredDataList({ slug, columns, ...props }) {
+  const notify = useNotifier(props.triggerNotification);
   const slot = useDgsStore((state) => state.lists[slug]);
   const setListSearch = useDgsStore((state) => state.setListSearch);
+  const setListFilter = useDgsStore((state) => state.setListFilter);
+  const resetListFilters = useDgsStore((state) => state.resetListFilters);
+  const toggleListFilterPanel = useDgsStore((state) => state.toggleListFilterPanel);
   const setListVisibleCols = useDgsStore((state) => state.setListVisibleCols);
   const defaults = useMemo(() => defaultVisibleCols(columns), [columns]);
+
+  // Filters this list offers (the ones the old portal's list had); none for other sections
+  const fields = EXAM_FILTER_FIELDS[slug];
+  const { filters, showFilterPanel } = slot;
+  const filterRows = useCallback((rows) => filterExamRows(rows, fields, filters), [fields, filters]);
+  const handleReset = useCallback(() => {
+    resetListFilters(slug);
+    notify(COMMON_TOASTS.filtersReset());
+  }, [resetListFilters, slug, notify]);
+
+  const filterProps = fields ? {
+    filterRows,
+    filterToolbar: (
+      <ExamFilterButton
+        activeCount={countActiveFilters(fields, filters)}
+        open={showFilterPanel}
+        onToggle={() => toggleListFilterPanel(slug)}
+        onReset={handleReset}
+      />
+    ),
+    renderFilterPanel: (allRows) => (showFilterPanel ? (
+      <ExamFilterPanel
+        fields={fields}
+        filters={filters}
+        yearOptions={yearOptionsFrom(allRows)}
+        onChange={(field, value) => setListFilter(slug, field, value)}
+      />
+    ) : null),
+  } : {};
 
   return (
     <GenericReportPage
@@ -60,6 +98,7 @@ function StoredDataList({ slug, columns, ...props }) {
       onSearchChange={(value) => setListSearch(slug, value)}
       visibleCols={slot.visibleCols ?? defaults}
       onVisibleColsChange={(updater) => setListVisibleCols(slug, updater, defaults)}
+      {...filterProps}
     />
   );
 }

@@ -13,7 +13,28 @@ describe('KPI DGS store', () => {
   it('has one empty list slot per stored section (K-2.3.1 and K-2.3.2)', () => {
     expect(DGS_STORED_LIST_SLUGS).toEqual(['exam-monthly-performance', 'exam-overall-performance']);
     DGS_STORED_LIST_SLUGS.forEach((slug) => {
-      expect(state().lists[slug]).toEqual({ searchTerm: '', visibleCols: null });
+      expect(state().lists[slug]).toEqual({
+        searchTerm: '', filters: { year: '', month: '', type: '' }, showFilterPanel: false, visibleCols: null,
+      });
+    });
+  });
+
+  it('keeps each section\'s filters and panel separate', () => {
+    state().setListFilter('exam-overall-performance', 'type', '1');
+    state().toggleListFilterPanel('exam-overall-performance');
+    expect(state().lists['exam-overall-performance'].filters).toEqual({ year: '', month: '', type: '1' });
+    expect(state().lists['exam-overall-performance'].showFilterPanel).toBe(true);
+    expect(state().lists['exam-monthly-performance'].filters).toEqual({ year: '', month: '', type: '' });
+    expect(state().lists['exam-monthly-performance'].showFilterPanel).toBe(false);
+  });
+
+  it('Reset clears the filters and the search but leaves the panel open', () => {
+    state().setListFilter('exam-monthly-performance', 'year', '2026');
+    state().setListSearch('exam-monthly-performance', 'x');
+    state().toggleListFilterPanel('exam-monthly-performance');
+    state().resetListFilters('exam-monthly-performance');
+    expect(state().lists['exam-monthly-performance']).toMatchObject({
+      searchTerm: '', filters: { year: '', month: '', type: '' }, showFilterPanel: true,
     });
   });
 
@@ -43,7 +64,10 @@ describe('KPI DGS store', () => {
   it('is cleared on logout (resetAllStores)', () => {
     state().setListSearch('exam-monthly-performance', 'x');
     state().setListVisibleCols('exam-monthly-performance', { year: false }, DEFAULTS);
+    state().setListFilter('exam-monthly-performance', 'month', '4');
     resetAllStores();
-    expect(state().lists['exam-monthly-performance']).toEqual({ searchTerm: '', visibleCols: null });
+    expect(state().lists['exam-monthly-performance']).toEqual({
+      searchTerm: '', filters: { year: '', month: '', type: '' }, showFilterPanel: false, visibleCols: null,
+    });
   });
 });
