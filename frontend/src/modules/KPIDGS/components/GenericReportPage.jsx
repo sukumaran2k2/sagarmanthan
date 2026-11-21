@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import TableWithToolbar from '../../../components/TableWithToolbar';
 import { useNotifier, COMMON_TOASTS } from '../../../utils/notify';
+import { readGridForExport, toClipboardText, saveGridFile } from '../utils/gridExport';
 
 // Brown theme used by every DGS *Reports* page (toolbar buttons + table header).
 // Kept in sync with FlaggingReport.jsx so all K-2.x reports read as one module.
@@ -27,6 +28,11 @@ export default function GenericReportPage({
   filterRows, // (allRows) => rows to show
   filterToolbar, // node next to the search box (e.g. the Filter button)
   renderFilterPanel, // (allRows) => node under the toolbar (e.g. the filter panel), or null
+  // Optional standard exports (as CSL / Capex): with an export title, Copy / Excel (.xlsx) / PDF
+  // save the list as shown (all rows after search, filters and sort; visible columns; cells as
+  // displayed). Left undefined, the table's own Copy / CSV / print are used.
+  exportTitle,
+  exportFileName,
 }) {
   const navigate = useNavigate();
   const notify = useNotifier(triggerNotification);
@@ -83,6 +89,48 @@ export default function GenericReportPage({
 
   const shownRows = useMemo(() => (filterRows ? filterRows(rows) : rows), [filterRows, rows]);
 
+  const gridApiRef = useRef(null);
+  const fileName = exportFileName || `dgs_${code.replace(/\./g, '_')}`;
+
+  // The grid as shown, or null after telling the user why there is nothing to export
+  const readGrid = (action) => {
+    const grid = readGridForExport(gridApiRef.current);
+    if (!grid) {
+      notify(COMMON_TOASTS.tableNotReady(action));
+      return null;
+    }
+    if (!grid.rows.length) {
+      notify(action === 'copy' ? COMMON_TOASTS.nothingToCopy() : COMMON_TOASTS.nothingToExport());
+      return null;
+    }
+    return grid;
+  };
+
+  const saveAs = (type) => {
+    const grid = readGrid('export');
+    if (!grid) return;
+    try {
+      const file = saveGridFile(type, grid, { title: exportTitle, fileName });
+      notify(COMMON_TOASTS.excelExported(file, 'The list'));
+    } catch (err) {
+      console.error(`Error exporting ${code}:`, err);
+      notify(COMMON_TOASTS.exportFailed());
+    }
+  };
+
+  const exportHandlers = exportTitle ? {
+    onCopy: () => {
+      const grid = readGrid('copy');
+      if (!grid) return;
+      navigator.clipboard.writeText(toClipboardText(grid)).then(
+        () => notify(COMMON_TOASTS.copySuccess(grid.rows.length, 'from the list')),
+        () => notify(COMMON_TOASTS.copyFailed()),
+      );
+    },
+    onExportExcel: () => saveAs('excel'),
+    onExportPdf: () => saveAs('pdf'),
+  } : {};
+
   return (
     <div className={flat ? 'space-y-4' : 'module-card space-y-4'}>
       <div className="flex items-center justify-between">
@@ -109,7 +157,7 @@ export default function GenericReportPage({
         color={color}
         hoverColor={hoverColor}
         searchPlaceholder="Search records..."
-        exportFileName={`dgs_${code.replace(/\./g, '_')}`}
+        exportFileName={fileName}
         fillHeight={flat}
         triggerNotification={triggerNotification}
         searchTerm={searchTerm}
@@ -118,6 +166,8 @@ export default function GenericReportPage({
         onVisibleColsChange={onVisibleColsChange}
         extraLeftToolbarContent={filterToolbar}
         belowToolbarContent={renderFilterPanel ? renderFilterPanel(rows) : null}
+        onGridReady={(params) => { gridApiRef.current = params.api; }}
+        {...exportHandlers}
       />
     </div>
   );

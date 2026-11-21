@@ -36,6 +36,13 @@ const LIST_FETCH_BY_SLUG = {
   'placement-record': () => api.fetchMtiMasterList(),
 };
 
+// Lists with the portal's standard Copy / Excel (.xlsx) / PDF exports; the others keep the
+// table's own export until they are moved over
+const EXPORTS_BY_SLUG = {
+  'exam-monthly-performance': { exportTitle: 'DGS K-2.3.1 Exam Monthly Performance - Data List', exportFileName: 'DGS_K2_3_1_Exam_Monthly_Performance' },
+  'exam-overall-performance': { exportTitle: 'DGS K-2.3.2 Exam Overall Performance Statistics - Data List', exportFileName: 'DGS_K2_3_2_Exam_Overall_Performance' },
+};
+
 // Data List reuses the same merged-layout / sticky-header / scrollable-body
 // pattern as Reports, but keeps the existing blue theme instead of the Reports
 // brown — so Data List and Reports read as siblings of the module, not clones.
@@ -144,6 +151,7 @@ export default function DataListIndex({ triggerNotification }) {
           flat,
           color: BLUE,
           hoverColor: BLUE_HOVER,
+          ...EXPORTS_BY_SLUG[slug],
         };
         return DGS_STORED_LIST_SLUGS.includes(slug)
           ? <StoredDataList key={slug} slug={slug} {...pageProps} />
