@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useLocation } from 'react-router-dom';
 import { axiosInstance as api } from '../api';
 import { getCurrentUserId, isSuperAdmin, getDataScopeCode, getSessionClaims } from '../utils/authSession';
 import sagarmanthanLogo from '../assets/sagarmanthan_logo.png';
@@ -71,11 +70,8 @@ export default function Tabs({ activeTab, setActiveTab }) {
   const [isOpen, setIsOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState({});
   const [dropRequestCount, setDropRequestCount] = useState(0);
-  // Skip the drop-request count on HR pages
-  const isHrPage = useLocation().pathname.startsWith('/hr/');
 
   useEffect(() => {
-    if (isHrPage) return undefined;
     let isMounted = true;
     const fetchDropRequestsCount = async () => {
       try {
@@ -102,7 +98,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
       clearInterval(interval);
       window.removeEventListener('drop-request-updated', fetchDropRequestsCount);
     };
-  }, [isHrPage]);
+  }, []);
 
   const isOrgUser = useMemo(() => {
     const scope = String(getDataScopeCode() || '').toUpperCase();
@@ -362,7 +358,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           icon: Users,
           items: [
             { page: 'hr-dashboard', label: 'Dashboard', tab: 'HR Dashboard', icon: LayoutDashboard },
-            { page: 'non-port-monthly-upload', label: 'Monthly Vacancy Upload', tab: 'Monthly Vacancy Upload', icon: FileSpreadsheet },
+            { page: 'non-port-monthly-upload', label: 'Non Port Monthly Upload', tab: 'Non Port Monthly Upload', icon: FileSpreadsheet },
             { page: 'employee-database', label: 'Employee Database', tab: 'Employee Database', icon: Users },
             { page: 'abolished-posts', label: isOrgUser ? 'Abolished Posts' : 'List of Abolished Posts', tab: isOrgUser ? 'Abolished Posts' : 'List of Abolished Posts', icon: Users },
             canViewHrVacancy && { page: 'vacancy-management', label: 'Vacancy Management', tab: 'Vacancy Management', icon: Briefcase },
@@ -603,7 +599,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
             const isHrActiveTab = [
               'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Abolished Posts',
               'Vacancy Management', 'HR Administration & Actions', 'Contractual Employment', 'Training Details', 'HR Reports', 'HR Input Form',
-              'Monthly Vacancy Upload'
+              'Non Port Monthly Upload'
             ].includes(activeTab);
             const isMainMenuActive =
               activeTab === menu.directTab ||

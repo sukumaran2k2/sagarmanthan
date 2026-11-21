@@ -217,7 +217,7 @@ export const MODULE_PAGES = {
       'HR Reports',
       'HR Input Form',
       'Add Post',
-      'Monthly Vacancy Upload',
+      'Non Port Monthly Upload',
       'hr/hr-management/vacancy-management',
       'hr/hr-management/administration',
       'hr/hr-management/abolished-posts',
@@ -242,7 +242,7 @@ export const MODULE_PAGES = {
       'HR Reports',
       'HR Input Form',
       'Add Post',
-      'Monthly Vacancy Upload',
+      'Non Port Monthly Upload',
     ],
   },
 
