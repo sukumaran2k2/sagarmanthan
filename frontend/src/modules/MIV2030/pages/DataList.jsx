@@ -474,63 +474,50 @@ export default function MIVDataList({
     };
 
     if (type === 'Copy') {
-      if (gridApi) {
-        let tsv = '';
-        const headers = [];
-        columnDefs.forEach(col => {
-          if (col.headerName && col.headerName !== 'Action' && !col.hide) {
-            headers.push(col.headerName);
-          }
+      const fallbackCopy = (text) => {
+        try {
+          const textArea = document.createElement('textarea');
+          textArea.value = text;
+          textArea.style.position = 'fixed';
+          textArea.style.top = '-9999px';
+          textArea.style.left = '-9999px';
+          document.body.appendChild(textArea);
+          textArea.focus();
+          textArea.select();
+          const success = document.execCommand('copy');
+          document.body.removeChild(textArea);
+          if (success) return Promise.resolve();
+          return Promise.reject(new Error('execCommand failed'));
+        } catch (err) {
+          return Promise.reject(err);
+        }
+      };
+
+      const copyText = (text) => {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          return navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+        }
+        return fallbackCopy(text);
+      };
+
+      try {
+        // Copy ALL records (not only the current page), matching Excel/PDF export
+        const allRows = await fetchAllForExport();
+        if (!allRows.length) {
+          if (triggerNotification) triggerNotification('No data available to copy.', 'warning');
+          return;
+        }
+
+        let tsv = exportCols.map(col => col.headerName).join('\t') + '\n';
+        allRows.forEach((row) => {
+          tsv += exportCols.map(col => getCell(col, row)).join('\t') + '\n';
         });
-        tsv += headers.join('\t') + '\n';
-        
-        data.forEach((row, rowIndex) => {
-          const line = [];
-          columnDefs.forEach(col => {
-            if (col.headerName && col.headerName !== 'Action' && !col.hide) {
-              const val = row[col.field] !== undefined ? row[col.field] : '';
-              line.push(val);
-            }
-          });
-          tsv += line.join('\t') + '\n';
-        });
 
-        const copyText = (text) => {
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            return navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
-          }
-          return fallbackCopy(text);
-        };
-
-        const fallbackCopy = (text) => {
-          try {
-            const textArea = document.createElement('textarea');
-            textArea.value = text;
-            textArea.style.position = 'fixed';
-            textArea.style.top = '-9999px';
-            textArea.style.left = '-9999px';
-            document.body.appendChild(textArea);
-            textArea.focus();
-            textArea.select();
-            const success = document.execCommand('copy');
-            document.body.removeChild(textArea);
-            if (success) return Promise.resolve();
-            return Promise.reject(new Error('execCommand failed'));
-          } catch (err) {
-            return Promise.reject(err);
-          }
-        };
-
-        copyText(tsv)
-          .then(() => {
-            if (triggerNotification) triggerNotification('Current page data copied to clipboard!', 'success');
-          })
-          .catch((err) => {
-            console.error('Clipboard copy error:', err);
-            if (triggerNotification) triggerNotification('Failed to copy table data.', 'error');
-          });
-      } else {
-        if (triggerNotification) triggerNotification('No data available to copy.', 'warning');
+        await copyText(tsv);
+        if (triggerNotification) triggerNotification(`Copied ${allRows.length} records to clipboard!`, 'success');
+      } catch (err) {
+        console.error('Clipboard copy error:', err);
+        if (triggerNotification) triggerNotification('Failed to copy table data.', 'error');
       }
     } else if (type === 'Excel') {
       try {

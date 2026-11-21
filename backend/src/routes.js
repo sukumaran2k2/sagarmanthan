@@ -1465,7 +1465,7 @@ router.get("/gem-yoy-report", auth, requireModulePermission("GEM_PROCUREMENT", "
 // MIV
 router.post("/mivdetailed-report/", auth, requireModulePermission("MIV_2030", "read"), mivReportTab.mivDetailedData);
 router.post("/miv-theme-detailed-report/", auth, requireModulePermission("MIV_2030", "read"), mivReportTab.mivThemeDetailedData); //MIV THEME WISE REPORT
-router.get("/miv-document/download/:filename", mivReportTab.downloadDocument);
+router.get("/miv-document/download/:filename", auth, requireModulePermission("MIV_2030", "read"), mivReportTab.downloadDocument);
 //Theme Wise MIV Report:
 router.get("/get-mmt-Theme-Values/", auth, requireModulePermission("MIV_2030", "read"), mivReportTab.getmmtThemeValues);
 
@@ -2867,7 +2867,7 @@ router.put('/miv-data/:id', auth, requireModulePermission("MIV_2030", "update"),
 // router.put('/miv/:id', auth, requireModulePermission("MIV_2030", "update"), MIVTab.editMIVData);
 router.get('/meeting', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getMeeting);
 router.post("/meeting", auth, requireModulePermission("MIV_2030", "create"), MIVTab.uploadMeeting.single('file'), MIVTab.createMeeting);
-router.get("/meeting/download/:id", MIVTab.downloadMeeting);
+router.get("/meeting/download/:id", auth, requireModulePermission("MIV_2030", "read"), MIVTab.downloadMeeting);
 // router.get('/meeting-no', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getNoOfMeetings);
 
 
