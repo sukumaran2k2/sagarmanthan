@@ -16,7 +16,7 @@ import {
   TAB_USER_MASTER_MANAGEMENT
 } from '../utils/moduleAccess';
 import { isOrganisationUser } from '../utils/authSession';
-import { signOut } from '../utils/sessionRefresh';
+import { endSession } from '../utils/sessionRefresh';
 import { Home } from 'lucide-react';
 
 export const ROUTE_MAP = {
@@ -171,10 +171,10 @@ export const ROUTE_MAP = {
   'HR Input Form': 'hr/hr-management/input-form',
   'Input Form': 'hr/hr-management/input-form',
   'Add Post': 'hr/hr-management/input-form/add-post',
-  'Non Port Monthly Upload': 'hr/hr-management/non-port-monthly-upload',
+  'Monthly Vacancy Upload': 'hr/hr-management/non-port-monthly-upload',
   'HR Management': 'hr/hr-management',
   'HR Reports': 'hr/hr-management/reports',
-  'Non Port Monthly Upload': 'hr/hr-management/non-port-monthly-upload',
+  'Monthly Vacancy Upload': 'hr/hr-management/non-port-monthly-upload',
 
   // Young Professionals routes
   'Young Professionals': 'hr/young-professionals/list-view',
@@ -202,12 +202,6 @@ export const ROUTE_MAP = {
   'CSR Input Form': 'projects/csr-projects/input-form',
   'CSR Reports': 'projects/csr-projects/reports',
 
-  // Finance / NMP routes
-  'National Monetization Plan': 'finance/nmp/dashboard',
-  'NMP Dashboard': 'finance/nmp/dashboard',
-  'NMP Data List': 'finance/nmp/data-list',
-  'NMP Input Form': 'finance/nmp/input-form',
-
   // Finance / Capex routes
   'Capex': 'finance/capex/data-list',
   'Capex Dashboard': 'finance/capex/dashboard',
@@ -231,10 +225,10 @@ export const getTabFromSlug = (slug) => {
   if (cleanSlug.startsWith('projects/project/view-project') || cleanSlug.startsWith('projects/view-project') || cleanSlug.startsWith('projects/project/detail')) return 'projects-view-project';
   if (cleanSlug.startsWith('projects/project') || cleanSlug.startsWith('projects')) return 'projects-list';
 
-  if (cleanSlug.startsWith('hr/hr-management/non-port-monthly-upload')) return 'Non Port Monthly Upload';
+  if (cleanSlug.startsWith('hr/hr-management/non-port-monthly-upload')) return 'Monthly Vacancy Upload';
   if (cleanSlug.startsWith('hr/hr-management/reports')) return 'HR Reports';
   if (cleanSlug.startsWith('hr/hr-management/hr-dashboard')) return 'HR Dashboard';
-  if (cleanSlug.startsWith('hr/hr-management/non-port-monthly-upload')) return 'Non Port Monthly Upload';
+  if (cleanSlug.startsWith('hr/hr-management/non-port-monthly-upload')) return 'Monthly Vacancy Upload';
   if (cleanSlug.startsWith('hr/hr-management/employee-details')) return 'Employee Details';
   if (cleanSlug.startsWith('hr/hr-management/vacancy-management') || cleanSlug.startsWith('hr/hr-management/vacancy-details')) return 'Vacancy Management';
   if (cleanSlug.startsWith('hr/hr-management/input-form')) return 'HR Input Form';
@@ -253,7 +247,6 @@ export const getTabFromSlug = (slug) => {
   if (cleanSlug.startsWith('strategies/gmis-mou')) return 'GMIS & IMW MoUs';
   if (cleanSlug.startsWith('strategies/miv-2030')) return 'MIV 2030';
   if (cleanSlug.startsWith('strategies/drishti-portal') || cleanSlug.startsWith('strategies/ovod') || cleanSlug.startsWith('strategies/one-vision-one-document')) return 'Drishti Portal';
-  if (cleanSlug.startsWith('finance/nmp')) return 'National Monetization Plan';
   if (cleanSlug.startsWith('finance/capex')) return 'Capex';
   if (cleanSlug.startsWith('governance/gem-procurements')) return 'GEM Procurements';
   if (cleanSlug.startsWith('governance/vip-reference')) return 'VIP Reference';
@@ -353,10 +346,10 @@ const getBreadcrumbs = (tab) => {
     'Contractual Employment': ['HR & Institutional', 'HR Management'],
     'Training Details': ['HR & Institutional', 'HR Management'],
     'HR Input Form': ['HR & Institutional', 'HR Management'],
-    'Non Port Monthly Upload': ['HR & Institutional', 'HR Management'],
+    'Monthly Vacancy Upload': ['HR & Institutional', 'HR Management'],
     'HR Management': ['HR & Institutional'],
     'HR Reports': ['HR & Institutional', 'HR Management'],
-    'Non Port Monthly Upload': ['HR & Institutional', 'HR Management'],
+    'Monthly Vacancy Upload': ['HR & Institutional', 'HR Management'],
     'Young Professionals': ['HR & Institutional', 'Young Professionals'],
     'YP Data List': ['HR & Institutional', 'Young Professionals'],
     'YP Input Form': ['HR & Institutional', 'Young Professionals'],
@@ -383,9 +376,6 @@ const getBreadcrumbs = (tab) => {
   ];
   if (tab === 'Media Outreach') return ['Home', 'Media Outreach - (Input Form)'];
   if (governanceItems.includes(tab)) return ['Home', 'Governance', tab];
-
-  const nmpItems = ['National Monetization Plan', 'NMP Dashboard', 'NMP Data List', 'NMP Input Form'];
-  if (nmpItems.includes(tab)) return ['Home', 'Finance', 'National Monetization Plan', tab === 'National Monetization Plan' ? 'Dashboard' : tab];
 
   const legalItems = ['Courtcases', 'Bills/PreConstitutions Act', 'Acts & Rules'];
   if (legalItems.includes(tab)) return ['Home', 'Legal', tab];
@@ -470,7 +460,9 @@ export default function MainLayout({
           isManual={isManualNetworkCheck}
           onContinue={() => setShowNetworkCheck(false)}
           onCancel={() => {
-            signOut();
+            endSession();
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('refreshToken');
             setIsLoggedIn(false);
             setShowNetworkCheck(false);
           }}

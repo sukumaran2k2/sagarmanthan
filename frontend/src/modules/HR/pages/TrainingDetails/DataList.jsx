@@ -1,18 +1,20 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
-import { fetchAllTrainingData } from '../../api';
+import { fetchAllTrainingData, deleteTrainingData } from '../../api';
 import { Eye } from 'lucide-react';
 import Table from '../../../../components/Table';
-import { getCurrentUserId, isOrganisationUser } from '../../../../utils/authSession';
-import { COMMON_TOASTS } from '../../../../utils/notify';
+import ConfirmModal from '../../../../components/ConfirmModal';
+import { getCurrentUserId, getSessionOrganisationId, isViewOnlyAdmin, isOrganisationUser } from '../../../../utils/authSession';
+import { COMMON_TOASTS, getErrorMessage } from '../../../../utils/notify';
 import TrainingDetailView from './DetailView';
+import { isCountOnlyOrganisation ,readParticipantCount} from './trainingConfig';
 import { useHrStore } from '../../store/useHrStore';
 import { useDebouncedSearch } from '../../hooks/usePagedList';
 import { useGridPage } from '../../hooks/useGridPage';
 import { createTableExporter } from '../../utils/exportTable';
 import { HrFilterPanel, FilterSelect } from '../../components/HrFilterPanel';
-import { EditActionButton } from '../../components/HrFormControls';
+import { DeleteActionButton, EditActionButton } from '../../components/HrFormControls';
 import { useHRPermissions } from '../../hooks/useHRPermissions';
 import { HR_TOASTS } from '../../toastMessages';
 import { HrColumnPicker, HrCopyExport, HrFilterToggle, HrRowsSelect, HrSearchBox, HrTotalBadge } from '../../components/HrListToolbar';
@@ -37,11 +39,16 @@ const ORG_COLUMNS = {
   'View Details': true,
   'Action': true
 };
+
 const formatTrainingDate = (value) => formatDate(value, 0, '-');
 
 export default function TrainingDetails({ notify }) {
   // Editing opens Input Forms, which only users with create / update rights have
-  const { canUseInputForm } = useHRPermissions();
+  const { canUseInputForm, delete: canDelete } = useHRPermissions();
+
+  // Roles 2 to 5 get View Details; every other role gets the Update / Delete buttons
+  const roleId = Number(isViewOnlyAdmin());
+  const isViewOnlyRole = roleId >= 2 && roleId <= 5;
 
   const [trainings, setTrainings] = useState([]);
   // Drill-down (training list of an organisation-year): view state of this page
@@ -75,6 +82,55 @@ export default function TrainingDetails({ notify }) {
     navigate('/hr/hr-management/input-form/training-data', { state: { item: data } });
   }, [navigate]);
 
+  // Delete asks in a popup, then removes the training on the server and from the list
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const handleDelete = useCallback((data) => setPendingDelete(data), []);
+
+  const confirmDelete = async () => {
+    const trainingId = pendingDelete?.['Training ID'];
+    // The training's organisation, else the signed-in user's organisation
+    const organisationId = pendingDelete?.['Organisation ID'] ?? getSessionOrganisationId();
+    if (!trainingId || !organisationId) {
+      console.error('Missing ids for delete. Row was:', pendingDelete);
+      notify?.(HR_TOASTS.recordIdMissing());
+      setPendingDelete(null);
+      return;
+    }
+    setDeleting(true);
+    try {
+      const res = await deleteTrainingData(trainingId, organisationId);
+      // The server said no: do not pretend it worked
+      if (res?.data?.success === false) {
+        notify?.(HR_TOASTS.trainingDeleteFailed(res.data?.message));
+        return;
+      }
+      setTrainings(prev => prev.filter(t => t['Training ID'] !== trainingId));
+      notify?.(HR_TOASTS.trainingDeleted());
+      setPendingDelete(null);
+    } catch (err) {
+      console.error('Delete error:', err.response?.status, err.response?.data || err.message);
+      notify?.(HR_TOASTS.trainingDeleteFailed(getErrorMessage(err)));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // Opens the detail page of one training (organisation view).
+  // Count-only organisations have no staff roster, so they open the training table instead.
+  const openDetail = useCallback((data) => {
+    const raw = data?.raw || data;
+    
+    const orgId = raw?.['Organisation ID'] ?? data?.['Organisation ID'];
+    setSelectedDetail({
+      Organisation: data?.['Organisation Name'],
+      OrganisationId: orgId,
+      Year: data?.Year,
+      trainingsList: [raw],
+      initialSelectedTraining: isCountOnlyOrganisation(orgId) ? null : raw
+    });
+  }, []);
+
   // Read the notifier through a ref so a failed load does not refetch after the toast
   const notifyRef = useRef(notify);
   useEffect(() => { notifyRef.current = notify; }, [notify]);
@@ -94,6 +150,11 @@ export default function TrainingDetails({ notify }) {
       .then(res => {
         if (!isMounted) return;
         const rawData = res.data || [];
+        const rowsPerTraining = {};
+        rawData.forEach((r) => {
+          const id = r['Training ID'];
+          rowsPerTraining[id] = (rowsPerTraining[id] || 0) + 1;
+        });
 
         const isMinistry = !isOrganisationUser();
         let formattedData;
@@ -108,7 +169,7 @@ export default function TrainingDetails({ notify }) {
             const year = toDate ? toDate.getFullYear().toString() : (fromDate ? fromDate.getFullYear().toString() : 'N/A');
             const trainingId = row['Training ID'];
             const expenditure = parseFloat(row['Expenditure'] || 0);
-            const participants = parseInt(row['No of Participants'] || 1, 10);
+            const participants = readParticipantCount(row) ?? rowsPerTraining[trainingId] ?? 0;
 
             const key = `${org}-${year}`;
             if (!aggregated[key]) {
@@ -152,7 +213,7 @@ export default function TrainingDetails({ notify }) {
               const toDate = row['To date'] ? new Date(row['To date']) : null;
               const year = toDate ? toDate.getFullYear().toString() : 'N/A';
               const exp = parseFloat(row['Expenditure'] || 0);
-              const parts = parseInt(row['No of Participants'] || 1, 10);
+              const parts = readParticipantCount(row) ?? rowsPerTraining[tId] ?? 0;
               orgAggregated[tId] = {
                 'Training ID': tId,
                 'Training Title': row['Title'] || '-',
@@ -163,6 +224,7 @@ export default function TrainingDetails({ notify }) {
                 'Number of Participants': parts,
                 'From date': row['From date'],
                 'To date': row['To date'],
+                'Organisation ID': row['Organisation ID'],
                 'Organisation Name': row['Organisation Name'],
                 'raw': row
               };
@@ -189,8 +251,8 @@ export default function TrainingDetails({ notify }) {
 
   const columnDefs = useMemo(() => {
     const cols = [
-      { 
-        headerName: 'S.No', 
+      {
+        headerName: 'S.No',
         valueGetter: (params) => params.node.rowIndex + 1,
         minWidth: 70, maxWidth: 90,
         pinned: 'left',
@@ -206,9 +268,9 @@ export default function TrainingDetails({ notify }) {
         { field: 'Total Trainings', headerName: 'Total Trainings', minWidth: 150, cellClass: 'text-center flex justify-center items-center font-semibold text-slate-800', headerClass: 'text-center' },
         { field: 'Total Participants', headerName: 'Total Participants', minWidth: 160, cellClass: 'text-center flex justify-center items-center font-semibold text-slate-800', headerClass: 'text-center' },
         { field: 'Total Expenditure (In Lakh)', headerName: 'Total Expenditure (In Lakh)', minWidth: 220, cellClass: 'text-center flex justify-center items-center font-semibold text-slate-800', headerClass: 'text-center' },
-        { 
-          field: 'Last Training Date', 
-          headerName: 'Last Training Date', 
+        {
+          field: 'Last Training Date',
+          headerName: 'Last Training Date',
           minWidth: 180,
           cellClass: 'text-center flex justify-center items-center', headerClass: 'text-center',
           valueFormatter: (params) => formatTrainingDate(params.value)
@@ -219,7 +281,7 @@ export default function TrainingDetails({ notify }) {
           cellClass: 'text-center flex justify-center items-center', headerClass: 'text-center',
           cellRenderer: (params) => (
             <div className="flex items-center justify-center h-full">
-              <button 
+              <button
                 type="button"
                 onClick={() => setSelectedDetail(params.data)}
                 title="View Training Details"
@@ -239,26 +301,28 @@ export default function TrainingDetails({ notify }) {
         { field: 'Training Source', headerName: 'Training Source', flex: 1, minWidth: 120, wrapText: true, autoHeight: true, cellClass: 'text-center leading-snug py-2', headerClass: 'text-center' },
         { field: 'Expenditure (In Lakh)', headerName: 'Expenditure (In Lakh)', flex: 1, minWidth: 120, cellClass: 'text-center flex justify-center items-center font-semibold text-slate-800', headerClass: 'text-center' },
         { field: 'Year', headerName: 'Year', flex: 0.7, minWidth: 90, cellClass: 'text-center flex justify-center items-center', headerClass: 'text-center' },
-        { 
-          field: 'Number of Participants', 
-          headerName: 'Number of Participants', 
-          flex: 1, minWidth: 120, 
-          cellClass: 'text-center flex justify-center items-center', 
+        {
+          field: 'Number of Participants',
+          headerName: 'Number of Participants',
+          flex: 1, minWidth: 120,
+          cellClass: 'text-center flex justify-center items-center',
           headerClass: 'text-center',
           cellRenderer: (params) => {
             const count = params.value ?? 1;
+            // Count-only organisation (e.g. 18): just the number, nothing to click
+            if (isCountOnlyOrganisation(getSessionOrganisationId() ?? params.data?.['Organisation ID'])) {
+              return (
+                <div className="flex items-center justify-center h-full font-extrabold text-slate-800">
+                  {count}
+                </div>
+              );
+            }
             return (
               <div className="flex items-center justify-center h-full">
                 <button
                   type="button"
-                  onClick={() => setSelectedDetail({
-                    Organisation: params.data?.['Organisation Name'],
-                    OrganisationId: params.data?.['Organisation ID'],
-                    Year: params.data?.Year,
-                    trainingsList: [params.data?.raw || params.data],
-                    initialSelectedTraining: params.data?.raw || params.data
-                  })}
-                  title="Click to view details & participant roster"
+                  onClick={() => openDetail(params.data)}
+                  title="Click to view training details"
                   className="text-blue-600 dark:text-blue-400 hover:text-blue-800 font-extrabold hover:underline cursor-pointer px-2.5 py-1 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30 transition text-xs flex items-center gap-1"
                 >
                   <span>{count}</span>
@@ -267,44 +331,45 @@ export default function TrainingDetails({ notify }) {
             );
           }
         },
-        {
+        // Roles 2 to 5: View Details
+        isViewOnlyRole && {
           headerName: 'View Details',
           minWidth: 120,
           cellClass: 'text-center flex justify-center items-center', headerClass: 'text-center',
-          cellRenderer: (params) => (
-            <div className="flex items-center justify-center space-x-2 h-full">
-              <button 
-                type="button"
-                onClick={() => setSelectedDetail({
-                  Organisation: params.data?.['Organisation Name'],
-                  OrganisationId: params.data?.['Organisation ID'],
-                  Year: params.data?.Year,
-                  trainingsList: [params.data?.raw || params.data],
-                  initialSelectedTraining: params.data?.raw || params.data
-                })}
-                title="View Training Details"
-                className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/40 transition cursor-pointer p-1.5 rounded-lg flex items-center justify-center"
-              >
-                <Eye className="w-4 h-4" />
-              </button>
-            </div>
-          )
+          cellRenderer: (params) => {
+            if (isCountOnlyOrganisation(getSessionOrganisationId() ?? params.data?.['Organisation ID'])) {
+              return <div className="flex items-center justify-center h-full text-slate-400">-</div>;
+            }
+            return (
+              <div className="flex items-center justify-center h-full">
+                <button
+                  type="button"
+                  onClick={() => openDetail(params.data)}
+                  title="View Training Details"
+                  className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/40 transition cursor-pointer p-1.5 rounded-lg flex items-center justify-center"
+                >
+                  <Eye className="w-4 h-4" />
+                </button>
+              </div>
+            );
+          }
         },
-        canUseInputForm && {
+        // Every other role: Update and Delete buttons (each only with its permission)
+        !isViewOnlyRole && (canUseInputForm || canDelete) && {
           headerName: 'Action',
-          minWidth: 100,
-          cellClass: 'text-center flex justify-center items-center',
-          headerClass: 'text-center',
+          minWidth: 130,
+          cellClass: 'text-center flex justify-center items-center', headerClass: 'text-center',
           cellRenderer: (params) => (
-            <div className="flex items-center justify-center h-full">
-              <EditActionButton label="Edit training" onClick={() => handleEdit(params.data)} />
+            <div className="flex items-center justify-center gap-1 h-full">
+              {canUseInputForm && <EditActionButton label="Update training" onClick={() => handleEdit(params.data)} />}
+              {canDelete && <DeleteActionButton label="Delete training" onClick={() => handleDelete(params.data)} />}
             </div>
           )
         }
       );
     }
     return cols.filter(Boolean);
-  }, [isMinistryView, canUseInputForm, handleEdit]);
+  }, [isMinistryView, isViewOnlyRole, canUseInputForm, canDelete, handleEdit, handleDelete, openDetail]);
 
   const uniqueYears = useMemo(() => {
     return [...new Set(trainings.map(item => item['Year']).filter(Boolean))].sort();
@@ -330,7 +395,7 @@ export default function TrainingDetails({ notify }) {
       const matchSource = selectedSource === '' || t['Training Source'] === selectedSource;
 
       const term = debouncedSearch.toLowerCase();
-      const matchSearch = !debouncedSearch || 
+      const matchSearch = !debouncedSearch ||
                           (t['Organisation'] || '').toLowerCase().includes(term) ||
                           (t['Year'] || '').toLowerCase().includes(term) ||
                           (t['Training Title'] || '').toLowerCase().includes(term);
@@ -351,11 +416,17 @@ export default function TrainingDetails({ notify }) {
     return count;
   }, [selectedOrg, selectedYear, selectedType, selectedSource]);
 
-  // Store keeps only the user's changes; merge them over this view's defaults
-  const visibleCols = useMemo(
-    () => ({ ...(isMinistryView ? MINISTRY_COLUMNS : ORG_COLUMNS), ...colChanges }),
-    [isMinistryView, colChanges]
-  );
+  // Store keeps only the user's changes; merge them over this view's defaults.
+  // The column picker lists only the column that applies to this role.
+  const visibleCols = useMemo(() => {
+    const cols = { ...(isMinistryView ? MINISTRY_COLUMNS : ORG_COLUMNS), ...colChanges };
+    if (!isMinistryView) {
+      if (isViewOnlyRole) delete cols['Action'];
+      else delete cols['View Details'];
+    }
+    return cols;
+  }, [isMinistryView, isViewOnlyRole, colChanges]);
+
   const toggleColumn = (col) => actions.setVisibleCols((prev) => ({ ...prev, [col]: !visibleCols[col] }));
   const resetFilters = () => {
     actions.resetFilters();
@@ -480,6 +551,17 @@ export default function TrainingDetails({ notify }) {
           />
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={Boolean(pendingDelete)}
+        onClose={() => !deleting && setPendingDelete(null)}
+        onConfirm={confirmDelete}
+        loading={deleting}
+        title="Delete Training Data"
+        message={`Delete the training${pendingDelete?.['Training Title'] && pendingDelete['Training Title'] !== '-' ? ` "${pendingDelete['Training Title']}"` : ''}? Its participant details will be removed too. This cannot be undone.`}
+        confirmText="Delete"
+        loadingText="Deleting..."
+      />
     </div>
   );
 }

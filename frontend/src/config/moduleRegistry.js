@@ -212,7 +212,7 @@ export const MODULE_PAGES = {
       'HR Reports',
       'HR Input Form',
       'Add Post',
-      'Non Port Monthly Upload',
+      'Monthly Vacancy Upload',
       'hr/hr-management/vacancy-management',
       'hr/hr-management/administration',
       'hr/hr-management/abolished-posts',
@@ -237,7 +237,7 @@ export const MODULE_PAGES = {
       'HR Reports',
       'HR Input Form',
       'Add Post',
-      'Non Port Monthly Upload',
+      'Monthly Vacancy Upload',
     ],
   },
 
@@ -390,21 +390,6 @@ export const MODULE_PAGES = {
     ],
   },
 
-  NMP: {
-    tabs: [
-      'NMP Dashboard',
-      'NMP Data List',
-      'NMP Input Form',
-      'National Monetization Plan',
-    ],
-    uiTabs: [
-      'NMP Dashboard',
-      'NMP Data List',
-      'NMP Input Form',
-      'National Monetization Plan',
-    ],
-  },
-
   KNOWLEDGE_REPOSITORY: {
     tabs: ['Research Papers', 'Policy Documents', 'Guidelines'],
   },
@@ -434,10 +419,6 @@ export const PUBLIC_UI_TABS = [
   'Contact Us',
   'Ministry Contacts',
   'Helpdesk Support',
-  'NMP Dashboard',
-  'NMP Data List',
-  'NMP Input Form',
-  'National Monetization Plan',
 ];
 
 export const TAB_TO_MODULE = (() => {
