@@ -1,17 +1,48 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-    createContractualData
+    createContractualData,
+    checkContractualFiscalYearExist
 } from '../../api.js';
 import { getErrorMessage } from '../../../../utils/notify';
 import { HR_TOASTS } from '../../toastMessages';
-import { getCurrentUserId,getSessionOrganisationId } from '../../../../utils/authSession.js';
+import { getCurrentUserId, getSessionOrganisationId } from '../../../../utils/authSession.js';
 import { FormActions } from '../../components/HrFormControls';
+
+const LIST_PATH = '/hr/hr-management/contractual-employment';
+
+// One row per category: label + the form field for each level
+const ROWS = [
+  { label: 'Direct engagement', officer: 'officerDirectEngagement', nonOfficer: 'nonOfficerDirectEngagement' },
+  { label: 'Retired from other Govt/PSU', officer: 'officerRetiredGovt', nonOfficer: 'nonOfficerRetiredGovt' },
+  { label: 'Retired From own Organisation', officer: 'officerRetiredOwnOrg', nonOfficer: 'nonOfficerRetiredOwnOrg' },
+  { label: 'Through Agency', officer: 'officerThroughAgency', nonOfficer: 'nonOfficerThroughAgency' },
+  { label: 'For Ministry', officer: 'officerForMinistry', nonOfficer: 'nonOfficerForMinistry' },
+];
+
+const EMPTY_FORM = {
+  financialYear: '',
+  officerDirectEngagement: '',
+  officerRetiredGovt: '',
+  officerRetiredOwnOrg: '',
+  officerThroughAgency: '',
+  officerForMinistry: '',
+  nonOfficerDirectEngagement: '',
+  nonOfficerRetiredGovt: '',
+  nonOfficerRetiredOwnOrg: '',
+  nonOfficerThroughAgency: '',
+  nonOfficerForMinistry: '',
+};
+
+const INPUT_CLASS =
+  'w-full border border-slate-300 dark:border-slate-600 rounded px-3 py-1.5 focus:outline-none focus:border-blue-500 bg-white dark:bg-slate-800';
 
 // editData: the record being edited (from location.state.item, via InputForm); null when adding
 export default function ContractualDataForm({ editData = null, notify }) {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [checkingYear, setCheckingYear] = useState(false);
+  const yearCheckId = useRef(0); // ignores stale responses if the user changes year quickly
 
   // The form remounts for each record (key in InputForm), so it starts from editData directly
   const [formData, setFormData] = useState(() => (editData ? {
@@ -25,19 +56,8 @@ export default function ContractualDataForm({ editData = null, notify }) {
     nonOfficerRetiredGovt: editData['Non-officer retired from Govt.'] ?? '',
     nonOfficerRetiredOwnOrg: editData['Non-officer retired from own organisation'] ?? '',
     nonOfficerThroughAgency: editData['Non-officer through agency'] ?? '',
-    nonOfficerForMinistry: editData['Non-officer for ministry'] ?? '' } : {
-    financialYear: '',
-    officerDirectEngagement: '',
-    officerRetiredGovt: '',
-    officerRetiredOwnOrg: '',
-    officerThroughAgency: '',
-    officerForMinistry: '',
-    nonOfficerDirectEngagement: '',
-    nonOfficerRetiredGovt: '',
-    nonOfficerRetiredOwnOrg: '',
-    nonOfficerThroughAgency: '',
-    nonOfficerForMinistry: '' }));
-
+    nonOfficerForMinistry: editData['Non-officer for ministry'] ?? '',
+  } : EMPTY_FORM));
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -45,6 +65,54 @@ export default function ContractualDataForm({ editData = null, notify }) {
       ...prev,
       [name]: value
     }));
+  };
+
+  // Alert the user, then leave the form
+  const handleYearExists = (year) => {
+    notify?.(HR_TOASTS.contractualSaveFailed(
+      `Financial year ${year} already exists. Please edit the existing record from the list.`
+    ));
+
+    if (editData) {
+      // Editing: don't throw away the user's changes, just put the year back
+      setFormData(prev => ({ ...prev, financialYear: editData['Financial Year'] || '' }));
+      return;
+    }
+    // replace: Back must not reopen the form
+    navigate(LIST_PATH, { replace: true });
+  };
+
+  // Returns true when the year already has a record (for this organisation)
+  const checkFiscalYear = async (year) => {
+    const original = editData?.['Financial Year'];
+
+    // Nothing selected, or editing the record's own year: never a duplicate
+    if (!year || (editData && year === original)) {
+      yearCheckId.current++; // invalidate any check still in flight
+      setCheckingYear(false);
+      return false;
+    }
+
+    const myCheck = ++yearCheckId.current;
+    setCheckingYear(true);
+    try {
+      const response = await checkContractualFiscalYearExist(getSessionOrganisationId(), year);
+      const exists = Boolean(response.data?.exists);
+      // Only act if the user has not picked another year in the meantime
+      if (exists && myCheck === yearCheckId.current) handleYearExists(year);
+      return exists;
+    } catch (error) {
+      console.error('Error checking financial year:', error);
+      // Don't block saving if the check itself fails; the backend should still reject duplicates
+      return false;
+    } finally {
+      if (myCheck === yearCheckId.current) setCheckingYear(false);
+    }
+  };
+
+  const handleYearChange = (e) => {
+    handleChange(e);
+    checkFiscalYear(e.target.value);
   };
 
   const calculateTotal = (prefix) => {
@@ -62,54 +130,58 @@ export default function ContractualDataForm({ editData = null, notify }) {
   const totalNonOfficer = calculateTotal('nonOfficer');
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  if (isSubmitting) return; // a double click must not save twice
-  setIsSubmitting(true);
+    e.preventDefault();
+    if (isSubmitting) return; // a double click must not save twice
+    setIsSubmitting(true);
 
-  try {
+    try {
+      // Re-check at submit time so a slow or skipped check can't let a duplicate through
+      if (await checkFiscalYear(formData.financialYear)) {
+        return; // alert shown (and redirected, when adding) by checkFiscalYear
+      }
+
       const payload = {
-          contractId: editData?.id || null,
+        contractId: editData?.id || null,
 
-          financialYear: formData.financialYear,
+        financialYear: formData.financialYear,
 
-          OffDirectEngage: Number(formData.officerDirectEngagement) || 0,
-          OffRetiredFromOther: Number(formData.officerRetiredGovt) || 0,
-          OffRetiredFromOwnOrgan: Number(formData.officerRetiredOwnOrg) || 0,
-          OffThroughAgency: Number(formData.officerThroughAgency) || 0,
-          OffForMinistry: Number(formData.officerForMinistry) || 0,
+        OffDirectEngage: Number(formData.officerDirectEngagement) || 0,
+        OffRetiredFromOther: Number(formData.officerRetiredGovt) || 0,
+        OffRetiredFromOwnOrgan: Number(formData.officerRetiredOwnOrg) || 0,
+        OffThroughAgency: Number(formData.officerThroughAgency) || 0,
+        OffForMinistry: Number(formData.officerForMinistry) || 0,
 
-          NonOffDirectEngage: Number(formData.nonOfficerDirectEngagement) || 0,
-          NonOffRetiredFromOther: Number(formData.nonOfficerRetiredGovt) || 0,
-          NonOffRetiredFromOwnOrgan: Number(formData.nonOfficerRetiredOwnOrg) || 0,
-          NonOffThroughAgency: Number(formData.nonOfficerThroughAgency) || 0,
-          NonOffForMinistry: Number(formData.nonOfficerForMinistry) || 0,
+        NonOffDirectEngage: Number(formData.nonOfficerDirectEngagement) || 0,
+        NonOffRetiredFromOther: Number(formData.nonOfficerRetiredGovt) || 0,
+        NonOffRetiredFromOwnOrgan: Number(formData.nonOfficerRetiredOwnOrg) || 0,
+        NonOffThroughAgency: Number(formData.nonOfficerThroughAgency) || 0,
+        NonOffForMinistry: Number(formData.nonOfficerForMinistry) || 0,
 
-          TotalOfficial: totalOfficer,
-          NonOffTotal: totalNonOfficer,
-          // Read at save time: a module-level value would keep the previous login's organisation
-          organisationID: getSessionOrganisationId(),
-          userID: getCurrentUserId() };
+        TotalOfficial: totalOfficer,
+        NonOffTotal: totalNonOfficer,
+        // Read at save time: a module-level value would keep the previous login's organisation
+        organisationID: getSessionOrganisationId(),
+        userID: getCurrentUserId()
+      };
 
-       const response = await createContractualData(payload);
+      const response = await createContractualData(payload);
 
-        if (response.data?.success) {
+      if (response.data?.success) {
+        notify?.(HR_TOASTS.contractualSaved(Boolean(editData)));
 
-            notify?.(HR_TOASTS.contractualSaved(Boolean(editData)));
+        // replace: Back must not reopen the submitted form
+        navigate(LIST_PATH, { replace: true });
+      } else {
+        notify?.(HR_TOASTS.contractualSaveFailed(response.data?.message));
+      }
+    } catch (error) {
+      console.error('Contractual API error:', error);
+      notify?.(HR_TOASTS.contractualSaveFailed(getErrorMessage(error)));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
-            // replace: Back must not reopen the submitted form
-            navigate('/hr/hr-management/contractual-employment', { replace: true });
-        } else {
-            notify?.(HR_TOASTS.contractualSaveFailed(response.data?.message));
-        }
-
-  } catch (error) {
-    console.error('Contractual API error:', error);
-    notify?.(HR_TOASTS.contractualSaveFailed(getErrorMessage(error)));
-  } finally {
-    setIsSubmitting(false);
-  }
-
-};
   const currentYear = new Date().getFullYear();
   const years = Array.from(new Array(5), (val, index) => `${currentYear - index}-${currentYear - index + 1}`);
 
@@ -129,13 +201,17 @@ export default function ContractualDataForm({ editData = null, notify }) {
           <select
             name="financialYear"
             value={formData.financialYear}
-            onChange={handleChange}
+            onChange={handleYearChange}
             required
             className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
             <option value="">--Select Financial Year--</option>
             {years.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
+
+          {checkingYear && (
+            <p className="mt-1 text-xs text-slate-500">Checking financial year...</p>
+          )}
         </div>
 
         {/* Table Section */}
@@ -150,50 +226,38 @@ export default function ContractualDataForm({ editData = null, notify }) {
             </div>
 
             <div className="divide-y divide-slate-200 dark:divide-slate-700 text-sm">
-              {/* Row 1 */}
-              <div className="grid grid-cols-[30%_1fr_1fr] divide-x divide-slate-200 dark:divide-slate-700 bg-white dark:bg-slate-900">
-                <div className="py-3 px-4 font-bold text-xs text-center flex items-center justify-center bg-slate-50 dark:bg-slate-800/50">
-                  Direct engagement<span className="text-red-500 ml-0.5">*</span>
+              {ROWS.map((row) => (
+                <div
+                  key={row.label}
+                  className="grid grid-cols-[30%_1fr_1fr] divide-x divide-slate-200 dark:divide-slate-700 bg-white dark:bg-slate-900"
+                >
+                  <div className="py-3 px-4 font-bold text-xs text-center flex items-center justify-center bg-slate-50 dark:bg-slate-800/50">
+                    {row.label}<span className="text-red-500 ml-0.5">*</span>
+                  </div>
+                  <div className="p-2">
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      name={row.officer}
+                      value={formData[row.officer]}
+                      onChange={handleChange}
+                      className={INPUT_CLASS}
+                    />
+                  </div>
+                  <div className="p-2">
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      name={row.nonOfficer}
+                      value={formData[row.nonOfficer]}
+                      onChange={handleChange}
+                      className={INPUT_CLASS}
+                    />
+                  </div>
                 </div>
-                <div className="p-2"><input type="number" min="0" required name="officerDirectEngagement" value={formData.officerDirectEngagement} onChange={handleChange} className="w-full border border-slate-300 dark:border-slate-600 rounded px-3 py-1.5 focus:outline-none focus:border-blue-500 bg-white dark:bg-slate-800" /></div>
-                <div className="p-2"><input type="number" min="0" required name="nonOfficerDirectEngagement" value={formData.nonOfficerDirectEngagement} onChange={handleChange} className="w-full border border-slate-300 dark:border-slate-600 rounded px-3 py-1.5 focus:outline-none focus:border-blue-500 bg-white dark:bg-slate-800" /></div>
-              </div>
-
-              {/* Row 2 */}
-              <div className="grid grid-cols-[30%_1fr_1fr] divide-x divide-slate-200 dark:divide-slate-700 bg-white dark:bg-slate-900">
-                <div className="py-3 px-4 font-bold text-xs text-center flex items-center justify-center bg-slate-50 dark:bg-slate-800/50">
-                  Retired from other Govt/PSU<span className="text-red-500 ml-0.5">*</span>
-                </div>
-                <div className="p-2"><input type="number" min="0" required name="officerRetiredGovt" value={formData.officerRetiredGovt} onChange={handleChange} className="w-full border border-slate-300 dark:border-slate-600 rounded px-3 py-1.5 focus:outline-none focus:border-blue-500 bg-white dark:bg-slate-800" /></div>
-                <div className="p-2"><input type="number" min="0" required name="nonOfficerRetiredGovt" value={formData.nonOfficerRetiredGovt} onChange={handleChange} className="w-full border border-slate-300 dark:border-slate-600 rounded px-3 py-1.5 focus:outline-none focus:border-blue-500 bg-white dark:bg-slate-800" /></div>
-              </div>
-
-              {/* Row 3 */}
-              <div className="grid grid-cols-[30%_1fr_1fr] divide-x divide-slate-200 dark:divide-slate-700 bg-white dark:bg-slate-900">
-                <div className="py-3 px-4 font-bold text-xs text-center flex items-center justify-center bg-slate-50 dark:bg-slate-800/50">
-                  Retired From own Organisation<span className="text-red-500 ml-0.5">*</span>
-                </div>
-                <div className="p-2"><input type="number" min="0" required name="officerRetiredOwnOrg" value={formData.officerRetiredOwnOrg} onChange={handleChange} className="w-full border border-slate-300 dark:border-slate-600 rounded px-3 py-1.5 focus:outline-none focus:border-blue-500 bg-white dark:bg-slate-800" /></div>
-                <div className="p-2"><input type="number" min="0" required name="nonOfficerRetiredOwnOrg" value={formData.nonOfficerRetiredOwnOrg} onChange={handleChange} className="w-full border border-slate-300 dark:border-slate-600 rounded px-3 py-1.5 focus:outline-none focus:border-blue-500 bg-white dark:bg-slate-800" /></div>
-              </div>
-
-              {/* Row 4 */}
-              <div className="grid grid-cols-[30%_1fr_1fr] divide-x divide-slate-200 dark:divide-slate-700 bg-white dark:bg-slate-900">
-                <div className="py-3 px-4 font-bold text-xs text-center flex items-center justify-center bg-slate-50 dark:bg-slate-800/50">
-                  Through Agency<span className="text-red-500 ml-0.5">*</span>
-                </div>
-                <div className="p-2"><input type="number" min="0" required name="officerThroughAgency" value={formData.officerThroughAgency} onChange={handleChange} className="w-full border border-slate-300 dark:border-slate-600 rounded px-3 py-1.5 focus:outline-none focus:border-blue-500 bg-white dark:bg-slate-800" /></div>
-                <div className="p-2"><input type="number" min="0" required name="nonOfficerThroughAgency" value={formData.nonOfficerThroughAgency} onChange={handleChange} className="w-full border border-slate-300 dark:border-slate-600 rounded px-3 py-1.5 focus:outline-none focus:border-blue-500 bg-white dark:bg-slate-800" /></div>
-              </div>
-
-              {/* Row 5 */}
-              <div className="grid grid-cols-[30%_1fr_1fr] divide-x divide-slate-200 dark:divide-slate-700 bg-white dark:bg-slate-900">
-                <div className="py-3 px-4 font-bold text-xs text-center flex items-center justify-center bg-slate-50 dark:bg-slate-800/50">
-                  For Ministry<span className="text-red-500 ml-0.5">*</span>
-                </div>
-                <div className="p-2"><input type="number" min="0" required name="officerForMinistry" value={formData.officerForMinistry} onChange={handleChange} className="w-full border border-slate-300 dark:border-slate-600 rounded px-3 py-1.5 focus:outline-none focus:border-blue-500 bg-white dark:bg-slate-800" /></div>
-                <div className="p-2"><input type="number" min="0" required name="nonOfficerForMinistry" value={formData.nonOfficerForMinistry} onChange={handleChange} className="w-full border border-slate-300 dark:border-slate-600 rounded px-3 py-1.5 focus:outline-none focus:border-blue-500 bg-white dark:bg-slate-800" /></div>
-              </div>
+              ))}
 
               {/* Totals Row */}
               <div className="grid grid-cols-[30%_1fr_1fr] divide-x divide-slate-200 dark:divide-slate-700 bg-white dark:bg-slate-900">
@@ -208,10 +272,10 @@ export default function ContractualDataForm({ editData = null, notify }) {
         </div>
 
         <FormActions
-          onExit={() => navigate('/hr/hr-management/contractual-employment')}
+          onExit={() => navigate(LIST_PATH)}
           submitLabel={editData ? 'Update' : 'Submit'}
           busyLabel={editData ? 'Updating...' : 'Saving...'}
-          busy={isSubmitting}
+          busy={isSubmitting || checkingYear}
         />
 
       </form>
