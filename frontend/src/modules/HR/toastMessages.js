@@ -150,6 +150,10 @@ export const HR_TOASTS = {
   trainingSaveFailed: (isUpdate, reason) =>
     toastError(isUpdate ? 'Update Failed' : 'Save Failed',
       withReason(`The training could not be ${isUpdate ? 'updated' : 'saved'}. Please check the details and try again.`, reason)),
+  trainingDeleted: () =>
+    toastSuccess('Training Deleted', 'The training and its participant details have been deleted.'),
+  trainingDeleteFailed: (reason) =>
+    toastError('Delete Failed', withReason('The training could not be deleted. Please try again.', reason)),
 
   // Abolished posts / revival
   revivalRemarksRequired: () =>
