@@ -5,6 +5,20 @@ import bcrypt from "bcrypt";
 import axios from "axios";
 import forge from 'node-forge';
 import { setRefreshCookie } from "../utils/refreshCookie.js";
+import { createBreaker } from "../utils/circuitBreaker.js";
+
+// Circuit breaker around Google's reCAPTCHA verification. If Google is slow or unreachable the
+// breaker opens and fails fast; the login handler's catch then returns 500 (fail closed) instead
+// of every login request hanging on a dead dependency.
+const recaptchaBreaker = createBreaker(
+  (params) =>
+    axios.post("https://www.google.com/recaptcha/api/siteverify", params, {
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      timeout: 7000,
+    }),
+  { timeout: 8000 },
+  "recaptcha-verify"
+);
 
 // const nodemailer = require('nodemailer');
 // validation();
@@ -37,11 +51,7 @@ async function validation(req, res) {
     params.append('secret', RECAPTCHA_SECRET_KEY);
     params.append('response', reCaptchaResponse);
 
-    const recaptchaRes = await axios.post('https://www.google.com/recaptcha/api/siteverify', params, {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      }
-    });
+    const recaptchaRes = await recaptchaBreaker.fire(params);
 
     console.log('[RECAPTCHA_RESULT]', {
       success: recaptchaRes.data.success,
@@ -313,11 +323,7 @@ async function resetpassword(req, res) {
     params.append('secret', RECAPTCHA_SECRET_KEY);
     params.append('response', reCaptchaResponse);
 
-    const recaptchaRes = await axios.post('https://www.google.com/recaptcha/api/siteverify', params, {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      }
-    });
+    const recaptchaRes = await recaptchaBreaker.fire(params);
 
     if (!recaptchaRes.data.success) {
       if (RECAPTCHA_SECRET_KEY === '6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe') {
