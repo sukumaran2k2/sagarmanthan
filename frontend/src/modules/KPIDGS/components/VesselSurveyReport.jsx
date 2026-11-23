@@ -28,7 +28,12 @@ const PCT_OF = {
   PercentMonthFY: ['ActualVesselsDuringCurrentMonth', 'TargetMonthFY'],
   PercentTotalFY: ['Actual Total for Current FY', 'TargetTotalFY'],
 };
+// Local date as YYYY-MM-DD (toISOString uses UTC and can show yesterday in India)
+const asOnDate = () => new Date().toLocaleDateString('en-CA');
 
+// e.g. "November 2026"
+const reportMonth = () =>
+  new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
 export default function VesselSurveyReport({ code, title, fetchFn, triggerNotification, flat = false }) {
   const notify = useNotifier(triggerNotification);
   const [rows, setRows] = useState([]);
@@ -127,7 +132,16 @@ export default function VesselSurveyReport({ code, title, fetchFn, triggerNotifi
         <h2 className="text-base font-extrabold text-slate-800 dark:text-slate-100">
           Form No. {code} - {title}
         </h2>
-      </div>
+        <div className="flex flex-wrap items-center justify-center gap-2 mt-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">
+          <span>
+            As on date: <strong className="text-[#4b2424] dark:text-blue-400">{asOnDate()}</strong>
+          </span>
+          <span className="text-slate-300 dark:text-slate-700">•</span>
+          <span>
+            Report for the month — <strong className="text-[#4b2424] dark:text-blue-400">{reportMonth()}</strong>
+          </span>
+        </div>
+</div>
 
       <div className={flat ? 'flex-1 min-h-0 flex flex-col' : ''}>
         <TableWithToolbar

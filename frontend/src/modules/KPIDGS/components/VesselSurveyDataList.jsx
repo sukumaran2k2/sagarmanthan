@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Edit, Trash2 } from 'lucide-react';
+import { Edit, Trash2, Filter, ChevronDown, X } from 'lucide-react';
 import Table from '../../../components/Table';
 import TablePagination from '../../../components/TablePagination';
 import DataListToolbar from '../../../components/DataListToolbar';
@@ -19,6 +19,11 @@ const HIDDEN_KEY = /(^id$|_id$|Id$|^created|^updated)/i;
 
 // Columns whose key is "month", "survey_month", "surveyMonth", etc.
 const MONTH_KEY = /(^|_)month$|Month$/;
+const FILTER_FIELDS = [
+  { id: 'year', label: 'Year', match: /(^|_)year$|Year$/i },
+  { id: 'month', label: 'Month', match: MONTH_KEY },
+  { id: 'mmd', label: 'MMD Name', match: /mmd/i },
+];
 
 // 1-12 (number or numeric string) -> month name; anything else passes through
 const showValue = (key, value) => {
@@ -50,6 +55,8 @@ export default function VesselSurveyDataList({ onEdit, onDelete, notify }) {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0); // zero-based
   const [hidden, setHidden] = useState({}); // column key -> false when unticked in Visibility
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+   const [filters, setFilters] = useState({}); // column key -> selected value ('' = all)
   const gridRef = useRef(null);
 
   useEffect(() => {
@@ -84,12 +91,53 @@ export default function VesselSurveyDataList({ onEdit, onDelete, notify }) {
     const next = typeof updater === 'function' ? updater(visibleCols) : updater;
     setHidden(next);
   };
+const filterFields = useMemo(() => {
+  return FILTER_FIELDS.map((f) => {
+    const key = columnKeys.find((k) => f.match.test(k));
+    if (!key) return null;
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return rows;
-   return rows.filter((r) => columnKeys.some((k) => String(showValue(k, r[k]) ?? '').toLowerCase().includes(q)));
-  }, [rows, search, columnKeys]);
+    const vals = [...new Set(rows.map((r) => r[key]).filter((v) => v !== null && v !== undefined && v !== ''))];
+
+    vals.sort((a, b) => {
+      if (f.id === 'year') return Number(b) - Number(a);              // newest year first
+      if (f.id === 'month') return Number(a) - Number(b);             // Jan -> Dec
+      return String(a).localeCompare(String(b), undefined, { numeric: true });
+    });
+
+    return {
+      key,
+      label: f.label,
+      options: vals.map((v) => ({ value: String(v), label: String(showValue(key, v)) })),
+    };
+  }).filter(Boolean);
+}, [rows, columnKeys]);
+
+const activeFiltersCount = Object.values(filters).filter(Boolean).length;
+
+
+
+const setFilter = (key, value) => {
+  setFilters((prev) => ({ ...prev, [key]: value }));
+  setPage(0);
+};
+
+const clearFilters = () => {
+  setFilters({});
+  setSearch('');
+  setPage(0);
+  notify?.('Filters reset');
+};
+
+const filtered = useMemo(() => {
+  const q = search.trim().toLowerCase();
+  return rows.filter((r) => {
+    for (const [k, v] of Object.entries(filters)) {
+      if (v && String(r[k]) !== v) return false;
+    }
+    if (!q) return true;
+    return columnKeys.some((k) => String(showValue(k, r[k]) ?? '').toLowerCase().includes(q));
+  });
+}, [rows, search, columnKeys, filters]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages - 1);
@@ -124,15 +172,7 @@ export default function VesselSurveyDataList({ onEdit, onDelete, notify }) {
     notify?.(COMMON_TOASTS.excelExported(file));
   };
 
-  const handleDelete = async (row) => {
-    if (!window.confirm('Delete this vessel survey entry?')) return;
-    try {
-      await onDelete(row);
-      setRows((prev) => prev.filter((r) => r.id !== row.id));
-    } catch (err) {
-      console.error('Delete failed:', err);
-    }
-  };
+  
 
   const colDefs = useMemo(
     () => [
@@ -155,40 +195,27 @@ export default function VesselSurveyDataList({ onEdit, onDelete, notify }) {
         valueFormatter: (p) => showValue(k, p.value),
       })),
 
-      ...(onEdit || onDelete
-        ? [
-            {
-              headerName: 'Actions',
-              field: 'id',
-              pinned: 'right',
-              minWidth: onEdit && onDelete ? 110 : 80,
-              sortable: false,
-              cellClass: 'text-center flex items-center justify-center gap-1',
-              cellRenderer: (params) => (
-                <>
-                  {onEdit && (
-                    <button
-                      onClick={() => onEdit(params.data)}
-                      className="p-1.5 hover:bg-amber-50 dark:hover:bg-slate-800 text-amber-600 dark:text-amber-400 rounded-lg transition cursor-pointer"
-                      title="Update Entry"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </button>
-                  )}
-                  {onDelete && (
-                    <button
-                      onClick={() => handleDelete(params.data)}
-                      className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600 dark:text-red-400 rounded-lg transition cursor-pointer"
-                      title="Delete Vessel Survey Entry"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  )}
-                </>
-              ),
-            },
-          ]
-        : []),
+      ...(onEdit
+  ? [
+      {
+        headerName: 'Actions',
+        field: 'id',
+        pinned: 'right',
+        minWidth: 80,
+        sortable: false,
+        cellClass: 'text-center flex items-center justify-center',
+        cellRenderer: (params) => (
+          <button
+            onClick={() => onEdit(params.data)}
+            className="p-1.5 hover:bg-amber-50 dark:hover:bg-slate-800 text-amber-600 dark:text-amber-400 rounded-lg transition cursor-pointer"
+            title="Update Entry"
+          >
+            <Edit className="h-4 w-4" />
+          </button>
+        ),
+      },
+    ]
+  : []),
     ],
     [columnKeys, columnLabels, visibleCols, onEdit, onDelete, safePage], // eslint-disable-line
   );
@@ -210,7 +237,55 @@ export default function VesselSurveyDataList({ onEdit, onDelete, notify }) {
         onVisibleColsChange={setVisibleCols}
         columnLabels={columnLabels}
       />
+       <div className="flex flex-wrap items-center gap-2.5">
+  <button
+    type="button"
+    onClick={() => setShowFilterPanel((open) => !open)}
+    className={`module-filter-btn ${showFilterPanel || activeFiltersCount > 0 ? 'active' : ''}`}
+  >
+    <Filter size={14} className="text-[#0f417a] dark:text-blue-400" />
+    <span>Filter</span>
+    {activeFiltersCount > 0 && (
+      <span className="bg-[#0f417a] dark:bg-blue-500 text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">
+        {activeFiltersCount}
+      </span>
+    )}
+    <ChevronDown size={14} className={`transition-transform duration-200 ${showFilterPanel ? 'rotate-180' : ''}`} />
+  </button>
 
+  {(activeFiltersCount > 0 || search) && (
+    <button
+      type="button"
+      onClick={clearFilters}
+      className="flex items-center gap-1 text-xs font-bold text-rose-600 hover:text-rose-700 px-2.5 py-2 rounded-xl border border-rose-200 hover:bg-rose-50 dark:border-rose-900/40 dark:hover:bg-rose-950/30 transition cursor-pointer"
+    >
+      <X className="h-3 w-3" />
+      <span>Reset Filters</span>
+    </button>
+  )}
+</div>
+
+{showFilterPanel && (
+  <div className="bg-slate-50 dark:bg-slate-950/60 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {filterFields.map((f) => (
+        <div key={f.key}>
+          <label className="module-form-label">{f.label}</label>
+          <select
+            value={filters[f.key] || ''}
+            onChange={(e) => setFilter(f.key, e.target.value)}
+            className="module-form-select"
+          >
+            <option value="">All {f.label}s</option>
+            {f.options.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </div>
+      ))}
+    </div>
+  </div>
+)}
       <div className="ag-theme-quartz module-datalist-grid rounded-xl border border-slate-200 dark:border-slate-700 shadow-md overflow-x-auto">
         <Table
           ref={gridRef}

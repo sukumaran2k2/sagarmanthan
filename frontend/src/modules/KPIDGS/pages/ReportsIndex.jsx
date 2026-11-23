@@ -21,7 +21,7 @@ const CUSTOM_PAGE_BY_SLUG = {
   },
   'vessel-survey-monthly-trends': {
   Component: VesselSurveyReport,
-  props: { title: 'Vessel & Port Surveys by MMDs Monthly Trends', showTotal: false },
+  props: { title: 'Vessel & Port Surveys by MMDs Monthly Trends (For the Current Year)', showTotal: false },
 },
 'vessel-survey-yearly-trends': {
   Component: VesselSurveyReport,
