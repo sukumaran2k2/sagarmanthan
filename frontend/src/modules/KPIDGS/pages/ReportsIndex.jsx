@@ -2,6 +2,7 @@ import IndexCardGrid from '../components/IndexCardGrid';
 import REPORTS_INDEX, { REPORTS_LEAVES } from '../data/reportsIndex';
 import GenericReportPage from '../components/GenericReportPage';
 import FlaggingReport from '../components/FlaggingReport';
+import { EntryExitAbstractReport, EntryExitMonthlyReport, EntryExitYearlyReport } from './reports/EntryExitReports';
 import * as api from '../api';
 
 // Slugs whose report page has its own grouped-header layout and cannot be
@@ -9,6 +10,10 @@ import * as api from '../api';
 const CUSTOM_PAGE_BY_SLUG = {
   'flagging-addition': { Component: FlaggingReport, props: { kind: 'addition' } },
   'flagging-deletion': { Component: FlaggingReport, props: { kind: 'deletion' } },
+  // K-2.4: month / financial-year pickers, totals and charts
+  'entry-exit': { Component: EntryExitAbstractReport, props: {} },
+  'entry-exit-monthly-trends': { Component: EntryExitMonthlyReport, props: {} },
+  'entry-exit-yearly-trends': { Component: EntryExitYearlyReport, props: {} },
 };
 
 const FETCH_BY_SLUG = {

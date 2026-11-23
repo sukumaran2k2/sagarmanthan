@@ -14,6 +14,7 @@ import { registerStoreReset } from '../../../stores/resetRegistry';
 export const DGS_STORED_LIST_SLUGS = [
   'exam-monthly-performance', // K-2.3.1
   'exam-overall-performance', // K-2.3.2
+  'entry-exit-of-candidates', // K-2.4
 ];
 
 // '' means "all" for every filter
@@ -24,6 +25,8 @@ const listSlot = () => ({
   searchTerm: '',
   filters: { ...EMPTY_LIST_FILTERS },
   showFilterPanel: false,
+  // Lists split into tabs (K-2.4 by type): the chosen tab, '' until one is picked (the first is shown)
+  tab: '',
   visibleCols: null,
 });
 
@@ -49,6 +52,9 @@ export const useDgsStore = create((set) => {
 
     // Reset clears the filters and the search, as the other modules' Reset buttons do
     resetListFilters: (slug) => patchList(slug, () => ({ filters: { ...EMPTY_LIST_FILTERS }, searchTerm: '' })),
+
+    // Reset leaves the tab as it is
+    setListTab: (slug, tab) => patchList(slug, () => ({ tab })),
 
     toggleListFilterPanel: (slug) => patchList(slug, (slot) => ({ showFilterPanel: !slot.showFilterPanel })),
 

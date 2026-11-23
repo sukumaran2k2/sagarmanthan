@@ -3020,14 +3020,18 @@ router.get("/get-conciliation-sub-tables-court-cases-data/:typeName/:caseID", co
 router.post("/add-conciliation-first-party-and-second-party", conciliationCourtCaseTab.addConciliationFirstPartyAndSecondParty);
 router.get("/get-conciliation-first-party-and-second-party/:caseID", conciliationCourtCaseTab.getConciliationFirstPartyAndSecondParty);
 
-//KPI DGS Entry Exit
-router.post('/add-entry-exit-data', entryExitTab.addEntryExitData);
-router.get('/get-entry-exit-data', entryExitTab.getEntryExitData);
-router.get('/get-entry-exit-data-by-id/:Id', entryExitTab.getEntryExitDataByID);
-router.put('/update-entry-exit-data-by-id', entryExitTab.updateEntryExitData);
-router.get('/get-abstract-entry-exit-report', entryExitTab.getAbstractEntryExitReport);
-router.get('/get-monthly-entry-exit-report', entryExitTab.getMonthlyEntryExitReport);
-router.get('/get-yearly-entry-exit-report', entryExitTab.getYearlyEntryExitReport);
+// DGS K-2.4 Entry and Exit of Candidates: KPI_DGS rights on every route, as K-2.3 (login is
+// checked for all routes above). The input-form lookups also serve users who can only add or edit.
+const dgs24Read = requireModulePermission("KPI_DGS", "read");
+const dgs24FormLookup = requireAnyModulePermission("KPI_DGS", ["create", "update", "read"]);
+router.get('/checkData-entry-exit/:year/:month/:grade', dgs24FormLookup, entryExitTab.checkEntryExitData);
+router.post('/add-entry-exit-data', requireModulePermission("KPI_DGS", "create"), validateKpiBody, entryExitTab.addEntryExitData);
+router.get('/get-entry-exit-data', dgs24Read, entryExitTab.getEntryExitData);
+router.get('/get-entry-exit-data-by-id/:Id', dgs24FormLookup, entryExitTab.getEntryExitDataByID);
+router.put('/update-entry-exit-data-by-id', requireModulePermission("KPI_DGS", "update"), validateKpiBody, entryExitTab.updateEntryExitData);
+router.get('/get-abstract-entry-exit-report', dgs24Read, entryExitTab.getAbstractEntryExitReport);
+router.get('/get-monthly-entry-exit-report', dgs24Read, entryExitTab.getMonthlyEntryExitReport);
+router.get('/get-yearly-entry-exit-report', dgs24Read, entryExitTab.getYearlyEntryExitReport);
 
 
 // rbac
