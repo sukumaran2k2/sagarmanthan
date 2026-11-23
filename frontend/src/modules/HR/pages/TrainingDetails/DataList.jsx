@@ -463,6 +463,8 @@ export default function TrainingDetails({ notify }) {
         { field: 'Expenditure (In Lakh)', label: 'Expenditure (In Lakh)' },
         { field: 'Year', label: 'Year' },
         { field: 'Number of Participants', label: 'Number of Participants', value: (t) => t['Number of Participants'] || 0 },
+        ...(visibleCols['To date'] ? [{ field: 'To date', label: 'To Date', value: (t) => formatTrainingDate(t['To date']) }] : []),
+        ...(visibleCols['Last Updated Date'] ? [{ field: 'Last Updated Date', label: 'Last Updated Date', value: (t) => formatTrainingDate(t['Last Updated Date']) }] : []),
       ]),
     notify,
     isBusy: loading,

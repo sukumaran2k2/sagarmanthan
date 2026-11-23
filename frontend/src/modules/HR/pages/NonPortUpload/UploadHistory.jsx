@@ -9,12 +9,15 @@ import { fetchNonPortUploads, deleteNonPortUpload } from '../../api';
 import { getSessionOrganisationId } from '../../../../utils/authSession';
 import { COMMON_TOASTS, getErrorMessage } from '../../../../utils/notify';
 import { HR_TOASTS } from '../../toastMessages';
+import { useHRPermissions } from '../../hooks/useHRPermissions';
 import { monthName, storedDate } from '../../utils/nonPortDashboard';
 
 const EXPORT_HEADERS = ['S.No', 'File ID', 'Financial Year', 'Uploaded Month', 'File Name', 'Uploaded By', 'Date of Upload'];
 
 /** Files the organisation has uploaded (legacy otherOrghrMonthlyUploadHistory), with delete. */
 export default function NonPortUploadHistory({ notify, triggerNotification }) {
+  const { canRemove, isViewOnlyAdmin } = useHRPermissions();
+  const canDelete = canRemove && !isViewOnlyAdmin;
   const orgId = useMemo(() => getSessionOrganisationId(), []);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(Boolean(orgId));
@@ -88,15 +91,15 @@ export default function NonPortUploadHistory({ notify, triggerNotification }) {
       headerName: 'Date of Upload', valueGetter: (p) => storedDate(p.data?.['Date of Upload']), minWidth: 120,
       headerClass: 'np-center', cellClass: 'np-center',
     },
-    {
+    ...(canDelete ? [{
       headerName: 'Actions', minWidth: 96, maxWidth: 110, sortable: false, filter: false, headerClass: 'np-center', cellClass: 'np-center',
       cellRenderer: (p) => (
         <div className="flex items-center justify-center h-full">
           <DeleteActionButton solid label="Delete uploaded file" onClick={() => setPendingDelete(p.data)} />
         </div>
       ),
-    },
-  ], []);
+    }] : []),
+  ], [canDelete]);
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">

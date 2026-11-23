@@ -1,8 +1,6 @@
 import { ministryOnly, pinOwnUser } from "./middleware/dataScope.js";
 import { validateKpiBody } from "./middleware/kpiValidation.js";
 import { rejectPathTraversal } from "./middleware/pathGuard.js";
-import { authLimiter } from "./middleware/rateLimit.js";
-import { cacheMiddleware, invalidateCache } from "./utils/cache.js";
 import express from "express";
 
 import auth from "./authenticate.js";
@@ -264,9 +262,9 @@ router.use((req, res, next) => {
     return auth(req, res, next);
 });
 
-// login — authLimiter throttles repeated failed attempts (credential stuffing / brute force)
-router.post("/login-validation", authLimiter, logInTab.validation);
-router.post("/password-reset-validation", authLimiter, logInTab.resetpassword);
+// login
+router.post("/login-validation", logInTab.validation);
+router.post("/password-reset-validation", logInTab.resetpassword);
 // API - MIKR
 router.get('/authorize', auth, getAuthCode);
 router.get('/token', getToken);
@@ -279,29 +277,17 @@ router.get("/download-document", mikrAuth, getDownloadDocument);
 router.post("/mikr-logout", auth, mikrLogout);
 
 
-// Clears cached master/dropdown responses once a mutation has succeeded, so edits show up
-// immediately instead of waiting for the cache TTL to expire.
-const invalidateMasterCache = (req, res, next) => {
-  res.on("finish", () => {
-    if (res.statusCode >= 200 && res.statusCode < 300) {
-      invalidateCache("mmt");
-      invalidateCache("dropdown");
-    }
-  });
-  next();
-};
-
-// MMT — dropdown/master lookups are shared reference data (not user-scoped), so they are cached.
+// MMT
 router.get("/mmt/:tid", masterTable.getMmt);
-router.get("/mmt-dropdown/:tid", cacheMiddleware(), masterTable.getDropDownData);
-router.get("/mmt-dependecy-dropdown/:tid", cacheMiddleware(), masterTable.getFilterDependecyDropDown);
+router.get("/mmt-dropdown/:tid", masterTable.getDropDownData);
+router.get("/mmt-dependecy-dropdown/:tid", masterTable.getFilterDependecyDropDown);
 
-router.post("/mmt", requireSuperAdmin, invalidateMasterCache, masterTable.createMmt); // master data: superadmin only, as in Master Management
-router.put("/mmt", requireSuperAdmin, invalidateMasterCache, masterTable.updateMmt);
-router.put("/mmt-status", requireSuperAdmin, invalidateMasterCache, masterTable.toggleStatusMmt);
+router.post("/mmt", requireSuperAdmin, masterTable.createMmt); // master data: superadmin only, as in Master Management
+router.put("/mmt", requireSuperAdmin, masterTable.updateMmt);
+router.put("/mmt-status", requireSuperAdmin, masterTable.toggleStatusMmt);
 // router.delete("/mmt", masterTable.deleteMmt);
 
-router.get("/allvalue-dropdown/:tid", cacheMiddleware(), masterTable.getDropDownAllValues);
+router.get("/allvalue-dropdown/:tid", masterTable.getDropDownAllValues);
 
 //Terminal/Jetty image uploader
 router.post("/terminal-image-uploader", requireSuperAdmin, terminalImageUploaderTab.upload.single('imageFile'), terminalImageUploaderTab.terminalImageUploader);
@@ -1060,10 +1046,10 @@ router.get('/get-chd-in-employees-by-organisation/:organisationId', auth, requir
 router.get("/get-organisation-name/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), postRequestTab.getOrgName);
 
 router.get("/get-post-request-data/:postRequestId", auth, requireModulePermission("HR_MANAGEMENT", "read"), postRequestTab.getPostRequestData);
-router.post("/update-post-approval", requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.updatePostApprovalDetails);
-router.post("/approve-post-request", requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.approvePostRequest);
-router.post("/reject-approve-request", requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.rejectApproveRequest);
-router.post("/update-post-request-approval", requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.updatePostRequestApprovalDetail);
+router.post("/update-post-approval", auth, requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.updatePostApprovalDetails);
+router.post("/approve-post-request", auth, requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.approvePostRequest);
+router.post("/reject-approve-request", auth, requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.rejectApproveRequest);
+router.post("/update-post-request-approval", auth, requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.updatePostRequestApprovalDetail);
 router.get("/get-user-name/:userID", auth, requireModulePermission("HR_MANAGEMENT", "read"), postRequestTab.getUserName);
 
 router.get("/get-activity-date-data/:fromDate/:toDate/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrPostTab.getActivityDateData);
