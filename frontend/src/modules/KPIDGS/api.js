@@ -302,9 +302,9 @@ export const fetchReportKpi2_7_7 = () => api.get('/kpi-dgs-2-7-7-report');
 
 // K-2.8.x Vessel and Port Survey/Audits by MMDs
 // (Reports use the underlying list endpoint; shape may be adapted per leaf.)
-export const fetchReportKpi2_8_1 = () => api.get('/get-vessel-survey-data');
-export const fetchReportKpi2_8_2 = () => api.get('/get-vessel-survey-data');
-export const fetchReportKpi2_8_3 = () => api.get('/get-vessel-survey-data');
+export const fetchReportKpi2_8_1 = () => api.get('/get-2-8-1-report');
+export const fetchReportKpi2_8_2 = () => api.get('/get-2-8-2-report');
+export const fetchReportKpi2_8_3 = () => api.get('/get-2-8-3-report');
 
 // K-2.9.x MTI Performance
 export const fetchReportKpi2_9_1 = () => api.get('/get-mti-master-data');

@@ -2,11 +2,19 @@ import { useParams } from 'react-router-dom';
 import GenericReportPage from '../../components/GenericReportPage';
 import FlaggingReport from '../../components/FlaggingReport';
 import { REPORTS_LEAVES } from '../../data/reportsIndex';
+import VesselSurveyReport from '../../components/VesselSurveyReport';
 import * as api from '../../api';
+
+
+
 
 const CUSTOM_PAGE_BY_SLUG = {
   'flagging-addition': { Component: FlaggingReport, props: { kind: 'addition' } },
   'flagging-deletion': { Component: FlaggingReport, props: { kind: 'deletion' } },
+  'vessel-survey-performance': {
+    Component: VesselSurveyReport,
+    props: { title: 'Vessel Survey by MMDs Performance' },
+  },
 };
 
 // slug → fetch function on api.js

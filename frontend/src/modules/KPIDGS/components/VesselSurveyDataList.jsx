@@ -6,6 +6,7 @@ import DataListToolbar from '../../../components/DataListToolbar';
 import { COMMON_TOASTS } from '../../../utils/notify';
 import { cellText } from '../../../utils/cellText';
 import { exportRowsToFile } from '../../../utils/exportGridReport';
+import { MONTHS } from '../data/periodOptions';
 import * as api from '../api';
 
 const PAGE_SIZE = 10;
@@ -15,6 +16,16 @@ const CELL =
 // Keys that are never shown as columns (ids and audit fields). `id` stays in the
 // row data because Edit and Delete need it.
 const HIDDEN_KEY = /(^id$|_id$|Id$|^created|^updated)/i;
+
+// Columns whose key is "month", "survey_month", "surveyMonth", etc.
+const MONTH_KEY = /(^|_)month$|Month$/;
+
+// 1-12 (number or numeric string) -> month name; anything else passes through
+const showValue = (key, value) => {
+  if (!MONTH_KEY.test(key)) return value;
+  const m = MONTHS.find((x) => Number(x.value) === Number(value));
+  return m ? m.label : value;
+};
 
 // "no_of_surveyors_posted" / "noOfSurveyorsPosted" -> "No Of Surveyors Posted"
 const humanize = (key) =>
@@ -77,7 +88,7 @@ export default function VesselSurveyDataList({ onEdit, onDelete, notify }) {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return rows;
-    return rows.filter((r) => columnKeys.some((k) => String(r[k] ?? '').toLowerCase().includes(q)));
+   return rows.filter((r) => columnKeys.some((k) => String(showValue(k, r[k]) ?? '').toLowerCase().includes(q)));
   }, [rows, search, columnKeys]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -88,7 +99,7 @@ export default function VesselSurveyDataList({ onEdit, onDelete, notify }) {
     const cols = columnKeys.filter((c) => visibleCols[c]);
     return {
       headers: ['S.No', ...cols.map((c) => columnLabels[c])],
-      rows: filtered.map((r, i) => [i + 1, ...cols.map((c) => cellText(r[c]))]),
+      rows: filtered.map((r, i) => [i + 1, ...cols.map((c) => cellText(showValue(c, r[c])))]),
     };
   };
 
@@ -135,7 +146,14 @@ export default function VesselSurveyDataList({ onEdit, onDelete, notify }) {
       },
       ...columnKeys
         .filter((k) => visibleCols[k])
-        .map((k) => ({ headerName: columnLabels[k], field: k, flex: 1, minWidth: 120, cellClass: CELL })),
+        .map((k) => ({
+        headerName: columnLabels[k],
+        field: k,
+        flex: 1,
+        minWidth: 120,
+        cellClass: CELL,
+        valueFormatter: (p) => showValue(k, p.value),
+      })),
 
       ...(onEdit || onDelete
         ? [
