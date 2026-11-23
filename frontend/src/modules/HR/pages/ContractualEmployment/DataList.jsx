@@ -253,9 +253,7 @@ export default function ContractualEmployment({ notify }) {
     });
   }, [columnDefs, visibleCols]);
 
-  // Copy / Export: the rows on the current page, visible data columns only
-  const pageStart = (currentPage - 1) * pageSize;
-   // Copy / Export: every row matching the filters/search, visible data columns only
+  // Copy / Export: every row matching the filters/search, visible data columns only
   const runExport = (kind) => createTableExporter({
     loadRows: () => filteredStaff
       .map((r) => ({ ...r, 'Date Updated': r['Date Updated'] ? String(r['Date Updated']).slice(0, 10) : '--' })),

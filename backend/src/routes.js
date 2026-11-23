@@ -1046,10 +1046,10 @@ router.get('/get-chd-in-employees-by-organisation/:organisationId', auth, requir
 router.get("/get-organisation-name/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), postRequestTab.getOrgName);
 
 router.get("/get-post-request-data/:postRequestId", auth, requireModulePermission("HR_MANAGEMENT", "read"), postRequestTab.getPostRequestData);
-router.post("/update-post-approval", requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.updatePostApprovalDetails);
-router.post("/approve-post-request", requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.approvePostRequest);
-router.post("/reject-approve-request", requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.rejectApproveRequest);
-router.post("/update-post-request-approval", requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.updatePostRequestApprovalDetail);
+router.post("/update-post-approval", auth, requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.updatePostApprovalDetails);
+router.post("/approve-post-request", auth, requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.approvePostRequest);
+router.post("/reject-approve-request", auth, requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.rejectApproveRequest);
+router.post("/update-post-request-approval", auth, requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.updatePostRequestApprovalDetail);
 router.get("/get-user-name/:userID", auth, requireModulePermission("HR_MANAGEMENT", "read"), postRequestTab.getUserName);
 
 router.get("/get-activity-date-data/:fromDate/:toDate/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrPostTab.getActivityDateData);

@@ -383,9 +383,7 @@ export default function TrainingDetails({ notify }) {
     });
   }, [columnDefs, visibleCols]);
 
-  // Copy / Export: the rows on the current page, same columns as the table
-  const pageStart = (currentPage - 1) * pageSize;
-    // Copy / Export: every row matching the filters/search, same columns as the table
+  // Copy / Export: every row matching the filters/search, same columns as the table
   const runExport = (kind) => createTableExporter({
     loadRows: () => filteredTrainings,
     serialStart: 0,

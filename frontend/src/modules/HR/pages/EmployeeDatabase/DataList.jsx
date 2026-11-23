@@ -261,16 +261,15 @@ export default function EmployeeDatabase({ notify }) {
     return true;
   }), [allColumnDefs, visibleCols]);
 
-  // Copy / Export: the rows on the current page, visible data columns only
-  const pageStart = (currentPage - 1) * pageSize;
+  // Copy / Export: every filtered row (not just the current page), visible data columns only
   const runExport = (kind) => createTableExporter({
-    loadRows: () => filteredEmployees.slice(pageStart, pageStart + pageSize),
-    serialStart: pageStart,
+    loadRows: () => filteredEmployees,
+    serialStart: 0,
     getColumns: () => columnDefs.filter((c) => c.field).map((c) => ({ field: c.field, label: c.headerName })),
     notify,
     isBusy: loading,
-    title: `Employee Database (Page ${currentPage})`,
-    fileName: `Employee_Database_Page_${currentPage}`,
+    title: 'Employee Database',
+    fileName: 'Employee_Database',
     label: 'Employee database' })[kind]();
 
   return (

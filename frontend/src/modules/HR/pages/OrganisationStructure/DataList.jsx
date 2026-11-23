@@ -88,6 +88,7 @@ export default function OrganisationStructure({ permissions, notify }) {
         setClasses(Array.isArray(classRes.data) ? classRes.data : []);
       } catch (err) {
         console.error('Error fetching master dropdowns:', err);
+        notify?.(COMMON_TOASTS.loadFailed('The post class list'));
       }
     };
     fetchDropdowns();
@@ -389,9 +390,7 @@ export default function OrganisationStructure({ permissions, notify }) {
     [allColumnDefs, visibleCols]
   );
 
-  // Copy / Export: the rows on the current page, same columns as before
-  const pageStart = (currentPage - 1) * pageSize;
-    // Copy / Export: every row matching the filters/search, same columns as before
+  // Copy / Export: every row matching the filters/search, same columns as before
   const runExport = (kind) => createTableExporter({
     loadRows: () => filteredPosts,
     serialStart: 0,
