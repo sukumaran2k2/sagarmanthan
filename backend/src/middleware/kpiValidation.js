@@ -140,9 +140,6 @@ export const KPI_RULES = {
     "PUT /edit-2-3-1-data": { year: "year", month: "monthNo", totalExamNautical: "count", totalExamEngineering: "count" },
     // DGS K-2.3.2 Exam Overall Performance Statistics
     "POST /add-kpi2-3-2": { year: "year", month: "monthNo", rowData: "examRows" },
-    // DGS K-2.4 Entry and Exit of Candidates (grade-of-type and future-month rules are in the handler)
-    "POST /add-entry-exit-data": { financialYear: "year", month: "monthNo", type: "id", grade: "id", noOfCandidatesEntered: "count", noOfCandidatesExited: "count" },
-    "PUT /update-entry-exit-data-by-id": { Id: "id", noOfCandidatesEntered: "count", noOfCandidatesExited: "count" },
 };
 
 // Problems with the body for these rules, as one message per field ([] when it is fine)
