@@ -286,7 +286,11 @@ const filtered = useMemo(() => {
     </div>
   </div>
 )}
-      <div className="ag-theme-quartz module-datalist-grid rounded-xl border border-slate-200 dark:border-slate-700 shadow-md overflow-x-auto">
+      <div
+  className={`ag-theme-quartz module-datalist-grid rounded-xl border border-slate-200 dark:border-slate-700 shadow-md overflow-auto ${
+    showFilterPanel ? 'max-h-[42vh]' : 'max-h-[62vh]'
+  }`}
+>
         <Table
           ref={gridRef}
           theme="legacy"
@@ -309,17 +313,20 @@ const filtered = useMemo(() => {
           }}
         />
       </div>
-
-      {totalPages > 1 && (
+    {totalPages > 1 && (
+      <div className="sticky bottom-0 z-10 bg-white dark:bg-slate-900 py-2">
         <TablePagination
           currentPage={safePage}
           totalPages={totalPages}
           totalRows={filtered.length}
           pageSize={PAGE_SIZE}
           onPageChange={setPage}
+          onPrevPage={() => setPage(Math.max(0, safePage - 1))}
+          onNextPage={() => setPage(Math.min(totalPages - 1, safePage + 1))}
           color="#0f417a"
         />
-      )}
+      </div>
+    )}
     </div>
   );
 }
