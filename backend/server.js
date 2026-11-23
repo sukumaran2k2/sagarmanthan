@@ -5,7 +5,6 @@ import fs from 'fs';
 import cors from "cors";
 import cookieParser from 'cookie-parser';
 import cron from 'node-cron';
-import { globalLimiter } from './src/middleware/rateLimit.js';
 import { sendEmail } from './src/controllers/Dashboard/emailService.js';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -23,10 +22,6 @@ const __dirname = dirname(__filename);
 
 const app = express();
 
-// The app runs behind nginx (frontend/nginx.conf proxies /api → backend). Trust the first proxy
-// hop so req.ip / the rate limiter use the real client IP from X-Forwarded-For, not nginx's address.
-app.set('trust proxy', 1);
-
 // Credentials: true is required so the browser sends the httpOnly refreshToken cookie.
 // ALLOWED_ORIGIN must not be "*" when credentials are enabled.
 const ALLOWED_ORIGIN = process.env.FRONTEND_URL || 'http://localhost:5173';
@@ -43,10 +38,6 @@ app.options("*", cors(corsOptions));
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true, parameterLimit: 50000 }));
 app.use(cookieParser());
-
-// Global rate limiting across all routes. Stricter per-route limiters (e.g. authLimiter on the
-// login routes in routes.js) layer on top of this.
-app.use(globalLimiter);
 
 // cron.schedule('0 9 * * *', async () => {
 //   const today = new Date();
