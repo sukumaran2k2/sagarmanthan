@@ -451,10 +451,6 @@ export function fetchProjectsDashboardProject(projectId, subProjectId) {
   });
 }
 
-// export function fetchLumpsumData() {
-//   return api.get('/lumpsum-list'); 
-// }
-
 export function fetchLumpsumData() {
   return api.get('/lumpsum-list');
 }
@@ -469,10 +465,6 @@ export function fetchLumpSumProjectList() {
 
 export function fetchLumpSumData(projectID) {
   return api.get(`/getedit-lumpsum-data/${projectID}`);
-}
-
-export function fetchLumpSumActivityData(projectID) {
-  return api.get(`/getedit-lumpsum-activitydata/${projectID}`);
 }
 
 export function updateLumpSum(payload) {

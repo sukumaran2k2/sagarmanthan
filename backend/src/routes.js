@@ -953,26 +953,13 @@ router.post("/add-newproject", auth, requireModulePermission("PROJECTS", "create
 router.get("/subproject-parent-list", auth, requireModulePermission("PROJECTS", "create"), addNewProjectTab.getSubProjectParentList);
 router.post("/add-subproject", auth, requireModulePermission("PROJECTS", "create"), addNewProjectTab.addSubProjects);
 
-
 //Lumpsum Module
 router.get("/lumpsum-list/", auth, requireModulePermission("PROJECTS",  "read"), lumpSumTab.getLumpSumList);
 router.post('/add-lumpsum', auth, requireModulePermission("PROJECTS", "create"), lumpSumTab.createLumpSumData);
 router.get('/getedit-lumpsum-data/:projectID', auth, requireModulePermission("PROJECTS", "read"), lumpSumTab.getLumpSumData);
-router.get('/getedit-lumpsum-activitydata/:projectID', auth, requireModulePermission("PROJECTS", "read"), lumpSumTab.getActivityNameData);
 router.put('/edit-lumpsum', auth, requireModulePermission("PROJECTS", "update"), lumpSumTab.editLumpSumData);
 router.get("/lumpsum-project-list", auth, requireModulePermission("PROJECTS", "read"), lumpSumTab.getLumpSumProjectList);
 router.delete("/delete-lumpsum-activity/:lumpsumId", auth, requireModulePermission("PROJECTS", "delete"), lumpSumTab.deleteLumpSumData);
-
-
-// // Lump Sum
-// router.post("/add-lumpsum", addNewLumpSumTab.createLumpSumData);
-// router.get("/lumpsum-list", addNewLumpSumTab.getLumpSumList);
-// router.get("/getedit-lumpsum-data/:projectID", addNewLumpSumTab.getLumpSumData);
-// router.get("/getedit-lumpsum-activitydata/:projectID", addNewLumpSumTab.getActivityNameData);
-// router.put("/edit-lumpsum", addNewLumpSumTab.editLumpSumData);
-// router.delete("/delete-lumpsum/:lumpsumId", addNewLumpSumTab.deleteLumpSumData);
-// router.post("/add-lumpsum-activity", addNewLumpSumTab.createLumpSumActivityData);
-// router.get("/getdata-lumpsum-activitydata/:projectID", addNewLumpSumTab.getSubProActivityData);
 
 //young professionals
 router.get("/young-professional", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), youngProfessionalsTab.getYoungProfessional);
