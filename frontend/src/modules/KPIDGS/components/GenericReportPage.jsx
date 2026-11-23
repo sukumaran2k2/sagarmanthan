@@ -28,6 +28,7 @@ export default function GenericReportPage({
   filterRows, // (allRows) => rows to show
   filterToolbar, // node next to the search box (e.g. the Filter button)
   renderFilterPanel, // (allRows) => node under the toolbar (e.g. the filter panel), or null
+  renderAboveTable, // (allRows) => node above the toolbar (e.g. tabs that split the rows), or null
   // Optional standard exports (as CSL / Capex): with an export title, Copy / Excel (.xlsx) / PDF
   // save the list as shown (all rows after search, filters and sort; visible columns; cells as
   // displayed). Left undefined, the table's own Copy / CSV / print are used.
@@ -149,6 +150,8 @@ export default function GenericReportPage({
           </button>
         )}
       </div>
+
+      {renderAboveTable ? renderAboveTable(rows) : null}
 
       <TableWithToolbar
         rowData={shownRows}

@@ -1,12 +1,13 @@
 import { MONTHS, EXAM_TYPES } from './periodOptions';
 
-// Data List filter rules for K-2.3.1 (Year, Month) and K-2.3.2 (Year, Month, Type), the filters
+// Data List filter rules for K-2.3.1 (Year, Month), K-2.3.2 (Year, Month, Type) and K-2.4 (Year, Month), the filters
 // the old portal's lists had. Logic only; the button and panel are in components/ExamListFilters.jsx.
 
 // Filters each K-2.3 Data List offers
 export const EXAM_FILTER_FIELDS = {
   'exam-monthly-performance': ['year', 'month'],
   'exam-overall-performance': ['year', 'month', 'type'],
+  'entry-exit-of-candidates': ['year', 'month'], // K-2.4: the type is chosen with the tabs
 };
 
 // Old portal order: financial year, April first
