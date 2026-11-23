@@ -97,6 +97,9 @@ import activityTab from "./controllers/ProjectManagement/projectActivitiesAction
 import expenditureTab from "./controllers/ProjectManagement/projectExpenditureAction.js";
 import completionTab from "./controllers/ProjectManagement/addCompletionDateAction.js";
 
+//Lumpsum
+import lumpSumTab from "./controllers/ProjectManagement/addLumpSum.js";
+
 // REPORTS
 import parlimentaryReportTab from "./controllers/Reports/parliamentaryReports.js";
 import billReportTab from "./controllers/Reports/billPreConstitutionReports.js";
@@ -881,7 +884,7 @@ router.get('/get-update-capex-projects-data', auth, requireModulePermission("PRO
 router.post('/update-capex-project-data', auth, requireModulePermission("PROJECTS", "update"), projectListTab.updateCapexProjectData);
 
 router.get("/project-id-dropdown/:organisationID/:tid", auth, requireModulePermission("PROJECTS", "read"), masterTable.getDropDownProjectList);
-router.get("/subproject-id-dropdown/:organisationID/:tid/:projectId", auth, requireModulePermission("PROJECTS", "read"), masterTable.getDropDownSubProjectList);
+router.get("/subproject-id-dropdown/:organisationID/:tid", auth, requireModulePermission("PROJECTS", "read"), masterTable.getDropDownSubProjectList);
 
 router.get("/view-projectdata/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.viewProjectData);
 router.get("/view-projectimages/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.viewProjectImages);
@@ -954,6 +957,14 @@ router.get("/completionpage/:projectID/:subProjectID", auth, requireModulePermis
 router.post("/add-newproject", auth, requireModulePermission("PROJECTS", "create"), addNewProjectTab.createNewProject);
 router.get("/subproject-parent-list", auth, requireModulePermission("PROJECTS", "create"), addNewProjectTab.getSubProjectParentList);
 router.post("/add-subproject", auth, requireModulePermission("PROJECTS", "create"), addNewProjectTab.addSubProjects);
+
+//Lumpsum Module
+router.get("/lumpsum-list/", auth, requireModulePermission("PROJECTS",  "read"), lumpSumTab.getLumpSumList);
+router.post('/add-lumpsum', auth, requireModulePermission("PROJECTS", "create"), lumpSumTab.createLumpSumData);
+router.get('/getedit-lumpsum-data/:projectID', auth, requireModulePermission("PROJECTS", "read"), lumpSumTab.getLumpSumData);
+router.put('/edit-lumpsum', auth, requireModulePermission("PROJECTS", "update"), lumpSumTab.editLumpSumData);
+router.get("/lumpsum-project-list", auth, requireModulePermission("PROJECTS", "read"), lumpSumTab.getLumpSumProjectList);
+router.delete("/delete-lumpsum-activity/:lumpsumId", auth, requireModulePermission("PROJECTS", "delete"), lumpSumTab.deleteLumpSumData);
 
 //young professionals
 router.get("/young-professional", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), youngProfessionalsTab.getYoungProfessional);

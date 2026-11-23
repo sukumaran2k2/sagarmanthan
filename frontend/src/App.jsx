@@ -407,31 +407,37 @@ export default function App() {
               />
             } />
 
-            <Route path="projects/project/lumpsum-iwai" element={
-              <Projects
-                projects={projects}
-                onAddProject={handleAddProject}
-                onAddSubProject={handleAddSubProject}
-                triggerNotification={triggerNotification}
-              />
-            } />
-            <Route path="projects/lumpsum-iwai" element={
-              <Projects
-                projects={projects}
-                onAddProject={handleAddProject}
-                onAddSubProject={handleAddSubProject}
-                triggerNotification={triggerNotification}
-              />
-            } />
+{/* LumpSum IWAI */}
+<Route
+  path="projects/project/lumpsum-iwai-list"
+  element={<Projects onGoHome={() => navigate('/')} triggerNotification={triggerNotification} />}
+/>
 
-            <Route path="projects/project/view-drop-request" element={
-              <Projects
-                projects={projects}
-                onAddProject={handleAddProject}
-                onAddSubProject={handleAddSubProject}
-                triggerNotification={triggerNotification}
-              />
-            } />
+<Route
+  path="projects/project/lumpsum-iwai-input-form"
+  element={<Projects onGoHome={() => navigate('/')} triggerNotification={triggerNotification} />}
+/>
+
+{/* <Route
+  path="projects/project/lumpsum-iwai-dashboard"
+  element={<Projects onGoHome={() => navigate('/')} triggerNotification={triggerNotification} />}
+/> */}
+
+{/* <Route
+  path="projects/project/lumpsum-iwai-reports"
+  element={<Projects onGoHome={() => navigate('/')} triggerNotification={triggerNotification} />}
+/> */}
+  
+
+<Route
+  path="projects/lumpsum-iwai/reports"
+  element={
+    <Projects
+      onGoHome={() => navigate('/')}
+      triggerNotification={triggerNotification}
+    />
+  }
+/>
             <Route path="projects/project/drop-requests" element={
               <Projects
                 projects={projects}
