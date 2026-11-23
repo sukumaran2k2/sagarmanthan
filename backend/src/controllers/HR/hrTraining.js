@@ -974,6 +974,11 @@ async function getAllTrainingData(req, res) {
                     LEFT JOIN tbl_employee_transaction_details etd ON hst.EMPLOYEE_ID = etd.employee_id
                     LEFT JOIN tbl_employee_master em ON etd.emp_master_id = em.emp_master_id
                     LEFT JOIN mmt_hr_post po ON etd.emp_post_id = po.post_id
+                ),
+                StaffCounts AS (
+                    SELECT TRAINING_ID, COUNT(emp_master_id) AS staff_count
+                    FROM tbl_hr_staff_training
+                    GROUP BY TRAINING_ID
                 )
                 SELECT 
                     ROW_NUMBER() OVER (ORDER BY org.organisation_id) AS [S.No],
@@ -990,7 +995,10 @@ async function getAllTrainingData(req, res) {
                     mmt.country AS [Country],
                     ht.LOCATION AS [Location],
                     ht.EXPENDITURE AS [Expenditure],
-                    ht.NO_OF_PARTICIPANTS AS [NO_OF_PARTICIPANTS],
+                    CASE WHEN ISNULL(sc.staff_count, 0) > 0
+                        THEN sc.staff_count
+                        ELSE ISNULL(ht.NO_OF_PARTICIPANTS, 0)
+                    END AS [NO_OF_PARTICIPANTS],
                     sr.emp_name AS [Employ name],
                     sr.post_name AS [Designation],
                     sr.emp_department_name AS [Department name],
@@ -1004,6 +1012,7 @@ async function getAllTrainingData(req, res) {
                 LEFT JOIN TBL_TRAINING_TYPE typ ON tit.TRAINING_TYPE_ID = typ.TRAINING_TYPE_ID
                 LEFT JOIN mmt_country mmt ON ht.COUNTRY_ID = mmt.id 
                 LEFT JOIN StaffRanked sr ON ht.TRAINING_ID = sr.TRAINING_ID AND sr.rn = 1
+                LEFT JOIN StaffCounts sc ON ht.TRAINING_ID = sc.TRAINING_ID
             `);
 
         } 
@@ -1024,6 +1033,11 @@ async function getAllTrainingData(req, res) {
                     LEFT JOIN tbl_employee_transaction_details etd ON hst.EMPLOYEE_ID = etd.employee_id
                     LEFT JOIN tbl_employee_master em ON etd.emp_master_id = em.emp_master_id
                     LEFT JOIN mmt_hr_post po ON etd.emp_post_id = po.post_id
+                ),
+                StaffCounts AS (
+                    SELECT TRAINING_ID, COUNT(emp_master_id) AS staff_count
+                    FROM tbl_hr_staff_training
+                    GROUP BY TRAINING_ID
                 )
                 SELECT 
                     ROW_NUMBER() OVER (ORDER BY org.organisation_id) AS [S.No],
@@ -1039,7 +1053,10 @@ async function getAllTrainingData(req, res) {
                     mmt.country AS [Country],
                     ht.LOCATION AS [Location],
                     ht.EXPENDITURE AS [Expenditure],
-                    ht.NO_OF_PARTICIPANTS AS [NO_OF_PARTICIPANTS],
+                    CASE WHEN ISNULL(sc.staff_count, 0) > 0
+                        THEN sc.staff_count
+                        ELSE ISNULL(ht.NO_OF_PARTICIPANTS, 0)
+                    END AS [NO_OF_PARTICIPANTS],
                     ht.created_date AS [Date Created],
                     ht.updated_date AS [Date Updated],
                     ht.created_by AS [Created By],
@@ -1050,6 +1067,7 @@ async function getAllTrainingData(req, res) {
                 LEFT JOIN TBL_TRAINING_TYPE typ ON tit.TRAINING_TYPE_ID = typ.TRAINING_TYPE_ID
                 LEFT JOIN mmt_country mmt ON ht.COUNTRY_ID = mmt.id 
                 LEFT JOIN StaffRanked sr ON ht.TRAINING_ID = sr.TRAINING_ID AND sr.rn = 1
+                LEFT JOIN StaffCounts sc ON ht.TRAINING_ID = sc.TRAINING_ID
                 WHERE org.organisation_id = @organisation_id
             `);
 
@@ -1072,6 +1090,11 @@ async function getAllTrainingData(req, res) {
                     LEFT JOIN tbl_employee_transaction_details etd ON hst.EMPLOYEE_ID = etd.employee_id
                     LEFT JOIN tbl_employee_master em ON etd.emp_master_id = em.emp_master_id
                     LEFT JOIN mmt_hr_post po ON etd.emp_post_id = po.post_id
+                ),
+                StaffCounts AS (
+                    SELECT TRAINING_ID, COUNT(emp_master_id) AS staff_count
+                    FROM tbl_hr_staff_training
+                    GROUP BY TRAINING_ID
                 )
                 SELECT 
                     ROW_NUMBER() OVER (ORDER BY org.organisation_id) AS [S.No],
@@ -1087,7 +1110,10 @@ async function getAllTrainingData(req, res) {
                     mmt.country AS [Country],
                     ht.LOCATION AS [Location],
                     ht.EXPENDITURE AS [Expenditure],
-                    ht.NO_OF_PARTICIPANTS AS [NO_OF_PARTICIPANTS],
+                    CASE WHEN ISNULL(sc.staff_count, 0) > 0
+                        THEN sc.staff_count
+                        ELSE ISNULL(ht.NO_OF_PARTICIPANTS, 0)
+                    END AS [NO_OF_PARTICIPANTS],
                     sr.emp_name AS [Employ name],
                     sr.post_name AS [Designation],
                     sr.emp_department_name AS [Department name],
@@ -1101,6 +1127,7 @@ async function getAllTrainingData(req, res) {
                 LEFT JOIN TBL_TRAINING_TYPE typ ON tit.TRAINING_TYPE_ID = typ.TRAINING_TYPE_ID
                 LEFT JOIN mmt_country mmt ON ht.COUNTRY_ID = mmt.id 
                 LEFT JOIN StaffRanked sr ON ht.TRAINING_ID = sr.TRAINING_ID AND sr.rn = 1
+                LEFT JOIN StaffCounts sc ON ht.TRAINING_ID = sc.TRAINING_ID
                 WHERE org.organisation_id = @organisation_id
             `);
         }
