@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { BASE_PATH } from "../CourtCases";
 import CaseForm from "../pages/CaseForm";
-import { litigationSchema, COURT } from "./litigation.schema";
+import { litigationSchema, COURT, SUB_COURT_COURTS  } from "./litigation.schema";
 import { getSessionOrganisationId, getCurrentUserId } from "../../../utils/authSession";
 import { toOptions } from "../../../utils/option";
 import { useLitigationFormStore } from "../store/caseFormStore";
@@ -19,7 +19,7 @@ import api, {
   addHearingCases, addInterimOrder,
   fetchOrganisationName, fetchDomains, fetchSubDomains, fetchDepartments, fetchActsDropdown,
   fetchRulesDropdown, fetchSubCourtTypes, fetchCaseTypes, fetchHighCourtBenches, fetchStates,
-  fetchDistricts, fetchCourtCaseById, fetchSubTableData, fetchLitigationSubTableData,
+  fetchDistricts, fetchCourtCaseById, fetchSubTableData, fetchLitigationSubTableData,fetchCourtTypes,fetchConsumerForums
 } from "../api";
 
 const STAGES = {
@@ -32,8 +32,14 @@ const STAGES = {
 
 const CASE_TYPE_TABLE = "mmt_court_case_type";
 const COURT_COLS = ["court_type_id", "courtTypeID", "court_type", "court_id", "courtTypeId"];
-const SUB_COURT_COLS = ["sub_court_type_id", "subCourtTypeID", "sub_court_type", "sub_court_id", "subCourtTypeId"];
+const SUB_COURT_COLS = ["court_sub_type_id", "sub_court_type_id", "subCourtTypeID", "sub_court_type", "sub_court_id", "subCourtTypeId"];
 const firstCol = (rows, candidates) => candidates.find((c) => rows.some((r) => r && r[c] != null));
+
+const SUB_ID_COLS = ["court_sub_type_id", "sub_court_type_id", "sub_court_id", "subCourtTypeID", "subCourtTypeId", "id"];
+const SUB_NAME_COLS = ["court_sub_type_name", "sub_court_type_name", "sub_court_name", "sub_court_type", "name", "label"];
+
+const FORUM_ID_COLS = ["consumer_sub_type_id", "consumer_forum_id", "id"];
+const FORUM_NAME_COLS = ["consumer_sub_type_name", "consumer_forum_name", "name", "label"];
 
 const MINISTRY_COUNSEL_TYPES = ["MinistryCounsel", "ministryCounsel", "MDOC"];
 const partiesUrl = (id) => `/get-litigation-petitioner-and-respondent/${id}`;
@@ -123,7 +129,7 @@ function rowToForm(row = {}) {
   const claimAmt = g("amounts_if_any_rewarded_claim_amount", "amountAnyAwardedClaimAmount");
   const counterAmt = g("amounts_if_any_rewarded_counter_claim_amount", "amountAnyAwardedCounterClaimAmount");
   const courtType = mStr(g("court_type", "courtType"));
-  const subCourt = mStr(g("sub_court", "subCourtType")) || (courtType === COURT.CONSUMER ? mStr(g("consumer_forum")) : "");
+  const subCourt = mStr(g("sub_court", "subCourtType"));
   const docDetails = mStr(g("details", "docDetails")) || mStr(g("invoked_details", "ministryInvokedDetails"));
 
   return {
@@ -131,6 +137,7 @@ function rowToForm(row = {}) {
     caseName: mStr(g("case_name", "caseName")),
     courtType,
     subCourtType: subCourt,
+    consumerForum: mStr(g("consumer_forum", "consumerForum")),
     highCourtBench: mStr(g("bench_seat", "highCourtBench")),
     otherCourtState: mStr(g("state", "otherCourtState")),
     othersCourtDistrict: mStr(g("district", "othersCourtDistrict")),
@@ -204,7 +211,7 @@ const basicPayload = (m) => ({
   courtComplex: m.otherCourtComplex,
   nameOfCourt: m.otherCourtName,
   subCourt: m.subCourtType,
-  consumerForum: m.courtType === COURT.CONSUMER ? m.subCourtType : "",
+  consumerForum: m.courtType === COURT.CONSUMER ? m.consumerForum : "",
   counterClaimAmountOrNot: m.monetaryClaim,
   claimAmountValue: m.claimAmount,
   counterClaimAmountValue: m.counterClaimAmount,
@@ -352,7 +359,6 @@ export default function LitigationForm({ triggerNotification }) {
       loadFailed(key, e);
     }
   };
-
   const loadCaseTypes = async (courtType, subCourtType) => {
     setOpt("caseType", []);
     try {
@@ -372,8 +378,51 @@ export default function LitigationForm({ triggerNotification }) {
     }
   };
 
+  const loadSubCourtTypes = async (courtType) => {
+    setOpt("subCourtType", []);
+    try {
+      const res = await fetchSubCourtTypes(courtType);
+      const rows = asRows(res);
+      console.log("[subCourtType] columns:", rows[0] ? Object.keys(rows[0]) : [], "| rows:", rows);
+
+      const idCol = firstCol(rows, SUB_ID_COLS);
+      const nameCol = firstCol(rows, SUB_NAME_COLS);
+      if (!idCol || !nameCol) {
+        console.warn("[subCourtType] id/name column not found, falling back to toOptions()");
+        setOpt("subCourtType", makeOptions("subCourtType", res));
+        return;
+      }
+      setOpt(
+        "subCourtType",
+        rows.map((r) => ({ value: String(r[idCol]), label: String(r[nameCol]) }))
+      );
+    } catch (e) {
+      loadFailed("subCourtType", e);
+    }
+  };
+
+  const loadConsumerForums = async (subCourtTypeId) => {
+    setOpt("consumerForum", []);
+    try {
+      const res = await fetchConsumerForums(subCourtTypeId);
+      const rows = asRows(res);
+      console.log("[consumerForum] columns:", rows[0] ? Object.keys(rows[0]) : [], "| rows:", rows);
+
+      const idCol = firstCol(rows, FORUM_ID_COLS);
+      const nameCol = firstCol(rows, FORUM_NAME_COLS);
+      if (!idCol || !nameCol) {
+        setOpt("consumerForum", makeOptions("consumerForum", res));
+        return;
+      }
+      setOpt("consumerForum", rows.map((r) => ({ value: String(r[idCol]), label: String(r[nameCol]) })));
+    } catch (e) {
+      loadFailed("consumerForum", e);
+    }
+  };
+
   useEffect(() => {
     const organisationID = getOrgId();
+    loadStatic("courtType", fetchCourtTypes); 
     loadStatic("domain", fetchDomains);
     loadStatic("deptDivision", () => fetchDepartments(organisationID));
     loadStatic("act", fetchActsDropdown);
@@ -389,19 +438,23 @@ export default function LitigationForm({ triggerNotification }) {
         break;
       case "courtType":
         sel.current = { courtType: val, subCourtType: "" };
-        setOpt("subCourtType", []); setOpt("highCourtBench", []); setOpt("caseType", []);
+        setOpt("subCourtType", []); setOpt("highCourtBench", []);
+        setOpt("caseType", []); setOpt("consumerForum", []);
         if (val) {
           loadCaseTypes(val, "");
-          if ([COURT.HC, COURT.TRIBUNAL, COURT.CONSUMER].includes(val))
-            loadOpt("subCourtType", () => fetchSubCourtTypes(val));
+          if (SUB_COURT_COURTS.includes(val)) loadSubCourtTypes(val);
         }
-        break;
+      break;
       case "subCourtType":
         sel.current.subCourtType = val;
         setOpt("highCourtBench", []);
+        setOpt("consumerForum", []);
         if (val) {
           loadCaseTypes(sel.current.courtType, val);
-          if (sel.current.courtType === COURT.HC) loadOpt("highCourtBench", () => fetchHighCourtBenches(val));
+          if (sel.current.courtType === COURT.HC)
+            loadFiltered("highCourtBench", () => fetchHighCourtBenches(), "court_sub_type_id", val);
+          if (sel.current.courtType === COURT.CONSUMER)
+            loadConsumerForums(val);
         } else if (sel.current.courtType) {
           loadCaseTypes(sel.current.courtType, "");
         }
@@ -433,10 +486,11 @@ export default function LitigationForm({ triggerNotification }) {
         if (values.courtType) {
           sel.current = { courtType: values.courtType, subCourtType: values.subCourtType };
           loadCaseTypes(values.courtType, values.subCourtType);
-          if ([COURT.HC, COURT.TRIBUNAL, COURT.CONSUMER].includes(values.courtType))
-            loadOpt("subCourtType", () => fetchSubCourtTypes(values.courtType));
+          if (SUB_COURT_COURTS.includes(values.courtType)) loadSubCourtTypes(values.courtType);
+          if (values.courtType === COURT.CONSUMER && values.subCourtType)
+            loadConsumerForums(values.subCourtType);
           if (values.courtType === COURT.HC && values.subCourtType)
-            loadOpt("highCourtBench", () => fetchHighCourtBenches(values.subCourtType));
+            loadFiltered("highCourtBench", () => fetchHighCourtBenches(), "court_sub_type_id", values.subCourtType);
         }
         if (values.domain) onFieldChange("domain", values.domain);
         if (values.act) onFieldChange("act", values.act);

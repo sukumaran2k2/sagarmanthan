@@ -2343,10 +2343,10 @@ async function getAllLitigationData(req,res) {
             END AS [Is Final Order/Judgement Passed?],
             lc.date_of_final_order AS [Date of Final Order],
             lc.nature_of_judgement AS [Nature of Judgement],
-            CASE 
-                WHEN lc.amounts_of_any_rewarded = 1 THEN 'No Amount'
-                WHEN lc.amounts_of_any_rewarded = 2 THEN 'Claim'
-                WHEN lc.amounts_of_any_rewarded = 3 THEN 'Counter Claim'
+            CASE
+                WHEN lc.amounts_of_any_rewarded IN ('1', 'No Amount')      THEN 'No Amount'
+                WHEN lc.amounts_of_any_rewarded IN ('2', 'Claim')          THEN 'Claim'
+                WHEN lc.amounts_of_any_rewarded IN ('3', 'Counter Claim')  THEN 'Counter Claim'
                 ELSE 'N/A'
             END AS [Total Rewarded Amounts],
             CASE 
@@ -2494,11 +2494,12 @@ async function getAllLitigationData(req,res) {
                         END AS [Is Final Order/Judgement Passed?],
                     lc.date_of_final_order AS [Date of Final Order],
                     lc.nature_of_judgement AS [Nature of Judgement],
-                    CASE 
-                        WHEN lc.amounts_of_any_rewarded = 1 THEN 'No Amount'
-                        WHEN lc.amounts_of_any_rewarded = 2 THEN 'Claim'
-                        WHEN lc.amounts_of_any_rewarded = 3 THEN 'Counter Claim'
-                        END AS [Total Rewarded Amounts],
+                    CASE
+                        WHEN lc.amounts_of_any_rewarded IN ('1', 'No Amount')      THEN 'No Amount'
+                        WHEN lc.amounts_of_any_rewarded IN ('2', 'Claim')          THEN 'Claim'
+                        WHEN lc.amounts_of_any_rewarded IN ('3', 'Counter Claim')  THEN 'Counter Claim'
+                        ELSE 'N/A'
+                    END AS [Total Rewarded Amounts],
                     CASE 
                         WHEN lc.is_action_required_for_complaince = 1 THEN 'Yes'
                         WHEN lc.is_action_required_for_complaince = 0 THEN 'No'

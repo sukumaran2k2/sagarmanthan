@@ -120,13 +120,20 @@ export function counterAffidavitDocument(formData) {
   });
 }
 
-
 export function fetchLitigationSubTableData(typeName, caseID) {
   return api.get(`/get-litigation-sub-table-court-cases-data/${typeName}/${caseID}`);
 }
 
-export function fetchHighCourtBenches(subCourtTypeID) {
-  return api.get(`/court-case-get-benches/${subCourtTypeID}`);
+export function fetchHighCourtBenches() {
+  return api.get('/mmt-dropdown/mmt_bench_seat');
+}
+
+export function fetchCourtTypes() {
+  return api.get('/mmt-dropdown/mmt_court_type');
+}
+
+export function fetchConsumerForums(subCourtTypeID) {
+  return api.get(`/court-case-consumer-typeID/${subCourtTypeID}`);   
 }
 
 //**(******************* Conciliation **************************//)
@@ -230,11 +237,5 @@ export function fetchLitigationPortwisePendencyReport() {
 export function fetchLitigationDomainwisePendencyReport() {
   return api.get('/litigation-domainwise-pendency-report');
 }
-
-///Litigation court case apis
-
-// export function updateLitigationMinistry(payload) {
-//   return api.put('/update-litigation-ministry-intervention', payload);
-// }
 
 export default api;

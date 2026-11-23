@@ -35,7 +35,8 @@ const sanitizeCell = (value) => {
 
 export default function LitigationList() {
   const navigate = useNavigate();
-  const { roleID, userID, organisationID } = getSessionOrganisationId();
+  const userID = getCurrentUserId();
+  const { roleID, organisationID } = getSessionOrganisationId();
 
   const showOrg = ![6, 7].includes(roleID);        
   const showOrgFilter = [1, 2, 3, 4, 5].includes(roleID);

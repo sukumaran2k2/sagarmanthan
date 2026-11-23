@@ -11,11 +11,17 @@ const INTERIM_NATURE = ["Stay", "Status Quo", "Direction", "Injunction", "Others
 const DOC_TYPES = ["Act", "OMS", "Orders", "Notifications", "Guidelines", "Regulations", "Policies", "Schemes", "Other"];
 const APPEAL = "Appeal/ Revision/ Review filed";
 
-export const COURT = { SC: "1", HC: "2", DISTRICT: "3", TRIBUNAL: "4", CONSUMER: "5", OTHERS: "6" };
-const COURT_TYPES = [
-  { value: COURT.SC, label: "Supreme Court" }, { value: COURT.HC, label: "High Court" },
-  { value: COURT.DISTRICT, label: "District Court" }, { value: COURT.TRIBUNAL, label: "Tribunal" },
-  { value: COURT.CONSUMER, label: "Consumer Forum" }, { value: COURT.OTHERS, label: "Others" },
+export const COURT = { HC: "2", CONSUMER: "13", OTHERS: "14" };
+
+export const SUB_COURT_COURTS = ["2", "3", "4", "5", "6", "7", "12", "13"];
+// fallback only, used if the API returns nothing
+export const COURT_TYPES = [
+  { value: COURT.SC, label: "Supreme Court" },
+  { value: COURT.HC, label: "High Court" },
+  { value: COURT.DISTRICT, label: "District Court" },
+  { value: COURT.TRIBUNAL, label: "Tribunal" },
+  { value: COURT.CONSUMER, label: "Consumer Forum" },
+  { value: COURT.OTHERS, label: "Others" },
 ];
 
 const isAct = (v) => v.docChallenged === "Act" || v.docInvoked === "Act";
@@ -30,9 +36,11 @@ export const litigationSchema = {
       label: "Basic Information",
       fields: [
         { name: "caseName", label: "Case Name", type: "text", required: true, span: 6 },
-        { name: "courtType", label: "Court Type", type: "select", required: true, span: 6, options: COURT_TYPES },
+        { name: "courtType", label: "Court Type", type: "select", required: true, span: 6, options: [] },
         { name: "subCourtType", label: "Sub Court Type", type: "select", span: 4, options: [],
-          showIf: (v) => [COURT.HC, COURT.TRIBUNAL, COURT.CONSUMER].includes(v.courtType) },
+          showIf: (v) => SUB_COURT_COURTS.includes(v.courtType) },
+        { name: "consumerForum", label: "Consumer Forum Type", type: "select", required: true, span: 4, options: [],
+          showIf: (v) => v.courtType === COURT.CONSUMER },
         { name: "highCourtBench", label: "Bench/Seat", type: "select", span: 4, options: [],
           showIf: (v) => v.courtType === COURT.HC },
         { name: "otherCourtState", label: "State", type: "select", span: 3, options: [],
