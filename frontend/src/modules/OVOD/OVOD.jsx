@@ -54,8 +54,9 @@ export default function OVODModule({
       ? [{ id: 'input-form', label: editingItem ? 'Update Initiative' : 'Input Form', icon: PlusCircle }]
       : []),
     { id: 'data-list', label: 'Data List', icon: Layers },
+    // Performance Report is visible to both Ministry and Organisation users.
+    { id: 'performance-report', label: 'Performance Report', icon: BarChart2 },
     ...(!isOrgUser ? [
-      { id: 'performance-report', label: 'Performance Report', icon: BarChart2 },
       { id: 'data-entry-status', label: 'Data Entry Status', icon: FileBarChart },
     ] : []),
   ], [editingItem, isOrgUser, canOpenForm]);
@@ -152,7 +153,7 @@ export default function OVODModule({
             canRemove={canRemove}
           />
         )}
-        {!isOrgUser && currentTab === 'performance-report' && (
+        {currentTab === 'performance-report' && (
           <Reports triggerNotification={triggerNotification} />
         )}
         {!isOrgUser && currentTab === 'data-entry-status' && (
