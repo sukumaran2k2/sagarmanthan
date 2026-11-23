@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Plus, Save, Trash2 } from 'lucide-react';
 import { createLumpSum, updateLumpSum, fetchLumpSumProjectList, fetchLumpSumData, deleteLumpSumActivity,} from '../api';
 import { useSearchParams } from 'react-router-dom';
+import { isOrganisationUser } from '../../../utils/authSession'; 
 
 const blockInvalidKeys = (e) => {
   if (e.key === '-' || e.key === 'Subtract' || e.key === 'e' || e.key === 'E') {
@@ -109,6 +110,10 @@ export default function LumpsumFormPage({
 
   const isEditMode = Boolean(resolvedProjectId);
 
+  // Ministry users can only update existing records, not add new ones
+  const isMinistry = !isOrganisationUser();
+  const addBlocked = isMinistry && !isEditMode;
+
   const initial = useMemo(
     () => getInitialState(initialData),
     [initialData]
@@ -145,6 +150,7 @@ export default function LumpsumFormPage({
 
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null); 
   const [projectOptions, setProjectOptions] = useState([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
     
@@ -367,7 +373,7 @@ export default function LumpsumFormPage({
     ]);
   };
 
-  const removeRow = async (index) => {
+  const removeRow = (index) => {
     if (saving) return;
 
     if (rows.length <= 1) {
@@ -377,43 +383,51 @@ export default function LumpsumFormPage({
 
     const row = rows[index];
 
-    // Newly added row: DB-ல் இன்னும் save ஆகவில்லை.
+    // Newly added row: not in DB yet, remove directly
     if (!row.lumpsumId) {
       setRows((prev) => prev.filter((_, i) => i !== index));
       setErrors({});
       return;
     }
 
-    const confirmDelete = window.confirm(
-      'Are you sure you want to delete this activity? This will permanently remove it from the database.'
+    // Saved row: ask for confirmation in the portal modal
+    setDeleteTarget(index);
+  };
+
+const confirmRemoveRow = async () => {
+  const index = deleteTarget;
+  if (index === null || index === undefined) return;
+
+  const row = rows[index];
+  if (!row) {
+    setDeleteTarget(null);
+    return;
+  }
+
+  try {
+    setSaving(true);
+
+    await deleteLumpSumActivity(row.lumpsumId);
+
+    setRows((prev) => prev.filter((_, i) => i !== index));
+    setErrors({});
+
+    notify?.('Activity deleted successfully.', 'success');
+  } catch (error) {
+    console.error(
+      'Failed to delete LumpSum activity:',
+      error.response?.data || error
     );
 
-    if (!confirmDelete) return;
-
-    try {
-      setSaving(true);
-
-      await deleteLumpSumActivity(row.lumpsumId);
-
-      setRows((prev) => prev.filter((_, i) => i !== index));
-      setErrors({});
-
-      notify?.('Activity deleted successfully.', 'success');
-    } catch (error) {
-      console.error(
-        'Failed to delete LumpSum activity:',
-        error.response?.data || error
-      );
-
-      notify?.(
-        error.response?.data?.message ||
-          'Failed to delete activity.',
-        'error'
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
+    notify?.(
+      error.response?.data?.message || 'Failed to delete activity.',
+      'error'
+    );
+  } finally {
+    setSaving(false);
+    setDeleteTarget(null);
+  }
+};
 
   const validate = () => {
     const next = {};
@@ -442,580 +456,419 @@ export default function LumpsumFormPage({
   };
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  if (saving) return;
-if (isEditMode) {
-  setOriginalFormData(
-    JSON.stringify({
-      projectId: String(projectId),
-      rows: normalizeRows(rows),
-    })
-  );
-}
-  const nextErrors = validate();
-
-  if (Object.keys(nextErrors).length > 0) {
-    setErrors(nextErrors);
-    notify?.('Please fill all required fields.', 'error');
-    return;
-  }
-
-  if (!projectId) {
-    notify?.('Please select a project.', 'error');
-    return;
-  }
-
-  if (isEditMode && String(projectId) !== String(resolvedProjectId)) {
-    notify?.('Project Id cannot be changed in Update mode.', 'error');
-    return;
-  }
-  setSaving(true);
-
-  try {
-    const payload = {
-      projectID: String(projectId).trim(),
-
-      lumpSumDataTab: rows.map((row) => ({
-        lumpsumId: row.lumpsumId || null,
-
-        projectName: row.projectName.trim(),
-
-        activityName: row.activityName.trim(),
-
-        activityCost: Number(row.activityCost),
-
-        activityDate: row.expenditureDate,
-      })),
-    };
-
-    console.log('LumpSum Submit Payload:', payload);
-
-    let response;
-
+    if (saving) return;
+    if (addBlocked) {
+      notify?.('Ministry users can only update existing LumpSum records.', 'error');
+      return;
+    }
+      
     if (isEditMode) {
-      response = await updateLumpSum(payload);
-    } else {
-      response = await createLumpSum(payload);
+      setOriginalFormData(
+        JSON.stringify({
+          projectId: String(projectId),
+          rows: normalizeRows(rows),
+        })
+      );
+    }
+    const nextErrors = validate();
+
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors);
+      notify?.('Please fill all required fields.', 'error');
+      return;
     }
 
-    notify?.(
-      isEditMode
-        ? 'LumpSum updated successfully.'
-        : 'LumpSum added successfully.',
-      'success'
-    );
+    if (!projectId) {
+      notify?.('Please select a project.', 'error');
+      return;
+    }
 
-    onSuccess?.(response);
+    if (isEditMode && String(projectId) !== String(resolvedProjectId)) {
+      notify?.('Project Id cannot be changed in Update mode.', 'error');
+      return;
+    }
+    setSaving(true);
 
-  }  catch (error) {
-    console.error("LumpSum save error:", error);
-    console.error("Backend response:", error.response?.data);
-    console.error("HTTP status:", error.response?.status);
+    try {
+      const payload = {
+        projectID: String(projectId).trim(),
 
-    notify?.(
-      error.response?.data?.message ||
-      error.response?.data?.error ||
-      'Failed to save LumpSum.',
-      'error'
-    );
-} finally {
-    setSaving(false);
-  }
-};
+        lumpSumDataTab: rows.map((row) => ({
+          lumpsumId: row.lumpsumId || null,
 
+          projectName: row.projectName.trim(),
 
-return (
-  <div className="module-form-card !p-0 overflow-hidden">
-    {/* Header Banner */}
-    <div className="module-form-banner">
-      <div>
-        <h3 className="module-form-banner-title">
-          {isEditMode ? 'Update LumpSum' : 'Add LumpSum'}
-        </h3>
-        <p className="module-form-banner-subtext">
-          Activity-wise LumpSum Expenditure (₹ in Cr)
-        </p>
-      </div>
-    </div>
+          activityName: row.activityName.trim(),
 
-    <form
-      id="lumpsum-form"
-      onSubmit={handleSubmit}
-      className="p-6 space-y-6"
-      noValidate
-    >
-      {/* Project Details */}
-      <div className="space-y-5">
-        <h4 className="module-form-section-title">
-          Project Details
-        </h4>
+          activityCost: Number(row.activityCost),
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="module-form-label">
-              Project List <span className="text-red-500">*</span>
-            </label>
+          activityDate: row.expenditureDate,
+        })),
+      };
 
-            <select
-              value={projectId}
-              onChange={(e) => handleProjectChange(e.target.value)}
-              disabled={isEditMode || loadingProjects || saving}
-              className={`module-form-select ${
-                errors.projectId ? '!border-red-500' : ''
-              }`}
-            >
-              <option value="">
-                {loadingProjects
-                  ? 'Loading Projects...'
-                  : '-- Select Project --'}
-              </option>
+      console.log('LumpSum Submit Payload:', payload);
 
-              {projectOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+      let response;
 
-            {!loadingProjects && projectOptions.length === 0 && (
-              <p className="text-[11px] text-amber-600 mt-1.5 font-semibold">
-                No active projects available.
-              </p>
-            )}
+      if (isEditMode) {
+        response = await updateLumpSum(payload);
+      } else {
+        response = await createLumpSum(payload);
+      }
 
-            <FieldError error={errors.projectId} />
-          </div>
-        </div>
-      </div>
+      notify?.(
+        isEditMode
+          ? 'LumpSum updated successfully.'
+          : 'LumpSum added successfully.',
+        'success'
+      );
 
-      {/* Activity Details */}
-      <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-5">
-        <div className="flex items-center justify-between gap-3">
-          <h4 className="module-form-section-title">
-            Activity Details
-          </h4>
+      onSuccess?.(response);
 
-          {/* {!isEditMode && ( */}
-            <button
-              type="button"
-              onClick={addRow}
-              disabled={saving || (isEditMode && !isFormChanged)}
-              className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-[#0f417a] hover:bg-blue-800 rounded-xl transition cursor-pointer disabled:opacity-50"
-            >
-              <Plus className="h-4 w-4" />
-              Add Activity
-            </button>
-          {/* )} */}
-        </div>
+    }  catch (error) {
+      console.error("LumpSum save error:", error);
+      console.error("Backend response:", error.response?.data);
+      console.error("HTTP status:", error.response?.status);
 
-        <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse min-w-[900px]">
-              <thead className="bg-[#0f417a] text-white select-none">
-                <tr>
-                  <th className="py-3 px-4 font-bold w-16 text-center">
-                    S.No
-                  </th>
-                  <th className="py-3 px-4 font-bold">
-                    Project Name <span className="text-red-300">*</span>
-                  </th>
-                  <th className="py-3 px-4 font-bold">
-                    Activity Name <span className="text-red-300">*</span>
-                  </th>
-                  <th className="py-3 px-4 font-bold w-40">
-                    Cost (₹ Cr) <span className="text-red-300">*</span>
-                  </th>
-                  <th className="py-3 px-4 font-bold w-44">
-                    Date of Expenditure <span className="text-red-300">*</span>
-                  </th>
-                  {/* {!isEditMode && ( */}
-                    <th className="py-3 px-4 font-bold w-24 text-center">
-                      Action
-                    </th>
-                  {/* )} */}
-                </tr>
-              </thead>
+      notify?.(
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        'Failed to save LumpSum.',
+        'error'
+      );
+  } finally {
+      setSaving(false);
+    }
+  };
 
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {rows.map((row, index) => (
-                  <tr key={row.id}>
-                    <td className="py-3 px-4 text-center font-bold text-slate-500 dark:text-slate-400">
-                      {index + 1}
-                    </td>
-
-                    <td className="py-3 px-4 min-w-[220px]">
-                      <input
-                        type="text"
-                        value={row.projectName}
-                        onChange={(e) =>
-                          updateRow(index, 'projectName', e.target.value)
-                        }
-                        placeholder="Project Name"
-                        className={`module-form-input ${
-                          errors[`${index}.projectName`]
-                            ? '!border-red-500'
-                            : ''
-                        }`}
-                      />
-                      <FieldError error={errors[`${index}.projectName`]} />
-                    </td>
-
-                    <td className="py-3 px-4 min-w-[220px]">
-                      <input
-                        type="text"
-                        value={row.activityName}
-                        onChange={(e) =>
-                          updateRow(index, 'activityName', e.target.value)
-                        }
-                        placeholder="Enter Activity Name"
-                        className={`module-form-input ${
-                          errors[`${index}.activityName`]
-                            ? '!border-red-500'
-                            : ''
-                        }`}
-                      />
-                      <FieldError error={errors[`${index}.activityName`]} />
-                    </td>
-
-                    <td className="py-3 px-4">
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={row.activityCost}
-                        onChange={(e) =>
-                          updateRow(
-                            index,
-                            'activityCost',
-                            e.target.value.replace(/-/g, '')
-                          )
-                        }
-                        onKeyDown={blockInvalidKeys}
-                        placeholder="0.00"
-                        className={`module-form-input ${
-                          errors[`${index}.activityCost`]
-                            ? '!border-red-500'
-                            : ''
-                        }`}
-                      />
-                      <FieldError error={errors[`${index}.activityCost`]} />
-                    </td>
-
-                    <td className="py-3 px-4">
-                      <input
-                        type="date"
-                        value={row.expenditureDate}
-                        onChange={(e) =>
-                          updateRow(index, 'expenditureDate', e.target.value)
-                        }
-                        className={`module-form-input ${
-                          errors[`${index}.expenditureDate`]
-                            ? '!border-red-500'
-                            : ''
-                        }`}
-                      />
-                      <FieldError error={errors[`${index}.expenditureDate`]} />
-                    </td>
-
-                    {/* {!isEditMode && ( */}
-                      <td className="py-3 px-4 text-center">
-                        {rows.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removeRow(index)}
-                            disabled={saving}
-                            title="Remove Activity"
-                            className="p-2 bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-400 rounded-lg transition cursor-pointer disabled:opacity-50"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
-                      </td>
-                    {/* )} */}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Total Cost */}
-        {rows.length > 1 && (
-          <div className="flex justify-end">
-            <div className="px-4 py-2 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900">
-              <span className="text-xs font-bold text-[#0f417a] dark:text-blue-300">
-                Total Expenditure: ₹ {totalCost.toFixed(2)} Cr
-              </span>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Footer Buttons */}
-      <div className="flex items-center justify-between gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-        <span className="text-xs text-rose-500 font-bold italic">
-          * Asterisks marked with red are mandatory fields
-        </span>
-
-        <div className="flex items-center gap-2">
+  if (addBlocked) {
+      return (
+        <div className="module-form-card p-6 text-center space-y-3">
+          <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
+            Add LumpSum is not available for Ministry users.
+          </p>
+          <p className="text-xs text-slate-500">
+            Please open a record from the Data List and use Update.
+          </p>
           {onBack && (
             <button
               type="button"
               onClick={onBack}
-              disabled={saving}
-              className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer disabled:opacity-50"
+              className="px-4 py-2 text-xs font-bold text-white bg-[#0f417a] rounded-xl cursor-pointer"
             >
-              Exit
+              Back to Data List
             </button>
           )}
+        </div>
+      );
+    }
 
-          <button
-            type="submit"
-            disabled={saving}
-            className="flex items-center gap-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer disabled:opacity-50"
-          >
-            <Save className="h-4 w-4" />
-            <span>
-              {saving
-                ? 'Submitting...'
-                : isEditMode
-                  ? 'Update LumpSum'
-                  : 'Submit LumpSum'}
-            </span>
-          </button>
+  return (
+    <div className="module-form-card !p-0 overflow-hidden">
+      {/* Header Banner */}
+      <div className="module-form-banner">
+        <div>
+          <h3 className="module-form-banner-title">
+            {isEditMode ? 'Update LumpSum' : 'Add LumpSum'}
+          </h3>
+          <p className="module-form-banner-subtext">
+            Activity-wise LumpSum Expenditure (₹ in Cr)
+          </p>
         </div>
       </div>
-    </form>
-  </div>
-);
 
+      <form
+        id="lumpsum-form"
+        onSubmit={handleSubmit}
+        className="p-6 space-y-6"
+        noValidate
+      >
+        {/* Project Details */}
+        <div className="space-y-5">
+          <h4 className="module-form-section-title">
+            Project Details
+          </h4>
 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="module-form-label">
+                Project List <span className="text-red-500">*</span>
+              </label>
 
-  // return (
-  //   <form
-  //     id="lumpsum-form"
-  //     onSubmit={handleSubmit}
-  //     className="space-y-6 animate-fade-in text-slate-800 dark:text-slate-100"
-  //   >
-  //     <div className="flex items-center space-x-2.5 pb-3 border-b border-slate-100 dark:border-slate-800">
-  //       <div className="p-2 bg-blue-50 dark:bg-blue-950/50 rounded-lg text-blue-600 dark:text-blue-400">
-  //         <Layers className="h-5 w-5" />
-  //       </div>
-  //       <div>
-  //         <h3 className="text-sm font-black text-[#0f417a] dark:text-blue-300 uppercase tracking-wide">
-  //           {isEditMode ? 'Edit LumpSum' : 'Add LumpSum'}
-  //         </h3>
-  //         <p className="text-xs text-slate-500">
-  //           Select a project and record activity-wise LumpSum expenditure
-  //         </p>
-  //       </div>
-  //     </div>
+              <select
+                value={projectId}
+                onChange={(e) => handleProjectChange(e.target.value)}
+                disabled={isEditMode || loadingProjects || saving}
+                className={`module-form-select ${
+                  errors.projectId ? '!border-red-500' : ''
+                }`}
+              >
+                <option value="">
+                  {loadingProjects
+                    ? 'Loading Projects...'
+                    : '-- Select Project --'}
+                </option>
 
-  //     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-  //         <div>
-  //           <Label required>Project List</Label>
+                {projectOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
 
-  //           <select
-  //               value={projectId}
-  //               onChange={(e) => handleProjectChange(e.target.value)}
-  //               disabled={isEditMode || loadingProjects || saving}
-  //               className={getInputClass(Boolean(errors.projectId))}
-  //           >
-  //               <option value="">
-  //                   {loadingProjects
-  //                       ? 'Loading Projects...'
-  //                       : '--Select Project List--'}
-  //               </option>
+              {!loadingProjects && projectOptions.length === 0 && (
+                <p className="text-[11px] text-amber-600 mt-1.5 font-semibold">
+                  No active projects available.
+                </p>
+              )}
 
-  //               {projectOptions.map((opt) => (
-  //                   <option
-  //                       key={opt.value}
-  //                       value={opt.value}
-  //                   >
-  //                       {opt.label}
-  //                   </option>
-  //               ))}
-  //           </select>
+              <FieldError error={errors.projectId} />
+            </div>
+          </div>
+        </div>
 
-  //           {!loadingProjects && projectOptions.length === 0 && (
-  //               <p className="text-[11px] text-amber-600 mt-1.5 font-semibold">
-  //                   No active projects available.
-  //               </p>
-  //           )}
+        {/* Activity Details */}
+        <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-5">
+          <div className="flex items-center justify-between gap-3">
+            <h4 className="module-form-section-title">
+              Activity Details
+            </h4>
 
-  //           <FieldError error={errors.projectId} />
-  //       </div>
-  //     </div>
+            {/* {!isEditMode && ( */}
+              <button
+                type="button"
+                onClick={addRow}
+                disabled={saving}
+                className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-[#0f417a] hover:bg-blue-800 rounded-xl transition cursor-pointer disabled:opacity-50"
+              >
+                <Plus className="h-4 w-4" />
+                Add Activity
+              </button>
+            {/* )} */}
+          </div>
 
- 
+          <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse min-w-[900px]">
+                <thead className="bg-[#0f417a] text-white select-none">
+                  <tr>
+                    <th className="py-3 px-4 font-bold w-16 text-center">
+                      S.No
+                    </th>
+                    <th className="py-3 px-4 font-bold">
+                      Project Name <span className="text-red-300">*</span>
+                    </th>
+                    <th className="py-3 px-4 font-bold">
+                      Activity Name <span className="text-red-300">*</span>
+                    </th>
+                    <th className="py-3 px-4 font-bold w-40">
+                      Cost (₹ Cr) <span className="text-red-300">*</span>
+                    </th>
+                    <th className="py-3 px-4 font-bold w-44">
+                      Date of Expenditure <span className="text-red-300">*</span>
+                    </th>
+                    {/* {!isEditMode && ( */}
+                      <th className="py-3 px-4 font-bold w-24 text-center">
+                        Action
+                      </th>
+                    {/* )} */}
+                  </tr>
+                </thead>
 
-  //     {/* Activity Details Section */}
-  //     <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-4">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {rows.map((row, index) => (
+                    <tr key={row.id}>
+                      <td className="py-3 px-4 text-center font-bold text-slate-500 dark:text-slate-400">
+                        {index + 1}
+                      </td>
 
-  //       {/* Header */}
-  //       <div className="flex items-center justify-between gap-3">
-  //         <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider whitespace-nowrap">
-  //           Activity Details (₹ in Cr)
-  //         </h4>
+                      <td className="py-3 px-4 min-w-[220px]">
+                        <input
+                          type="text"
+                          value={row.projectName}
+                          onChange={(e) =>
+                            updateRow(index, 'projectName', e.target.value)
+                          }
+                          placeholder="Project Name"
+                          className={`module-form-input ${
+                            errors[`${index}.projectName`]
+                              ? '!border-red-500'
+                              : ''
+                          }`}
+                        />
+                        <FieldError error={errors[`${index}.projectName`]} />
+                      </td>
 
-  //         {!isEditMode && (
-  //           <button
-  //             type="button"
-  //             onClick={addRow}
-  //             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-bold hover:bg-blue-100 transition cursor-pointer whitespace-nowrap"
-  //           >
-  //             <Plus className="h-3.5 w-3.5" />
-  //             Add Activity
-  //           </button>
-  //         )}
-  //       </div>
+                      <td className="py-3 px-4 min-w-[220px]">
+                        <input
+                          type="text"
+                          value={row.activityName}
+                          onChange={(e) =>
+                            updateRow(index, 'activityName', e.target.value)
+                          }
+                          placeholder="Enter Activity Name"
+                          className={`module-form-input ${
+                            errors[`${index}.activityName`]
+                              ? '!border-red-500'
+                              : ''
+                          }`}
+                        />
+                        <FieldError error={errors[`${index}.activityName`]} />
+                      </td>
 
-  //       {/* Activity Rows */}
-  //       <div className="space-y-3">
-  //         {rows.map((row, index) => (
-  //           <div
-  //             key={row.id}
-  //             className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40 p-3"
-  //           >
-  //             <div className="flex items-end gap-3 min-w-0">
+                      <td className="py-3 px-4">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={row.activityCost}
+                          onChange={(e) =>
+                            updateRow(
+                              index,
+                              'activityCost',
+                              e.target.value.replace(/-/g, '')
+                            )
+                          }
+                          onKeyDown={blockInvalidKeys}
+                          placeholder="0.00"
+                          className={`module-form-input ${
+                            errors[`${index}.activityCost`]
+                              ? '!border-red-500'
+                              : ''
+                          }`}
+                        />
+                        <FieldError error={errors[`${index}.activityCost`]} />
+                      </td>
 
-  //               {/* Activity Number */}
-  //               <div className="flex items-center gap-2 shrink-0 pb-2">
-  //                 <span className="w-6 h-6 rounded-full bg-[#0f417a] text-white text-[10px] font-black flex items-center justify-center dark:bg-blue-500">
-  //                   {index + 1}
-  //                 </span>
+                      <td className="py-3 px-4">
+                        <input
+                          type="date"
+                          value={row.expenditureDate}
+                          onChange={(e) =>
+                            updateRow(index, 'expenditureDate', e.target.value)
+                          }
+                          className={`module-form-input ${
+                            errors[`${index}.expenditureDate`]
+                              ? '!border-red-500'
+                              : ''
+                          }`}
+                        />
+                        <FieldError error={errors[`${index}.expenditureDate`]} />
+                      </td>
 
-  //                 <span className="text-[10px] font-black uppercase tracking-wide text-[#0f417a] dark:text-blue-300 whitespace-nowrap">
-  //                   Activity {index + 1}
-  //                 </span>
-  //               </div>
+                      {/* {!isEditMode && ( */}
+                        <td className="py-3 px-4 text-center">
+                          {rows.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeRow(index)}
+                              disabled={saving}
+                              title="Remove Activity"
+                              className="p-2 bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-400 rounded-lg transition cursor-pointer disabled:opacity-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
+                        </td>
+                      {/* )} */}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-  //               {/* Project Name */}
-  //               <div className="flex-1 min-w-0">
-  //                 <Label required>Project Name</Label>
-  //                 <input
-  //                   type="text"
-  //                   value={row.projectName}
-  //                   onChange={(e) =>
-  //                     updateRow(index, 'projectName', e.target.value)
-  //                   }
-  //                   placeholder="Project Name"
-  //                   className={getInputClass(
-  //                     errors[`${index}.projectName`]
-  //                   )}
-  //                 />
-  //                 <FieldError error={errors[`${index}.projectName`]} />
-  //               </div>
+          {/* Total Cost */}
+          {rows.length > 1 && (
+            <div className="flex justify-end">
+              <div className="px-4 py-2 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900">
+                <span className="text-xs font-bold text-[#0f417a] dark:text-blue-300">
+                  Total Expenditure: ₹ {totalCost.toFixed(2)} Cr
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
 
-  //               {/* Activity Name */}
-  //               <div className="flex-1 min-w-0">
-  //                 <Label required>Activity Name</Label>
-  //                 <input
-  //                   type="text"
-  //                   value={row.activityName}
-  //                   onChange={(e) =>
-  //                     updateRow(index, 'activityName', e.target.value)
-  //                   }
-  //                   placeholder="Activity Name"
-  //                   className={getInputClass(
-  //                     errors[`${index}.activityName`]
-  //                   )}
-  //                 />
-  //                 <FieldError error={errors[`${index}.activityName`]} />
-  //               </div>
+        {/* Footer Buttons */}
+        <div className="flex items-center justify-between gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+          <span className="text-xs text-rose-500 font-bold italic">
+            * Asterisks marked with red are mandatory fields
+          </span>
 
-  //               {/* Activity Cost */}
-  //               <div className="w-32 shrink-0">
-  //                 <Label required>Cost (Cr.)</Label>
-  //                 <input
-  //                   type="number"
-  //                   step="0.01"
-  //                   min="0"
-  //                   value={row.activityCost}
-  //                   onChange={(e) =>
-  //                     updateRow(
-  //                       index,
-  //                       'activityCost',
-  //                       e.target.value.replace(/-/g, '')
-  //                     )
-  //                   }
-  //                   onKeyDown={blockInvalidKeys}
-  //                   placeholder="0.00"
-  //                   className={getInputClass(
-  //                     errors[`${index}.activityCost`]
-  //                   )}
-  //                 />
-  //                 <FieldError error={errors[`${index}.activityCost`]} />
-  //               </div>
+          <div className="flex items-center gap-2">
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                disabled={saving}
+                className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer disabled:opacity-50"
+              >
+                Exit
+              </button>
+            )}
 
-  //               {/* Expenditure Date */}
-  //               <div className="w-40 shrink-0">
-  //                 <Label required>Date of Expenditure</Label>
-  //                 <input
-  //                   type="date"
-  //                   value={row.expenditureDate}
-  //                   onChange={(e) =>
-  //                     updateRow(index, 'expenditureDate', e.target.value)
-  //                   }
-  //                   className={getInputClass(
-  //                     errors[`${index}.expenditureDate`]
-  //                   )}
-  //                 />
-  //                 <FieldError error={errors[`${index}.expenditureDate`]} />
-  //               </div>
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex items-center gap-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer disabled:opacity-50"
+            >
+              <Save className="h-4 w-4" />
+              <span>
+                {saving
+                  ? 'Submitting...'
+                  : isEditMode
+                    ? 'Update LumpSum'
+                    : 'Submit LumpSum'}
+              </span>
+            </button>
+          </div>
+        </div>
+      </form>
 
-  //               {/* Remove Activity */}
-  //               {!isEditMode && rows.length > 1 && (
-  //                 <button
-  //                   type="button"
-  //                   onClick={() => removeRow(index)}
-  //                   className="inline-flex items-center gap-1 px-2 py-2 mb-1 rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-[11px] font-bold transition cursor-pointer shrink-0"
-  //                   title="Remove activity"
-  //                 >
-  //                   <Trash2 className="h-3.5 w-3.5" />
-  //                   Remove
-  //                 </button>
-  //               )}
+      {deleteTarget !== null && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4">
+          <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl p-6 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-full bg-rose-50 dark:bg-rose-950/40 shrink-0">
+                <AlertTriangle className="h-5 w-5 text-rose-600" />
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-slate-800 dark:text-slate-100">
+                  Delete Activity
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  Are you sure you want to delete this activity? This will
+                  permanently remove it from the database.
+                </p>
+              </div>
+            </div>
 
-  //             </div>
-  //           </div>
-  //         ))}
-  //       </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                disabled={saving}
+                className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmRemoveRow}
+                disabled={saving}
+                className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition cursor-pointer disabled:opacity-50"
+              >
+                {saving ? 'Deleting...' : 'Yes, Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+   
+    </div>
+  );
 
-  //       {/* Total Cost */}
-  //       {rows.length > 1 && (
-  //         <div className="flex justify-end">
-  //           <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full px-3 py-1">
-  //             Total: ₹ {totalCost.toFixed(2)} Cr
-  //           </span>
-  //         </div>
-  //       )}
-
-  //     </div>
-
-  //     <div className="flex justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
-  //       <button
-  //         type="button"
-  //         onClick={onBack}
-  //         disabled={saving}
-  //         className="flex items-center space-x-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition cursor-pointer disabled:opacity-60"
-  //       >
-  //         <ChevronLeft className="h-4 w-4" />
-  //         <span>Back to Data List</span>
-  //       </button>
-
-  //       <button
-  //         type="submit"
-  //         disabled={saving}
-  //         className="flex items-center space-x-1.5 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition cursor-pointer disabled:opacity-60"
-  //       >
-  //         <Save className="h-4 w-4" />
-  //         <span>
-  //           {saving ? 'Saving...' : isEditMode ? 'Save & Update LumpSum' : 'Submit LumpSum'}
-  //         </span>
-  //       </button>
-  //     </div>
-  //   </form>
-  // );
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { FolderKanban } from 'lucide-react';
+// import { FolderKanban } from 'lucide-react';
+import { FolderKanban, ListChecks, PlusCircle } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
 import ProjectBasicInformationPage from './pages/ProjectBasicInformationPage';
@@ -345,12 +346,18 @@ const [lumpsumRefreshKey, setLumpsumRefreshKey] = useState(0);
   const showLess5CrInputForm = Boolean(
     permissions.canAdd && isOrgScope && !permissions.isViewOnlyAdmin
   );
+  // Org users (org 17): Add + Edit
   const showLumpsumInputForm = Boolean(
     permissions.canAdd && isOrgScope && !permissions.isViewOnlyAdmin
   );
 
+  // Ministry + Org 17: Edit only (Update form)
+  const canEditLumpsum = Boolean(
+    permissions.canEdit && !permissions.isViewOnlyAdmin
+  );
+
  const canViewReports = canAccessReports;
-const tabs = useMemo(() => {
+  const tabs = useMemo(() => {
   if (isLess5CrRoute) {
     const items = [];
     if (showLess5CrInputForm) items.push({ id: 'less5cr-form', label: 'Input Form' });
@@ -369,12 +376,12 @@ const tabs = useMemo(() => {
     items.push({ id: 'drop-requests', label: 'Drop Requests', count: dropRequestCount });
   }
 
-   items.push({ id: 'list', label: 'Data List' });
+  items.push({ id: 'list', label: 'Data List' });
 
+  // Lumpsum: dropdown group (Data List first, then Input Form)
   if (canAccessLumpsum) {
-    const lumpsumMenu = [];
+    const lumpsumMenu = [{ id: 'lumpsum-iwai-list', label: 'Data List' }];
     if (showLumpsumInputForm) lumpsumMenu.push({ id: 'input-form', label: 'Input Form' });
-    lumpsumMenu.push({ id: 'lumpsum-iwai-list', label: 'Data List' });
 
     items.push({
       id: 'lumpsum',
@@ -385,24 +392,72 @@ const tabs = useMemo(() => {
   }
 
   if (canAccessReports) items.push({ id: 'reports', label: 'Reports' });
-    return items;
-  }, [
-    showInputForm,
-    showLess5CrInputForm,
-    showLumpsumInputForm,
-    canAccessLumpsum,
-    canAccessDropRequests,
-    canAccessReports,
-    dropRequestCount,
-    isLess5CrRoute,
-  ]);
+  return items;
+}, [
+  showInputForm,
+  showLess5CrInputForm,
+  showLumpsumInputForm,
+  canAccessLumpsum,
+  canAccessDropRequests,
+  canAccessReports,
+  dropRequestCount,
+  isLess5CrRoute,
+]);
+
+
+// const tabs = useMemo(() => {
+  //   if (isLess5CrRoute) {
+  //     const items = [];
+  //     if (showLess5CrInputForm) items.push({ id: 'less5cr-form', label: 'Input Form' });
+  //     items.push({ id: 'less5cr-list', label: 'Data List' });
+  //     return items;
+  //   }
+
+  //   const items = [{ id: 'dashboard', label: 'Dashboard' }];
+
+  //   if (showInputForm) {
+  //     items.push({ id: 'basic-info', label: 'Input Form' });
+  //     items.push({ id: 'add-sub-project', label: 'Add Sub Project' });
+  //   }
+
+  //   if (canAccessDropRequests) {
+  //     items.push({ id: 'drop-requests', label: 'Drop Requests', count: dropRequestCount });
+  //   }
+
+  //   items.push({ id: 'list', label: 'Data List' });
+
+  //   if (canAccessLumpsum) {
+  //     const lumpsumMenu = [];
+  //     if (showLumpsumInputForm) lumpsumMenu.push({ id: 'input-form', label: 'Input Form' });
+  //     lumpsumMenu.push({ id: 'lumpsum-iwai-list', label: 'Data List' });
+
+  //     items.push({
+  //       id: 'lumpsum',
+  //       label: 'Lumpsum',
+  //       isGroup: true,
+  //       subMenu: lumpsumMenu,
+  //     });
+  //   }
+
+  //   if (canAccessReports) items.push({ id: 'reports', label: 'Reports' });
+  //     return items;
+  //   }, [
+  //     showInputForm,
+  //     showLess5CrInputForm,
+  //     showLumpsumInputForm,
+  //     canAccessLumpsum,
+  //     canAccessDropRequests,
+  //     canAccessReports,
+  //     dropRequestCount,
+  //     isLess5CrRoute,
+  // ]);
 
   const activeSubTab = useMemo(() => {
     if ((isReportsRoute || manualSubTab === 'reports') && canViewReports) return 'reports';
       if (isLumpsumRoute) {
         if (manualSubTab === 'dashboard') return 'dashboard';
 
-        if (manualSubTab === 'input-form' && showLumpsumInputForm) {
+        if (manualSubTab === 'input-form' && (showLumpsumInputForm || canEditLumpsum)) {
           return 'input-form';
         }
 
@@ -440,6 +495,8 @@ const tabs = useMemo(() => {
     manualSubTab,
     less5CrEditingRecord,
     showLess5CrInputForm,
+    showLumpsumInputForm,  
+    canEditLumpsum,         
     showInputForm,
     canAccessDropRequests,
     canAccessReports,
@@ -661,6 +718,13 @@ const tabs = useMemo(() => {
                 navigate('/projects/project/add-sub-project');
                 return;
               }
+
+                if (tab === 'lumpsum') {
+                setLumpsumEditingRecord(null);
+                setManualSubTab('lumpsum-iwai-list');
+                navigate('/projects/project/lumpsum-iwai-list');
+                return;
+              }
               if (tab === 'list') {
                 setManualSubTab('list');
                 navigate('/projects/project/project-list');
@@ -671,6 +735,34 @@ const tabs = useMemo(() => {
           />
         ) : null}
       </div>
+
+     {isLumpsumActive && (
+      <div className="space-y-4">
+        <div className="module-subtabs-strip flex-wrap">
+          <button
+            type="button"
+            onClick={() => handleLumpsumSubItem('lumpsum-iwai-list')}
+            className={`module-subtab-btn flex items-center gap-2 ${activeSubTab === 'lumpsum-iwai-list' ? 'active' : ''}`}
+          >
+            <ListChecks className="h-4 w-4" />
+            <span>Data List</span>
+          </button>
+
+          {showLumpsumInputForm && (
+            <button
+              type="button"
+              onClick={() => handleLumpsumSubItem('input-form')}
+              className={`module-subtab-btn flex items-center gap-2 ${
+                activeSubTab === 'input-form' ? 'active' : ''
+              }`}
+            >
+              <PlusCircle className="h-4 w-4" />
+              <span>Input Form</span>
+            </button>
+          )}
+        </div>
+      </div>
+    )}
 
       <div className="space-y-8">
         {activeSubTab === 'dashboard' ? (
@@ -688,68 +780,67 @@ const tabs = useMemo(() => {
             loading={lumpsumLoading}
             notify={notify}
            
-onAdd={
-  showLumpsumInputForm
-    ? () => {
-        setLumpsumEditingRecord(null);
-        setManualSubTab('input-form');
-        navigate('/projects/project/lumpsum-iwai-input-form');
-      }
-    : undefined
-}
+            onAdd={
+              showLumpsumInputForm
+                ? () => {
+                    setLumpsumEditingRecord(null);
+                    setManualSubTab('input-form');
+                    navigate('/projects/project/lumpsum-iwai-input-form');
+                  }
+                : undefined
+            }
 
-onEdit={
-  showLumpsumInputForm
-    ? (row) => {
-        const projectId =
-          row.project_id ??
-          row.projectID ??
-          row.projectId ??
-          row.raw?.project_id;
+            onEdit={
+              canEditLumpsum
+                ? (row) => {
+                    const projectId =
+                      row.project_id ??
+                      row.projectID ??
+                      row.projectId ??
+                      row.raw?.project_id;
 
-        if (!projectId) {
-          notify('Project ID not found.', 'error');
-          return;
-        }
+                    if (!projectId) {
+                      notify('Project ID not found.', 'error');
+                      return;
+                    }
 
-        setLumpsumEditingRecord(row);
-        setManualSubTab('input-form');
+                    setLumpsumEditingRecord(row);
+                    setManualSubTab('input-form');
 
-        navigate(
-          `/projects/project/lumpsum-iwai-input-form?projectId=${projectId}`
-        );
-      }
-    : undefined
-}
-
+                    navigate(
+                      `/projects/project/lumpsum-iwai-input-form?projectId=${projectId}`
+                    );
+                  }
+                : undefined
+            }
           />
         ) : null}
 
        {activeSubTab === 'input-form' ? (
-  <LumpsumFormPage
-    key={
-  lumpsumEditingRecord?.lumpsum_activity_id ||
-  new URLSearchParams(location.search).get('projectId') ||
-  'new-lumpsum'
-}
-    initialData={lumpsumEditingRecord}
-    notify={notify}
-    onBack={() => {
-      setLumpsumEditingRecord(null);
-      setLumpsumRefreshKey(prev => prev + 1);
-      setManualSubTab('lumpsum-iwai-list');
-      navigate('/projects/project/lumpsum-iwai-list');
-    }}
-    onSuccess={() => {
-      setLumpsumEditingRecord(null);
-      setLumpsumRefreshKey(prev => prev + 1);
-      setManualSubTab('lumpsum-iwai-list');
-      navigate('/projects/project/lumpsum-iwai-list');
-    }}
-  />
-) : null}
+        <LumpsumFormPage
+          key={
+        lumpsumEditingRecord?.lumpsum_activity_id ||
+        new URLSearchParams(location.search).get('projectId') ||
+        'new-lumpsum'
+      }
+          initialData={lumpsumEditingRecord}
+          notify={notify}
+          onBack={() => {
+            setLumpsumEditingRecord(null);
+            setLumpsumRefreshKey(prev => prev + 1);
+            setManualSubTab('lumpsum-iwai-list');
+            navigate('/projects/project/lumpsum-iwai-list');
+          }}
+          onSuccess={() => {
+            setLumpsumEditingRecord(null);
+            setLumpsumRefreshKey(prev => prev + 1);
+            setManualSubTab('lumpsum-iwai-list');
+            navigate('/projects/project/lumpsum-iwai-list');
+          }}
+        />
+      ) : null}
 
-        {activeSubTab === 'less5cr-list' ? (
+       {activeSubTab === 'less5cr-list' ? (
           <ProjectsLessThan5CrPage
             key={`less5cr-list-${less5CrListRefreshKey}`}
             view="list"

@@ -207,7 +207,7 @@ export default function LumpSumIwai({
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+      {/* <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
         <div>
           <h2 className="text-base font-black text-[#0f417a] dark:text-blue-400 uppercase tracking-wide">
             LumpSum - IWAI
@@ -217,7 +217,7 @@ export default function LumpSumIwai({
           </p>
         </div>
 
-      </div>
+      </div> */}
 
       {/* Toolbar */}
       <div className="flex flex-col lg:flex-row gap-3 items-center justify-between">
