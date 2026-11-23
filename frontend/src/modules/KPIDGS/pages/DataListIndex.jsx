@@ -3,12 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import IndexCardGrid from '../components/IndexCardGrid';
 import INPUT_FORM_INDEX, { INPUT_FORM_LEAVES } from '../data/inputFormIndex';
 import GenericReportPage from '../components/GenericReportPage';
+import VesselSurveyDataList from '../components/VesselSurveyDataList';
 import * as api from '../api';
 import { useKPIDGSPermissions } from '../hooks/useKPIDGSPermissions';
 import { examMonthlyColumns, examOverallColumns } from '../components/examPerformanceColumns';
-import { entryExitColumns, ENTRY_EXIT_TABS } from '../components/entryExitColumns';
-import ListTabs from '../components/ListTabs';
-import { activeTabOf, rowsInTab } from '../data/listTabs';
 import { useDgsStore, DGS_STORED_LIST_SLUGS } from '../store/useDgsStore';
 import { ExamFilterButton, ExamFilterPanel } from '../components/ExamListFilters';
 import {
@@ -18,8 +16,6 @@ import { useNotifier, COMMON_TOASTS } from '../../../utils/notify';
 
 const LIST_FETCH_BY_SLUG = {
   'flagging-of-vessels': () => api.fetchKpi2_1_List(),
-  // K-2.2 SBFAP is split into 3 views: shipyard master, in-principle approval list,
-  // financial-assistance (fund release) list.
   'sbfap-shipyard-list': () => api.fetchShipyardList(),
   'sbfap-inprincipal-approval': () => api.fetchKpi2_2_List(),
   'sbfap-financial-assistance': () => api.fetchKpi2_2_Fa_List(),
@@ -44,12 +40,6 @@ const LIST_FETCH_BY_SLUG = {
 const EXPORTS_BY_SLUG = {
   'exam-monthly-performance': { exportTitle: 'DGS K-2.3.1 Exam Monthly Performance - Data List', exportFileName: 'DGS_K2_3_1_Exam_Monthly_Performance' },
   'exam-overall-performance': { exportTitle: 'DGS K-2.3.2 Exam Overall Performance Statistics - Data List', exportFileName: 'DGS_K2_3_2_Exam_Overall_Performance' },
-  'entry-exit-of-candidates': { exportTitle: 'DGS K-2.4 Entry and Exit of Candidates - Data List', exportFileName: 'DGS_K2_4_Entry_Exit_of_Candidates' },
-};
-
-// Lists split into tabs above the table (rows of one tab at a time)
-const TABS_BY_SLUG = {
-  'entry-exit-of-candidates': ENTRY_EXIT_TABS,
 };
 
 // Data List reuses the same merged-layout / sticky-header / scrollable-body
@@ -74,31 +64,20 @@ function StoredDataList({ slug, columns, ...props }) {
   const setListFilter = useDgsStore((state) => state.setListFilter);
   const resetListFilters = useDgsStore((state) => state.resetListFilters);
   const toggleListFilterPanel = useDgsStore((state) => state.toggleListFilterPanel);
-  const setListTab = useDgsStore((state) => state.setListTab);
   const setListVisibleCols = useDgsStore((state) => state.setListVisibleCols);
   const defaults = useMemo(() => defaultVisibleCols(columns), [columns]);
 
   // Filters this list offers (the ones the old portal's list had); none for other sections
   const fields = EXAM_FILTER_FIELDS[slug];
-  const tabs = TABS_BY_SLUG[slug];
-  const { filters, showFilterPanel, tab } = slot;
-  // The chosen tab's rows, then the filters
-  const filterRows = useCallback((rows) => {
-    const inTab = tabs ? rowsInTab(tabs, rows, activeTabOf(tabs, rows, tab)) : rows;
-    return fields ? filterExamRows(inTab, fields, filters) : inTab;
-  }, [tabs, tab, fields, filters]);
+  const { filters, showFilterPanel } = slot;
+  const filterRows = useCallback((rows) => filterExamRows(rows, fields, filters), [fields, filters]);
   const handleReset = useCallback(() => {
     resetListFilters(slug);
     notify(COMMON_TOASTS.filtersReset());
   }, [resetListFilters, slug, notify]);
 
-  const filterProps = fields || tabs ? { filterRows } : {};
-  const tabProps = tabs ? {
-    renderAboveTable: (allRows) => (
-      <ListTabs tabs={tabs} rows={allRows} active={activeTabOf(tabs, allRows, tab)} onChange={(value) => setListTab(slug, value)} />
-    ),
-  } : {};
-  const filterControls = fields ? {
+  const filterProps = fields ? {
+    filterRows,
     filterToolbar: (
       <ExamFilterButton
         activeCount={countActiveFilters(fields, filters)}
@@ -126,8 +105,6 @@ function StoredDataList({ slug, columns, ...props }) {
       visibleCols={slot.visibleCols ?? defaults}
       onVisibleColsChange={(updater) => setListVisibleCols(slug, updater, defaults)}
       {...filterProps}
-      {...filterControls}
-      {...tabProps}
     />
   );
 }
@@ -143,7 +120,6 @@ export default function DataListIndex({ triggerNotification }) {
     return {
       'exam-monthly-performance': examMonthlyColumns({ canEdit, onEdit: editIn('exam-monthly-performance') }),
       'exam-overall-performance': examOverallColumns({ canEdit, onEdit: editIn('exam-overall-performance') }),
-      'entry-exit-of-candidates': entryExitColumns({ canEdit, onEdit: editIn('entry-exit-of-candidates') }),
     };
   }, [navigate, canEdit]);
 
@@ -157,12 +133,21 @@ export default function DataListIndex({ triggerNotification }) {
       mergedLayout
       renderRight={(slug, { flat } = {}) => {
         if (!slug) return null;
+
+        if (slug === 'vessel-port-survey') {
+          return (
+            <VesselSurveyDataList
+              notify={triggerNotification}
+              onEdit={(row) => navigate(`/kpi/dgs/input-forms/${slug}?id=${row.id}`)}
+              onDelete={(row) => api.deleteVesselSurvey(row.id)}
+            />
+          );
+        }
+
         const leaf = INPUT_FORM_LEAVES.find((l) => l.slug === slug);
         const fetchFn = LIST_FETCH_BY_SLUG[slug];
         if (!leaf || !fetchFn) {
-          return (
-            <p className="text-sm text-slate-600">No data list is registered for slug "{slug}".</p>
-          );
+          return <p className="text-sm text-slate-600">No data list is registered for slug "{slug}".</p>;
         }
         const pageProps = {
           code: leaf.code,
