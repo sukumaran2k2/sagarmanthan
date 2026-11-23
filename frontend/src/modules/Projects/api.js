@@ -451,4 +451,36 @@ export function fetchProjectsDashboardProject(projectId, subProjectId) {
   });
 }
 
+// export function fetchLumpsumData() {
+//   return api.get('/lumpsum-list'); 
+// }
+
+export function fetchLumpsumData() {
+  return api.get('/lumpsum-list');
+}
+
+export function createLumpSum(payload) {
+  return api.post('/add-lumpsum', payload);
+}
+
+export function fetchLumpSumProjectList() {
+  return api.get(`/lumpsum-project-list`);
+}
+
+export function fetchLumpSumData(projectID) {
+  return api.get(`/getedit-lumpsum-data/${projectID}`);
+}
+
+export function fetchLumpSumActivityData(projectID) {
+  return api.get(`/getedit-lumpsum-activitydata/${projectID}`);
+}
+
+export function updateLumpSum(payload) {
+  return api.put(`/edit-lumpsum`, payload);
+}
+
+export function deleteLumpSumActivity(lumpsumId) {
+  return api.delete(`/delete-lumpsum-activity/${lumpsumId}`);
+}
+
 export default api;
