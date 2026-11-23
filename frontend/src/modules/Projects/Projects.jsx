@@ -101,6 +101,12 @@ export default function Projects({
   // Only Data QC reports remain (MIS is hidden), and those are Ministry only
   const canAccessReports = Boolean(permissions.canView && !isOrgScope);
 
+  const LUMPSUM_ORG_ID = '17';
+  const canAccessLumpsum = Boolean(
+    permissions.canView &&
+    (!isOrgScope || String(permissions.organisationId) === LUMPSUM_ORG_ID)
+  );
+
   const ListView = useMemo(
     () => resolveProjectsListView(permissions.uiViewCode),
     [permissions.uiViewCode]
@@ -207,21 +213,27 @@ const [lumpsumRefreshKey, setLumpsumRefreshKey] = useState(0);
       'project-list', 'data-list', 'less-than-5', 'less5cr',
     ].some((k) => path.includes(k));
 
+    if (path.includes('lumpsum') && !canAccessLumpsum) {
+      setManualSubTab('list');
+      navigate('/projects/project/project-list', { replace: true });
+      return;
+    }
+
     if (path.includes('lumpsum')) setLumpsumContext(true);
     else if (isOtherKnownRoute) setLumpsumContext(false);
 
     if (!initialOrgRouteHandledRef.current) {
       initialOrgRouteHandledRef.current = true;
-     const isLumpsumInputFormRoute =
-  path.includes('lumpsum-iwai-input-form');
+     const isLumpsumInputFormRoute = path.includes('lumpsum-iwai-input-form');
 
-const isInputFormRoute =
-  !isLumpsumInputFormRoute &&
-  (
-    path.includes('input-form') ||
-    path.includes('basic-info') ||
-    path.includes('add-project')
-  );
+    const isInputFormRoute =
+      !isLumpsumInputFormRoute &&
+      (
+        path.includes('input-form') ||
+        path.includes('basic-info') ||
+        path.includes('add-project')
+      );
+
       const hasExplicitEditIntent = Boolean(
         location.state?.project || location.state?.editData || location.state?.fromList
       );
@@ -292,6 +304,7 @@ const isInputFormRoute =
     showInputForm,
     canAccessDropRequests,
     canAccessReports,
+    canAccessLumpsum,
     permissions.isOrganisationUser,
   ]);
 
@@ -321,12 +334,8 @@ const isInputFormRoute =
       || String(manualSubTab || '').startsWith('less5cr');
   }, [location.pathname, manualSubTab]);
 
-  const isLumpsumRoute = useMemo(() => {
-  const path = String(location.pathname || '').toLowerCase();
-  return path.includes('lumpsum')
-    || String(manualSubTab || '').startsWith('lumpsum')
-    || lumpsumContext;
-}, [location.pathname, manualSubTab, lumpsumContext]);
+  const isLumpsumRoute =
+  manualSubTab === 'input-form' || manualSubTab === 'lumpsum-iwai-list';
 
   const isReportsRoute = useMemo(() => {
     const path = String(location.pathname || '').toLowerCase();
@@ -340,36 +349,15 @@ const isInputFormRoute =
     permissions.canAdd && isOrgScope && !permissions.isViewOnlyAdmin
   );
 
-  // Lumpsum la reports ellarukum, matra idathula Ministry mattum
-  const canViewReports = isLumpsumRoute ? Boolean(permissions.canView) : canAccessReports;
-
+ const canViewReports = canAccessReports;
 const tabs = useMemo(() => {
-  if (isLumpsumRoute) {
-    // LumpSum IWAI: Dashboard and Reports not required
-    const items = [];
-
-    if (showLumpsumInputForm) {
-      items.push({ id: 'input-form', label: 'Input Form' });
-    }
-
-    items.push({ id: 'lumpsum-iwai-list', label: 'Data List' });
-
-    return items;
-  }
-
   if (isLess5CrRoute) {
     const items = [];
-
-    if (showLess5CrInputForm) {
-      items.push({ id: 'less5cr-form', label: 'Input Form' });
-    }
-
+    if (showLess5CrInputForm) items.push({ id: 'less5cr-form', label: 'Input Form' });
     items.push({ id: 'less5cr-list', label: 'Data List' });
-
     return items;
   }
 
-  // Normal Projects tabs
   const items = [{ id: 'dashboard', label: 'Dashboard' }];
 
   if (showInputForm) {
@@ -378,80 +366,36 @@ const tabs = useMemo(() => {
   }
 
   if (canAccessDropRequests) {
+    items.push({ id: 'drop-requests', label: 'Drop Requests', count: dropRequestCount });
+  }
+
+   items.push({ id: 'list', label: 'Data List' });
+
+  if (canAccessLumpsum) {
+    const lumpsumMenu = [];
+    if (showLumpsumInputForm) lumpsumMenu.push({ id: 'input-form', label: 'Input Form' });
+    lumpsumMenu.push({ id: 'lumpsum-iwai-list', label: 'Data List' });
+
     items.push({
-      id: 'drop-requests',
-      label: 'Drop Requests',
-      count: dropRequestCount,
+      id: 'lumpsum',
+      label: 'Lumpsum',
+      isGroup: true,
+      subMenu: lumpsumMenu,
     });
   }
 
-  items.push({ id: 'list', label: 'Data List' });
-
-  if (canAccessReports) {
-    items.push({ id: 'reports', label: 'Reports' });
-  }
-
-  return items;
-}, [
-  showInputForm,
-  showLess5CrInputForm,
-  showLumpsumInputForm,
-  canAccessDropRequests,
-  canAccessReports,
-  dropRequestCount,
-  isLess5CrRoute,
-  isLumpsumRoute,
-]);
-
-  // const tabs = useMemo(() => {
-  //   if (isLumpsumRoute) {
-  //     // const items = [{ id: 'dashboard', label: 'Dashboard' }];
-  //     if (showLumpsumInputForm) {
-  //       items.push({ id: 'input-form', label: 'Input Form' });
-  //     }
-  //     items.push({ id: 'lumpsum-iwai-list', label: 'Data List' });
-  //     // if (canViewReports) {
-  //     //   items.push({ id: 'reports', label: 'Reports' });
-  //     // }
-  //     return items;
-  //   }
-
-  //   if (isLess5CrRoute) {
-  //     const items = [];
-  //     if (showLess5CrInputForm) {
-  //       items.push({ id: 'less5cr-form', label: 'Input Form' });
-  //     }
-  //     items.push({ id: 'less5cr-list', label: 'Data List' });
-  //     return items;
-  //   }
-
-  //   const items = [{ id: 'dashboard', label: 'Dashboard' }];
-  //   if (showInputForm) {
-  //     items.push({ id: 'basic-info', label: 'Input Form' });
-  //     items.push({ id: 'add-sub-project', label: 'Add Sub Project' });
-  //   }
-  //   if (canAccessDropRequests) {
-  //     items.push({
-  //       id: 'drop-requests',
-  //       label: 'Drop Requests',
-  //       count: dropRequestCount,
-  //     });
-  //   }
-  //   items.push({ id: 'list', label: 'Data List' });
-  //   if (canAccessReports) {
-  //     items.push({ id: 'reports', label: 'Reports' });
-  //   }
-  //   return items;
-  // }, [
-  //   showInputForm,
-  //   showLess5CrInputForm,
-  //   showLumpsumInputForm,
-  //   canAccessDropRequests,
-  //   canAccessReports,
-  //   dropRequestCount,
-  //   isLess5CrRoute,
-  //   isLumpsumRoute, 
-  // ]);
+  if (canAccessReports) items.push({ id: 'reports', label: 'Reports' });
+    return items;
+  }, [
+    showInputForm,
+    showLess5CrInputForm,
+    showLumpsumInputForm,
+    canAccessLumpsum,
+    canAccessDropRequests,
+    canAccessReports,
+    dropRequestCount,
+    isLess5CrRoute,
+  ]);
 
   const activeSubTab = useMemo(() => {
     if ((isReportsRoute || manualSubTab === 'reports') && canViewReports) return 'reports';
@@ -505,6 +449,24 @@ const tabs = useMemo(() => {
     editingRecord,
   ]);
 
+  const isLumpsumActive =
+  activeSubTab === 'input-form' || activeSubTab === 'lumpsum-iwai-list';
+
+  const handleLumpsumSubItem = (subId) => {
+    setEditingRecord(null);
+    setFormReadOnly(false);
+    setLumpsumEditingRecord(null);
+
+    if (subId === 'input-form' && showLumpsumInputForm) {
+      setManualSubTab('input-form');
+      navigate('/projects/project/lumpsum-iwai-input-form');
+      return;
+    }
+
+    setManualSubTab('lumpsum-iwai-list');
+    navigate('/projects/project/lumpsum-iwai-list');
+  };
+
   const [lumpsumRows, setLumpsumRows] = useState([]);
   const [lumpsumLoading, setLumpsumLoading] = useState(false);
 
@@ -551,57 +513,6 @@ const tabs = useMemo(() => {
     isMounted = false;
   };
 }, [activeSubTab, lumpsumRefreshKey]);
-//   useEffect(() => {
-//   if (activeSubTab !== 'lumpsum-form') return;
-
-//   let alive = true;
-
-//   const loadProjectDropdown = async () => {
-//     try {
-//       const organisationID = permissions.organisationId;
-
-//       console.log('LumpSum Organisation ID:', organisationID);
-
-//       if (!organisationID) {
-//         console.error('Organisation ID is missing from permissions.');
-//         return;
-//       }
-
-//       const response = await fetchLumpSumProjectList( organisationID,'tbl_project');
-
-//       console.log('LumpSum Project List:', response.data);
-
-//       const projectList = Array.isArray(response.data)
-//         ? response.data
-//         : [];
-
-//       const options = projectList.map((row) => ({
-//         value: row.project_id,
-//         label: `${row.project_id} - ${row.project_name}`,
-//         projectName: row.project_name,
-//       }));
-
-//       if (alive) {
-//         setLumpsumProjectOptions(options);
-//       }
-//     } catch (error) {
-//       console.error(
-//         'LumpSum project dropdown error:',
-//         error.response?.data || error
-//       );
-
-//       if (alive) {
-//         setLumpsumProjectOptions([]);
-//       }
-//     }
-//   };
-
-//   loadProjectDropdown();
-
-//   return () => {
-//     alive = false;
-//   };
-// }, [activeSubTab, permissions.organisationId]);
 
   if (!permissions.canView) {
     return (
@@ -676,36 +587,20 @@ const tabs = useMemo(() => {
           <InternalNavigation
             tabs={tabs}
             currentTab={
-              activeSubTab === 'edit-info'
-                ? 'list'
-                : activeSubTab === 'less5cr-edit'
-                  ? (showLess5CrInputForm ? 'less5cr-form' : 'less5cr-list')
-                  : activeSubTab
+              isLumpsumActive
+                ? 'lumpsum'
+                : activeSubTab === 'edit-info'
+                  ? 'list'
+                  : activeSubTab === 'less5cr-edit'
+                    ? (showLess5CrInputForm ? 'less5cr-form' : 'less5cr-list')
+                    : activeSubTab
             }
+            currentSubItem={isLumpsumActive ? activeSubTab : undefined}
+            onSubItemChange={handleLumpsumSubItem}
             onTabChange={(tab) => {
               if (tab !== 'edit-info') {
                 setEditingRecord(null);
                 setFormReadOnly(false);
-              }
-              if (isLumpsumRoute) {
-                const lumpsumRoutes = {
-                    // dashboard: '/projects/project/lumpsum-iwai-dashboard',
-                    'input-form': '/projects/project/lumpsum-iwai-input-form',
-                    'lumpsum-iwai-list': '/projects/project/lumpsum-iwai-list',
-                    // reports: '/projects/project/lumpsum-iwai-reports',
-                  };
-                if (tab === 'input-form' && !showLumpsumInputForm) {
-                  setManualSubTab('lumpsum-iwai-list');
-                  navigate('/projects/project/lumpsum-iwai-list');
-                  return;
-                }
-
-                if (lumpsumRoutes[tab]) {
-                  setLumpsumEditingRecord(null);
-                  setManualSubTab(tab);
-                  navigate(lumpsumRoutes[tab]);
-                  return;
-                }
               }
               if (tab === 'less5cr-list') {
                 setLess5CrEditingRecord(null);

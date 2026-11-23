@@ -2,6 +2,8 @@ import {
   getSessionClaims,
   isOrgSeniorOfficer,
   isSuperAdmin,
+  getSessionOrganisationId,
+  isOrganisationUser,
   isViewOnlyAdmin,
 } from './authSession';
 import {
@@ -107,12 +109,31 @@ export function usesOwnPageHeader(tab) {
   return t === 'landing' || SUPERADMIN_TABS.has(t) || SENIOR_OFFICER_TABS.has(t);
 }
 
+const LUMPSUM_TABS = new Set([
+  'projects-lumpsum',
+  'projects-lumpsum-list',
+  'projects-lumpsum-input-form',
+  'Lumpsum - IWAI',
+  'Lumpsum IWAI Data List',
+  'Lumpsum IWAI Input Form',
+]);
+
+function canAccessLumpsum() {
+  if (!isOrganisationUser()) return true; // Ministry users
+  return getSessionOrganisationId() === 17;
+}
+
 export function canAccessTab(tab) {
   if (!tab) return false;
 
   const key = normalizeTab(tab);
 
   if (PUBLIC_TABS.has(tab) || PUBLIC_TABS.has(key)) return true;
+
+  // Lumpsum - IWAI: Ministry users and Organisation 17 only
+  if (LUMPSUM_TABS.has(tab) || LUMPSUM_TABS.has(key)) {
+    if (!canAccessLumpsum()) return false;
+  }
 
   if (SENIOR_OFFICER_TABS.has(key)) {
     if (isOrgSeniorOfficer()) return true;
@@ -131,9 +152,13 @@ export function canAccessTab(tab) {
 
 export function canAccessMenuItem(item) {
   if (!item) return false;
+  
+  const tab = item.tab || item.targetTab || item.label;
+  if (tab && LUMPSUM_TABS.has(tab) && !canAccessLumpsum()) return false;
+
   if (item.moduleCode) return hasModuleReadAccess(item.moduleCode);
-  return canAccessTab(item.tab || item.targetTab || item.label);
-}
+    return canAccessTab(item.tab || item.targetTab || item.label);
+  }
 
 export function filterMenuByAccess(menuData) {
   if (isSuperAdmin()) {
