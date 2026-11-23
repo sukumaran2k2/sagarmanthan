@@ -6,6 +6,7 @@ import xlsx from 'xlsx';
 import { pool } from "../../db.js";
 import { readPeriod } from './eOfficePeriod.js';
 import { spreadsheetFileFilter, singleSpreadsheet } from './eOfficeUpload.js';
+import { EMPLOYEE_LEVELS } from './eOfficeEmployees.js';
 
 const uploadDestination = "./fileuploads/Emp_attendance";
 
@@ -385,6 +386,11 @@ async function addEmpDataAttendance(req, res) {
     const designation = text(req.body.designation);
     const wingId = Number(req.body.wing);
     const divisionId = Number(req.body.division);
+    // Optional level of designation (E-Office Employee Info); the upload pages don't send one
+    const levelCode = text(req.body.level).toUpperCase();
+    if (levelCode && !EMPLOYEE_LEVELS.includes(levelCode)) {
+        return res.status(400).json({ error: 'Not a valid level of designation' });
+    }
 
     const missing = [!empId && 'Emp Id', !empName && 'Emp Name', !designation && 'Designation',
         !Number.isInteger(wingId) && 'Wing', !Number.isInteger(divisionId) && 'Division'].filter(Boolean);
@@ -400,6 +406,7 @@ async function addEmpDataAttendance(req, res) {
         request.input("designation", sql.NVarChar(255), designation);
         request.input("wing", sql.Int, wingId);
         request.input("division", sql.Int, divisionId);
+        request.input("level", sql.NVarChar(255), levelCode || null);
 
         const existing = await request.query(`SELECT TOP 1 Emp_Id FROM mmt_employee_info WHERE Emp_Id = @empId`);
         if (existing.recordset.length) {
@@ -416,8 +423,8 @@ async function addEmpDataAttendance(req, res) {
         request.input("organizationID", sql.Int, orgIDResult.recordset[0].organization_id);
 
         await request.query(`
-            INSERT INTO mmt_employee_info (Emp_Id, Emp_Name, Designation, organization_id)
-            VALUES (@empId, @empName, @designation, @organizationID)
+            INSERT INTO mmt_employee_info (Emp_Id, Emp_Name, Designation, organization_id, level)
+            VALUES (@empId, @empName, @designation, @organizationID, @level)
         `);
 
         return res.status(201).json({ message: 'Employee created', empId });

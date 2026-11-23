@@ -5,6 +5,7 @@ import UploadPage from './pages/UploadPage';
 import FilesPage from './pages/FilesPage';
 import DataListPage from './pages/DataListPage';
 import ReportPage from './pages/ReportPage';
+import EmployeeInfoPage from './pages/EmployeeInfoPage';
 import { useNotifier } from '../../utils/notify';
 import { getModuleCrud } from '../../utils/modulePermissions';
 import { useEOfficeStore } from './store/useEOfficeStore';
@@ -13,6 +14,8 @@ import { CATEGORIES, CATEGORY_LIST } from './utils/eOfficeUtils';
 const BASE = '/governance/e-office';
 // Older links used ?kpi=<category>&subtab=upload|files|data|report
 const LEGACY_SUBTABS = { upload: 'upload', files: 'files', data: 'data-list', report: 'report' };
+// Tabs that apply to every sheet, so the sheet strip is hidden on them
+const ALL_SHEET_TABS = new Set(['employee-info']);
 
 // URL: /governance/e-office/<category>/<tab>
 export default function EOfficeView({ triggerNotification }) {
@@ -30,6 +33,7 @@ export default function EOfficeView({ triggerNotification }) {
 
   const tabs = useMemo(() => [
     ...(canUpload ? [{ id: 'upload', label: 'Upload File' }] : []),
+    { id: 'employee-info', label: 'Employee Info' },
     { id: 'files', label: 'View Files' },
     { id: 'data-list', label: 'Data List' },
     { id: 'report', label: 'Report' },
@@ -67,7 +71,7 @@ export default function EOfficeView({ triggerNotification }) {
         <InternalNavigation tabs={tabs} currentTab={tab} onTabChange={(id) => navigate(`${BASE}/${category.id}/${id}`)} />
       </div>
 
-      <div className="module-subtabs-strip" role="tablist" aria-label="E-Office sheets">
+      {!ALL_SHEET_TABS.has(tab) && <div className="module-subtabs-strip" role="tablist" aria-label="E-Office sheets">
         {CATEGORY_LIST.map((c) => (
           <button
             key={c.id}
@@ -80,12 +84,13 @@ export default function EOfficeView({ triggerNotification }) {
             {c.label.toUpperCase()}
           </button>
         ))}
-      </div>
+      </div>}
 
       {tab === 'upload' && <UploadPage key={category.id} category={category} notify={notify} onUploaded={handleUploaded} />}
       {tab === 'files' && <FilesPage {...pageProps} canDelete={crud.delete} onDeleted={() => setReloadKey((k) => k + 1)} />}
       {tab === 'data-list' && <DataListPage {...pageProps} />}
       {tab === 'report' && <ReportPage category={category} notify={notify} />}
+      {tab === 'employee-info' && <EmployeeInfoPage notify={notify} crud={crud} />}
     </div>
   );
 }

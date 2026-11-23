@@ -33,6 +33,14 @@ export const EOFFICE_TOASTS = {
     toastError('Download Failed', 'The uploaded sheet could not be downloaded. Please try again.'),
   fileDeleted: (fileName) =>
     toastSuccess('File Deleted', `${fileName} and the rows uploaded from it have been deleted.`),
+  employeeAdded: (empId) =>
+    toastSuccess('Employee Added', `Employee ${empId} has been added to the employee list.`),
+  employeeUpdated: (empId) =>
+    toastSuccess('Employee Updated', `The details of employee ${empId} have been saved.`),
+  employeeDeleted: (empId) =>
+    toastSuccess('Employee Deleted', `Employee ${empId} has been removed from the employee list.`),
+  employeeDeleteFailed: (reason) =>
+    toastError('Delete Failed', withReason('The employee could not be deleted. Please try again.', reason)),
   deleteFailed: (reason) =>
     toastError('Delete Failed', withReason('The file could not be deleted. Please try again.', reason)),
 };

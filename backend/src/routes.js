@@ -47,6 +47,7 @@ import eOfficeTab from "./controllers/Governance/eOffice.js";
 import EofficeFilePendancyTab from "./controllers/Governance/eOfficeFilePendancy.js";
 import EofficeReceiptPendancyTab from "./controllers/Governance/eOfficeReceiptPendancy.js";
 import EofficeFileDisposalTab from "./controllers/Governance/eOfficeFileDisposal.js";
+import eOfficeEmployeesTab from "./controllers/Governance/eOfficeEmployees.js";
 import officialForeignVisitTab from "./controllers/Governance/officialForeignVisit.js";
 
 //HR
@@ -666,6 +667,10 @@ router.delete("/file-pendancy/delete/:id", auth, ministryOnly, eofficeDelete, eO
 // Unknown Emp Ids in an E-Office sheet: create them (same as Attendance, under E-Office rights)
 router.post("/eoffice-employee-data", auth, ministryOnly, eofficeCreate, empAttendanceTab.addEmpDataAttendance);
 router.get("/eoffice-employee-org-units", auth, ministryOnly, eofficeRead, empAttendanceTab.getEmployeeOrgUnits);
+// Employee Info tab: the employee list the sheets are matched against (add uses /eoffice-employee-data)
+router.get("/eoffice-employees", auth, ministryOnly, eofficeRead, eOfficeEmployeesTab.getEmployees);
+router.put("/eoffice-employees/:id", auth, ministryOnly, eofficeUpdate, eOfficeEmployeesTab.updateEmployee);
+router.delete("/eoffice-employees/:id", auth, ministryOnly, eofficeDelete, eOfficeEmployeesTab.deleteEmployee);
 router.post("/file-pendancy-create", auth, ministryOnly, eofficeCreate, EofficeFilePendancyTab.uploadSingleFile, EofficeFilePendancyTab.addFilePendancy);
 router.put("/file-pendancy-update", auth, ministryOnly, eofficeUpdate, EofficeFilePendancyTab.uploadSingleFile, EofficeFilePendancyTab.updateFilePendancy);
 
