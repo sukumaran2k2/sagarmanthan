@@ -17,22 +17,13 @@ export const globalLimiter = rateLimit({
 
 // Auth limiter: strict ceiling for login / password routes to slow brute-force attempts.
 // skipSuccessfulRequests means only failed attempts count toward the limit.
-//
-// It is keyed by the submitted email (the account under attack), NOT the client IP. This is
-// deliberate: if the reverse-proxy / trust-proxy setup is misconfigured and every request appears
-// to come from the proxy's single IP, an IP-keyed auth limiter would lock out ALL users after a
-// handful of failures. Email keying throttles attempts per account regardless of the proxy setup,
-// while the global IP limiter above still covers volumetric abuse.
 export const authLimiter = rateLimit({
   windowMs: WINDOW_MS,
   max: Number(process.env.AUTH_RATE_LIMIT_MAX) || 20,
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: true,
-  keyGenerator: (req) => (req.body?.email ? String(req.body.email).trim().toLowerCase() : "no-email"),
-  // keyGenerator keys by email, not IP, so disable the IP-key validation warning.
-  validate: { ip: false },
-  message: { message: "Too many login attempts for this account. Please wait a few minutes and try again." },
+  message: { message: "Too many login attempts. Please wait a few minutes and try again." },
 });
 
 export default globalLimiter;

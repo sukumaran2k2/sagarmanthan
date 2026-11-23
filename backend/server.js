@@ -23,20 +23,9 @@ const __dirname = dirname(__filename);
 
 const app = express();
 
-// The app runs behind one or more proxies (nginx, and possibly an outer host proxy / LB). Trust the
-// correct NUMBER OF HOPS so req.ip / the rate limiter use the real client IP from X-Forwarded-For.
-// Set TRUST_PROXY in the environment to match your topology:
-//   1 (default) = one proxy in front   |   2 = two hops   |   false = none (Node faces clients)
-// Setting this too high lets clients spoof X-Forwarded-For to bypass IP rate limits, so match it
-// to the real number of proxies rather than guessing high.
-const parseTrustProxy = (v) => {
-  if (v === undefined || v === '') return 1;
-  if (v === 'false') return false;
-  if (v === 'true') return true;
-  const n = Number(v);
-  return Number.isNaN(n) ? v : n; // allow numeric hops, or strings like 'loopback' / a CIDR
-};
-app.set('trust proxy', parseTrustProxy(process.env.TRUST_PROXY));
+// The app runs behind nginx (frontend/nginx.conf proxies /api → backend). Trust the first proxy
+// hop so req.ip / the rate limiter use the real client IP from X-Forwarded-For, not nginx's address.
+app.set('trust proxy', 1);
 
 // Credentials: true is required so the browser sends the httpOnly refreshToken cookie.
 // ALLOWED_ORIGIN must not be "*" when credentials are enabled.
