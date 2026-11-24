@@ -162,6 +162,7 @@ import TrafficTab from "./controllers/KPI/traffic.js";
 import TrafficEntry from "./controllers/KPI/trafficEntry.js";
 import TrafficDashboard from "./controllers/KPI/trafficDashboardAccess.js";
 import PortPerformanceEntry from "./controllers/KPI/portPerformanceEntry.js";
+import PortPerformanceDwell from "./controllers/KPI/portPerformanceDwell.js";
 import FinancialParameterEntry from "./controllers/KPI/financialParameterEntry.js";
 import FinancialDashboard from "./controllers/KPI/financialDashboardAccess.js";
 import CruisePassengerTrafficEntry from "./controllers/KPI/cruisePassengerTrafficEntry.js";
@@ -1767,6 +1768,14 @@ router.delete('/kpi/port-performance/targets/record', auth, requireModulePermiss
 router.get('/kpi/port-performance/access', auth, requireModulePermission(TRAFFIC_MODULE, "read"), PortPerformanceEntry.getPortPerformanceAccessGrants);
 router.post('/kpi/port-performance/access', auth, requireModulePermission(TRAFFIC_MODULE, "create"), PortPerformanceEntry.createPortPerformanceAccessGrant);
 router.patch('/kpi/port-performance/access/:accessId/revoke', auth, requireModulePermission(TRAFFIC_MODULE, "update"), PortPerformanceEntry.revokePortPerformanceAccessGrant);
+// Dwell time: monthly Excel upload by the Ministry (preview, then save), list and delete per month
+router.get('/kpi/port-performance/dwell', auth, requireModulePermission(TRAFFIC_MODULE, "read"), PortPerformanceDwell.getDwellPeriods);
+router.get('/kpi/port-performance/dwell/template', auth, requireModulePermission(TRAFFIC_MODULE, "read"), PortPerformanceDwell.downloadDwellTemplate);
+router.post('/kpi/port-performance/dwell/upload', auth, requireAnyModulePermission(TRAFFIC_MODULE, ["create", "update"]), PortPerformanceDwell.receiveDwellFile, PortPerformanceDwell.uploadDwellSheet);
+router.delete('/kpi/port-performance/dwell/period', auth, requireModulePermission(TRAFFIC_MODULE, "delete"), PortPerformanceDwell.deleteDwellPeriod);
+router.get('/kpi/port-performance/dwell/period', auth, requireModulePermission(TRAFFIC_MODULE, "read"), PortPerformanceDwell.getDwellPeriod);
+router.put('/kpi/port-performance/dwell/period', auth, requireModulePermission(TRAFFIC_MODULE, "update"), PortPerformanceDwell.updateDwellPeriod);
+router.get('/kpi/port-performance/dwell/period/excel', auth, requireModulePermission(TRAFFIC_MODULE, "read"), PortPerformanceDwell.downloadDwellPeriodExcel);
 
 // Financial Parameters data entry: identity and organisation from the JWT; organisation users
 // own the monthly actuals and ministry users the targets (enforced in the controller). No entry window.

@@ -25,7 +25,7 @@ const textCell = (className) => (params) => (
   <span className={className}>{params.valueFormatted ?? params.value ?? '-'}</span>
 );
 
-const stepsSaved = (row) => `${row.sections_saved ?? 0} / ${row.sections_total ?? 14}`;
+const stepsSaved = (row) => `${row.sections_saved ?? 0} / ${row.sections_total ?? 13}`;
 const pickRows = (body) => {
   if (Array.isArray(body)) return body;
   for (const key of ['rows', 'data', 'items', 'results', 'records']) {
@@ -467,7 +467,7 @@ const handlePdf = async () => {
         <p className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
           <Info className="h-3.5 w-3.5 text-[#0f417a] dark:text-blue-400 flex-shrink-0" aria-hidden="true" />
           <span>
-            Showing {VIEW_LABELS[activeView]} for {scopeCaption}. Steps Saved shows how many of the 14 input steps have values.
+            Showing {VIEW_LABELS[activeView]} for {scopeCaption}. Steps Saved shows how many of the 13 input steps have values (Dwell Time is uploaded by the Ministry).
           </span>
         </p>
 

@@ -1,7 +1,9 @@
 /* global jest, describe, it, expect, beforeEach, require, global */
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import {
   deletePortPerformanceTargetRecord,
+  downloadDwellTimePeriodExcel,
+  fetchDwellTimePeriods,
   fetchPortPerformanceActuals,
   fetchPortPerformanceEntryStatus,
   fetchPortPerformancePeriod,
@@ -9,6 +11,8 @@ import {
   fetchPortPerformanceTargets,
   savePortPerformancePeriod,
   savePortPerformanceTargetRecord,
+  updateDwellTimePeriod,
+  uploadDwellTimeSheet,
 } from '../../api';
 import { resetAllStores } from '../../../../stores/resetRegistry';
 import { currentFinancialYear } from '../../pages/Traffic/trafficConstants';
@@ -37,13 +41,13 @@ jest.mock('../../pages/Traffic/trafficExport', () => ({
 jest.mock('../../../../components/Table', () => ({
   __esModule: true,
   default: ({ rowData = [], columnDefs = [] }) => {
-    const actionCol = columnDefs.find((c) => c.headerName === 'Action' || c.headerName === 'Update');
+    const buttonCols = columnDefs.filter((c) => ['Action', 'Update', 'Saved Data'].includes(c.headerName));
     return (
       <div data-testid="grid">
         {rowData.map((row, i) => (
           <div key={i} data-testid="grid-row">
             {row.organisation_name}
-            {actionCol ? actionCol.cellRenderer({ data: row }) : null}
+            {buttonCols.map((c) => <span key={c.headerName}>{c.cellRenderer({ data: row })}</span>)}
           </div>
         ))}
       </div>
@@ -77,6 +81,26 @@ jest.mock('../../api', () => {
     deletePortPerformancePeriod: jest.fn(),
     savePortPerformanceTargetRecord: jest.fn(() => Promise.resolve({ data: { action: 'create' } })),
     deletePortPerformanceTargetRecord: jest.fn(),
+    fetchDwellTimePeriods: jest.fn(() => page([{
+      fiscal_year: '2026-2027', month: 9, ports_with_data: 12, monthly_overall: 68.16, ytd_overall: 71.36,
+      file_name: 'dwell.xlsx', uploaded_date: '2026-10-05T00:00:00Z',
+    }])),
+    uploadDwellTimeSheet: jest.fn(),
+    deleteDwellTimePeriod: jest.fn(),
+    downloadDwellTimeTemplate: jest.fn(),
+    fetchDwellTimePeriod: jest.fn(() => Promise.resolve({
+      data: {
+        rows: [
+          {
+            rowKey: 'org-9', organisationId: 9, label: 'Jawaharlal Nehru Port Authority',
+            values: { monthly_import: 10, monthly_export: 30, monthly_overall: 20, ytd_import: null, ytd_export: null, ytd_overall: null },
+          },
+        ],
+        upload: { file_name: 'dwell.xlsx' },
+      },
+    })),
+    updateDwellTimePeriod: jest.fn(() => Promise.resolve({ data: { changed: 1 } })),
+    downloadDwellTimePeriodExcel: jest.fn(() => Promise.resolve({ data: new Blob(['x']) })),
   };
 });
 
@@ -86,6 +110,7 @@ const MINISTRY = {
   canView: true, isOrgScope: false, isMinistryView: true,
   canEnterActuals: false, canEditActuals: false, canDeleteActuals: false,
   canAddTarget: true, canEditTarget: true, canDeleteTarget: true,
+  canUploadDwell: true, canEditDwell: true, canDeleteDwell: true,
 };
 
 const ORGANISATION = {
@@ -104,7 +129,7 @@ function renderAt(path) {
   );
 }
 
-const SECTION_TABS = ['Input Form', 'Targets', 'Actuals'];
+const SECTION_TABS = ['Input Form', 'Targets', 'Actuals', 'Dwell Time'];
 const tabOrder = () => screen.getAllByRole('button')
   .map((b) => b.textContent.trim())
   .filter((name) => SECTION_TABS.includes(name));
@@ -133,11 +158,128 @@ describe('Port Performance section — ministry user', () => {
     mockPermissions.current = MINISTRY;
   });
 
-  it('opens Targets first, with Input Form / Targets / Actuals tabs', async () => {
+  it('opens Targets first, with Input Form / Targets / Actuals / Dwell Time tabs', async () => {
     renderAt('');
 
     await waitFor(() => expect(fetchPortPerformanceTargets).toHaveBeenCalled());
-    expect(tabOrder()).toEqual(['Input Form', 'Targets', 'Actuals']);
+    expect(tabOrder()).toEqual(['Input Form', 'Targets', 'Actuals', 'Dwell Time']);
+  });
+
+  it('lists uploaded dwell time months with Update, Download and Delete, and shows the upload checks', async () => {
+    renderAt('dwell-time');
+
+    await waitFor(() => expect(fetchDwellTimePeriods).toHaveBeenCalled());
+    expect(screen.getByText('Upload Dwell Time')).toBeInTheDocument();
+    expect(screen.getByText(/upload checks \(9\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/overall must lie between import and export/i)).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /delete dwell time for september 2026-2027/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /update dwell time for september 2026-2027/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /download excel of the saved dwell time for september 2026-2027/i })).toBeInTheDocument();
+  });
+
+  it('hides Update without update permission but keeps Download', async () => {
+    mockPermissions.current = { ...MINISTRY, canEditDwell: false };
+    renderAt('dwell-time');
+
+    expect(await screen.findByRole('button', { name: /download excel of the saved dwell time/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /update dwell time for/i })).not.toBeInTheDocument();
+  });
+
+  it('downloads the saved values of a month as Excel', async () => {
+    URL.createObjectURL = jest.fn(() => 'blob:x');
+    URL.revokeObjectURL = jest.fn();
+    renderAt('dwell-time');
+
+    fireEvent.click(await screen.findByRole('button', { name: /download excel of the saved dwell time for september/i }));
+    await waitFor(() => expect(downloadDwellTimePeriodExcel).toHaveBeenCalledWith({ fiscalYear: '2026-2027', month: 9 }));
+  });
+
+  it('updates a month: blocks an Overall outside Import..Export, then saves the corrected value', async () => {
+    renderAt('dwell-time');
+    fireEvent.click(await screen.findByRole('button', { name: /update dwell time for september 2026-2027/i }));
+    const overall = await screen.findByLabelText('Jawaharlal Nehru Port Authority Monthly Overall');
+    expect(overall).toHaveValue('20');
+
+    fireEvent.change(overall, { target: { value: '40' } });
+    fireEvent.click(screen.getByRole('button', { name: /^update dwell time$/i }));
+    expect(await screen.findByText(/must be between monthly import \(10\) and monthly export \(30\)/i, { selector: 'li' })).toBeInTheDocument();
+    expect(updateDwellTimePeriod).not.toHaveBeenCalled();
+
+    fireEvent.change(overall, { target: { value: '25' } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^update dwell time$/i }));
+    });
+    expect(updateDwellTimePeriod).toHaveBeenCalledWith({
+      fiscalYear: '2026-2027',
+      month: 9,
+      rows: [{
+        rowKey: 'org-9',
+        values: { monthly_import: '10', monthly_export: '30', monthly_overall: '25', ytd_import: '', ytd_export: '', ytd_overall: '' },
+      }],
+    });
+  });
+
+  const chooseDwellFile = async (name = 'dwell.xlsx') => {
+    renderAt('dwell-time');
+    await waitFor(() => expect(fetchDwellTimePeriods).toHaveBeenCalled());
+    fireEvent.change(screen.getByLabelText(/^month/i), { target: { value: '5' } });
+    const file = new File(['x'], name, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    // The check starts on change and settles in the same tick
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/^excel file/i), { target: { files: [file] } });
+    });
+    return file;
+  };
+
+  it('rejects a file that is not Excel before sending it', async () => {
+    await chooseDwellFile('dwell.csv');
+
+    expect(await screen.findByText(/only excel files/i)).toBeInTheDocument();
+    expect(uploadDwellTimeSheet).not.toHaveBeenCalled();
+  });
+
+  it('checks a chosen file straight away and lists the problems by row', async () => {
+    uploadDwellTimeSheet.mockRejectedValue({
+      response: {
+        status: 400,
+        data: {
+          message: 'The file has 2 problems. Nothing was saved.',
+          errors: [
+            { row: 5, column: 'Monthly Import', message: 'Kamarajar Port Limited: Monthly Import is not a number.' },
+            { row: null, column: 'Port', message: 'These rows are missing: Mumbai Port Authority.' },
+          ],
+        },
+      },
+    });
+    await chooseDwellFile();
+
+    expect(await screen.findByText(/2 problems found · nothing was saved/i)).toBeInTheDocument();
+    expect(screen.getByText(/monthly import is not a number/i)).toBeInTheDocument();
+    expect(screen.getByText('Row 5 · Monthly Import:')).toBeInTheDocument();
+    expect(uploadDwellTimeSheet).toHaveBeenCalledWith(expect.objectContaining({ mode: 'preview', month: '5' }));
+    expect(screen.queryByRole('button', { name: /save dwell time/i })).not.toBeInTheDocument();
+  });
+
+  it('previews a valid file and saves it', async () => {
+    uploadDwellTimeSheet
+      .mockResolvedValueOnce({
+        data: {
+          rows: [{
+            rowKey: 'org-1', organisationId: 1, label: 'Chennai Port Authority', sheetRow: 3,
+            values: { monthly_import: 37.05, monthly_export: 99.56, monthly_overall: 62.24, ytd_import: null, ytd_export: null, ytd_overall: null },
+          }],
+          existing: null,
+        },
+      })
+      .mockResolvedValueOnce({ data: { action: 'create' } });
+    await chooseDwellFile();
+
+    expect(await screen.findByText(/all checks passed · 1 rows/i)).toBeInTheDocument();
+    expect(screen.getByText('Chennai Port Authority')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /save dwell time/i }));
+
+    await waitFor(() => expect(uploadDwellTimeSheet).toHaveBeenCalledTimes(2));
+    expect(uploadDwellTimeSheet.mock.calls[1][0]).toMatchObject({ mode: 'save', replace: false });
   });
 
   it('lists targets with Update and Delete, and deletes after confirmation', async () => {
@@ -328,6 +470,56 @@ describe('Port Performance section — organisation user', () => {
     expect(await screen.findByText(/has already been entered/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /open for update/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /save step/i })).toBeDisabled();
+  });
+
+  const openDwellStep = async () => {
+    renderAt('actuals');
+    fireEvent.click(await screen.findByRole('button', { name: /update port performance for may 2026-2027/i }));
+    const nav = await screen.findByRole('navigation', { name: /port performance entry steps/i });
+    const dwellStep = within(nav).getByTitle('Port Dwell Time (Container)');
+    await waitFor(() => expect(dwellStep).not.toBeDisabled());
+    fireEvent.click(dwellStep);
+  };
+
+  it('shows the uploaded dwell time view only in the Dwell Time step', async () => {
+    fetchPortPerformancePeriod.mockResolvedValue({
+      data: {
+        exists: true,
+        values: { average_trt_overall: 30 },
+        savedSections: ['avgTrt'],
+        dwellUpload: {
+          values: { monthly_import: 37.05, monthly_export: 99.56, monthly_overall: 62.24, ytd_import: 36.93, ytd_export: null, ytd_overall: 57.06 },
+          uploadedDate: '2026-10-05T00:00:00Z',
+        },
+        entryAccess: { open: true },
+      },
+    });
+    await openDwellStep();
+
+    expect(await screen.findByText(/view only\. uploaded by the ministry/i)).toBeInTheDocument();
+    expect(screen.getByTitle('Monthly Import')).toHaveValue('37.05');
+    expect(screen.getByTitle('YTD Overall')).toHaveValue('57.06');
+    expect(screen.getByTitle('YTD Export')).toHaveValue('-');
+    expect(screen.getByTitle('Monthly Import')).toBeDisabled();
+    // Nothing to save on a view-only step: no Save Step, and Next instead of Save & Next
+    expect(screen.queryByRole('button', { name: /save step/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /save & next/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/this step is view only · 1 of 13 steps saved/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /^next$/i }));
+    expect(await screen.findByRole('button', { name: /save step/i })).toBeInTheDocument();
+    expect(screen.queryByText(/view only\. uploaded by the ministry/i)).not.toBeInTheDocument();
+    expect(savePortPerformancePeriod).not.toHaveBeenCalled();
+  });
+
+  it('says when the Ministry has not uploaded dwell time for the month yet', async () => {
+    fetchPortPerformancePeriod.mockResolvedValue({
+      data: { exists: true, values: {}, savedSections: [], dwellUpload: null, entryAccess: { open: true } },
+    });
+    await openDwellStep();
+
+    expect(await screen.findByText(/has not been uploaded by the ministry yet/i)).toBeInTheDocument();
+    expect(screen.queryByTitle('Monthly Import')).not.toBeInTheDocument();
   });
 
   it('shows a locked period read-only', async () => {

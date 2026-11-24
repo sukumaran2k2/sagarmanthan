@@ -10,6 +10,7 @@ import { useNotifier, COMMON_TOASTS } from '../../../../utils/notify';
 import { getSessionOrganisationName } from '../../../../utils/authSession';
 import { useLatestRef } from '../Traffic/usePagedList';
 import PortPerformanceDataList from './DataList';
+import DwellTimeUploads from './DwellTimeUploads';
 import PortPerformanceInputForm from './InputForm';
 import PortPerformanceTargetForm from './TargetForm';
 import PortPerformanceTargets from './Targets';
@@ -20,12 +21,15 @@ const TAB_PATHS = {
   'input-form': `${PORT_PERFORMANCE_BASE_PATH}/input-form`,
   actuals: `${PORT_PERFORMANCE_BASE_PATH}/actuals`,
   targets: `${PORT_PERFORMANCE_BASE_PATH}/targets`,
+  'dwell-time': `${PORT_PERFORMANCE_BASE_PATH}/dwell-time`,
 };
 
 /**
  * KPI Major Ports → Port Performance (the earlier portal's "KPI Time Performance").
- * Ministry users: Input Form = target form, Targets opens first, Actuals to review.
- * Organisation users: Input Form = 14-step monthly form, Actuals opens first, Targets to track.
+ * Ministry users: Input Form = target form, Targets opens first, Actuals to review,
+ * Dwell Time to upload the monthly Excel sheet.
+ * Organisation users: Input Form = 14-step monthly form (Dwell Time step view only, from the
+ * Ministry's upload), Actuals opens first, Targets to track.
  * Entry Access is the separate Major Ports page, shared with Traffic.
  */
 export default function PortPerformanceSection({ triggerNotification, onBackToSections }) {
@@ -34,6 +38,7 @@ export default function PortPerformanceSection({ triggerNotification, onBackToSe
   const {
     canView, canEnterActuals, canEditActuals, canDeleteActuals, isMinistryView,
     canAddTarget, canEditTarget, canDeleteTarget,
+    canUploadDwell, canEditDwell, canDeleteDwell,
   } = usePortPerformancePermissions();
   const notify = useNotifier(triggerNotification);
 
@@ -61,6 +66,7 @@ export default function PortPerformanceSection({ triggerNotification, onBackToSe
   const editPeriod = isMinistryView ? null : location.state?.item ?? null;
   const editTarget = isMinistryView ? location.state?.target ?? null : null;
   const isEditing = Boolean(editPeriod || editTarget);
+  const showDwellTab = isMinistryView && canView;
 
   const canAddViaForm = isMinistryView ? canAddTarget : canEnterActuals;
   const canOpenForm = canAddViaForm
@@ -74,8 +80,9 @@ export default function PortPerformanceSection({ triggerNotification, onBackToSe
       if (isMinistryView) list.push({ id: 'targets', label: 'Targets' }, { id: 'actuals', label: 'Actuals' });
       else list.push({ id: 'actuals', label: 'Actuals' }, { id: 'targets', label: 'Targets' });
     }
+    if (showDwellTab) list.push({ id: 'dwell-time', label: 'Dwell Time' });
     return list;
-  }, [canAddViaForm, canView, isMinistryView]);
+  }, [canAddViaForm, canView, isMinistryView, showDwellTab]);
 
   const currentTab = useMemo(() => {
     const path = location.pathname.toLowerCase();
@@ -123,7 +130,7 @@ export default function PortPerformanceSection({ triggerNotification, onBackToSe
     ? null
     : organisations[0]?.organisation_name || getSessionOrganisationName();
   const subtitle = isMinistryView
-    ? 'Set financial-year port performance targets and review the monthly port performance of every organisation.'
+    ? 'Set financial-year port performance targets, upload the monthly dwell time sheet and review the monthly port performance of every organisation.'
     : 'Enter monthly turnaround, berth output, waiting time and productivity KPIs, and track your targets.';
 
   const inputForm = isMinistryView ? (
@@ -200,6 +207,15 @@ export default function PortPerformanceSection({ triggerNotification, onBackToSe
               canEdit={canEditTarget}
               canDelete={canDeleteTarget}
               onEdit={handleEditTarget}
+              triggerNotification={triggerNotification}
+            />
+          )} />
+
+          <Route path="dwell-time" element={!showDwellTab ? <Navigate to={defaultPath} replace /> : (
+            <DwellTimeUploads
+              canUpload={canUploadDwell}
+              canEdit={canEditDwell}
+              canDelete={canDeleteDwell}
               triggerNotification={triggerNotification}
             />
           )} />

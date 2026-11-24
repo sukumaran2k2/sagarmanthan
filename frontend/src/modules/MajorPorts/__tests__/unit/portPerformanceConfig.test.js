@@ -29,9 +29,9 @@ describe('port performance steps', () => {
     ]);
   });
 
-  it('has 134 unique fields with full labels', () => {
-    expect(ALL_FIELDS).toHaveLength(134);
-    expect(new Set(ALL_FIELDS.map((f) => f.key)).size).toBe(134);
+  it('has 138 unique fields with full labels', () => {
+    expect(ALL_FIELDS).toHaveLength(138);
+    expect(new Set(ALL_FIELDS.map((f) => f.key)).size).toBe(138);
     ALL_FIELDS.forEach((f) => expect(f.fullLabel.length).toBeGreaterThan(f.label.length - 1));
   });
 
@@ -39,7 +39,7 @@ describe('port performance steps', () => {
     const counts = Object.fromEntries(PORT_PERFORMANCE_SECTIONS.map((s) => [s.id, sectionFields(s).length]));
     expect(counts).toEqual({
       avgTrt: 15, medianTrt: 15, ytdMedianTrt: 15, osbd: 6, effectiveOsbd: 6, idleTime: 5, preBerthing: 10,
-      vessels: 15, dwellTime: 2, efficiency: 6, craneProductivity: 2, containerSize: 10, cppiTrt: 10, cargoHandled: 17,
+      vessels: 15, dwellTime: 6, efficiency: 6, craneProductivity: 2, containerSize: 10, cppiTrt: 10, cargoHandled: 17,
     });
   });
 
@@ -66,19 +66,29 @@ describe('validation', () => {
   });
 
   it('needs every value of a step before it is saved, as in the earlier portal', () => {
-    const dwell = section('dwellTime');
-    const partial = validateSection(dwell, { export_dwell_time: '10', import_dwell_time: '' });
+    const crane = section('craneProductivity');
+    const partial = validateSection(crane, { gross_crane_productivity: '10', total_moves: '' });
     expect(partial.missing).toBe(1);
-    expect(partial.fieldErrors).toEqual({ import_dwell_time: 'Required' });
+    expect(partial.fieldErrors).toEqual({ total_moves: 'Required' });
 
-    expect(validateSection(dwell, fill(dwell)).fieldErrors).toEqual({});
+    expect(validateSection(crane, fill(crane)).fieldErrors).toEqual({});
   });
 
   it('only checks the number format when moving between steps', () => {
-    const dwell = section('dwellTime');
-    expect(validateSection(dwell, { export_dwell_time: '', import_dwell_time: '' }, { requireAll: false }).fieldErrors).toEqual({});
-    expect(validateSection(dwell, { export_dwell_time: '-4', import_dwell_time: '' }, { requireAll: false }).fieldErrors)
-      .toEqual({ export_dwell_time: 'Cannot be negative' });
+    const crane = section('craneProductivity');
+    expect(validateSection(crane, { gross_crane_productivity: '', total_moves: '' }, { requireAll: false }).fieldErrors).toEqual({});
+    expect(validateSection(crane, { gross_crane_productivity: '-4', total_moves: '' }, { requireAll: false }).fieldErrors)
+      .toEqual({ gross_crane_productivity: 'Cannot be negative' });
+  });
+
+  it('shows the uploaded dwell time (monthly and YTD) in the Idle, Waiting & Dwell list, not the earlier form columns', () => {
+    const keys = viewColumnGroups('timeAtPort').flatMap((g) => g.fields.map((f) => f.key));
+    expect(keys).toEqual(expect.arrayContaining([
+      'dwell_monthly_import', 'dwell_monthly_export', 'dwell_monthly_overall',
+      'dwell_ytd_import', 'dwell_ytd_export', 'dwell_ytd_overall',
+    ]));
+    expect(keys).not.toContain('export_dwell_time');
+    expect(keys).not.toContain('import_dwell_time');
   });
 
   it('flags a fractional vessel count and an idle time over 100%', () => {
@@ -103,7 +113,7 @@ describe('payloads', () => {
     expect(form.average_trt_overall).toBe('36.25');
     expect(form.total_moves).toBe('0');
     expect(form.osbd_overall).toBe('');
-    expect(Object.keys(form)).toHaveLength(134);
+    expect(Object.keys(form)).toHaveLength(138);
   });
 
   it('adds up the parts of a total, leaving out TEUs', () => {
