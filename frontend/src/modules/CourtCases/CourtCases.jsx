@@ -10,6 +10,9 @@ import LitigationForm from "./forms/LitigationForm";
 import ConciliationForm from "./forms/ConciliationForm";
 import CourtCaseReports from "./pages/Reports";
 
+import ReportsList from "./reports/ReportsList";
+import ReportViewer from "./reports/ReportViewer";
+
 export const BASE_PATH = "/legal/court-cases";
 
 const MAIN_TABS = [
@@ -141,7 +144,8 @@ export default function CourtCases({ triggerNotification }) {
         <Route path="litigation"   element={<LitigationList />} />
         <Route path="conciliation" element={<ConciliationList />} />
         <Route path="input-form/*" element={<InputFormPage triggerNotification={triggerNotification} />} />
-        <Route path="reports"      element={<CourtCaseReports />} />
+        <Route path="reports" element={<ReportsList />} />
+        <Route path="reports/:reportId" element={<ReportViewer />} />
         <Route path="*" element={<Navigate to="arbitration" replace />} />
       </Routes>
     </div>

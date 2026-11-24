@@ -1936,181 +1936,6 @@ async function getLitigaitonPendencyPortWiseReport(req, res) {
   
 }
 
-
-
-// DECLARE @sql NVARCHAR(MAX);
-// DECLARE @year INT;
-// DECLARE @dynamic_years NVARCHAR(MAX);
-
-// -- Base part of the query
-// SET @sql = N'SELECT ISNULL(md.[domain_name], ''Unknown Domain'') AS [domain_name], ';
-
-// -- Add fixed columns
-// SET @sql = @sql + N'
-//     COUNT(DISTINCT CASE WHEN lc.[file_on_date] IS NULL THEN lc.[case_id] END) AS [No Date Provided], 
-//     COUNT(DISTINCT CASE WHEN lc.[file_on_date] < ''2000-01-01'' THEN lc.[case_id] END) AS [Prior to 2000], 
-//     COUNT(DISTINCT CASE WHEN lc.[file_on_date] >= ''2000-01-01'' AND lc.[file_on_date] < ''2010-01-01'' THEN lc.[case_id] END) AS [2000-2010], 
-//     COUNT(DISTINCT CASE WHEN lc.[file_on_date] >= ''2010-01-01'' AND lc.[file_on_date] < ''2016-01-01'' THEN lc.[case_id] END) AS [2010-2015], 
-//     COUNT(DISTINCT CASE WHEN lc.[file_on_date] >= ''2016-01-01'' AND lc.[file_on_date] < ''2021-01-01'' THEN lc.[case_id] END) AS [2016-2020], 
-//     COUNT(DISTINCT CASE WHEN lc.[file_on_date] >= ''2021-01-01'' AND lc.[file_on_date] < ''2023-01-01'' THEN lc.[case_id] END) AS [2021-2022], 
-//     COUNT(DISTINCT CASE WHEN lc.[file_on_date] >= ''2023-01-01'' AND lc.[file_on_date] < ''2025-01-01'' THEN lc.[case_id] END) AS [2023-2024], 
-//     COUNT(DISTINCT CASE WHEN lc.[file_on_date] >= ''2025-01-01'' THEN lc.[case_id] END) AS [2025],';
-
-// -- Find years with cases dynamically
-// SET @dynamic_years = '';
-
-// -- Loop through the years starting from 2026 and check if they have data
-// SET @year = 2026;
-// WHILE @year <= 2700
-// BEGIN
-//     -- Check if there are records for the current year
-//     IF EXISTS (SELECT 1 
-//                FROM [sagarmanthan_revamp].[dbo].[tbl_litigation_cases] lc
-//                WHERE TRY_CAST(lc.[file_on_date] AS DATE) IS NOT NULL
-//                  AND YEAR(TRY_CAST(lc.[file_on_date] AS DATE)) = @year)
-//     BEGIN
-//         SET @dynamic_years = @dynamic_years + N'
-//         COUNT(DISTINCT CASE WHEN lc.[file_on_date] >= ''' + CAST(@year AS VARCHAR) + N'-01-01'' AND lc.[file_on_date] < ''' + CAST(@year + 1 AS VARCHAR) + N'-01-01'' THEN lc.[case_id] END) AS [' + CAST(@year AS VARCHAR) + '],' ;
-//     END
-    
-//     SET @year = @year + 1;
-// END
-
-// -- Remove the trailing comma from @dynamic_years
-// SET @dynamic_years = LEFT(@dynamic_years, LEN(@dynamic_years) - 1);
-
-// -- Add the dynamic years part to the query
-// SET @sql = @sql + @dynamic_years;
-
-// -- Finish the query
-// SET @sql = @sql + N'
-// FROM 
-//     [sagarmanthan_revamp].[dbo].[tbl_litigation_cases] lc
-// LEFT JOIN 
-//     [sagarmanthan_revamp].[dbo].[mmt_domain] md ON lc.[domain] = md.[domain_id]
-// WHERE 
-//     (lc.[is_final_order_or_judgement_passed] = 0 OR lc.[is_final_order_or_judgement_passed] IS NULL)
-// GROUP BY 
-//     md.[domain_name]
-// ORDER BY 
-//     [domain_name];';
-
-// -- Execute the dynamic SQL
-// EXEC sp_executesql @sql;
-
-
-// WITH DateRanges AS (
-//     SELECT 
-//         -- Static Date Ranges
-//         CASE 
-//             WHEN tbl_litigation_cases.file_on_date IS NULL THEN 'No Date Provided'
-//             WHEN TRY_CAST(tbl_litigation_cases.file_on_date AS DATE) < '2000-01-01' THEN '2000 or Earlier'
-//             WHEN TRY_CAST(tbl_litigation_cases.file_on_date AS DATE) >= '2000-01-01' AND TRY_CAST(tbl_litigation_cases.file_on_date AS DATE) < '2010-01-01' THEN '2000-2010'
-//             WHEN TRY_CAST(tbl_litigation_cases.file_on_date AS DATE) >= '2010-01-01' AND TRY_CAST(tbl_litigation_cases.file_on_date AS DATE) < '2016-01-01' THEN '2010-2015'
-//             WHEN TRY_CAST(tbl_litigation_cases.file_on_date AS DATE) >= '2016-01-01' AND TRY_CAST(tbl_litigation_cases.file_on_date AS DATE) < '2021-01-01' THEN '2016-2020'
-//             WHEN TRY_CAST(tbl_litigation_cases.file_on_date AS DATE) >= '2021-01-01' AND TRY_CAST(tbl_litigation_cases.file_on_date AS DATE) < '2023-01-01' THEN '2021-2022'
-//             WHEN TRY_CAST(tbl_litigation_cases.file_on_date AS DATE) >= '2023-01-01' AND TRY_CAST(tbl_litigation_cases.file_on_date AS DATE) < '2025-01-01' THEN '2023-2024'
-//             WHEN TRY_CAST(tbl_litigation_cases.file_on_date AS DATE) >= '2025-01-01' AND TRY_CAST(tbl_litigation_cases.file_on_date AS DATE) < '2026-01-01' THEN '2025'
-//             ELSE 'Invalid Date'
-//         END AS [Date Range],
-
-//         -- Dynamic domain count logic
-//         SUM(CASE WHEN mmt_domain.domain_name = 'Service Matters' THEN 1 ELSE 0 END) AS [Service Matters],
-//         SUM(CASE WHEN mmt_domain.domain_name = 'Land Related' THEN 1 ELSE 0 END) AS [Land Related],
-//         SUM(CASE WHEN mmt_domain.domain_name = 'Admiralty Suits' THEN 1 ELSE 0 END) AS [Admiralty Suits],
-//         SUM(CASE WHEN mmt_domain.domain_name = 'Vigilance' THEN 1 ELSE 0 END) AS [Vigilance],
-//         SUM(CASE WHEN mmt_domain.domain_name = 'PPP' THEN 1 ELSE 0 END) AS [PPP],
-//         SUM(CASE WHEN mmt_domain.domain_name = 'Tax Matters' THEN 1 ELSE 0 END) AS [Tax Matters],
-//         SUM(CASE WHEN mmt_domain.domain_name = 'Public Interest Litigation' THEN 1 ELSE 0 END) AS [Public Interest Litigation],
-//         SUM(CASE WHEN mmt_domain.domain_name = 'Commercial Matters' THEN 1 ELSE 0 END) AS [Commercial Matters],
-//         SUM(CASE WHEN mmt_domain.domain_name = 'Student Matters' THEN 1 ELSE 0 END) AS [Student Matters],
-//         SUM(CASE WHEN mmt_domain.domain_name = 'Others' THEN 1 ELSE 0 END) AS [Others],
-//         SUM(CASE WHEN mmt_domain.domain_name = 'Maritime Training' THEN 1 ELSE 0 END) AS [Maritime Training],
-//         SUM(CASE WHEN mmt_domain.domain_name = 'Seafarers' THEN 1 ELSE 0 END) AS [Seafarers],
-//         SUM(CASE WHEN mmt_domain.domain_name = 'Safety & Navigation' THEN 1 ELSE 0 END) AS [Safety & Navigation],
-//         SUM(CASE WHEN mmt_domain.domain_name = 'Directorate General of Shipping (Hqs)' THEN 1 ELSE 0 END) AS [DG Shipping Hqs],
-//         SUM(CASE WHEN mmt_domain.domain_name = 'HR' THEN 1 ELSE 0 END) AS [HR],
-//         SUM(CASE WHEN mmt_domain.domain_name = 'Policy' THEN 1 ELSE 0 END) AS [Policy],
-//         SUM(CASE WHEN mmt_domain.domain_name = 'Contract' THEN 1 ELSE 0 END) AS [Contract],
-//         SUM(CASE WHEN mmt_domain.domain_name = 'Compensation' THEN 1 ELSE 0 END) AS [Compensation],
-//         SUM(CASE WHEN mmt_domain.domain_name = 'Consumer Dispute' THEN 1 ELSE 0 END) AS [Consumer Dispute],
-//         SUM(CASE WHEN mmt_domain.domain_name = 'Criminal Matters' THEN 1 ELSE 0 END) AS [Criminal Matters],
-
-//         -- Handle cases where domain is NULL but file_on_date is not NULL
-//         SUM(CASE WHEN mmt_domain.domain_id IS NULL AND tbl_litigation_cases.file_on_date IS NOT NULL THEN 1 ELSE 0 END) AS [NULL],
-
-//         -- Total count of cases across all domains
-//         SUM(CASE WHEN mmt_domain.domain_name IN ('Service Matters', 'Land Related', 'Admiralty Suits', 'Vigilance', 'PPP', 
-//                                                 'Tax Matters', 'Public Interest Litigation', 'Commercial Matters', 'Student Matters', 
-//                                                 'Others', 'Maritime Training', 'Seafarers', 'Safety & Navigation', 'Directorate General of Shipping (Hqs)', 
-//                                                 'HR', 'Policy', 'Contract', 'Compensation', 'Consumer Dispute', 'Criminal Matters') 
-//                 THEN 1 ELSE 0 END) AS [Total]
-
-//     FROM 
-//         tbl_litigation_cases
-//     LEFT JOIN mmt_domain ON tbl_litigation_cases.domain = mmt_domain.domain_id
-//     GROUP BY
-//         CASE 
-//             WHEN tbl_litigation_cases.file_on_date IS NULL THEN 'No Date Provided'
-//             WHEN TRY_CAST(tbl_litigation_cases.file_on_date AS DATE) < '2000-01-01' THEN '2000 or Earlier'
-//             WHEN TRY_CAST(tbl_litigation_cases.file_on_date AS DATE) >= '2000-01-01' AND TRY_CAST(tbl_litigation_cases.file_on_date AS DATE) < '2010-01-01' THEN '2000-2010'
-//             WHEN TRY_CAST(tbl_litigation_cases.file_on_date AS DATE) >= '2010-01-01' AND TRY_CAST(tbl_litigation_cases.file_on_date AS DATE) < '2016-01-01' THEN '2010-2015'
-//             WHEN TRY_CAST(tbl_litigation_cases.file_on_date AS DATE) >= '2016-01-01' AND TRY_CAST(tbl_litigation_cases.file_on_date AS DATE) < '2021-01-01' THEN '2016-2020'
-//             WHEN TRY_CAST(tbl_litigation_cases.file_on_date AS DATE) >= '2021-01-01' AND TRY_CAST(tbl_litigation_cases.file_on_date AS DATE) < '2023-01-01' THEN '2021-2022'
-//             WHEN TRY_CAST(tbl_litigation_cases.file_on_date AS DATE) >= '2023-01-01' AND TRY_CAST(tbl_litigation_cases.file_on_date AS DATE) < '2025-01-01' THEN '2023-2024'
-//             WHEN TRY_CAST(tbl_litigation_cases.file_on_date AS DATE) >= '2025-01-01' AND TRY_CAST(tbl_litigation_cases.file_on_date AS DATE) < '2026-01-01' THEN '2025'
-//             ELSE 'Invalid Date'
-//         END
-// ),
-// DynamicYears AS (
-//     -- Identify dynamic years starting from 2026 based on file_on_date and excluding those without data
-//     SELECT DISTINCT YEAR(TRY_CAST(tbl_litigation_cases.file_on_date AS DATE)) AS Year
-//     FROM tbl_litigation_cases
-//     WHERE YEAR(TRY_CAST(tbl_litigation_cases.file_on_date AS DATE)) >= 2026
-// )
-// SELECT * FROM DateRanges
-
-// -- Add dynamic years starting from 2026 only if data exists for those years
-// UNION ALL
-// SELECT
-//     CAST(DynamicYears.Year AS VARCHAR(4)) AS [Date Range],
-//     SUM(CASE WHEN mmt_domain.domain_name = 'Service Matters' THEN 1 ELSE 0 END) AS [Service Matters],
-//     SUM(CASE WHEN mmt_domain.domain_name = 'Land Related' THEN 1 ELSE 0 END) AS [Land Related],
-//     SUM(CASE WHEN mmt_domain.domain_name = 'Admiralty Suits' THEN 1 ELSE 0 END) AS [Admiralty Suits],
-//     SUM(CASE WHEN mmt_domain.domain_name = 'Vigilance' THEN 1 ELSE 0 END) AS [Vigilance],
-//     SUM(CASE WHEN mmt_domain.domain_name = 'PPP' THEN 1 ELSE 0 END) AS [PPP],
-//     SUM(CASE WHEN mmt_domain.domain_name = 'Tax Matters' THEN 1 ELSE 0 END) AS [Tax Matters],
-//     SUM(CASE WHEN mmt_domain.domain_name = 'Public Interest Litigation' THEN 1 ELSE 0 END) AS [Public Interest Litigation],
-//     SUM(CASE WHEN mmt_domain.domain_name = 'Commercial Matters' THEN 1 ELSE 0 END) AS [Commercial Matters],
-//     SUM(CASE WHEN mmt_domain.domain_name = 'Student Matters' THEN 1 ELSE 0 END) AS [Student Matters],
-//     SUM(CASE WHEN mmt_domain.domain_name = 'Others' THEN 1 ELSE 0 END) AS [Others],
-//     SUM(CASE WHEN mmt_domain.domain_name = 'Maritime Training' THEN 1 ELSE 0 END) AS [Maritime Training],
-//     SUM(CASE WHEN mmt_domain.domain_name = 'Seafarers' THEN 1 ELSE 0 END) AS [Seafarers],
-//     SUM(CASE WHEN mmt_domain.domain_name = 'Safety & Navigation' THEN 1 ELSE 0 END) AS [Safety & Navigation],
-//     SUM(CASE WHEN mmt_domain.domain_name = 'Directorate General of Shipping (Hqs)' THEN 1 ELSE 0 END) AS [DG Shipping Hqs],
-//     SUM(CASE WHEN mmt_domain.domain_name = 'HR' THEN 1 ELSE 0 END) AS [HR],
-//     SUM(CASE WHEN mmt_domain.domain_name = 'Policy' THEN 1 ELSE 0 END) AS [Policy],
-//     SUM(CASE WHEN mmt_domain.domain_name = 'Contract' THEN 1 ELSE 0 END) AS [Contract],
-//     SUM(CASE WHEN mmt_domain.domain_name = 'Compensation' THEN 1 ELSE 0 END) AS [Compensation],
-//     SUM(CASE WHEN mmt_domain.domain_name = 'Consumer Dispute' THEN 1 ELSE 0 END) AS [Consumer Dispute],
-//     SUM(CASE WHEN mmt_domain.domain_name = 'Criminal Matters' THEN 1 ELSE 0 END) AS [Criminal Matters],
-//     -- Handle cases where domain is NULL but file_on_date is not NULL
-//     SUM(CASE WHEN mmt_domain.domain_id IS NULL AND tbl_litigation_cases.file_on_date IS NOT NULL THEN 1 ELSE 0 END) AS [NULL],
-//     SUM(CASE 
-//         WHEN mmt_domain.domain_name IN ('Service Matters', 'Land Related', 'Admiralty Suits', 'Vigilance', 'PPP', 
-//                                         'Tax Matters', 'Public Interest Litigation', 'Commercial Matters', 'Student Matters', 
-//                                         'Others', 'Maritime Training', 'Seafarers', 'Safety & Navigation', 'Directorate General of Shipping (Hqs)', 
-//                                         'HR', 'Policy', 'Contract', 'Compensation', 'Consumer Dispute', 'Criminal Matters') 
-//         THEN 1 ELSE 0 END
-//     ) AS [Total]
-// FROM 
-//     tbl_litigation_cases
-// LEFT JOIN mmt_domain ON tbl_litigation_cases.domain = mmt_domain.domain_id
-// JOIN DynamicYears ON YEAR(TRY_CAST(tbl_litigation_cases.file_on_date AS DATE)) = DynamicYears.Year
-// GROUP BY DynamicYears.Year
-// ORDER BY [Date Range];
-
-
 async function getLitigaitonPendencyDomainWiseReport(req, res) {
     try {
         const conn = await pool;
@@ -2229,7 +2054,6 @@ async function getLitigaitonPendencyDomainWiseReport(req, res) {
     }
 
 }
-
 
 async function getAllLitigationData(req,res) {
     
@@ -2595,8 +2419,6 @@ async function addLitigationPetitionerAndRespondent(req, res) {
     }
 }
 
-
-
 async function getLitigationPetitionerAndRespondent(req,res){
     const caseID = req.params.caseID;
     
@@ -2866,6 +2688,7 @@ async function getLitigaitonSubDomainByOtherOrgReport(req,res) {
     }
 
 }
+
 async function getLitigaitonDomainAndSubDomainByOtherOrgReport(req,res) {
     try {
         const conn = await pool;

@@ -218,10 +218,6 @@ export function deleteCourtCase(caseID, userID) {
   return api.delete(`/delete-court-case/${caseID}/${userID}`);
 }
 
-// export function fetchCaseTypes(courtTypeID, subCourtTypeID) {
-//   return api.get(`/court-case-get-case-types/${courtTypeID}/${subCourtTypeID || 0}`);
-// }
-
 export function fetchLitigationDomainReport() {
   return api.get('/litigation-domain-report');
 }
@@ -236,6 +232,22 @@ export function fetchLitigationPortwisePendencyReport() {
 
 export function fetchLitigationDomainwisePendencyReport() {
   return api.get('/litigation-domainwise-pendency-report');
+}
+
+// Domain & Sub-Domain report
+export function fetchLitigationDomainSubDomainReport() {
+  return api.get('/litigation-domain-subdomain-report');                 
+}
+export function fetchLitigationDomainSubDomainOtherOrgReport() {
+  return api.get('/litigation-domain-subdomain-report-by-other-org');        
+}
+
+// Pendency reports for other organisations
+export function fetchLitigationPortwisePendencyOtherOrgReport() {
+  return api.get('/litigation-other-org-portwise-pendency-report');       
+}
+export function fetchLitigationDomainwisePendencyOtherOrgReport() {
+  return api.get('/litigation-other-org-domainwise-pendency-report');     
 }
 
 export default api;
