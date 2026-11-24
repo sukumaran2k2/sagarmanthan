@@ -248,35 +248,213 @@ const BASELINE_WINGS_REPORT = [
   }
 ];
 
-const MAJOR_PORTS_NAMES = [
-  'Chennai Port Authority',
-  'Cochin Port Authority',
-  'Deendayal Port Authority (Kandla)',
-  'Jawaharlal Nehru Port Authority (JNPA)',
-  'Kamarajar Port Limited',
-  'Kolkata Port (SMPA)',
-  'Mormugao Port Authority',
-  'Mumbai Port Authority',
-  'New Mangalore Port Authority',
-  'Paradip Port Authority',
-  'V.O. Chidambaranar Port Authority (VOC Port)',
-  'Visakhapatnam Port Authority'
+// Canonical list of Major Ports shown in Report 1.2. Each entry carries aliases
+// so matching is robust against the DB's spelling variations (e.g. the SMPK
+// subsidiaries are stored as "SMPA - Haldia Dock Complex" / "SMPA - Kolkata
+// Dock System"). Kolkata Port (SMPA) was replaced by its component rows —
+// HDC - SMPK, KDS - SMPK, and the umbrella Syama Prasad Mookeerjii Port — on
+// the 2026-11-24 revision. Each alias list is disjoint so a DB row is counted
+// under exactly one port row.
+const MAJOR_PORTS = [
+  { label: 'Chennai Port Authority', aliases: ['chennai port authority'] },
+  { label: 'Cochin Port Authority', aliases: ['cochin port authority'] },
+  { label: 'Deendayal Port Authority (Kandla)', aliases: ['deendayal port authority'] },
+  { label: 'HDC - SMPK', aliases: ['hdc smpk', 'smpa haldia dock complex', 'haldia dock complex'] },
+  { label: 'Jawaharlal Nehru Port Authority (JNPA)', aliases: ['jawaharlal nehru port authority'] },
+  { label: 'Kamarajar Port Limited', aliases: ['kamarajar port limited'] },
+  { label: 'KDS - SMPK', aliases: ['kds smpk', 'smpa kolkata dock system', 'kolkata dock system'] },
+  { label: 'Mormugao Port Authority', aliases: ['mormugao port authority'] },
+  { label: 'Mumbai Port Authority', aliases: ['mumbai port authority'] },
+  { label: 'New Mangalore Port Authority', aliases: ['new mangalore port authority'] },
+  { label: 'Paradip Port Authority', aliases: ['paradip port authority'] },
+  { label: 'Syama Prasad Mookeerjii Port', aliases: ['syama prasad mookeerjii port'] },
+  { label: 'V.O. Chidambaranar Port Authority (VOC Port)', aliases: ['v o chidambaranar port authority'] },
+  { label: 'Visakhapatnam Port Authority', aliases: ['visakhapatnam port authority'] }
 ];
 
-const OTHER_ORGS_NAMES = [
-  'Inland Waterways Authority of India (IWAI)',
-  'Shipping Corporation of India (SCI)',
-  'Indian Maritime University (IMU)',
-  'Cochin Shipyard Limited (CSL)',
-  'Directorate General of Lighthouses and Lightships (DGLL)',
-  'Sagarmala Development Company Limited (SDCL)',
-  'Directorate General of Shipping (DGS)',
-  'Indian Port Rail & Ropeway Corporation Limited (IPRCL)',
-  'Indian Register of Shipping (IRS)',
-  'Andaman Lakshadweep Harbour Works (ALHW)',
-  'Hooghly Cochin Shipyard Limited (HCSL)',
-  'Central Inland Water Transport Corporation (CIWTC)'
+// Normalize an organisation name for robust matching across spelling variations
+// (acronym suffix in parens, '&' vs 'and', commas, extra whitespace). Used for
+// both Major Ports and Other Organisations.
+const normalizeOrgName = (name) =>
+  String(name || '')
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/\s*\([^)]*\)\s*/g, ' ')   // strip "(SCI)" style acronyms
+    .replace(/[-.,'"`]/g, ' ')          // hyphens → space so "HDC - SMPK" and "HDC-SMPK" collapse the same way
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const matchesAliases = (dbName, aliases) => {
+  const n = normalizeOrgName(dbName);
+  if (!n) return false;
+  return aliases.some(
+    (a) => n === a || n.startsWith(a + ' ') || a.startsWith(n + ' ')
+  );
+};
+
+// Canonical list of "Other Organisations" per the Ministry 2.0 Drishti Portal
+// baseline (Report 1.3). Each entry carries aliases so we catch spelling
+// variations in the implementing-agency table. Using an explicit allowlist
+// also prevents Major Port subsidiaries (KDS-SMPK, HDC-SMPK, …) from leaking
+// into this report.
+const OTHER_ORGS = [
+  {
+    label: 'Shipping Corporation of India',
+    aliases: [
+      'shipping corporation of india',
+      'shipping corporation of india limited',
+      'sci'
+    ]
+  },
+  {
+    label: 'Cochin Shipyard Limited',
+    aliases: ['cochin shipyard limited', 'cochin shipyard', 'csl']
+  },
+  {
+    label: 'Directorate General of Lighthouses and Lightships',
+    aliases: ['directorate general of lighthouses and lightships', 'dgll']
+  },
+  {
+    label: 'Directorate General of Shipping',
+    aliases: [
+      'directorate general of shipping',
+      'director general of shipping',
+      'dgs'
+    ]
+  },
+  {
+    label: 'Indian Maritime University',
+    aliases: ['indian maritime university', 'imu']
+  },
+  {
+    label: 'Dredging Corporation of India',
+    aliases: [
+      'dredging corporation of india',
+      'dredging corporation of india limited',
+      'dci'
+    ]
+  },
+  {
+    label: 'Andaman, Lakshadweep Harbour Works',
+    aliases: [
+      'andaman lakshadweep harbour works',
+      'andaman and lakshadweep harbour works',
+      'alhw'
+    ]
+  },
+  {
+    label: 'Inland Waterways Authority of India',
+    aliases: ['inland waterways authority of india', 'iwai']
+  },
+  {
+    label: 'Indian Port Rail & Ropeway Corporation Limited',
+    aliases: [
+      'indian port rail and ropeway corporation limited',
+      'indian port rail and ropeway corporation',
+      'iprcl'
+    ]
+  },
+  {
+    label: 'Indian Port Association',
+    aliases: ['indian port association', 'indian ports association', 'ipa']
+  },
+  {
+    label: 'Sagarmala Finance Corporation Limited',
+    aliases: ['sagarmala finance corporation limited', 'sfcl']
+  },
+  {
+    label: 'Ministry Of Ports, Shipping and Waterways',
+    aliases: [
+      'ministry of ports shipping and waterways',
+      'mopsw',
+      'mops and w'
+    ]
+  },
+  {
+    label: 'NTCPWC, IITM',
+    aliases: [
+      'ntcpwc iitm',
+      'ntcpwc',
+      'national technology centre for ports waterways and coasts iitm',
+      'national technology centre for ports waterways and coasts'
+    ]
+  }
 ];
+
+// Classify a DB row's Current Status into one of the seven report buckets.
+// Matches 2.0's behaviour: explicit "Yet to be Updated" rows, NULL / blank
+// statuses, and any other unrecognised string all fall through to the YTU
+// bucket. (The earlier DGS issue — YTU=4 vs 2.0's YTU=0 — was NOT null-status
+// rows; it was A3-only rows with no Action (B3) that the Port/Org branches
+// should never have been counting. The B3 filter in those branches excludes
+// them now, so this classifier can safely catch MoPSW's 1 legitimate YTU row
+// without re-introducing DGS's 4 phantoms.)
+const classifyStatus = (status) => {
+  const s = String(status || '').toLowerCase().trim();
+  if (s.includes('completed')) return 'completed';
+  if (s.includes('on time') || s.includes('on track')) return 'on_time';
+  if (s.includes('delayed')) return 'delayed';
+  if (s.includes('yet to be started') || s.includes('yet to start')) return 'yet_to_start';
+  if (s.includes('not applicable')) return 'not_applicable';
+  if (s.includes('dropped')) return 'dropped';
+  return 'yet_to_update';
+};
+
+// Aggregate status counts + total cost for a set of rows, applying the
+// null-status exclusion above.
+const aggregateCounts = (rows) => {
+  const acc = {
+    yet_to_start: 0,
+    on_time: 0,
+    delayed: 0,
+    completed: 0,
+    not_applicable: 0,
+    dropped: 0,
+    yet_to_update: 0,
+    total_cost: 0
+  };
+  rows.forEach((item) => {
+    const bucket = classifyStatus(item['Current Status'] ?? item.current_status);
+    acc[bucket]++;
+    // The backend query aliases the column as [Total Cost], so the row key
+    // has a space; fall back to a snake_case form just in case.
+    const c = Number(item['Total Cost'] ?? item.total_cost ?? 0);
+    if (!isNaN(c)) acc.total_cost += c;
+  });
+  return acc;
+};
+
+// Weighted Implementation Score (Ministry 2.0 weights, verified against the
+// official Drishti Portal Report 1.3 snapshot on 23-11-2026):
+//   Completed 100, On Time 75, Delayed 50, Yet to Start 25, Yet to Update 10
+// Not Applicable and Dropped are excluded from both numerator and denominator.
+// Spot-checks that pin the weights down:
+//   MoPSW  (C=1, OT=1, YTS=3, YTU=1)        → 260/6   = 43.33%
+//   IWAI   (C=235,OT=61,D=5,YTS=125,YTU=2)  → 31470/428 = 73.53%
+//   Cochin (C=106,OT=7,YTS=4)               → 11225/117 = 95.94%
+const weightedScore = (counts) => {
+  const denom =
+    counts.completed +
+    counts.on_time +
+    counts.delayed +
+    counts.yet_to_start +
+    counts.yet_to_update;
+  if (denom <= 0) return 0;
+  const num =
+    counts.completed * 100 +
+    counts.on_time * 75 +
+    counts.delayed * 50 +
+    counts.yet_to_start * 25 +
+    counts.yet_to_update * 10;
+  return num / denom;
+};
+
+// Rank a list of computed report rows by weighted score (descending) and
+// re-assign the Rank column so the leader board matches 2.0's ordering.
+const rankByScoreDesc = (rows) =>
+  [...rows]
+    .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))
+    .map((r, idx) => ({ ...r, rank: idx + 1 }));
 
 export default function Reports({ triggerNotification }) {
   const notify = useNotifier(triggerNotification);
@@ -367,33 +545,12 @@ export default function Reports({ triggerNotification }) {
         });
 
         if (matched.length > 0) {
-          let yts = 0, onTime = 0, del = 0, comp = 0, na = 0, drop = 0, ytu = 0, cost = 0;
-          matched.forEach((item) => {
-            const st = String(item['Current Status'] || item.current_status || '').toLowerCase();
-            // The query aliases the column as [Total Cost], so the row key has a space. Reading only
-            // item.total_cost gave undefined on every row and the Total Cost card summed to 0.
-            const c = Number(item['Total Cost'] ?? item.total_cost ?? 0);
-            cost += isNaN(c) ? 0 : c;
-            if (st.includes('completed')) comp++;
-            else if (st.includes('on time')) onTime++;
-            else if (st.includes('delayed')) del++;
-            else if (st.includes('yet to be started')) yts++;
-            else if (st.includes('not applicable')) na++;
-            else if (st.includes('dropped')) drop++;
-            else ytu++;
-          });
-          const totalValid = comp + onTime + del + yts + ytu;
-          const sc = totalValid > 0 ? ((comp * 100 + onTime * 70 + del * 30) / totalValid) : 0;
+          const counts = aggregateCounts(matched);
+          const sc = weightedScore(counts);
           return {
             ...w,
-            yet_to_start: yts,
-            on_time: onTime,
-            delayed: del,
-            completed: comp,
-            not_applicable: na,
-            dropped: drop,
-            yet_to_update: ytu,
-            total_cost: Math.round(cost * 100) / 100,
+            ...counts,
+            total_cost: Math.round(counts.total_cost * 100) / 100,
             score: Math.round(sc * 100) / 100,
             matchedItems: matched
           };
@@ -407,93 +564,62 @@ export default function Reports({ triggerNotification }) {
     }
 
     if (activeTab === 'port') {
-      return MAJOR_PORTS_NAMES.map((portName, idx) => {
-        const portLower = portName.toLowerCase();
+      const portRows = MAJOR_PORTS.map((port) => {
+        // Report 1.2 is scoped to Action (B3) items (organisation-level
+        // actions), matching 2.0's "Major Ports-wise Action Items (B3) & Status"
+        // report. A row with no Action (B3) belongs to the A3 wing report
+        // (Report 1.1) and must not be counted here.
         const matched = allRows.filter((r) => {
-          const org = String(r.ia_name || r.organisation_name || '').toLowerCase().trim();
-          if (!org) return false;
-          return org === portLower || org.startsWith(portLower.split('(')[0].trim()) || portLower.startsWith(org.split('(')[0].trim());
+          const b3 = r['Action (B3)'] || r.action_b3;
+          if (!b3) return false;
+          return matchesAliases(r.ia_name || r.organisation_name, port.aliases);
         });
 
-        let yts = 0, onTime = 0, del = 0, comp = 0, na = 0, drop = 0, ytu = 0, cost = 0;
-        matched.forEach((item) => {
-          const st = String(item['Current Status'] || item.current_status || '').toLowerCase();
-          // The query aliases the column as [Total Cost], so the row key has a space.
-          const c = Number(item['Total Cost'] ?? item.total_cost ?? 0);
-          cost += isNaN(c) ? 0 : c;
-          if (st.includes('completed')) comp++;
-          else if (st.includes('on time')) onTime++;
-          else if (st.includes('delayed')) del++;
-          else if (st.includes('yet to be started')) yts++;
-          else if (st.includes('not applicable')) na++;
-          else if (st.includes('dropped')) drop++;
-          else ytu++;
-        });
-
-        const totalValid = comp + onTime + del + yts + ytu;
-        const defaultScore = 65 - idx * 4;
-        const sc = totalValid > 0 ? ((comp * 100 + onTime * 70 + del * 30) / totalValid) : Math.max(0, defaultScore);
+        const counts = aggregateCounts(matched);
+        const sc = weightedScore(counts);
 
         return {
-          rank: idx + 1,
-          name: portName,
-          yet_to_start: yts,
-          on_time: onTime,
-          delayed: del,
-          completed: comp,
-          not_applicable: na,
-          dropped: drop,
-          yet_to_update: ytu,
-          total_cost: Math.round(cost * 100) / 100,
+          name: port.label,
+          ...counts,
+          total_cost: Math.round(counts.total_cost * 100) / 100,
           score: Math.round(sc * 100) / 100,
           matchedItems: matched
         };
       });
+
+      // Rank by weighted score (descending) to match 2.0's leader-board ordering
+      return rankByScoreDesc(portRows);
     }
 
     if (activeTab !== 'org') return [];
-    return OTHER_ORGS_NAMES.map((orgName, idx) => {
-      const orgLower = orgName.toLowerCase();
+
+    const orgRows = OTHER_ORGS.map((org) => {
+      // Report 1.3 is scoped to Action (B3) items only, matching 2.0's
+      // "Non-Port Organisations & PSUs-wise Action Items (B3) & Status" report.
+      // Without this filter, orgs like MoPSW pick up their Wing-level A3
+      // items too (seen as 203 items / ₹49,119 Cr instead of 6 items on the
+      // 23-11-2026 snapshot), which inflates the ranking.
       const matched = allRows.filter((r) => {
-        const org = String(r.ia_name || r.organisation_name || '').toLowerCase().trim();
-        if (!org) return false;
-        return org === orgLower || org.startsWith(orgLower.split('(')[0].trim()) || orgLower.startsWith(org.split('(')[0].trim());
+        const b3 = r['Action (B3)'] || r.action_b3;
+        if (!b3) return false;
+        return matchesAliases(r.ia_name || r.organisation_name, org.aliases);
       });
 
-      let yts = 0, onTime = 0, del = 0, comp = 0, na = 0, drop = 0, ytu = 0, cost = 0;
-      matched.forEach((item) => {
-        const st = String(item['Current Status'] || item.current_status || '').toLowerCase();
-        // The query aliases the column as [Total Cost], so the row key has a space.
-        const c = Number(item['Total Cost'] ?? item.total_cost ?? 0);
-        cost += isNaN(c) ? 0 : c;
-        if (st.includes('completed')) comp++;
-        else if (st.includes('on time')) onTime++;
-        else if (st.includes('delayed')) del++;
-        else if (st.includes('yet to be started')) yts++;
-        else if (st.includes('not applicable')) na++;
-        else if (st.includes('dropped')) drop++;
-        else ytu++;
-      });
-
-      const totalValid = comp + onTime + del + yts + ytu;
-      const defaultScore = 55 - idx * 3;
-      const sc = totalValid > 0 ? ((comp * 100 + onTime * 70 + del * 30) / totalValid) : Math.max(0, defaultScore);
+      const counts = aggregateCounts(matched);
+      const sc = weightedScore(counts);
 
       return {
-        rank: idx + 1,
-        name: orgName,
-        yet_to_start: yts,
-        on_time: onTime,
-        delayed: del,
-        completed: comp,
-        not_applicable: na,
-        dropped: drop,
-        yet_to_update: ytu,
-        total_cost: Math.round(cost * 100) / 100,
+        name: org.label,
+        ...counts,
+        total_cost: Math.round(counts.total_cost * 100) / 100,
         score: Math.round(sc * 100) / 100,
         matchedItems: matched
       };
     });
+
+    // Rank by weighted score (descending) to match the 2.0 Drishti Portal
+    // "Other Organisations Performance Ranking Report" leader board.
+    return rankByScoreDesc(orgRows);
   }, [activeTab, selectedVision, allRows]);
 
   // Handle drill-down trigger
@@ -509,26 +635,13 @@ export default function Reports({ triggerNotification }) {
           return rw === rowName || rw.startsWith(rowName.split('(')[0].trim()) || rowName.startsWith(rw.split('(')[0].trim());
         });
 
-    const getStatus = (i) => String(i['Current Status'] || i.current_status || '').toLowerCase();
-    if (statusKey === 'completed') {
-      items = items.filter((i) => getStatus(i).includes('completed'));
-    } else if (statusKey === 'on_time') {
-      items = items.filter((i) => getStatus(i).includes('on time'));
-    } else if (statusKey === 'delayed') {
-      items = items.filter((i) => getStatus(i).includes('delayed'));
-    } else if (statusKey === 'yet_to_start') {
-      items = items.filter((i) => getStatus(i).includes('yet to be started'));
-    } else if (statusKey === 'not_applicable') {
-      items = items.filter((i) => getStatus(i).includes('not applicable'));
-    } else if (statusKey === 'dropped') {
-      items = items.filter((i) => getStatus(i).includes('dropped'));
-    } else if (statusKey === 'yet_to_update') {
-      items = items.filter((i) => {
-        const st = getStatus(i);
-        return !st.includes('completed') && !st.includes('on time') && !st.includes('delayed') &&
-               !st.includes('yet to be started') && !st.includes('not applicable') && !st.includes('dropped');
-      });
-    }
+    // Use the same classifier the aggregate counts use so the drill-down list
+    // size always matches the clicked cell's count. In particular, "Yet To Be
+    // Updated" shows ONLY rows with an explicit "Yet to be Updated" status —
+    // null / blank statuses are excluded from the report entirely.
+    items = items.filter(
+      (i) => classifyStatus(i['Current Status'] ?? i.current_status) === statusKey
+    );
 
     setDrilldownTarget({
       entityName: row.name,
