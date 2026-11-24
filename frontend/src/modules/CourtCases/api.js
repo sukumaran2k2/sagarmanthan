@@ -181,13 +181,6 @@ export function getConciliationFirstPartyAndSecondParty(caseID) {
   return api.get(`/get-conciliation-first-party-and-second-party/${caseID}`);
 }
 
-
-
-
-
-
-
-
 //*************************************************************** */
 
 export function fetchCourtCaseReport(userID) {
@@ -218,36 +211,36 @@ export function deleteCourtCase(caseID, userID) {
   return api.delete(`/delete-court-case/${caseID}/${userID}`);
 }
 
-export function fetchLitigationDomainReport() {
-  return api.get('/litigation-domain-report');
+export function fetchLitigationDomainReport(userID) {
+  return api.get(`/litigation-domain-report/${userID}`);
 }
 
-export function fetchLitigationSubDomainReport() {
-  return api.get('/litigation-subdomain-report');
+export function fetchLitigationSubDomainReport(userID) {
+  return api.get(`/litigation-subdomain-report/${userID}`);
 }
 
-export function fetchLitigationPortwisePendencyReport() {
-  return api.get('/litigation-portwise-pendency-report');
+export function fetchLitigationPortwisePendencyReport(userID) {
+  return api.get(`/litigation-portwise-pendency-report/${userID}`);
 }
 
-export function fetchLitigationDomainwisePendencyReport() {
-  return api.get('/litigation-domainwise-pendency-report');
+export function fetchLitigationDomainwisePendencyReport(userID) {
+  return api.get(`/litigation-domainwise-pendency-report/${userID}`);
 }
 
 // Domain & Sub-Domain report
-export function fetchLitigationDomainSubDomainReport() {
-  return api.get('/litigation-domain-subdomain-report');                 
+export function fetchLitigationDomainSubDomainReport(userID) {
+  return api.get(`/litigation-domain-subdomain-report/${userID}`);                 
 }
-export function fetchLitigationDomainSubDomainOtherOrgReport() {
-  return api.get('/litigation-domain-subdomain-report-by-other-org');        
+export function fetchLitigationDomainSubDomainOtherOrgReport(userID) {
+  return api.get(`/litigation-domain-subdomain-report-by-other-org/${userID}`);        
 }
 
 // Pendency reports for other organisations
-export function fetchLitigationPortwisePendencyOtherOrgReport() {
-  return api.get('/litigation-other-org-portwise-pendency-report');       
+export function fetchLitigationPortwisePendencyOtherOrgReport(userID) {
+  return api.get(`/litigation-other-org-portwise-pendency-report/${userID}`);       
 }
-export function fetchLitigationDomainwisePendencyOtherOrgReport() {
-  return api.get('/litigation-other-org-domainwise-pendency-report');     
+export function fetchLitigationDomainwisePendencyOtherOrgReport(userID) {
+  return api.get(`/litigation-other-org-domainwise-pendency-report/${userID}`);     
 }
 
 export default api;

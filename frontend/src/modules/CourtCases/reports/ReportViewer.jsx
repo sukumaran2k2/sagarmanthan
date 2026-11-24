@@ -16,6 +16,7 @@ import { getErrorMessage } from "../../../utils/notify";
 import { getReport, STAGE_OPTIONS } from "./reports.config";
 import "./reports.css";
 import * as XLSX from "xlsx";
+import { getReportAccess, canView } from "./reportAccess";
 
 const HIDE = new Set(["DivisionID", "WingID", "organisation_id", "Court Case Id"]);
 const isSNo = (s) => /^s\.?\s?no$/i.test(String(s || "").trim());
@@ -108,6 +109,7 @@ export default function ReportViewer() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const report = getReport(reportId);
+  const access = useMemo(() => getReportAccess(), []);
 
   const gridApi = useRef(null);
   const filterRef = useRef("");
@@ -140,12 +142,20 @@ export default function ReportViewer() {
       try {
         const res = await report.load({
           userID: getUserId(),
-          organisationID: params.get("organisationID"),
+          organisationID: access.isAdmin ? params.get("organisationID") : access.organisationID,
           stageID: params.get("stage_id"),
         });
         if (cancelled) return;
         const body = res?.data ?? res ?? {};
-        setState({ loading: false, error: "", columnDefs: body.columnDefs || [], rowData: body.rowData || [] });
+        let rowData = body.rowData || [];
+
+        // safety net: an organisation user only ever sees their own rows
+        if (!access.isAdmin && access.organisationID != null) {
+          rowData = rowData.filter(
+            (r) => r.organisation_id == null || String(r.organisation_id) === String(access.organisationID)
+          );
+        }
+        setState({ loading: false, error: "", columnDefs: body.columnDefs || [], rowData });
       } catch (e) {
         if (cancelled) return;
         const msg = e?.response?.status === 404
@@ -292,15 +302,14 @@ const exportExcel = () => {
     doc.save(`${report.code || report.id} ${stamp()}.pdf`);
   };
 
-  if (!report) {
-    return (
-      <div className="p-6">
-        <p className="text-red-600">Report not found.</p>
-        <Link to={`${BASE_PATH}/reports`} className="text-blue-600 underline">Back to reports</Link>
-      </div>
-    );
-  }
-
+  if (!report || !canView(report, access)) {
+  return (
+    <div className="p-6">
+      <p className="text-red-600">Report not found or you do not have access.</p>
+      <Link to={`${BASE_PATH}/reports`} className="text-blue-600 underline">Back to reports</Link>
+    </div>
+  );
+}
     const f = report.filter;
   const backTo = report.hidden ? -1 : `${BASE_PATH}/reports`;
   const fullTitle = `${report.code ? `Report No. ${report.code} - ` : ""}${report.title}`;

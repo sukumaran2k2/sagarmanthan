@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Search, TrendingUp } from "lucide-react";
 import { BASE_PATH } from "../CourtCases";
 import { REPORTS } from "./reports.config";
+import { getReportAccess, canView } from "./reportAccess";
 import "./reports.css";
 
 export default function ReportsList() {
@@ -11,12 +12,15 @@ export default function ReportsList() {
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
 
+  const access = useMemo(() => getReportAccess(), []);
+  console.log("report access:", access, "reports:", REPORTS.map(r => [r.code, r.audience]));
+
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return REPORTS.filter((r) => !r.hidden).filter(
-      (r) => !q || `${r.code} ${r.title}`.toLowerCase().includes(q)
-    );
-  }, [query]);
+    return REPORTS
+      .filter((r) => !r.hidden && canView(r, access))
+      .filter((r) => !q || `${r.code} ${r.title}`.toLowerCase().includes(q));
+  }, [query, access]);
 
   const pages = Math.max(1, Math.ceil(rows.length / pageSize));
   const current = Math.min(page, pages);
@@ -42,10 +46,18 @@ export default function ReportsList() {
             <div className="rpt-controls">
               <label className="rpt-search">
                 <Search size={16} />
-                <input value={query} onChange={(e) => { setQuery(e.target.value); setPage(1); }} placeholder="Search reports..." />
+                <input
+                  value={query}
+                  onChange={(e) => { setQuery(e.target.value); setPage(1); }}
+                  placeholder="Search reports..."
+                />
               </label>
               <span className="text-sm font-semibold" style={{ color: "var(--rpt-muted)" }}>Rows</span>
-              <select className="rpt-select" value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}>
+              <select
+                className="rpt-select"
+                value={pageSize}
+                onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
+              >
                 {[10, 25, 50].map((n) => <option key={n} value={n}>{n}</option>)}
               </select>
             </div>
@@ -61,7 +73,11 @@ export default function ReportsList() {
               </thead>
               <tbody>
                 {pageRows.length === 0 && (
-                  <tr><td colSpan={2} style={{ textAlign: "center", padding: 32, color: "var(--rpt-muted)" }}>No reports found.</td></tr>
+                  <tr>
+                    <td colSpan={2} style={{ textAlign: "center", padding: 32, color: "var(--rpt-muted)" }}>
+                      No reports found.
+                    </td>
+                  </tr>
                 )}
                 {pageRows.map((r) => (
                   <tr key={r.id}>

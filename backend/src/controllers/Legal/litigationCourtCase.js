@@ -1251,599 +1251,456 @@ async function getSubTableCourtCasesData(req,res){
 
 // --------------------------------------------------------- Report --------------------------------------------------------
 
-async function getLitigaitonDomainReport(req, res) {
-    try {
-        const conn = await pool;
-        const result = await conn.query(`
-            SELECT 
-            -- The domain details from the mmt_domain table or NULL if there is no domain
-            mmt_domain.domain_id AS [Domain ID],
-            mmt_domain.domain_name AS [Domain Name],
-            
-            -- Counting cases per organization
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Chennai Port Authority' THEN 1 ELSE 0 END) AS [ChPA],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Cochin Port Authority' THEN 1 ELSE 0 END) AS [CoPA],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Deendayal Port Authority' THEN 1 ELSE 0 END) AS [DPA],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Jawaharlal Nehru Port Authority' THEN 1 ELSE 0 END) AS [JNPA],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Kamarajar Port Limited' THEN 1 ELSE 0 END) AS [KPL],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Mormugao Port Authority' THEN 1 ELSE 0 END) AS [MgPA],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Mumbai Port Authority' THEN 1 ELSE 0 END) AS [MbPA],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'New Mangalore Port Authority' THEN 1 ELSE 0 END) AS [NMPA],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Paradip Port Authority' THEN 1 ELSE 0 END) AS [PPA],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'SMPA - Kolkata Dock System' THEN 1 ELSE 0 END) AS [SMPA-KDS],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'SMPA - Haldia Dock Complex' THEN 1 ELSE 0 END) AS [SMPA-HDC],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'V.O. Chidambaranar Port Authority' THEN 1 ELSE 0 END) AS [VoCPA],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Visakhapatnam Port Authority' THEN 1 ELSE 0 END) AS [VPA],
-            
-            -- Calculate total count of cases across all organizations
-            SUM(
-                CASE WHEN mmt_organisation.organisation_name IN 
-                    ('Chennai Port Authority', 'Cochin Port Authority', 'Deendayal Port Authority', 'Jawaharlal Nehru Port Authority',
-                    'Kamarajar Port Limited', 'Mormugao Port Authority', 'Mumbai Port Authority', 'New Mangalore Port Authority', 
-                    'Paradip Port Authority', 'SMPA - Kolkata Dock System','SMPA - Haldia Dock Complex', 'V.O. Chidambaranar Port Authority',
-                    'Visakhapatnam Port Authority') 
-                THEN 1 ELSE 0 END
-            ) AS [Total]
-        FROM 
-            -- mmt_domain is being left joined with tbl_litigation_cases
-            mmt_domain
-        LEFT JOIN 
-            tbl_litigation_cases ON mmt_domain.domain_id = tbl_litigation_cases.domain  AND (tbl_litigation_cases.stage_id IS NULL OR tbl_litigation_cases.stage_id <> 7)
-        LEFT JOIN 
-            mmt_organisation ON mmt_organisation.organisation_id = tbl_litigation_cases.organisation_id
-        GROUP BY 
-            mmt_domain.domain_id, 
-            mmt_domain.domain_name
 
-        -- UNION to include the cases where domain is NULL in the tbl_litigation_cases table
-        UNION ALL
-
-        SELECT 
-            NULL AS [Domain ID], -- NULL for domain_id
-            'NULL' AS [Domain Name], -- 'NULL' as a string for domain_name
-            -- For counting NULL domain cases (only for the specified organizations)
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Chennai Port Authority' THEN 1 ELSE 0 END) AS [ChPA],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Cochin Port Authority' THEN 1 ELSE 0 END) AS [CoPA],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Deendayal Port Authority' THEN 1 ELSE 0 END) AS [DPA],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Jawaharlal Nehru Port Authority' THEN 1 ELSE 0 END) AS [JNPA],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Kamarajar Port Limited' THEN 1 ELSE 0 END) AS [KPL],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Mormugao Port Authority' THEN 1 ELSE 0 END) AS [MgPA],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Mumbai Port Authority' THEN 1 ELSE 0 END) AS [MbPA],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'New Mangalore Port Authority' THEN 1 ELSE 0 END) AS [NMPA],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Paradip Port Authority' THEN 1 ELSE 0 END) AS [PPA],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'SMPA - Kolkata Dock System' THEN 1 ELSE 0 END) AS [SMPA-KDS],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'SMPA - Haldia Dock Complex' THEN 1 ELSE 0 END) AS [SMPA-HDC],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'V.O. Chidambaranar Port Authority' THEN 1 ELSE 0 END) AS [VoCPA],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Visakhapatnam Port Authority' THEN 1 ELSE 0 END) AS [VPA],
-            -- Total for NULL domains in tbl_litigation_cases for the specified organizations
-            SUM(
-                CASE WHEN tbl_litigation_cases.domain IS NULL
-                    AND mmt_organisation.organisation_name IN 
-                        ('Chennai Port Authority', 'Cochin Port Authority', 'Deendayal Port Authority', 'Jawaharlal Nehru Port Authority',
-                        'Kamarajar Port Limited', 'Mormugao Port Authority', 'Mumbai Port Authority', 'New Mangalore Port Authority', 
-                        'Paradip Port Authority','SMPA - Kolkata Dock System','SMPA - Haldia Dock Complex', 'V.O. Chidambaranar Port Authority',
-                        'Visakhapatnam Port Authority') 
-                THEN 1 ELSE 0 END
-            ) AS [Total]
-        FROM 
-            tbl_litigation_cases
-        LEFT JOIN 
-            mmt_organisation ON mmt_organisation.organisation_id = tbl_litigation_cases.organisation_id
-        WHERE 
-            tbl_litigation_cases.domain IS NULL AND (tbl_litigation_cases.stage_id IS NULL OR tbl_litigation_cases.stage_id <> 7)
-        GROUP BY 
-            tbl_litigation_cases.domain;
-            `);
-
-        const rowData = result.recordset;
-
-        if (rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available for this.' });
-        }
-    
-        let columnDefs = [
-                
-                {
-                    headerName: 'Domain ID', 
-                    field: 'Domain ID', 
-                    width: 100,
-                    hide: true
-                },
-                { 
-                    headerName: 'Domain Name', 
-                    field: 'Domain Name',  
-           
-                },
-              
-               {
-        headerName: "Number of Active Cases",
-        headerClass: "headercenter",
-        cellStyle: { textAlign: 'center' },
-
-        children: [
-            { headerName: 'Chennai Port Authority', field: 'ChPA',width: 280},
-            { headerName: 'Cochin Port Authority', field: 'CoPA' },
-            { headerName: 'Deendayal Port Authority', field: 'DPA' },
-            { headerName: 'Jawaharlal Nehru Port Authority', field: 'JNPA' },
-            { headerName: 'Kamarajar Port Limited', field: 'KPL' },   
-            { headerName: 'Mormugao Port Authority', field: 'MgPA' },
-            { headerName: 'Mumbai Port Authority', field: 'MbPA' },
-            { headerName: 'New Mangalore Port Authority', field: 'NMPA'},
-            { headerName: 'Paradip Port Authority', field: 'PPA' },
-            { headerName: 'SMPA - Kolkata Dock System', field: 'SMPA-KDS'},
-            { headerName: 'SMPA - Haldia Dock Complex', field: 'SMPA-HDC'},
-            { headerName: 'V.O. Chidambaranar Port Authority', field: 'VoCPA' },
-            { headerName: 'Visakhapatnam Port Authority', field: 'VPA' },
-            { headerName: 'Total', field: 'Total' },   
-
-        ]}];
-
-    
-        res.json({ columnDefs, rowData });
-
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Internal Server Error');
-    }
-
-}
-
-
-// SELECT 
-// -- Use MIN to select a representative sub_domain_id for the merged "Others" rows
-// MIN(mmt_sub_domain.sub_domain_id) AS [Sub Domain ID],  
-// -- Merge "Others" into a single row
-// CASE 
-//     WHEN mmt_sub_domain.sub_domain_name = 'Others' THEN 'Others'
-//     ELSE mmt_sub_domain.sub_domain_name
-// END AS [Sub Domain Name],
-
-// -- Sum counts per organization
-// SUM(CASE WHEN mmt_organisation.organisation_name = 'Chennai Port Authority' THEN 1 ELSE 0 END) AS [ChPA],
-// SUM(CASE WHEN mmt_organisation.organisation_name = 'Cochin Port Authority' THEN 1 ELSE 0 END) AS [CoPA],
-// SUM(CASE WHEN mmt_organisation.organisation_name = 'Deendayal Port Authority' THEN 1 ELSE 0 END) AS [DPA],
-// SUM(CASE WHEN mmt_organisation.organisation_name = 'Jawaharlal Nehru Port Authority' THEN 1 ELSE 0 END) AS [JNPA],
-// SUM(CASE WHEN mmt_organisation.organisation_name = 'Kamarajar Port Limited' THEN 1 ELSE 0 END) AS [KPL],
-// SUM(CASE WHEN mmt_organisation.organisation_name = 'Mormugao Port Authority' THEN 1 ELSE 0 END) AS [MgPA],
-// SUM(CASE WHEN mmt_organisation.organisation_name = 'Mumbai Port Authority' THEN 1 ELSE 0 END) AS [MbPA],
-// SUM(CASE WHEN mmt_organisation.organisation_name = 'New Mangalore Port Authority' THEN 1 ELSE 0 END) AS [NMPA],
-// SUM(CASE WHEN mmt_organisation.organisation_name = 'Paradip Port Authority' THEN 1 ELSE 0 END) AS [PPA],
-// SUM(CASE WHEN mmt_organisation.organisation_name = 'Syama Prasad Mookeerjii Port' THEN 1 ELSE 0 END) AS [SMPA],
-// SUM(CASE WHEN mmt_organisation.organisation_name = 'V.O. Chidambaranar Port Authority' THEN 1 ELSE 0 END) AS [VoCPA],
-// SUM(CASE WHEN mmt_organisation.organisation_name = 'Visakhapatnam Port Authority' THEN 1 ELSE 0 END) AS [VPA],
-
-// -- Calculate total count of cases across all organizations
-// SUM(
-//     CASE WHEN mmt_organisation.organisation_name IN 
-//         ('Chennai Port Authority', 'Cochin Port Authority', 'Deendayal Port Authority', 'Jawaharlal Nehru Port Authority',
-//         'Kamarajar Port Limited', 'Mormugao Port Authority', 'Mumbai Port Authority', 'New Mangalore Port Authority', 
-//         'Paradip Port Authority', 'Syama Prasad Mookeerjii Port', 'V.O. Chidambaranar Port Authority', 
-//         'Visakhapatnam Port Authority') 
-//     THEN 1 ELSE 0 END
-// ) AS [Total]
-// FROM 
-// mmt_sub_domain
-// LEFT JOIN 
-// tbl_litigation_cases ON mmt_sub_domain.sub_domain_id = 
-//     CASE 
-//         WHEN tbl_litigation_cases.sub_domain IS NULL OR tbl_litigation_cases.sub_domain = 'NULL' 
-//         THEN 0  -- Handle the NULL or 'NULL' string, replacing with 0 or valid sub_domain_id
-//         ELSE CAST(tbl_litigation_cases.sub_domain AS INT)  -- Safely cast sub_domain to INT
-//     END
-// LEFT JOIN 
-// mmt_organisation ON mmt_organisation.organisation_id = tbl_litigation_cases.organisation_id
-// GROUP BY 
-// -- Group by the CASE expression to merge "Others"
-// CASE 
-//     WHEN mmt_sub_domain.sub_domain_name = 'Others' THEN 'Others'
-//     ELSE mmt_sub_domain.sub_domain_name
-// END
-// ORDER BY 
-// [Sub Domain Name];
-
-
-async function getLitigaitonSubDomainReport(req, res) {
-    try {
-        const conn = await pool;
-
-        const result = await conn.query(`
-                SELECT 
-            -- The sub_domain details from the mmt_sub_domain table or NULL if there is no sub_domain
-            mmt_sub_domain.sub_domain_id AS [Sub Domain ID],
-            mmt_sub_domain.sub_domain_name AS [Sub Domain Name],
-            
-            -- Counting cases per organization
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Chennai Port Authority' THEN 1 ELSE 0 END) AS [ChPA],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Cochin Port Authority' THEN 1 ELSE 0 END) AS [CoPA],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Deendayal Port Authority' THEN 1 ELSE 0 END) AS [DPA],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Jawaharlal Nehru Port Authority' THEN 1 ELSE 0 END) AS [JNPA],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Kamarajar Port Limited' THEN 1 ELSE 0 END) AS [KPL],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Mormugao Port Authority' THEN 1 ELSE 0 END) AS [MgPA],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Mumbai Port Authority' THEN 1 ELSE 0 END) AS [MbPA],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'New Mangalore Port Authority' THEN 1 ELSE 0 END) AS [NMPA],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Paradip Port Authority' THEN 1 ELSE 0 END) AS [PPA],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'SMPA - Kolkata Dock System' THEN 1 ELSE 0 END) AS [SMPA-KDS],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'SMPA - Haldia Dock Complex' THEN 1 ELSE 0 END) AS [SMPA-HDC],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'V.O. Chidambaranar Port Authority' THEN 1 ELSE 0 END) AS [VoCPA],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Visakhapatnam Port Authority' THEN 1 ELSE 0 END) AS [VPA],
-            
-            -- Calculate total count of cases across all organizations
-            SUM(
-                CASE WHEN tbl_litigation_cases.organisation_name IN 
-                    ('Chennai Port Authority', 'Cochin Port Authority', 'Deendayal Port Authority', 'Jawaharlal Nehru Port Authority',
-                    'Kamarajar Port Limited', 'Mormugao Port Authority', 'Mumbai Port Authority', 'New Mangalore Port Authority', 
-                    'Paradip Port Authority','SMPA - Kolkata Dock System','SMPA - Haldia Dock Complex','V.O. Chidambaranar Port Authority',
-                    'Visakhapatnam Port Authority') 
-                THEN 1 ELSE 0 END
-            ) AS [Total]
-        FROM 
-            -- mmt_sub_domain is being left joined with tbl_litigation_cases
-            mmt_sub_domain
-        LEFT JOIN 
-            tbl_litigation_cases ON mmt_sub_domain.sub_domain_id = tbl_litigation_cases.sub_domain  AND (tbl_litigation_cases.stage_id IS NULL OR tbl_litigation_cases.stage_id <> 7)
-       
-        GROUP BY 
-            mmt_sub_domain.sub_domain_id, 
-            mmt_sub_domain.sub_domain_name
-
-        -- UNION to include the cases where sub_domain is NULL in the tbl_litigation_cases table
-        UNION ALL
-
-        SELECT 
-            NULL AS [Domain ID], -- NULL for sub_domain_id
-            'NULL' AS [Domain Name], -- 'NULL' as a string for sub_domain_name
-            -- For counting NULL sub_domain cases (only for the specified organizations)
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Chennai Port Authority' THEN 1 ELSE 0 END) AS [ChPA],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Cochin Port Authority' THEN 1 ELSE 0 END) AS [CoPA],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Deendayal Port Authority' THEN 1 ELSE 0 END) AS [DPA],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Jawaharlal Nehru Port Authority' THEN 1 ELSE 0 END) AS [JNPA],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Kamarajar Port Limited' THEN 1 ELSE 0 END) AS [KPL],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Mormugao Port Authority' THEN 1 ELSE 0 END) AS [MgPA],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Mumbai Port Authority' THEN 1 ELSE 0 END) AS [MbPA],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'New Mangalore Port Authority' THEN 1 ELSE 0 END) AS [NMPA],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Paradip Port Authority' THEN 1 ELSE 0 END) AS [PPA],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'SMPA - Kolkata Dock System' THEN 1 ELSE 0 END) AS [SMPA-KDS],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'SMPA - Haldia Dock Complex' THEN 1 ELSE 0 END) AS [SMPA-HDC],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'V.O. Chidambaranar Port Authority' THEN 1 ELSE 0 END) AS [VoCPA],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Visakhapatnam Port Authority' THEN 1 ELSE 0 END) AS [VPA],
-            -- Total for NULL domains in tbl_litigation_cases for the specified organizations
-            SUM(
-                CASE WHEN tbl_litigation_cases.sub_domain IS NULL
-                    AND tbl_litigation_cases.organisation_name IN 
-                        ('Chennai Port Authority', 'Cochin Port Authority', 'Deendayal Port Authority', 'Jawaharlal Nehru Port Authority',
-                        'Kamarajar Port Limited', 'Mormugao Port Authority', 'Mumbai Port Authority', 'New Mangalore Port Authority', 
-                        'Paradip Port Authority','SMPA - Kolkata Dock System','SMPA - Haldia Dock Complex','V.O. Chidambaranar Port Authority',
-                        'Visakhapatnam Port Authority') 
-                THEN 1 ELSE 0 END
-            ) AS [Total]
-        FROM 
-            tbl_litigation_cases
-     
-        WHERE 
-            tbl_litigation_cases.sub_domain IS NULL  AND (tbl_litigation_cases.stage_id IS NULL OR tbl_litigation_cases.stage_id <> 7)
-        GROUP BY 
-            tbl_litigation_cases.sub_domain;
-
-            `);
-
-        // const rowData = result.recordset;
-
-        // if (rowData.length === 0) {
-        //     return res.status(404).json({ error: 'No data available' });
-        // }
-
-        // const columnDefs = Object.keys(rowData[0]).map(key => ({
-        //     headerName: key.charAt(0).toUpperCase() + key.slice(1), // Capitalize the first letter
-        //     field: key,
-        // }));
-
-        // res.json({ columnDefs, rowData });
-        const rowData = result.recordset;
-        // console.log(rowData)
-
-        if (rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available for this.' });
-        }
-    
-        let columnDefs = [
-                
-                {
-                    headerName: 'Sub Domain ID', 
-                    field: 'Sub Domain ID', 
-                    width: 100,
-                    hide: true
-                },
-                { 
-                    headerName: 'Sub Domain Name', 
-                    field: 'Sub Domain Name', 
-                    width: 350
-                },
-                       {
-        headerName: "Number of Active Cases",
-        headerClass: "headercenter",
-        cellStyle: { textAlign: 'center' },
-            children: [
-            { headerName: 'Chennai Port Authority', field: 'ChPA' },
-            { headerName: 'Cochin Port Authority', field: 'CoPA' },
-            { headerName: 'Deendayal Port Authority', field: 'DPA' },
-            { headerName: 'Jawaharlal Nehru Port Authority', field: 'JNPA' },
-            { headerName: 'Kamarajar Port Limited', field: 'KPL' },   
-            { headerName: 'Mormugao Port Authority', field: 'MgPA' },
-            { headerName: 'Mumbai Port Authority', field: 'MbPA' },
-            { headerName: 'New Mangalore Port Authority', field: 'NMPA'},
-            { headerName: 'Paradip Port Authority', field: 'PPA' },
-            { headerName: 'SMPA - Kolkata Dock System', field: 'SMPA-KDS'},
-            { headerName: 'SMPA - Haldia Dock Complex', field: 'SMPA-HDC'},
-            { headerName: 'V.O. Chidambaranar Port Authority', field: 'VoCPA' },
-            { headerName: 'Visakhapatnam Port Authority', field: 'VPA' },
-            { headerName: 'Total', field: 'Total' },   
-
-        ]}];
-        
-
-    
-        res.json({ columnDefs, rowData });
-
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Internal Server Error');
-    }
-
-}
-
-
-// DECLARE @cols AS NVARCHAR(MAX);
-//             DECLARE @query AS NVARCHAR(MAX);
-
-//             -- Get the list of specific organization names from tbl_litigation_cases for the required organizations
-//             SELECT
-//                 @cols = STRING_AGG(QUOTENAME(organisation_name), ',')
-//             FROM (
-//                 SELECT DISTINCT organisation_name
-//                 FROM [sagarmanthan_revamp].[dbo].[tbl_litigation_cases]
-//                 WHERE organisation_name IN (
-//                     'Chennai Port Authority', 'Cochin Port Authority', 'Deendayal Port Authority', 
-//                     'Jawaharlal Nehru Port Authority', 'Kamarajar Port Limited', 'Mormugao Port Authority', 
-//                     'Mumbai Port Authority', 'New Mangalore Port Authority', 'Paradip Port Authority', 
-//                     'Syama Prasad Mookeerjii Port', 'V.O. Chidambaranar Port Authority', 'Visakhapatnam Port Authority'
-//                 ) 
-//                 AND organisation_name IS NOT NULL
-//             ) AS orgs;
-
-//             -- Construct the dynamic SQL query
-//             SET @query = '
-//             WITH CaseData AS (
-//                 SELECT
-//                     d.domain_name AS Domain,
-//                     sd.sub_domain_name AS Sub_Domain,
-//                     lc.organisation_name AS Organization,
-//                     COUNT(lc.case_id) AS case_id
-//                 FROM [sagarmanthan_revamp].[dbo].[tbl_litigation_cases] lc
-//                 LEFT JOIN [sagarmanthan_revamp].[dbo].[mmt_domain] d
-//                     ON TRY_CAST(lc.domain AS INT) = d.domain_id
-//                 LEFT JOIN [sagarmanthan_revamp].[dbo].[mmt_sub_domain] sd
-//                     ON TRY_CAST(lc.sub_domain AS INT) = sd.sub_domain_id
-//                 WHERE lc.organisation_name IN (
-//                     ''Chennai Port Authority'', ''Cochin Port Authority'', ''Deendayal Port Authority'', 
-//                     ''Jawaharlal Nehru Port Authority'', ''Kamarajar Port Limited'', ''Mormugao Port Authority'', 
-//                     ''Mumbai Port Authority'', ''New Mangalore Port Authority'', ''Paradip Port Authority'', 
-//                     ''Syama Prasad Mookeerjii Port'', ''V.O. Chidambaranar Port Authority'', ''Visakhapatnam Port Authority''
-//                 )
-//                 GROUP BY
-//                     d.domain_name,
-//                     sd.sub_domain_name,
-//                     lc.organisation_name
-//             ),
-//             PivotData AS (
-//                 SELECT
-//                     Domain,
-//                     Sub_Domain,
-//                     ' + @cols + '
-//                 FROM CaseData
-//                 PIVOT (
-//                     SUM(case_id)
-//                     FOR Organization IN (' + @cols + ')
-//                 ) AS PivotTable
-//             )
-//             SELECT 
-//                 Domain, 
-//                 Sub_Domain, 
-//                 ' + @cols + ',
-//                 -- Calculate the total for each row by summing all the organization columns and handling NULLs
-//                 ISNULL([Mormugao Port Authority], 0) + 
-//                 ISNULL([New Mangalore Port Authority], 0) + 
-//                 ISNULL([Paradip Port Authority], 0) + 
-//                 ISNULL([Cochin Port Authority], 0) + 
-//                 ISNULL([Kamarajar Port Limited], 0) + 
-//                 ISNULL([Deendayal Port Authority], 0) + 
-//                 ISNULL([Chennai Port Authority], 0) + 
-//                 ISNULL([V.O. Chidambaranar Port Authority], 0) + 
-//                 ISNULL([Visakhapatnam Port Authority], 0) + 
-//                 ISNULL([Jawaharlal Nehru Port Authority], 0) AS Total
-//             FROM PivotData
-//             ORDER BY
-//                 Domain, Sub_Domain;
-//             ';
-
-//             -- Execute the dynamic query
-//             EXEC sp_executesql @query;
- 
- 
-
-async function getLitigaitonDomainAndSubDomainReport(req, res) {
-    try {
-        const conn = await pool;
-
-        const result = await conn.query(`
-
-            SELECT 
-                    -- Include Domain ID and Domain Name from the mmt_domain table
-                    mmt_domain.domain_id AS [Domain ID], 
-                    mmt_domain.domain_name AS [Domain Name],
-
-                    -- The sub_domain details from the mmt_sub_domain table or NULL if there is no sub_domain
-                    mmt_sub_domain.sub_domain_id AS [Sub Domain ID],
-                    mmt_sub_domain.sub_domain_name AS [Sub Domain Name],
-                    
-                    -- Counting cases per organization
-                    SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Chennai Port Authority' THEN 1 ELSE 0 END) AS [ChPA],
-                    SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Cochin Port Authority' THEN 1 ELSE 0 END) AS [CoPA],
-                    SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Deendayal Port Authority' THEN 1 ELSE 0 END) AS [DPA],
-                    SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Jawaharlal Nehru Port Authority' THEN 1 ELSE 0 END) AS [JNPA],
-                    SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Kamarajar Port Limited' THEN 1 ELSE 0 END) AS [KPL],
-                    SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Mormugao Port Authority' THEN 1 ELSE 0 END) AS [MgPA],
-                    SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Mumbai Port Authority' THEN 1 ELSE 0 END) AS [MbPA],
-                    SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'New Mangalore Port Authority' THEN 1 ELSE 0 END) AS [NMPA],
-                    SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Paradip Port Authority' THEN 1 ELSE 0 END) AS [PPA],
-                    SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'SMPA - Kolkata Dock System' THEN 1 ELSE 0 END) AS [SMPA-KDS],
-                    SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'SMPA - Haldia Dock Complex' THEN 1 ELSE 0 END) AS [SMPA-HDC],
-                    SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'V.O. Chidambaranar Port Authority' THEN 1 ELSE 0 END) AS [VoCPA],
-                    SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Visakhapatnam Port Authority' THEN 1 ELSE 0 END) AS [VPA],
-                    
-                    -- Calculate total count of cases across all organizations
-                    SUM(
-                        CASE WHEN tbl_litigation_cases.organisation_name IN 
-                            ('Chennai Port Authority', 'Cochin Port Authority', 'Deendayal Port Authority', 'Jawaharlal Nehru Port Authority',
-                            'Kamarajar Port Limited', 'Mormugao Port Authority', 'Mumbai Port Authority', 'New Mangalore Port Authority', 
-                            'Paradip Port Authority','SMPA - Kolkata Dock System','SMPA - Haldia Dock Complex', 'V.O. Chidambaranar Port Authority',
-                            'Visakhapatnam Port Authority') 
-                        THEN 1 ELSE 0 END
-                    ) AS [Total]
-                FROM 
-                    -- mmt_sub_domain is being left joined with tbl_litigation_cases
-                    mmt_sub_domain
-                LEFT JOIN 
-                    tbl_litigation_cases 
-                    ON mmt_sub_domain.sub_domain_id = tbl_litigation_cases.sub_domain  AND (tbl_litigation_cases.stage_id IS NULL OR tbl_litigation_cases.stage_id <> 7)
-                LEFT JOIN 
-                    mmt_domain 
-                    ON mmt_sub_domain.domain_id = mmt_domain.domain_id
-                GROUP BY 
-                    mmt_domain.domain_id, 
-                    mmt_domain.domain_name,
-                    mmt_sub_domain.sub_domain_id, 
-                    mmt_sub_domain.sub_domain_name
-
-                -- UNION to include the cases where sub_domain is NULL in the tbl_litigation_cases table
-                UNION ALL
-
-                SELECT 
-                    NULL AS [Domain ID], -- NULL for domain_id
-                    'NULL' AS [Domain Name], -- 'NULL' as a string for domain_name
-
-                    -- NULL for sub_domain_id and sub_domain_name
-                    NULL AS [Sub Domain ID], -- NULL for sub_domain_id
-                    'NULL' AS [Sub Domain Name], -- 'NULL' as a string for sub_domain_name
-                    
-                    -- For counting NULL sub_domain cases (only for the specified organizations)
-                    SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Chennai Port Authority' THEN 1 ELSE 0 END) AS [ChPA],
-                    SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Cochin Port Authority' THEN 1 ELSE 0 END) AS [CoPA],
-                    SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Deendayal Port Authority' THEN 1 ELSE 0 END) AS [DPA],
-                    SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Jawaharlal Nehru Port Authority' THEN 1 ELSE 0 END) AS [JNPA],
-                    SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Kamarajar Port Limited' THEN 1 ELSE 0 END) AS [KPL],
-                    SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Mormugao Port Authority' THEN 1 ELSE 0 END) AS [MgPA],
-                    SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Mumbai Port Authority' THEN 1 ELSE 0 END) AS [MbPA],
-                    SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'New Mangalore Port Authority' THEN 1 ELSE 0 END) AS [NMPA],
-                    SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Paradip Port Authority' THEN 1 ELSE 0 END) AS [PPA],
-                    SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'SMPA - Kolkata Dock System' THEN 1 ELSE 0 END) AS [SMPA-KDS],
-                    SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'SMPA - Haldia Dock Complex' THEN 1 ELSE 0 END) AS [SMPA-HDC],
-                    SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'V.O. Chidambaranar Port Authority' THEN 1 ELSE 0 END) AS [VoCPA],
-                    SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Visakhapatnam Port Authority' THEN 1 ELSE 0 END) AS [VPA],
-                    
-                    -- Total for NULL sub_domain cases in tbl_litigation_cases for the specified organizations
-                    SUM(
-                        CASE WHEN tbl_litigation_cases.sub_domain IS NULL
-                            AND tbl_litigation_cases.organisation_name IN 
-                                ('Chennai Port Authority', 'Cochin Port Authority', 'Deendayal Port Authority', 'Jawaharlal Nehru Port Authority',
-                                'Kamarajar Port Limited', 'Mormugao Port Authority', 'Mumbai Port Authority', 'New Mangalore Port Authority', 
-                                'Paradip Port Authority','SMPA - Kolkata Dock System','SMPA - Haldia Dock Complex', 'V.O. Chidambaranar Port Authority',
-                                'Visakhapatnam Port Authority') 
-                        THEN 1 ELSE 0 END
-                    ) AS [Total]
-                FROM 
-                    tbl_litigation_cases
-                WHERE 
-                    tbl_litigation_cases.sub_domain IS NULL  AND (tbl_litigation_cases.stage_id IS NULL OR tbl_litigation_cases.stage_id <> 7)
-                GROUP BY 
-                    tbl_litigation_cases.sub_domain;
-
-            
-            `);
-        const rowData = result.recordset;
-        if (rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available for this.' });
-        }
-    
-        let columnDefs = [
-
-            {
-                headerName: 'Domain ID', 
-                field: 'Domain ID', 
-                width: 100,
-                hide: true
-            },
-            { 
-                headerName: 'Domain Name', 
-                field: 'Domain Name', 
-                width: 350,
-                pinned: true
-            },
-          
-            {
-                headerName: 'Sub Domain ID', 
-                field: 'Sub Domain ID', 
-                width: 100,
-                hide: true
-            },
-            { 
-                headerName: 'Sub Domain Name', 
-                field: 'Sub Domain Name', 
-                width: 350,
-                pinned: true
-            },
-               
-            
-               {
-            headerName: "Number of Active Cases",
-            headerClass: "headercenter",
-            cellStyle: { textAlign: 'center' },
-
-            children: [
-            { headerName: 'Chennai Port Authority', field: 'ChPA' },
-            { headerName: 'Cochin Port Authority', field: 'CoPA' },
-            { headerName: 'Deendayal Port Authority', field: 'DPA' },
-            { headerName: 'Jawaharlal Nehru Port Authority', field: 'JNPA' },
-            { headerName: 'Kamarajar Port Limited', field: 'KPL' },   
-            { headerName: 'Mormugao Port Authority', field: 'MgPA' },
-            { headerName: 'Mumbai Port Authority', field: 'MbPA' },
-            { headerName: 'New Mangalore Port Authority', field: 'NMPA'},
-            { headerName: 'Paradip Port Authority', field: 'PPA' },
-            { headerName: 'SMPA - Kolkata Dock System', field: 'SMPA-KDS'},
-            { headerName: 'SMPA - Haldia Dock Complex', field: 'SMPA-HDC'},
-            { headerName: 'V.O. Chidambaranar Port Authority', field: 'VoCPA' },
-            { headerName: 'Visakhapatnam Port Authority', field: 'VPA' },
-            { headerName: 'Total', field: 'Total' },   
-
-         ]}];
-
-    
-        res.json({ columnDefs, rowData });
-
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Internal Server Error');
-    }
-
-}
-
-
-async function getLitigaitonPendencyPortWiseReport(req, res) {
+async function getLitigationDomainReport(req, res) {
   try {
     const conn = await pool;
-    const result = await conn.query(`
+    const request = conn.request();
+    const userID = req.params.userID;
+
+    request.input('userID', userID);
+
+    const userResult = await request.query(`
+      SELECT role_id, organisation_id
+      FROM tbl_user
+      WHERE user_id = @userID
+    `);
+
+    if (!userResult.recordset.length) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const { role_id, organisation_id } = userResult.recordset[0];
+
+    const wide = await isWideRole(role_id);
+
+    let visiblePorts = MAJOR_PORTS;
+    let orgFilter = '';
+
+    if (!wide) {
+      request.input('organisation_id', organisation_id);
+
+      const orgRow = await request.query(`
+        SELECT organisation_name
+        FROM mmt_organisation
+        WHERE organisation_id = @organisation_id
+      `);
+
+      const myName = orgRow.recordset[0]?.organisation_name;
+
+      visiblePorts = MAJOR_PORTS.filter(
+        (o) => o.name === myName
+      );
+
+      if (!visiblePorts.length) {
+        return res.status(403).json({
+          error: 'This report is not available for your organisation.'
+        });
+      }
+
+      orgFilter = `
+        AND tbl_litigation_cases.organisation_id = @organisation_id
+      `;
+    }
+
+    // 3. Generate organisation-wise count columns
+    const countCols = MAJOR_PORTS.map(
+      (o) => `
+        SUM(
+          CASE
+            WHEN tbl_litigation_cases.organisation_name = '${o.name}'
+            THEN 1 ELSE 0
+          END
+        ) AS [${o.key}]
+      `
+    ).join(',\n');
+
+    const nameList = MAJOR_PORTS
+      .map((o) => `'${o.name}'`)
+      .join(', ');
+
+    // 4. Fetch domain-wise active litigation cases
+    const result = await request.query(`
+      SELECT
+        mmt_domain.domain_id AS [Domain ID],
+        mmt_domain.domain_name AS [Domain Name],
+
+        ${countCols},
+
+        SUM(
+          CASE
+            WHEN tbl_litigation_cases.organisation_name IN (${nameList})
+            THEN 1 ELSE 0
+          END
+        ) AS [Total]
+
+      FROM mmt_domain
+
+      LEFT JOIN tbl_litigation_cases
+        ON mmt_domain.domain_id = tbl_litigation_cases.domain
+        AND (
+          tbl_litigation_cases.stage_id IS NULL
+          OR tbl_litigation_cases.stage_id <> 7
+        )
+        ${orgFilter}
+
+      GROUP BY
+        mmt_domain.domain_id,
+        mmt_domain.domain_name
+
+      UNION ALL
+
+      SELECT
+        NULL AS [Domain ID],
+        'NULL' AS [Domain Name],
+
+        ${countCols},
+
+        SUM(
+          CASE
+            WHEN tbl_litigation_cases.organisation_name IN (${nameList})
+            THEN 1 ELSE 0
+          END
+        ) AS [Total]
+
+      FROM tbl_litigation_cases
+
+      WHERE tbl_litigation_cases.domain IS NULL
+        AND (
+          tbl_litigation_cases.stage_id IS NULL
+          OR tbl_litigation_cases.stage_id <> 7
+        )
+        ${orgFilter}
+
+      GROUP BY
+        tbl_litigation_cases.domain;
+    `);
+
+    const rowData = result.recordset;
+
+    if (!rowData.length) {
+      return res.status(404).json({
+        error: 'No data available for this.'
+      });
+    }
+
+    // 5. Generate columns based on user permissions
+    const columnDefs = [
+      {
+        headerName: 'Domain ID',
+        field: 'Domain ID',
+        width: 100,
+        hide: true
+      },
+      {
+        headerName: 'Domain Name',
+        field: 'Domain Name',
+        width: 350
+      },
+      {
+        headerName: 'Number of Active Cases',
+        headerClass: 'headercenter',
+        cellStyle: { textAlign: 'center' },
+        children: [
+          ...visiblePorts.map((o) => ({
+            headerName: o.name,
+            field: o.key
+          })),
+          {
+            headerName: 'Total',
+            field: 'Total'
+          }
+        ]
+      }
+    ];
+
+    return res.json({
+      columnDefs,
+      rowData
+    });
+
+  } catch (err) {
+    console.error('getLitigationDomainReport error:', err);
+
+    return res.status(500).json({
+      error: 'Internal server error'
+    });
+  }
+}
+
+async function getLitigationSubDomainReport(req, res) {
+  try {
+    const conn = await pool;
+    const request = conn.request();
+    const userID = req.params.userID;
+
+    request.input('userID', userID);
+    const userResult = await request.query(
+      `SELECT role_id, organisation_id FROM tbl_user WHERE user_id = @userID`
+    );
+    if (!userResult.recordset.length) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    const { role_id, organisation_id } = userResult.recordset[0];
+
+    // 2. admin sees all ports; a port user sees only their own port
+    const wide = await isWideRole(role_id);
+    let visiblePorts = MAJOR_PORTS;
+    let orgFilter = '';
+
+    if (!wide) {
+      request.input('organisation_id', organisation_id);
+      const orgRow = await request.query(
+        `SELECT organisation_name FROM mmt_organisation WHERE organisation_id = @organisation_id`
+      );
+      const myName = orgRow.recordset[0]?.organisation_name;
+      visiblePorts = MAJOR_PORTS.filter((o) => o.name === myName);
+
+      // a non-port organisation (or unknown org) has no data in this report
+      if (!visiblePorts.length) {
+        return res.status(403).json({ error: 'This report is not available for your organisation.' });
+      }
+      orgFilter = 'AND tbl_litigation_cases.organisation_id = @organisation_id';
+    }
+
+    // 3. build the SQL (names come from the constant list above, not from the user)
+    const countCols = MAJOR_PORTS.map(
+      (o) => `SUM(CASE WHEN tbl_litigation_cases.organisation_name = '${o.name}' THEN 1 ELSE 0 END) AS [${o.key}]`
+    ).join(',\n');
+    const nameList = MAJOR_PORTS.map((o) => `'${o.name}'`).join(', ');
+
+    const result = await request.query(`
+      SELECT
+        mmt_sub_domain.sub_domain_id AS [Sub Domain ID],
+        mmt_sub_domain.sub_domain_name AS [Sub Domain Name],
+        ${countCols},
+        SUM(CASE WHEN tbl_litigation_cases.organisation_name IN (${nameList}) THEN 1 ELSE 0 END) AS [Total]
+      FROM mmt_sub_domain
+      LEFT JOIN tbl_litigation_cases
+        ON mmt_sub_domain.sub_domain_id = tbl_litigation_cases.sub_domain
+        AND (tbl_litigation_cases.stage_id IS NULL OR tbl_litigation_cases.stage_id <> 7)
+        ${orgFilter}
+      GROUP BY mmt_sub_domain.sub_domain_id, mmt_sub_domain.sub_domain_name
+
+      UNION ALL
+
+      SELECT
+        NULL AS [Sub Domain ID],
+        'NULL' AS [Sub Domain Name],
+        ${countCols},
+        SUM(CASE WHEN tbl_litigation_cases.organisation_name IN (${nameList}) THEN 1 ELSE 0 END) AS [Total]
+      FROM tbl_litigation_cases
+      WHERE tbl_litigation_cases.sub_domain IS NULL
+        AND (tbl_litigation_cases.stage_id IS NULL OR tbl_litigation_cases.stage_id <> 7)
+        ${orgFilter}
+      GROUP BY tbl_litigation_cases.sub_domain;
+    `);
+
+    const rowData = result.recordset;
+    if (rowData.length === 0) {
+      return res.status(404).json({ error: 'No data available for this.' });
+    }
+
+    // 4. columns: admin gets all 13 ports, a port user gets only theirs
+    const columnDefs = [
+      { headerName: 'Sub Domain ID', field: 'Sub Domain ID', width: 100, hide: true },
+      { headerName: 'Sub Domain Name', field: 'Sub Domain Name', width: 350 },
+      {
+        headerName: 'Number of Active Cases',
+        headerClass: 'headercenter',
+        cellStyle: { textAlign: 'center' },
+        children: [
+          ...visiblePorts.map((o) => ({ headerName: o.name, field: o.key })),
+          { headerName: 'Total', field: 'Total' },
+        ],
+      },
+    ];
+
+    res.json({ columnDefs, rowData });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+const MAJOR_PORTS = [
+  { key: 'ChPA',     name: 'Chennai Port Authority' },
+  { key: 'CoPA',     name: 'Cochin Port Authority' },
+  { key: 'DPA',      name: 'Deendayal Port Authority' },
+  { key: 'JNPA',     name: 'Jawaharlal Nehru Port Authority' },
+  { key: 'KPL',      name: 'Kamarajar Port Limited' },
+  { key: 'MgPA',     name: 'Mormugao Port Authority' },
+  { key: 'MbPA',     name: 'Mumbai Port Authority' },
+  { key: 'NMPA',     name: 'New Mangalore Port Authority' },
+  { key: 'PPA',      name: 'Paradip Port Authority' },
+  { key: 'SMPA-KDS', name: 'SMPA - Kolkata Dock System' },
+  { key: 'SMPA-HDC', name: 'SMPA - Haldia Dock Complex' },
+  { key: 'VoCPA',    name: 'V.O. Chidambaranar Port Authority' },
+  { key: 'VPA',      name: 'Visakhapatnam Port Authority' },
+];
+
+async function getLitigationDomainAndSubDomainReport(req, res) {
+  try {
+    const conn = await pool;
+    const request = conn.request();
+    const userID = req.params.userID;
+
+    request.input('userID', userID);
+    const userResult = await request.query(
+      `SELECT role_id, organisation_id FROM tbl_user WHERE user_id = @userID`
+    );
+    if (!userResult.recordset.length) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    const { role_id, organisation_id } = userResult.recordset[0];
+
+    // 2. admin sees all ports; a port user sees only their own port
+    const wide = await isWideRole(role_id);
+    let visiblePorts = MAJOR_PORTS;
+    let orgFilter = '';
+
+    if (!wide) {
+      request.input('organisation_id', organisation_id);
+      const orgRow = await request.query(
+        `SELECT organisation_name FROM mmt_organisation WHERE organisation_id = @organisation_id`
+      );
+      const myName = orgRow.recordset[0]?.organisation_name;
+      visiblePorts = MAJOR_PORTS.filter((o) => o.name === myName);
+
+      // a non-port organisation (or unknown org) has no data in this report
+      if (!visiblePorts.length) {
+        return res.status(403).json({ error: 'This report is not available for your organisation.' });
+      }
+      orgFilter = 'AND tbl_litigation_cases.organisation_id = @organisation_id';
+    }
+
+    // 3. build the SQL (names come from the constant list above, not from the user)
+    const countCols = MAJOR_PORTS.map(
+      (o) => `SUM(CASE WHEN tbl_litigation_cases.organisation_name = '${o.name}' THEN 1 ELSE 0 END) AS [${o.key}]`
+    ).join(',\n');
+    const nameList = MAJOR_PORTS.map((o) => `'${o.name}'`).join(', ');
+
+    const result = await request.query(`
+      SELECT
+        mmt_domain.domain_id AS [Domain ID],
+        mmt_domain.domain_name AS [Domain Name],
+        mmt_sub_domain.sub_domain_id AS [Sub Domain ID],
+        mmt_sub_domain.sub_domain_name AS [Sub Domain Name],
+        ${countCols},
+        SUM(CASE WHEN tbl_litigation_cases.organisation_name IN (${nameList}) THEN 1 ELSE 0 END) AS [Total]
+      FROM mmt_sub_domain
+      LEFT JOIN tbl_litigation_cases
+        ON mmt_sub_domain.sub_domain_id = tbl_litigation_cases.sub_domain
+        AND (tbl_litigation_cases.stage_id IS NULL OR tbl_litigation_cases.stage_id <> 7)
+        ${orgFilter}
+      LEFT JOIN mmt_domain ON mmt_sub_domain.domain_id = mmt_domain.domain_id
+      GROUP BY mmt_domain.domain_id, mmt_domain.domain_name,
+               mmt_sub_domain.sub_domain_id, mmt_sub_domain.sub_domain_name
+
+      UNION ALL
+
+      SELECT
+        NULL AS [Domain ID],
+        'NULL' AS [Domain Name],
+        NULL AS [Sub Domain ID],
+        'NULL' AS [Sub Domain Name],
+        ${countCols},
+        SUM(CASE WHEN tbl_litigation_cases.organisation_name IN (${nameList}) THEN 1 ELSE 0 END) AS [Total]
+      FROM tbl_litigation_cases
+      WHERE tbl_litigation_cases.sub_domain IS NULL
+        AND (tbl_litigation_cases.stage_id IS NULL OR tbl_litigation_cases.stage_id <> 7)
+        ${orgFilter}
+      GROUP BY tbl_litigation_cases.sub_domain;
+    `);
+
+    const rowData = result.recordset;
+    if (rowData.length === 0) {
+      return res.status(404).json({ error: 'No data available for this.' });
+    }
+
+    // 4. columns: admin gets all 13 ports, a port user gets only theirs
+    const columnDefs = [
+      { headerName: 'Domain ID', field: 'Domain ID', width: 100, hide: true },
+      { headerName: 'Domain Name', field: 'Domain Name', width: 350, pinned: true },
+      { headerName: 'Sub Domain ID', field: 'Sub Domain ID', width: 100, hide: true },
+      { headerName: 'Sub Domain Name', field: 'Sub Domain Name', width: 350, pinned: true },
+      {
+        headerName: 'Number of Active Cases',
+        headerClass: 'headercenter',
+        cellStyle: { textAlign: 'center' },
+        children: [
+          ...visiblePorts.map((o) => ({ headerName: o.name, field: o.key })),
+          { headerName: 'Total', field: 'Total' },
+        ],
+      },
+    ];
+
+    res.json({ columnDefs, rowData });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+const MAJOR_PORT_NAMES = [
+  'Chennai Port Authority',
+  'Cochin Port Authority',
+  'Deendayal Port Authority',
+  'Jawaharlal Nehru Port Authority',
+  'Kamarajar Port Limited',
+  'Mormugao Port Authority',
+  'Mumbai Port Authority',
+  'New Mangalore Port Authority',
+  'Paradip Port Authority',
+  'SMPA - Kolkata Dock System',
+  'SMPA - Haldia Dock Complex',
+  'V.O. Chidambaranar Port Authority',
+  'Visakhapatnam Port Authority',
+];
+
+async function getLitigationPendencyPortWiseReport(req, res) {
+  try {
+    const conn = await pool;
+    const request = conn.request();
+    const userID = req.params.userID;
+
+    request.input('userID', userID);
+    const userResult = await request.query(
+      `SELECT role_id, organisation_id FROM tbl_user WHERE user_id = @userID`
+    );
+    if (!userResult.recordset.length) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    const { role_id, organisation_id } = userResult.recordset[0];
+
+    // 2. admin sees all ports; a port user sees only their own port
+    const wide = await isWideRole(role_id);
+    let visiblePorts = MAJOR_PORT_NAMES;
+    let orgFilter = '';
+
+    if (!wide) {
+      request.input('organisation_id', organisation_id);
+      const orgRow = await request.query(
+        `SELECT organisation_name FROM mmt_organisation WHERE organisation_id = @organisation_id`
+      );
+      const myName = orgRow.recordset[0]?.organisation_name;
+      visiblePorts = MAJOR_PORT_NAMES.filter((n) => n === myName);
+
+      // a non-port organisation (or unknown org) has no data in this report
+      if (!visiblePorts.length) {
+        return res.status(403).json({ error: 'This report is not available for your organisation.' });
+      }
+      orgFilter = 'AND organisation_id = @organisation_id';
+    }
+
+    // names come from the constant list above, not from the user
+    const nameList = visiblePorts.map((n) => `'${n}'`).join(', ');
+
+    // 3. query
+    const result = await request.query(`
       WITH DateRanges AS (
-        SELECT 
-          CASE 
+        SELECT
+          CASE
             WHEN file_on_date IS NULL THEN 'No Date Provided'
             WHEN TRY_CAST(file_on_date AS DATE) < '2000-01-01' THEN '2000 or Earlier'
             WHEN TRY_CAST(file_on_date AS DATE) < '2010-01-01' THEN '2000-2010'
@@ -1857,69 +1714,46 @@ async function getLitigaitonPendencyPortWiseReport(req, res) {
           END AS YearGroup,
           organisation_name
         FROM tbl_litigation_cases
-        WHERE organisation_name IN (
-          'Chennai Port Authority','Cochin Port Authority','Deendayal Port Authority',
-          'Jawaharlal Nehru Port Authority','Kamarajar Port Limited','Mormugao Port Authority',
-          'Mumbai Port Authority','New Mangalore Port Authority','Paradip Port Authority',
-          'SMPA - Kolkata Dock System','SMPA - Haldia Dock Complex',
-          'V.O. Chidambaranar Port Authority','Visakhapatnam Port Authority'
-        )AND (stage_id IS NULL OR stage_id <> 7)
+        WHERE organisation_name IN (${nameList})
+          AND (stage_id IS NULL OR stage_id <> 7)
+          ${orgFilter}
       ),
       PivotData AS (
-        SELECT 
-          organisation_name AS port,
-          YearGroup,
-          COUNT(*) AS CaseCount
+        SELECT organisation_name AS Port, YearGroup, COUNT(*) AS CaseCount
         FROM DateRanges
         GROUP BY organisation_name, YearGroup
       )
-      SELECT Port, YearGroup, CaseCount
-      FROM PivotData
+      SELECT Port, YearGroup, CaseCount FROM PivotData
     `);
 
     const raw = result.recordset;
     if (!raw.length) return res.status(404).json({ error: 'No data available.' });
 
-    // Extract unique YearGroups and Ports
-    const years = [...new Set(raw.map(r => r.YearGroup))].sort();
-    const ports = [...new Set(raw.map(r => r.Port))].sort();
+    // 4. build columns and rows
+    const years = [...new Set(raw.map((r) => r.YearGroup))].sort();
+    const ports = [...new Set(raw.map((r) => r.Port))].sort();
 
     const columnDefs = [
-  {
-    headerName: "Organisation",
-    field: "port",
-    width: 200,
-    pinned: "left"
-  },
+      { headerName: 'Organisation', field: 'port', width: 200, pinned: 'left' },
+      {
+        headerName: 'Number of Active Cases',
+        headerClass: 'headercenter',
+        marryChildren: true,
+        children: years.map((year) => ({
+          headerName: year,
+          field: year,
+          type: 'numericColumn',
+          cellStyle: { textAlign: 'center' },
+        })),
+      },
+      { headerName: 'Total', field: 'Total', width: 120, type: 'numericColumn', cellStyle: { textAlign: 'center' } },
+    ];
 
-  {
-    headerName: "Number of Active Cases",
-    headerClass: "headercenter",
-    marryChildren: true,
-    children: [
-      ...years.map(year => ({
-        headerName: year,
-        field: year,
-        type: 'numericColumn',
-        cellStyle: { textAlign: 'center' }
-      }))
-    ]
-  },
-
-  {
-    headerName: "Total",
-    field: "Total",
-    width: 120,
-    type: 'numericColumn',
-    cellStyle: { textAlign: 'center' }
-  }
-];
-
-    const rowData = ports.map(port => {
+    const rowData = ports.map((port) => {
       const row = { port };
       let total = 0;
-      years.forEach(year => {
-        const rec = raw.find(r => r.Port === port && r.YearGroup === year);
+      years.forEach((year) => {
+        const rec = raw.find((r) => r.Port === port && r.YearGroup === year);
         const cnt = rec ? rec.CaseCount : 0;
         row[year] = cnt;
         total += cnt;
@@ -1931,130 +1765,111 @@ async function getLitigaitonPendencyPortWiseReport(req, res) {
     res.json({ columnDefs, rowData });
   } catch (err) {
     console.error(err);
-    res.status(500).send('Internal Server Error');
+    res.status(500).json({ error: 'Internal server error' });
   }
-  
 }
 
-async function getLitigaitonPendencyDomainWiseReport(req, res) {
-    try {
-        const conn = await pool;
+const MAJOR_PORT_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 54, 55];
 
-        const result = await conn.query(`
-            -- Generate the dynamic pivot query
-            DECLARE @sql AS NVARCHAR(MAX);
-            DECLARE @domainList AS NVARCHAR(MAX);
-            DECLARE @yearList AS NVARCHAR(MAX);
-            DECLARE @pivotColumns AS NVARCHAR(MAX);
+async function getLitigationPendencyDomainWiseReport(req, res) {
+  try {
+    const conn = await pool;
+    const request = conn.request();
+    const userID = req.params.userID;
 
-            -- Domains
-            SELECT @domainList = STRING_AGG('''' + domain_name + '''', ', ')
-            FROM mmt_domain;
+    request.input('userID', userID);
+    const userResult = await request.query(
+      `SELECT role_id, organisation_id FROM tbl_user WHERE user_id = @userID`
+    );
+    if (!userResult.recordset.length) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    const { role_id, organisation_id } = userResult.recordset[0];
 
-            -- Date Ranges
-            SELECT @yearList = STRING_AGG('[' + [Date Range] + ']', ', ')
-            FROM (
-                SELECT DISTINCT
-                    CASE 
-                        WHEN file_on_date IS NULL THEN 'No Date Provided'
-                        WHEN TRY_CAST(file_on_date AS DATE) < '2000-01-01' THEN '2000 or Earlier'
-                        WHEN TRY_CAST(file_on_date AS DATE) < '2010-01-01' THEN '2000-2010'
-                        WHEN TRY_CAST(file_on_date AS DATE) < '2016-01-01' THEN '2010-2015'
-                        WHEN TRY_CAST(file_on_date AS DATE) < '2021-01-01' THEN '2016-2020'
-                        WHEN TRY_CAST(file_on_date AS DATE) < '2023-01-01' THEN '2021-2022'
-                        WHEN TRY_CAST(file_on_date AS DATE) < '2025-01-01' THEN '2023-2024'
-                        WHEN TRY_CAST(file_on_date AS DATE) < '2026-01-01' THEN '2025'
-                        ELSE 'Invalid Date'
-                    END AS [Date Range]
-                FROM tbl_litigation_cases
-            ) AS years;
+    // 2. admin sees all major ports; a port user sees only their own port
+    const wide = await isWideRole(role_id);
+    let orgIds = MAJOR_PORT_IDS;
 
-            -- Build final SQL with pivot
-            SET @sql = '
-            SELECT *
-            FROM (
-                SELECT 
-                    ISNULL(mmt_domain.domain_name, ''NULL'') AS domain,
-                    CASE 
-                        WHEN file_on_date IS NULL THEN ''No Date Provided''
-                        WHEN TRY_CAST(file_on_date AS DATE) < ''2000-01-01'' THEN ''2000 or Earlier''
-                        WHEN TRY_CAST(file_on_date AS DATE) < ''2010-01-01'' THEN ''2000-2010''
-                        WHEN TRY_CAST(file_on_date AS DATE) < ''2016-01-01'' THEN ''2010-2015''
-                        WHEN TRY_CAST(file_on_date AS DATE) < ''2021-01-01'' THEN ''2016-2020''
-                        WHEN TRY_CAST(file_on_date AS DATE) < ''2023-01-01'' THEN ''2021-2022''
-                        WHEN TRY_CAST(file_on_date AS DATE) < ''2025-01-01'' THEN ''2023-2024''
-                        WHEN TRY_CAST(file_on_date AS DATE) < ''2026-01-01'' THEN ''2025''
-                        ELSE ''Invalid Date''
-                    END AS [Date Range]
-                FROM tbl_litigation_cases
-                LEFT JOIN mmt_domain ON tbl_litigation_cases.domain = mmt_domain.domain_id
-                WHERE tbl_litigation_cases.organisation_id IN (1,2,3,4,5,6,7,8,9,10,11,12,54,55) AND (tbl_litigation_cases.stage_id IS NULL OR tbl_litigation_cases.stage_id <> 7)
-            ) AS SourceTable
-            PIVOT (
-                COUNT([Date Range])
-                FOR [Date Range] IN (' + @yearList + ')
-            ) AS PivotTable
-            ORDER BY domain;
-            ';
-
-            EXEC sp_executesql @sql;
-
-
-            `);
-
-        const rowData = result.recordset;
-
-        if (rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available for this.' });
-        }
-
-        // extract dynamic domain names from the row data
-        const domainColumns = Object.keys(rowData[0]).filter(column => column !== 'Date Range' && column !== 'NULL' && column !== 'Total');
-        
-        // Sort domain columns alphabetically
-        const sortedDomainColumns = domainColumns.sort();
-
-        // Create column definitions dynamically
-       const yearColumns = Object.keys(rowData[0]).filter(col => col !== 'domain').sort();
-
-      
-        const columnDefs = [
-        {
-            headerName: 'Domain',
-            field: 'domain',
-            width: 200,
-            pinned: 'left',
-            sortable: true,
-            filter: true
-        },
-
-        {
-            headerName: "Number of Active Cases",
-            headerClass: "headercenter",
-            marryChildren: true,
-            cellStyle: { textAlign: 'center' },
-            children: [
-            ...yearColumns.map(year => ({
-                headerName: year,
-                field: year,
-                sortable: true,
-                filter: true,
-                type: 'numericColumn',
-                cellStyle: { textAlign: 'center' }
-            }))
-            ]
-        }
-        ];
-            
-        res.json({ columnDefs, rowData });
-
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Internal Server Error');
+    if (!wide) {
+      // a non-port organisation (or unknown org) has no data in this report
+      if (!MAJOR_PORT_IDS.includes(Number(organisation_id))) {
+        return res.status(403).json({ error: 'This report is not available for your organisation.' });
+      }
+      orgIds = [Number(organisation_id)];
     }
 
-}
+    // ids come from the constant list / the user's own record, and are cast to numbers
+    const idList = orgIds.map(Number).join(', ');
 
+    // 3. plain grouped query (no dynamic PIVOT SQL), pivoted below in JS
+    const result = await request.query(`
+      WITH Src AS (
+        SELECT
+          ISNULL(d.domain_name, 'NULL') AS domain,
+          CASE
+            WHEN c.file_on_date IS NULL THEN 'No Date Provided'
+            WHEN TRY_CAST(c.file_on_date AS DATE) < '2000-01-01' THEN '2000 or Earlier'
+            WHEN TRY_CAST(c.file_on_date AS DATE) < '2010-01-01' THEN '2000-2010'
+            WHEN TRY_CAST(c.file_on_date AS DATE) < '2016-01-01' THEN '2010-2015'
+            WHEN TRY_CAST(c.file_on_date AS DATE) < '2021-01-01' THEN '2016-2020'
+            WHEN TRY_CAST(c.file_on_date AS DATE) < '2023-01-01' THEN '2021-2022'
+            WHEN TRY_CAST(c.file_on_date AS DATE) < '2025-01-01' THEN '2023-2024'
+            WHEN TRY_CAST(c.file_on_date AS DATE) < '2026-01-01' THEN '2025'
+            WHEN TRY_CAST(c.file_on_date AS DATE) IS NOT NULL THEN CAST(YEAR(TRY_CAST(c.file_on_date AS DATE)) AS VARCHAR)
+            ELSE 'Invalid Date'
+          END AS YearGroup
+        FROM tbl_litigation_cases c
+        LEFT JOIN mmt_domain d ON c.domain = d.domain_id
+        WHERE c.organisation_id IN (${idList})
+          AND (c.stage_id IS NULL OR c.stage_id <> 7)
+      )
+      SELECT domain, YearGroup, COUNT(*) AS CaseCount
+      FROM Src
+      GROUP BY domain, YearGroup
+    `);
+
+    const raw = result.recordset;
+    if (!raw.length) {
+      return res.status(404).json({ error: 'No data available for this.' });
+    }
+
+    // 4. pivot in JS
+    const years = [...new Set(raw.map((r) => r.YearGroup))].sort();
+    const domains = [...new Set(raw.map((r) => r.domain))].sort();
+
+    const columnDefs = [
+      { headerName: 'Domain', field: 'domain', width: 200, pinned: 'left', sortable: true, filter: true },
+      {
+        headerName: 'Number of Active Cases',
+        headerClass: 'headercenter',
+        marryChildren: true,
+        cellStyle: { textAlign: 'center' },
+        children: years.map((year) => ({
+          headerName: year,
+          field: year,
+          sortable: true,
+          filter: true,
+          type: 'numericColumn',
+          cellStyle: { textAlign: 'center' },
+        })),
+      },
+    ];
+
+    const rowData = domains.map((domain) => {
+      const row = { domain };
+      years.forEach((year) => {
+        const rec = raw.find((r) => r.domain === domain && r.YearGroup === year);
+        row[year] = rec ? rec.CaseCount : 0;
+      });
+      return row;
+    });
+
+    res.json({ columnDefs, rowData });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
 async function getAllLitigationData(req,res) {
     
     const conn = await pool;
@@ -2440,7 +2255,7 @@ async function getLitigationPetitionerAndRespondent(req,res){
     }
 }
 
-async function getLitigaitonDomainByOtherOrgReport(req, res) {
+async function getLitigationDomainByOtherOrgReport(req, res) {
     try {
         const conn = await pool;
         const result = await conn.query(`SELECT 
@@ -2564,7 +2379,7 @@ async function getLitigaitonDomainByOtherOrgReport(req, res) {
 
 }
 
-async function getLitigaitonSubDomainByOtherOrgReport(req,res) {
+async function getLitigationSubDomainByOtherOrgReport(req,res) {
      try {
         const conn = await pool;
 
@@ -2689,163 +2504,165 @@ async function getLitigaitonSubDomainByOtherOrgReport(req,res) {
 
 }
 
-async function getLitigaitonDomainAndSubDomainByOtherOrgReport(req,res) {
-    try {
-        const conn = await pool;
+const OTHER_ORGS = [
+  { key: 'ALHW',  name: 'Andaman, Lakshadweep Harbour Works' },
+  { key: 'CSL',   name: 'Cochin Shipyard Limited' },
+  { key: 'DCI',   name: 'Dredging Corporation of India' },
+  { key: 'DGLL',  name: 'Directorate General of Lighthouses and Lightships' },
+  { key: 'DGS',   name: 'Directorate General of Shipping, Mumbai' },
+  { key: 'IMU',   name: 'Indian Maritime University' },
+  { key: 'IPRCL', name: 'Indian Ports Rail Corporation Limited' },
+  { key: 'IWAI',  name: 'Inland Waterways Authority of India' },
+  { key: 'SCI',   name: 'Shipping Corporation of India' },
+  { key: 'SDCL',  name: 'Sagarmala Development Company Limited' },
+];
 
-        const result = await conn.query(`
+async function getLitigationDomainAndSubDomainByOtherOrgReport(req, res) {
+  try {
+    const conn = await pool;
+    const request = conn.request();
+    const userID = req.params.userID;
 
-            SELECT 
-                    -- Include Domain ID and Domain Name from the mmt_domain table
-                    mmt_domain.domain_id AS [Domain ID], 
-                    mmt_domain.domain_name AS [Domain Name],
-
-                    -- The sub_domain details from the mmt_sub_domain table or NULL if there is no sub_domain
-                    mmt_sub_domain.sub_domain_id AS [Sub Domain ID],
-                    mmt_sub_domain.sub_domain_name AS [Sub Domain Name],
-                    
-                    -- Counting cases per organization
-                      SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Andaman, Lakshadweep Harbour Works' THEN 1 ELSE 0 END) AS [ALHW],
-                      SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Cochin Shipyard Limited' THEN 1 ELSE 0 END) AS [CSL],
-                      SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Dredging Corporation of India' THEN 1 ELSE 0 END) AS [DCI],
-                      SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Directorate General of Lighthouses and Lightships' THEN 1 ELSE 0 END) AS [DGLL],
-                      SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Directorate General of Shipping, Mumbai' THEN 1 ELSE 0 END) AS [DGS],
-                      SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Indian Maritime University' THEN 1 ELSE 0 END) AS [IMU],
-                      SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Indian Ports Rail Corporation Limited' THEN 1 ELSE 0 END) AS [IPRCL],
-                      SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Inland Waterways Authority of India' THEN 1 ELSE 0 END) AS [IWAI],
-                      SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Shipping Corporation of India' THEN 1 ELSE 0 END) AS [SCI],
-                      SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Sagarmala Development Company Limited' THEN 1 ELSE 0 END) AS [SDCL],
-                    
-                    -- Calculate total count of cases across all organizations
-                    SUM(
-                        CASE WHEN tbl_litigation_cases.organisation_name IN 
-                             ('Andaman, Lakshadweep Harbour Works', 'Cochin Shipyard Limited', 'Dredging Corporation of India', 'Directorate General of Lighthouses and Lightships',
-                             'Directorate General of Shipping, Mumbai', 'Indian Maritime University', 'Indian Ports Rail Corporation Limited', 'Inland Waterways Authority of India', 
-                             'Shipping Corporation of India', 'Sagarmala Development Company Limited') 
-                        THEN 1 ELSE 0 END
-                    ) AS [Total]
-                FROM 
-                    -- mmt_sub_domain is being left joined with tbl_litigation_cases
-                    mmt_sub_domain
-                LEFT JOIN 
-                    tbl_litigation_cases 
-                    ON mmt_sub_domain.sub_domain_id = tbl_litigation_cases.sub_domain AND (tbl_litigation_cases.stage_id IS NULL OR tbl_litigation_cases.stage_id <> 7)
-                LEFT JOIN 
-                    mmt_domain 
-                    ON mmt_sub_domain.domain_id = mmt_domain.domain_id
-                GROUP BY 
-                    mmt_domain.domain_id, 
-                    mmt_domain.domain_name,
-                    mmt_sub_domain.sub_domain_id, 
-                    mmt_sub_domain.sub_domain_name
-
-                -- UNION to include the cases where sub_domain is NULL in the tbl_litigation_cases table
-                UNION ALL
-
-                SELECT 
-                    NULL AS [Domain ID], -- NULL for domain_id
-                    'NULL' AS [Domain Name], -- 'NULL' as a string for domain_name
-
-                    -- NULL for sub_domain_id and sub_domain_name
-                    NULL AS [Sub Domain ID], -- NULL for sub_domain_id
-                    'NULL' AS [Sub Domain Name], -- 'NULL' as a string for sub_domain_name
-                    
-                    -- For counting NULL sub_domain cases (only for the specified organizations)
-                      SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Andaman, Lakshadweep Harbour Works' THEN 1 ELSE 0 END) AS [ALHW],
-                      SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Cochin Shipyard Limited' THEN 1 ELSE 0 END) AS [CSL],
-                      SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Dredging Corporation of India' THEN 1 ELSE 0 END) AS [DCI],
-                      SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Directorate General of Lighthouses and Lightships' THEN 1 ELSE 0 END) AS [DGLL],
-                      SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Directorate General of Shipping, Mumbai' THEN 1 ELSE 0 END) AS [DGS],
-                      SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Indian Maritime University' THEN 1 ELSE 0 END) AS [IMU],
-                      SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Indian Ports Rail Corporation Limited' THEN 1 ELSE 0 END) AS [IPRCL],
-                      SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Inland Waterways Authority of India' THEN 1 ELSE 0 END) AS [IWAI],
-                      SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Shipping Corporation of India' THEN 1 ELSE 0 END) AS [SCI],
-                      SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Sagarmala Development Company Limited' THEN 1 ELSE 0 END) AS [SDCL],
-                    
-                    -- Total for NULL sub_domain cases in tbl_litigation_cases for the specified organizations
-                    SUM(
-                        CASE WHEN tbl_litigation_cases.sub_domain IS NULL
-                            AND tbl_litigation_cases.organisation_name IN 
-                                 ('Andaman, Lakshadweep Harbour Works', 'Cochin Shipyard Limited', 'Dredging Corporation of India', 'Directorate General of Lighthouses and Lightships',
-                                 'Directorate General of Shipping, Mumbai', 'Indian Maritime University', 'Indian Ports Rail Corporation Limited', 'Inland Waterways Authority of India', 
-                                 'Shipping Corporation of India', 'Sagarmala Development Company Limited') 
-                        THEN 1 ELSE 0 END
-                    ) AS [Total]
-                FROM 
-                    tbl_litigation_cases
-                WHERE 
-                    tbl_litigation_cases.sub_domain IS NULL AND (tbl_litigation_cases.stage_id IS NULL OR tbl_litigation_cases.stage_id <> 7)
-                GROUP BY 
-                    tbl_litigation_cases.sub_domain;
-            `);
-
-        const rowData = result.recordset;
-
-        if (rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available for this.' });
-        }
-    
-        let columnDefs = [
-
-            {
-                headerName: 'Domain ID', 
-                field: 'Domain ID', 
-                width: 100,
-                hide: true
-            },
-            { 
-                headerName: 'Domain Name', 
-                field: 'Domain Name', 
-                width: 350,
-                pinned: true
-            },
-          
-            {
-                headerName: 'Sub Domain ID', 
-                field: 'Sub Domain ID', 
-                width: 100,
-                hide: true
-            },
-            { 
-                headerName: 'Sub Domain Name', 
-                field: 'Sub Domain Name', 
-                width: 350,
-                pinned: true
-            },
-            {
-            headerName: "Number of Active Cases",
-            headerClass: "headercenter",
-            cellStyle: { textAlign: 'center' },
-
-            children: [
-            { headerName: 'Andaman, Lakshadweep Harbour Works', field: 'ALHW',width: 400 },
-            { headerName: 'Cochin Shipyard Limited', field: 'CSL',width: 400 },
-            { headerName: 'Dredging Corporation of India', field: 'DCI',width: 400 },
-            { headerName: 'Directorate General of Lighthouses and Lightships', field: 'DGLL',width: 400 },
-            { headerName: 'Directorate General of Shipping, Mumbai', field: 'DGS',width: 400 },   
-            { headerName: 'Indian Maritime University', field: 'IMU',width: 400 },
-            { headerName: 'Indian Ports Rail Corporation Limited', field: 'IPRCL',width: 400 },
-            { headerName: 'Inland Waterways Authority of India', field: 'IWAI',width: 400},
-            { headerName: 'Shipping Corporation of India', field: 'SCI',width: 400 },
-            { headerName: 'Sagarmala Development Company Limited', field: 'SDCL',width: 400 },  
-            { headerName: 'Total', field: 'Total' },  
-        ]}];
-
-        res.json({ columnDefs, rowData });
-
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Internal Server Error');
+    request.input('userID', userID);
+    const userResult = await request.query(
+      `SELECT role_id, organisation_id FROM tbl_user WHERE user_id = @userID`
+    );
+    if (!userResult.recordset.length) {
+      return res.status(404).json({ error: 'User not found' });
     }
+    const { role_id, organisation_id } = userResult.recordset[0];
+
+    // 2. admin sees all; an organisation user sees only their own organisation
+    const wide = await isWideRole(role_id);
+    let visibleOrgs = OTHER_ORGS;
+    let orgFilter = '';
+
+    if (!wide) {
+      request.input('organisation_id', organisation_id);
+      const orgRow = await request.query(
+        `SELECT organisation_name FROM mmt_organisation WHERE organisation_id = @organisation_id`
+      );
+      const myName = orgRow.recordset[0]?.organisation_name;
+      visibleOrgs = OTHER_ORGS.filter((o) => o.name === myName);
+
+      // a major port (or unknown org) has no data in this report
+      if (!visibleOrgs.length) {
+        return res.status(403).json({ error: 'This report is not available for your organisation.' });
+      }
+      orgFilter = 'AND tbl_litigation_cases.organisation_id = @organisation_id';
+    }
+
+    // 3. build the SQL (names come from the constant list above, not from the user)
+    const countCols = OTHER_ORGS.map(
+      (o) => `SUM(CASE WHEN tbl_litigation_cases.organisation_name = '${o.name}' THEN 1 ELSE 0 END) AS [${o.key}]`
+    ).join(',\n');
+    const nameList = OTHER_ORGS.map((o) => `'${o.name}'`).join(', ');
+
+    const result = await request.query(`
+      SELECT
+        mmt_domain.domain_id AS [Domain ID],
+        mmt_domain.domain_name AS [Domain Name],
+        mmt_sub_domain.sub_domain_id AS [Sub Domain ID],
+        mmt_sub_domain.sub_domain_name AS [Sub Domain Name],
+        ${countCols},
+        SUM(CASE WHEN tbl_litigation_cases.organisation_name IN (${nameList}) THEN 1 ELSE 0 END) AS [Total]
+      FROM mmt_sub_domain
+      LEFT JOIN tbl_litigation_cases
+        ON mmt_sub_domain.sub_domain_id = tbl_litigation_cases.sub_domain
+        AND (tbl_litigation_cases.stage_id IS NULL OR tbl_litigation_cases.stage_id <> 7)
+        ${orgFilter}
+      LEFT JOIN mmt_domain ON mmt_sub_domain.domain_id = mmt_domain.domain_id
+      GROUP BY mmt_domain.domain_id, mmt_domain.domain_name,
+               mmt_sub_domain.sub_domain_id, mmt_sub_domain.sub_domain_name
+
+      UNION ALL
+
+      SELECT
+        NULL AS [Domain ID],
+        'NULL' AS [Domain Name],
+        NULL AS [Sub Domain ID],
+        'NULL' AS [Sub Domain Name],
+        ${countCols},
+        SUM(CASE WHEN tbl_litigation_cases.organisation_name IN (${nameList}) THEN 1 ELSE 0 END) AS [Total]
+      FROM tbl_litigation_cases
+      WHERE tbl_litigation_cases.sub_domain IS NULL
+        AND (tbl_litigation_cases.stage_id IS NULL OR tbl_litigation_cases.stage_id <> 7)
+        ${orgFilter}
+      GROUP BY tbl_litigation_cases.sub_domain;
+    `);
+
+    const rowData = result.recordset;
+    if (rowData.length === 0) {
+      return res.status(404).json({ error: 'No data available for this.' });
+    }
+
+    // 4. columns: admin gets all 10 organisations, an organisation user gets only theirs
+    const columnDefs = [
+      { headerName: 'Domain ID', field: 'Domain ID', width: 100, hide: true },
+      { headerName: 'Domain Name', field: 'Domain Name', width: 350, pinned: true },
+      { headerName: 'Sub Domain ID', field: 'Sub Domain ID', width: 100, hide: true },
+      { headerName: 'Sub Domain Name', field: 'Sub Domain Name', width: 350, pinned: true },
+      {
+        headerName: 'Number of Active Cases',
+        headerClass: 'headercenter',
+        cellStyle: { textAlign: 'center' },
+        children: [
+          ...visibleOrgs.map((o) => ({ headerName: o.name, field: o.key, width: 400 })),
+          { headerName: 'Total', field: 'Total' },
+        ],
+      },
+    ];
+
+    res.json({ columnDefs, rowData });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 }
 
-async function getLitigaitonPendencyOtherOrgWiseReport(req,res) {
-    try {
+async function getLitigatonPendencyOtherOrgWiseReport(req, res) {
+  try {
     const conn = await pool;
-    const result = await conn.query(`
+    const request = conn.request();
+    const userID = req.params.userID;
+
+    request.input('userID', userID);
+    const userResult = await request.query(
+      `SELECT role_id, organisation_id FROM tbl_user WHERE user_id = @userID`
+    );
+    if (!userResult.recordset.length) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    const { role_id, organisation_id } = userResult.recordset[0];
+
+    // 2. admin sees all; an organisation user sees only their own organisation
+    const wide = await isWideRole(role_id);
+    let visibleOrgs = OTHER_ORGS;
+    let orgFilter = '';
+
+    if (!wide) {
+      request.input('organisation_id', organisation_id);
+      const orgRow = await request.query(
+        `SELECT organisation_name FROM mmt_organisation WHERE organisation_id = @organisation_id`
+      );
+      const myName = orgRow.recordset[0]?.organisation_name;
+      visibleOrgs = OTHER_ORGS.filter((o) => o.name === myName);
+
+      // a major port (or unknown org) has no data in this report
+      if (!visibleOrgs.length) {
+        return res.status(403).json({ error: 'This report is not available for your organisation.' });
+      }
+      orgFilter = 'AND organisation_id = @organisation_id';
+    }
+
+    // names come from the constant list above, not from the user
+    const nameList = visibleOrgs.map((o) => `'${o.name}'`).join(', ');
+
+    // 3. query
+    const result = await request.query(`
       WITH DateRanges AS (
-        SELECT 
-          CASE 
+        SELECT
+          CASE
             WHEN file_on_date IS NULL THEN 'No Date Provided'
             WHEN TRY_CAST(file_on_date AS DATE) < '2000-01-01' THEN '2000 or Earlier'
             WHEN TRY_CAST(file_on_date AS DATE) < '2010-01-01' THEN '2000-2010'
@@ -2859,69 +2676,47 @@ async function getLitigaitonPendencyOtherOrgWiseReport(req,res) {
           END AS YearGroup,
           organisation_name
         FROM tbl_litigation_cases
-        WHERE organisation_name IN (
-          'Andaman, Lakshadweep Harbour Works', 'Cochin Shipyard Limited', 'Dredging Corporation of India', 'Directorate General of Lighthouses and Lightships',
-        'Directorate General of Shipping, Mumbai', 'Indian Maritime University', 'Indian Ports Rail Corporation Limited', 'Inland Waterways Authority of India', 
-        'Shipping Corporation of India', 'Sagarmala Development Company Limited'
-        ) AND (stage_id IS NULL OR stage_id <> 7)
+        WHERE organisation_name IN (${nameList})
+          AND (stage_id IS NULL OR stage_id <> 7)
+          ${orgFilter}
       ),
       PivotData AS (
-        SELECT 
-          organisation_name AS port,
-          YearGroup,
-          COUNT(*) AS CaseCount
+        SELECT organisation_name AS Port, YearGroup, COUNT(*) AS CaseCount
         FROM DateRanges
         GROUP BY organisation_name, YearGroup
       )
-      SELECT Port, YearGroup, CaseCount
-      FROM PivotData
+      SELECT Port, YearGroup, CaseCount FROM PivotData
     `);
 
     const raw = result.recordset;
     if (!raw.length) return res.status(404).json({ error: 'No data available.' });
 
-    // Extract unique YearGroups and Ports
-    const years = [...new Set(raw.map(r => r.YearGroup))].sort();
-    const ports = [...new Set(raw.map(r => r.Port))].sort();
+    // 4. build columns and rows
+    const years = [...new Set(raw.map((r) => r.YearGroup))].sort();
+    const ports = [...new Set(raw.map((r) => r.Port))].sort();
 
-    // Build columns and data
-   const columnDefs = [
-  {
-    headerName: 'Organisation',
-    field: 'port',
-    width: 180,
-    pinned: 'left'
-  },
+    const columnDefs = [
+      { headerName: 'Organisation', field: 'port', width: 180, pinned: 'left' },
+      {
+        headerName: 'Number of Active Cases',
+        headerClass: 'headercenter',
+        marryChildren: true,
+        cellStyle: { textAlign: 'center' },
+        children: years.map((year) => ({
+          headerName: year,
+          field: year,
+          type: 'numericColumn',
+          cellStyle: { textAlign: 'center' },
+        })),
+      },
+      { headerName: 'Total', field: 'Total', width: 120, type: 'numericColumn', cellStyle: { textAlign: 'center' } },
+    ];
 
-  {
-    headerName: "Number of Active Cases",
-    headerClass: "headercenter",
-    marryChildren: true,
-    cellStyle: { textAlign: 'center' },
-    children: [
-      ...years.map(year => ({
-        headerName: year,
-        field: year,
-        type: 'numericColumn',
-        cellStyle: { textAlign: 'center' }
-      }))
-    ]
-  },
-
-  {
-    headerName: 'Total',
-    field: 'Total',
-    width: 120,
-    type: 'numericColumn',
-    cellStyle: { textAlign: 'center' }
-  }
-];
-
-    const rowData = ports.map(port => {
+    const rowData = ports.map((port) => {
       const row = { port };
       let total = 0;
-      years.forEach(year => {
-        const rec = raw.find(r => r.Port === port && r.YearGroup === year);
+      years.forEach((year) => {
+        const rec = raw.find((r) => r.Port === port && r.YearGroup === year);
         const cnt = rec ? rec.CaseCount : 0;
         row[year] = cnt;
         total += cnt;
@@ -2933,122 +2728,110 @@ async function getLitigaitonPendencyOtherOrgWiseReport(req,res) {
     res.json({ columnDefs, rowData });
   } catch (err) {
     console.error(err);
-    res.status(500).send('Internal Server Error');
+    res.status(500).json({ error: 'Internal server error' });
   }
 }
 
-async function getLitigaitonPendencyDomainWiseOtherOrgReport(req,res) {
-   try {
-        const conn = await pool;
+const OTHER_ORG_IDS = [23, 18, 27, 19, 21, 25, 20, 17, 15, 225];
 
-        const result = await conn.query(`
-            -- Generate the dynamic pivot query
-            DECLARE @sql AS NVARCHAR(MAX);
-            DECLARE @domainList AS NVARCHAR(MAX);
-            DECLARE @yearList AS NVARCHAR(MAX);
-            DECLARE @pivotColumns AS NVARCHAR(MAX);
+async function getLitigatonPendencyDomainWiseOtherOrgReport(req, res) {
+  try {
+    const conn = await pool;
+    const request = conn.request();
+    const userID = req.params.userID;
 
-            -- Domains
-            SELECT @domainList = STRING_AGG('''' + domain_name + '''', ', ')
-            FROM mmt_domain;
-
-            -- Date Ranges
-            SELECT @yearList = STRING_AGG('[' + [Date Range] + ']', ', ')
-            FROM (
-                SELECT DISTINCT
-                    CASE 
-                        WHEN file_on_date IS NULL THEN 'No Date Provided'
-                        WHEN TRY_CAST(file_on_date AS DATE) < '2000-01-01' THEN '2000 or Earlier'
-                        WHEN TRY_CAST(file_on_date AS DATE) < '2010-01-01' THEN '2000-2010'
-                        WHEN TRY_CAST(file_on_date AS DATE) < '2016-01-01' THEN '2010-2015'
-                        WHEN TRY_CAST(file_on_date AS DATE) < '2021-01-01' THEN '2016-2020'
-                        WHEN TRY_CAST(file_on_date AS DATE) < '2023-01-01' THEN '2021-2022'
-                        WHEN TRY_CAST(file_on_date AS DATE) < '2025-01-01' THEN '2023-2024'
-                        WHEN TRY_CAST(file_on_date AS DATE) < '2026-01-01' THEN '2025'
-                        ELSE 'Invalid Date'
-                    END AS [Date Range]
-                FROM tbl_litigation_cases
-            ) AS years;
-
-            -- Build final SQL with pivot
-            SET @sql = '
-            SELECT *
-            FROM (
-                SELECT 
-                    ISNULL(mmt_domain.domain_name, ''NULL'') AS domain,
-                    CASE 
-                        WHEN file_on_date IS NULL THEN ''No Date Provided''
-                        WHEN TRY_CAST(file_on_date AS DATE) < ''2000-01-01'' THEN ''2000 or Earlier''
-                        WHEN TRY_CAST(file_on_date AS DATE) < ''2010-01-01'' THEN ''2000-2010''
-                        WHEN TRY_CAST(file_on_date AS DATE) < ''2016-01-01'' THEN ''2010-2015''
-                        WHEN TRY_CAST(file_on_date AS DATE) < ''2021-01-01'' THEN ''2016-2020''
-                        WHEN TRY_CAST(file_on_date AS DATE) < ''2023-01-01'' THEN ''2021-2022''
-                        WHEN TRY_CAST(file_on_date AS DATE) < ''2025-01-01'' THEN ''2023-2024''
-                        WHEN TRY_CAST(file_on_date AS DATE) < ''2026-01-01'' THEN ''2025''
-                        ELSE ''Invalid Date''
-                    END AS [Date Range]
-                FROM tbl_litigation_cases
-                LEFT JOIN mmt_domain ON tbl_litigation_cases.domain = mmt_domain.domain_id
-                WHERE tbl_litigation_cases.organisation_id IN (23,18,27,19,21,25,20,17,15,225) AND (tbl_litigation_cases.stage_id IS NULL OR tbl_litigation_cases.stage_id <> 7)
-            ) AS SourceTable
-            PIVOT (
-                COUNT([Date Range])
-                FOR [Date Range] IN (' + @yearList + ')
-            ) AS PivotTable
-            ORDER BY domain;
-            ';
-
-            EXEC sp_executesql @sql;
-            `);
-
-        const rowData = result.recordset;
-
-        if (rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available for this.' });
-        }
-
-        // extract dynamic domain names from the row data (assuming these columns come in the result)
-        const domainColumns = Object.keys(rowData[0]).filter(column => column !== 'Date Range' && column !== 'NULL' && column !== 'Total');
-
-        // Sort domain columns alphabetically
-        const sortedDomainColumns = domainColumns.sort();
-
-        // Create column definitions dynamically
-       const yearColumns = Object.keys(rowData[0]).filter(col => col !== 'domain').sort();
-        const columnDefs = [
-        {
-            headerName: 'Domain',
-            field: 'domain',
-            width: 200,
-            pinned: 'left',
-            sortable: true,
-            filter: true
-        },
-
-        {
-            headerName: "Number of Active Cases",
-            headerClass: "headercenter",
-            marryChildren: true,
-            cellStyle: { textAlign: 'center' },
-            children: [
-            ...yearColumns.map(year => ({
-                headerName: year,
-                field: year,
-                sortable: true,
-                filter: true,
-                type: 'numericColumn',
-                cellStyle: { textAlign: 'center' }
-            }))
-            ]
-        }
-        ];
-    
-        res.json({ columnDefs, rowData });
-
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Internal Server Error');
+    request.input('userID', userID);
+    const userResult = await request.query(
+      `SELECT role_id, organisation_id FROM tbl_user WHERE user_id = @userID`
+    );
+    if (!userResult.recordset.length) {
+      return res.status(404).json({ error: 'User not found' });
     }
+    const { role_id, organisation_id } = userResult.recordset[0];
+
+    // 2. admin sees all other organisations; an organisation user sees only their own
+    const wide = await isWideRole(role_id);
+    let orgIds = OTHER_ORG_IDS;
+
+    if (!wide) {
+      // a major port (or unknown org) has no data in this report
+      if (!OTHER_ORG_IDS.includes(Number(organisation_id))) {
+        return res.status(403).json({ error: 'This report is not available for your organisation.' });
+      }
+      orgIds = [Number(organisation_id)];
+    }
+
+    // ids come from the constant list / the user's own record, and are cast to numbers
+    const idList = orgIds.map(Number).join(', ');
+
+    // 3. plain grouped query (no dynamic PIVOT SQL), pivoted below in JS
+    const result = await request.query(`
+      WITH Src AS (
+        SELECT
+          ISNULL(d.domain_name, 'NULL') AS domain,
+          CASE
+            WHEN c.file_on_date IS NULL THEN 'No Date Provided'
+            WHEN TRY_CAST(c.file_on_date AS DATE) < '2000-01-01' THEN '2000 or Earlier'
+            WHEN TRY_CAST(c.file_on_date AS DATE) < '2010-01-01' THEN '2000-2010'
+            WHEN TRY_CAST(c.file_on_date AS DATE) < '2016-01-01' THEN '2010-2015'
+            WHEN TRY_CAST(c.file_on_date AS DATE) < '2021-01-01' THEN '2016-2020'
+            WHEN TRY_CAST(c.file_on_date AS DATE) < '2023-01-01' THEN '2021-2022'
+            WHEN TRY_CAST(c.file_on_date AS DATE) < '2025-01-01' THEN '2023-2024'
+            WHEN TRY_CAST(c.file_on_date AS DATE) < '2026-01-01' THEN '2025'
+            WHEN TRY_CAST(c.file_on_date AS DATE) IS NOT NULL THEN CAST(YEAR(TRY_CAST(c.file_on_date AS DATE)) AS VARCHAR)
+            ELSE 'Invalid Date'
+          END AS YearGroup
+        FROM tbl_litigation_cases c
+        LEFT JOIN mmt_domain d ON c.domain = d.domain_id
+        WHERE c.organisation_id IN (${idList})
+          AND (c.stage_id IS NULL OR c.stage_id <> 7)
+      )
+      SELECT domain, YearGroup, COUNT(*) AS CaseCount
+      FROM Src
+      GROUP BY domain, YearGroup
+    `);
+
+    const raw = result.recordset;
+    if (!raw.length) {
+      return res.status(404).json({ error: 'No data available for this.' });
+    }
+
+    // 4. pivot in JS
+    const years = [...new Set(raw.map((r) => r.YearGroup))].sort();
+    const domains = [...new Set(raw.map((r) => r.domain))].sort();
+
+    const columnDefs = [
+      { headerName: 'Domain', field: 'domain', width: 200, pinned: 'left', sortable: true, filter: true },
+      {
+        headerName: 'Number of Active Cases',
+        headerClass: 'headercenter',
+        marryChildren: true,
+        cellStyle: { textAlign: 'center' },
+        children: years.map((year) => ({
+          headerName: year,
+          field: year,
+          sortable: true,
+          filter: true,
+          type: 'numericColumn',
+          cellStyle: { textAlign: 'center' },
+        })),
+      },
+    ];
+
+    const rowData = domains.map((domain) => {
+      const row = { domain };
+      years.forEach((year) => {
+        const rec = raw.find((r) => r.domain === domain && r.YearGroup === year);
+        row[year] = rec ? rec.CaseCount : 0;
+      });
+      return row;
+    });
+
+    res.json({ columnDefs, rowData });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 }
 
 async function checkCaseNumberExists(req, res) {
@@ -3083,17 +2866,14 @@ async function checkCaseNumberExists(req, res) {
     }
 }
 
-
-
-
 export default {submitCaseStatus,getSubTableCourtCasesData,fileupload,counterAffidavitDocument,addCourtCaseInterimDetails,addCourtCaseHearingDetails,upload,fileUpload,getLastLitigationCaseNumber,addLitigationOtherCourtCaseOrg,
     addLitigationPrevConnCases,addLitigationDetailsOfCounsel,createLitigationCourtCase,addMinistryDetailsOfCounsel,
     ministryUploadDocument,ministryInterventionDocument,createMinistryIntervention,addCourtCaseOMDetails,addProfessionalFeeDetails,addOtherExpensesDetails,
     submitLitigationExpenditure,getMinistryUploadDocument,deleteMinistryInterventionDocument,deleteMinistryInterventionDoc,
-    deletecounterAffiDocument, getLitigaitonDomainReport, getLitigaitonSubDomainReport, getLitigaitonDomainAndSubDomainReport,
-    getLitigaitonPendencyPortWiseReport, getLitigaitonPendencyDomainWiseReport,  getAllLitigationData,addLitigationPetitionerAndRespondent,getLitigationPetitionerAndRespondent,
-getLitigaitonDomainByOtherOrgReport,getLitigaitonSubDomainByOtherOrgReport,getLitigaitonDomainAndSubDomainByOtherOrgReport,getLitigaitonPendencyOtherOrgWiseReport,
-getLitigaitonPendencyDomainWiseOtherOrgReport,checkCaseNumberExists
+    deletecounterAffiDocument, getLitigationDomainReport, getLitigationSubDomainReport, getLitigationDomainAndSubDomainReport,
+    getLitigationPendencyPortWiseReport, getLitigationPendencyDomainWiseReport,  getAllLitigationData,addLitigationPetitionerAndRespondent,getLitigationPetitionerAndRespondent,
+getLitigationDomainByOtherOrgReport,getLitigationSubDomainByOtherOrgReport,getLitigationDomainAndSubDomainByOtherOrgReport,getLitigatonPendencyOtherOrgWiseReport,
+getLitigatonPendencyDomainWiseOtherOrgReport,checkCaseNumberExists
 }
 
 

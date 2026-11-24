@@ -19,7 +19,7 @@ export const STAGE_OPTIONS = [
 
 export const REPORTS = [
   {
-    id: "overview", code: "CC01",
+    id: "overview", code: "CC01", audience: "all",
     title: "Overview of Court Cases – Major Ports & Other Organisations",
     load: ({ userID }) => fetchCourtCaseReport(userID),
     filter: { kind: "organisation", field: "organisation_id", label: "Organisation" },
@@ -34,36 +34,36 @@ export const REPORTS = [
     },
   },
   {
-    id: "domain-subdomain-major", code: "CC02",
+    id: "domain-subdomain-major", code: "CC02", audience: "major",
     title: "Domain & Sub-Domain Report – Major Ports",
-    load: () => fetchLitigationDomainSubDomainReport(),
+    load: ({ userID }) => fetchLitigationDomainSubDomainReport(userID),
     totals: { labelField: "Domain Name" },
   },
   {
-    id: "domain-subdomain-other", code: "CC03",
+    id: "domain-subdomain-other", code: "CC03", audience: "other",
     title: "Domain & Sub-Domain Report – Other Organisations",
-    load: () => fetchLitigationDomainSubDomainOtherOrgReport(),
+    load: ({ userID }) => fetchLitigationDomainSubDomainOtherOrgReport(userID),
     totals: { labelField: "Domain Name" },
   },
   {
-    id: "port-pendency-major", code: "CC04",
+    id: "port-pendency-major", code: "CC04", audience: "major",
     title: "Port-Wise Pendency Report – Major Ports",
-    load: () => fetchLitigationPortwisePendencyReport(),
+    load: ({ userID }) => fetchLitigationPortwisePendencyReport(userID),
   },
   {
-    id: "port-pendency-other", code: "CC05",
+    id: "port-pendency-other", code: "CC05", audience: "other",
     title: "Port-Wise Pendency Report – Other Organisations",
-    load: () => fetchLitigationPortwisePendencyOtherOrgReport(),
+    load: ({ userID }) => fetchLitigationPortwisePendencyOtherOrgReport(userID),
   },
   {
-    id: "domain-pendency-major", code: "CC06",
+    id: "domain-pendency-major", code: "CC06",audience: "major",
     title: "Domain-wise Pendency Report – Major Ports",
-    load: () => fetchLitigationDomainwisePendencyReport(),
+    load: ({ userID }) => fetchLitigationDomainwisePendencyReport(userID),
   },
   {
-    id: "domain-pendency-other", code: "CC07",
+    id: "domain-pendency-other", code: "CC07", audience: "other",
     title: "Domain-wise Pendency Report – Other Organisations",
-    load: () => fetchLitigationDomainwisePendencyOtherOrgReport(),
+    load: ({ userID }) => fetchLitigationDomainwisePendencyOtherOrgReport(userID),
   },
 
   /* ---- drill-down reports: hidden from the list, opened by clicking a number in CC01 ---- */
