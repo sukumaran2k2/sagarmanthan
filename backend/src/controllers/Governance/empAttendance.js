@@ -5,7 +5,7 @@ import path from 'path';
 import xlsx from 'xlsx';
 import { pool } from "../../db.js";
 import { readPeriod } from './eOfficePeriod.js';
-import { spreadsheetFileFilter, singleSpreadsheet } from './eOfficeUpload.js';
+import { spreadsheetFileFilter, singleSpreadsheet, uniqueUploadName, removeStoredUpload } from './eOfficeUpload.js';
 import { EMPLOYEE_LEVELS } from './eOfficeEmployees.js';
 
 const uploadDestination = "./fileuploads/Emp_attendance";
@@ -19,7 +19,7 @@ const storage = multer.diskStorage({
         callback(null, "./fileuploads/Emp_attendance");
     },
     filename: (req, file, callback) => {
-        const uniqueFileName = generateUniqueFileName(file.originalname);
+        const uniqueFileName = uniqueUploadName(file.originalname);
         req.uniqueFileName = uniqueFileName;
         callback(null, uniqueFileName);
     },
@@ -348,32 +348,9 @@ async function updateEmpAttendance(req, res) {
     }
 }
 
-function generateUniqueFileName(originalFileName) {
-    const currentDate = new Date();
-    const year = currentDate.getFullYear();
-    const month = (currentDate.getMonth() + 1).toString().padStart(2, '0');
-    const day = currentDate.getDate().toString().padStart(2, '0');
-
-    // Add time
-    const hours = currentDate.getHours().toString().padStart(2, '0');
-    const minutes = currentDate.getMinutes().toString().padStart(2, '0');
-    const seconds = currentDate.getSeconds().toString().padStart(2, '0');
-
-    const fileExtension = originalFileName.split('.').pop();
-    const baseFileName = originalFileName.substring(0, originalFileName.lastIndexOf('.'));
-
-    return `${baseFileName}_${day}${month}${year}_${hours}${minutes}${seconds}.${fileExtension}`;
-}
-
 // Removes a stored sheet by its file name (kept inside the upload folder)
-function deleteFile(fileName) {
-    if (!fileName) return;
-    const filePath = path.join(uploadDestination, path.basename(String(fileName)));
-    try {
-        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-    } catch (err) {
-        console.error('Attendance file could not be removed:', err.message);
-    }
+function deleteFile(file) {
+    removeStoredUpload(uploadDestination, file);
 }
 
 //Add user function
