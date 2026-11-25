@@ -65,8 +65,13 @@ export const PORT_PERFORMANCE_SECTIONS = [
         fields: fields([...byCargo("{cargo}_vessel_handled"), "total_sailed_vessel_handled", ...byCallSize("vessel_container_{size}")], "count"),
     },
     {
+        // View only: the Ministry uploads dwell time monthly as an Excel sheet (portPerformanceDwell.js)
+        // and the form shows the port's uploaded values. These columns hold what was entered here
+        // earlier; they are no longer saved here, and the Actuals list shows the uploaded values
+        // instead (UPLOADED_DWELL_COLUMNS). Only the dashboards still read them.
         id: "dwellTime",
         label: "Port Dwell Time (Container)",
+        viewOnly: true,
         fields: fields(["export_dwell_time", "import_dwell_time"]),
     },
     {
@@ -107,6 +112,9 @@ export const PORT_PERFORMANCE_SECTIONS = [
 
 export const SECTION_BY_ID = new Map(PORT_PERFORMANCE_SECTIONS.map((s) => [s.id, s]));
 
+/** Steps the organisation saves through the form (every step except the view-only ones). */
+export const ENTRY_SECTIONS = PORT_PERFORMANCE_SECTIONS.filter((s) => !s.viewOnly);
+
 export const ALL_FIELDS = PORT_PERFORMANCE_SECTIONS.flatMap((s) => s.fields);
 export const ALL_COLUMNS = ALL_FIELDS.map((f) => f.column);
 
@@ -123,7 +131,8 @@ export const LIST_VIEW_COLUMNS = {
         ...columnsOf("ytdMedianTrt", notCallSize),
     ],
     berthOutput: [...columnsOf("osbd"), ...columnsOf("effectiveOsbd")],
-    timeAtPort: [...columnsOf("idleTime"), ...columnsOf("preBerthing"), ...columnsOf("dwellTime")],
+    // Dwell time comes from the Ministry's upload, not these columns: see UPLOADED_DWELL_COLUMNS
+    timeAtPort: [...columnsOf("idleTime"), ...columnsOf("preBerthing")],
     vesselsCargo: [...columnsOf("vessels", notCallSize), ...columnsOf("cargoHandled")],
     productivity: [...columnsOf("efficiency"), ...columnsOf("craneProductivity")],
     callSize: [
@@ -135,6 +144,15 @@ export const LIST_VIEW_COLUMNS = {
         ...columnsOf("cppiTrt"),
     ],
 };
+
+/**
+ * Actuals views that also show the port's dwell time from the Ministry's Excel upload
+ * (tbl_kpi_time_performance_dwell), returned as dwell_<column>, e.g. dwell_monthly_import.
+ */
+export const UPLOADED_DWELL_VIEWS = new Set(["timeAtPort"]);
+export const UPLOADED_DWELL_COLUMNS = [
+    "monthly_import", "monthly_export", "monthly_overall", "ytd_import", "ytd_export", "ytd_overall",
+];
 
 // Columns are inlined into SQL, so they must be plain identifiers from this file
 const SAFE_IDENTIFIER = /^[a-z][a-z0-9_]*$/;

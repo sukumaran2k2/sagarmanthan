@@ -109,6 +109,38 @@ export const PORT_PERFORMANCE_TOASTS = {
     toastError('Delete Failed', withReason('The targets could not be deleted.', reason)),
   targetsLoadFailed: (reason) =>
     toastError('Could Not Load Targets', withReason('The saved targets could not be loaded. Refresh the page and try again.', reason)),
+
+  // Dwell time (Excel upload)
+  dwellFileRejected: (reason) =>
+    toastWarning('File Not Accepted', reason),
+  dwellChecked: (rows) =>
+    toastInfo('File Checked', `All ${rows} rows passed the checks. Review the values below, then save.`),
+  dwellProblems: (count) =>
+    toastWarning('Correct the File', `The file has ${count} problem${count === 1 ? '' : 's'}. Nothing was saved. See the list below the upload box.`),
+  dwellUploaded: (period, isReplace) =>
+    toastSuccess(isReplace ? 'Dwell Time Replaced' : 'Dwell Time Uploaded',
+      `Dwell time for ${periodLabel(period)} has been ${isReplace ? 'replaced' : 'saved'}. Each port can now view its values in the Port Performance form.`),
+  dwellUploadFailed: (reason) =>
+    toastError('Upload Failed', withReason('The dwell time sheet could not be uploaded.', reason)),
+  dwellTemplateFailed: (reason) =>
+    toastError('Download Failed', withReason('The template could not be downloaded.', reason)),
+  dwellDeleted: (period) =>
+    toastSuccess('Dwell Time Deleted', `Uploaded dwell time for ${periodLabel(period)} has been deleted.`),
+  dwellDeleteFailed: (reason) =>
+    toastError('Delete Failed', withReason('The uploaded dwell time could not be deleted.', reason)),
+  dwellUpdated: (period, changed) =>
+    toastSuccess('Dwell Time Updated',
+      `Dwell time for ${periodLabel(period)} has been updated (${changed} row${changed === 1 ? '' : 's'} changed).`),
+  dwellNothingChanged: () =>
+    toastInfo('No Changes', 'No values were changed, so nothing was saved.'),
+  dwellEditProblems: (count) =>
+    toastWarning('Correct the Values', `${count} problem${count === 1 ? '' : 's'} found. Nothing was saved. See the list in the form.`),
+  dwellUpdateFailed: (reason) =>
+    toastError('Update Failed', withReason('The dwell time could not be updated.', reason)),
+  dwellLoadFailed: (reason) =>
+    toastError('Could Not Load Dwell Time', withReason('The saved dwell time could not be loaded.', reason)),
+  dwellExcelFailed: (reason) =>
+    toastError('Download Failed', withReason('The Excel file could not be downloaded.', reason)),
 };
 
 /** KPI Major Ports toast messages (Financial Parameters). */

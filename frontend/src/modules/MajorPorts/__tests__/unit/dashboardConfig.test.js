@@ -100,9 +100,14 @@ describe('Detail of KPI', () => {
     expect(pinned.map((r) => r.organisation_name)).toEqual(['SMPA - Kolkata', 'SMPA - Haldia', 'SMPA Total', 'Overall Total']);
   });
 
-  it('drops organisations 7 and 8 for dwell KPIs and the SMPA group row on the other pages', () => {
-    expect(splitDrillRows(rows, { type: 'traffic', kpi: 'import_dwell', organisationId: 0 }).rows.map((r) => r.organisation_id)).toEqual([1, 4]);
+  it('drops organisations 7 and 8 for gross crane and the SMPA group row on the other pages', () => {
+    expect(splitDrillRows(rows, { type: 'traffic', kpi: 'gross_crane', organisationId: 0 }).rows.map((r) => r.organisation_id)).toEqual([1, 4]);
     expect(splitDrillRows(rows, { type: 'performance', kpi: 'total_port', organisationId: 0 }).rows.map((r) => r.organisation_id)).toEqual([1, 7]);
+  });
+
+  it('keeps organisations 7 and 8 for dwell time, which the Ministry uploads for every major port', () => {
+    expect(splitDrillRows(rows, { type: 'traffic', kpi: 'import_dwell', organisationId: 0 }).rows.map((r) => r.organisation_id)).toEqual([1, 4, 7]);
+    expect(splitDrillRows(rows, { type: 'traffic', kpi: 'export_dwell', organisationId: 0 }).rows.map((r) => r.organisation_id)).toEqual([1, 4, 7]);
   });
 
   it('shows no totals for a single organisation', () => {
