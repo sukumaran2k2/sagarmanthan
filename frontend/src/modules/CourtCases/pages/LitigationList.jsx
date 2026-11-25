@@ -9,7 +9,9 @@ import ConfirmModal from "../../../components/ConfirmModal";
 import { exportExcel, exportPdf } from "./exportHelpers";
 import { fetchAllLitigationData } from "../api";
 import { useLitigationListStore as useStore } from "../store/caseListStore";
-import { getSessionOrganisationId, getCurrentUserId } from "../../../utils/authSession";
+import {getSessionOrganisationId,
+  getCurrentUserId,
+  getSessionClaims, } from "../../../utils/authSession";
 
 const BASE_PATH = "/legal/court-cases";
 const ROW_OPTIONS = [10, 25, 50, 100];
@@ -68,8 +70,13 @@ export default function LitigationList({ triggerNotification }) {
     }
     alert(`${title}: ${message}`);
   };
+  const claims = getSessionClaims();
+
   const userID = getCurrentUserId();
-  const { roleID, organisationID } = getSessionOrganisationId();
+
+  const roleID = Number(claims?.roleId ?? claims?.role_id);
+
+  const organisationID = getSessionOrganisationId();
 
   const showOrg = ![6, 7].includes(roleID);
   const showOrgFilter = [1, 2, 3, 4, 5].includes(roleID);
@@ -95,7 +102,17 @@ export default function LitigationList({ triggerNotification }) {
   const [exportingAll, setExportingAll] = useState(false);
   const barRef = useRef(null);
 
-  useEffect(() => { load(roleID, organisationID); }, [load, roleID, organisationID]);
+  useEffect(() => {
+    if (!Number.isFinite(roleID) || !Number.isFinite(organisationID)) {
+      console.error("Missing Role ID or Organisation ID", {
+        roleID,
+        organisationID,
+      });
+      return;
+    }
+
+    load(roleID, organisationID);
+  }, [load, roleID, organisationID]);
 
   useEffect(() => {
     if (updatedDateShown) return;

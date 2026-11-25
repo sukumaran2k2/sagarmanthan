@@ -4,7 +4,9 @@ import {
   Search, Filter, ChevronDown, Copy, Check, Pencil, Trash2, FileSpreadsheet, FileText, Loader2, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { BASE_PATH } from "../CourtCases";
-import { getCurrentUserId } from "../../../utils/authSession";
+import { getCurrentUserId,
+  getSessionOrganisationId,
+  getSessionClaims, } from "../../../utils/authSession";
 import { useNotifier, toastSuccess, toastError } from "../../../utils/notify";
 import ConfirmModal from "../../../components/ConfirmModal";
 import { exportExcel, exportPdf } from "./exportHelpers";
@@ -16,20 +18,6 @@ const cellValue = (r, c) => (c.date ? fmtDate(r[c.key]) : r[c.key] ?? "");
 
 // show "updated_date" the first time each list opens in a session (the store may hide it by default)
 const updatedDateShown = new Set();
-
-function getSession() {
-  try {
-    const u = JSON.parse(localStorage.getItem("user") || "{}");
-    return {
-      userID: u.user_id ?? u.userID,
-      roleID: u.role_id ?? u.roleID,
-      organisationID: u.organisation_id ?? u.organisationID,
-    };
-  } catch {
-    return {};
-  }
-}
-
 
 // 1 2 3 … 9 10  style page list
 function pageList(page, total) {
@@ -60,10 +48,16 @@ export default function CaseListTable({ useStore, formKey, label = "", showCaseI
     }
     alert(`${title}: ${message}`);
   };
-  const { roleID, organisationID } = getSession();
-  const userID = getCurrentUserId();
-  const canDelete = roleID !== 8; // same rule as the Litigation list
+  const claims = getSessionClaims();
 
+  const userID = getCurrentUserId();
+
+  const roleID = Number(claims?.roleId ?? claims?.role_id);
+
+  const organisationID = getSessionOrganisationId();
+
+  const canDelete = roleID !== 8;
+  
   const rows = useStore((s) => s.rows);
   const loading = useStore((s) => s.loading);
   const error = useStore((s) => s.error);
@@ -103,8 +97,19 @@ export default function CaseListTable({ useStore, formKey, label = "", showCaseI
   const visibleCols = columns.filter((c) => !hidden.includes(c.key));
 
   useEffect(() => {
-    load(roleID, organisationID);
-  }, [load, roleID, organisationID]);
+  if (
+    !Number.isFinite(roleID) ||
+    !Number.isFinite(organisationID)
+  ) {
+    console.error("Missing session IDs:", {
+      roleID,
+      organisationID,
+    });
+    return;
+  }
+
+  load(roleID, organisationID);
+}, [load, roleID, organisationID]);
 
   useEffect(() => {
     if (updatedDateShown.has(formKey)) return;
