@@ -7,7 +7,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
   ArrowLeft, FileSpreadsheet, FileText, Loader2,
-  Search, Copy, RefreshCw, ChevronDown, Eye,TrendingUp
+  Search, Copy, RefreshCw, ChevronDown, Eye, TrendingUp, Filter
 } from "lucide-react";
 import { BASE_PATH } from "../CourtCases";
 import { getDropDownData } from "../api";
@@ -47,7 +47,7 @@ function decorate(defs, drill, go) {
     if (c.children) return { ...c, children: decorate(c.children, drill, go) };
     const d = { ...c };
     if (HIDE.has(d.field)) d.hide = true;
-    if (isSNo(d.headerName)) { d.width = 70; d.minWidth = 70; d.flex = 0; d.pinned = "left"; }
+    if (isSNo(d.headerName)) { d.width = 70; d.minWidth = 70; d.flex = 0; d.pinned = "left"; d.filter = false; d.cellClass = "rpt-sno-col"; }
     if (drill?.[d.field]) {
       d.cellRenderer = (p) => {
         if (p.node.rowPinned || p.value === null || p.value === undefined || p.value === "") return p.value ?? "";
@@ -69,7 +69,7 @@ const SNO_COL = {
   colId: "__sno",
   width: 70, minWidth: 70, maxWidth: 90, flex: 0,
   pinned: "left",
-  sortable: false, filter: false, suppressMovable: true,
+  sortable: false, filter: false, suppressMovable: true, cellClass: "rpt-sno-col",
   valueGetter: (p) => (p.node?.rowPinned || p.node?.rowIndex == null ? "" : p.node.rowIndex + 1),
 };
 const hasSNo = (defs) =>
@@ -84,7 +84,11 @@ function widenFirst(defs) {
       if (c.children) return { ...c, children: walk(c.children) };
       if (c.hide || isSNo(c.headerName)) return c;
       done = true;
-      return { ...c, minWidth: 230 };
+      const prev = c.cellClass;
+      const cellClass = typeof prev === "function"
+        ? (p) => ["rpt-first-col", ...[].concat(prev(p) || [])]
+        : ["rpt-first-col", ...[].concat(prev || [])];
+      return { ...c, minWidth: 230, cellClass };
     });
   return walk(defs);
 }
@@ -148,6 +152,7 @@ export default function ReportViewer() {
   const [state, setState] = useState({ loading: true, error: "", columnDefs: [], rowData: [] });
   const [orgOptions, setOrgOptions] = useState([]);
   const [filter, setFilter] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
   const [pinned, setPinned] = useState([]);
 
   const [pg, setPg] = useState({ page: 0, pages: 1, total: 0, from: 0, to: 0 });
@@ -381,6 +386,18 @@ const exportExcel = () => {
             </div>
 
             <div className="rpt-controls">
+              {f && (
+                <button
+                  type="button"
+                  className={`rpt-btn ${showFilters ? "active" : ""}`}
+                  onClick={() => setShowFilters((o) => !o)}
+                >
+                  <Filter size={16} /> Filters
+                  {filter && <span className="rpt-badge">1</span>}
+                  <ChevronDown size={14} style={{ transition: "transform .2s", transform: showFilters ? "rotate(180deg)" : "none" }} />
+                </button>
+              )}
+
               <label className="rpt-search">
                 <Search size={16} />
                 <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search reports..." />
@@ -414,12 +431,16 @@ const exportExcel = () => {
               <div className="relative">
                 <button type="button" className="rpt-btn primary" disabled={state.loading || !!state.error}
                   onClick={() => setMenu(menu === "exp" ? "" : "exp")}>
-                  Export <ChevronDown size={14} />
+                  Export <ChevronDown size={14} style={{ transition: "transform .2s", transform: menu === "exp" ? "rotate(180deg)" : "none" }} />
                 </button>
                 {menu === "exp" && (
-                  <div className="rpt-menu">
-                    <button type="button" onClick={() => { exportExcel(); setMenu(""); }}><FileSpreadsheet size={16} /> Excel</button>
-                    <button type="button" onClick={() => { exportPdf(); setMenu(""); }}><FileText size={16} /> PDF</button>
+                  <div className="rpt-menu rpt-export-menu">
+                    <button type="button" onClick={() => { exportExcel(); setMenu(""); }}>
+                      <FileSpreadsheet size={16} style={{ color: "#16a34a" }} /> Excel (.xlsx)
+                    </button>
+                    <button type="button" onClick={() => { exportPdf(); setMenu(""); }}>
+                      <FileText size={16} style={{ color: "#ef4444" }} /> Export PDF
+                    </button>
                   </div>
                 )}
               </div>
@@ -430,15 +451,20 @@ const exportExcel = () => {
             </div>
           </div>
 
-          {f && (
-            <div className="mb-4">
-              <label className="mb-1 block text-sm font-semibold" style={{ color: "var(--rpt-muted)" }}>{f.label}</label>
-              <select className="rpt-select w-full max-w-md" value={filter} onChange={(e) => onFilterChange(e.target.value)}>
-                <option value="">Show All</option>
-                {f.kind === "organisation"
-                  ? orgOptions.map((o) => <option key={o.organisation_id} value={o.organisation_id}>{o.organisation_name}</option>)
-                  : STAGE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
+          {f && showFilters && (
+            <div className="rpt-filter-panel">
+              <div className="rpt-filter-field">
+                <label>{f.label}</label>
+                <select className="rpt-select" value={filter} onChange={(e) => onFilterChange(e.target.value)}>
+                  <option value="">Show All</option>
+                  {f.kind === "organisation"
+                    ? orgOptions.map((o) => <option key={o.organisation_id} value={o.organisation_id}>{o.organisation_name}</option>)
+                    : STAGE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              {filter && (
+                <button type="button" className="rpt-clear" onClick={() => onFilterChange("")}>Clear filter</button>
+              )}
             </div>
           )}
 
@@ -450,7 +476,7 @@ const exportExcel = () => {
     <div className="ag-theme-quartz report-grid" style={{ width: "100%" }}>
       <AgGridReact
         domLayout="autoHeight"
-        rowHeight={42}
+        rowHeight={40}
         headerHeight={40}
         groupHeaderHeight={36}
         columnDefs={columnDefs}

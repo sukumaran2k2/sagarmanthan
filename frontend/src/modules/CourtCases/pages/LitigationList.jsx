@@ -386,7 +386,7 @@ export default function LitigationList({ triggerNotification }) {
                   {visibleCols.map((c) => (
                     <th key={c.key} className="whitespace-nowrap px-4 py-3 text-center text-[11px] font-bold uppercase tracking-wide">{c.label}</th>
                   ))}
-                  <th className="w-32 px-4 py-3 text-center text-[11px] font-bold uppercase tracking-wide">Update</th>
+                  <th className="w-32 px-4 py-3 text-center text-[11px] font-bold uppercase tracking-wide">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-800">

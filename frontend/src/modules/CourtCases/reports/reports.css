@@ -1,17 +1,18 @@
-@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
+/* font + brand colours follow the module design system (module-report.css / module-datalist.css) */
 
 /* ---- theme: edit these to match MIV exactly ---- */
 .rpt {
-  --rpt-maroon: #4a2424;
-  --rpt-maroon-dark: #5c1f1f;
+  --rpt-maroon: #4b2424;
+  --rpt-maroon-dark: #4b2424;
+  --rpt-maroon-hover: #6b3535;
   --rpt-maroon-line: #7a3b3b;
   --rpt-cream: #f9f3f0;
   --rpt-border: #eadcd5;
   --rpt-title: #3a1f1f;
   --rpt-muted: #8a4b3c;
-  --rpt-row-alt: #fbf6f3;
+  --rpt-row-alt: #f8faf6;
   --rpt-shadow: 0 12px 32px rgba(92, 31, 31, 0.12);
-  --rpt-font: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --rpt-font: var(--module-report-font-family, var(--font-sans, "Google Sans", system-ui, -apple-system, sans-serif));
   font-family: var(--rpt-font);
 }
 
@@ -109,13 +110,13 @@
 
 /* banner */
 .rpt-list .rpt-banner { padding: 16px 24px; }
-.rpt-list .rpt-eyebrow { font-size: 11px; letter-spacing: .12em; }
-.rpt-list .rpt-title { font-size: 22px; margin: 4px 0 0; }
+.rpt-list .rpt-eyebrow { font-size: 10px; letter-spacing: .12em; }
+.rpt-list .rpt-title { font-size: 20px; font-weight: 700; letter-spacing: .03em; margin: 4px 0 4px; }
 
 /* panel + toolbar */
 .rpt-list .rpt-panel { padding: 16px 20px 18px; }
 .rpt-list .rpt-toolbar { margin-bottom: 14px; gap: 12px; }
-.rpt-list .rpt-toolbar-title h3 { font-size: 18px; margin: 4px 0 0; }
+.rpt-list .rpt-toolbar-title h3 { font-size: 20px; font-weight: 700; letter-spacing: .03em; margin: 4px 0 0; }
 
 .rpt-list .rpt-controls { gap: 8px; }
 .rpt-list .rpt-controls > span { font-size: 11px !important; font-weight: 700; text-transform: uppercase; }
@@ -156,13 +157,67 @@
 /* ===== REPORT VIEWER (rpt-list also applies here): buttons + AG Grid sized like the case list ===== */
 .rpt-list .rpt-btn { height: 36px; padding: 0 12px; font-size: 12px; border-radius: 10px; }
 .rpt-list .rpt-btn svg { width: 14px; height: 14px; }
-.rpt-list .rpt-sub { font-size: 12.5px; }
+.rpt-list .rpt-sub { font-size: 11px; }
 .rpt-list .rpt-menu button, .rpt-list .rpt-menu label { font-size: 12px; }
 
-.rpt-list .report-grid .ag-row { font-size: 12.5px; }
-.rpt-list .report-grid .ag-cell { padding: 0 12px; line-height: 1.3; font-weight: 500; }
+.rpt-list .report-grid .ag-row { font-size: 12px; }
+.rpt-list .report-grid .ag-cell { padding: 0 12px; line-height: 1.3; font-weight: 400; }
 .rpt-list .report-grid .ag-header-cell,
 .rpt-list .report-grid .ag-header-group-cell { padding: 0 12px; }
 .rpt-list .report-grid .ag-header-cell-text,
 .rpt-list .report-grid .ag-header-group-text { font-size: 11px; font-weight: 700; letter-spacing: .04em; }
 .rpt-list .report-grid .ag-floating-bottom .ag-cell { font-weight: 700; }
+
+/* ---- vertical column lines (same grey as the module report grids) ---- */
+.rpt-list .report-grid .ag-root-wrapper { border: 1px solid #D3D6D9; border-radius: 0; }
+.rpt-list .report-grid .ag-cell { border-right: 1px solid #D3D6D9; }
+.rpt-list .report-grid .ag-row { border-bottom: 1px solid #D3D6D9; }
+.rpt-list .report-grid .ag-header-cell,
+.rpt-list .report-grid .ag-header-group-cell { border-right: 1px solid var(--rpt-maroon-line); }
+
+/* ---- first column after S.No (Domain / Organisation) in bold ---- */
+.rpt-list .report-grid .ag-cell.rpt-first-col { font-weight: 700; color: var(--rpt-title); }
+
+/* ---- Filters button + expandable filter panel ---- */
+.rpt-btn.primary:hover { background: var(--rpt-maroon-hover); }
+.rpt-btn.active { background: var(--rpt-cream); border-color: var(--rpt-maroon-dark); }
+.rpt-badge { background: var(--rpt-maroon-dark); color: #fff; border-radius: 999px; font-size: 10px; font-weight: 700; padding: 1px 6px; }
+.rpt-filter-panel {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px;
+  margin-bottom: 14px; padding: 14px 16px;
+  background: var(--rpt-cream); border: 1px solid var(--rpt-border); border-radius: 12px;
+}
+.rpt-filter-field { min-width: 260px; flex: 0 1 380px; }
+.rpt-filter-field label {
+  display: block; margin-bottom: 6px;
+  font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--rpt-muted);
+}
+.rpt-filter-field .rpt-select { width: 100%; height: 36px; font-size: 12px; }
+.rpt-clear { background: none; border: 0; padding: 0 0 8px; font: inherit; font-size: 12px; font-weight: 700; color: var(--rpt-maroon-dark); cursor: pointer; }
+.rpt-clear:hover { text-decoration: underline; }
+
+/* ---- Export dropdown: same look as the case list (green Excel icon, red PDF icon) ---- */
+.rpt-export-menu { width: 224px; min-width: 224px; padding: 4px; border-radius: 12px; border-color: #e2e8f0; box-shadow: 0 10px 25px rgba(15, 23, 42, .12); }
+.rpt-export-menu button { padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; color: #334155; }
+.rpt-export-menu button:hover { background: #f8fafc; }
+
+/* ---- MIV report typography: force the app font into AG Grid (it ignores inherited fonts) ---- */
+.rpt-list .report-grid,
+.rpt-list .report-grid .ag-root-wrapper,
+.rpt-list .report-grid .ag-row,
+.rpt-list .report-grid .ag-cell,
+.rpt-list .report-grid .ag-cell-value,
+.rpt-list .report-grid .ag-header-cell,
+.rpt-list .report-grid .ag-header-cell-text,
+.rpt-list .report-grid .ag-header-group-text,
+.rpt-list .report-grid .ag-paging-panel {
+  font-family: var(--rpt-font) !important;
+}
+.rpt-list .report-grid { --ag-font-family: var(--rpt-font); }
+
+/* S.No: small and bold like the MIV report */
+.rpt-list .report-grid .ag-cell.rpt-sno-col { font-size: 11px; font-weight: 700; color: var(--rpt-title); }
+
+/* Total row: bold, label in capitals like the MIV report */
+.rpt-list .report-grid .ag-floating-bottom .ag-cell { font-weight: 700; }
+.rpt-list .report-grid .ag-floating-bottom .ag-cell.rpt-first-col { text-transform: uppercase; }

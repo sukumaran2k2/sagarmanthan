@@ -89,7 +89,7 @@ export default function CaseListTable({ useStore, formKey, label = "", showCaseI
           ]
         : []),
       { key: "stage", label: "Case Status" },
-      { key: "update", label: "Update", alwaysOn: true },
+      { key: "update", label: "Action", alwaysOn: true },
     ],
     [showCaseInfo]
   );
