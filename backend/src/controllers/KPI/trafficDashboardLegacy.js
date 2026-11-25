@@ -7,9 +7,51 @@
  * They are only reached through trafficDashboardRoutes() in trafficDashboardAccess.js,
  * which adds login, KPI_MAJOR_PORTS read permission, input validation and the
  * organisation-scope rule before calling them.
+ *
+ * One intended difference from the earlier portal: Dwell Time (Import / Export). The Ministry
+ * now uploads it monthly from Excel (tbl_kpi_time_performance_dwell, portPerformanceDwell.js),
+ * with the YTD figures in the sheet. So the dwell values are the uploaded YTD of the latest
+ * selected month (see uploadedDwellSql) instead of a container-weighted average of the
+ * dwell time entered in tbl_kpi_time_performance. Everything else is unchanged.
  */
 /* eslint-disable */
 import { pool } from "../../db.js";
+
+/** Fiscal-year order of a month column: April = 1 … March = 12. */
+const FISCAL_MONTH_ORDER = (column) => `CASE WHEN ${column} >= 4 THEN ${column} - 3 ELSE ${column} + 9 END`;
+
+/**
+ * Uploaded dwell time (tbl_kpi_time_performance_dwell) as of the latest uploaded month among
+ * monthsSql, per fiscal year and row: one row per (fiscal_year, organisation_id / SMPA Overall /
+ * All Major Ports). Returns fiscal_year, organisation_id, ytd_import, ytd_export.
+ * scopeSql picks the rows (e.g. "dw.is_overall = 1"); monthsSql and fiscalYearsSql are SQL lists.
+ */
+function uploadedDwellSql({ scopeSql, monthsSql, fiscalYearsSql }) {
+    return `
+        SELECT fiscal_year, organisation_id, ytd_import, ytd_export
+        FROM (
+            SELECT dw.fiscal_year, dw.organisation_id, dw.ytd_import, dw.ytd_export,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY dw.fiscal_year, dw.organisation_id, dw.is_overall, dw.is_total_smpa
+                       ORDER BY ${FISCAL_MONTH_ORDER("dw.month")} DESC
+                   ) AS latest
+            FROM tbl_kpi_time_performance_dwell dw
+            WHERE (${scopeSql})
+              AND dw.month IN (${monthsSql})
+              AND dw.fiscal_year IN (${fiscalYearsSql})
+        ) picked
+        WHERE latest = 1`;
+}
+
+/**
+ * Which uploaded row stands for a dashboard selection: all ports → All Major Ports (Overall),
+ * SMPA (organisation 4 = Kolkata + Haldia) → SMPA Overall, one port → that port.
+ */
+function dwellScopeSql(organisationID, groupOrgMap, singleOrgParam) {
+    if (!organisationID) return "dw.is_overall = 1";
+    if (groupOrgMap[organisationID]) return "dw.is_total_smpa = 1";
+    return `dw.organisation_id = ${singleOrgParam}`;
+}
 
 function getFinancialYears() {
     const today = new Date();
@@ -313,43 +355,18 @@ async function getKPITrafficDashboard(req, res) {
             GROUP BY REPLACE(fiscal_year,' ','')
         ),
 
+        /* DWELL: the uploaded YTD of the latest selected month (one row: current and last FY) */
         dwell_agg AS (
             SELECT
-                tcd.organisation_id,
-                tcd.fiscal_year,
-                /* IMPORT DWELL */
-                SUM(CASE WHEN tcd.direction_id=1 AND tcd.commodity_id=28
-                              AND tcd.category_id = 2 AND tcd.flag_type_id IN (1,2)
-                              AND tcd.commodity_group_id=4
-                              AND tcd.organisation_id NOT IN (7, 8)
-                         THEN tcd.value * ktp.import_dwell_time ELSE 0 END) AS import_dwell_num,
-                SUM(CASE WHEN tcd.direction_id=1 AND tcd.commodity_id=28
-                              AND tcd.category_id = 2 AND tcd.flag_type_id IN (1,2)
-                              AND tcd.commodity_group_id=4
-                              AND tcd.organisation_id NOT IN (7, 8)
-                         THEN tcd.value ELSE 0 END) AS import_dwell_den,
-
-                /* EXPORT DWELL */
-                SUM(CASE WHEN tcd.direction_id=2 AND tcd.commodity_id=28
-                              AND tcd.category_id = 2 AND tcd.flag_type_id IN (1,2)
-                              AND tcd.commodity_group_id=4
-                              AND tcd.organisation_id NOT IN (7, 8)
-                         THEN tcd.value * ktp.export_dwell_time ELSE 0 END) AS export_dwell_num,
-                SUM(CASE WHEN tcd.direction_id=2 AND tcd.commodity_id=28
-                              AND tcd.category_id = 2 AND tcd.flag_type_id IN (1,2)
-                              AND tcd.commodity_group_id=4
-                              AND tcd.organisation_id NOT IN (7, 8)
-                         THEN tcd.value ELSE 0 END) AS export_dwell_den
-            FROM tbl_traffic_commodity_data tcd
-            LEFT JOIN tbl_kpi_time_performance ktp
-                ON tcd.organisation_id = ktp.organisation_id
-                AND tcd.fiscal_year = ktp.fiscal_year
-                AND tcd.month = ktp.month
-            INNER JOIN base_filter bf
-                ON bf.organisation_id = tcd.organisation_id
-                AND bf.month = tcd.month
-                AND bf.fiscal_year = tcd.fiscal_year
-            GROUP BY tcd.organisation_id, tcd.fiscal_year
+                MAX(CASE WHEN u.fiscal_year = REPLACE(@currentFY,' ','') THEN u.ytd_import END) AS import_dwell_current,
+                MAX(CASE WHEN u.fiscal_year = REPLACE(@lastFY,' ','')    THEN u.ytd_import END) AS import_dwell_last,
+                MAX(CASE WHEN u.fiscal_year = REPLACE(@currentFY,' ','') THEN u.ytd_export END) AS export_dwell_current,
+                MAX(CASE WHEN u.fiscal_year = REPLACE(@lastFY,' ','')    THEN u.ytd_export END) AS export_dwell_last
+            FROM (${uploadedDwellSql({
+                scopeSql: dwellScopeSql(organisationID, GROUP_ORG_MAP, "@org0"),
+                monthsSql: monthParamList,
+                fiscalYearsSql: "REPLACE(@currentFY,' ',''), REPLACE(@lastFY,' ','')",
+            })}) u
         )
 
         SELECT
@@ -424,25 +441,17 @@ async function getKPITrafficDashboard(req, res) {
                     /NULLIF(SUM(CASE WHEN k.fiscal_year=@lastFY THEN NULLIF(k.total_cargo_handled,0)/NULLIF(k.osbd_overall,0) END),0))
             END AS osbd_yoy,
 
-            /* IMPORT DWELL */
-            SUM(CASE WHEN d.fiscal_year=@currentFY THEN d.import_dwell_num END)
-            / NULLIF(SUM(CASE WHEN d.fiscal_year=@currentFY THEN d.import_dwell_den END),0) AS import_dwell_current,
-            SUM(CASE WHEN d.fiscal_year=@lastFY    THEN d.import_dwell_num END)
-            / NULLIF(SUM(CASE WHEN d.fiscal_year=@lastFY    THEN d.import_dwell_den END),0) AS import_dwell_last,
-            (SUM(CASE WHEN d.fiscal_year=@currentFY THEN d.import_dwell_num END)/NULLIF(SUM(CASE WHEN d.fiscal_year=@currentFY THEN d.import_dwell_den END),0)
-             -SUM(CASE WHEN d.fiscal_year=@lastFY THEN d.import_dwell_num END)/NULLIF(SUM(CASE WHEN d.fiscal_year=@lastFY THEN d.import_dwell_den END),0)
-            ) * 100.0
-            / NULLIF(SUM(CASE WHEN d.fiscal_year=@lastFY THEN d.import_dwell_num END)/NULLIF(SUM(CASE WHEN d.fiscal_year=@lastFY THEN d.import_dwell_den END),0),0) AS import_dwell_yoy,
+            /* IMPORT DWELL (uploaded YTD; YoY as before) */
+            MAX(d.import_dwell_current) AS import_dwell_current,
+            MAX(d.import_dwell_last) AS import_dwell_last,
+            (MAX(d.import_dwell_current) - MAX(d.import_dwell_last)) * 100.0
+            / NULLIF(MAX(d.import_dwell_last),0) AS import_dwell_yoy,
 
-            /* EXPORT DWELL */
-            SUM(CASE WHEN d.fiscal_year=@currentFY THEN d.export_dwell_num END)
-            / NULLIF(SUM(CASE WHEN d.fiscal_year=@currentFY THEN d.export_dwell_den END),0) AS export_dwell_current,
-            SUM(CASE WHEN d.fiscal_year=@lastFY    THEN d.export_dwell_num END)
-            / NULLIF(SUM(CASE WHEN d.fiscal_year=@lastFY    THEN d.export_dwell_den END),0) AS export_dwell_last,
-            (SUM(CASE WHEN d.fiscal_year=@currentFY THEN d.export_dwell_num END)/NULLIF(SUM(CASE WHEN d.fiscal_year=@currentFY THEN d.export_dwell_den END),0)
-             -SUM(CASE WHEN d.fiscal_year=@lastFY THEN d.export_dwell_num END)/NULLIF(SUM(CASE WHEN d.fiscal_year=@lastFY THEN d.export_dwell_den END),0)
-            ) * 100.0
-            / NULLIF(SUM(CASE WHEN d.fiscal_year=@lastFY THEN d.export_dwell_num END)/NULLIF(SUM(CASE WHEN d.fiscal_year=@lastFY THEN d.export_dwell_den END),0),0) AS export_dwell_yoy,
+            /* EXPORT DWELL (uploaded YTD; YoY as before) */
+            MAX(d.export_dwell_current) AS export_dwell_current,
+            MAX(d.export_dwell_last) AS export_dwell_last,
+            (MAX(d.export_dwell_current) - MAX(d.export_dwell_last)) * 100.0
+            / NULLIF(MAX(d.export_dwell_last),0) AS export_dwell_yoy,
 
             /* LOADING DRY BULK */
             MAX(CASE WHEN ldb.fiscal_year = REPLACE(@currentFY,' ','')
@@ -523,9 +532,7 @@ async function getKPITrafficDashboard(req, res) {
 
         FROM kpi_filtered k
         CROSS JOIN traffic_summary ts
-        LEFT JOIN dwell_agg d
-            ON k.organisation_id = d.organisation_id
-            AND k.fiscal_year = d.fiscal_year
+        CROSS JOIN dwell_agg d
         LEFT JOIN container_productivity_agg cp
             ON REPLACE(k.fiscal_year,' ','') = cp.fiscal_year
         LEFT JOIN loading_dry_bulk_agg ldb
@@ -670,6 +677,20 @@ async function detailedKPITrafficCardDashboard(req, res) {
 
         orgFilter.forEach((id, i) => request.input(`org${i}`, id));
         const orgParams = orgFilter.map((_, i) => `@org${i}`).join(",");
+
+        /* ================= DWELL (uploaded) =================
+           SMPA Total / Overall Total cover the same ports as before: the uploaded SMPA Overall /
+           All Major Ports row when they span those ports, else the one selected port's row. */
+        const isDwellKpi = kpi === "import_dwell" || kpi === "export_dwell";
+        const dwellColumn = kpi === "import_dwell" ? "ytd_import" : "ytd_export";
+        const smpaPorts = orgFilter.filter((id) => id === 54 || id === 55);
+        const dwellSmpaScope = smpaPorts.length === 2
+            ? "dw.is_total_smpa = 1"
+            : smpaPorts.length === 1 ? `dw.organisation_id = @org${orgFilter.indexOf(smpaPorts[0])}` : "1 = 0";
+        const dwellOverallScope = dwellScopeSql(organisationID, GROUP_ORG_MAP, "@org0");
+        const dwellValueSql = (scopeSql, monthsSql, fyParam) => `(SELECT MAX(v.${dwellColumn}) FROM (${uploadedDwellSql({
+            scopeSql, monthsSql, fiscalYearsSql: `REPLACE(${fyParam},' ','')`,
+        })}) v)`;
 
         // target_value is always NULL for those KPIs.
         const targetJoin = (kpi === "total_traffic" || kpi === "traffic")
@@ -1022,79 +1043,21 @@ const targetSmpaJoin = (kpi === "total_traffic" || kpi === "traffic")
         ),
 
         /* ================= DWELL + ALL EFFICIENCY YTD ================= */
+       /* DWELL: each port's uploaded YTD of the latest selected month. One row per port and
+          FY, so num / den (den = 1 when uploaded) gives that YTD through the same formula. */
        dwell_ytd AS (
             SELECT
-                tcd.organisation_id,
-                REPLACE(tcd.fiscal_year,' ','') AS fiscal_year,
-
-                /* IMPORT DWELL */
-                SUM(
-                    CASE
-                        WHEN tcd.direction_id = 1
-                         AND tcd.commodity_id = 28
-                         AND tcd.category_id = 2
-                         AND tcd.flag_type_id IN (1,2)
-                         AND tcd.commodity_group_id = 4
-                        THEN tcd.value * ktp.import_dwell_time
-                        ELSE 0
-                    END
-                ) AS import_dwell_num,
-
-                SUM(
-                    CASE
-                        WHEN tcd.direction_id = 1
-                         AND tcd.commodity_id = 28
-                         AND tcd.category_id = 2
-                         AND tcd.flag_type_id IN (1,2)
-                         AND tcd.commodity_group_id = 4
-                        THEN tcd.value
-                        ELSE 0
-                    END
-                ) AS import_dwell_den,
-
-                /* EXPORT DWELL */
-                SUM(
-                    CASE
-                        WHEN tcd.direction_id = 2
-                         AND tcd.commodity_id = 28
-                         AND tcd.category_id = 2
-                         AND tcd.flag_type_id IN (1,2)
-                         AND tcd.commodity_group_id = 4
-                        THEN tcd.value * ktp.export_dwell_time
-                        ELSE 0
-                    END
-                ) AS export_dwell_num,
-
-                SUM(
-                    CASE
-                        WHEN tcd.direction_id = 2
-                         AND tcd.commodity_id = 28
-                         AND tcd.category_id = 2
-                         AND tcd.flag_type_id IN (1,2)
-                         AND tcd.commodity_group_id = 4
-                        THEN tcd.value
-                        ELSE 0
-                    END
-                ) AS export_dwell_den
-
-            FROM tbl_traffic_commodity_data tcd
-
-            INNER JOIN tbl_kpi_time_performance ktp
-                ON ktp.organisation_id = tcd.organisation_id
-                AND ktp.month = tcd.month
-                AND REPLACE(ktp.fiscal_year,' ','')
-                    = REPLACE(tcd.fiscal_year,' ','')
-
-            WHERE tcd.organisation_id IN (${orgParams})
-              AND tcd.month IN (${ytdParams})
-              AND REPLACE(tcd.fiscal_year,' ','') IN (
-                    REPLACE(@currentFY,' ',''),
-                    REPLACE(@lastFY,' ','')
-              )
-
-            GROUP BY
-                tcd.organisation_id,
-                REPLACE(tcd.fiscal_year,' ','')
+                u.organisation_id,
+                u.fiscal_year,
+                ISNULL(u.ytd_import,0) AS import_dwell_num,
+                CASE WHEN u.ytd_import IS NULL THEN 0 ELSE 1 END AS import_dwell_den,
+                ISNULL(u.ytd_export,0) AS export_dwell_num,
+                CASE WHEN u.ytd_export IS NULL THEN 0 ELSE 1 END AS export_dwell_den
+            FROM (${uploadedDwellSql({
+                scopeSql: `dw.organisation_id IN (${orgParams})`,
+                monthsSql: ytdParams,
+                fiscalYearsSql: "REPLACE(@currentFY,' ',''), REPLACE(@lastFY,' ','')",
+            })}) u
         ),
                  
         loading_unloading_ytd AS (
@@ -1159,77 +1122,21 @@ const targetSmpaJoin = (kpi === "total_traffic" || kpi === "traffic")
         ),
 
         /* ================= DWELL + ALL EFFICIENCY FULL ================= */
+       /* DWELL, last full FY: each port's uploaded YTD of the latest month (March once the
+          year is complete), as num / den like dwell_ytd */
        dwell_full AS (
         SELECT
-            tcd.organisation_id,
-            REPLACE(tcd.fiscal_year,' ','') AS fiscal_year,
-
-            /* IMPORT DWELL */
-            SUM(
-                CASE
-                    WHEN tcd.direction_id = 1
-                    AND tcd.commodity_id = 28
-                    AND tcd.category_id IN (2,4,5)
-                    AND tcd.flag_type_id IN (1,2)
-                    AND tcd.commodity_group_id = 4
-                    THEN tcd.value * ktp.import_dwell_time
-                    ELSE 0
-                END
-            ) AS import_dwell_num,
-
-            SUM(
-                CASE
-                    WHEN tcd.direction_id = 1
-                    AND tcd.commodity_id = 28
-                    AND tcd.category_id IN (2,4,5)
-                    AND tcd.flag_type_id IN (1,2)
-                    AND tcd.commodity_group_id = 4
-                    THEN tcd.value
-                    ELSE 0
-                END
-            ) AS import_dwell_den,
-
-            /* EXPORT DWELL */
-            SUM(
-                CASE
-                    WHEN tcd.direction_id = 2
-                    AND tcd.commodity_id = 28
-                    AND tcd.category_id IN (2,4,5)
-                    AND tcd.flag_type_id IN (1,2)
-                    AND tcd.commodity_group_id = 4
-                    THEN tcd.value * ktp.export_dwell_time
-                    ELSE 0
-                END
-            ) AS export_dwell_num,
-
-            SUM(
-                CASE
-                    WHEN tcd.direction_id = 2
-                    AND tcd.commodity_id = 28
-                    AND tcd.category_id IN (2,4,5)
-                    AND tcd.flag_type_id IN (1,2)
-                    AND tcd.commodity_group_id = 4
-                    THEN tcd.value
-                    ELSE 0
-                END
-            ) AS export_dwell_den
-
-        FROM tbl_traffic_commodity_data tcd
-
-        INNER JOIN tbl_kpi_time_performance ktp
-            ON ktp.organisation_id = tcd.organisation_id
-            AND ktp.month = tcd.month
-            AND REPLACE(ktp.fiscal_year,' ','')
-                = REPLACE(tcd.fiscal_year,' ','')
-
-        WHERE tcd.organisation_id IN (${orgParams})
-        AND tcd.month IN (${fullParams})
-        AND REPLACE(tcd.fiscal_year,' ','')
-                = REPLACE(@lastFY,' ','')
-
-        GROUP BY
-            tcd.organisation_id,
-            REPLACE(tcd.fiscal_year,' ','')
+            u.organisation_id,
+            u.fiscal_year,
+            ISNULL(u.ytd_import,0) AS import_dwell_num,
+            CASE WHEN u.ytd_import IS NULL THEN 0 ELSE 1 END AS import_dwell_den,
+            ISNULL(u.ytd_export,0) AS export_dwell_num,
+            CASE WHEN u.ytd_export IS NULL THEN 0 ELSE 1 END AS export_dwell_den
+        FROM (${uploadedDwellSql({
+            scopeSql: `dw.organisation_id IN (${orgParams})`,
+            monthsSql: fullParams,
+            fiscalYearsSql: "REPLACE(@lastFY,' ','')",
+        })}) u
     ),
     loading_unloading_full AS (
             SELECT
@@ -1578,6 +1485,13 @@ const targetSmpaJoin = (kpi === "total_traffic" || kpi === "traffic")
             WHERE fiscal_year=REPLACE(@currentFY,' ','') AND organisation_id IN (54,55)) AS target_value,
             (SELECT MAX(smpa_target_fetched) FROM base_ytd
             WHERE fiscal_year=REPLACE(@currentFY,' ','')) AS smpa_target_fetched
+        ` : isDwellKpi ? `
+        SELECT
+            ${dwellValueSql(dwellSmpaScope, ytdParams, "@currentFY")} AS value,
+            (SELECT MAX(target_value) FROM base_ytd
+            WHERE fiscal_year=REPLACE(@currentFY,' ','') AND organisation_id IN (54,55)) AS target_value,
+            (SELECT MAX(smpa_target_fetched) FROM base_ytd
+            WHERE fiscal_year=REPLACE(@currentFY,' ','') AND organisation_id IN (54,55)) AS smpa_target_fetched
         ` : `
         SELECT
             ${kpiFormula} AS value,
@@ -1592,6 +1506,8 @@ const targetSmpaJoin = (kpi === "total_traffic" || kpi === "traffic")
             SELECT weighted_median_trt AS value
             FROM median_weighted_result
             WHERE scope='smpa' AND period='ytd' AND fiscal_year=REPLACE(@lastFY,' ','')
+            ` : isDwellKpi ? `
+            SELECT ${dwellValueSql(dwellSmpaScope, ytdParams, "@lastFY")} AS value
             ` : `
             SELECT ${kpiFormula} AS value
             FROM base_ytd
@@ -1603,6 +1519,8 @@ const targetSmpaJoin = (kpi === "total_traffic" || kpi === "traffic")
             SELECT weighted_median_trt AS value
             FROM median_weighted_result
             WHERE scope='smpa' AND period='full' AND fiscal_year=REPLACE(@lastFY,' ','')
+            ` : isDwellKpi ? `
+            SELECT ${dwellValueSql(dwellSmpaScope, fullParams, "@lastFY")} AS value
             ` : `
             SELECT ${kpiFormula} AS value
             FROM base_full
@@ -1616,6 +1534,13 @@ const targetSmpaJoin = (kpi === "total_traffic" || kpi === "traffic")
             SELECT
                 (SELECT weighted_median_trt FROM median_weighted_result
                  WHERE scope='overall' AND period='ytd' AND fiscal_year=REPLACE(@currentFY,' ','')) AS value,
+                (SELECT MAX(target_value) FROM base_ytd
+                 WHERE fiscal_year=REPLACE(@currentFY,' ','')) AS target_value,
+                (SELECT MAX(overall_target_fetched) FROM base_ytd
+                 WHERE fiscal_year=REPLACE(@currentFY,' ','')) AS overall_target_fetched
+            ` : isDwellKpi ? `
+            SELECT
+                ${dwellValueSql(dwellOverallScope, ytdParams, "@currentFY")} AS value,
                 (SELECT MAX(target_value) FROM base_ytd
                  WHERE fiscal_year=REPLACE(@currentFY,' ','')) AS target_value,
                 (SELECT MAX(overall_target_fetched) FROM base_ytd
@@ -1634,6 +1559,8 @@ const targetSmpaJoin = (kpi === "total_traffic" || kpi === "traffic")
             SELECT weighted_median_trt AS value
             FROM median_weighted_result
             WHERE scope='overall' AND period='ytd' AND fiscal_year=REPLACE(@lastFY,' ','')
+            ` : isDwellKpi ? `
+            SELECT ${dwellValueSql(dwellOverallScope, ytdParams, "@lastFY")} AS value
             ` : `
             SELECT ${kpiFormula} AS value
             FROM base_ytd
@@ -1645,6 +1572,8 @@ const targetSmpaJoin = (kpi === "total_traffic" || kpi === "traffic")
             SELECT weighted_median_trt AS value
             FROM median_weighted_result
             WHERE scope='overall' AND period='full' AND fiscal_year=REPLACE(@lastFY,' ','')
+            ` : isDwellKpi ? `
+            SELECT ${dwellValueSql(dwellOverallScope, fullParams, "@lastFY")} AS value
             ` : `
             SELECT ${kpiFormula} AS value
             FROM base_full
