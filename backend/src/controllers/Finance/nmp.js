@@ -174,7 +174,6 @@ async function getPastLandList(req, res) {
         l.id                    AS sor_id,
         l.period_of_sor_from    AS sor_period_from,
         l.period_of_sor_to      AS sor_period_to,
-        l.year_of_applicability AS sor_year_of_applicability,
         l.annual_base_lease     AS sor_annual_base_lease,
         l.escalation_rate       AS sor_escalation_rate,
         l.frequency_escalation  AS sor_frequency_escalation,
@@ -200,6 +199,7 @@ async function getPastLandList(req, res) {
     const fyStart = (d) => { if (!d) return ''; const y = new Date(d).getUTCFullYear(); return `FY${p2(y)}-${p2(y + 1)}`; };
     const fyEnd   = (d) => { if (!d) return ''; const y = new Date(d).getUTCFullYear() - 1; return `FY${p2(y)}-${p2(y + 1)}`; };
     const fyShort = (s) => { const m = /(\d{4})-(\d{4})/.exec(s || ''); return m ? `FY${m[1].slice(2)}-${m[2].slice(2)}` : ''; };
+    const ymd = (d) => (d ? new Date(d).toISOString().slice(0, 10) : '');
 
     // group: one entry per parcel, with its lease rows attached
     const byId = new Map();
@@ -207,7 +207,7 @@ async function getPastLandList(req, res) {
       let row = byId.get(r.nmp_past_id);
       if (!row) {
         const {
-          sor_id, sor_period_from, sor_period_to, sor_year_of_applicability, sor_annual_base_lease,
+          sor_id, sor_period_from, sor_period_to, sor_annual_base_lease,
           sor_escalation_rate, sor_frequency_escalation, sor_lease_tenure, sor_nvp, ...parcel
         } = r;
         row = { ...parcel, sor_rows: [] };
@@ -215,9 +215,8 @@ async function getPastLandList(req, res) {
       }
       if (r.sor_id != null) {
         row.sor_rows.push({
-        sor_from: fyStart(r.sor_period_from),
-        sor_to: fyEnd(r.sor_period_to),
-        year_of_applicability: fyShort(r.sor_year_of_applicability),
+        sor_from: ymd(r.sor_period_from),
+        sor_to: ymd(r.sor_period_to),
         annual_base_lease_rental: r.sor_annual_base_lease,
         escalation_rate: r.sor_escalation_rate,
         frequency_of_escalation: r.sor_frequency_escalation,
@@ -245,7 +244,7 @@ async function getPastLandList(req, res) {
       frequency_of_escalation: join(r.sor_rows, 'frequency_of_escalation'),
       lease_tenure_years: join(r.sor_rows, 'lease_tenure'),
       sor_period: r.sor_rows.map((s) => `${s.sor_from} to ${s.sor_to}`).join(' | '),
-      sor_year_of_applicability: join(r.sor_rows, 'year_of_applicability'),
+   
 
       nit_original_target_date: r.target_nit_date,
       nit_actual_date: r.actual_nit_date,
@@ -405,14 +404,14 @@ async function getNmpById(req, res) {
         `);
 
       const p2 = (n) => String(n % 100).padStart(2, '0');
+      const ymd = (d) => (d ? new Date(d).toISOString().slice(0, 10) : '');
       const fyStart = (d) => { if (!d) return ''; const y = new Date(d).getUTCFullYear(); return `FY${p2(y)}-${p2(y + 1)}`; };
       const fyEnd   = (d) => { if (!d) return ''; const y = new Date(d).getUTCFullYear() - 1; return `FY${p2(y)}-${p2(y + 1)}`; };
       const fyShort = (s) => { const m = /(\d{4})-(\d{4})/.exec(s || ''); return m ? `FY${m[1].slice(2)}-${m[2].slice(2)}` : ''; };
 
       const sor_rows = sorRes.recordset.map((r) => ({
-        sor_from: fyStart(r.period_of_sor_from),
-        sor_to: fyEnd(r.period_of_sor_to),
-        year_of_applicability: fyShort(r.year_of_applicability),
+          sor_from: ymd(r.period_of_sor_from),
+         sor_to: ymd(r.period_of_sor_to),
         annual_base_lease_rental: r.annual_base_lease,
         escalation_rate: r.escalation_rate,
         frequency_of_escalation: r.frequency_escalation,
@@ -803,6 +802,7 @@ const fyLong      = (fy) => { const m = FY_RE.exec(fy || ''); return m ? `FY ${2
 async function replaceSorRows(conn, { uniqueId, orgId, userId, rows }) {
   if (!uniqueId) return;
   const tx = new sql.Transaction(conn);
+  const ymd = (d) => (d ? new Date(d).toISOString().slice(0, 10) : '');
   await tx.begin();
   try {
     await new sql.Request(tx)
@@ -813,9 +813,8 @@ async function replaceSorRows(conn, { uniqueId, orgId, userId, rows }) {
       await new sql.Request(tx)
         .input("sub_unique_nmp_id", sql.NVarChar(100), uniqueId)
         .input("organisation_id", sql.Int, orgId)
-        .input("period_of_sor_from", sql.Date, sorFromDate(r.sor_from))
-        .input("period_of_sor_to", sql.Date, sorToDate(r.sor_to))
-        .input("year_of_applicability", sql.NVarChar(50), fyLong(r.year_of_applicability))
+        .input("period_of_sor_from", sql.Date, dateOrNull(r.sor_from))
+        .input("period_of_sor_to", sql.Date, dateOrNull(r.sor_to))
         .input("annual_base_lease", sql.Decimal(18, 2), numOrZero(r.annual_base_lease_rental))
         .input("escalation_rate", sql.Decimal(18, 2), numOrZero(r.escalation_rate))
         .input("frequency_escalation", sql.Decimal(18, 2), numOrZero(r.frequency_of_escalation))
@@ -825,11 +824,11 @@ async function replaceSorRows(conn, { uniqueId, orgId, userId, rows }) {
         .query(`
           INSERT INTO tbl_lease_rental_details_past (
             sub_unique_nmp_id, organisation_id, period_of_sor_from, period_of_sor_to,
-            year_of_applicability, annual_base_lease, escalation_rate, frequency_escalation,
+             annual_base_lease, escalation_rate, frequency_escalation,
             lease_tenure, nvp_lease_rentals, created_BY, created_date
           ) VALUES (
             @sub_unique_nmp_id, @organisation_id, @period_of_sor_from, @period_of_sor_to,
-            @year_of_applicability, @annual_base_lease, @escalation_rate, @frequency_escalation,
+            @annual_base_lease, @escalation_rate, @frequency_escalation,
             @lease_tenure, @nvp_lease_rentals, @created_by, GETDATE()
           )`);
     }
@@ -1046,7 +1045,7 @@ request.input("allotment_revised_date_2", sql.Date, dateOrNull(b.allotment_revis
       revised_agreement_date = @revised_agreement_date, revised_agreement_date_1 = @revised_agreement_date_1, revised_agreement_date_2 = @revised_agreement_date_2,
       target_completion_date = @target_completion_date, actual_completion_date = @actual_completion_date,
       revised_completion_date = @revised_completion_date, revised_completion_date_1 = @revised_completion_date_1, revised_completion_date_2 = @revised_completion_date_2,
-      remarks = @remarks, updated_by = @updated_by
+      remarks = @remarks, updated_by = @updated_by,updated_date = GETDATE() 
     WHERE nmp_id = @nmp_id
   `);
 }

@@ -275,6 +275,27 @@ function validateParcelStage(stage, formData, isFuture) {
   }
 }
 
+const SOR_REQUIRED = [
+  ['sor_from', 'Period of SoR From'],
+  ['sor_to', 'Period of SoR To'],
+  ['annual_base_lease_rental', 'Annual Base Lease Rental'],
+  ['escalation_rate', 'Escalation Rate'],
+  ['frequency_of_escalation', 'Frequency of Escalation'],
+  ['lease_tenure', 'Lease Tenure'],
+  ['npv', 'NPV of Lease Rentals'],
+];
+
+// Returns '' when every row is complete, else a message naming the first problem row
+const getSorError = (rows) => {
+  if (!rows?.length) return 'Add at least one SoR row';
+  for (let i = 0; i < rows.length; i++) {
+    const missing = SOR_REQUIRED.filter(([k]) => !has(rows[i][k])).map(([, l]) => l);
+    if (missing.length) return `SoR row ${i + 1}: ${missing.join(', ')}`;
+    if (rows[i].sor_to < rows[i].sor_from) return `SoR row ${i + 1}: To date cannot be before From date`;
+  }
+  return '';
+};
+
 function validatePastStage(stage, formData) {
   const filled = (v) => (v ?? '').toString().trim() !== '';
 
@@ -292,7 +313,7 @@ function validatePastStage(stage, formData) {
         (formData.type_of_lessee_id !== 5 || filled(formData.other_agency))
       );
     case 3: // Financial Details
-      return !!(formData.upfront_premium != null || formData.annual_base_lease_rental || formData.lease_tenure);
+  return getSorError(formData.sor_rows) === '';
     case 4:
       return true;
     default:
@@ -327,8 +348,7 @@ function getMissingPastFields(stage, formData) {
     return missing.join(', ');
   }
   if (stage === 3) {
-    return (formData.upfront_premium != null || formData.annual_base_lease_rental || formData.lease_tenure)
-      ? '' : 'Fill at least one financial field';
+    return getSorError(formData.sor_rows);
   }
   return '';
 }
@@ -553,7 +573,7 @@ function MilestoneRow({ title, keyPrefix, formData, onChange }) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 const ABSTRACT_ROWS_1 = [
-  { letter: null, label: 'Total Land Held by Port Authority', key: 'total_land_held', bold: true },
+  
   { letter: 'A', label: 'Port Operation', sub: 'Berth, Jetty & Associated Yards', key: 'cat_A_acres' },
   { letter: 'B', label: 'Connectivity', sub: 'Road, Rail, Pipeline', key: 'cat_B_acres' },
   { letter: 'C', label: 'Warehousing & Storage', sub: 'Warehouses, godowns, cold/general storage, cargo storage, parking', key: 'cat_C_acres' },
@@ -566,7 +586,8 @@ const ABSTRACT_ROWS_1 = [
   { letter: 'I', label: 'Salt Land Acquired', key: 'cat_I_acres' },
   { letter: 'K', label: 'Vacant Land - Developable and Encumbrance Free', key: 'cat_K_acres' },
   { letter: 'L', label: 'Vacant Land - Encroached, Litigated or Otherwise Encumbered', key: 'cat_L_acres' },
-  { letter: 'M', label: 'Land Not Developable - CRZ-I, Marshy, Defence, Heritage', key: 'cat_M_acres' },
+  { letter: 'M', label: 'Total Land Held by Port Authority', key: 'cat_M_acres' },
+  // { letter: null, label: 'Total Land Held by Port Authority', key: 'total_land_held', bold: true },
 ];
 
 const ABSTRACT_ROWS_2 = [
@@ -869,9 +890,23 @@ function ParcelForm({ formType, formData, onChange, stage }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // ██  PAST LAND FORM (stage-aware)
 // ══════════════════════════════════════════════════════════════════════════════
+const DISCOUNT_RATE = 0.12;
 
+// NPV = ALR × (1 + esc%)^((tenure − 1) / frequency) ÷ (1 + 12%)^tenure
+const calcNpv = (r) => {
+  const alr = parseFloat(r.annual_base_lease_rental);
+  const esc = parseFloat(r.escalation_rate);
+  const freq = parseFloat(r.frequency_of_escalation);
+  const tenure = parseFloat(r.lease_tenure);
+  if ([alr, esc, freq, tenure].some(Number.isNaN) || freq <= 0 || tenure <= 0) return '';
+
+  const numerator = alr * Math.pow(1 + esc / 100, (tenure - 1) / freq);
+  const denominator = Math.pow(1 + DISCOUNT_RATE, tenure);
+  const npv = numerator / denominator;
+  return Number.isFinite(npv) ? npv.toFixed(2) : '';
+};
 function PastLandForm({ formData, onChange, stage = 1 }) {
-  const defaultRow = { sor_from: '', sor_to: '', year_of_applicability: '', annual_base_lease_rental: '', escalation_rate: '', frequency_of_escalation: '', lease_tenure: '', npv: '' };
+  const defaultRow = { sor_from: '', sor_to: '', annual_base_lease_rental: '', escalation_rate: '', frequency_of_escalation: '', lease_tenure: '', npv: '' };
 
   const [sorRows, setSorRows] = useState(() => {
     if (formData.sor_rows?.length) return formData.sor_rows;
@@ -902,7 +937,12 @@ function PastLandForm({ formData, onChange, stage = 1 }) {
     onChange('npv_lease_rental', totalNpv > 0 ? totalNpv.toFixed(2) : '');
   }, [sorRows, totalNpv]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const updateRow = (idx, field, val) => setSorRows(prev => prev.map((r, i) => i === idx ? { ...r, [field]: val } : r));
+  const updateRow = (idx, field, val) =>
+  setSorRows(prev => prev.map((r, i) => {
+    if (i !== idx) return r;
+    const next = { ...r, [field]: val };
+    return { ...next, npv: calcNpv(next) };
+  }));
   const addRow = () => setSorRows(prev => [...prev, { ...defaultRow }]);
   const removeRow = (idx) => setSorRows(prev => prev.filter((_, i) => i !== idx));
 
@@ -998,8 +1038,8 @@ function PastLandForm({ formData, onChange, stage = 1 }) {
       {stage === 3 && (<>
         <Section number={3} title="Financial  Details" id="pl-s3">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div><FLabel label="Upfront Premium Received in Year of Allotment [A] (INR Cr)" /><input type="number" step="any" value={formData.upfront_premium || ''} onChange={e => onChange('upfront_premium', e.target.value)} className={inputCls} /></div>
-            <div><FLabel label="Investment Done by Private Player [C] (INR Cr)" /><input type="number" step="any" value={formData.estimated_private_investment || ''} onChange={e => onChange('estimated_private_investment', e.target.value)} className={inputCls} /></div>
+            <div><FLabel label="Upfront Premium in Year of Allotment [A] (INR Cr)" /><input type="number" step="any" value={formData.upfront_premium || ''} onChange={e => onChange('upfront_premium', e.target.value)} className={inputCls} /></div>
+            <div><FLabel label="Investment by Private Player [C] (INR Cr)" /><input type="number" step="any" value={formData.estimated_private_investment || ''} onChange={e => onChange('estimated_private_investment', e.target.value)} className={inputCls} /></div>
           </div>
         </Section>
     
@@ -1008,13 +1048,12 @@ function PastLandForm({ formData, onChange, stage = 1 }) {
               <thead>
                 <tr className="bg-[#0f417a] text-white">
                   <th className="px-3 py-2.5 text-center font-bold w-10">SI NO</th>
-                  <th className="px-3 py-2.5 text-left font-bold min-w-[200px]">Period of SoR (FY) </th>
-                  <th className="px-3 py-2.5 text-left font-bold min-w-[120px]">Year of Applicability </th>
-                  <th className="px-3 py-2.5 text-left font-bold min-w-[160px]">Annual Base Lease Rental (INR Cr) </th>
-                  <th className="px-3 py-2.5 text-left font-bold min-w-[130px]">Escalation Rate (% YoY) </th>
-                  <th className="px-3 py-2.5 text-left font-bold min-w-[160px]">Frequency of Escalation (Years) </th>
-                  <th className="px-3 py-2.5 text-left font-bold min-w-[130px]">Lease Tenure (Years)*</th>
-                  <th className="px-3 py-2.5 text-left font-bold min-w-[160px]">NPV of Lease Rentals @12% [B] (INR Cr) </th>
+                  <th className="px-3 py-2.5 text-left font-bold min-w-[260px]">Period of SoR From - To <span className="text-red-300">*</span></th>
+                  <th className="px-3 py-2.5 text-left font-bold min-w-[160px]">Annual Base Lease Rental (INR Cr) <span className="text-red-300">*</span></th>
+                  <th className="px-3 py-2.5 text-left font-bold min-w-[130px]">Escalation Rate (% YoY) <span className="text-red-300">*</span></th>
+                  <th className="px-3 py-2.5 text-left font-bold min-w-[160px]">Frequency of Escalation (Years) <span className="text-red-300">*</span></th>
+                  <th className="px-3 py-2.5 text-left font-bold min-w-[130px]">Lease Tenure (Years) <span className="text-red-300">*</span></th>
+                  <th className="px-3 py-2.5 text-left font-bold min-w-[160px]">NPV of Lease Rentals @12% [B] (INR Cr) <span className="text-red-300">*</span></th>
                   <th className="px-3 py-2.5 w-8" />
                 </tr>
               </thead>
@@ -1022,19 +1061,31 @@ function PastLandForm({ formData, onChange, stage = 1 }) {
                 {sorRows.map((row, idx) => (
                   <tr key={idx} className={idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'}>
                     <td className="px-3 py-2 text-center font-bold text-slate-500">{idx + 1}</td>
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-1">
-                        <select value={row.sor_from || ''} onChange={e => updateRow(idx, 'sor_from', e.target.value)} className={`${inputCls} w-24`}><option value="">— FY —</option>{FY_OPTIONS.map(y => <option key={y} value={y}>{y}</option>)}</select>
-                        <span className="text-slate-400 text-[10px]">to</span>
-                        <select value={row.sor_to || ''} onChange={e => updateRow(idx, 'sor_to', e.target.value)} className={`${inputCls} w-24`}><option value="">— FY —</option>{FY_OPTIONS.map(y => <option key={y} value={y}>{y}</option>)}</select>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2"><select value={row.year_of_applicability || ''} onChange={e => updateRow(idx, 'year_of_applicability', e.target.value)} className={`${inputCls} w-28`}><option value="">-- Select --</option>{FY_OPTIONS.map(y => <option key={y} value={y}>{y}</option>)}</select></td>
+                   
+                      <td className="px-3 py-2">
+            <div className="flex items-center gap-1">
+              <input
+                type="date"
+                value={row.sor_from || ''}
+                onChange={e => updateRow(idx, 'sor_from', e.target.value)}
+                className={`${inputCls} w-36`}
+              />
+              <span className="text-slate-400 text-[10px]">to</span>
+              <input
+                type="date"
+                value={row.sor_to || ''}
+                min={row.sor_from || undefined}
+                onChange={e => updateRow(idx, 'sor_to', e.target.value)}
+                className={`${inputCls} w-36`}
+              />
+            </div>
+          </td>
+                    
                     <td className="px-3 py-2"><input type="number" step="any" value={row.annual_base_lease_rental || ''} onChange={e => updateRow(idx, 'annual_base_lease_rental', e.target.value)} className={`${inputCls} w-28`} /></td>
                     <td className="px-3 py-2"><input type="number" step="any" value={row.escalation_rate || ''} onChange={e => updateRow(idx, 'escalation_rate', e.target.value)} className={`${inputCls} w-24`} /></td>
                     <td className="px-3 py-2"><input type="number" step="any" value={row.frequency_of_escalation || ''} onChange={e => updateRow(idx, 'frequency_of_escalation', e.target.value)} className={`${inputCls} w-24`} /></td>
                     <td className="px-3 py-2"><input type="number" step="any" value={row.lease_tenure || ''} onChange={e => updateRow(idx, 'lease_tenure', e.target.value)} className={`${inputCls} w-24`} /></td>
-                    <td className="px-3 py-2"><input type="number" step="any" value={row.npv || ''} onChange={e => updateRow(idx, 'npv', e.target.value)} className={`${inputCls} w-28`} /></td>
+                    <td className="px-3 py-2"><div className={`${autoCls} w-28`}>{row.npv}</div></td>
                     <td className="px-3 py-2 text-center">{sorRows.length > 1 && <button type="button" onClick={() => removeRow(idx)} className="text-rose-500 hover:text-rose-700 font-extrabold text-base cursor-pointer leading-none">×</button>}</td>
                   </tr>
                 ))}
