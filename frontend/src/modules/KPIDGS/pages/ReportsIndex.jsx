@@ -4,6 +4,8 @@ import GenericReportPage from '../components/GenericReportPage';
 import FlaggingReport from '../components/FlaggingReport';
 import VesselSurveyReport from '../components/VesselSurveyReport';
 import FlagStateInspectionReport from '../components/FlagStateInspectionReport';
+import ExamPerformanceReport from '../components/ExamPerformanceReport';
+import ExamTrendReport from '../components/ExamTrendReport';
 import * as api from '../api';
 
 // Slugs whose report page has its own grouped-header layout and cannot be
@@ -23,6 +25,19 @@ const CUSTOM_PAGE_BY_SLUG = {
   Component: VesselSurveyReport,
   props: { title: 'Vessel & Port Surveys by MMDs Yearly Trends', showTotal: false },
 },
+  // K-2.3 Exam Performance — grouped table with a live Total row; trends add a column chart.
+  'exam-overall': {
+    Component: ExamPerformanceReport,
+    props: { title: 'Abstract - Exam Overall Performance Statistics', filenameSuffix: 'Exam_Overall_Performance' },
+  },
+  'exam-monthly-trends': {
+    Component: ExamTrendReport,
+    props: { kind: 'monthly', title: 'Abstract - Exam Performance Monthly Trends (For the Current Year)', filenameSuffix: 'Exam_Monthly_Trends' },
+  },
+  'exam-yearly-trends': {
+    Component: ExamTrendReport,
+    props: { kind: 'yearly', title: 'Abstract - Exam Performance Yearly Trends', filenameSuffix: 'Exam_Yearly_Trends' },
+  },
   // K-2.6 Flag State Inspection reports use backend-provided grouped column defs
   // (period × metric) with a weighted Total row. Monthly / Yearly Trend pages are rows
   // of category totals rather than aggregable records, so they skip the Total.

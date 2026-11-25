@@ -1996,9 +1996,10 @@ router.get('/kpi-dgs-2-4-report', kpiDgs2_0Tab.getKpiDgs2_4);
 router.get('/kpi-dgs-2-5-report', kpiDgs2_0Tab.getKpiDgs2_5);
 router.get('/kpi-dgs-2-6-report', kpiDgs2_0Tab.getKpiDgs2_6);
 
-router.get('/kpi-dgs-2-3-1-report', kpiDgs3_0Tab.getReportKpiDgs2_3_1);
-router.get('/kpi-dgs-2-3-2-report', kpiDgs3_0Tab.getReportKpiDgs2_3_2);
-router.get('/kpi-dgs-2-3-3-report', kpiDgs3_0Tab.getReportKpiDgs2_3_3);
+// K-2.3 reports need KPI_DGS read, like the K-2.3 lists above
+router.get('/kpi-dgs-2-3-1-report', dgs23Read, kpiDgs3_0Tab.getReportKpiDgs2_3_1);
+router.get('/kpi-dgs-2-3-2-report', dgs23Read, kpiDgs3_0Tab.getReportKpiDgs2_3_2);
+router.get('/kpi-dgs-2-3-3-report', dgs23Read, kpiDgs3_0Tab.getReportKpiDgs2_3_3);
 
 // KPI DGS report 6
 //kpi report 2_6_1 Report

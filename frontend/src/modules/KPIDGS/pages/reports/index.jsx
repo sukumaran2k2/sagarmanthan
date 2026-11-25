@@ -4,6 +4,8 @@ import FlaggingReport from '../../components/FlaggingReport';
 import { REPORTS_LEAVES } from '../../data/reportsIndex';
 import VesselSurveyReport from '../../components/VesselSurveyReport';
 import FlagStateInspectionReport from '../../components/FlagStateInspectionReport';
+import ExamPerformanceReport from '../../components/ExamPerformanceReport';
+import ExamTrendReport from '../../components/ExamTrendReport';
 import * as api from '../../api';
 
 
@@ -15,6 +17,19 @@ const CUSTOM_PAGE_BY_SLUG = {
   'vessel-survey-performance': {
     Component: VesselSurveyReport,
     props: { title: 'Vessel Survey by MMDs Performance' },
+  },
+  // K-2.3 Exam Performance — grouped table with a live Total row; trends add a column chart.
+  'exam-overall': {
+    Component: ExamPerformanceReport,
+    props: { title: 'Abstract - Exam Overall Performance Statistics', filenameSuffix: 'Exam_Overall_Performance' },
+  },
+  'exam-monthly-trends': {
+    Component: ExamTrendReport,
+    props: { kind: 'monthly', title: 'Abstract - Exam Performance Monthly Trends (For the Current Year)', filenameSuffix: 'Exam_Monthly_Trends' },
+  },
+  'exam-yearly-trends': {
+    Component: ExamTrendReport,
+    props: { kind: 'yearly', title: 'Abstract - Exam Performance Yearly Trends', filenameSuffix: 'Exam_Yearly_Trends' },
   },
   // K-2.6 Flag State Inspection — grouped column defs + weighted totals.
   'flag-state-mmd-wise': {
