@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { FileSpreadsheet, Loader2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { fetchEmployeeList } from '../../api';
+import { fetchEmployeeList,getAllEmployeeData  } from '../../api';
 import Table from '../../../../components/Table';
 import { isOrganisationUser, getSessionOrganisationId, getSessionClaims } from '../../../../utils/authSession';
 import { COMMON_TOASTS, toastSuccess, toastError } from '../../../../utils/notify';
@@ -289,42 +289,40 @@ export default function EmployeeDatabase({ notify }) {
     fileName: 'Employee_Database',
     label: 'Employee database' })[kind]();
 
-  // "Export All Data": every employee row the server returns for this user (ministry: all organisations,
-  // organisation user: their own), ignoring the filters, search and hidden columns on screen.
   const exportAllData = async () => {
     if (exportingAll) return;
     const { roleId, orgId } = listScope(isMinistryView);
-    if (!roleId || !orgId) {
+    // ministry users have no organisation (orgId is the text 'null' = all organisations)
+    if (!roleId || (!isMinistryView && !orgId)) {
       notify?.(toastError('Export Failed', 'Your session has expired. Please sign in again.'));
       return;
     }
     setExportingAll(true);
     try {
-      const res = await fetchEmployeeList(roleId, orgId);
+      const res = await getAllEmployeeData(roleId, orgId);
+      
       const list = Array.isArray(res?.data) ? res.data : [];
       if (list.length === 0) {
         notify?.(toastError('Nothing to Export', 'There are no employee records to export.'));
         return;
       }
-      const clean = (v) => sanitizeCell(v == null || String(v).trim() === '' ? '--' : v);
+      const isIsoDate = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(v);
+      const cell = (v) => {
+        if (v == null || String(v).trim() === '') return '--';
+        return isIsoDate(v) ? formatDate(v) : sanitizeCell(v);
+      };
+      const headers = Object.keys(list[0]);
       const rows = list.map((r, i) => ({
         'S.No': i + 1,
-        'Employee ID': clean(r.employee_id),
-        'Reference ID / Personnel Number': clean(r.emp_reference_id),
-        'Employee Name': clean(r.emp_name),
-        'Working Status': clean(r.working_status || 'Inactive'),
-        'Type': clean(r.type_of_people),
-        'Organisation': clean(r.organisation_name),
-        'Department': clean(r.emp_department_name),
-        'Post Name': clean(r.emp_post_name),
-        'Class': clean(r.class),
-        'Action Date': formatDate(r.action_date),
+        ...Object.fromEntries(headers.map((h) => [h, cell(r[h])])),
       }));
       const sheet = XLSX.utils.json_to_sheet(rows);
-      sheet['!cols'] = [8, 16, 30, 30, 16, 28, 34, 30, 30, 10, 14].map((wch) => ({ wch }));
+      sheet['!cols'] = ['S.No', ...headers].map((h) => ({
+        wch: Math.min(40, Math.max(h.length, ...rows.slice(0, 200).map((r) => String(r[h] ?? '').length)) + 2),
+      }));
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, sheet, 'Employee Database');
-      XLSX.writeFile(wb, `Employee Database ${stamp()}.xlsx`);
+      XLSX.utils.book_append_sheet(wb, sheet, 'HR Employee Data');
+      XLSX.writeFile(wb, `HR Employee Data ${stamp()}.xlsx`);
       notify?.(toastSuccess('Export Complete', `${rows.length} employee records exported.`));
     } catch (err) {
       console.error('Export all employee data failed:', err);
