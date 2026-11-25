@@ -1870,331 +1870,196 @@ async function getLitigationPendencyDomainWiseReport(req, res) {
     res.status(500).json({ error: 'Internal server error' });
   }
 }
-async function getAllLitigationData(req,res) {
-    
+async function getAllLitigationData(req, res) {
+  try {
     const conn = await pool;
-    const request = conn.request();
     const userID = req.params.userID;
-    request.input("userID",userID );
-    try {
-        const userResult = await conn.query(` SELECT role_id,organisation_id FROM tbl_user WHERE user_id = ${userID} `);
-        const { role_id,organisation_id  } = userResult.recordset[0];
-        let result;
-        if (await isWideRole(role_id)) {
-            result = await conn.query(`SELECT
-            ROW_NUMBER() OVER (ORDER BY org.organisation_id) AS [S No],
-            org.organisation_id AS [organisation_id],
-            org.organisation_name AS [Organisation Name],
-            lc.case_id AS [Case ID],
-            lc.organisation_id AS [Organisation ID],
-            lc.organisation_name AS [Organisation Name],
-            ct.court_type_name AS [Court Type],
-            st.court_sub_type_name AS [Sub Court],
-            caty.case_type_name AS [Case Type],
-            bench.bench_name AS [Bench Seat],
-            con.consumer_sub_type_name AS [Consumer Forum],
-            lc.case_number AS [Case Number],
-            lc.year AS [Case Year],
-            lc.cnr_number AS [CNR Number],
-            lc.name_of_court AS [Name of Court],
-            lc.file_on_date AS [Filing Date],
-            lps.petitioners AS [Petitioners],
-            lps.respondents AS [Respondents],
-            COALESCE(d.domain_name, '') AS [Legal Domain],
-            COALESCE(sd.sub_domain_name, '') AS [Legal Sub-Domain],
-            de.department_name AS [Department/Division],
-            lc.case_description AS [Case Description],
-            CASE 
-                WHEN lc.pre_connected_cases = 1 THEN 'Yes'
-                WHEN lc.pre_connected_cases = 0 THEN 'No'
-                ELSE 'N/A'
-            END AS [Pre-connected Cases],
-            CASE 
-                WHEN lc.counter_claim_amount_or_not = 1 THEN 'Yes'
-                WHEN lc.counter_claim_amount_or_not = 0 THEN 'No'
-                ELSE 'N/A'
-            END AS [Is Counter Claim Filed?],
-            lc.counter_claim_amount AS [Counter Claim Amount],
-            lc.claim_amount AS [Claim Amount],
-            CASE 
-                WHEN lc.is_ministry_party = 1 THEN 'Yes'
-                WHEN lc.is_ministry_party = 0 THEN 'No'
-                ELSE 'N/A'
-            END AS [Is Ministry a Party?],
-            lc.type_of_party AS [Type of Party],
-            lc.role_of_ministry AS [Role of Ministry],
-            CASE 
-                WHEN lc.is_behalf_of_ministry = 1 THEN 'Yes'
-                WHEN lc.is_behalf_of_ministry = 0 THEN 'No'
-                ELSE 'N/A'
-            END AS [Is the Case Filed on Behalf of the Ministry?],
-            CASE 
-                WHEN lc.is_ministry_challenged = 1 THEN 'Challenged'
-                WHEN lc.is_ministry_challenged = 2 THEN 'Invoked'
-                WHEN lc.is_ministry_challenged = 0 THEN 'No'
-                ELSE 'N/A'
-            END AS [Is Ministry Challenged?],
-            lc.document_challenged AS [Challenged Document],
-            lc.document_invoked AS [Invoked Document],
-            lc.details AS [Document Details],
-            CASE 
-                WHEN lc.is_ministry_intervention_required = 1 THEN 'Yes'
-                WHEN lc.is_ministry_intervention_required = 0 THEN 'No'
-                ELSE 'N/A'
-            END AS [Is Ministry Intervention Required?],
-            lc.nature_of_action_required AS [Nature of Action Required],
-            lc.intervention_description AS [Intervention Description],
-            lc.date_of_intervention_required AS [Intervention Required By Date],
-            CASE 
-                WHEN lc.is_execution_required = 1 THEN 'Yes'
-                WHEN lc.is_execution_required = 0 THEN 'No'
-                ELSE 'N/A'
-            END AS [Is Execution Required?],
-            lc.nature_of_execution AS [Nature of Execution],
-            lc.type_of_clarification AS [Type of Clarification Required],
-            lc.type_of_approval AS [Type of Approval Required],
-            act.act_name AS [Relevant Acts],
-            rul.rule_name AS [Relevant Rules],
-            stat.state_name AS [State],
-            dis.district_name AS [District],
-            lc.other_act AS [Other Applicable Act],
-            lc.other_lnv AS [Other Legal Notices/Views],
-            lc.other_nature_execution AS [Other Nature of Execution],
-            CASE 
-                WHEN lc.is_counter_affidavit_filed = 1 THEN 'Yes'
-                WHEN lc.is_counter_affidavit_filed = 0 THEN 'No'
-                ELSE 'N/A'
-            END AS [Is Counter Affidavit Filed?],
-            CASE 
-                WHEN lc.is_hearing_started = 1 THEN 'Yes'
-                WHEN lc.is_hearing_started = 0 THEN 'No'
-                ELSE 'N/A'
-            END AS [Is Hearing Started?],
-            CASE 
-                WHEN lc.is_interim_order = 1 THEN 'Yes'
-                WHEN lc.is_interim_order = 0 THEN 'No'
-                ELSE 'N/A'
-            END AS [Is Interim Order Passed?],
-            CASE 
-                WHEN lc.is_final_order_or_judgement_passed = 1 THEN 'Yes'
-                WHEN lc.is_final_order_or_judgement_passed = 0 THEN 'No'
-                ELSE 'N/A'
-            END AS [Is Final Order/Judgement Passed?],
-            lc.date_of_final_order AS [Date of Final Order],
-            lc.nature_of_judgement AS [Nature of Judgement],
-            CASE
-                WHEN lc.amounts_of_any_rewarded IN ('1', 'No Amount')      THEN 'No Amount'
-                WHEN lc.amounts_of_any_rewarded IN ('2', 'Claim')          THEN 'Claim'
-                WHEN lc.amounts_of_any_rewarded IN ('3', 'Counter Claim')  THEN 'Counter Claim'
-                ELSE 'N/A'
-            END AS [Total Rewarded Amounts],
-            CASE 
-                WHEN lc.is_action_required_for_complaince = 1 THEN 'Yes'
-                WHEN lc.is_action_required_for_complaince = 0 THEN 'No'
-                ELSE 'N/A'
-            END AS [Is Action Required for Compliance?],
-            lc.last_date_for_complaince AS [Compliance Deadline],
-            lc.judgement_accepted AS [Is Judgement Accepted?],
-            CASE 
-                WHEN lc.is_order_complied = 1 THEN 'Yes'
-                WHEN lc.is_order_complied = 0 THEN 'No'
-                ELSE 'N/A'
-            END AS [Is Order Complied?],
-            lc.date_of_complied AS [Date of Compliance],
-            lc.details_of_complaince AS [Details of Compliance],
-            lc.reason_for_non_complaince AS [Reason for Non-Compliance],
-            lc.amounts_if_any_rewarded_claim_amount AS [Rewarded Claim Amount],
-            lc.amounts_if_any_rewarded_counter_claim_amount AS [Rewarded Counter Claim Amount],
-            lc.appeal_rev_case_number AS [Appeal/Review Case Number],
-            lc.appeal_rev_court_name AS [Appeal/Review Court Name],
-            lc.appeal_rev_cnr_number AS [Appeal/Review CNR Number],
-            lc.appeal_rev_filling_date AS [Appeal/Review Filing Date],
-            lc.court_complex AS [Court Complex],
-            lc.case_status_case_number AS [Case Status Case Number],
-            lc.case_status_court_ AS [Case Status Court],
-            lc.case_status_cnr_number AS [Case Status CNR Number],
-            lc.case_status_filled_date AS [Case Status Filing Date],
-            lc.invoked_details AS [Invoked Details],
-            lc.stage AS [Case Stage],
-            lc.created_date AS [Date Created],
-            lc.updated_date AS [Date Updated],
-            lc.created_by AS [Created By],
-            lc.updated_by AS [Updated By]
-        FROM mmt_organisation org
-        INNER JOIN tbl_litigation_cases lc ON org.organisation_id = lc.organisation_id  
-        LEFT JOIN mmt_domain d ON lc.domain = d.domain_id 
-        LEFT JOIN mmt_sub_domain sd ON TRY_CAST(lc.sub_domain AS INT) = sd.sub_domain_id
-        LEFT JOIN mmt_court_type ct ON lc.court_type = ct.court_type_id
-        LEFT JOIN mmt_court_sub_type st ON lc.sub_court = st.court_sub_type_id
-        LEFT JOIN mmt_court_case_type caty ON lc.case_type = caty.case_type_id
-        LEFT JOIN tbl_court_case_organisations pe ON TRY_CAST(lc.petitioners AS INT) = pe.organisation_id
-        LEFT JOIN tbl_court_case_organisations res ON TRY_CAST(lc.respondents AS INT) = res.organisation_id
-        LEFT JOIN tbl_court_case_departments de ON TRY_CAST(lc.dept_division AS INT) = de.department_id
-        LEFT JOIN mmt_bench_seat bench ON lc.bench_seat = bench.bench_id
-        LEFT JOIN mmt_court_consumer_sub_type con ON lc.consumer_forum = con.consumer_sub_type_id
-        LEFT JOIN mmt_court_case_acts act ON lc.acts = act.act_id
-        LEFT JOIN mmt_court_case_rules rul ON lc.rules = rul.rule_id
-        LEFT JOIN mmt_state stat ON lc.state = stat.state_id
-        LEFT JOIN mmt_district dis ON lc.district = dis.district_id
-        LEFT JOIN tbl_litigation_pettioners_respondents lps ON lc.case_id = lps.case_id
-        ORDER BY org.organisation_id;
-    `);
-        }else{
-            request.input("organisation_id", organisation_id);
-            result = await request.query(`
-            SELECT
-                ROW_NUMBER() OVER (ORDER BY org.organisation_id) AS [S No],
-                    org.organisation_id AS [organisation Id],
-                    org.organisation_name AS [Organisation Name],
-                    lc.case_id AS [Case ID],
-                    lc.organisation_id AS [Organisation ID],
-                    lc.organisation_name AS [Organisation Name],
-                    ct.court_type_name AS [Court Type],
-                    st.court_sub_type_name AS [Sub Court],
-                    caty.case_type_name AS [Case Type],
-                    bench.bench_name AS [Bench Seat],
-                    con.consumer_sub_type_name AS [Consumer Forum],
-                    lc.case_number AS [Case Number],
-                    lc.year AS [Case Year],
-                    lc.cnr_number AS [CNR Number],
-                    lc.name_of_court AS [Name of Court],
-                    lc.file_on_date AS [Filing Date],
-                    lps.petitioners AS [Petitioners],
-                    lps.respondents AS [Respondents],
-                    COALESCE(d.domain_name, '') AS [Legal Domain],
-                    COALESCE(sd.sub_domain_name, '') AS [Legal Sub-Domain],
-                    de.department_name AS [Department/Division],
-                    lc.case_description AS [Case Description],
-                    case 
-                        WHEN lc.pre_connected_cases = 1 THEN 'Yes'
-                        WHEN lc.pre_connected_cases = 0 THEN 'No'
-                        END AS [Pre-connected Cases],
-                    case 
-                        WHEN lc.counter_claim_amount_or_not = 1 THEN 'Yes'
-                        WHEN lc.counter_claim_amount_or_not = 0 THEN 'No'
-                        END AS [Is Counter Claim Filed?],
-                    lc.counter_claim_amount AS [Counter Claim Amount],
-                    lc.claim_amount AS [Claim Amount],
-                    case 
-                        WHEN lc.is_ministry_party = 1 THEN 'Yes'
-                        WHEN lc.is_ministry_party = 0 THEN 'No'
-                        END AS [Is Ministry a Party?],
-                    lc.type_of_party AS [Type of Party],
-                    lc.role_of_ministry AS [Role of Ministry],
-                    case 
-                        WHEN lc.is_behalf_of_ministry = 1 THEN 'Yes'
-                        WHEN lc.is_behalf_of_ministry = 0 THEN 'No'
-                        END AS [Is the Case Filed on Behalf of the Ministry?],
-                    case 
-                        WHEN lc.is_ministry_challenged = 1 THEN 'Challenged'
-                        WHEN lc.is_ministry_challenged = 2 THEN 'Invoked'
-                        WHEN lc.is_ministry_challenged = 0 THEN 'No'
-                        END AS [Is Ministry Challenged?],
-                    lc.document_challenged AS [Challenged Document],
-                    lc.document_invoked AS [Invoked Document],
-                    lc.details AS [Document Details],
-                    case 
-                        WHEN lc.is_ministry_intervention_required = 1 THEN 'Yes'
-                        WHEN lc.is_ministry_intervention_required = 0 THEN 'No'
-                        END AS [Is Ministry Intervention Required?],
-                    lc.nature_of_action_required AS [Nature of Action Required],
-                    lc.intervention_description AS[Intervention Description],
-                    lc.date_of_intervention_required AS [Intervention Required By Date],
-                    case 
-                        WHEN lc.is_execution_required = 1 THEN 'Yes'
-                        WHEN lc.is_execution_required = 0 THEN 'No'
-                        END AS [Is Execution Required?],
-                    lc.nature_of_execution AS [Nature of Execution],
-                    lc.type_of_clarification AS [Type of Clarification Required],
-                    lc.type_of_approval AS [Type of Approval Required],
-                    act.act_name AS [Relevant Acts],
-                    rul.rule_name AS [Relevant Rules],
-                    stat.state_name AS [State],
-                    dis.district_name AS [District],
-                    lc.other_act AS [Other Applicable Act],
-                    lc.other_lnv AS [Other Legal Notices/Views],
-                    lc.other_nature_execution AS [Other Nature of Execution],
-                    case 
-                        WHEN lc.is_counter_affidavit_filed = 1 THEN 'Yes'
-                        WHEN lc.is_counter_affidavit_filed = 0 THEN 'No'
-                        END AS [Is Counter Affidavit Filed?],
-                    case 
-                        WHEN lc.is_hearing_started = 1 THEN 'Yes'
-                        WHEN lc.is_hearing_started = 0 THEN 'No'
-                        END AS [Is Hearing Started?],
-                    case 
-                        WHEN lc.is_interim_order = 1 THEN 'Yes'
-                        WHEN lc.is_interim_order = 0 THEN 'No'
-                        END AS [Is Interim Order Passed?],
 
-                    CASE 
-                        WHEN lc.is_final_order_or_judgement_passed = 1 THEN 'Yes'
-                        WHEN lc.is_final_order_or_judgement_passed = 0 THEN 'No'
-                        END AS [Is Final Order/Judgement Passed?],
-                    lc.date_of_final_order AS [Date of Final Order],
-                    lc.nature_of_judgement AS [Nature of Judgement],
-                    CASE
-                        WHEN lc.amounts_of_any_rewarded IN ('1', 'No Amount')      THEN 'No Amount'
-                        WHEN lc.amounts_of_any_rewarded IN ('2', 'Claim')          THEN 'Claim'
-                        WHEN lc.amounts_of_any_rewarded IN ('3', 'Counter Claim')  THEN 'Counter Claim'
-                        ELSE 'N/A'
-                    END AS [Total Rewarded Amounts],
-                    CASE 
-                        WHEN lc.is_action_required_for_complaince = 1 THEN 'Yes'
-                        WHEN lc.is_action_required_for_complaince = 0 THEN 'No'
-                        END AS [Is Action Required for Compliance?],
-                    lc.last_date_for_complaince AS [Compliance Deadline],
-                    lc.judgement_accepted AS [Is Judgement Accepted?],
-                    CASE 
-                        WHEN lc.is_order_complied = 1 THEN 'Yes'
-                        WHEN lc.is_order_complied = 0 THEN 'No'
-                        END AS [Is Order Complied?],
-                    lc.date_of_complied AS [Date of Compliance],
-                    lc.details_of_complaince AS [Details of Compliance],
-                    lc.reason_for_non_complaince AS [Reason for Non-Compliance],
-                    lc.amounts_if_any_rewarded_claim_amount AS [Rewarded Claim Amount],
-                    lc.amounts_if_any_rewarded_counter_claim_amount AS [Rewarded Counter Claim Amount],
-                    lc.appeal_rev_case_number AS [Appeal/Review Case Number],
-                    lc.appeal_rev_court_name AS [Appeal/Review Court Name],
-                    lc.appeal_rev_cnr_number AS [Appeal/Review CNR Number],
-                    lc.appeal_rev_filling_date AS [Appeal/Review Filing Date],
-                    lc.court_complex AS [Court Complex] ,
-                    lc.case_status_case_number AS [Case Status Case Number],
-                    lc.case_status_court_ AS [Case Status Court],
-                    lc.case_status_cnr_number AS [Case Status CNR Number],
-                    lc.case_status_filled_date AS [Case Status Filing Date],
-                    lc.invoked_details AS [Invoked Details],
-                    lc.stage AS [Case Stage],
-                    lc.created_date AS [Date Created],
-                    lc.updated_date AS [Date Updated],
-                    lc.created_by AS [Created By],
-                    lc.updated_by AS [Updated By]
-                    FROM mmt_organisation org
-                    LEFT JOIN tbl_litigation_cases lc ON org.organisation_id = lc.organisation_id 
-                    LEFT JOIN mmt_domain d ON lc.domain = d.domain_id 
-                    LEFT JOIN mmt_sub_domain sd ON TRY_CAST(lc.sub_domain AS INT) = sd.sub_domain_id
-                    LEFT JOIN mmt_court_type ct ON lc.court_type = ct.court_type_id
-                    LEFT JOIN mmt_court_sub_type st ON lc.sub_court = st.court_sub_type_id
-                    LEFT JOIN mmt_court_case_type caty ON lc.case_type = caty.case_type_id
-                    LEFT JOIN tbl_court_case_organisations pe ON TRY_CAST(lc.petitioners AS INT) = pe.organisation_id
-                    LEFT JOIN tbl_court_case_organisations res ON TRY_CAST(lc.respondents AS INT) = res.organisation_id
-                    LEFT JOIN tbl_court_case_departments de ON TRY_CAST(lc.dept_division AS INT) = de.department_id
-                    LEFT JOIN mmt_bench_seat bench ON lc.bench_seat = bench.bench_id
-                    LEFT JOIN mmt_court_consumer_sub_type con ON lc.consumer_forum = con.consumer_sub_type_id
-                    LEFT JOIN mmt_court_case_acts act ON lc.acts = act.act_id
-                    LEFT JOIN mmt_court_case_rules rul ON lc.rules = rul.rule_id
-                    LEFT JOIN mmt_state stat ON lc.state = stat.state_id
-                    LEFT JOIN mmt_district dis ON lc.district = dis.district_id
-                    LEFT JOIN tbl_litigation_pettioners_respondents lps ON lc.case_id = lps.case_id
-                WHERE org.organisation_id = @organisation_id
-            `); 
-        }
-        res.json(result.recordset);
-        console.log(result.recordset,"record")
-    } catch (error) {
-        console.log("error",error)
-        return res.status(500).json({error: "Internal Server Error" });
+    // parameterised user lookup (no string concatenation in SQL)
+    const userResult = await conn.request()
+      .input("userID", userID)
+      .query(`SELECT role_id, organisation_id FROM tbl_user WHERE user_id = @userID`);
+
+    if (!userResult.recordset.length) {
+      return res.status(404).json({ error: "User not found" });
     }
+    const { role_id, organisation_id } = userResult.recordset[0];
+
+    // wide roles see every organisation, others only their own
+    const request = conn.request();
+    let orgFilter = "";
+    if (!(await isWideRole(role_id))) {
+      request.input("organisation_id", organisation_id);
+      orgFilter = "WHERE lc.organisation_id = @organisation_id";
+    }
+
+    const result = await request.query(`
+      SELECT
+        ROW_NUMBER() OVER (ORDER BY lc.case_id) AS [S No],
+        lc.case_id AS [Case ID],
+        lc.organisation_id AS [Organisation ID],
+        lc.organisation_name AS [Organisation Name],
+        ct.court_type_name AS [Court Type],
+        st.court_sub_type_name AS [Sub Court],
+        caty.case_type_name AS [Case Type],
+        bench.bench_name AS [Bench Seat],
+        con.consumer_sub_type_name AS [Consumer Forum],
+        lc.case_number AS [Case Number],
+        lc.year AS [Case Year],
+        lc.cnr_number AS [CNR Number],
+        lc.name_of_court AS [Name of Court],
+        lc.file_on_date AS [Filing Date],
+        lps.petitioners AS [Petitioners],
+        lps.respondents AS [Respondents],
+        COALESCE(d.domain_name, '') AS [Legal Domain],
+        COALESCE(sd.sub_domain_name, '') AS [Legal Sub-Domain],
+        de.department_name AS [Department/Division],
+        lc.case_description AS [Case Description],
+        CASE
+          WHEN lc.pre_connected_cases = 1 THEN 'Yes'
+          WHEN lc.pre_connected_cases = 0 THEN 'No'
+          ELSE 'N/A'
+        END AS [Pre-connected Cases],
+        CASE
+          WHEN lc.counter_claim_amount_or_not = 1 THEN 'Yes'
+          WHEN lc.counter_claim_amount_or_not = 0 THEN 'No'
+          ELSE 'N/A'
+        END AS [Is Counter Claim Filed?],
+        lc.counter_claim_amount AS [Counter Claim Amount],
+        lc.claim_amount AS [Claim Amount],
+        CASE
+          WHEN lc.is_ministry_party = 1 THEN 'Yes'
+          WHEN lc.is_ministry_party = 0 THEN 'No'
+          ELSE 'N/A'
+        END AS [Is Ministry a Party?],
+        lc.type_of_party AS [Type of Party],
+        lc.role_of_ministry AS [Role of Ministry],
+        CASE
+          WHEN lc.is_behalf_of_ministry = 1 THEN 'Yes'
+          WHEN lc.is_behalf_of_ministry = 0 THEN 'No'
+          ELSE 'N/A'
+        END AS [Is the Case Filed on Behalf of the Ministry?],
+        CASE
+          WHEN lc.is_ministry_challenged = 1 THEN 'Challenged'
+          WHEN lc.is_ministry_challenged = 2 THEN 'Invoked'
+          WHEN lc.is_ministry_challenged = 0 THEN 'No'
+          ELSE 'N/A'
+        END AS [Is Ministry Challenged?],
+        lc.document_challenged AS [Challenged Document],
+        lc.document_invoked AS [Invoked Document],
+        lc.details AS [Document Details],
+        CASE
+          WHEN lc.is_ministry_intervention_required = 1 THEN 'Yes'
+          WHEN lc.is_ministry_intervention_required = 0 THEN 'No'
+          ELSE 'N/A'
+        END AS [Is Ministry Intervention Required?],
+        lc.nature_of_action_required AS [Nature of Action Required],
+        lc.intervention_description AS [Intervention Description],
+        lc.date_of_intervention_required AS [Intervention Required By Date],
+        CASE
+          WHEN lc.is_execution_required = 1 THEN 'Yes'
+          WHEN lc.is_execution_required = 0 THEN 'No'
+          ELSE 'N/A'
+        END AS [Is Execution Required?],
+        lc.nature_of_execution AS [Nature of Execution],
+        lc.type_of_clarification AS [Type of Clarification Required],
+        lc.type_of_approval AS [Type of Approval Required],
+        act.act_name AS [Relevant Acts],
+        rul.rule_name AS [Relevant Rules],
+        stat.state_name AS [State],
+        dis.district_name AS [District],
+        lc.other_act AS [Other Applicable Act],
+        lc.other_lnv AS [Other Legal Notices/Views],
+        lc.other_nature_execution AS [Other Nature of Execution],
+        CASE
+          WHEN lc.is_counter_affidavit_filed = 1 THEN 'Yes'
+          WHEN lc.is_counter_affidavit_filed = 0 THEN 'No'
+          ELSE 'N/A'
+        END AS [Is Counter Affidavit Filed?],
+        CASE
+          WHEN lc.is_hearing_started = 1 THEN 'Yes'
+          WHEN lc.is_hearing_started = 0 THEN 'No'
+          ELSE 'N/A'
+        END AS [Is Hearing Started?],
+        CASE
+          WHEN lc.is_interim_order = 1 THEN 'Yes'
+          WHEN lc.is_interim_order = 0 THEN 'No'
+          ELSE 'N/A'
+        END AS [Is Interim Order Passed?],
+        CASE
+          WHEN lc.is_final_order_or_judgement_passed = 1 THEN 'Yes'
+          WHEN lc.is_final_order_or_judgement_passed = 0 THEN 'No'
+          ELSE 'N/A'
+        END AS [Is Final Order/Judgement Passed?],
+        lc.date_of_final_order AS [Date of Final Order],
+        lc.nature_of_judgement AS [Nature of Judgement],
+        CASE
+          WHEN lc.amounts_of_any_rewarded IN ('1', 'No Amount')     THEN 'No Amount'
+          WHEN lc.amounts_of_any_rewarded IN ('2', 'Claim')         THEN 'Claim'
+          WHEN lc.amounts_of_any_rewarded IN ('3', 'Counter Claim') THEN 'Counter Claim'
+          ELSE 'N/A'
+        END AS [Total Rewarded Amounts],
+        CASE
+          WHEN lc.is_action_required_for_complaince = 1 THEN 'Yes'
+          WHEN lc.is_action_required_for_complaince = 0 THEN 'No'
+          ELSE 'N/A'
+        END AS [Is Action Required for Compliance?],
+        lc.last_date_for_complaince AS [Compliance Deadline],
+        lc.judgement_accepted AS [Is Judgement Accepted?],
+        CASE
+          WHEN lc.is_order_complied = 1 THEN 'Yes'
+          WHEN lc.is_order_complied = 0 THEN 'No'
+          ELSE 'N/A'
+        END AS [Is Order Complied?],
+        lc.date_of_complied AS [Date of Compliance],
+        lc.details_of_complaince AS [Details of Compliance],
+        lc.reason_for_non_complaince AS [Reason for Non-Compliance],
+        lc.amounts_if_any_rewarded_claim_amount AS [Rewarded Claim Amount],
+        lc.amounts_if_any_rewarded_counter_claim_amount AS [Rewarded Counter Claim Amount],
+        lc.appeal_rev_case_number AS [Appeal/Review Case Number],
+        lc.appeal_rev_court_name AS [Appeal/Review Court Name],
+        lc.appeal_rev_cnr_number AS [Appeal/Review CNR Number],
+        lc.appeal_rev_filling_date AS [Appeal/Review Filing Date],
+        lc.court_complex AS [Court Complex],
+        lc.case_status_case_number AS [Case Status Case Number],
+        lc.case_status_court_ AS [Case Status Court],
+        lc.case_status_cnr_number AS [Case Status CNR Number],
+        lc.case_status_filled_date AS [Case Status Filing Date],
+        lc.invoked_details AS [Invoked Details],
+        lc.stage AS [Case Stage],
+        lc.created_date AS [Date Created],
+        lc.updated_date AS [Date Updated],
+        lc.created_by AS [Created By],
+        lc.updated_by AS [Updated By]
+      FROM tbl_litigation_cases lc
+      LEFT JOIN mmt_domain d ON lc.domain = d.domain_id
+      LEFT JOIN mmt_sub_domain sd ON TRY_CAST(lc.sub_domain AS INT) = sd.sub_domain_id
+      LEFT JOIN mmt_court_type ct ON lc.court_type = ct.court_type_id
+      LEFT JOIN mmt_court_sub_type st ON lc.sub_court = st.court_sub_type_id
+      LEFT JOIN mmt_court_case_type caty ON lc.case_type = caty.case_type_id
+      LEFT JOIN tbl_court_case_departments de ON TRY_CAST(lc.dept_division AS INT) = de.department_id
+      LEFT JOIN mmt_bench_seat bench ON lc.bench_seat = bench.bench_id
+      LEFT JOIN mmt_court_consumer_sub_type con ON lc.consumer_forum = con.consumer_sub_type_id
+      LEFT JOIN mmt_court_case_acts act ON lc.acts = act.act_id
+      LEFT JOIN mmt_court_case_rules rul ON lc.rules = rul.rule_id
+      LEFT JOIN mmt_state stat ON lc.state = stat.state_id
+      LEFT JOIN mmt_district dis ON lc.district = dis.district_id
+      LEFT JOIN (
+        SELECT case_id,
+               STRING_AGG(CAST(petitioners AS NVARCHAR(MAX)), ', ') AS petitioners,
+               STRING_AGG(CAST(respondents AS NVARCHAR(MAX)), ', ') AS respondents
+        FROM tbl_litigation_pettioners_respondents
+        GROUP BY case_id
+      ) lps ON lc.case_id = lps.case_id
+      ${orgFilter}
+      ORDER BY lc.case_id;
+    `);
+
+    return res.json(result.recordset);
+  } catch (error) {
+    console.error("getAllLitigationData error", error);
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
 }
 
 async function addLitigationPetitionerAndRespondent(req, res) {

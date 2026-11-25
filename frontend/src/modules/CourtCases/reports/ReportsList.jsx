@@ -29,7 +29,7 @@ export default function ReportsList() {
   const open = (id) => navigate(`${BASE_PATH}/reports/${id}`);
 
   return (
-    <div className="rpt">
+    <div className="rpt rpt-list">
       <div className="rpt-card">
         <div className="rpt-banner">
           <div className="rpt-eyebrow"><TrendingUp size={14} /> Court Case Reports</div>

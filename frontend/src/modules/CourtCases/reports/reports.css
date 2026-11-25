@@ -104,3 +104,52 @@
 .rpt-footer b { color: var(--rpt-title); }
 .rpt-pager button { min-width: 40px; }
 .rpt-pager button:hover:not(:disabled):not(.cur) { background: var(--rpt-cream); }
+
+/* ===== LIST PAGE sizing (matches case list: compact font / row height / width) ===== */
+
+/* banner */
+.rpt-list .rpt-banner { padding: 16px 24px; }
+.rpt-list .rpt-eyebrow { font-size: 11px; letter-spacing: .12em; }
+.rpt-list .rpt-title { font-size: 22px; margin: 4px 0 0; }
+
+/* panel + toolbar */
+.rpt-list .rpt-panel { padding: 16px 20px 18px; }
+.rpt-list .rpt-toolbar { margin-bottom: 14px; gap: 12px; }
+.rpt-list .rpt-toolbar-title h3 { font-size: 18px; margin: 4px 0 0; }
+
+.rpt-list .rpt-controls { gap: 8px; }
+.rpt-list .rpt-controls > span { font-size: 11px !important; font-weight: 700; text-transform: uppercase; }
+.rpt-list .rpt-search { height: 36px; padding: 0 12px; border-radius: 10px; }
+.rpt-list .rpt-search input { width: 200px; font-size: 12px; }
+.rpt-list .rpt-select { height: 36px; padding: 0 10px; font-size: 12px; border-radius: 10px; }
+
+/* table: header 40px, rows 42px, smaller font */
+.rpt-list .rpt-table { font-size: 12.5px; }
+.rpt-list .rpt-table thead th {
+  height: 40px;
+  padding: 0 16px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .05em;
+}
+.rpt-list .rpt-table tbody td {
+  height: 42px;
+  padding: 0 16px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.rpt-list .rpt-table thead th:first-child,
+.rpt-list .rpt-table tbody td:first-child { width: 150px; }   /* Report No. column width */
+.rpt-list .rpt-code { font-weight: 700; }
+.rpt-list .rpt-link { font-size: 12.5px; font-weight: 600; }
+
+/* footer + pager */
+.rpt-list .rpt-footer { margin-top: 12px; padding: 12px 4px 0; font-size: 12px; }
+.rpt-list .rpt-pager { gap: 6px; }
+.rpt-list .rpt-pager button {
+  height: 32px;
+  min-width: 32px;
+  padding: 0 12px;
+  font-size: 12px;
+  border-radius: 8px;
+}

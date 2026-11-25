@@ -116,9 +116,9 @@ export default function CourtCases({ triggerNotification }) {
 
       <Routes>
         <Route index element={<Navigate to="arbitration" replace />} />
-        <Route path="arbitration"  element={<ArbitrationList />} />
-        <Route path="litigation"   element={<LitigationList />} />
-        <Route path="conciliation" element={<ConciliationList />} />
+        <Route path="arbitration"  element={<ArbitrationList triggerNotification={triggerNotification} />} />
+        <Route path="litigation"   element={<LitigationList triggerNotification={triggerNotification} />} />
+        <Route path="conciliation" element={<ConciliationList triggerNotification={triggerNotification} />} />
         <Route path="input-form/*" element={<InputFormPage triggerNotification={triggerNotification} />} />
         <Route path="reports" element={<ReportsList />} />
         <Route path="reports/:reportId" element={<ReportViewer />} />

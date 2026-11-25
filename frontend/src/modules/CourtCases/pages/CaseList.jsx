@@ -4,6 +4,9 @@ import {
   Search, Filter, ChevronDown, Copy, Check, Pencil, Trash2, FileSpreadsheet, FileText, Loader2, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { BASE_PATH } from "../CourtCases";
+import { getCurrentUserId } from "../../../utils/authSession";
+import { useNotifier, toastSuccess, toastError } from "../../../utils/notify";
+import ConfirmModal from "../../../components/ConfirmModal";
 import { exportExcel, exportPdf } from "./exportHelpers";
 
 const ROW_OPTIONS = [10, 25, 50, 100];
@@ -38,9 +41,22 @@ function pageList(page, total) {
 const menuBtn =
   "flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50";
 
-export default function CaseListTable({ useStore, formKey, label = "", showCaseInfo = false }) {
+export default function CaseListTable({ useStore, formKey, label = "", showCaseInfo = false, triggerNotification }) {
   const navigate = useNavigate();
-  const { userID, roleID, organisationID } = getSession();
+  const notifier = useNotifier(triggerNotification);
+  const notify = (type, message, title) => {
+    try {
+      if (typeof triggerNotification === "function") {
+        return notifier(type === "success" ? toastSuccess(title, message) : toastError(title, message));
+      }
+    } catch (err) {
+      console.error("notifier failed:", err);
+    }
+    alert(`${title}: ${message}`);
+  };
+  const { roleID, organisationID } = getSession();
+  const userID = getCurrentUserId();
+  const canDelete = roleID !== 8; // same rule as the Litigation list
 
   const rows = useStore((s) => s.rows);
   const loading = useStore((s) => s.loading);
@@ -130,10 +146,23 @@ export default function CaseListTable({ useStore, formKey, label = "", showCaseI
   const openForm = (caseId) =>
     navigate(`${BASE_PATH}/input-form/${formKey}?caseId=${encodeURIComponent(caseId)}`);
 
-  const handleDelete = async (caseId) => {
-    if (!window.confirm(`Delete case ${caseId} and all related data? This cannot be undone.`)) return;
-    const ok = await deleteCase(caseId, userID);
-    if (!ok) alert("Failed to delete the case.");
+  // delete asks in a popup (same as other modules), then removes the case
+  const [pendingDelete, setPendingDelete] = useState(null); // case id
+  const [deleting, setDeleting] = useState(false);
+  const handleDelete = (caseId) => setPendingDelete(caseId);
+  const confirmDelete = async () => {
+    setDeleting(true);
+    try {
+      const ok = await deleteCase(pendingDelete, userID);
+      if (!ok) {
+        notify("error", `Case ${pendingDelete} could not be deleted. Please try again.`, "Delete Failed");
+      } else {
+        notify("success", `Case ${pendingDelete} and all its related data were deleted.`, "Case Deleted");
+        setPendingDelete(null);
+      }
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const dataCols = columns.filter((c) => c.key !== "sno" && c.key !== "update");
@@ -179,7 +208,7 @@ export default function CaseListTable({ useStore, formKey, label = "", showCaseI
         return start + idx + 1;
       case "stage":
         return r.stage ? (
-          <span className="inline-block rounded-full bg-blue-600 px-3 py-1 text-xs font-bold text-white">
+          <span className="inline-block rounded-full bg-blue-600 px-3 py-0.5 text-[11px] font-bold text-white">
             {r.stage}
           </span>
         ) : (
@@ -192,19 +221,19 @@ export default function CaseListTable({ useStore, formKey, label = "", showCaseI
               type="button"
               title="Edit"
               onClick={() => openForm(r.case_id)}
-              className="flex h-8 w-8 items-center justify-center rounded-md bg-orange-500 text-white hover:bg-orange-600"
+              className="flex h-7 w-7 items-center justify-center rounded-md bg-orange-500 text-white hover:bg-orange-600"
             >
-              <Pencil size={15} />
+              <Pencil size={14} />
             </button>
-            <button
+            {canDelete && <button
               type="button"
               title="Delete"
               disabled={deletingId === r.case_id}
               onClick={() => handleDelete(r.case_id)}
-              className="flex h-8 w-8 items-center justify-center rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-60"
+              className="flex h-7 w-7 items-center justify-center rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-60"
             >
-              {deletingId === r.case_id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
-            </button>
+              {deletingId === r.case_id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+            </button>}
           </div>
         );
       default:
@@ -243,7 +272,7 @@ export default function CaseListTable({ useStore, formKey, label = "", showCaseI
 
       <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
         {/* toolbar */}
-        <div ref={barRef} className="relative flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-50 p-3">
+        <div ref={barRef} className="relative flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white p-3">
           {/* Filters toggle (panel opens below the toolbar) */}
           <button
             type="button"
@@ -333,7 +362,7 @@ export default function CaseListTable({ useStore, formKey, label = "", showCaseI
         </div>
 
         {showFilters && (
-          <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-4">
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-500">Organisation</label>
@@ -367,7 +396,7 @@ export default function CaseListTable({ useStore, formKey, label = "", showCaseI
               <thead>
                 <tr className="bg-[#28408f] text-white">
                   {visibleCols.map((c) => (
-                    <th key={c.key} className="whitespace-nowrap px-4 py-3.5 text-center text-xs font-bold uppercase">
+                    <th key={c.key} className="whitespace-nowrap px-4 py-3 text-center text-[11px] font-bold uppercase tracking-wide">
                       {c.label}
                     </th>
                   ))}
@@ -402,9 +431,9 @@ export default function CaseListTable({ useStore, formKey, label = "", showCaseI
                 )}
 
                 {!loading && !error && pageRows.map((r, i) => (
-                  <tr key={r.case_id} className="hover:bg-slate-50">
+                  <tr key={r.case_id} className="h-[42px] hover:bg-slate-50">
                     {visibleCols.map((c) => (
-                      <td key={c.key} className="px-4 py-3.5 text-center font-medium">
+                      <td key={c.key} className={`px-4 py-1.5 text-center text-[12.5px] ${c.key === "organisation_name" ? "font-bold text-slate-900" : c.key === "sno" ? "font-bold text-slate-500" : "font-medium"}`}>
                         {renderCell(c, r, i)}
                       </td>
                     ))}
@@ -415,7 +444,7 @@ export default function CaseListTable({ useStore, formKey, label = "", showCaseI
           </div>
 
           {/* pagination */}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-4 py-3 text-xs text-slate-600">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-4 py-3 text-xs font-semibold text-slate-600">
             <span>
               Showing{" "}
               <b>{total === 0 ? 0 : start + 1}–{Math.min(start + pageSize, total)}</b> of <b>{total}</b>
@@ -459,6 +488,17 @@ export default function CaseListTable({ useStore, formKey, label = "", showCaseI
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={Boolean(pendingDelete)}
+        onClose={() => !deleting && setPendingDelete(null)}
+        onConfirm={confirmDelete}
+        loading={deleting}
+        title="Delete Case"
+        message={`Delete case ${pendingDelete || ""} and all related data? This cannot be undone.`}
+        confirmText="Delete"
+        loadingText="Deleting..."
+      />
     </div>
   );
 }

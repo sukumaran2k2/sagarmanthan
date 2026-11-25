@@ -63,7 +63,7 @@ const byPrefix = (prefix) => (all) =>
     .filter((r) => String(r.case_id || "").toUpperCase().startsWith(prefix))
     .sort((a, b) => String(a.case_id).localeCompare(String(b.case_id), undefined, { numeric: true }));
 
-export const useArbitrationListStore = createCaseListStore({ select: byPrefix("AR") });
+// export const useArbitrationListStore = createCaseListStore({ select: byPrefix("AR") });
 export const useConciliationListStore = createCaseListStore({ select: byPrefix("CO") });
 
 export const useLitigationListStore = createCaseListStore({
@@ -71,4 +71,9 @@ export const useLitigationListStore = createCaseListStore({
     all.filter((r) => r.case_id?.startsWith("LI")).map((r) => ({ ...r, caseType: "Litigation" })),
   hiddenByDefault: ["domain", "sub_domain", "caseType", "created_date", "updated_date"],
   errorMessage: "Failed to load litigation cases.",
+});
+
+export const useArbitrationListStore = createCaseListStore({
+  select: byPrefix("AR"),
+  hiddenByDefault: ["cnr_number", "case_number"],
 });

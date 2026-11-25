@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Pencil, Trash2, Search, Filter, ChevronDown, Copy, Check, ChevronLeft, ChevronRight, FileSpreadsheet, FileText,
+  Pencil, Trash2, Search, Filter, ChevronDown, Copy, Check, ChevronLeft, ChevronRight, FileSpreadsheet, FileText, Loader2,
 } from "lucide-react";
 import * as XLSX from "xlsx";
+import { useNotifier, toastSuccess, toastError } from "../../../utils/notify";
+import ConfirmModal from "../../../components/ConfirmModal";
 import { exportExcel, exportPdf } from "./exportHelpers";
 import { fetchAllLitigationData } from "../api";
 import { useLitigationListStore as useStore } from "../store/caseListStore";
@@ -50,8 +52,19 @@ function pageList(page, total) {
 const menuBtn =
   "flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50";
 
-export default function LitigationList() {
+export default function LitigationList({ triggerNotification }) {
   const navigate = useNavigate();
+  const notifier = useNotifier(triggerNotification);
+  const notify = (type, message, title) => {
+    try {
+      if (typeof triggerNotification === "function") {
+        return notifier(type === "success" ? toastSuccess(title, message) : toastError(title, message));
+      }
+    } catch (err) {
+      console.error("notifier failed:", err);
+    }
+    alert(`${title}: ${message}`);
+  };
   const userID = getCurrentUserId();
   const { roleID, organisationID } = getSessionOrganisationId();
 
@@ -76,6 +89,7 @@ export default function LitigationList() {
   const [menu, setMenu] = useState(null); // "cols" | "export" | null
   const [showFilters, setShowFilters] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [exportingAll, setExportingAll] = useState(false);
   const barRef = useRef(null);
 
   useEffect(() => { load(roleID, organisationID); }, [load, roleID, organisationID]);
@@ -114,29 +128,60 @@ export default function LitigationList() {
     if (page > pages) setPage(pages);
   }, [page, pages, setPage]);
 
-  const handleDelete = async (row) => {
-    if (!window.confirm("Deleting the record will also delete the data stored. Are you sure you want to delete?")) return;
-    const ok = await deleteCase(row.case_id, row.created_by);
-    if (!ok) alert("Delete failed. Please try again later.");
+  const [pendingDelete, setPendingDelete] = useState(null); // the row
+  const [deleting, setDeleting] = useState(false);
+  const handleDelete = (row) => setPendingDelete(row);
+  const confirmDelete = async () => {
+    setDeleting(true);
+    try {
+      const ok = await deleteCase(pendingDelete.case_id, userID);
+      if (!ok) {
+        notify("error", `Case ${pendingDelete.case_id} could not be deleted. Please try again.`, "Delete Failed");
+      } else {
+        notify("success", `Case ${pendingDelete.case_id} and all its related data were deleted.`, "Case Deleted");
+        setPendingDelete(null);
+      }
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const stamp = () => new Date().toISOString().slice(0, 19).replace("T", "_").replace(/:/g, "-");
 
+  // downloads ALL litigation data from the API (separate button, top row)
   const exportAll = async () => {
     setMenu(null);
+    setExportingAll(true);
     try {
       const res = await fetchAllLitigationData(userID);
       const data = res?.data ?? res;
-      const list = Array.isArray(data) ? data : data?.data || [];
+      const raw = Array.isArray(data) ? data : data?.data || [];
+
+      // safety net: one row per case
+      const unique = [...new Map(raw.map((r) => [r["Case ID"], r])).values()];
+
+      // list total = Active + Disposed litigation cases
+      const expected = rows.filter((r) => String(r.case_id || "").startsWith("LI")).length;
+      if (expected && unique.length !== expected) {
+        console.warn(`Export has ${unique.length} rows but the list has ${expected}`);
+      }
+
       const sheet = XLSX.utils.json_to_sheet(
-        list.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, sanitizeCell(v)])))
+        unique.map((r, i) => ({
+          ...Object.fromEntries(Object.entries(r).map(([k, v]) => [k, sanitizeCell(v)])),
+          "S No": i + 1,
+        }))
       );
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, sheet, "Litigation Court Case list");
       XLSX.writeFile(wb, `Litigation Court Case list ${stamp()}.xlsx`);
+
+      notify("success", `${unique.length} cases exported.`, "Export Complete");
     } catch (e) {
       console.error("Export failed", e);
-      alert("Export failed.");
+      notify("error", "Could not export litigation data.", "Export Failed");
+    } finally {
+      setExportingAll(false);
     }
   };
 
@@ -181,7 +226,7 @@ export default function LitigationList() {
     if (c.date) return v ? String(v).slice(0, 10) : "--";
     if (c.badge)
       return (
-        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold text-white ${r.stage_id >= 1 ? "bg-blue-600" : "bg-sky-500"}`}>
+        <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold text-white ${r.stage_id >= 1 ? "bg-blue-600" : "bg-sky-500"}`}>
           {stageText(r)}
         </span>
       );
@@ -201,11 +246,27 @@ export default function LitigationList() {
 
   return (
     <div className="space-y-4">
-      <div className="inline-flex">{toggleBtn("active", "Active Cases")}{toggleBtn("completed", "Disposed Cases")}</div>
+      {/* top row: Active/Disposed toggle (left) + All Litigation Data button (right) */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="inline-flex">
+          {toggleBtn("active", "Active Cases")}
+          {toggleBtn("completed", "Disposed Cases")}
+        </div>
+
+        <button
+          type="button"
+          onClick={exportAll}
+          disabled={exportingAll}
+          className="flex h-10 items-center gap-2 rounded-lg border border-green-600 bg-green-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-green-700 disabled:opacity-60"
+        >
+          {exportingAll ? <Loader2 size={16} className="animate-spin" /> : <FileSpreadsheet size={16} />}
+          {exportingAll ? "Preparing..." : "All Litigation Data"}
+        </button>
+      </div>
 
       <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
         {/* toolbar */}
-        <div ref={barRef} className="relative flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-50 p-3">
+        <div ref={barRef} className="relative flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white p-3">
           {/* Filters toggle (panel opens below the toolbar) */}
           <button
             type="button"
@@ -273,10 +334,6 @@ export default function LitigationList() {
                     className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
                     <FileText size={16} className="text-red-500" /> Export PDF
                   </button>
-                  <button type="button" onClick={exportAll}
-                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                    <FileSpreadsheet size={16} className="text-green-600" /> All Litigation Data (.xlsx)
-                  </button>
                 </div>
               )}
             </div>
@@ -284,7 +341,7 @@ export default function LitigationList() {
         </div>
 
         {showFilters && (
-          <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-4">
             <div className="grid gap-4 md:grid-cols-2">
               {showOrgFilter && (
                 <div>
@@ -305,7 +362,7 @@ export default function LitigationList() {
                     {ACTIVE_STATUSES.map((o) => <option key={o} value={o}>{o}</option>)}
                   </select>
                 ) : (
-                  <select disabled className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 outline-none focus:border-blue-600 bg-slate-100">
+                  <select disabled className="h-10 w-full rounded-xl border border-slate-200 px-3 text-xs font-medium text-slate-700 outline-none focus:border-blue-600 bg-slate-100">
                     <option>Judgment Finalized</option>
                   </select>
                 )}
@@ -325,11 +382,11 @@ export default function LitigationList() {
             <table className="w-full text-sm">
               <thead className="bg-[#28408f] text-white">
                 <tr>
-                  <th className="w-16 px-4 py-3.5 text-center text-xs font-bold uppercase">S.No</th>
+                  <th className="w-16 px-4 py-3 text-center text-[11px] font-bold uppercase tracking-wide">S.No</th>
                   {visibleCols.map((c) => (
-                    <th key={c.key} className="whitespace-nowrap px-4 py-3.5 text-center text-xs font-bold uppercase">{c.label}</th>
+                    <th key={c.key} className="whitespace-nowrap px-4 py-3 text-center text-[11px] font-bold uppercase tracking-wide">{c.label}</th>
                   ))}
-                  <th className="w-32 px-4 py-3.5 text-center text-xs font-bold uppercase">Update</th>
+                  <th className="w-32 px-4 py-3 text-center text-[11px] font-bold uppercase tracking-wide">Update</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-800">
@@ -343,19 +400,19 @@ export default function LitigationList() {
                   <tr><td colSpan={visibleCols.length + 2} className="py-12 text-center text-slate-400">No cases found.</td></tr>
                 )}
                 {!loading && !error && pageRows.map((r, i) => (
-                  <tr key={r.case_id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3.5 text-center">{start + i + 1}</td>
+                  <tr key={r.case_id} className="h-[42px] hover:bg-slate-50">
+                    <td className="px-4 py-1.5 text-center text-[12.5px] font-bold text-slate-500">{start + i + 1}</td>
                     {visibleCols.map((c) => (
-                      <td key={c.key} className="px-4 py-3.5 text-center font-medium">{cell(r, c)}</td>
+                      <td key={c.key} className={`px-4 py-1.5 text-center text-[12.5px] ${c.key === "organisation_name" ? "font-bold text-slate-900" : "font-medium"}`}>{cell(r, c)}</td>
                     ))}
-                    <td className="px-4 py-3.5">
+                    <td className="px-4 py-1.5">
                       <div className="flex justify-center gap-2">
                         <button type="button" title="Edit"
                           onClick={() => navigate(`${BASE_PATH}/input-form/litigation?edit=${encodeURIComponent(r.case_id)}`)}
-                          className="rounded-md bg-amber-500 p-2 text-white hover:bg-amber-600"><Pencil size={14} /></button>
+                          className="rounded-md bg-amber-500 p-1.5 text-white hover:bg-amber-600"><Pencil size={14} /></button>
                         {canDelete && (
                           <button type="button" title="Delete" onClick={() => handleDelete(r)}
-                            className="rounded-md bg-red-600 p-2 text-white hover:bg-red-700"><Trash2 size={14} /></button>
+                            className="rounded-md bg-red-600 p-1.5 text-white hover:bg-red-700"><Trash2 size={14} /></button>
                         )}
                       </div>
                     </td>
@@ -366,7 +423,7 @@ export default function LitigationList() {
           </div>
 
           {/* pagination */}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-4 py-3 text-xs text-slate-600">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-4 py-3 text-xs font-semibold text-slate-600">
             <span>
               Showing <b>{total === 0 ? 0 : start + 1}–{Math.min(start + pageSize, total)}</b> of <b>{total}</b>
             </span>
@@ -395,6 +452,17 @@ export default function LitigationList() {
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={Boolean(pendingDelete)}
+        onClose={() => !deleting && setPendingDelete(null)}
+        onConfirm={confirmDelete}
+        loading={deleting}
+        title="Delete Case"
+        message={`Delete case ${pendingDelete?.case_id || ""} and all its stored data? This cannot be undone.`}
+        confirmText="Delete"
+        loadingText="Deleting..."
+      />
     </div>
   );
 }
