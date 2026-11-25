@@ -1071,107 +1071,118 @@ async function getHRAllData(req, res) {
 
 async function getHRAllEmployeeData(req, res) {
     try {
-        const roleID = parseInt(req.params.roleID, 10);
-        const organisationID = req.params.organisationID ? parseInt(req.params.organisationID, 10) : null;
+        const toId = (v) => {
+            if (v == null || ['null', 'none', 'undefined', ''].includes(String(v).trim().toLowerCase())) return null;
+            const n = Number(v);
+            return Number.isInteger(n) ? n : null;
+        };
 
-        if ((await isOrganisationRole(roleID)) && !organisationID) {
-            return res.status(400).json({ 
-                message: "OrganisationID required for organisation roles" 
-            });
+        const roleID = toId(req.params.roleID);
+        if (roleID === null) {
+            return res.status(400).json({ message: "A valid roleID is required." });
+        }
+
+        const isOrgRole = await isOrganisationRole(roleID);
+
+        const organisationID = isOrgRole
+            ? (toId(req.user?.organisationId ?? req.user?.organisation_id) ?? toId(req.params.organisationID))
+            : toId(req.params.organisationID);
+
+        if (isOrgRole && organisationID === null) {
+            return res.status(400).json({ message: "OrganisationID required for organisation roles" });
         }
 
         const conn = await pool;
-        const request = conn.request();
 
-        request.input("roleID", roleID);
-        if (organisationID) {
-            request.input("organisationID", organisationID);
-        }
+        const listReq = conn.request();
+        listReq.input("roleID", isOrgRole ? 7 : roleID);
+        if (organisationID !== null) listReq.input("orgID", organisationID);
+        const listRows = (await listReq.execute("dbo.GetEmployeeListByOrgDepPost")).recordset;
 
-        const isOrgRestricted = (await isOrganisationRole(roleID)) && organisationID;
+        if (listRows.length === 0) return res.json([]);
 
-        const orgFilterActive     = isOrgRestricted ? "AND ps.organisation_id    = @organisationID" : "";
-        const orgFilterDeputation = isOrgRestricted ? "AND lt.emp_working_org_id = @organisationID" : "";
-        const orgFilterTransfer   = isOrgRestricted ? "AND lt.emp_working_org_id = @organisationID" : "";
-        const orgFilterInactive   = isOrgRestricted ? "AND em.emp_curr_org_id    = @organisationID" : "";
+        const ids = (key) => JSON.stringify([...new Set(listRows.map((r) => r[key]).filter((v) => v != null).map(String))]);
 
-        const query = `
-        WITH LatestTransaction AS (
-            SELECT *,
-                ROW_NUMBER() OVER (
-                    PARTITION BY emp_master_id
-                    ORDER BY TRY_CONVERT(DATE, employee_joining_date) DESC
-                ) AS tx_rn
-            FROM tbl_employee_transaction_details
-        ),
-        EmployeeStatus AS (
-            SELECT
-                em.emp_reference_id AS [REFERENCE NUMBER / PERSONNEL NUMBER],
+        const [people, tx] = await Promise.all([
+            conn.request().input("ids", ids("emp_master_id")).query(`
+                SELECT em.emp_master_id,
+                       em.emp_gender                                     AS gender,
+                       TRY_CONVERT(DATE, em.emp_dob)                     AS dob,
+                       TRY_CONVERT(DATE, em.emp_dor)                     AS dor,
+                       em.emp_aadhar_number                              AS aadhar,
+                       em.emp_religion                                   AS religion,
+                       em.emp_ethnic_origin                              AS ethnic_origin,
+                       em.emp_disability                                 AS pwbd,
+                       s.state_name                                      AS domicile_state,
+                       COALESCE(mmo.organisation_name, 'Others')         AS parent_org,
+                       TRY_CONVERT(DATE, em.emp_parent_org_joined_date)  AS initial_joining,
+                       CASE WHEN em.ex_service_or_not = 1 THEN 'YES' ELSE 'NO' END AS ex_service,
+                       ps.vacant_or_filled                               AS vacant_or_filled,
+                       TRY_CONVERT(DATE, ps.date_of_arise_in_vacancy)    AS date_of_arise
+                FROM tbl_employee_master em WITH (NOLOCK)
+                LEFT JOIN mmt_state s          ON s.state_id = em.emp_domicile_state
+                LEFT JOIN mmt_organisation mmo ON mmo.organisation_id = em.emp_parent_org_id
+                OUTER APPLY (                       -- one post-strength row per employee, a filled one first
+                    SELECT TOP 1 p.vacant_or_filled, p.date_of_arise_in_vacancy
+                    FROM tbl_hr_post_strength p
+                    WHERE p.emp_master_id = em.emp_master_id
+                    ORDER BY CASE WHEN p.vacant_or_filled = 'filled' THEN 0 ELSE 1 END
+                ) ps
+                WHERE CAST(em.emp_master_id AS NVARCHAR(50)) IN (SELECT [value] FROM OPENJSON(@ids))`),
+            conn.request().input("ids", ids("transaction_id")).query(`
+                SELECT t.transaction_id,
+                       t.emp_department_name                             AS department,
+                       t.emp_post_name                                   AS post_name,
+                       t.emp_post_code                                   AS post_code,
+                       c.class                                           AS class,
+                       t.method_of_appointment                           AS method_of_appointment,
+                       TRY_CONVERT(DATE, t.employee_joining_date)        AS joining_date,
+                       TRY_CONVERT(DATE, t.emp_post_end_date)            AS post_end_date
+                FROM tbl_employee_transaction_details t WITH (NOLOCK)
+                LEFT JOIN mmt_hr_post po ON po.post_id  = t.emp_post_id
+                LEFT JOIN mmt_class c    ON c.class_id  = po.class_id
+                WHERE CAST(t.transaction_id AS NVARCHAR(50)) IN (SELECT [value] FROM OPENJSON(@ids))`)
+        ]);
 
-                CASE
-                    WHEN LTRIM(RTRIM(lt.activity_name)) = 'Deputation Out' THEN 'DEPUTED'
-                    WHEN LTRIM(RTRIM(lt.activity_name)) = 'Transfer Out'   THEN 'TRANSFERRED OUT'
-                    WHEN ps.vacant_or_filled = 'filled'                    THEN 'ACTIVE'
-                    ELSE 'INACTIVE'
-                END AS [EMPLOYEE STATUS],
+        const personById = new Map(people.recordset.map((p) => [String(p.emp_master_id), p]));
+        const txById     = new Map(tx.recordset.map((t) => [String(t.transaction_id), t]));
+        const text = (...vals) => vals.find((v) => v != null && String(v).trim() !== '') ?? null;
 
-                lt.employee_id                                             AS [EMPLOYEE ID],
-                em.emp_name                                                AS [EMPLOYEE NAME],
-                em.emp_gender                                              AS [GENDER],
-                TRY_CONVERT(DATE, em.emp_dob)                             AS [DATE OF BIRTH],
-                TRY_CONVERT(DATE, em.emp_dor)                             AS [DATE OF RETIREMENT],
-                em.emp_aadhar_number                                       AS [AADHAR NUMBER],
-                em.emp_religion                                            AS [RELIGION],
-                em.emp_ethnic_origin                                       AS [ETHNIC ORIGIN],
-                em.emp_disability                                          AS [WHETHER PWBD],
-                s.state_name                                               AS [DOMICILE STATE],
-                COALESCE(mmo.organisation_name, 'Others')                 AS [PARENT ORGANISATION],
-                TRY_CONVERT(DATE, em.emp_parent_org_joined_date)          AS [INITIAL DATE OF JOINING PORT SERVICE],
-                CASE 
-                    WHEN em.ex_service_or_not = 1 THEN 'YES' 
-                    ELSE 'NO' 
-                END AS [WHETHER EX-SERVICE PERSONNEL],
-
-                CASE WHEN ps.emp_master_id IS NULL THEN NULL ELSE ISNULL(lt.emp_department_name, '') END AS [DEPARTMENT],
-                CASE WHEN ps.emp_master_id IS NULL THEN NULL ELSE ISNULL(lt.emp_post_name, '')       END AS [POST NAME],
-                CASE WHEN ps.emp_master_id IS NULL THEN NULL ELSE ISNULL(lt.emp_post_code, '')       END AS [POST CODE],
-                CASE WHEN ps.emp_master_id IS NULL THEN NULL ELSE cls.class                          END AS [CLASS],
-                CASE WHEN ps.emp_master_id IS NULL THEN NULL ELSE ps.vacant_or_filled                END AS [VACANT OR FILLED],
-                CASE WHEN ps.emp_master_id IS NULL THEN NULL ELSE lt.method_of_appointment           END AS [METHOD OF APPOINTMENT],
-                CASE WHEN ps.emp_master_id IS NULL THEN NULL ELSE TRY_CONVERT(DATE, ps.date_of_arise_in_vacancy) END AS [DATE OF ARISE IN VACANCY],
-                CASE WHEN ps.emp_master_id IS NULL THEN NULL ELSE TRY_CONVERT(DATE, lt.employee_joining_date)    END AS [EMPLOYEE JOINING DATE],
-                CASE WHEN ps.emp_master_id IS NULL THEN NULL ELSE TRY_CONVERT(DATE, lt.emp_post_end_date)        END AS [POST END DATE]
-
-            FROM tbl_employee_master em
-
-            LEFT JOIN LatestTransaction lt ON em.emp_master_id = lt.emp_master_id AND lt.tx_rn = 1
-            LEFT JOIN tbl_hr_post_strength ps ON em.emp_master_id = ps.emp_master_id
-            LEFT JOIN mmt_hr_post po       ON ps.post_id          = po.post_id
-            LEFT JOIN mmt_class cls        ON po.class_id         = cls.class_id
-            LEFT JOIN mmt_state s          ON em.emp_domicile_state = s.state_id
-            LEFT JOIN mmt_organisation mmo ON em.emp_parent_org_id = mmo.organisation_id
-
-            WHERE (
-                (ps.vacant_or_filled = 'filled' ${orgFilterActive})
-                OR (LTRIM(RTRIM(lt.activity_name)) = 'Deputation Out' ${orgFilterDeputation})
-                OR ( LTRIM(RTRIM(lt.activity_name)) = 'Transfer Out' ${orgFilterTransfer})
-                OR( ps.emp_master_id IS NULL ${orgFilterInactive}) 
-            )
-        )
-        SELECT *
-        FROM EmployeeStatus
-        ORDER BY [REFERENCE NUMBER / PERSONNEL NUMBER];
-        `;
-
-        const result = await request.query(query);
-        res.json(result.recordset);
+        // column order = employee details first, then post details
+        res.json(listRows.map((r) => {
+            const p = personById.get(String(r.emp_master_id)) || {};
+            const t = txById.get(String(r.transaction_id)) || {};
+            return {
+                "REFERENCE NUMBER / PERSONNEL NUMBER":    r.emp_reference_id,
+                "EMPLOYEE STATUS":                        r.working_status,
+                "EMPLOYEE ID":                            r.employee_id,
+                "EMPLOYEE NAME":                          r.emp_name,
+                "GENDER":                                 p.gender,
+                "DATE OF BIRTH":                          p.dob,
+                "DATE OF RETIREMENT":                     p.dor,
+                "AADHAR NUMBER":                          p.aadhar,
+                "RELIGION":                               p.religion,
+                "ETHNIC ORIGIN":                          p.ethnic_origin,
+                "WHETHER PWBD":                           p.pwbd,
+                "DOMICILE STATE":                         p.domicile_state,
+                "PARENT ORGANISATION":                    p.parent_org,
+                "INITIAL DATE OF JOINING PORT SERVICE":   p.initial_joining,
+                "WHETHER EX-SERVICE PERSONNEL":           p.ex_service,
+                "DEPARTMENT":                             text(r.emp_department_name, t.department),
+                "POST NAME":                              text(r.emp_post_name, t.post_name),
+                "POST CODE":                              t.post_code,
+                "CLASS":                                  text(r.class, t.class),
+                "VACANT OR FILLED":                       p.vacant_or_filled,
+                "METHOD OF APPOINTMENT":                  t.method_of_appointment,
+                "DATE OF ARISE IN VACANCY":               p.date_of_arise,
+                "EMPLOYEE JOINING DATE":                  t.joining_date,
+                "POST END DATE":                          t.post_end_date,
+            };
+        }));
 
     } catch (err) {
-        console.error(err);
-        return res.status(500).json({ 
-            message: "Internal Server Error", 
-            error: err 
-        });
+        console.error("getHRAllEmployeeData failed:", err);
+        return res.status(500).json({ message: "Internal Server Error" });
     }
 }
 
