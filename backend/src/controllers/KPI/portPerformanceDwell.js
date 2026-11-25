@@ -23,6 +23,7 @@ import {
     DWELL_MAX_FILE_BYTES,
     DWELL_VALUE_KEYS,
     OVERALL_ROW_KEY,
+    SMPA_GROUP_ORG_ID,
     TOTAL_SMPA_ROW_KEY,
     buildDwellTemplate,
     buildRowSlots,
@@ -238,6 +239,7 @@ async function getDwellPeriods(req, res) {
             WITH periods AS (
                 SELECT d.fiscal_year, d.month,
                        SUM(CASE WHEN d.organisation_id IS NOT NULL
+                                 AND d.organisation_id <> ${SMPA_GROUP_ORG_ID}
                                  AND (${DWELL_VALUE_KEYS.map((k) => `d.${k} IS NOT NULL`).join(" OR ")})
                                 THEN 1 ELSE 0 END) AS ports_with_data,
                        MAX(CASE WHEN d.is_overall = 1 THEN d.monthly_import END) AS monthly_import,

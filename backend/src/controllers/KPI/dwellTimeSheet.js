@@ -38,6 +38,9 @@ export const OVERALL_ROW_KEY = "overall";
 export const OVERALL_ROW_LABEL = "All Major Ports (Overall)";
 export const TOTAL_SMPA_ROW_KEY = "total-smpa";
 export const TOTAL_SMPA_ROW_LABEL = "SMPA Overall";
+// Syama Prasad Mookerjee Port is the SMPA group: the sheet carries it as its two docks
+// (Kolkata, Haldia) and the "SMPA Overall" row, so it has no row of its own.
+export const SMPA_GROUP_ORG_ID = 4;
 
 // Rounding of the overall figure in the sheet may put it a hair outside import..export
 const OVERALL_TOLERANCE = 0.01;
@@ -127,12 +130,13 @@ export function parseRowValues(rawValues) {
 // ---------------------------------------------------------------------------
 
 /**
- * Row slots the sheet must fill: every major port, SMPA Overall and All Major Ports.
+ * Row slots the sheet must fill: every major port (except the SMPA group, see
+ * SMPA_GROUP_ORG_ID), SMPA Overall and All Major Ports.
  * ports: [{ organisation_id, organisation_name }] (major ports, in sheet order).
  */
 export function buildRowSlots(ports) {
     return [
-        ...ports.map((p) => ({ rowKey: `org-${p.organisation_id}`, organisationId: p.organisation_id, label: p.organisation_name })),
+        ...ports.filter((p) => Number(p.organisation_id) !== SMPA_GROUP_ORG_ID).map((p) => ({ rowKey: `org-${p.organisation_id}`, organisationId: p.organisation_id, label: p.organisation_name })),
         { rowKey: TOTAL_SMPA_ROW_KEY, organisationId: null, label: TOTAL_SMPA_ROW_LABEL },
         { rowKey: OVERALL_ROW_KEY, organisationId: null, label: OVERALL_ROW_LABEL },
     ];
@@ -230,6 +234,10 @@ export function parseDwellSheet(buffer, { fiscalYear, month, ports }) {
 
     // Port rows
     const slots = buildRowSlots(ports);
+    // Older templates still have a Syama Prasad Mookerjee Port row: skipped, not an error
+    const smpaGroupKeys = new Set(ports
+        .filter((p) => Number(p.organisation_id) === SMPA_GROUP_ORG_ID)
+        .map((p) => matchKey(p.organisation_name)));
     const filled = new Map(); // rowKey -> { values, sheetRow }
     for (let i = headerIndex + 1; i < cells.length; i += 1) {
         const line = cells[i];
@@ -242,6 +250,7 @@ export function parseDwellSheet(buffer, { fiscalYear, month, ports }) {
             continue;
         }
 
+        if (smpaGroupKeys.has(matchKey(portCell))) continue;
         const slot = resolveSlot(portCell, slots);
         if (!slot) {
             addError(sheetRow, "Port", `"${portCell}" is not a major port of the template. Keep the port names as in the template.`);
