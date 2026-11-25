@@ -412,6 +412,8 @@ export default function GEMProcurementView({
     if (activeTab !== 'total') {
       allDefs.push({
         headerName: 'Last Updated Date',
+        // Hidden at first; shown when ticked in Visibility
+        initialHide: true,
         flex: 1.4,
         minWidth: 150,
         ...getWrapColumnProps('text-slate-600 font-semibold text-center'),
