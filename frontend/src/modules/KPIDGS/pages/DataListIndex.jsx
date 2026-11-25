@@ -135,77 +135,95 @@ export default function DataListIndex({ triggerNotification }) {
   const [refreshTick, setRefreshTick] = useState(0);
   const refresh = useCallback(() => setRefreshTick((t) => t + 1), []);
 
-  const deleteKpi2_6_1 = useCallback(async (row) => {
+  // Pending delete opens the overlay confirm; its `run` is awaited when the user confirms.
+  // Each delete handler below sets this, and the confirm button calls `run()` via the modal.
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const askDelete = useCallback((spec) => setPendingDelete(spec), []);
+  const closeDeleteModal = useCallback(() => {
+    if (deleting) return;
+    setPendingDelete(null);
+  }, [deleting]);
+  const confirmDelete = useCallback(async () => {
+    if (!pendingDelete || deleting) return;
+    setDeleting(true);
+    try {
+      await pendingDelete.run();
+      notify(DGS_TOASTS.deleted(pendingDelete.section, pendingDelete.label));
+      refresh();
+      setPendingDelete(null);
+    } catch (err) {
+      console.error(`Delete ${pendingDelete.section} failed:`, err);
+      notify(DGS_TOASTS.deleteFailed(getErrorMessage(err)));
+    } finally {
+      setDeleting(false);
+    }
+  }, [pendingDelete, deleting, notify, refresh]);
+
+  const deleteKpi2_6_1 = useCallback((row) => {
     const { mmd_year, mmd_month, mmd_id, mmd_name } = row || {};
     if (mmd_year == null || mmd_month == null || mmd_id == null) {
       notify(DGS_TOASTS.deleteFailed('Missing row identifiers.'));
       return;
     }
     const label = `${mmd_name || 'this MMD'} — ${monthName(mmd_month)} ${mmd_year}`;
-    if (!window.confirm(`Delete the Flag State Inspection entry for ${label}?`)) return;
-    try {
-      await api.deleteKpi2_6_1(mmd_year, mmd_month, mmd_id);
-      notify(DGS_TOASTS.deleted('Flag State Inspection - MMD Wise', label));
-      refresh();
-    } catch (err) {
-      console.error('Delete K-2.6.1 failed:', err);
-      notify(DGS_TOASTS.deleteFailed(getErrorMessage(err)));
-    }
-  }, [notify, refresh]);
+    askDelete({
+      title: 'Delete Flag State Inspection entry?',
+      message: `This will permanently remove the Flag State Inspection entry for ${label}. This action cannot be undone.`,
+      section: 'Flag State Inspection - MMD Wise',
+      label,
+      run: () => api.deleteKpi2_6_1(mmd_year, mmd_month, mmd_id),
+    });
+  }, [notify, askDelete]);
 
-  const deleteKpi2_6_2 = useCallback(async (row) => {
+  const deleteKpi2_6_2 = useCallback((row) => {
     const { year, month } = row || {};
     if (year == null || month == null) {
       notify(DGS_TOASTS.deleteFailed('Missing row identifiers.'));
       return;
     }
     const label = `${monthName(month)} ${year}`;
-    if (!window.confirm(`Delete the Flag State Inspection & GI Performance entry for ${label}? This removes all ship-type rows for the month.`)) return;
-    try {
-      await api.deleteKpi2_6_2(year, month);
-      notify(DGS_TOASTS.deleted('Flag State Inspection - Vessel Wise', label));
-      refresh();
-    } catch (err) {
-      console.error('Delete K-2.6.2 failed:', err);
-      notify(DGS_TOASTS.deleteFailed(getErrorMessage(err)));
-    }
-  }, [notify, refresh]);
+    askDelete({
+      title: 'Delete Flag State Inspection entry?',
+      message: `This will remove every ship-type row recorded for ${label} under Flag State Inspection & GI Performance. This action cannot be undone.`,
+      section: 'Flag State Inspection - Vessel Wise',
+      label,
+      run: () => api.deleteKpi2_6_2(year, month),
+    });
+  }, [notify, askDelete]);
 
-  const deleteKpi2_7_1 = useCallback(async (row) => {
+  const deleteKpi2_7_1 = useCallback((row) => {
     const { mmd_year, mmd_month, mmd_id, mmd_name } = row || {};
     if (mmd_year == null || mmd_month == null || mmd_id == null) {
       notify(DGS_TOASTS.deleteFailed('Missing row identifiers.'));
       return;
     }
     const label = `${mmd_name || 'this MMD'} — ${monthName(mmd_month)} ${mmd_year}`;
-    if (!window.confirm(`Delete the Port State Inspection entry for ${label}?`)) return;
-    try {
-      await api.deleteKpi2_7_1(mmd_year, mmd_month, mmd_id);
-      notify(DGS_TOASTS.deleted('Port State Inspection - MMD Wise', label));
-      refresh();
-    } catch (err) {
-      console.error('Delete K-2.7.1 failed:', err);
-      notify(DGS_TOASTS.deleteFailed(getErrorMessage(err)));
-    }
-  }, [notify, refresh]);
+    askDelete({
+      title: 'Delete Port State Inspection entry?',
+      message: `This will permanently remove the Port State Inspection entry for ${label}. This action cannot be undone.`,
+      section: 'Port State Inspection - MMD Wise',
+      label,
+      run: () => api.deleteKpi2_7_1(mmd_year, mmd_month, mmd_id),
+    });
+  }, [notify, askDelete]);
 
-  const deleteKpi2_7_2 = useCallback(async (row) => {
+  const deleteKpi2_7_2 = useCallback((row) => {
     const { year, month } = row || {};
     if (year == null || month == null) {
       notify(DGS_TOASTS.deleteFailed('Missing row identifiers.'));
       return;
     }
     const label = `${monthName(month)} ${year}`;
-    if (!window.confirm(`Delete the Port State Inspection & GI Performance entry for ${label}? This removes all ship-type rows for the month.`)) return;
-    try {
-      await api.deleteKpi2_7_2(year, month);
-      notify(DGS_TOASTS.deleted('Port State Inspection - Vessel Wise', label));
-      refresh();
-    } catch (err) {
-      console.error('Delete K-2.7.2 failed:', err);
-      notify(DGS_TOASTS.deleteFailed(getErrorMessage(err)));
-    }
-  }, [notify, refresh]);
+    askDelete({
+      title: 'Delete Port State Inspection entry?',
+      message: `This will remove every ship-type row recorded for ${label} under Port State Control (PSC) Performance. This action cannot be undone.`,
+      section: 'Port State Inspection - Vessel Wise',
+      label,
+      run: () => api.deleteKpi2_7_2(year, month),
+    });
+  }, [notify, askDelete]);
 
   // Sections with their own columns (labels, formatting, Update / Delete actions); others infer columns.
   // Update opens the section's input form with the row's keys as query params.
@@ -253,7 +271,16 @@ export default function DataListIndex({ triggerNotification }) {
   }, [navigate, canEdit, canRemove, deleteKpi2_6_1, deleteKpi2_6_2, deleteKpi2_7_1, deleteKpi2_7_2]);
 
   return (
-    <IndexCardGrid
+    <>
+      <ConfirmDeleteModal
+        open={!!pendingDelete}
+        title={pendingDelete?.title}
+        message={pendingDelete?.message}
+        busy={deleting}
+        onConfirm={confirmDelete}
+        onCancel={closeDeleteModal}
+      />
+      <IndexCardGrid
       title="Data List"
       subtitle="Pick a section to view its saved entries on the right."
       rows={INPUT_FORM_INDEX}
@@ -297,5 +324,6 @@ export default function DataListIndex({ triggerNotification }) {
           : <GenericReportPage key={key} {...pageProps} />;
       }}
     />
+    </>
   );
 }

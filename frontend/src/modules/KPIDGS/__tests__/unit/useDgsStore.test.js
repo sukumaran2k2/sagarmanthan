@@ -10,12 +10,14 @@ describe('KPI DGS store', () => {
     resetAllStores();
   });
 
-  it('has one empty list slot per stored section (K-2.3.1, K-2.3.2, K-2.6.1 and K-2.6.2)', () => {
+  it('has one empty list slot per stored section (K-2.3.1, K-2.3.2, K-2.6.1, K-2.6.2, K-2.7.1 and K-2.7.2)', () => {
     expect(DGS_STORED_LIST_SLUGS).toEqual([
       'exam-monthly-performance',
       'exam-overall-performance',
       'flag-state-inspection-mmd-wise',
       'flag-state-inspection-vessel-wise',
+      'port-state-inspection-mmd-wise',
+      'port-state-inspection-vessel-wise',
     ]);
     DGS_STORED_LIST_SLUGS.forEach((slug) => {
       expect(state().lists[slug]).toEqual({
