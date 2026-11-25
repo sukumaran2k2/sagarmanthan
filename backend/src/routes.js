@@ -770,19 +770,18 @@ router.post("/add-litigation-petitioner-and-respondent",litigationCourtCaseTab.a
 router.get("/get-litigation-petitioner-and-respondent/:caseID",litigationCourtCaseTab.getLitigationPetitionerAndRespondent);
 router.get("/check-case-number-exists/:organisationID/:caseNumber",litigationCourtCaseTab.checkCaseNumberExists);
 
-router.get("/litigation-domain-report", litigationCourtCaseTab.getLitigaitonDomainReport);
-router.get("/litigation-subdomain-report", litigationCourtCaseTab.getLitigaitonSubDomainReport);
-router.get("/litigation-domain-subdomain-report", litigationCourtCaseTab.getLitigaitonDomainAndSubDomainReport);
-router.get("/litigation-portwise-pendency-report", litigationCourtCaseTab.getLitigaitonPendencyPortWiseReport);
-router.get("/litigation-domainwise-pendency-report", litigationCourtCaseTab.getLitigaitonPendencyDomainWiseReport);
+router.get("/litigation-domain-report/:userID", litigationCourtCaseTab.getLitigationDomainReport);
+router.get("/litigation-subdomain-report/:userID", litigationCourtCaseTab.getLitigationSubDomainReport);
+router.get("/litigation-domain-subdomain-report/:userID", litigationCourtCaseTab.getLitigationDomainAndSubDomainReport);
+router.get("/litigation-portwise-pendency-report/:userID", litigationCourtCaseTab.getLitigationPendencyPortWiseReport);
+router.get("/litigation-domainwise-pendency-report/:userID", litigationCourtCaseTab.getLitigationPendencyDomainWiseReport);
 
 
-router.get("/litigation-domain-report-by-other-org", litigationCourtCaseTab.getLitigaitonDomainByOtherOrgReport);
-router.get("/litigation-sub-domain-report-by-other-org", litigationCourtCaseTab.getLitigaitonSubDomainByOtherOrgReport);
-router.get("/litigation-domain-subdomain-report-by-other-org", litigationCourtCaseTab.getLitigaitonDomainAndSubDomainByOtherOrgReport);
-router.get("/litigation-other-org-portwise-pendency-report", litigationCourtCaseTab.getLitigaitonPendencyOtherOrgWiseReport);
-router.get("/litigation-other-org-domainwise-pendency-report", litigationCourtCaseTab.getLitigaitonPendencyDomainWiseOtherOrgReport);
-// router.get("/litigation-domainwise-pendency-other-org-report", litigationCourtCaseTab.getLitigaitonPendencyDomainWiseOtherOrgReport);
+router.get("/litigation-domain-report-by-other-org/:userID", litigationCourtCaseTab.getLitigationDomainByOtherOrgReport);
+router.get("/litigation-sub-domain-report-by-other-org/:userID", litigationCourtCaseTab.getLitigationSubDomainByOtherOrgReport);
+router.get("/litigation-domain-subdomain-report-by-other-org/:userID", litigationCourtCaseTab.getLitigationDomainAndSubDomainByOtherOrgReport);
+router.get("/litigation-other-org-portwise-pendency-report/:userID", litigationCourtCaseTab.getLitigatonPendencyOtherOrgWiseReport);
+router.get("/litigation-other-org-domainwise-pendency-report/:userID", litigationCourtCaseTab.getLitigatonPendencyDomainWiseOtherOrgReport);
 
 router.get("/get-court-case-data-by-id/:caseType/:caseID", arbitCourtCaseTab.getCourtCaseDataByID);
 router.get("/get-sub-table-court-case-data/:typeName/:caseID", arbitCourtCaseTab.getSubTableCourtCaseData);

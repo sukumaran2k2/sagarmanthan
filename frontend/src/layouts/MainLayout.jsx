@@ -122,9 +122,15 @@ export const ROUTE_MAP = {
   'GEM Procurements': 'governance/gem-procurements/total',
 
   // Legal nested routes
-  'Courtcases': 'legal/courtcases',
+  'Court cases': 'legal/court-cases',
+  'Court cases - Arbitration': 'legal/court-cases/arbitration',
+  'Court cases - Litigation': 'legal/court-cases/litigation',
+  'Court cases - Conciliation': 'legal/court-cases/conciliation',
+  'Court cases - Input Form': 'legal/court-cases/input-form',
+  'Court cases - Reports': 'legal/court-cases/reports',
   'Bills/PreConstitutions Act': 'legal/acts-rules',
   'Acts & Rules': 'legal/acts-and-rules',
+
 
   // Strategies nested routes
   'MIV 2030': 'strategies/miv-2030/dashboard',
@@ -428,7 +434,10 @@ const getBreadcrumbs = (tab) => {
   const nmpItems = ['National Monetisation Pipeline', 'NMP Dashboard', 'NMP Data List', 'NMP Input Form'];
   if (nmpItems.includes(tab)) return ['Home', 'Finance', 'National Monetisation Pipeline', tab === 'National Monetisation Pipeline' ? 'Dashboard' : tab];
 
-  const legalItems = ['Courtcases', 'Bills/PreConstitutions Act', 'Acts & Rules'];
+  const courtCaseSubItems = ['Court cases - Arbitration', 'Court cases - Litigation', 'Court cases - Conciliation', 'Court cases - Input Form', 'Court cases - Reports'];
+  if (courtCaseSubItems.includes(tab)) return ['Home', 'Legal', 'Court cases', tab.replace('Court cases - ', '')];
+
+  const legalItems = ['Court cases', 'Bills/PreConstitutions Act', 'Acts & Rules'];
   if (legalItems.includes(tab)) return ['Home', 'Legal', tab];
 
   const mivItems = ['MIV 2030', 'MIV Dashboard', 'MIV Data List', 'MIV Input Form', 'MIV Meetings', 'MIV Reports', 'MIV Report', 'MIV Org Report', 'MIV Theme Report', 'Organisation Report', 'Theme Report'];

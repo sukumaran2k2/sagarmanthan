@@ -287,7 +287,22 @@ export const MODULE_PAGES = {
   },
 
   COURT_CASES: {
-    tabs: ['Courtcases'],
+    tabs: [
+      'Court cases',
+      'Court cases - Arbitration',
+      'Court cases - Litigation',
+      'Court cases - Conciliation',
+      'Court cases - Input Form',
+      'Court cases - Reports',
+    ],
+    uiTabs: [
+      'Court cases',
+      'Court cases - Arbitration',
+      'Court cases - Litigation',
+      'Court cases - Conciliation',
+      'Court cases - Input Form',
+      'Court cases - Reports',
+    ],
   },
 
   BILLS_PRE_CONSTITUTION: {
