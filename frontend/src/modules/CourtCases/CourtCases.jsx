@@ -1,6 +1,6 @@
 import React from "react";
-import { Routes, Route, Navigate, Link, useLocation, useNavigate } from "react-router-dom";
-import { Home, ChevronRight, Handshake, Gavel, Users, FileEdit, FilePieChart } from "lucide-react";
+import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Handshake, Gavel, Users, FileEdit, FilePieChart } from "lucide-react";
 
 import ArbitrationList from "./pages/ArbitrationList";
 import LitigationList from "./pages/LitigationList";
@@ -30,11 +30,11 @@ const FORM_TABS = [
 ];
 
 const TITLES = {
-  arbitration: "Arbitration Cases",
-  litigation: "Litigation Cases",
-  conciliation: "Conciliation Cases",
+  arbitration: "",
+  litigation: "",
+  conciliation: "",
   "input-form": "Input Forms",
-  reports: "Reports",
+  reports: "",
 };
 
 const TabButton = ({ active, onClick, icon: Icon, label }) => (
@@ -47,22 +47,6 @@ const TabButton = ({ active, onClick, icon: Icon, label }) => (
     <Icon size={16} /> {label}
   </button>
 );
-
-function Breadcrumb({ items }) {
-  return (
-    <nav className="mb-6 inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-500 shadow-sm">
-      <Link to="/" className="hover:text-[#0f3d7a]"><Home size={16} /></Link>
-      {items.map((it, i) => (
-        <React.Fragment key={it.label}>
-          <ChevronRight size={14} className="text-slate-300" />
-          {i === items.length - 1
-            ? <span className="font-bold text-[#0f3d7a]">{it.label}</span>
-            : <Link to={it.to} className="hover:text-[#0f3d7a]">{it.label}</Link>}
-        </React.Fragment>
-      ))}
-    </nav>
-  );
-}
 
 function InputFormPage({ triggerNotification }) {
   const navigate = useNavigate();
@@ -101,14 +85,6 @@ export default function CourtCases({ triggerNotification }) {
 
   return (
     <div className="p-6">
-      <Breadcrumb
-        items={[
-          { label: "Legal", to: BASE_PATH },
-          { label: "Court Cases", to: BASE_PATH },
-          { label: TITLES[section] || "Arbitration Cases" },
-        ]}
-      />
-
       <div className="mb-6 flex flex-wrap items-center justify-between gap-6 border-b border-slate-200 pb-5">
         <div className="max-w-xl">
           <h1 className="text-2xl font-extrabold uppercase tracking-wide text-[#0f3d7a]">Court Cases</h1>
