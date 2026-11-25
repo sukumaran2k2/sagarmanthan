@@ -120,13 +120,8 @@ const toggleableCols = [
   const organisationId = getSessionOrganisationId() || 0;
 
   useEffect(() => {
-  loadMetadata();
-}, [loadMetadata]);
-useEffect(() => {
-  console.log('FV STAGE MASTER:', stages);
-  console.log('FV VISIT TYPE MASTER:', visitTypes);
-}, [stages, visitTypes]);
-
+    loadMetadata();
+  }, [loadMetadata]);
 
   useEffect(() => {
     let cancelled = false;
@@ -439,7 +434,7 @@ const yearOptions = useMemo(
       ),
     },
     {
-      headerName: 'Last Updaetd Date', field: 'updated_date',
+      headerName: 'Last Updated Date', field: 'updated_date',
       width: 220, minWidth: 180, wrapText: true, autoHeight: true,
       hide: !visibleCols.lastUpdatedDate,
       cellClass: 'flex items-center font-semibold text-slate-800 dark:text-slate-100 py-2 border-r border-slate-100 dark:border-slate-800 whitespace-normal',

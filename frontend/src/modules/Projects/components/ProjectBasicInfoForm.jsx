@@ -177,7 +177,6 @@ function toInputDate(...values) {
 function getInitialForm(initialData) {
   if (!initialData) return { ...EMPTY_FORM };
   const raw = initialData.raw || {};
-console.log(raw, "raw")
   const projectID = initialData.projectId || initialData.projectID || raw.project_id || '';
   const rawSubId =
     initialData.subProjectId ||

@@ -438,7 +438,8 @@ export default function App() {
     />
   }
 />
-            <Route path="projects/project/drop-requests" element={
+            {/* Canonical drop-request route. All other spellings redirect here. */}
+            <Route path="projects/project/view-drop-request" element={
               <Projects
                 projects={projects}
                 onAddProject={handleAddProject}
@@ -446,22 +447,9 @@ export default function App() {
                 triggerNotification={triggerNotification}
               />
             } />
-            <Route path="projects/view-drop-request" element={
-              <Projects
-                projects={projects}
-                onAddProject={handleAddProject}
-                onAddSubProject={handleAddSubProject}
-                triggerNotification={triggerNotification}
-              />
-            } />
-            <Route path="projects/drop-requests" element={
-              <Projects
-                projects={projects}
-                onAddProject={handleAddProject}
-                onAddSubProject={handleAddSubProject}
-                triggerNotification={triggerNotification}
-              />
-            } />
+            <Route path="projects/project/drop-requests" element={<Navigate to="/projects/project/view-drop-request" replace />} />
+            <Route path="projects/view-drop-request" element={<Navigate to="/projects/project/view-drop-request" replace />} />
+            <Route path="projects/drop-requests" element={<Navigate to="/projects/project/view-drop-request" replace />} />
 
             <Route path="projects/project/reports" element={
               <Projects

@@ -80,15 +80,11 @@ export default function Reports({ triggerNotification }) {
 
   const set = (field) => (e) => {
     const value = e.target.value;
-
-    setFilters((prev) => {
-      const updated = { ...prev, [field]: value };
-
-      // Automatically run report when a filter changes
-      runReportWith(updated);
-
-      return updated;
-    });
+    const updated = { ...filters, [field]: value };
+    setFilters(updated);
+    // Automatically run report when a filter changes. Kept out of the
+    // setState updater so the updater stays pure (StrictMode runs it twice).
+    runReportWith(updated);
   };
 
   const handleDownload = useCallback(async (fileName) => {
