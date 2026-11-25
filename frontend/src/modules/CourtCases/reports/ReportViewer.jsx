@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { AgGridReact } from "ag-grid-react";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-quartz.css";
@@ -47,7 +47,7 @@ function decorate(defs, drill, go) {
     if (c.children) return { ...c, children: decorate(c.children, drill, go) };
     const d = { ...c };
     if (HIDE.has(d.field)) d.hide = true;
-    if (isSNo(d.headerName)) { d.width = 80; d.flex = 0; d.pinned = "left"; }
+    if (isSNo(d.headerName)) { d.width = 70; d.minWidth = 70; d.flex = 0; d.pinned = "left"; }
     if (drill?.[d.field]) {
       d.cellRenderer = (p) => {
         if (p.node.rowPinned || p.value === null || p.value === undefined || p.value === "") return p.value ?? "";
@@ -61,6 +61,32 @@ function decorate(defs, drill, go) {
     }
     return d;
   });
+}
+
+// reports whose API does not send an S.No column get one added automatically
+const SNO_COL = {
+  headerName: "S.No",
+  colId: "__sno",
+  width: 70, minWidth: 70, maxWidth: 90, flex: 0,
+  pinned: "left",
+  sortable: false, filter: false, suppressMovable: true,
+  valueGetter: (p) => (p.node?.rowPinned || p.node?.rowIndex == null ? "" : p.node.rowIndex + 1),
+};
+const hasSNo = (defs) =>
+  defs.some((c) => (c.children ? hasSNo(c.children) : isSNo(c.headerName)));
+
+// gives the first data column (organisation / domain name) more room so names do not wrap
+function widenFirst(defs) {
+  let done = false;
+  const walk = (cols) =>
+    cols.map((c) => {
+      if (done) return c;
+      if (c.children) return { ...c, children: walk(c.children) };
+      if (c.hide || isSNo(c.headerName)) return c;
+      done = true;
+      return { ...c, minWidth: 230 };
+    });
+  return walk(defs);
 }
 
 const stamp = () => new Date().toISOString().slice(0, 19).replace("T", " ").replace(/:/g, "-");
@@ -108,6 +134,7 @@ export default function ReportViewer() {
   const { reportId } = useParams();
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const report = getReport(reportId);
   const access = useMemo(() => getReportAccess(), []);
 
@@ -184,7 +211,11 @@ export default function ReportViewer() {
     navigate(`${BASE_PATH}/reports/${target.to}?${q}`);
   }, [navigate]);
 
-  const columnDefs = useMemo(() => decorate(state.columnDefs, report?.drill, go), [state.columnDefs, report, go]);
+  const columnDefs = useMemo(() => {
+    if (!state.columnDefs.length) return [];
+    const decorated = widenFirst(decorate(state.columnDefs, report?.drill, go));
+    return hasSNo(state.columnDefs) ? decorated : [SNO_COL, ...decorated];
+  }, [state.columnDefs, report, go]);
   const fields = useMemo(() => leafFields(state.columnDefs), [state.columnDefs]);
 
   const refreshTotals = useCallback(() => {
@@ -218,10 +249,12 @@ const toggleCol = (field) => {
 const copyTable = async () => {
   const api = gridApi.current;
   if (!api) return;
-  const cols = api.getAllDisplayedColumns();
-  const lines = [cols.map((c) => c.getColDef().headerName ?? c.getColDef().field).join("\t")];
+  const cols = api.getAllDisplayedColumns().filter((c) => c.getColDef().field);
+  const lines = [["S.No", ...cols.filter((c) => !isSNo(c.getColDef().headerName)).map((c) => c.getColDef().headerName ?? c.getColDef().field)].join("\t")];
+  const dataCols = cols.filter((c) => !isSNo(c.getColDef().headerName));
+  let n = 1;
   api.forEachNodeAfterFilterAndSort(
-    (n) => n.data && lines.push(cols.map((c) => n.data[c.getColDef().field] ?? "").join("\t"))
+    (node) => node.data && lines.push([n++, ...dataCols.map((c) => node.data[c.getColDef().field] ?? "")].join("\t"))
   );
   try {
     await navigator.clipboard.writeText(lines.join("\n"));
@@ -311,16 +344,24 @@ const exportExcel = () => {
   );
 }
     const f = report.filter;
-  const backTo = report.hidden ? -1 : `${BASE_PATH}/reports`;
+  // go back in history when the user came from inside the app (list or CC01 drill-down);
+  // if the page was opened directly / reloaded there is no history, so fall back to a fixed route
+  const goBack = () => {
+    if (location.key !== "default") {
+      navigate(-1);
+    } else {
+      navigate(report.hidden ? `${BASE_PATH}/reports/overview` : `${BASE_PATH}/reports`, { replace: true });
+    }
+  };
   const fullTitle = `${report.code ? `Report No. ${report.code} - ` : ""}${report.title}`;
 
   return (
-    <div className="rpt" onClick={() => setMenu("")}>
+    <div className="rpt rpt-list" onClick={() => setMenu("")}>
       <div className="rpt-card">
         <div className="rpt-banner">
           <div className="rpt-banner-top">
             <div className="rpt-eyebrow"><TrendingUp size={14} /> Court Case Reports</div>
-            <button type="button" className="rpt-btn" onClick={() => navigate(backTo)}>
+            <button type="button" className="rpt-btn" onClick={goBack}>
               <ArrowLeft size={16} /> Back
             </button>
           </div>
@@ -409,6 +450,9 @@ const exportExcel = () => {
     <div className="ag-theme-quartz report-grid" style={{ width: "100%" }}>
       <AgGridReact
         domLayout="autoHeight"
+        rowHeight={42}
+        headerHeight={40}
+        groupHeaderHeight={36}
         columnDefs={columnDefs}
         rowData={state.rowData}
         pinnedBottomRowData={pinned}
@@ -418,9 +462,9 @@ const exportExcel = () => {
         paginationPageSizeSelector={false}
         suppressPaginationPanel
         defaultColDef={{
-          sortable: true, filter: true, wrapText: true, autoHeight: true,
+          sortable: true, filter: true, wrapText: true,
           wrapHeaderText: true, autoHeaderHeight: true,
-          flex: 1, minWidth: 130, cellStyle: { textAlign: "center" },
+          flex: 1, minWidth: 110, cellStyle: { textAlign: "center" },
         }}
         getRowStyle={(p) => (p.node.rowPinned ? { fontWeight: "bold" } : undefined)}
         isExternalFilterPresent={isExternalFilterPresent}
