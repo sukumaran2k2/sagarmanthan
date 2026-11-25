@@ -24,9 +24,12 @@ const COLUMNS = [
   { key: "sub_domain", label: "Sub Domain", hiddenByDefault: true },
   { key: "caseType", label: "Case Type", hiddenByDefault: true },
   { key: "created_date", label: "Created Date", date: true, hiddenByDefault: true },
-  { key: "updated_date", label: "Updated Date", date: true, hiddenByDefault: true },
+  { key: "updated_date", label: "Updated Date", date: true },
   { key: "stage", label: "Case Status", badge: true },
 ];
+
+// the store hides "updated_date" by default; show it the first time this page opens in a session
+let updatedDateShown = false;
 
 const isDisposed = (r) => (r.stage || "").toLowerCase().trim() === "judgment finalized";
 const stageText = (r) => r.stage || "No status";
@@ -93,6 +96,12 @@ export default function LitigationList({ triggerNotification }) {
   const barRef = useRef(null);
 
   useEffect(() => { load(roleID, organisationID); }, [load, roleID, organisationID]);
+
+  useEffect(() => {
+    if (updatedDateShown) return;
+    updatedDateShown = true;
+    if (useStore.getState().hidden.includes("updated_date")) toggleColumn("updated_date");
+  }, [toggleColumn]);
 
   useEffect(() => {
     const h = (e) => barRef.current && !barRef.current.contains(e.target) && setMenu(null);

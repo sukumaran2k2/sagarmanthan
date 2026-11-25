@@ -11,6 +11,12 @@ import { exportExcel, exportPdf } from "./exportHelpers";
 
 const ROW_OPTIONS = [10, 25, 50, 100];
 
+const fmtDate = (v) => (v ? String(v).slice(0, 10) : "");
+const cellValue = (r, c) => (c.date ? fmtDate(r[c.key]) : r[c.key] ?? "");
+
+// show "updated_date" the first time each list opens in a session (the store may hide it by default)
+const updatedDateShown = new Set();
+
 function getSession() {
   try {
     const u = JSON.parse(localStorage.getItem("user") || "{}");
@@ -88,6 +94,7 @@ export default function CaseListTable({ useStore, formKey, label = "", showCaseI
             { key: "case_number", label: "Case Number" },
           ]
         : []),
+      { key: "updated_date", label: "Updated Date", date: true },
       { key: "stage", label: "Case Status" },
       { key: "update", label: "Action", alwaysOn: true },
     ],
@@ -98,6 +105,12 @@ export default function CaseListTable({ useStore, formKey, label = "", showCaseI
   useEffect(() => {
     load(roleID, organisationID);
   }, [load, roleID, organisationID]);
+
+  useEffect(() => {
+    if (updatedDateShown.has(formKey)) return;
+    updatedDateShown.add(formKey);
+    if (useStore.getState().hidden.includes("updated_date")) toggleColumn("updated_date");
+  }, [formKey, useStore, toggleColumn]);
 
   useEffect(() => {
     const h = (e) => barRef.current && !barRef.current.contains(e.target) && setMenu(null);
@@ -172,7 +185,7 @@ export default function CaseListTable({ useStore, formKey, label = "", showCaseI
     const cols = dataCols.filter((c) => !hidden.includes(c.key));
     return {
       headers: ["S.No", ...cols.map((c) => c.label)],
-      rows: filtered.map((r, i) => [i + 1, ...cols.map((c) => r[c.key] ?? "")]),
+      rows: filtered.map((r, i) => [i + 1, ...cols.map((c) => cellValue(r, c))]),
       fileName: `${label || formKey} Cases ${tab}`,
     };
   };
@@ -191,7 +204,7 @@ export default function CaseListTable({ useStore, formKey, label = "", showCaseI
     const cols = dataCols.filter((c) => !hidden.includes(c.key));
     const text = [
       ["S.No", ...cols.map((c) => c.label)].join("\t"),
-      ...filtered.map((r, i) => [i + 1, ...cols.map((c) => r[c.key] ?? "")].join("\t")),
+      ...filtered.map((r, i) => [i + 1, ...cols.map((c) => cellValue(r, c))].join("\t")),
     ].join("\n");
     try {
       await navigator.clipboard.writeText(text);
@@ -236,6 +249,8 @@ export default function CaseListTable({ useStore, formKey, label = "", showCaseI
             </button>}
           </div>
         );
+      case "updated_date":
+        return fmtDate(r.updated_date) || "-";
       default:
         return r[col.key] || "-";
     }
