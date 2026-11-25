@@ -53,6 +53,11 @@ const fmtDate = (v) => {
 };
 
 const dateCellRenderer = (p) => <span className="text-slate-600 dark:text-slate-300">{fmtDate(p.value)}</span>;
+const rawDate = (v) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(v || '');
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : (v || '-');
+};
+const sorDateCell = (p) => <span className="text-slate-600 dark:text-slate-300">{rawDate(p.value)}</span>;
 const textCell = (p) => <span className="text-slate-600 dark:text-slate-300">{p.value || '-'}</span>;
 const numCell = (p) => <span className="text-slate-600 dark:text-slate-300">{p.value ?? '-'}</span>;
 const boldCell = (p) => <span className="font-semibold text-slate-800 dark:text-slate-200">{p.value || '-'}</span>;
@@ -160,7 +165,6 @@ function buildPastLandCols(actions) {
     { field: 'total_monetisation_value', headerName: 'Total [A+B+C]', minWidth: 140,
       valueGetter: (p) => p.data?.total_monetisation_value ?? p.data?.total_monetization_value, cellRenderer: totalCell },
     { field: 'type_of_agency_lessee', headerName: 'Type of Lessee', minWidth: 140, cellRenderer: textCell },
-    { field: 'agreement_signed', headerName: 'Agreement Signed', minWidth: 140, cellRenderer: textCell },
     ...milestoneCols,
     { field: 'remarks', headerName: 'Remarks', minWidth: 180, cellRenderer: textCell },
     { field: 'created_date', headerName: 'Last Updated', minWidth: 150, cellRenderer: dateCellRenderer },
@@ -175,15 +179,13 @@ function buildPastSorCols(actions) {
     parcelCol,
     { field: 'organisation_name', headerName: 'Organisation', minWidth: 160, cellRenderer: textCell },
     { field: 'unique_nmp_id', headerName: 'NMP ID', minWidth: 120, cellRenderer: textCell },
-    { field: 'sor_from', headerName: 'Period of SoR From (FY)', minWidth: 190, cellRenderer: textCell },
-    { field: 'sor_to',   headerName: 'Period of SoR To (FY)',   minWidth: 190, cellRenderer: textCell },
-    { field: 'year_of_applicability', headerName: 'Year of Applicability', minWidth: 160, cellRenderer: textCell },
+    { field: 'sor_from', headerName: 'Period of SoR From', minWidth: 170, cellRenderer: sorDateCell },
+    { field: 'sor_to',   headerName: 'Period of SoR To',   minWidth: 170, cellRenderer: sorDateCell },
     { field: 'annual_base_lease_rental', headerName: 'Annual Base Lease Rental (INR Cr)', minWidth: 210, cellRenderer: numCell },
     { field: 'escalation_rate', headerName: 'Escalation Rate (% YoY)', minWidth: 170, cellRenderer: numCell },
     { field: 'frequency_of_escalation', headerName: 'Escalation Freq (Yrs)', minWidth: 160, cellRenderer: numCell },
     { field: 'lease_tenure', headerName: 'Lease Tenure (Yrs)', minWidth: 150, cellRenderer: numCell },
     { field: 'npv', headerName: 'NPV @12% [B] (INR Cr)', minWidth: 170, cellRenderer: numCell },
-    
   ];
 }
 
@@ -403,12 +405,13 @@ const exportColumns = useMemo(
         field: c.field,
         label: c.headerName,
         exportValue: (row) => {
-          if (c.field === 'sNo') return row.sNo ?? '';
-          let v = typeof c.valueGetter === 'function' ? c.valueGetter({ data: row }) : row[c.field];
-          if (Array.isArray(v)) v = v[0];
-          if (c.cellRenderer === dateCellRenderer) return fmtDate(v);
-          return v == null || v === '' ? '-' : v;
-        },
+        if (c.field === 'sNo') return row.sNo ?? '';
+        let v = typeof c.valueGetter === 'function' ? c.valueGetter({ data: row }) : row[c.field];
+        if (Array.isArray(v)) v = v[0];
+        if (c.cellRenderer === dateCellRenderer) return fmtDate(v);
+        if (c.cellRenderer === sorDateCell) return rawDate(v);
+        return v == null || v === '' ? '-' : v;
+      },
       })),
   [columnDefs]
 );

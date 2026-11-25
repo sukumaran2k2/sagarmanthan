@@ -122,14 +122,14 @@ const PARCEL_STAGES = [
   { id: 1, title: 'Basic Details', desc: 'Parcel info & allotment' },
   { id: 2, title: 'Financial Details', desc: 'Lease & rental values' },
   { id: 3, title: 'Agreements', desc: 'Lessee & milestones' },
-  { id: 4, title: 'Review & Submit', desc: 'Remarks & final check' },
+  { id: 4, title: 'Remarks/Reason for Delay in allotment', desc: 'Remarks & final check' },
 ];
 
 const PAST_STAGES = [
   { id: 1, title: 'Basic Details', desc: 'Parcel, milestones & allotment' },
   { id: 2, title: 'Lessee Details', desc: 'Lessee & lease expiry' },
   { id: 3, title: 'Financial Details', desc: 'Lease & rental values' },
-  { id: 4, title: 'Review & Submit', desc: 'Remarks & final check' },
+  { id: 4, title: 'Remarks/Reason for Delay in allotment', desc: 'Remarks & final check' },
 ];
 
 async function generateUniquePastNmpId() {
@@ -264,8 +264,6 @@ function validateParcelStage(stage, formData, isFuture) {
     case 3:
       return !!(
         has(formData.agreement_signed_id) &&
-        formData.lessee_name &&
-        has(formData.type_of_lessee_id) &&
         (formData.type_of_lessee_id !== 5 || (formData.other_agency ?? '').toString().trim() !== '')
       );
     case 4:
@@ -301,15 +299,19 @@ function validatePastStage(stage, formData) {
 
   switch (stage) {
     case 1:
+    return !!(
+      formData.parcel_detail && formData.area_acres && has(formData.purpose_id) && has(formData.sector_id) &&
+      has(formData.lease_status_id) &&                                   // ← added
+      formData.industry_name && formData.year_of_allotment && has(formData.mode_of_allotment_id) && has(formData.status_id) &&
+      (formData.purpose_id !== 4 || filled(formData.other_purpose)) &&
+      (formData.sector_id !== 11 || filled(formData.other_sector))
+    );
+   case 2: // Lessee Details
       return !!(
-        formData.parcel_detail && formData.area_acres && has(formData.purpose_id) && has(formData.sector_id) &&
-        formData.industry_name && formData.year_of_allotment && has(formData.mode_of_allotment_id) && has(formData.status_id) &&
-        (formData.purpose_id !== 4 || filled(formData.other_purpose)) &&     // Purpose = Others
-        (formData.sector_id !== 11 || filled(formData.other_sector))         // Sector = Other
-      );
-        case 2: // Lessee Details
-      return !!(
-        has(formData.agreement_signed_id) && has(formData.allotment_original) &&
+        filled(formData.lessee_name) &&
+        has(formData.type_of_lessee_id) &&                                 // ← added
+        filled(formData.lease_expiration_date) &&                          // ← added
+        has(formData.allotment_original) &&
         (formData.type_of_lessee_id !== 5 || filled(formData.other_agency))
       );
     case 3: // Financial Details
@@ -342,7 +344,6 @@ function getMissingPastFields(stage, formData) {
   }
     if (stage === 2) {
     const missing = [];
-    if (!has(formData.agreement_signed_id)) missing.push('Agreement Signed');
     if (!has(formData.allotment_original)) missing.push('Date of Allotment of Land (Original Target Date)');
     if (formData.type_of_lessee_id === 5 && blank(formData.other_agency)) missing.push('Other Lessee Type');
     return missing.join(', ');
@@ -586,7 +587,7 @@ const ABSTRACT_ROWS_1 = [
   { letter: 'I', label: 'Salt Land Acquired', key: 'cat_I_acres' },
   { letter: 'K', label: 'Vacant Land - Developable and Encumbrance Free', key: 'cat_K_acres' },
   { letter: 'L', label: 'Vacant Land - Encroached, Litigated or Otherwise Encumbered', key: 'cat_L_acres' },
-  { letter: 'M', label: 'Total Land Held by Port Authority', key: 'cat_M_acres' },
+  { letter: 'M', label: 'Land Not Developable - CRZ-I, Marshy, Defence, Heritage', key: 'cat_M_acres' },
   // { letter: null, label: 'Total Land Held by Port Authority', key: 'total_land_held', bold: true },
 ];
 
@@ -649,7 +650,7 @@ function LandAbstractForm({ formData, onChange }) {
             <tfoot>
               <tr className="bg-slate-100 dark:bg-slate-800 font-extrabold text-slate-800 dark:text-slate-100">
                 <td className="px-4 py-2.5 border-t-2 border-slate-300 dark:border-slate-600" />
-                <td className="px-4 py-2.5 border-t-2 border-slate-300 dark:border-slate-600">Total (A to M)</td>
+                <td className="px-4 py-2.5 border-t-2 border-slate-300 dark:border-slate-600">Total Land Held by Port Authority</td>
                 <td className="px-4 py-2.5 border-t-2 border-slate-300 dark:border-slate-600">
                   <div className="flex items-center gap-1">
                     <div className={`${autoCls} w-36`}>{fmtAcres(totalSection1)}</div>
@@ -827,10 +828,10 @@ function ParcelForm({ formType, formData, onChange, stage }) {
           <Section number={3} title="Lessee & Milestone Details" id="section-3">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <FLabel label="Agency/Lessee Name" required />
+                <FLabel label="Agency/Lessee Name"  />
                 <input type="text" value={formData.lessee_name || ''} onChange={(e) => onChange('lessee_name', e.target.value)} className={inputCls} />
               </div>
-              <SelectField label="Type of Agency/Lessee" required name="type_of_lessee_id" options={NMP_LESSEE_TYPE_OPTIONS} formData={formData} onChange={onChange} />
+              <SelectField label="Type of Agency/Lessee"  name="type_of_lessee_id" options={NMP_LESSEE_TYPE_OPTIONS} formData={formData} onChange={onChange} />
             </div>
             {formData.type_of_lessee_id === 5 && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
@@ -892,17 +893,28 @@ function ParcelForm({ formType, formData, onChange, stage }) {
 // ══════════════════════════════════════════════════════════════════════════════
 const DISCOUNT_RATE = 0.12;
 
-// NPV = ALR × (1 + esc%)^((tenure − 1) / frequency) ÷ (1 + 12%)^tenure
+// NPV = ALR × (1 + Escalation Rate / 100)^((Tenure - 1) / Frequency)
+//       ÷ (1 + 12% × ALR)^Tenure
+
 const calcNpv = (r) => {
   const alr = parseFloat(r.annual_base_lease_rental);
   const esc = parseFloat(r.escalation_rate);
   const freq = parseFloat(r.frequency_of_escalation);
   const tenure = parseFloat(r.lease_tenure);
-  if ([alr, esc, freq, tenure].some(Number.isNaN) || freq <= 0 || tenure <= 0) return '';
 
-  const numerator = alr * Math.pow(1 + esc / 100, (tenure - 1) / freq);
-  const denominator = Math.pow(1 + DISCOUNT_RATE, tenure);
+  if ([alr, esc, freq, tenure].some(Number.isNaN) ||
+      freq <= 0 || tenure <= 0) {
+    return '';
+  }
+
+  const numerator =
+    alr * Math.pow(1 + esc / 100, (tenure - 1) / freq);
+
+  const denominator =
+    Math.pow(1 + DISCOUNT_RATE * alr, tenure);
+
   const npv = numerator / denominator;
+
   return Number.isFinite(npv) ? npv.toFixed(2) : '';
 };
 function PastLandForm({ formData, onChange, stage = 1 }) {
@@ -987,14 +999,12 @@ function PastLandForm({ formData, onChange, stage = 1 }) {
 
 <div className="space-y-4 mb-5">
   <MilestoneRow title="NIT Date" keyPrefix="nit" formData={formData} onChange={onChange} />
+  <MilestoneRow title="Date of Allotment of Land" keyPrefix="allotment" formData={formData} onChange={onChange} />
 
   <MilestoneRow title="Agreement Date" keyPrefix="agreement" formData={formData} onChange={onChange} />
-  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 px-4">
-  <SelectField label="Agreement Signed" required name="agreement_signed_id" options={AGREEMENT_SIGNED_OPTIONS} formData={formData} onChange={onChange} />
-</div>
 
   <MilestoneRow title="Completion of construction" keyPrefix="construction" formData={formData} onChange={onChange} />
-  <MilestoneRow title="Date of Allotment of Land" keyPrefix="allotment" formData={formData} onChange={onChange} />
+  
 </div>
 
   <Section number={2} title="Allotment status" id="pl-s2">
@@ -1010,7 +1020,7 @@ function PastLandForm({ formData, onChange, stage = 1 }) {
       <SelectField label="Land Allotment Status" required name="status_id" options={NMP_STATUS_OPTIONS} formData={formData} onChange={onChange} />
     </div>
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <SelectField label="Lease Status" name="lease_status_id" options={PAST_LEASE_STATUS_OPTIONS} formData={formData} onChange={onChange} />
+      <SelectField label="Lease Status" required name="lease_status_id" options={PAST_LEASE_STATUS_OPTIONS} formData={formData} onChange={onChange} />
     </div>
   </Section>
 </>)}
@@ -1019,17 +1029,17 @@ function PastLandForm({ formData, onChange, stage = 1 }) {
   <Section number={3} title="Lessee Details" id="pl-s5">
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
       <div>
-        <FLabel label="Lessee Name" />
+        <FLabel label="Lessee Name" required  />
         <input type="text" value={formData.lessee_name || ''} onChange={e => onChange('lessee_name', e.target.value)} className={inputCls} />
       </div>
       <div className="space-y-3">
-        <SelectField label="Type of Lessee" name="type_of_lessee_id" options={NMP_LESSEE_TYPE_OPTIONS} formData={formData} onChange={onChange} />
+        <SelectField label="Type of Lessee" required  name="type_of_lessee_id" options={NMP_LESSEE_TYPE_OPTIONS} formData={formData} onChange={onChange} />
         {formData.type_of_lessee_id === 5 && (
           <OtherField label="Other Lessee Type" name="other_agency" formData={formData} onChange={onChange} />
         )}
       </div>
       <div>
-        <FLabel label="Date of Lease Expiration" />
+        <FLabel label="Date of Lease Expiration" required  />
         <input type="date" value={formData.lease_expiration_date || ''} onChange={e => onChange('lease_expiration_date', e.target.value)} className={inputCls} />
       </div>
     </div>
@@ -1048,7 +1058,7 @@ function PastLandForm({ formData, onChange, stage = 1 }) {
               <thead>
                 <tr className="bg-[#0f417a] text-white">
                   <th className="px-3 py-2.5 text-center font-bold w-10">SI NO</th>
-                  <th className="px-3 py-2.5 text-left font-bold min-w-[260px]">Period of SoR From - To <span className="text-red-300">*</span></th>
+                  <th className="px-3 py-2.5 text-left font-bold min-w-[260px]">Date of SoR <span className="text-red-300">*</span></th>
                   <th className="px-3 py-2.5 text-left font-bold min-w-[160px]">Annual Base Lease Rental (INR Cr) <span className="text-red-300">*</span></th>
                   <th className="px-3 py-2.5 text-left font-bold min-w-[130px]">Escalation Rate (% YoY) <span className="text-red-300">*</span></th>
                   <th className="px-3 py-2.5 text-left font-bold min-w-[160px]">Frequency of Escalation (Years) <span className="text-red-300">*</span></th>
