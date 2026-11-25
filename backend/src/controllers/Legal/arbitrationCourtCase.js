@@ -229,12 +229,7 @@ async function getSubTableCourtCaseData(req,res){
         else if(typeName == 'Interim'){
             caseQuery = `SELECT * FROM tbl_court_case_interim_order WHERE case_id = @caseID`;
         }
-        else if(typeName == 'profExp'){
-            caseQuery = `SELECT * FROM tbl_court_case_prof_fee_la WHERE case_id = @caseID`;
-        }
-        else if(typeName == 'otherExp'){
-            caseQuery = `SELECT * FROM tbl_court_case_other_expense WHERE case_id = @caseID`;
-        }else if(typeName == 'OMS'){
+        else if(typeName == 'OMS'){
             caseQuery = `SELECT * FROM tbl_court_case_om WHERE case_id = @caseID`
         }else if(typeName == 'conciliator'){
             caseQuery = `SELECT * FROM tbl_conciliators WHERE case_id = @caseID`
@@ -242,8 +237,6 @@ async function getSubTableCourtCaseData(req,res){
             caseQuery = `SELECT * FROM tbl_claim_first_parties WHERE case_id = @caseID`
         }else if(typeName == 'secondParties'){
             caseQuery = `SELECT * FROM tbl_claim_second_parties WHERE case_id = @caseID`
-        }else if(typeName == 'feeExp'){
-            caseQuery = `SELECT * FROM tbl_court_case_fee_expenses WHERE case_id = @caseID`
         }
 
         // firstParties
@@ -500,125 +493,6 @@ async function addDetailsOfCounsel(req, res) {
     } catch (err) {
         console.log("add details counsel",err);
         return res.sendStatus(500);
-    }
-}
-
-async function addArbitFeeExpenseData(req, res) {
-    const { caseID, feeType, feeTypeDetails, profFeeExpenseData, otherExpenseData, feeExpenseData } = req.body;
-
-    if (!Array.isArray(feeExpenseData) || feeExpenseData.length === 0 ||
-        !Array.isArray(profFeeExpenseData) || profFeeExpenseData.length === 0 ||
-        !Array.isArray(otherExpenseData) || otherExpenseData.length === 0) {
-        return res.status(400).json({ error: "Invalid details of fee expense data" });
-    }
-
-    const conn = await pool;
-    const request = conn.request();
-
-    try {
-        if (profFeeExpenseData.length > 0 || otherExpenseData.length >= 0) {
-            await addProfOtherExpenseData({ body: { caseID, profFeeExpenseData, otherExpenseData } });
-        }
-
-        let checkQuery = `SELECT * FROM tbl_court_case_fee_expenses WHERE case_id = @caseID`;
-        request.input('caseID', caseID);
-    
-        let checkQueryRes = await request.query(checkQuery);
-        if (checkQueryRes.recordset.length != 0) {
-            let deleteExistingDataQuery = `DELETE FROM tbl_court_case_fee_expenses WHERE case_id = @caseID`;
-            await request.query(deleteExistingDataQuery);
-        }
-
-        for (const feeExpense of feeExpenseData) {
-            request.input("feeArbitratorName", feeExpense.feeArbitratorName);
-            request.input("feeNatureOfExp", feeExpense.feeNatureOfExp);
-            request.input("feeExpAmount", feeExpense.feeExpAmount);
-            request.input("feeDateOfPay", feeExpense.feeDateOfPay);
-
-            await request.query(`
-                INSERT INTO tbl_court_case_fee_expenses (case_id, name_of_arbitrator, nature_of_expense, fee_expense_amount, date_of_payment) 
-                VALUES (@caseID, @feeArbitratorName, @feeNatureOfExp, @feeExpAmount, @feeDateOfPay)
-            `);
-        }
-
-        const updateQuery = `UPDATE tbl_arbitration_cases SET fee_type = @feeType, fee_type_details = @feeTypeDetails WHERE case_id = @caseID;`;
-
-        request.input("feeType", feeType);
-        request.input("feeTypeDetails", feeTypeDetails);
-        await request.query(updateQuery);
-
-        res.status(200).json({ message: "Details of arbitration expense data added successfully." });
-    } catch (err) {
-        console.log("expendire err",err)
-        if (!res.headersSent) {
-            res.status(500).send("An error occurred while processing the request.");
-        }
-    }
-}
-
-async function addProfOtherExpenseData(req) {
-    const { caseID, profFeeExpenseData, otherExpenseData } = req.body;
-
-    if (!Array.isArray(profFeeExpenseData) || profFeeExpenseData.length === 0 ||
-        !Array.isArray(otherExpenseData) || otherExpenseData.length === 0) {
-        throw new Error("Invalid details of expense"); 
-    }
-
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input("caseID", caseID);
-
-    try {
-        let propExpCheckQuery = `SELECT * FROM tbl_court_case_prof_fee_la WHERE case_id = @caseID`;
-    
-        let propExpCheckQueryRes = await request.query(propExpCheckQuery);
-        if (propExpCheckQueryRes.recordset.length != 0) {
-            let deleteExistingDataQuery = `DELETE tbl_court_case_prof_fee_la WHERE case_id = @caseID`;
-            await request.query(deleteExistingDataQuery);
-        }
-
-        for (const profExpData of profFeeExpenseData) {
-          
-            const request = conn.request();
-            request.input("profFeeArbitratorName", profExpData.profFeeArbitratorName);
-            request.input("profFeeNatureOfExp", profExpData.profFeeNatureOfExp);
-            request.input("profFeeExpAmount", profExpData.profFeeExpAmount);
-            request.input("profFeeDateOfPay", profExpData.profFeeDateOfPay);
-            request.input("caseID", caseID);
-
-            await request.query(`
-                INSERT INTO tbl_court_case_prof_fee_la (case_id, name_of_advocate, nature_of_claim, prof_fee_amount, date_of_payment) 
-                VALUES (@caseID, @profFeeArbitratorName, @profFeeNatureOfExp, @profFeeExpAmount, @profFeeDateOfPay)
-            `);
-        }
-
-        let otherExpCheckQuery = `SELECT * FROM tbl_court_case_other_expense WHERE case_id = @caseID`;
-    
-        let otherExpCheckQueryRes = await request.query(otherExpCheckQuery);
-        if (otherExpCheckQueryRes.recordset.length != 0) {
-            let deleteExistingDataQuery = `DELETE tbl_court_case_other_expense WHERE case_id = @caseID`;
-            await request.query(deleteExistingDataQuery);
-        }
-
-        for (const otherExpData of otherExpenseData) {
-           
-            const request = conn.request();
-            request.input("caseID", caseID);
-            request.input("paymentMadeTo", otherExpData.paymentMadeTo);
-            request.input("natureOfExpense", otherExpData.natureOfExpense);
-            request.input("otherExpenseAmount", otherExpData.otherExpenseAmount);
-            request.input("otherExpDateOfPay", otherExpData.otherExpDateOfPay);
-
-            await request.query(`
-                INSERT INTO tbl_court_case_other_expense (case_id, payment_made_to, nature_of_expense, other_expense_amount, date_of_payment) 
-                VALUES (@caseID, @paymentMadeTo, @natureOfExpense, @otherExpenseAmount, @otherExpDateOfPay)
-            `);
-        }
-
-    } catch (err) {
-        //console.log(err);
-        throw err; 
     }
 }
 
@@ -1618,8 +1492,6 @@ async function deleteCourtCaseData(req, res) {
                 'DELETE FROM tbl_arbitrators WHERE case_id = @caseId',
                 'DELETE FROM tbl_court_case_hearing WHERE case_id = @caseId',
                 'DELETE FROM tbl_court_case_interim_order WHERE case_id = @caseId',
-                'DELETE FROM tbl_court_case_other_expense WHERE case_id = @caseId',
-                'DELETE FROM tbl_court_case_prof_fee_la WHERE case_id = @caseId',
                 'DELETE FROM tbl_court_cases_counsel_details WHERE case_id = @caseId',
                 'DELETE FROM tbl_prev_conn_court_cases WHERE case_id = @caseId',
                 'DELETE FROM tbl_party_requesting_arbitration WHERE case_id = @caseId'
@@ -1653,9 +1525,6 @@ async function deleteCourtCaseData(req, res) {
             'DELETE FROM tbl_court_case_om WHERE case_id = @caseId',
             'DELETE FROM tbl_court_case_interim_order WHERE case_id = @caseId',
             'DELETE FROM tbl_court_case_hearing WHERE case_id = @caseId',
-            'DELETE FROM tbl_court_case_fee_expenses WHERE case_id = @caseId',
-            'DELETE FROM tbl_court_case_other_expense WHERE case_id = @caseId',
-            'DELETE FROM tbl_litigation_court_case_fee_expenses WHERE case_id = @caseId',
 
         ];
         for (const query of deleteQueries) {
@@ -1675,8 +1544,6 @@ async function deleteCourtCaseData(req, res) {
                 'DELETE FROM tbl_claim_first_parties WHERE case_id = @caseId',
                 'DELETE FROM tbl_claim_second_parties WHERE case_id = @caseId',
                 'DELETE FROM tbl_court_case_hearing_for_conciliation WHERE case_id = @caseId',
-                'DELETE FROM tbl_court_case_conciliation_expenses WHERE case_id = @caseId',
-                'DELETE FROM tbl_court_case_other_expense WHERE case_id = @caseId',
 
             ];
             for (const query of deleteQueries) {
@@ -2183,6 +2050,6 @@ export default {
     getCourtCaseReport, getArbitrationDetailCourtCaseReport,
     deleteCourtCaseData, getActDropDownData, getRuleDropDownData, getSubCourtTypeDropDown, 
     getConsumerForumDropDown, fetchLastCaseNumber,addOtherClaimantOrg,addOtherRespondentOrg,addDetailsOfCounsel, 
-    courtCaseUploadDocument,addPrevConnCases,createArbitCourtCase,addHearingCases, addInterimOrder, updateArbitCourtCaseStatus, addArbitFeeExpenseData, addProfOtherExpenseData, getCourtCaseDataByID, getSubTableCourtCaseData,
+    courtCaseUploadDocument,addPrevConnCases,createArbitCourtCase,addHearingCases, addInterimOrder, updateArbitCourtCaseStatus, getCourtCaseDataByID, getSubTableCourtCaseData,
     getDefenceStatDoc,deleteMinistryDefenceDocument,getConciliationDetailCourtCaseReport,getLitigationcourtcasesReport,addArbitrationClaimantAndRespondent,getArbitrationClaimantAndRespondent
 }

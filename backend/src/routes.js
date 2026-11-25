@@ -857,9 +857,6 @@ router.post("/add-court-case-OM-details", litigationCourtCaseTab.addCourtCaseOMD
 router.post("/add-court-case-hearing-details", litigationCourtCaseTab.addCourtCaseHearingDetails);
 router.post("/add-court-case-interim-details", litigationCourtCaseTab.addCourtCaseInterimDetails);
 router.post("/create-case-status", litigationCourtCaseTab.submitCaseStatus);
-router.post("/add-professional-fee", litigationCourtCaseTab.addProfessionalFeeDetails);
-router.post("/add-other-expenses", litigationCourtCaseTab.addOtherExpensesDetails);
-router.post("/create-litigation-expenditure", litigationCourtCaseTab.submitLitigationExpenditure);
 router.get("/get-litigation-sub-table-court-cases-data/:typeName/:caseID", litigationCourtCaseTab.getSubTableCourtCasesData);
 router.get("/get-ministry-upload-document/:caseID", litigationCourtCaseTab.getMinistryUploadDocument);
 router.delete("/delete-ministry-uploaded-document/:caseID/:replyFiledDoc", litigationCourtCaseTab.deleteMinistryInterventionDocument);
@@ -892,7 +889,6 @@ router.post("/add-hearing-court-case", arbitCourtCaseTab.addHearingCases);
 router.post("/add-interim-order-court-case", arbitCourtCaseTab.addInterimOrder);
 router.post("/create-arbitration-court-case", arbitCourtCaseTab.createArbitCourtCase);
 router.put("/update-arbitration-court-case-status", arbitCourtCaseTab.updateArbitCourtCaseStatus);
-router.put("/update-arbitration-court-case-expenditure", arbitCourtCaseTab.addArbitFeeExpenseData);
 router.post("/add-counsel-details", arbitCourtCaseTab.addDetailsOfCounsel);
 router.get("/court-case-get-acts/", arbitCourtCaseTab.getActDropDownData);
 router.post("/court-case-document", arbitCourtCaseTab.upload.single('file'), arbitCourtCaseTab.courtCaseUploadDocument);
@@ -3277,9 +3273,6 @@ router.post("/create-conciliation-court-case", conciliationCourtCaseTab.createCo
 router.post("/add-first-party-data", conciliationCourtCaseTab.addConciliationFirstParty);
 router.post("/add-conciliators-hearing-data", conciliationCourtCaseTab.addConciliatorsHearingData);
 router.post("/create-conciliation-status", conciliationCourtCaseTab.createConciliationStatus);
-router.post("/add-fee-expenses-details", conciliationCourtCaseTab.addFeeExpensesdetails);
-router.post("/add-other-expenses-details", conciliationCourtCaseTab.addOtherExpensesdetails);
-router.post("/create-conciliation-expenditure", conciliationCourtCaseTab.createConciliationExpenditure);
 router.get("/get-conciliation-sub-tables-court-cases-data/:typeName/:caseID", conciliationCourtCaseTab.getSubTablesCourtCaseData);
 
 router.post("/add-conciliation-first-party-and-second-party", conciliationCourtCaseTab.addConciliationFirstPartyAndSecondParty);

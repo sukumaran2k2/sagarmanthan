@@ -1078,132 +1078,6 @@ async function submitCaseStatus(req,res) {
     }       
 }
 
-async function addProfessionalFeeDetails(req,res) {
-    const { caseID, detailsOfProfessionalData } = req.body;
-
-    if (!Array.isArray(detailsOfProfessionalData) || detailsOfProfessionalData.length === 0) {
-        return res.status(400).json({ error: "Invalid details of ProfessionalData " });
-    }
-
-    const conn = await pool;
-    const request = conn.request(); 
-
-    const checkCaseId = `SELECT * FROM tbl_litigation_court_case_fee_expenses WHERE case_id = @caseID`;
-    request.input("caseID", caseID);
-
-    try {
-
-        const checkResult = await request.query(checkCaseId);
-
-        if (checkResult.recordset.length != 0) {
-            let deleteExistingData = `DELETE tbl_litigation_court_case_fee_expenses WHERE case_id = @caseID`;
-            await request.query(deleteExistingData);
-        }
-
-        for (const detailsData of detailsOfProfessionalData) {
-            const request = conn.request();    
-            
-            request.input("caseID", caseID);
-            request.input("name", detailsData.name); 
-            request.input("nature", detailsData.nature); 
-            request.input("amount", detailsData.amount);
-            request.input("date", detailsData.date); 
-          
-            await request.query(`
-                INSERT INTO tbl_litigation_court_case_fee_expenses (case_id, name_of_advocate,nature_of_claim,prof_fee_amount,date_of_payment) 
-                VALUES (@caseID, @name, @nature, @amount,  ${detailsData.date ? '@date' : 'NULL'})
-            `);
-        }
-
-        return res.status(201).json({ message: "Details of ProfessionalData added successfully." });
-    } catch (err) {
-        // console.log("prof error",err)
-        return res.status(500).json({error: "failed to add details of professional data" });
-    }
-    
-}
-
-async function addOtherExpensesDetails(req,res) {
-    const { caseID, detailsOfOtherExpensesData } = req.body;
-
-    if ( !Array.isArray(detailsOfOtherExpensesData) || detailsOfOtherExpensesData.length === 0) {
-        return res.status(400).json({ error: "Invalid details of detailsOfOtherExpensesData " });
-    }
-
-    const conn = await pool;
-    const request = conn.request(); 
-
-    const checkCaseId = `SELECT * FROM tbl_court_case_other_expense WHERE case_id = @caseID`;
-    request.input("caseID", caseID);
-
-    try {
-        const checkResult = await request.query(checkCaseId);
-
-            if (checkResult.recordset.length != 0) {
-                let deleteExistingData = `DELETE tbl_court_case_other_expense WHERE case_id = @caseID`;
-                await request.query(deleteExistingData);
-            }
-
-        for (const detailsData of detailsOfOtherExpensesData) {
-            const request = conn.request();    
-            
-            request.input("caseID", caseID);
-            request.input("paymentMadeTo", detailsData.paymentMadeTo); 
-            request.input("natureOfExpense", detailsData.natureOfExpense); 
-            request.input("totalExpenses", detailsData.totalExpenses);
-            request.input("otherExpDateOfPay", detailsData.otherExpDateOfPay); 
-          
-            await request.query(`
-                INSERT INTO tbl_court_case_other_expense (case_id, payment_made_to,nature_of_expense,other_expense_amount,date_of_payment) 
-                VALUES (@caseID, @paymentMadeTo, @natureOfExpense, @totalExpenses, ${detailsData.otherExpDateOfPay ? '@otherExpDateOfPay' : 'NULL'})
-            `);
-        }
-
-        return res.status(201).json({ message: "Details of otherExpenses Data added successfully." });
-    } catch (err) {
-        // console.log("other prof error",err)
-        return res.status(500).json({error: "failed to add details of otherExpenses Data" });
-    }
-    
-}
-
-
-async function submitLitigationExpenditure(req,res) {
-
-    const {caseID,userID } =req.body;
-
-    const conn = await pool;
-    const request = conn.request();
-
-    try {
-        let checkQuery = `SELECT * FROM tbl_litigation_cases WHERE case_id = @caseID`;
-        request.input("caseID", caseID);
-
-        const checkResult = await request.query(checkQuery);
-
-        if (checkResult.recordset.length != 0){
-            try{
-                const updateQuery = `
-                UPDATE tbl_litigation_cases
-                SET updated_by = @userID,
-                updated_date = GETDATE()
-                WHERE case_id = @caseID
-                `;
-
-                await conn.request()
-                .input("userID", userID)
-                .input("caseID", caseID)
-                .query(updateQuery);
-            } catch (error) {
-                return res.status(500).json({error: "Failed updating data"})
-            }
-        }
-         res.status(201).json({ message: "updated litigation expenditure successfully." });
-        } catch (error) {
-            //console.log("error",error)
-            res.status(500).json({ error: "failed to create litigation expenditure" });
-        }
-    }
 
     
 async function getSubTableCourtCasesData(req,res){
@@ -1227,10 +1101,6 @@ async function getSubTableCourtCasesData(req,res){
             caseQuery = `SELECT * FROM tbl_court_case_interim_order WHERE case_id = @caseID`;
         }else if(typeName == 'Hearing'){
             caseQuery = `SELECT * FROM tbl_court_case_hearing WHERE case_id = @caseID`;
-        }else if(typeName == 'profExp'){
-            caseQuery = `SELECT * FROM tbl_litigation_court_case_fee_expenses WHERE case_id = @caseID`;
-        }else if(typeName == 'otherExp'){
-            caseQuery = `SELECT * FROM tbl_court_case_other_expense WHERE case_id = @caseID`;
         }else if(typeName == 'DOC'){
             caseQuery = `SELECT * FROM tbl_court_cases_counsel_details WHERE case_id = @caseID`;
         }else if(typeName == 'MDOC'){
@@ -2733,8 +2603,8 @@ async function checkCaseNumberExists(req, res) {
 
 export default {submitCaseStatus,getSubTableCourtCasesData,fileupload,counterAffidavitDocument,addCourtCaseInterimDetails,addCourtCaseHearingDetails,upload,fileUpload,getLastLitigationCaseNumber,addLitigationOtherCourtCaseOrg,
     addLitigationPrevConnCases,addLitigationDetailsOfCounsel,createLitigationCourtCase,addMinistryDetailsOfCounsel,
-    ministryUploadDocument,ministryInterventionDocument,createMinistryIntervention,addCourtCaseOMDetails,addProfessionalFeeDetails,addOtherExpensesDetails,
-    submitLitigationExpenditure,getMinistryUploadDocument,deleteMinistryInterventionDocument,deleteMinistryInterventionDoc,
+    ministryUploadDocument,ministryInterventionDocument,createMinistryIntervention,addCourtCaseOMDetails,
+    getMinistryUploadDocument,deleteMinistryInterventionDocument,deleteMinistryInterventionDoc,
     deletecounterAffiDocument, getLitigationDomainReport, getLitigationSubDomainReport, getLitigationDomainAndSubDomainReport,
     getLitigationPendencyPortWiseReport, getLitigationPendencyDomainWiseReport,  getAllLitigationData,addLitigationPetitionerAndRespondent,getLitigationPetitionerAndRespondent,
 getLitigationDomainByOtherOrgReport,getLitigationSubDomainByOtherOrgReport,getLitigationDomainAndSubDomainByOtherOrgReport,getLitigatonPendencyOtherOrgWiseReport,
