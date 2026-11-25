@@ -752,6 +752,15 @@ async function saveMonthly(req, res, cfg) {
         VALUES (${insertVals.join(", ")})
       `);
 
+    // The list's "Last Updated Date" reads the target table, so stamp it on every actuals
+    // save too (as the old portal did for goods, service and works)
+    await request.query(`
+      UPDATE ${cfg.table}
+      SET updated_by = @userId,
+          updated_date = GETDATE()
+      WHERE ${cfg.idCol} = @gemId
+    `);
+
     await writeGemLog(transaction, cfg, {
       recordType: "ACTUAL",
       action: "SAVE",
