@@ -26,9 +26,9 @@ const FORM_BY_SLUG = {
   'port-state-inspection-vessel-wise': PortStateInspectionVesselWise,
 };
 
-// K-2.3 forms open for edit from the Data List (row in route state); keying them by route entry
+// K-2.3 / K-2.4 forms open for edit from the Data List (row in route state); keying them by route entry
 // resets them to a blank Add form when reopened from the left list. Other forms keep their key.
-const RESET_ON_REOPEN = new Set(['exam-monthly-performance', 'exam-overall-performance']);
+const RESET_ON_REOPEN = new Set(['exam-monthly-performance', 'exam-overall-performance', 'entry-exit-of-candidates']);
 
 const BACKEND_NOTES = {
   'flagging-of-vessels': 'Backend: POST /add-kpi2-1-1 · GET /kpi2-1-list',
@@ -37,7 +37,7 @@ const BACKEND_NOTES = {
   'sbfap-financial-assistance': 'Backend: POST /add-2-2-fa-data · PUT /edit-2-2-fa-data · GET /kpi2-2-fa-list · template: /kpi2-2-fa-template',
   'exam-monthly-performance': 'Backend: POST /add-kpi2-3-1 · PUT /edit-2-3-1-data · GET /kpi2-3-1-list',
   'exam-overall-performance': 'Backend: POST /add-kpi2-3-2 · GET /kpi2-3-2-list · masterdata: /get_addkpi2_3_masterdata/:year/:month/:type',
-  'entry-exit-of-candidates': 'Backend: POST /add-kpi2-3-1 · PUT /edit-2-3-1-data · GET /kpi2-3-1-list',
+  'entry-exit-of-candidates': 'Backend: POST /add-entry-exit-data · PUT /update-entry-exit-data-by-id · GET /get-entry-exit-data',
   'marine-casualty-previous-current': 'Backend: Marine casualty endpoints (to be confirmed with DGS team)',
   'marine-casualty-yearwise': 'Backend: Marine casualty endpoints (to be confirmed with DGS team)',
   'marine-casualty-country-wise': 'Backend: Marine casualty endpoints (to be confirmed with DGS team)',

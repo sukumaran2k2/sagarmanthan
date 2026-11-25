@@ -9,6 +9,9 @@ import { useKPIDGSPermissions } from '../hooks/useKPIDGSPermissions';
 import { examMonthlyColumns, examOverallColumns } from '../components/examPerformanceColumns';
 import { flagStateMmdWiseColumns, flagStateVesselWiseColumns } from '../components/flagStateInspectionColumns';
 import { portStateMmdWiseColumns, portStateVesselWiseColumns } from '../components/portStateInspectionColumns';
+import { entryExitColumns, ENTRY_EXIT_TABS } from '../components/entryExitColumns';
+import ListTabs from '../components/ListTabs';
+import { activeTabOf, rowsInTab } from '../data/listTabs';
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal';
 import { useDgsStore, DGS_STORED_LIST_SLUGS } from '../store/useDgsStore';
 import { ExamFilterButton, ExamFilterPanel } from '../components/ExamListFilters';
@@ -47,10 +50,16 @@ const LIST_FETCH_BY_SLUG = {
 const EXPORTS_BY_SLUG = {
   'exam-monthly-performance': { exportTitle: 'DGS K-2.3.1 Exam Monthly Performance - Data List', exportFileName: 'DGS_K2_3_1_Exam_Monthly_Performance' },
   'exam-overall-performance': { exportTitle: 'DGS K-2.3.2 Exam Overall Performance Statistics - Data List', exportFileName: 'DGS_K2_3_2_Exam_Overall_Performance' },
+  'entry-exit-of-candidates': { exportTitle: 'DGS K-2.4 Entry and Exit of Candidates - Data List', exportFileName: 'DGS_K2_4_Entry_Exit_of_Candidates' },
   'flag-state-inspection-mmd-wise': { exportTitle: 'DGS K-2.6.1 Flag State Inspection - MMD Wise - Data List', exportFileName: 'DGS_K2_6_1_Flag_State_Inspection_MMD_Wise' },
   'flag-state-inspection-vessel-wise': { exportTitle: 'DGS K-2.6.2 Flag State Inspection & GI Performance - Vessel Wise - Data List', exportFileName: 'DGS_K2_6_2_Flag_State_Inspection_Vessel_Wise' },
   'port-state-inspection-mmd-wise': { exportTitle: 'DGS K-2.7.1 Port State Inspection - MMD Wise - Data List', exportFileName: 'DGS_K2_7_1_Port_State_Inspection_MMD_Wise' },
   'port-state-inspection-vessel-wise': { exportTitle: 'DGS K-2.7.2 Port State Inspection & GI Performance - Vessel Wise - Data List', exportFileName: 'DGS_K2_7_2_Port_State_Inspection_Vessel_Wise' },
+};
+
+// Lists split into tabs above the table (rows of one tab at a time)
+const TABS_BY_SLUG = {
+  'entry-exit-of-candidates': ENTRY_EXIT_TABS,
 };
 
 // Lists that need an MMD filter populate the MMD panel from the fetched rows
@@ -81,20 +90,31 @@ function StoredDataList({ slug, columns, ...props }) {
   const setListFilter = useDgsStore((state) => state.setListFilter);
   const resetListFilters = useDgsStore((state) => state.resetListFilters);
   const toggleListFilterPanel = useDgsStore((state) => state.toggleListFilterPanel);
+  const setListTab = useDgsStore((state) => state.setListTab);
   const setListVisibleCols = useDgsStore((state) => state.setListVisibleCols);
   const defaults = useMemo(() => defaultVisibleCols(columns), [columns]);
 
   // Filters this list offers (the ones the old portal's list had); none for other sections
   const fields = EXAM_FILTER_FIELDS[slug];
-  const { filters, showFilterPanel } = slot;
-  const filterRows = useCallback((rows) => filterExamRows(rows, slug, fields, filters), [slug, fields, filters]);
+  const tabs = TABS_BY_SLUG[slug];
+  const { filters, showFilterPanel, tab } = slot;
+  // The chosen tab's rows, then the filters
+  const filterRows = useCallback((rows) => {
+    const inTab = tabs ? rowsInTab(tabs, rows, activeTabOf(tabs, rows, tab)) : rows;
+    return fields ? filterExamRows(inTab, slug, fields, filters) : inTab;
+  }, [tabs, tab, slug, fields, filters]);
   const handleReset = useCallback(() => {
     resetListFilters(slug);
     notify(COMMON_TOASTS.filtersReset());
   }, [resetListFilters, slug, notify]);
 
-  const filterProps = fields ? {
-    filterRows,
+  const filterProps = fields || tabs ? { filterRows } : {};
+  const tabProps = tabs ? {
+    renderAboveTable: (allRows) => (
+      <ListTabs tabs={tabs} rows={allRows} active={activeTabOf(tabs, allRows, tab)} onChange={(value) => setListTab(slug, value)} />
+    ),
+  } : {};
+  const filterControls = fields ? {
     filterToolbar: (
       <ExamFilterButton
         activeCount={countActiveFilters(fields, filters)}
@@ -123,6 +143,8 @@ function StoredDataList({ slug, columns, ...props }) {
       visibleCols={slot.visibleCols ?? defaults}
       onVisibleColsChange={(updater) => setListVisibleCols(slug, updater, defaults)}
       {...filterProps}
+      {...filterControls}
+      {...tabProps}
     />
   );
 }
@@ -247,6 +269,7 @@ export default function DataListIndex({ triggerNotification }) {
     return {
       'exam-monthly-performance': examMonthlyColumns({ canEdit, onEdit: editIn('exam-monthly-performance') }),
       'exam-overall-performance': examOverallColumns({ canEdit, onEdit: editIn('exam-overall-performance') }),
+      'entry-exit-of-candidates': entryExitColumns({ canEdit, onEdit: editIn('entry-exit-of-candidates') }),
       'flag-state-inspection-mmd-wise': flagStateMmdWiseColumns({
         canEdit, canDelete: canRemove,
         onEdit: editMmdWiseFor('flag-state-inspection-mmd-wise'),

@@ -2,17 +2,20 @@ import { Edit } from 'lucide-react';
 import { monthName } from '../data/periodOptions';
 import { lastUpdatedText } from '../../../utils/cellText';
 
-// Data List columns for K-2.3.1 / K-2.3.2. The Edit action opens the matching input form
+// Data List columns for K-2.3.1 / K-2.3.2 (the shared S.No / period / Last Updated / Edit columns
+// are also used by K-2.4, see entryExitColumns.jsx). The Edit action opens the matching input form
 // with the row in route state; it is only added when the user has edit rights.
 
-const centerCell = 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold';
+export const centerCell = 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold';
 
-const serialColumn = {
+export const serialColumn = {
+  // Pinned left so it stays in view when the table scrolls sideways (Action is pinned right)
   headerName: 'S.No', valueGetter: (p) => p.node.rowIndex + 1, minWidth: 80, maxWidth: 100,
+  pinned: 'left', lockPosition: 'left',
   cellClass: 'text-center font-bold text-slate-500 flex items-center justify-center',
 };
 
-const periodColumns = [
+export const periodColumns = [
   { headerName: 'Year', field: 'year', flex: 1, minWidth: 110, cellClass: `${centerCell} text-[#0f417a] dark:text-blue-400 font-bold` },
   {
     headerName: 'Month', field: 'month', flex: 1, minWidth: 130, cellClass: centerCell,
@@ -23,15 +26,15 @@ const periodColumns = [
 ];
 
 // Latest edit in the month (or month + type); '--' when never edited.
-// Shown from the start; it can be hidden under Visibility.
-const lastUpdatedColumn = {
-  headerName: 'Last Updated Date', field: 'updated_date', minWidth: 150,
+// Hidden at first; it can be shown under Visibility.
+export const lastUpdatedColumn = {
+  headerName: 'Last Updated Date', field: 'updated_date', minWidth: 150, hide: true,
   cellClass: 'text-center text-slate-600 dark:text-slate-300 flex items-center justify-center',
   valueFormatter: (p) => lastUpdatedText(p.value),
   useValueFormatterForExport: true,
 };
 
-function editColumn(onEdit) {
+export function editColumn(onEdit) {
   return {
     // 'Action' keeps it out of the table's column-visibility list
     headerName: 'Action', colId: 'action', pinned: 'right', minWidth: 90, maxWidth: 110,

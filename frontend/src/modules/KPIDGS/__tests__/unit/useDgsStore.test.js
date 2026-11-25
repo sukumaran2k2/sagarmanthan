@@ -10,10 +10,11 @@ describe('KPI DGS store', () => {
     resetAllStores();
   });
 
-  it('has one empty list slot per stored section (K-2.3.1, K-2.3.2, K-2.6.1, K-2.6.2, K-2.7.1 and K-2.7.2)', () => {
+  it('has one empty list slot per stored section (K-2.3.1, K-2.3.2, K-2.4, K-2.6.1, K-2.6.2, K-2.7.1 and K-2.7.2)', () => {
     expect(DGS_STORED_LIST_SLUGS).toEqual([
       'exam-monthly-performance',
       'exam-overall-performance',
+      'entry-exit-of-candidates',
       'flag-state-inspection-mmd-wise',
       'flag-state-inspection-vessel-wise',
       'port-state-inspection-mmd-wise',
@@ -21,9 +22,17 @@ describe('KPI DGS store', () => {
     ]);
     DGS_STORED_LIST_SLUGS.forEach((slug) => {
       expect(state().lists[slug]).toEqual({
-        searchTerm: '', filters: { year: '', month: '', type: '', mmd: '' }, showFilterPanel: false, visibleCols: null,
+        searchTerm: '', filters: { year: '', month: '', type: '', mmd: '' }, showFilterPanel: false, tab: '', visibleCols: null,
       });
     });
+  });
+
+  it('keeps the chosen tab through Reset', () => {
+    state().setListTab('entry-exit-of-candidates', '2');
+    state().setListFilter('entry-exit-of-candidates', 'year', '2026');
+    state().resetListFilters('entry-exit-of-candidates');
+    expect(state().lists['entry-exit-of-candidates']).toMatchObject({ tab: '2', filters: { year: '', month: '', type: '' } });
+    expect(state().lists['exam-monthly-performance'].tab).toBe('');
   });
 
   it('keeps each section\'s filters and panel separate', () => {
@@ -74,7 +83,7 @@ describe('KPI DGS store', () => {
     state().setListFilter('exam-monthly-performance', 'month', '4');
     resetAllStores();
     expect(state().lists['exam-monthly-performance']).toEqual({
-      searchTerm: '', filters: { year: '', month: '', type: '', mmd: '' }, showFilterPanel: false, visibleCols: null,
+      searchTerm: '', filters: { year: '', month: '', type: '', mmd: '' }, showFilterPanel: false, tab: '', visibleCols: null,
     });
   });
 });

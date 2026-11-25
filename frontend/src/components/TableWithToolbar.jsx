@@ -83,21 +83,20 @@ export default function TableWithToolbar({
     setLocalVisibleCols(initialMap);
   }, [columnDefs, isVisibleColsControlled]);
 
-  // Compute processed columns based on visibility toggles
+  // Compute processed columns based on visibility toggles. A column's tick wins over its
+  // hide flag, so a column that starts hidden (hide: true) can still be turned on.
   const processedColumnDefs = useMemo(() => {
+    const isHidden = (key, colHide) => (key && visibleCols[key] !== undefined ? visibleCols[key] === false : colHide === true);
     return columnDefs.map(col => {
       const key = col.field || col.headerName;
-      let hide = col.hide === true;
-      if (key && visibleCols[key] === false) {
-        hide = true;
-      }
+      const hide = isHidden(key, col.hide);
 
       if (col.children) {
         const processedChildren = col.children.map(child => {
           const childKey = child.field || child.headerName;
           return {
             ...child,
-            hide: child.hide === true || (childKey && visibleCols[childKey] === false)
+            hide: isHidden(childKey, child.hide)
           };
         });
         // Hide parent group if all children are hidden
