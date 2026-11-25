@@ -69,8 +69,8 @@ const REPORTS_INDEX = [
     children: [
       { code: 'K-2.7.1', label: 'Port State Control (PSC) Inspection- MMD Wise', slug: 'psc-mmd-wise' },
       { code: 'K-2.7.2', label: 'Port State Control (PSC)- Vessel Wise (All Ages)', slug: 'psc-vessel-all-ages' },
-      { code: 'K-2.7.3', label: 'Port State Control (PSC)- Vessel Wise (Upto 12 Years Age)', slug: 'psc-vessel-upto-12' },
-      { code: 'K-2.7.4', label: 'Port State Control (PSC)- Vessel Wise (Above 12 Years & upto 20 Years Age)', slug: 'psc-vessel-12-20' },
+      { code: 'K-2.7.3', label: 'Port State Control (PSC)- Vessel Wise (Upto 10 Years Age)', slug: 'psc-vessel-upto-12' },
+      { code: 'K-2.7.4', label: 'Port State Control (PSC)- Vessel Wise (Above 10 Years & upto 20 Years Age)', slug: 'psc-vessel-12-20' },
       { code: 'K-2.7.5', label: 'Port State Control (PSC)- Vessel Wise (Above 20 Years Age)', slug: 'psc-vessel-above-20' },
       { code: 'K-2.7.6', label: 'Port State Control (PSC) Monthly Trends (For the Current Year)', slug: 'psc-monthly-trends' },
       { code: 'K-2.7.7', label: 'Port State Control (PSC) Yearly Trends', slug: 'psc-yearly-trends' },

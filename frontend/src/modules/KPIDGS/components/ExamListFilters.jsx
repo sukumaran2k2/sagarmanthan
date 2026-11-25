@@ -35,7 +35,7 @@ export function ExamFilterButton({ activeCount, open, onToggle, onReset }) {
   );
 }
 
-export function ExamFilterPanel({ fields, filters, yearOptions, onChange }) {
+export function ExamFilterPanel({ fields, filters, yearOptions, mmdOptions = [], onChange }) {
   return (
     <div className="px-4 pt-3">
       <div className={`module-filter-panel grid grid-cols-1 sm:grid-cols-2 ${fields.length > 2 ? 'md:grid-cols-3' : ''} gap-4 animate-fade-in`}>
@@ -50,6 +50,10 @@ export function ExamFilterPanel({ fields, filters, yearOptions, onChange }) {
         {fields.includes('type') && (
           <FilterSelect label="Type" value={filters.type} onChange={(v) => onChange('type', v)}
             options={FILTER_TYPE_OPTIONS} allLabel="All Types" allValue="" />
+        )}
+        {fields.includes('mmd') && (
+          <FilterSelect label="MMD" value={filters.mmd} onChange={(v) => onChange('mmd', v)}
+            options={mmdOptions} allLabel="All MMDs" allValue="" />
         )}
       </div>
     </div>

@@ -86,7 +86,10 @@ export default function IndexCardGrid({
     <div
       className={
         mergedLayout
-          ? 'overflow-hidden flex flex-col max-h-[calc(100vh-220px)] border-r border-slate-200 dark:border-slate-700'
+          // Sticks to the top of the row and scrolls its sections list internally. When the
+          // right pane grows (e.g. after opening the filter panel), the list stays capped at
+          // viewport height instead of stretching along with the pane.
+          ? 'overflow-hidden flex flex-col max-h-[calc(100vh-220px)] self-start border-r border-slate-200 dark:border-slate-700'
           : 'module-card p-0 overflow-hidden flex flex-col max-h-[calc(100vh-220px)]'
       }
     >
@@ -136,10 +139,11 @@ export default function IndexCardGrid({
     <div
       className={
         mergedLayout
-          // Fixed height column. The inner report page keeps its title / toolbar
-          // pinned (they're shrink-0), and the ag-Grid body handles its own scroll
-          // instead of the whole card scrolling.
-          ? 'min-w-0 px-3 py-3 max-h-[calc(100vh-220px)] overflow-hidden flex flex-col'
+          // Height column with a viewport-anchored floor so the inner report page's title /
+          // toolbar stay pinned and the ag-Grid body handles its own scroll. The pane can grow
+          // past that floor when a collapsible filter panel opens, so the pagination strip
+          // under the grid stays visible instead of being clipped.
+          ? 'min-w-0 px-3 py-3 min-h-[calc(100vh-220px)] flex flex-col'
           : 'min-w-0'
       }
     >

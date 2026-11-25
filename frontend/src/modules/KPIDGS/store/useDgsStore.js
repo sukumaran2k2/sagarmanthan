@@ -14,10 +14,14 @@ import { registerStoreReset } from '../../../stores/resetRegistry';
 export const DGS_STORED_LIST_SLUGS = [
   'exam-monthly-performance', // K-2.3.1
   'exam-overall-performance', // K-2.3.2
+  'flag-state-inspection-mmd-wise', // K-2.6.1
+  'flag-state-inspection-vessel-wise', // K-2.6.2
+  'port-state-inspection-mmd-wise', // K-2.7.1
+  'port-state-inspection-vessel-wise', // K-2.7.2
 ];
 
 // '' means "all" for every filter
-export const EMPTY_LIST_FILTERS = Object.freeze({ year: '', month: '', type: '' });
+export const EMPTY_LIST_FILTERS = Object.freeze({ year: '', month: '', type: '', mmd: '' });
 
 // visibleCols: null until the user changes it, so the Data List supplies its own default columns
 const listSlot = () => ({

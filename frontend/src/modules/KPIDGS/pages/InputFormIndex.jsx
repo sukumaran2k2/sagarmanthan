@@ -7,6 +7,10 @@ import EntryExitCandidates from './inputs/EntryExitCandidates';
 import VesselPortSurvey from './inputs/VesselPortSurvey';
 import ExamMonthlyPerformance from './inputs/ExamMonthlyPerformance';
 import ExamOverallPerformance from './inputs/ExamOverallPerformance';
+import FlagStateInspectionMmdWise from './inputs/FlagStateInspectionMmdWise';
+import FlagStateInspectionVesselWise from './inputs/FlagStateInspectionVesselWise';
+import PortStateInspectionMmdWise from './inputs/PortStateInspectionMmdWise';
+import PortStateInspectionVesselWise from './inputs/PortStateInspectionVesselWise';
 
 // slug → the real input-form component for sections that have been built.
 // Any slug missing from this map falls through to PlaceholderInputForm.
@@ -16,6 +20,10 @@ const FORM_BY_SLUG = {
   'exam-overall-performance': ExamOverallPerformance,
   'entry-exit-of-candidates': EntryExitCandidates,
   'vessel-port-survey': VesselPortSurvey,
+  'flag-state-inspection-mmd-wise': FlagStateInspectionMmdWise,
+  'flag-state-inspection-vessel-wise': FlagStateInspectionVesselWise,
+  'port-state-inspection-mmd-wise': PortStateInspectionMmdWise,
+  'port-state-inspection-vessel-wise': PortStateInspectionVesselWise,
 };
 
 // K-2.3 forms open for edit from the Data List (row in route state); keying them by route entry
@@ -34,8 +42,10 @@ const BACKEND_NOTES = {
   'marine-casualty-yearwise': 'Backend: Marine casualty endpoints (to be confirmed with DGS team)',
   'marine-casualty-country-wise': 'Backend: Marine casualty endpoints (to be confirmed with DGS team)',
   'marine-casualty-vessel-wise': 'Backend: Marine casualty endpoints (to be confirmed with DGS team)',
-  'flag-state-inspection': 'Backend: POST /add-kpi2-6-1, /add-kpi2-6-2-data · GET /kpi2-6-1-list, /kpi2-6-2-list',
-  'port-state-control': 'Backend: POST /add-kpi2-7-1, /add-kpi2-7-2-data · GET /kpi2-7-1-list, /kpi2-7-2-list',
+  'flag-state-inspection-mmd-wise': 'Backend: POST /add-kpi2-6-1 · GET /kpi2-6-1-list · check: /checkData-2-6-1-data/:year/:month/:mmdName',
+  'flag-state-inspection-vessel-wise': 'Backend: POST /add-kpi2-6-2-data · GET /kpi2-6-2-list · check: /checkData-2-6-2-data/:year/:month',
+  'port-state-inspection-mmd-wise': 'Backend: POST /add-kpi2-7-1 · GET /kpi2-7-1-list · check: /checkData-2-7-1-data/:year/:month/:mmdName',
+  'port-state-inspection-vessel-wise': 'Backend: POST /add-kpi2-7-2-data · GET /kpi2-7-2-list · check: /checkData-2-7-2-data/:year/:month',
   'vessel-port-survey': 'Backend: POST /submit-vessel-survey-data · PUT /update-vessel-survey-data · GET /get-vessel-survey-data',
   'mti-master': 'Backend: POST /submit-mti-master-data · PUT /update-mti-master-data · GET /get-mti-master-data',
   'course-master': 'Backend: POST /submit-course-master-data · PUT /update-course-master-data · GET /get-course-master-data',

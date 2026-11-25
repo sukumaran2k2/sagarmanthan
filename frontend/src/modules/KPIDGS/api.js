@@ -156,6 +156,9 @@ export function fetchKpi2_6_1_List(params = {}) {
 export function fetchKpi2_6_1_EditData(year, month, mmdId) {
   return api.get(`/getedit-2-6-1-data/${year}/${month}/${mmdId}`);
 }
+export function updateKpi2_6_1(payload) {
+  return api.put('/edit-2-6-1-data', payload);
+}
 export function deleteKpi2_6_1(year, month, mmdId) {
   return api.delete(`/delete-2-6-1-data/${year}/${month}/${mmdId}`);
 }
@@ -164,6 +167,15 @@ export function createKpi2_6_2(payload) {
 }
 export function fetchKpi2_6_2_List(params = {}) {
   return api.get('/kpi2-6-2-list', { params });
+}
+export function fetchKpi2_6_2_EditData(year, month) {
+  return api.get(`/getedit-2-6-2-data/${year}/${month}`);
+}
+export function updateKpi2_6_2(payload) {
+  return api.put('/edit-2-6-2-data', payload);
+}
+export function deleteKpi2_6_2(year, month) {
+  return api.delete(`/delete-2-6-2-data/${year}/${month}`);
 }
 
 // ---- K-2.7 Port State Control (Input) ----
@@ -179,6 +191,9 @@ export function fetchKpi2_7_1_List(params = {}) {
 export function fetchKpi2_7_1_EditData(year, month, mmdId) {
   return api.get(`/getedit-2-7-1-data/${year}/${month}/${mmdId}`);
 }
+export function updateKpi2_7_1(payload) {
+  return api.put('/edit-2-7-1-data', payload);
+}
 export function deleteKpi2_7_1(year, month, mmdId) {
   return api.delete(`/delete-2-7-1-data/${year}/${month}/${mmdId}`);
 }
@@ -187,6 +202,15 @@ export function createKpi2_7_2(payload) {
 }
 export function fetchKpi2_7_2_List(params = {}) {
   return api.get('/kpi2-7-2-list', { params });
+}
+export function fetchKpi2_7_2_EditData(year, month) {
+  return api.get(`/getedit-2-7-2-data/${year}/${month}`);
+}
+export function updateKpi2_7_2(payload) {
+  return api.put('/edit-2-7-2-data', payload);
+}
+export function deleteKpi2_7_2(year, month) {
+  return api.delete(`/delete-2-7-2-data/${year}/${month}`);
 }
 
 // ---- K-2.8 Vessel and Port Survey/Audits by MMDs ----

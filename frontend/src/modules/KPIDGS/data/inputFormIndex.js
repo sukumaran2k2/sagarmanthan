@@ -40,8 +40,24 @@ const INPUT_FORM_INDEX = [
       { code: 'K-2.5.4', label: 'Marine Casualty Serious & Other Incidents- Vessel-Wise', slug: 'marine-casualty-vessel-wise' },
     ],
   },
-  { code: 'K-2.6', label: 'DGS- Flag State Inspection', slug: 'flag-state-inspection' },
-  { code: 'K-2.7', label: 'DGS- Port State Control (PSC) Inspection', slug: 'port-state-control' },
+  {
+    code: 'K-2.6',
+    label: 'DGS- Flag State Inspection',
+    isGroup: true,
+    children: [
+      { code: 'K-2.6.1', label: 'Flag State Inspection - MMD Wise List', slug: 'flag-state-inspection-mmd-wise' },
+      { code: 'K-2.6.2', label: 'Flag State Inspection & GI Performance- Vessel Wise List', slug: 'flag-state-inspection-vessel-wise' },
+    ],
+  },
+  {
+    code: 'K-2.7',
+    label: 'DGS- Port State Control (PSC) Inspection',
+    isGroup: true,
+    children: [
+      { code: 'K-2.7.1', label: 'Port State Inspection - MMD Wise List', slug: 'port-state-inspection-mmd-wise' },
+      { code: 'K-2.7.2', label: 'Port State Inspection & GI Performance- Vessel Wise List', slug: 'port-state-inspection-vessel-wise' },
+    ],
+  },
   { code: 'K-2.8', label: 'Vessel and Port Survey/Audits by MMDs', slug: 'vessel-port-survey' },
   {
     code: 'K-2.9',

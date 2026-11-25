@@ -10,11 +10,16 @@ describe('KPI DGS store', () => {
     resetAllStores();
   });
 
-  it('has one empty list slot per stored section (K-2.3.1 and K-2.3.2)', () => {
-    expect(DGS_STORED_LIST_SLUGS).toEqual(['exam-monthly-performance', 'exam-overall-performance']);
+  it('has one empty list slot per stored section (K-2.3.1, K-2.3.2, K-2.6.1 and K-2.6.2)', () => {
+    expect(DGS_STORED_LIST_SLUGS).toEqual([
+      'exam-monthly-performance',
+      'exam-overall-performance',
+      'flag-state-inspection-mmd-wise',
+      'flag-state-inspection-vessel-wise',
+    ]);
     DGS_STORED_LIST_SLUGS.forEach((slug) => {
       expect(state().lists[slug]).toEqual({
-        searchTerm: '', filters: { year: '', month: '', type: '' }, showFilterPanel: false, visibleCols: null,
+        searchTerm: '', filters: { year: '', month: '', type: '', mmd: '' }, showFilterPanel: false, visibleCols: null,
       });
     });
   });
@@ -22,9 +27,9 @@ describe('KPI DGS store', () => {
   it('keeps each section\'s filters and panel separate', () => {
     state().setListFilter('exam-overall-performance', 'type', '1');
     state().toggleListFilterPanel('exam-overall-performance');
-    expect(state().lists['exam-overall-performance'].filters).toEqual({ year: '', month: '', type: '1' });
+    expect(state().lists['exam-overall-performance'].filters).toEqual({ year: '', month: '', type: '1', mmd: '' });
     expect(state().lists['exam-overall-performance'].showFilterPanel).toBe(true);
-    expect(state().lists['exam-monthly-performance'].filters).toEqual({ year: '', month: '', type: '' });
+    expect(state().lists['exam-monthly-performance'].filters).toEqual({ year: '', month: '', type: '', mmd: '' });
     expect(state().lists['exam-monthly-performance'].showFilterPanel).toBe(false);
   });
 
@@ -34,7 +39,7 @@ describe('KPI DGS store', () => {
     state().toggleListFilterPanel('exam-monthly-performance');
     state().resetListFilters('exam-monthly-performance');
     expect(state().lists['exam-monthly-performance']).toMatchObject({
-      searchTerm: '', filters: { year: '', month: '', type: '' }, showFilterPanel: true,
+      searchTerm: '', filters: { year: '', month: '', type: '', mmd: '' }, showFilterPanel: true,
     });
   });
 
@@ -67,7 +72,7 @@ describe('KPI DGS store', () => {
     state().setListFilter('exam-monthly-performance', 'month', '4');
     resetAllStores();
     expect(state().lists['exam-monthly-performance']).toEqual({
-      searchTerm: '', filters: { year: '', month: '', type: '' }, showFilterPanel: false, visibleCols: null,
+      searchTerm: '', filters: { year: '', month: '', type: '', mmd: '' }, showFilterPanel: false, visibleCols: null,
     });
   });
 });

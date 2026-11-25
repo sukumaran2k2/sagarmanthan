@@ -3,6 +3,7 @@ import GenericReportPage from '../../components/GenericReportPage';
 import FlaggingReport from '../../components/FlaggingReport';
 import { REPORTS_LEAVES } from '../../data/reportsIndex';
 import VesselSurveyReport from '../../components/VesselSurveyReport';
+import FlagStateInspectionReport from '../../components/FlagStateInspectionReport';
 import * as api from '../../api';
 
 
@@ -14,6 +15,68 @@ const CUSTOM_PAGE_BY_SLUG = {
   'vessel-survey-performance': {
     Component: VesselSurveyReport,
     props: { title: 'Vessel Survey by MMDs Performance' },
+  },
+  // K-2.6 Flag State Inspection — grouped column defs + weighted totals.
+  'flag-state-mmd-wise': {
+    Component: FlagStateInspectionReport,
+    props: { title: 'Abstract - Flag State Inspection - MMD Wise', filenameSuffix: 'FSI_MMD_Wise' },
+  },
+  'flag-state-vessel-all-ages': {
+    Component: FlagStateInspectionReport,
+    props: { title: 'Abstract - Flag State Inspection & GI Performance Vessel Wise (All Ages)', filenameSuffix: 'FSI_Vessel_All_Ages' },
+  },
+  'flag-state-vessel-upto-5': {
+    Component: FlagStateInspectionReport,
+    props: { title: 'Abstract - Flag State Inspection & GI Performance Vessel Wise (Upto 5 Years Age)', filenameSuffix: 'FSI_Vessel_Upto_5' },
+  },
+  'flag-state-vessel-5-15': {
+    Component: FlagStateInspectionReport,
+    props: { title: 'Abstract - Flag State Inspection & GI Performance Vessel Wise (Above 5 Years & upto 15 Years Age)', filenameSuffix: 'FSI_Vessel_5_15' },
+  },
+  'flag-state-vessel-15-25': {
+    Component: FlagStateInspectionReport,
+    props: { title: 'Abstract - Flag State Inspection & GI Performance Vessel Wise (Above 15 Years & upto 25 Years Age)', filenameSuffix: 'FSI_Vessel_15_25' },
+  },
+  'flag-state-vessel-above-25': {
+    Component: FlagStateInspectionReport,
+    props: { title: 'Abstract - Flag State Inspection & GI Performance Vessel Wise (Above 25 Years Age)', filenameSuffix: 'FSI_Vessel_Above_25' },
+  },
+  'flag-state-monthly-trends': {
+    Component: FlagStateInspectionReport,
+    props: { title: 'Abstract - Flag State Inspection (FSI) Monthly Trends (For the Current Year)', filenameSuffix: 'FSI_Monthly_Trends', showTotal: false },
+  },
+  'flag-state-yearly-trends': {
+    Component: FlagStateInspectionReport,
+    props: { title: 'Abstract - Flag State Inspection (FSI) Yearly Trends', filenameSuffix: 'FSI_Yearly_Trends', showTotal: false },
+  },
+  // K-2.7 Port State Control (PSC) — same shape as K-2.6, reused component.
+  'psc-mmd-wise': {
+    Component: FlagStateInspectionReport,
+    props: { title: 'Abstract - Port State Inspection - MMD Wise', filenameSuffix: 'PSC_MMD_Wise' },
+  },
+  'psc-vessel-all-ages': {
+    Component: FlagStateInspectionReport,
+    props: { title: 'Abstract - Port State Control (PSC) Performance Vessel Wise (All Ages)', filenameSuffix: 'PSC_Vessel_All_Ages' },
+  },
+  'psc-vessel-upto-12': {
+    Component: FlagStateInspectionReport,
+    props: { title: 'Abstract - Port State Control (PSC) Performance Vessel Wise (Upto 10 Years Age)', filenameSuffix: 'PSC_Vessel_Upto_10' },
+  },
+  'psc-vessel-12-20': {
+    Component: FlagStateInspectionReport,
+    props: { title: 'Abstract - Port State Control (PSC) Performance Vessel Wise (Above 10 Years & upto 20 Years Age)', filenameSuffix: 'PSC_Vessel_10_20' },
+  },
+  'psc-vessel-above-20': {
+    Component: FlagStateInspectionReport,
+    props: { title: 'Abstract - Port State Control (PSC) Performance Vessel Wise (Above 20 Years)', filenameSuffix: 'PSC_Vessel_Above_20' },
+  },
+  'psc-monthly-trends': {
+    Component: FlagStateInspectionReport,
+    props: { title: 'Abstract - Port State Control (PSC) Inspection Monthly Trends (For the Current Year)', filenameSuffix: 'PSC_Monthly_Trends', showTotal: false },
+  },
+  'psc-yearly-trends': {
+    Component: FlagStateInspectionReport,
+    props: { title: 'Abstract - Port State Control (PSC) Inspection Yearly Trends', filenameSuffix: 'PSC_Yearly_Trends', showTotal: false },
   },
 };
 
