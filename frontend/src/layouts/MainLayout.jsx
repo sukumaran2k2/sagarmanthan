@@ -28,13 +28,32 @@ export const ROUTE_MAP = {
   'projects-input-form': 'projects/project/input-form',
   'projects-basic-info': 'projects/project/basic-info',
   'projects-less5cr': 'projects/project/projects-less-than-5-cr',
-  'projects-lumpsum': 'projects/project/lumpsum-iwai',
+  'projects-lumpsum': 'projects/project/lumpsum-iwai-list',
+  'Lumpsum - IWAI': 'projects/project/lumpsum-iwai-list',
+
+  // 'projects-lumpsum-list': 'projects/project/lumpsum-iwai-list',
+  // 'projects-lumpsum-input-form': 'projects/project/lumpsum-iwai/input-form',
+
+  // 'Lumpsum IWAI Data List': 'projects/project/lumpsum-iwai-list',
+  // 'Lumpsum IWAI Input Form': 'projects/project/lumpsum-iwai/input-form',
+
+  'projects-lumpsum-list':
+  'projects/project/lumpsum-iwai-list',
+
+  'projects-lumpsum-input-form':
+    'projects/project/lumpsum-iwai-input-form',
+
+  'Lumpsum IWAI Data List':
+    'projects/project/lumpsum-iwai-list',
+
+  'Lumpsum IWAI Input Form':
+    'projects/project/lumpsum-iwai-input-form',
+    
   'projects-dropRequests': 'projects/project/view-drop-request',
   'projects-drop-requests': 'projects/project/view-drop-request',
   'projects-reports': 'projects/project/reports',
   'Project List': 'projects/project/project-list',
-  'Projects Less Than 5 Cr': 'projects/project/projects-less-than-5-cr',
-  'Lumpsum - IWAI': 'projects/project/lumpsum-iwai',
+  'Projects Less Than 5 Cr': 'projects/project/projects-less-than-5-cr',  
   'View Drop Request': 'projects/project/view-drop-request',
   'Projects Input Form': 'projects/project/input-form',
   'Projects Reports': 'projects/project/reports',
@@ -192,10 +211,10 @@ export const ROUTE_MAP = {
   'HR Input Form': 'hr/hr-management/input-form',
   'Input Form': 'hr/hr-management/input-form',
   'Add Post': 'hr/hr-management/input-form/add-post',
-  'Non Port Monthly Upload': 'hr/hr-management/non-port-monthly-upload',
+  'Monthly Vacancy Upload': 'hr/hr-management/non-port-monthly-upload',
   'HR Management': 'hr/hr-management',
   'HR Reports': 'hr/hr-management/reports',
-  'Non Port Monthly Upload': 'hr/hr-management/non-port-monthly-upload',
+  'Monthly Vacancy Upload': 'hr/hr-management/non-port-monthly-upload',
 
   // Young Professionals routes
   'Young Professionals': 'hr/young-professionals/list-view',
@@ -246,16 +265,21 @@ export const getTabFromSlug = (slug) => {
   if (cleanSlug.startsWith('projects/project/view-drop-request') || cleanSlug.startsWith('projects/project/drop-requests') || cleanSlug.startsWith('projects/view-drop-request') || cleanSlug.startsWith('projects/drop-requests')) return 'projects-dropRequests';
   if (cleanSlug.startsWith('projects/project/project-dashboard') || cleanSlug.startsWith('projects/project/dashboard') || cleanSlug.startsWith('projects/project-dashboard') || cleanSlug.startsWith('projects/dashboard')) return 'projects-dashboard';
   if (cleanSlug.startsWith('projects/project/projects-less-than-5-cr') || cleanSlug.startsWith('projects/projects-less-than-5-cr')) return 'projects-less5cr';
-  if (cleanSlug.startsWith('projects/project/lumpsum-iwai') || cleanSlug.startsWith('projects/lumpsum-iwai')) return 'projects-lumpsum';
+if (
+  cleanSlug.startsWith('projects/project/lumpsum-iwai') ||
+  cleanSlug.startsWith('projects/lumpsum-iwai')
+) {
+  return 'projects-lumpsum';
+}
   if (cleanSlug.startsWith('projects/project/reports') || cleanSlug.startsWith('projects/reports')) return 'projects-reports';
   if (cleanSlug.startsWith('projects/project/input-form') || cleanSlug.startsWith('projects/project/basic-info') || cleanSlug.startsWith('projects/input-form') || cleanSlug.startsWith('projects/basic-info')) return 'projects-input-form';
   if (cleanSlug.startsWith('projects/project/view-project') || cleanSlug.startsWith('projects/view-project') || cleanSlug.startsWith('projects/project/detail')) return 'projects-view-project';
   if (cleanSlug.startsWith('projects/project') || cleanSlug.startsWith('projects')) return 'projects-list';
 
-  if (cleanSlug.startsWith('hr/hr-management/non-port-monthly-upload')) return 'Non Port Monthly Upload';
+  if (cleanSlug.startsWith('hr/hr-management/non-port-monthly-upload')) return 'Monthly Vacancy Upload';
   if (cleanSlug.startsWith('hr/hr-management/reports')) return 'HR Reports';
   if (cleanSlug.startsWith('hr/hr-management/hr-dashboard')) return 'HR Dashboard';
-  if (cleanSlug.startsWith('hr/hr-management/non-port-monthly-upload')) return 'Non Port Monthly Upload';
+  if (cleanSlug.startsWith('hr/hr-management/non-port-monthly-upload')) return 'Monthly Vacancy Upload';
   if (cleanSlug.startsWith('hr/hr-management/employee-details')) return 'Employee Details';
   if (cleanSlug.startsWith('hr/hr-management/vacancy-management') || cleanSlug.startsWith('hr/hr-management/vacancy-details')) return 'Vacancy Management';
   if (cleanSlug.startsWith('hr/hr-management/input-form')) return 'HR Input Form';
@@ -379,10 +403,10 @@ const getBreadcrumbs = (tab) => {
     'Contractual Employment': ['HR & Institutional', 'HR Management'],
     'Training Details': ['HR & Institutional', 'HR Management'],
     'HR Input Form': ['HR & Institutional', 'HR Management'],
-    'Non Port Monthly Upload': ['HR & Institutional', 'HR Management'],
+    'Monthly Vacancy Upload': ['HR & Institutional', 'HR Management'],
     'HR Management': ['HR & Institutional'],
     'HR Reports': ['HR & Institutional', 'HR Management'],
-    'Non Port Monthly Upload': ['HR & Institutional', 'HR Management'],
+    'Monthly Vacancy Upload': ['HR & Institutional', 'HR Management'],
     'Young Professionals': ['HR & Institutional', 'Young Professionals'],
     'YP Data List': ['HR & Institutional', 'Young Professionals'],
     'YP Input Form': ['HR & Institutional', 'Young Professionals'],

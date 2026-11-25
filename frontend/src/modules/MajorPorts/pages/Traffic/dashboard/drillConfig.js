@@ -157,9 +157,10 @@ export const DRILL_PART = {
 
 const SMPA_DOCK_IDS = [54, 55];
 const TOTAL_NAMES = ['SMPA Total', 'Overall Total'];
-// Organisations 7 and 8 do not report these
+// Organisations 7 and 8 do not report these. Dwell time is not listed: the Ministry now
+// uploads it for every major port (Mumbai and Mormugao included), as the cards show.
 const NO_DWELL_ORGS = [7, 8];
-const NO_DWELL_KPIS = ['import_dwell', 'export_dwell', 'gross_crane'];
+const NO_DWELL_KPIS = ['gross_crane'];
 
 /**
  * Splits the server rows the way the earlier pages did: for all organisations the

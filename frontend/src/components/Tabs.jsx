@@ -162,9 +162,8 @@ export default function Tabs({ activeTab, setActiveTab }) {
             m('PROJECTS', { label: 'Project Dashboard', tab: 'projects-dashboard', icon: LayoutDashboard }),
             m('PROJECTS', { label: 'Project List', tab: 'projects-list', icon: ListTodo }),
             m('PROJECTS', { label: 'Projects Less Than 5 Cr', tab: 'projects-less5cr', icon: Coins }),
-            // m('PROJECTS', { label: 'Lumpsum - IWAI', tab: 'projects-lumpsum', icon: TrendingUp }),
+            m('PROJECTS', { label: 'Lumpsum - IWAI', tab: 'projects-lumpsum', icon: TrendingUp }),
             ...(!isOrgUser ? [m('PROJECTS', { label: 'View Drop Request', tab: 'projects-dropRequests', icon: FolderSync })] : []),
-            // Only Data QC reports remain (MIS is hidden), and those are Ministry only
             ...(!isOrgUser ? [m('PROJECTS', { label: 'Reports', tab: 'projects-reports', icon: FilePieChart })] : []),
           ]
         },
@@ -368,7 +367,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           icon: Users,
           items: [
             { page: 'hr-dashboard', label: 'Dashboard', tab: 'HR Dashboard', icon: LayoutDashboard },
-            { page: 'non-port-monthly-upload', label: 'Non Port Monthly Upload', tab: 'Non Port Monthly Upload', icon: FileSpreadsheet },
+            { page: 'non-port-monthly-upload', label: 'Monthly Vacancy Upload', tab: 'Monthly Vacancy Upload', icon: FileSpreadsheet },
             { page: 'employee-database', label: 'Employee Database', tab: 'Employee Database', icon: Users },
             { page: 'abolished-posts', label: isOrgUser ? 'Abolished Posts' : 'List of Abolished Posts', tab: isOrgUser ? 'Abolished Posts' : 'List of Abolished Posts', icon: Users },
             canViewHrVacancy && { page: 'vacancy-management', label: 'Vacancy Management', tab: 'Vacancy Management', icon: Briefcase },
@@ -609,7 +608,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
             const isHrActiveTab = [
               'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Abolished Posts',
               'Vacancy Management', 'HR Administration & Actions', 'Contractual Employment', 'Training Details', 'HR Reports', 'HR Input Form',
-              'Non Port Monthly Upload'
+              'Monthly Vacancy Upload'
             ].includes(activeTab);
             const isMainMenuActive =
               activeTab === menu.directTab ||

@@ -13,12 +13,14 @@ import { describePeriod } from '../../Traffic/trafficFormat';
 import { useLatestRef } from '../../Traffic/usePagedList';
 import { useEntryOptions } from '../../Traffic/useEntryOptions';
 import {
+  ENTRY_SECTIONS,
   PORT_PERFORMANCE_SECTIONS,
   buildSectionPayload,
   toFormValues,
   validateSection,
 } from '../portPerformanceConfig';
 import StepFieldGroup from './StepFieldGroup';
+import DwellTimeView from './DwellTimeView';
 
 const STEPS = PORT_PERFORMANCE_SECTIONS;
 const EMPTY_VALUES = toFormValues();
@@ -27,6 +29,8 @@ const EMPTY_VALUES = toFormValues();
  * Monthly port performance entry for the signed-in organisation: the earlier portal's
  * 14 tabs as steps. Each step is saved on its own and needs every value (enter 0 where
  * nothing applies); the server decides create vs update and checks the entry window.
+ * The Dwell Time step is view only: it shows the port's values from the Ministry's monthly
+ * Excel upload and is never saved here.
  *
  * editData: { fiscal_year, month } when opened from Actuals, else null.
  */
@@ -49,6 +53,7 @@ export default function PerformanceWizardForm({
   const [loadedPeriod, setLoadedPeriod] = useState({ key: null, failed: false, exists: false, entryOpen: false });
   const [stepIndex, setStepIndex] = useState(0);
   const [values, setValues] = useState(EMPTY_VALUES);
+  const [dwellUpload, setDwellUpload] = useState(null);
   const [savedSteps, setSavedSteps] = useState(() => new Set());
   const [dirtySteps, setDirtySteps] = useState(() => new Set());
   const [fieldErrors, setFieldErrors] = useState({});
@@ -103,6 +108,7 @@ export default function PerformanceWizardForm({
       .then(({ data }) => {
         if (cancelled) return;
         setValues(toFormValues(data.values));
+        setDwellUpload(data.dwellUpload || null);
         setSavedSteps(isUpdate ? new Set(data.savedSections || []) : new Set());
         setDirtySteps(new Set());
         setFieldErrors({});
@@ -411,25 +417,29 @@ export default function PerformanceWizardForm({
               <span>{currentStep.definition}</span>
             </p>
           </div>
-          {currentStep.groups.map((g) => (
-            <StepFieldGroup
-              key={g.title}
-              group={g}
-              values={values}
-              fieldErrors={fieldErrors}
-              onChange={handleValueChange}
-              disabled={inputsDisabled}
-            />
-          ))}
+          {currentStep.viewOnly
+            ? period.loaded && <DwellTimeView dwellUpload={dwellUpload} />
+            : currentStep.groups.map((g) => (
+              <StepFieldGroup
+                key={g.title}
+                group={g}
+                values={values}
+                fieldErrors={fieldErrors}
+                onChange={handleValueChange}
+                disabled={inputsDisabled}
+              />
+            ))}
         </div>
 
         <div className="flex flex-col gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
           <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold">
             Step {stepIndex + 1} of {STEPS.length}
-            {dirtySteps.has(currentStep.id)
-              ? ' · This step has unsaved changes'
-              : savedSteps.has(currentStep.id) ? ' · This step is saved' : ' · This step is not saved yet'}
-            {` · ${savedSteps.size} of ${STEPS.length} steps saved`}
+            {currentStep.viewOnly
+              ? ' · This step is view only'
+              : dirtySteps.has(currentStep.id)
+                ? ' · This step has unsaved changes'
+                : savedSteps.has(currentStep.id) ? ' · This step is saved' : ' · This step is not saved yet'}
+            {` · ${savedSteps.size} of ${ENTRY_SECTIONS.length} steps saved`}
             {dirtySteps.size ? ` · ${dirtySteps.size} step${dirtySteps.size === 1 ? '' : 's'} to save` : ''}
           </p>
           <div className="flex flex-wrap items-center gap-2 justify-between">
@@ -456,16 +466,29 @@ export default function PerformanceWizardForm({
             </div>
 
             <div className="flex flex-wrap items-center gap-2 justify-end">
-              <button
-                type="button"
-                onClick={handleSaveStep}
-                disabled={!ready || submitting}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 border border-[#0f417a] text-[#0f417a] dark:border-blue-400 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-xl text-xs font-bold transition cursor-pointer disabled:opacity-50"
-              >
-                <Save className="h-3.5 w-3.5" />
-                Save Step
-              </button>
-              {isLastStep ? (
+              {/* Dwell Time (view only) has nothing to save: no Save Step, and Next instead of Save & Next */}
+              {!currentStep.viewOnly && (
+                <button
+                  type="button"
+                  onClick={handleSaveStep}
+                  disabled={!ready || submitting}
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 border border-[#0f417a] text-[#0f417a] dark:border-blue-400 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-xl text-xs font-bold transition cursor-pointer disabled:opacity-50"
+                >
+                  <Save className="h-3.5 w-3.5" />
+                  Save Step
+                </button>
+              )}
+              {currentStep.viewOnly && !isLastStep ? (
+                <button
+                  type="button"
+                  onClick={() => goToStep(stepIndex + 1)}
+                  disabled={submitting}
+                  className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-[#0f417a] hover:bg-[#1a5ba3] text-white rounded-xl text-xs font-bold shadow-md transition cursor-pointer disabled:opacity-50"
+                >
+                  Next
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+              ) : isLastStep ? (
                 <button
                   type="button"
                   onClick={handleFinish}

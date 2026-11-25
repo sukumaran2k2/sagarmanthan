@@ -225,7 +225,7 @@ function RequestCard({ row, canReview, onAccept, onReject, busy }) {
       )}
 
       {canReview && isPending && (
-        <div className="flex gap-2 pt-2 border-t border-slate-150 dark:border-slate-800">
+        <div className="flex gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
           <button
             disabled={busy}
             onClick={() => onAccept(row)}
@@ -379,7 +379,7 @@ export default function DropRequestsPage({ notify }) {
         <button
           onClick={load}
           disabled={loading}
-          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 shadow-sm transition disabled:opacity-50"
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-sm transition disabled:opacity-50"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
         </button>
@@ -391,7 +391,7 @@ export default function DropRequestsPage({ notify }) {
             key={f.id}
             onClick={() => setFilter(f.id)}
             className={`px-3.5 py-1.5 rounded-full text-xs font-bold border transition ${
-              filter === f.id ? `${f.color} border-current shadow-xs` : 'text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-850'
+              filter === f.id ? `${f.color} border-current shadow-xs` : 'text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800'
             }`}
           >
             <span className="flex items-center gap-1.5">

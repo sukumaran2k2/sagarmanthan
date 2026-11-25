@@ -5,7 +5,8 @@ import path from 'path';
 import xlsx from 'xlsx';
 import { pool } from "../../db.js";
 import { readPeriod } from './eOfficePeriod.js';
-import { spreadsheetFileFilter, singleSpreadsheet } from './eOfficeUpload.js';
+import { spreadsheetFileFilter, singleSpreadsheet, uniqueUploadName, removeStoredUpload } from './eOfficeUpload.js';
+import { EMPLOYEE_LEVELS } from './eOfficeEmployees.js';
 
 const uploadDestination = "./fileuploads/Emp_attendance";
 
@@ -18,7 +19,7 @@ const storage = multer.diskStorage({
         callback(null, "./fileuploads/Emp_attendance");
     },
     filename: (req, file, callback) => {
-        const uniqueFileName = generateUniqueFileName(file.originalname);
+        const uniqueFileName = uniqueUploadName(file.originalname);
         req.uniqueFileName = uniqueFileName;
         callback(null, uniqueFileName);
     },
@@ -347,32 +348,9 @@ async function updateEmpAttendance(req, res) {
     }
 }
 
-function generateUniqueFileName(originalFileName) {
-    const currentDate = new Date();
-    const year = currentDate.getFullYear();
-    const month = (currentDate.getMonth() + 1).toString().padStart(2, '0');
-    const day = currentDate.getDate().toString().padStart(2, '0');
-
-    // Add time
-    const hours = currentDate.getHours().toString().padStart(2, '0');
-    const minutes = currentDate.getMinutes().toString().padStart(2, '0');
-    const seconds = currentDate.getSeconds().toString().padStart(2, '0');
-
-    const fileExtension = originalFileName.split('.').pop();
-    const baseFileName = originalFileName.substring(0, originalFileName.lastIndexOf('.'));
-
-    return `${baseFileName}_${day}${month}${year}_${hours}${minutes}${seconds}.${fileExtension}`;
-}
-
 // Removes a stored sheet by its file name (kept inside the upload folder)
-function deleteFile(fileName) {
-    if (!fileName) return;
-    const filePath = path.join(uploadDestination, path.basename(String(fileName)));
-    try {
-        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-    } catch (err) {
-        console.error('Attendance file could not be removed:', err.message);
-    }
+function deleteFile(file) {
+    removeStoredUpload(uploadDestination, file);
 }
 
 //Add user function
@@ -385,6 +363,11 @@ async function addEmpDataAttendance(req, res) {
     const designation = text(req.body.designation);
     const wingId = Number(req.body.wing);
     const divisionId = Number(req.body.division);
+    // Optional level of designation (E-Office Employee Info); the upload pages don't send one
+    const levelCode = text(req.body.level).toUpperCase();
+    if (levelCode && !EMPLOYEE_LEVELS.includes(levelCode)) {
+        return res.status(400).json({ error: 'Not a valid level of designation' });
+    }
 
     const missing = [!empId && 'Emp Id', !empName && 'Emp Name', !designation && 'Designation',
         !Number.isInteger(wingId) && 'Wing', !Number.isInteger(divisionId) && 'Division'].filter(Boolean);
@@ -400,6 +383,7 @@ async function addEmpDataAttendance(req, res) {
         request.input("designation", sql.NVarChar(255), designation);
         request.input("wing", sql.Int, wingId);
         request.input("division", sql.Int, divisionId);
+        request.input("level", sql.NVarChar(255), levelCode || null);
 
         const existing = await request.query(`SELECT TOP 1 Emp_Id FROM mmt_employee_info WHERE Emp_Id = @empId`);
         if (existing.recordset.length) {
@@ -416,8 +400,8 @@ async function addEmpDataAttendance(req, res) {
         request.input("organizationID", sql.Int, orgIDResult.recordset[0].organization_id);
 
         await request.query(`
-            INSERT INTO mmt_employee_info (Emp_Id, Emp_Name, Designation, organization_id)
-            VALUES (@empId, @empName, @designation, @organizationID)
+            INSERT INTO mmt_employee_info (Emp_Id, Emp_Name, Designation, organization_id, level)
+            VALUES (@empId, @empName, @designation, @organizationID, @level)
         `);
 
         return res.status(201).json({ message: 'Employee created', empId });

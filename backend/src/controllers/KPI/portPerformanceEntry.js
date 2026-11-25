@@ -23,10 +23,13 @@ import {
 } from "./kpiEntryCommon.js";
 import {
     ALL_COLUMNS,
+    ENTRY_SECTIONS,
     LIST_VIEW_COLUMNS,
-    PORT_PERFORMANCE_SECTIONS,
     SECTION_BY_ID,
+    UPLOADED_DWELL_COLUMNS,
+    UPLOADED_DWELL_VIEWS,
 } from "./portPerformanceFields.js";
+import { DWELL_VALUE_KEYS } from "./dwellTimeSheet.js";
 
 /**
  * KPI Major Ports — Port Performance (the earlier portal's "KPI Time Performance").
@@ -39,6 +42,9 @@ import {
  *  - The entry window and unlock rules are shared with Traffic (kpiEntryCommon.js).
  *  - CRUD flags come from the user's KPI_MAJOR_PORTS permission (route middleware plus
  *    requirePermission for create-vs-update decided at runtime).
+ *  - The Dwell Time step is view only: it shows the port's values from the Ministry's monthly
+ *    Excel upload (portPerformanceDwell.js) and is not saved here. Steps Saved counts the
+ *    other steps (ENTRY_SECTIONS).
  */
 
 const MODULE_CODE = "KPI_MAJOR_PORTS";
@@ -81,11 +87,11 @@ function parseFieldValue(field, raw) {
 const sectionSavedSql = (section, alias) =>
     `CASE WHEN ${section.fields.map((f) => `${alias}.${f.column} IS NOT NULL`).join(" OR ")} THEN 1 ELSE 0 END`;
 
-const SECTIONS_SAVED_SQL = (alias) => PORT_PERFORMANCE_SECTIONS.map((s) => sectionSavedSql(s, alias)).join(" + ");
+const SECTIONS_SAVED_SQL = (alias) => ENTRY_SECTIONS.map((s) => sectionSavedSql(s, alias)).join(" + ");
 
 function savedSectionIds(row) {
     if (!row) return [];
-    return PORT_PERFORMANCE_SECTIONS
+    return ENTRY_SECTIONS
         .filter((s) => s.fields.some((f) => row[f.column] !== null && row[f.column] !== undefined))
         .map((s) => s.id);
 }
@@ -201,6 +207,16 @@ async function getPortPerformanceActuals(req, res) {
         INNER JOIN mmt_organisation org ON org.organisation_id = p.organisation_id
         WHERE p.fiscal_year IS NOT NULL AND p.month BETWEEN 1 AND 12 ${where}
     `;
+    // Dwell time is the Ministry's upload for the port and month (blank until uploaded);
+    // the dwell time entered in the form earlier (export_/import_dwell_time) is not shown
+    const withDwell = UPLOADED_DWELL_VIEWS.has(view);
+    const dwellSelect = withDwell
+        ? `, ${UPLOADED_DWELL_COLUMNS.map((c) => `d.${c} AS dwell_${c}`).join(", ")}`
+        : "";
+    const dwellJoin = withDwell
+        ? `LEFT JOIN tbl_kpi_time_performance_dwell d
+               ON d.organisation_id = p.organisation_id AND d.fiscal_year = p.fiscal_year AND d.month = p.month`
+        : "";
 
     try {
         const conn = await pool;
@@ -211,11 +227,14 @@ async function getPortPerformanceActuals(req, res) {
 
         const { recordset } = await dataRequest.query(`
             SELECT p.fiscal_year, p.month, p.organisation_id, org.organisation_name,
-                   ${viewColumns.map((c) => `p.${c}`).join(", ")},
+                   ${viewColumns.map((c) => `p.${c}`).join(", ")}${dwellSelect},
                    ${SECTIONS_SAVED_SQL("p")} AS sections_saved,
                    COALESCE(p.updated_date, p.created_date) AS last_updated,
                    COUNT(*) OVER() AS total_count
-            ${fromSql(dataWhere)}
+            FROM tbl_kpi_time_performance p
+            INNER JOIN mmt_organisation org ON org.organisation_id = p.organisation_id
+            ${dwellJoin}
+            WHERE p.fiscal_year IS NOT NULL AND p.month BETWEEN 1 AND 12 ${dataWhere}
             ORDER BY p.fiscal_year DESC, ${FISCAL_MONTH_ORDER_SQL("p.month")} DESC, org.organisation_name
             OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
         `);
@@ -229,7 +248,7 @@ async function getPortPerformanceActuals(req, res) {
         }
         const rows = recordset.map(({ total_count: _count, ...row }) => ({
             ...row,
-            sections_total: PORT_PERFORMANCE_SECTIONS.length,
+            sections_total: ENTRY_SECTIONS.length,
         }));
         return res.status(200).json({ data: rows, pagination: buildPagination(Number(total) || 0, page, limit) });
     } catch (error) {
@@ -256,6 +275,34 @@ async function loadPeriodRow(conn, organisationId, fiscalYear, month, { lock = f
     return result.recordset[0] || null;
 }
 
+/**
+ * The organisation's dwell time from the Ministry's Excel upload for a month:
+ * { values: { monthly_import, ..., ytd_overall }, uploadedDate } or null when not uploaded.
+ */
+async function loadUploadedDwell(conn, organisationId, fiscalYear, month) {
+    const request = conn.request();
+    request.input("organisationId", sql.Int, organisationId);
+    request.input("fiscalYear", sql.NVarChar(20), fiscalYear);
+    request.input("month", sql.Int, month);
+    try {
+        const result = await request.query(`
+            SELECT ${DWELL_VALUE_KEYS.join(", ")}, COALESCE(updated_date, created_date) AS uploaded_date
+            FROM tbl_kpi_time_performance_dwell
+            WHERE organisation_id = @organisationId AND fiscal_year = @fiscalYear AND month = @month
+        `);
+        const row = result.recordset[0];
+        if (!row) return null;
+        return {
+            values: Object.fromEntries(DWELL_VALUE_KEYS.map((k) => [k, row[k] === null ? null : Number(row[k])])),
+            uploadedDate: row.uploaded_date,
+        };
+    } catch (error) {
+        // 208 = table missing: 03_dwell_time_upload.sql has not been run on this database yet
+        if (error?.number === 208) return null;
+        throw error;
+    }
+}
+
 async function getPortPerformancePeriod(req, res) {
     const fiscalYear = normaliseFiscalYear(req.query.fiscalYear);
     const month = parseMonth(req.query.month);
@@ -267,17 +314,19 @@ async function getPortPerformancePeriod(req, res) {
 
     try {
         const conn = await pool;
-        const [row, entryAccess] = await Promise.all([
+        const [row, entryAccess, dwellUpload] = await Promise.all([
             loadPeriodRow(conn, read.organisationId, fiscalYear, month),
             describeScope(req).isOrganisation
                 ? getEntryAccess(conn, read.organisationId, fiscalYear, month)
                 : Promise.resolve({ open: false, reason: "ministry" }),
+            loadUploadedDwell(conn, read.organisationId, fiscalYear, month),
         ]);
         return res.status(200).json({
             success: true,
             exists: Boolean(row),
             values: pickValues(row, ALL_COLUMNS),
             savedSections: savedSectionIds(row),
+            dwellUpload,
             entryAccess,
         });
     } catch (error) {
@@ -329,6 +378,9 @@ async function savePortPerformancePeriod(req, res) {
 
     const section = SECTION_BY_ID.get(String(req.body?.section || ""));
     if (!section) return sendError(res, 400, "Unknown input step.");
+    if (section.viewOnly) {
+        return sendError(res, 400, `${section.label} is uploaded by the Ministry as an Excel sheet and is view only here.`);
+    }
     const { values, error } = parseSectionValues(section, req.body?.values);
     if (error) return sendError(res, 400, error);
 

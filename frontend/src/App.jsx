@@ -408,23 +408,38 @@ export default function App() {
               />
             } />
 
-            <Route path="projects/project/lumpsum-iwai" element={
-              <Projects
-                projects={projects}
-                onAddProject={handleAddProject}
-                onAddSubProject={handleAddSubProject}
-                triggerNotification={triggerNotification}
-              />
-            } />
-            <Route path="projects/lumpsum-iwai" element={
-              <Projects
-                projects={projects}
-                onAddProject={handleAddProject}
-                onAddSubProject={handleAddSubProject}
-                triggerNotification={triggerNotification}
-              />
-            } />
+{/* LumpSum IWAI */}
+<Route
+  path="projects/project/lumpsum-iwai-list"
+  element={<Projects onGoHome={() => navigate('/')} triggerNotification={triggerNotification} />}
+/>
 
+<Route
+  path="projects/project/lumpsum-iwai-input-form"
+  element={<Projects onGoHome={() => navigate('/')} triggerNotification={triggerNotification} />}
+/>
+
+{/* <Route
+  path="projects/project/lumpsum-iwai-dashboard"
+  element={<Projects onGoHome={() => navigate('/')} triggerNotification={triggerNotification} />}
+/> */}
+
+{/* <Route
+  path="projects/project/lumpsum-iwai-reports"
+  element={<Projects onGoHome={() => navigate('/')} triggerNotification={triggerNotification} />}
+/> */}
+  
+
+<Route
+  path="projects/lumpsum-iwai/reports"
+  element={
+    <Projects
+      onGoHome={() => navigate('/')}
+      triggerNotification={triggerNotification}
+    />
+  }
+/>
+            {/* Canonical drop-request route. All other spellings redirect here. */}
             <Route path="projects/project/view-drop-request" element={
               <Projects
                 projects={projects}
@@ -433,30 +448,9 @@ export default function App() {
                 triggerNotification={triggerNotification}
               />
             } />
-            <Route path="projects/project/drop-requests" element={
-              <Projects
-                projects={projects}
-                onAddProject={handleAddProject}
-                onAddSubProject={handleAddSubProject}
-                triggerNotification={triggerNotification}
-              />
-            } />
-            <Route path="projects/view-drop-request" element={
-              <Projects
-                projects={projects}
-                onAddProject={handleAddProject}
-                onAddSubProject={handleAddSubProject}
-                triggerNotification={triggerNotification}
-              />
-            } />
-            <Route path="projects/drop-requests" element={
-              <Projects
-                projects={projects}
-                onAddProject={handleAddProject}
-                onAddSubProject={handleAddSubProject}
-                triggerNotification={triggerNotification}
-              />
-            } />
+            <Route path="projects/project/drop-requests" element={<Navigate to="/projects/project/view-drop-request" replace />} />
+            <Route path="projects/view-drop-request" element={<Navigate to="/projects/project/view-drop-request" replace />} />
+            <Route path="projects/drop-requests" element={<Navigate to="/projects/project/view-drop-request" replace />} />
 
             <Route path="projects/project/reports" element={
               <Projects

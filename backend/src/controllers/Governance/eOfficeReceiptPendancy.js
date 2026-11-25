@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import xlsx from 'xlsx';
 import { pool } from "../../db.js";
-import { spreadsheetFileFilter, singleSpreadsheet } from "./eOfficeUpload.js";
+import { spreadsheetFileFilter, singleSpreadsheet, uniqueUploadName, removeStoredUpload, uploadedFileId } from "./eOfficeUpload.js";
 import { readPeriod } from "./eOfficePeriod.js";
 import { fileURLToPath } from 'url';
 
@@ -19,7 +19,7 @@ const storage = multer.diskStorage({
         callback(null, "./fileuploads/E-Office/Receipt_Pendancy");
     },
     filename: (req, file, callback) => {
-        const uniqueFileName = generateUniqueFileName(file.originalname);
+        const uniqueFileName = uniqueUploadName(file.originalname);
         req.uniqueFileName = uniqueFileName;
         callback(null, uniqueFileName);
     },
@@ -259,7 +259,12 @@ async function updateReceiptPendancy(req, res) {
         }
         const { Year, month, week } = period;
 
-        const FileId = req.body.fileId;
+        // The stored sheet being replaced: a positive id (a bad value is a 400, not a failed lookup)
+        const FileId = uploadedFileId(req.body.fileId);
+        if (!FileId) {
+            deleteFile(req.file);
+            return res.status(400).json({ error: 'Choose a valid uploaded sheet to replace.' });
+        }
         const userID = req.user.userId; // the uploader is the signed-in user, not a form value
 
         const uniqueFileName = req.uniqueFileName;
@@ -371,6 +376,10 @@ async function updateReceiptPendancy(req, res) {
             WHERE ID = @FileId;
         `);
 
+        if (!fileName.recordset[0]) {
+            deleteFile(req.file);
+            return res.status(404).json({ error: 'The sheet to replace was not found. It may have been deleted.' });
+        }
         const deleteFileName = fileName.recordset[0].File_name;
         deleteFile(deleteFileName);
 
@@ -474,33 +483,8 @@ async function updateReceiptPendancy(req, res) {
     }
 }
 
-function generateUniqueFileName(originalFileName) {
-    const currentDate = new Date();
-    const year = currentDate.getFullYear();
-    const month = (currentDate.getMonth() + 1).toString().padStart(2, '0'); 
-    const day = currentDate.getDate().toString().padStart(2, '0');
-    
-    // Add time
-    const hours = currentDate.getHours().toString().padStart(2, '0');
-    const minutes = currentDate.getMinutes().toString().padStart(2, '0');
-    const seconds = currentDate.getSeconds().toString().padStart(2, '0');
-
-    const fileExtension = originalFileName.split('.').pop();
-    const baseFileName = originalFileName.substring(0, originalFileName.lastIndexOf('.'));
-    
-    return `${baseFileName}_${day}${month}${year}_${hours}${minutes}${seconds}.${fileExtension}`;
-}
-
-function deleteFile(fileName) {
-    if (fileName) {
-        const filePath = `./fileuploads/E-Office/Receipt_Pendancy/${fileName}`;
-        if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath); 
-        }
-    }
-    if (fileName && fs.existsSync(fileName.path)) {
-        fs.unlinkSync(fileName.path); 
-    }
+function deleteFile(file) {
+    removeStoredUpload(uploadDestination, file);
 }
 
 

@@ -969,7 +969,7 @@ async function downloadDocument(req, res)
 {
     try 
     {
-        const fileName = req.params.filename;
+        const fileName = path.basename(req.params.filename);
         const file_path = path.join(__dirname, "../../../fileuploads/MIV/initiatives", fileName);
 
         try {

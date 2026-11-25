@@ -300,7 +300,6 @@ export default function ListAbolishedPosts({ permissions, notify }) {
     let pages = 1;
     do {
       const res = await fetchAbolishedPostsPage({ ...filters, page: pageNo, limit: EXPORT_LIMIT });
-      if (pageNo === 1) console.log('abolished export response:', res); // remove once it works
       const list = pickList(res);
       all.push(...list);
       const totalPagesFromApi = pickNumber(res, ['totalPages', 'total_pages', 'pages']);

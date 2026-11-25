@@ -47,6 +47,7 @@ import eOfficeTab from "./controllers/Governance/eOffice.js";
 import EofficeFilePendancyTab from "./controllers/Governance/eOfficeFilePendancy.js";
 import EofficeReceiptPendancyTab from "./controllers/Governance/eOfficeReceiptPendancy.js";
 import EofficeFileDisposalTab from "./controllers/Governance/eOfficeFileDisposal.js";
+import eOfficeEmployeesTab from "./controllers/Governance/eOfficeEmployees.js";
 import officialForeignVisitTab from "./controllers/Governance/officialForeignVisit.js";
 
 //HR
@@ -95,6 +96,9 @@ import underTenderingTab from "./controllers/ProjectManagement/utProjectDatesAct
 import activityTab from "./controllers/ProjectManagement/projectActivitiesAction.js";
 import expenditureTab from "./controllers/ProjectManagement/projectExpenditureAction.js";
 import completionTab from "./controllers/ProjectManagement/addCompletionDateAction.js";
+
+//Lumpsum
+import lumpSumTab from "./controllers/ProjectManagement/addLumpSum.js";
 
 // REPORTS
 import parlimentaryReportTab from "./controllers/Reports/parliamentaryReports.js";
@@ -162,6 +166,7 @@ import TrafficTab from "./controllers/KPI/traffic.js";
 import TrafficEntry from "./controllers/KPI/trafficEntry.js";
 import TrafficDashboard from "./controllers/KPI/trafficDashboardAccess.js";
 import PortPerformanceEntry from "./controllers/KPI/portPerformanceEntry.js";
+import PortPerformanceDwell from "./controllers/KPI/portPerformanceDwell.js";
 import FinancialParameterEntry from "./controllers/KPI/financialParameterEntry.js";
 import FinancialDashboard from "./controllers/KPI/financialDashboardAccess.js";
 import CruisePassengerTrafficEntry from "./controllers/KPI/cruisePassengerTrafficEntry.js";
@@ -667,6 +672,10 @@ router.delete("/file-pendancy/delete/:id", auth, ministryOnly, eofficeDelete, eO
 // Unknown Emp Ids in an E-Office sheet: create them (same as Attendance, under E-Office rights)
 router.post("/eoffice-employee-data", auth, ministryOnly, eofficeCreate, empAttendanceTab.addEmpDataAttendance);
 router.get("/eoffice-employee-org-units", auth, ministryOnly, eofficeRead, empAttendanceTab.getEmployeeOrgUnits);
+// Employee Info tab: the employee list the sheets are matched against (add uses /eoffice-employee-data)
+router.get("/eoffice-employees", auth, ministryOnly, eofficeRead, eOfficeEmployeesTab.getEmployees);
+router.put("/eoffice-employees/:id", auth, ministryOnly, eofficeUpdate, eOfficeEmployeesTab.updateEmployee);
+router.delete("/eoffice-employees/:id", auth, ministryOnly, eofficeDelete, eOfficeEmployeesTab.deleteEmployee);
 router.post("/file-pendancy-create", auth, ministryOnly, eofficeCreate, EofficeFilePendancyTab.uploadSingleFile, EofficeFilePendancyTab.addFilePendancy);
 router.put("/file-pendancy-update", auth, ministryOnly, eofficeUpdate, EofficeFilePendancyTab.uploadSingleFile, EofficeFilePendancyTab.updateFilePendancy);
 
@@ -877,7 +886,7 @@ router.get('/get-update-capex-projects-data', auth, requireModulePermission("PRO
 router.post('/update-capex-project-data', auth, requireModulePermission("PROJECTS", "update"), projectListTab.updateCapexProjectData);
 
 router.get("/project-id-dropdown/:organisationID/:tid", auth, requireModulePermission("PROJECTS", "read"), masterTable.getDropDownProjectList);
-router.get("/subproject-id-dropdown/:organisationID/:tid/:projectId", auth, requireModulePermission("PROJECTS", "read"), masterTable.getDropDownSubProjectList);
+router.get("/subproject-id-dropdown/:organisationID/:tid", auth, requireModulePermission("PROJECTS", "read"), masterTable.getDropDownSubProjectList);
 
 router.get("/view-projectdata/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.viewProjectData);
 router.get("/view-projectimages/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.viewProjectImages);
@@ -950,6 +959,14 @@ router.get("/completionpage/:projectID/:subProjectID", auth, requireModulePermis
 router.post("/add-newproject", auth, requireModulePermission("PROJECTS", "create"), addNewProjectTab.createNewProject);
 router.get("/subproject-parent-list", auth, requireModulePermission("PROJECTS", "create"), addNewProjectTab.getSubProjectParentList);
 router.post("/add-subproject", auth, requireModulePermission("PROJECTS", "create"), addNewProjectTab.addSubProjects);
+
+//Lumpsum Module
+router.get("/lumpsum-list/", auth, requireModulePermission("PROJECTS",  "read"), lumpSumTab.getLumpSumList);
+router.post('/add-lumpsum', auth, requireModulePermission("PROJECTS", "create"), lumpSumTab.createLumpSumData);
+router.get('/getedit-lumpsum-data/:projectID', auth, requireModulePermission("PROJECTS", "read"), lumpSumTab.getLumpSumData);
+router.put('/edit-lumpsum', auth, requireModulePermission("PROJECTS", "update"), lumpSumTab.editLumpSumData);
+router.get("/lumpsum-project-list", auth, requireModulePermission("PROJECTS", "read"), lumpSumTab.getLumpSumProjectList);
+router.delete("/delete-lumpsum-activity/:lumpsumId", auth, requireModulePermission("PROJECTS", "delete"), lumpSumTab.deleteLumpSumData);
 
 //young professionals
 router.get("/young-professional", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), youngProfessionalsTab.getYoungProfessional);
@@ -1047,10 +1064,10 @@ router.get('/get-chd-in-employees-by-organisation/:organisationId', auth, requir
 router.get("/get-organisation-name/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), postRequestTab.getOrgName);
 
 router.get("/get-post-request-data/:postRequestId", auth, requireModulePermission("HR_MANAGEMENT", "read"), postRequestTab.getPostRequestData);
-router.post("/update-post-approval", requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.updatePostApprovalDetails);
-router.post("/approve-post-request", requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.approvePostRequest);
-router.post("/reject-approve-request", requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.rejectApproveRequest);
-router.post("/update-post-request-approval", requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.updatePostRequestApprovalDetail);
+router.post("/update-post-approval", auth, requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.updatePostApprovalDetails);
+router.post("/approve-post-request", auth, requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.approvePostRequest);
+router.post("/reject-approve-request", auth, requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.rejectApproveRequest);
+router.post("/update-post-request-approval", auth, requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.updatePostRequestApprovalDetail);
 router.get("/get-user-name/:userID", auth, requireModulePermission("HR_MANAGEMENT", "read"), postRequestTab.getUserName);
 
 router.get("/get-activity-date-data/:fromDate/:toDate/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrPostTab.getActivityDateData);
@@ -1466,7 +1483,7 @@ router.get("/gem-yoy-report", auth, requireModulePermission("GEM_PROCUREMENT", "
 // MIV
 router.post("/mivdetailed-report/", auth, requireModulePermission("MIV_2030", "read"), mivReportTab.mivDetailedData);
 router.post("/miv-theme-detailed-report/", auth, requireModulePermission("MIV_2030", "read"), mivReportTab.mivThemeDetailedData); //MIV THEME WISE REPORT
-router.get("/miv-document/download/:filename", mivReportTab.downloadDocument);
+router.get("/miv-document/download/:filename", auth, requireModulePermission("MIV_2030", "read"), mivReportTab.downloadDocument);
 //Theme Wise MIV Report:
 router.get("/get-mmt-Theme-Values/", auth, requireModulePermission("MIV_2030", "read"), mivReportTab.getmmtThemeValues);
 
@@ -1768,6 +1785,14 @@ router.delete('/kpi/port-performance/targets/record', auth, requireModulePermiss
 router.get('/kpi/port-performance/access', auth, requireModulePermission(TRAFFIC_MODULE, "read"), PortPerformanceEntry.getPortPerformanceAccessGrants);
 router.post('/kpi/port-performance/access', auth, requireModulePermission(TRAFFIC_MODULE, "create"), PortPerformanceEntry.createPortPerformanceAccessGrant);
 router.patch('/kpi/port-performance/access/:accessId/revoke', auth, requireModulePermission(TRAFFIC_MODULE, "update"), PortPerformanceEntry.revokePortPerformanceAccessGrant);
+// Dwell time: monthly Excel upload by the Ministry (preview, then save), list and delete per month
+router.get('/kpi/port-performance/dwell', auth, requireModulePermission(TRAFFIC_MODULE, "read"), PortPerformanceDwell.getDwellPeriods);
+router.get('/kpi/port-performance/dwell/template', auth, requireModulePermission(TRAFFIC_MODULE, "read"), PortPerformanceDwell.downloadDwellTemplate);
+router.post('/kpi/port-performance/dwell/upload', auth, requireAnyModulePermission(TRAFFIC_MODULE, ["create", "update"]), PortPerformanceDwell.receiveDwellFile, PortPerformanceDwell.uploadDwellSheet);
+router.delete('/kpi/port-performance/dwell/period', auth, requireModulePermission(TRAFFIC_MODULE, "delete"), PortPerformanceDwell.deleteDwellPeriod);
+router.get('/kpi/port-performance/dwell/period', auth, requireModulePermission(TRAFFIC_MODULE, "read"), PortPerformanceDwell.getDwellPeriod);
+router.put('/kpi/port-performance/dwell/period', auth, requireModulePermission(TRAFFIC_MODULE, "update"), PortPerformanceDwell.updateDwellPeriod);
+router.get('/kpi/port-performance/dwell/period/excel', auth, requireModulePermission(TRAFFIC_MODULE, "read"), PortPerformanceDwell.downloadDwellPeriodExcel);
 
 // Financial Parameters data entry: identity and organisation from the JWT; organisation users
 // own the monthly actuals and ministry users the targets (enforced in the controller). No entry window.
@@ -2877,7 +2902,7 @@ router.put('/miv-data/:id', auth, requireModulePermission("MIV_2030", "update"),
 // router.put('/miv/:id', auth, requireModulePermission("MIV_2030", "update"), MIVTab.editMIVData);
 router.get('/meeting', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getMeeting);
 router.post("/meeting", auth, requireModulePermission("MIV_2030", "create"), MIVTab.uploadMeeting.single('file'), MIVTab.createMeeting);
-router.get("/meeting/download/:id", MIVTab.downloadMeeting);
+router.get("/meeting/download/:id", auth, requireModulePermission("MIV_2030", "read"), MIVTab.downloadMeeting);
 // router.get('/meeting-no', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getNoOfMeetings);
 
 

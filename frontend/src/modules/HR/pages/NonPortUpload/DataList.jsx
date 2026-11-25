@@ -124,7 +124,10 @@ useEffect(() => {
     })
     .catch(err => {
       console.warn('Error loading vacancy data:', err);
-      if (isMounted) setLoaded({ key: dataKey, rows: [] });
+      if (isMounted) {
+        setLoaded({ key: dataKey, rows: [] });
+        notify('Failed to load vacancy data. Please try again.', 'error');
+      }
     });
 
   return () => { isMounted = false; };

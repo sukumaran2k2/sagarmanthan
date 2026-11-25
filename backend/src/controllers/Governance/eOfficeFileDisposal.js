@@ -4,11 +4,18 @@ import fs from 'fs';
 import path from 'path';
 import xlsx from 'xlsx';
 import { pool } from "../../db.js";
-import { spreadsheetFileFilter, singleSpreadsheet } from "./eOfficeUpload.js";
+import { spreadsheetFileFilter, singleSpreadsheet, uniqueUploadName, removeStoredUpload, uploadedFileId } from "./eOfficeUpload.js";
 import { readPeriod } from "./eOfficePeriod.js";
 import { fileURLToPath } from 'url';
 
 const uploadDestination = "./fileuploads/E-Office/File_Disposal";
+
+// Average Response Time as E-Office exports it: "hh:mm:ss" or "N days hh:mm:ss"; a blank cell is
+// 00:00:00 (QC EOF-BE-03)
+const RESPONSE_TIME_HEADERS = ['Average Response Time', 'Avg. Response time', 'Avg Response Time', 'AverageResponseTime'];
+const RESPONSE_TIME_FORMAT = /^(\d+ days? )?\d{1,3}:[0-5]\d:[0-5]\d$/;
+const responseTimeOf = (value) => (value === undefined || value === null || String(value).trim() === '' ? '00:00:00' : String(value).trim());
+const badResponseTime = (empId, value) => `Average Response Time for Emp Id ${empId} is "${value}". Use hh:mm:ss or "N days hh:mm:ss".`;
 
 if (!fs.existsSync(uploadDestination)) {
     fs.mkdirSync(uploadDestination, { recursive: true });
@@ -19,7 +26,7 @@ const storage = multer.diskStorage({
         callback(null, "./fileuploads/E-Office/File_Disposal");
     },
     filename: (req, file, callback) => {
-        const uniqueFileName = generateUniqueFileName(file.originalname);
+        const uniqueFileName = uniqueUploadName(file.originalname);
         req.uniqueFileName = uniqueFileName;
         callback(null, uniqueFileName);
     },
@@ -136,6 +143,12 @@ async function addFileDisposal(req, res) {
         });
         const allEmpIds = [...uniqueEmpRows.keys()];
 
+        const badTime = dataRows.find(({ row }) => !RESPONSE_TIME_FORMAT.test(responseTimeOf(getRowVal(row, RESPONSE_TIME_HEADERS))));
+        if (badTime) {
+            deleteFile(req.file);
+            return res.status(400).json({ error: badResponseTime(badTime.EmpId, getRowVal(badTime.row, RESPONSE_TIME_HEADERS)) });
+        }
+
         // From here on, the file record and the
         // data rows all happen inside one transaction, so a failure partway
         // through rolls everything back instead of leaving an orphaned file
@@ -200,7 +213,7 @@ async function addFileDisposal(req, res) {
             const valueClauses = chunk.map(({ row, EmpId }, i) => {
                 const CountOfTransactions = parseInt(getRowVal(row, ['Count of Transactions', 'CountOfTransactions', 'Transactions', 'Transaction Count'], 0), 10) || 0;
                 const CountsOfFiles = parseInt(getRowVal(row, ['Counts of Files', 'Count of Files', 'CountsOfFiles', 'Files Count', 'File Count'], 0), 10) || 0;
-                const AverageResponseTime = String(getRowVal(row, ['Average Response Time', 'Avg. Response time', 'Avg Response Time', 'AverageResponseTime'], '00:00:00')).trim();
+                const AverageResponseTime = responseTimeOf(getRowVal(row, RESPONSE_TIME_HEADERS));
 
                 rowInsertRequest.input(`empId${i}`, sql.NVarChar, EmpId);
                 rowInsertRequest.input(`countTransactions${i}`, sql.Int, CountOfTransactions);
@@ -253,7 +266,12 @@ async function updateFileDisposal(req, res) {
             return res.status(400).json({ error: period.error });
         }
         const { Year, month, week } = period;
-        const FileId = req.body.fileId;
+        // The stored sheet being replaced: a positive id (a bad value is a 400, not a failed lookup)
+        const FileId = uploadedFileId(req.body.fileId);
+        if (!FileId) {
+            deleteFile(req.file);
+            return res.status(400).json({ error: 'Choose a valid uploaded sheet to replace.' });
+        }
 
         const userID = req.user.userId; // the uploader is the signed-in user, not a form value
 
@@ -322,7 +340,11 @@ async function updateFileDisposal(req, res) {
             ) {
                 deleteFile(req.uniqueFileName);
                 return res.status(400).json({ error: 'Invalid value for one or more fields in number' });
-            }   
+            }
+            if (!RESPONSE_TIME_FORMAT.test(responseTimeOf(AverageResponseTime))) {
+                deleteFile(req.uniqueFileName);
+                return res.status(400).json({ error: badResponseTime(EmpId, AverageResponseTime) });
+            }
             
         }
 
@@ -362,6 +384,10 @@ async function updateFileDisposal(req, res) {
             WHERE ID = @FileId;
         `);
 
+        if (!fileName.recordset[0]) {
+            deleteFile(req.file);
+            return res.status(404).json({ error: 'The sheet to replace was not found. It may have been deleted.' });
+        }
         const deleteFileName = fileName.recordset[0].File_name;
         deleteFile(deleteFileName);
 
@@ -417,7 +443,7 @@ async function updateFileDisposal(req, res) {
                 rowInsertRequest.input(`empId${i}`, sql.NVarChar, String(EmpId));
                 rowInsertRequest.input(`countTransactions${i}`, sql.Int, CountOfTransactions ?? 0);
                 rowInsertRequest.input(`countFiles${i}`, sql.Int, CountsOfFiles ?? 0);
-                rowInsertRequest.input(`avgResponseTime${i}`, sql.NVarChar, String(AverageResponseTime ?? '00:00:00'));
+                rowInsertRequest.input(`avgResponseTime${i}`, sql.NVarChar, responseTimeOf(AverageResponseTime));
                 rowInsertRequest.input(`month${i}`, sql.NVarChar, month);
                 rowInsertRequest.input(`year${i}`, sql.Int, Number(Year));
                 rowInsertRequest.input(`week${i}`, sql.Int, Number(week));
@@ -453,33 +479,8 @@ async function updateFileDisposal(req, res) {
     }
 }
 
-function generateUniqueFileName(originalFileName) {
-    const currentDate = new Date();
-    const year = currentDate.getFullYear();
-    const month = (currentDate.getMonth() + 1).toString().padStart(2, '0'); 
-    const day = currentDate.getDate().toString().padStart(2, '0');
-    
-    // Add time
-    const hours = currentDate.getHours().toString().padStart(2, '0');
-    const minutes = currentDate.getMinutes().toString().padStart(2, '0');
-    const seconds = currentDate.getSeconds().toString().padStart(2, '0');
-
-    const fileExtension = originalFileName.split('.').pop();
-    const baseFileName = originalFileName.substring(0, originalFileName.lastIndexOf('.'));
-    
-    return `${baseFileName}_${day}${month}${year}_${hours}${minutes}${seconds}.${fileExtension}`;
-}
-
-function deleteFile(fileName) {
-    if (fileName) {
-        const filePath = `./fileuploads/E-Office/File_Disposal/${fileName}`;
-        if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath); 
-        }
-    }
-    if (fileName && fs.existsSync(fileName.path)) {
-        fs.unlinkSync(fileName.path); 
-    }
+function deleteFile(file) {
+    removeStoredUpload(uploadDestination, file);
 }
 
 const EofficeFileDisposalTab = { addFileDisposal, upload, uploadSingleFile,

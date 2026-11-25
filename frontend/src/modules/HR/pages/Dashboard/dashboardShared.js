@@ -13,10 +13,15 @@ export const PWBD_TOOLTIP = '{category}: {value}\nMale: {male}, Female: {female}
 
 /** Downloads rows as an Excel sheet; columns: [{ label, value: (row) => cell }]. */
 export function exportRows(rows, columns, sheetName, notify) {
-  const data = rows.map((r, i) => Object.fromEntries([['S.No', i + 1], ...columns.map((c) => [c.label, c.value(r)])]));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), sheetName.slice(0, 31));
-  const fileName = `${sheetName} ${toYmd(new Date())}.xlsx`;
-  XLSX.writeFile(wb, fileName);
-  notify?.(COMMON_TOASTS.excelExported(fileName));
+  try {
+    const data = rows.map((r, i) => Object.fromEntries([['S.No', i + 1], ...columns.map((c) => [c.label, c.value(r)])]));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), sheetName.slice(0, 31));
+    const fileName = `${sheetName} ${toYmd(new Date())}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+    notify?.(COMMON_TOASTS.excelExported(fileName));
+  } catch (err) {
+    console.error('Dashboard export failed:', err);
+    notify?.(COMMON_TOASTS.exportFailed());
+  }
 }

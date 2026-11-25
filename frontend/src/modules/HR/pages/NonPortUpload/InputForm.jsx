@@ -6,12 +6,12 @@ import {
   Download, 
   FileSpreadsheet, 
   CheckCircle2, 
+  FileText,   
   X, 
   AlertCircle,
   Building2,
   Clock
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
 import { 
   getSessionOrganisationId, 
   getSessionOrganisationName 
@@ -24,28 +24,6 @@ const MONTH_NAMES = [
 ];
 
 
-const TEMPLATE_HEADERS = [
-  'Department',
-  'Post ID',
-  'Post Name',
-  'Class',
-  'Vacant or filled',
-  'Date of Arise in Vacancy',
-  'Employee Joining Date',
-  'Name of Employee',
-  'Should this post be expempted from Abolishment?',
-  'Staff Reference ID / Personnel Number',
-  'Aadhar Number',
-  'Gender',
-  'Domicile State',
-  'Community',
-  'Religion',
-  'Date of Birth',
-  'Date of Retirement',
-  'Whether PwBD?',
-  'Whether Ex-Serviceman Personnal?',
-  'Payscale Range'
-];
 
 // upload_date is a server-local DATETIME sent as an ISO string with 'Z': show it as stored
 // (dd-mm-yyyy, plus hh:mm when a time was saved) rather than shifting it to the browser's zone.
@@ -102,44 +80,27 @@ export default function NonPortMonthlyUploadForm({ triggerNotification, onCancel
   // Toasts only (no alert); every call passes its own type
   const notify = (msg, type) => triggerNotification?.(msg, type);
 
-  // Download Excel Template
-  const handleDownloadTemplate = () => {
+  // Files kept in public/docs (served from the app's base URL)
+  const downloadPublicFile = (fileName, successMsg, failMsg) => {
     try {
-      const sampleRow = {
-        'Department': 'Mechanical / Operations',
-        'Post ID': 'CSL-01',
-        'Post Name': 'Manager (Technical)',
-        'Class': 'Class I',
-        'Vacant or filled': 'filled',
-        'Date of Arise in Vacancy': '2023-01-15',
-        'Employee Joining Date': '2020-04-01',
-        'Name of Employee': 'Rajesh Kumar',
-        'Should this post be expempted from Abolishment?': 'No',
-        'Staff Reference ID / Personnel Number': 'EMP10023',
-        'Aadhar Number': 'XXXX-XXXX-1234',
-        'Gender': 'Male',
-        'Domicile State': 'Kerala',
-        'Community': 'OBC',
-        'Religion': 'Hindu',
-        'Date of Birth': '1985-06-20',
-        'Date of Retirement': '2045-06-30',
-        'Whether PwBD?': 'No',
-        'Whether Ex-Serviceman Personnal?': 'No',
-        'Payscale Range': '60000-180000'
-      };
-
-      const ws = XLSX.utils.json_to_sheet([sampleRow], { header: TEMPLATE_HEADERS });
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Vacancy_Template');
-      ws['!cols'] = TEMPLATE_HEADERS.map(h => ({ wch: Math.max(h.length + 4, 16) }));
-
-      XLSX.writeFile(wb, 'Non_Port_Vacancy_Details_Template.xlsx');
-      notify('Template downloaded successfully!', 'success');
+      const link = document.createElement('a');
+      link.href = `${import.meta.env.BASE_URL}docs/${fileName}`;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      notify(successMsg, 'success');
     } catch (err) {
-      console.error('Template Download Error:', err);
-      notify('Failed to generate template', 'error');
+      console.error('Download Error:', err);
+      notify(failMsg, 'error');
     }
   };
+
+  const handleDownloadTemplate = () =>
+    downloadPublicFile('Vacancy_Details_Template.xlsx', 'Template downloaded successfully!', 'Failed to download template');
+
+  const handleDownloadSop = () =>
+    downloadPublicFile('StandardOperatingProcedure.pdf', 'SOP downloaded successfully!', 'Failed to download SOP');
 
   const handleFileChange = (file) => {
     if (!file) return;
@@ -239,7 +200,7 @@ export default function NonPortMonthlyUploadForm({ triggerNotification, onCancel
 
   return (
     <div className="space-y-6">
-      {/* Top Meta Bar: Organisation Context + Download Template */}
+      {/* Top Meta Bar: Organisation Context + Download Template and SOP */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-blue-100 dark:bg-blue-900/40 text-[#0f417a] dark:text-blue-300 rounded-lg">
@@ -261,10 +222,17 @@ export default function NonPortMonthlyUploadForm({ triggerNotification, onCancel
           )}
         </div>
 
-        <Button onClick={handleDownloadTemplate}>
-          <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-          <span>Download Excel Template</span>
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button onClick={handleDownloadTemplate}>
+            <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <span>Download Excel Template</span>
+          </Button>
+
+          <Button onClick={handleDownloadSop}>
+            <FileText className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+            <span>Download SOP (PDF)</span>
+          </Button>
+        </div>
       </div>
 
       {/* Upload Form */}
@@ -387,6 +355,7 @@ export default function NonPortMonthlyUploadForm({ triggerNotification, onCancel
           </div>
           <ul className="list-disc list-inside space-y-1 text-slate-600 dark:text-slate-400 pl-1">
             <li>Ensure the column structure precisely matches the official downloaded template.</li>
+            <li>Read the SOP (Download SOP button above) before uploading. A file that breaks its validation rules is rejected.</li>
             <li>All dates must follow standard <code className="bg-white dark:bg-slate-800 px-1 py-0.5 rounded border border-slate-200 dark:border-slate-700">YYYY-MM-DD</code> format.</li>
             <li>Uploading a file for the same Year and Month will update existing monthly vacancy records for your organisation.</li>
           </ul>

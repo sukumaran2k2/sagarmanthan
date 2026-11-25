@@ -8,16 +8,21 @@ import { registerStoreReset } from '../../../stores/resetRegistry';
  *  - DataList filters (wing / month / year / week) and search
  *  - the report period (month / year / week); absent until the latest uploaded
  *    period has been looked up
+ * the Employee Info tab's filters (wing / division / level) and search,
  * plus the shared filter-panel toggle and page size.
  *
  * Fetched rows stay in the pages.
  */
 export const DEFAULT_FILTERS = { wing: 'All', month: 'All', year: 'All', week: 'All' };
+// Employee Info tab (one list for every category)
+export const DEFAULT_EMPLOYEE_FILTERS = { wing: 'All', division: 'All', level: 'All' };
 
 const initialState = {
   filters: {}, // { [category]: { wing, month, year, week } }
   searchTerms: {}, // { [category]: text }
   reportPeriods: {}, // { [category]: { month, year, week } }
+  employeeFilters: DEFAULT_EMPLOYEE_FILTERS,
+  employeeSearch: '',
   showFilterPanel: false,
   pageSize: 10,
 };
@@ -42,6 +47,10 @@ export const useEOfficeStore = create((set) => ({
   setReportPeriod: (category, changes) => set((state) => ({
     reportPeriods: { ...state.reportPeriods, [category]: { ...state.reportPeriods[category], ...changes } },
   })),
+
+  setEmployeeFilters: (changes) => set((state) => ({ employeeFilters: { ...state.employeeFilters, ...changes } })),
+  resetEmployeeFilters: () => set({ employeeFilters: DEFAULT_EMPLOYEE_FILTERS, employeeSearch: '' }),
+  setEmployeeSearch: (employeeSearch) => set({ employeeSearch }),
 
   // Restore defaults (called on logout so nothing carries over to the next session)
   reset: () => set(initialState),

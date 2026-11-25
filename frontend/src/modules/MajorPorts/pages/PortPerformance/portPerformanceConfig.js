@@ -155,14 +155,24 @@ export const PORT_PERFORMANCE_SECTIONS = [
     ],
   },
   {
+    // View only: the form shows the port's values from the Ministry's monthly Excel upload
+    // (components/DwellTimeView.jsx). The groups below are those uploaded values as the
+    // Actuals list returns them (dwell_<column>); the dwell time entered here earlier is not shown.
     id: 'dwellTime',
     label: 'Port Dwell Time (Container)',
     short: 'Dwell Time',
+    viewOnly: true,
     definition: 'Time spent by a container inside the port before it is gated out (import) or loaded on a vessel (export).',
     groups: [
-      group('Total dwell time', [
-        field('export_dwell_time', 'Export', 'Dwell Time - Export', 'decimal', UNITS.hours),
-        field('import_dwell_time', 'Import', 'Dwell Time - Import', 'decimal', UNITS.hours),
+      group('Monthly', [
+        field('dwell_monthly_import', 'Import', 'Dwell Time - Monthly Import', 'decimal', UNITS.hours),
+        field('dwell_monthly_export', 'Export', 'Dwell Time - Monthly Export', 'decimal', UNITS.hours),
+        field('dwell_monthly_overall', 'Overall', 'Dwell Time - Monthly Overall', 'decimal', UNITS.hours),
+      ], { view: 'timeAtPort', unit: UNITS.hours }),
+      group('YTD', [
+        field('dwell_ytd_import', 'Import', 'Dwell Time - YTD Import', 'decimal', UNITS.hours),
+        field('dwell_ytd_export', 'Export', 'Dwell Time - YTD Export', 'decimal', UNITS.hours),
+        field('dwell_ytd_overall', 'Overall', 'Dwell Time - YTD Overall', 'decimal', UNITS.hours),
       ], { view: 'timeAtPort', unit: UNITS.hours }),
     ],
   },
@@ -236,6 +246,9 @@ export const PORT_PERFORMANCE_SECTIONS = [
 ];
 
 export const SECTION_IDS = PORT_PERFORMANCE_SECTIONS.map((s) => s.id);
+
+/** Steps the organisation saves through the form (every step except the view-only ones). */
+export const ENTRY_SECTIONS = PORT_PERFORMANCE_SECTIONS.filter((s) => !s.viewOnly);
 
 export const sectionFields = (section) => section.groups.flatMap((g) => g.fields);
 

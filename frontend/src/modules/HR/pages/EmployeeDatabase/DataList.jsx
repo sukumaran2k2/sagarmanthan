@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
+import { FileSpreadsheet, Loader2 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { fetchEmployeeList } from '../../api';
 import Table from '../../../../components/Table';
 import { isOrganisationUser, getSessionOrganisationId, getSessionClaims } from '../../../../utils/authSession';
-import { COMMON_TOASTS } from '../../../../utils/notify';
+import { COMMON_TOASTS, toastSuccess, toastError } from '../../../../utils/notify';
 import { HR_TOASTS } from '../../toastMessages';
 import { useHrStore } from '../../store/useHrStore';
 import { useDebouncedSearch } from '../../hooks/usePagedList';
@@ -16,11 +18,29 @@ import { matchesIdOrName, nameOf } from './employeeFilters';
 import { formatDate } from '../../utils/dates';
 import { HrColumnPicker, HrCopyExport, HrFilterToggle, HrRowsSelect, HrSearchBox, HrTotalBadge } from '../../components/HrListToolbar';
 
+// Role and organisation come from the token; never guess them (the server scopes by them).
+// Ministry users get every organisation ('null'), organisation users only their own.
+function listScope(isMinistryView) {
+  const claims = getSessionClaims() || {};
+  const roleId = claims.roleId || claims.role_id;
+  const orgId = !isMinistryView ? (getSessionOrganisationId() || claims.organisationId) : 'null';
+  return { roleId, orgId };
+}
+
+// Stops Excel from running a cell that starts with = + - @ as a formula
+const sanitizeCell = (value) => {
+  if (value === null || value === undefined) return '';
+  const s = String(value);
+  return ['=', '+', '-', '@'].some((t) => s.trim().startsWith(t)) ? `'${s}` : s;
+};
+const stamp = () => new Date().toISOString().slice(0, 19).replace('T', '_').replace(/:/g, '-');
+
 export default function EmployeeDatabase({ notify }) {
   const navigate = useNavigate();
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [exportingAll, setExportingAll] = useState(false);
 
   // Determine if Organisation or Ministry view
   const isMinistryView = useMemo(() => !isOrganisationUser(), []);
@@ -56,10 +76,7 @@ export default function EmployeeDatabase({ notify }) {
     setLoading(true);
     setError(null);
     try {
-      // Role and organisation come from the token; never guess them (the server scopes by them)
-      const claims = getSessionClaims() || {};
-      const roleId = claims.roleId || claims.role_id;
-      const orgId = !isMinistryView ? (getSessionOrganisationId() || claims.organisationId) : 'null';
+      const { roleId, orgId } = listScope(isMinistryView);
       if (!roleId || !orgId) {
         setEmployees([]);
         setError('Your session has expired. Please sign in again.');
@@ -261,20 +278,77 @@ export default function EmployeeDatabase({ notify }) {
     return true;
   }), [allColumnDefs, visibleCols]);
 
-  // Copy / Export: the rows on the current page, visible data columns only
-  const pageStart = (currentPage - 1) * pageSize;
+  // Copy / Export: every filtered row (not just the current page), visible data columns only
   const runExport = (kind) => createTableExporter({
-    loadRows: () => filteredEmployees.slice(pageStart, pageStart + pageSize),
-    serialStart: pageStart,
+    loadRows: () => filteredEmployees,
+    serialStart: 0,
     getColumns: () => columnDefs.filter((c) => c.field).map((c) => ({ field: c.field, label: c.headerName })),
     notify,
     isBusy: loading,
-    title: `Employee Database (Page ${currentPage})`,
-    fileName: `Employee_Database_Page_${currentPage}`,
+    title: 'Employee Database',
+    fileName: 'Employee_Database',
     label: 'Employee database' })[kind]();
+
+  // "Export All Data": every employee row the server returns for this user (ministry: all organisations,
+  // organisation user: their own), ignoring the filters, search and hidden columns on screen.
+  const exportAllData = async () => {
+    if (exportingAll) return;
+    const { roleId, orgId } = listScope(isMinistryView);
+    if (!roleId || !orgId) {
+      notify?.(toastError('Export Failed', 'Your session has expired. Please sign in again.'));
+      return;
+    }
+    setExportingAll(true);
+    try {
+      const res = await fetchEmployeeList(roleId, orgId);
+      const list = Array.isArray(res?.data) ? res.data : [];
+      if (list.length === 0) {
+        notify?.(toastError('Nothing to Export', 'There are no employee records to export.'));
+        return;
+      }
+      const clean = (v) => sanitizeCell(v == null || String(v).trim() === '' ? '--' : v);
+      const rows = list.map((r, i) => ({
+        'S.No': i + 1,
+        'Employee ID': clean(r.employee_id),
+        'Reference ID / Personnel Number': clean(r.emp_reference_id),
+        'Employee Name': clean(r.emp_name),
+        'Working Status': clean(r.working_status || 'Inactive'),
+        'Type': clean(r.type_of_people),
+        'Organisation': clean(r.organisation_name),
+        'Department': clean(r.emp_department_name),
+        'Post Name': clean(r.emp_post_name),
+        'Class': clean(r.class),
+        'Action Date': formatDate(r.action_date),
+      }));
+      const sheet = XLSX.utils.json_to_sheet(rows);
+      sheet['!cols'] = [8, 16, 30, 30, 16, 28, 34, 30, 30, 10, 14].map((wch) => ({ wch }));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, sheet, 'Employee Database');
+      XLSX.writeFile(wb, `Employee Database ${stamp()}.xlsx`);
+      notify?.(toastSuccess('Export Complete', `${rows.length} employee records exported.`));
+    } catch (err) {
+      console.error('Export all employee data failed:', err);
+      notify?.(toastError('Export Failed', 'Could not export the employee data. Please try again.'));
+    } finally {
+      setExportingAll(false);
+    }
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
+
+      {/* Export All Data: separate from the Copy / Export menu, which only exports what is on screen */}
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        <button
+          type="button"
+          onClick={exportAllData}
+          disabled={exportingAll || loading}
+          className="flex h-10 items-center gap-2 rounded-xl border border-emerald-600 bg-emerald-600 px-4 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {exportingAll ? <Loader2 size={16} className="animate-spin" /> : <FileSpreadsheet size={16} />}
+          {exportingAll ? 'Preparing...' : 'Export All Data'}
+        </button>
+      </div>
 
       {/* Main Content Card */}
       <div className="module-card space-y-4">

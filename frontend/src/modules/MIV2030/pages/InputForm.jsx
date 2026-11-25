@@ -504,6 +504,7 @@ export default function MIVInputForm({ editData, initialFormType = 'initiative',
           await apiUploadMIVFiles(filesPayload);
         } catch (fileErr) {
           console.error("Error uploading attachments:", fileErr);
+          triggerNotification?.("Initiative was saved, but the attachments could not be uploaded. Please edit the initiative and try the upload again.", "error");
         }
       }
 
@@ -563,7 +564,7 @@ export default function MIVInputForm({ editData, initialFormType = 'initiative',
           className={`flex items-center space-x-2 px-5 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
             formType === 'initiative'
               ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
-              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
+              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
           }`}
         >
           <Layers className="h-4 w-4" />
@@ -576,7 +577,7 @@ export default function MIVInputForm({ editData, initialFormType = 'initiative',
           className={`flex items-center space-x-2 px-5 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
             formType === 'meeting'
               ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
-              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
+              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
           }`}
         >
           <Users className="h-4 w-4" />

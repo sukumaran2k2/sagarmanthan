@@ -212,7 +212,7 @@ export default function Dashboard({ triggerNotification }) {
     }),
     [organisationId, sessionOrgId, pinnedToOwnOrg, roleId, designationId, officerName]
   );
-console.log("FV DASHBOARD SCOPE:", scope);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
