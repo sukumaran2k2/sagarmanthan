@@ -463,133 +463,6 @@ async function createConciliationStatus(req,res) {
     }
     
 }
-        
-
-async function addFeeExpensesdetails(req,res) {
-
-    const {caseID,feeExpensesdata} = req.body;
-    
-    if (!caseID ||!Array.isArray(feeExpensesdata) || feeExpensesdata.length === 0) {
-        return res.status(400).json({ error: "Invalid feeExpensesdata" });
-    }
-
-    const conn = await pool;
-    const request = conn.request(); 
-
-    const checkCaseId = `SELECT * FROM tbl_court_case_conciliation_expenses WHERE case_id = @caseID`;
-    request.input("caseID", caseID);
-
-    try {
-        const checkResult = await request.query(checkCaseId);
-
-        if (checkResult.recordset.length != 0) {
-            let deleteExistingData = `DELETE tbl_court_case_conciliation_expenses WHERE case_id = @caseID`;
-            await request.query(deleteExistingData);
-        }
-
-    for(const caseData of feeExpensesdata){
-        const request = conn.request();
-
-        request.input("caseID", caseID);
-        request.input("name",caseData.name);
-        request.input("firstPartyAmount",caseData.firstPartyAmount);
-        request.input("secondPartyAmount",caseData.secondPartyAmount);
-        request.input("date",caseData.date);
-
-    await request.query(`
-        INSERT INTO tbl_court_case_conciliation_expenses(case_id,name_of_conciliator,amount_by_first_party,amount_by_second_party,date_of_payment)
-        VALUES (@caseID,@name,@firstPartyAmount,@secondPartyAmount,@date
-        )`);
-    }
-        return res.status(201).json({ message: "feeExpensesdata added successfully." });
-} catch (error) {
-    // console.error(error.message)
-    return res.status(500).json({message: 'Failed to add feeExpensesdata case'})
-}
-
-}
-async function addOtherExpensesdetails(req,res) {
-
-const { caseID, otherExpensesdata } = req.body;
-
-if (!caseID || !Array.isArray(otherExpensesdata) || otherExpensesdata.length === 0) {
-    return res.status(400).json({ error: "Invalid otherExpensesdata" });
-}
-
-const conn = await pool;
-const request = conn.request(); 
-
-const checkCaseId = `SELECT * FROM tbl_court_case_other_expense WHERE case_id = @caseID`;
-request.input("caseID", caseID);
-
-try {
-    const checkResult = await request.query(checkCaseId);
-
-    if (checkResult.recordset.length != 0) {
-        let deleteExistingData = `DELETE tbl_court_case_other_expense WHERE case_id = @caseID`;
-        await request.query(deleteExistingData);
-    }
-
-    for(const caseData of otherExpensesdata){
-        const request = conn.request(); 
-
-        request.input("caseID", caseID);
-        request.input("natureOfExpense",caseData.natureOfExpense);
-        request.input("totalExpenses",caseData.totalExpenses);
-        request.input("dateOfPay",caseData.dateOfPay);
-
-        await request.query(`
-            INSERT INTO tbl_court_case_other_expense(case_id,nature_of_expense,other_expense_amount,date_of_payment)
-            VALUES (@caseID,@natureOfExpense,@totalExpenses,@dateOfPay)
-            `);
-    }
-    return res.status(201).json({ message: "otherExpensesdata added successfully." });
-} catch (error) {
-    // console.error(error.message)
-    return res.status(500).json({message: 'Failed to add otherExpensesdata case'})
-}
-
-}
-
-async function createConciliationExpenditure(req,res) {
-
-   const {caseID,userID} = req.body;
-
-   const conn = await pool;
-   const request = conn.request();
-   
-   try {
-
-    let checkQuery = `SELECT * FROM tbl_conciliation_cases WHERE case_id = @caseID`;
-        request.input("caseID", caseID);
-
-        const checkResult = await request.query(checkQuery);
-
-        if (checkResult.recordset.length != 0){
-            try {
-                const updateQuery = `
-                UPDATE tbl_conciliation_cases
-                SET updated_by = @userID,
-                updated_date = GETDATE()
-                WHERE case_id = @caseID
-                `;
-
-                await conn.request()
-                .input("userID", userID)
-                .input("caseID", caseID)
-                .query(updateQuery);
-            } catch (error) {
-                return res.status(500).json({error: "Failed updating data"})
-            }
-        }
-        res.status(201).json({ message: "updated conciliation expenditure successfully." });
-        } catch (error) {
-            res.status(500).json({ error: "failed to create conciliation expenditure" });
-        }
-        
-    }
-
-
 
     async function getSubTablesCourtCaseData(req,res){
         let typeName = req.params.typeName;
@@ -608,10 +481,6 @@ async function createConciliationExpenditure(req,res) {
         try {
              if(typeName == 'PCC'){
                 caseQuery = `SELECT * FROM tbl_prev_conn_court_cases WHERE case_id = @caseID`;
-            }else if(typeName == 'profExp'){
-                caseQuery = `SELECT * FROM tbl_court_case_conciliation_expenses WHERE case_id = @caseID`;
-            }else if(typeName == 'otherExp'){
-                caseQuery = `SELECT * FROM tbl_court_case_other_expense WHERE case_id = @caseID`;
             }else if(typeName == 'conciliator'){
                 caseQuery = `SELECT * FROM tbl_conciliators WHERE case_id = @caseID`
             }else if(typeName == 'firstParties'){
@@ -747,6 +616,6 @@ async function getConciliationFirstPartyAndSecondParty(req,res) {
 
 export default {getLastConciliationNumber,addConciliationPrevConnCases,addConciliatorsData,
     addConciliationFirstParty,addSecondPartyData,addConciliationOtherCourtCaseOrg,createConciliationCourtCase,
-    addConciliatorsHearingData,createConciliationStatus,createConciliationExpenditure,addOtherExpensesdetails,
-    addFeeExpensesdetails,getSubTablesCourtCaseData,addConciliationOtherSecondParty,addConciliationFirstPartyAndSecondParty,getConciliationFirstPartyAndSecondParty
+    addConciliatorsHearingData,createConciliationStatus,
+    getSubTablesCourtCaseData,addConciliationOtherSecondParty,addConciliationFirstPartyAndSecondParty,getConciliationFirstPartyAndSecondParty
 }
