@@ -8,7 +8,7 @@ const BACKEND_NOTES = {
   'flagging-of-vessels': 'Backend: POST /add-kpi2-1-1 · GET /kpi2-1-list',
   'sbfap': 'Backend: POST /add-2-2-1-data, /add-2-2-fa-data · GET /kpi2-2-list, /kpi2-2-fa-list · templates: /kpi2-2-template, /kpi2-2-fa-template',
   'exam-overall-performance': 'Backend: POST /add-kpi2-3-2 · GET /kpi2-3-2-list · masterdata: /get_addkpi2_3_masterdata/:year/:month/:type',
-  'entry-exit-of-candidates': 'Backend: POST /add-entry-exit-data · PUT /update-entry-exit-data-by-id · GET /get-entry-exit-data',
+  'entry-exit-of-candidates': 'Backend: POST /add-kpi2-3-1 · PUT /edit-2-3-1-data · GET /kpi2-3-1-list',
   'marine-casualty-previous-current': 'Backend: Marine casualty endpoints (to be confirmed with DGS team)',
   'marine-casualty-yearwise': 'Backend: Marine casualty endpoints (to be confirmed with DGS team)',
   'marine-casualty-country-wise': 'Backend: Marine casualty endpoints (to be confirmed with DGS team)',
