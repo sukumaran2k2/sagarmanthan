@@ -57,6 +57,7 @@ const rawDate = (v) => {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(v || '');
   return m ? `${m[3]}/${m[2]}/${m[1]}` : (v || '-');
 };
+
 const sorDateCell = (p) => <span className="text-slate-600 dark:text-slate-300">{rawDate(p.value)}</span>;
 const textCell = (p) => <span className="text-slate-600 dark:text-slate-300">{p.value || '-'}</span>;
 const numCell = (p) => <span className="text-slate-600 dark:text-slate-300">{p.value ?? '-'}</span>;
@@ -173,14 +174,14 @@ function buildPastLandCols(actions) {
 }
 
 // ── PAST LAND: SoR details (one row per lease/rental entry) ──
-function buildPastSorCols(actions) {
+function buildSorCols() {
   return [
     srCol,
     parcelCol,
     { field: 'organisation_name', headerName: 'Organisation', minWidth: 160, cellRenderer: textCell },
     { field: 'unique_nmp_id', headerName: 'NMP ID', minWidth: 120, cellRenderer: textCell },
     { field: 'sor_from', headerName: 'Period of SoR From', minWidth: 170, cellRenderer: sorDateCell },
-    { field: 'sor_to',   headerName: 'Period of SoR To',   minWidth: 170, cellRenderer: sorDateCell },
+    { field: 'sor_to', headerName: 'Period of SoR To', minWidth: 170, cellRenderer: sorDateCell },
     { field: 'annual_base_lease_rental', headerName: 'Annual Base Lease Rental (INR Cr)', minWidth: 210, cellRenderer: numCell },
     { field: 'escalation_rate', headerName: 'Escalation Rate (% YoY)', minWidth: 170, cellRenderer: numCell },
     { field: 'frequency_of_escalation', headerName: 'Escalation Freq (Yrs)', minWidth: 160, cellRenderer: numCell },
@@ -194,6 +195,7 @@ function buildFutureLandCols(actions) {
   return [
     srCol,
     parcelCol,
+    { field: 'unique_nmp_id', headerName: 'NMP ID', minWidth: 120, cellRenderer: textCell },
     { field: 'organisation_name', headerName: 'Organisation', minWidth: 160, cellRenderer: textCell },
     { field: 'area', headerName: 'Area (Acres)', minWidth: 110, cellRenderer: numCell },
     { field: 'purpose', headerName: 'Purpose', minWidth: 120, cellRenderer: textCell },
@@ -203,21 +205,20 @@ function buildFutureLandCols(actions) {
     { field: 'status', headerName: 'Status', minWidth: 120, cellRenderer: textCell },
     { field: 'lease_status', headerName: 'Lease Status', minWidth: 120, cellRenderer: textCell },
     { field: 'upfront_premium', headerName: 'Upfront Premium [A]', minWidth: 150, cellRenderer: numCell },
-    { field: 'lease_tenure', headerName: 'Lease Tenure (Yrs)', minWidth: 140,
-      valueGetter: (p) => p.data?.lease_tenure_years ?? p.data?.lease_tenure, cellRenderer: numCell },
-    { field: 'annual_rental', headerName: 'Annual Rentals', minWidth: 160, cellRenderer: numCell },
-    { field: 'escalation_rate', headerName: 'Escalation Rate (%)', minWidth: 140, cellRenderer: numCell },
-    { field: 'frequency_of_escalation', headerName: 'Escalation Freq (Yrs)', minWidth: 150, cellRenderer: numCell },
     { field: 'npv_lease_rentals', headerName: 'NPV @12% [B]', minWidth: 140,
       valueGetter: (p) => p.data?.npv_lease_rentals ?? p.data?.npv_lease_rental, cellRenderer: numCell },
     { field: 'extimated_private_investment', headerName: 'Est. Private Inv [C]', minWidth: 160, cellRenderer: numCell },
     { field: 'total_monetisation_value', headerName: 'Total [A+B+C]', minWidth: 140,
       valueGetter: (p) => p.data?.total_monetisation_value ?? p.data?.total_monetization_value, cellRenderer: totalCell },
-    { field: 'lease_rental_received', headerName: 'Lease Rental FY25-26', minWidth: 160, cellRenderer: numCell },
     { field: 'agency_name', headerName: 'Agency/Lessee', minWidth: 160, cellRenderer: textCell },
     { field: 'type_of_agency', headerName: 'Type of Agency', minWidth: 140, cellRenderer: textCell },
-    { field: 'agreement_signed', headerName: 'Agreement Signed', minWidth: 140, cellRenderer: textCell },
+    
     ...milestoneCols,
+
+    { field: 'allotment_target_date', headerName: 'Allotment Original Target Date', minWidth: 210, cellRenderer: dateCellRenderer },
+    { field: 'actual_allotment_date', headerName: 'Allotment Actual Date', minWidth: 170, cellRenderer: dateCellRenderer },
+    { field: 'lease_expiration_date', headerName: 'Date of Lease Expiration', minWidth: 180, cellRenderer: dateCellRenderer },
+    
     { field: 'remarks', headerName: 'Remarks', minWidth: 180, cellRenderer: textCell },
     { field: 'created_date', headerName: 'Last Updated', minWidth: 150, cellRenderer: dateCellRenderer },
     buildActionCol(actions),
@@ -242,7 +243,7 @@ const enrichRow = (row, tab) => {
   const sectorId = Number(row.sector_id ?? row.sector);
 
   const futureIds = tab === 'future-land' || tab === 'past-land' ? {
-    lease_status_id: rawId(row.lease_status_id ?? row.lease_status),
+    lease_status: toLabel(OPT.leasePast, row, ['lease_status_id', 'lease_status']),
     purpose_id: rawId(row.purpose_id ?? row.purpose),
     sector_id: rawId(row.sector_id ?? row.sector),
     status_id: rawId(row.status_id ?? row.status),
@@ -282,9 +283,59 @@ const FETCH_MAP = {
   'future-land':   (userId) => fetchFutureLandList(userId),
 };
 
+function ColumnChooser({ columns, hidden, onToggle, onShowAll }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [open]);
+
+  const hiddenCount = columns.filter((c) => hidden[c.field]).length;
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 shadow-xs cursor-pointer"
+      >
+        Visibility{hiddenCount > 0 && ` (${columns.length - hiddenCount}/${columns.length})`}
+        <ChevronDown className="h-3.5 w-3.5" />
+      </button>
+      {open && (
+        <div className="absolute right-0 mt-2 z-30 w-64 max-h-80 overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg p-2">
+          <button
+            type="button"
+            onClick={onShowAll}
+            className="w-full text-left text-[11px] font-bold text-[#0f417a] dark:text-blue-400 px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer"
+          >
+            Show all columns
+          </button>
+          {columns.map((c) => (
+            <label key={c.field} className="flex items-center gap-2 px-2 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!hidden[c.field]}
+                onChange={() => onToggle(c.field)}
+                className="cursor-pointer"
+              />
+              <span>{c.label}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function NmpDataList({ onEdit, onAddNew, triggerNotification, canEdit, canAdd, canRemove }) {
   const userId = getCurrentUserId();
-  const gridApiRef = useRef(null);
+ 
+  const gridRef = useRef(null); 
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [subTab, setSubTab] = useState(() => sessionStorage.getItem('nmpTab') || 'land-abstract');
@@ -296,6 +347,7 @@ export default function NmpDataList({ onEdit, onAddNew, triggerNotification, can
   const [deleteAsk, setDeleteAsk] = useState(null); // the row to delete
 const [deleting, setDeleting] = useState(false);
 const [exporting, setExporting] = useState(false);
+const [hiddenCols, setHiddenCols] = useState({}); // { 'past-land:parcel': { remarks: true } }
 
   useEffect(() => {
     const handler = setTimeout(() => setDebouncedSearch(searchTerm), 300);
@@ -379,7 +431,7 @@ const confirmDelete = async () => {
     );
   }, [data, debouncedSearch]);
 
-  const isPastSor = subTab === 'past-land' && pastView === 'sor';
+  const isPastSor = (subTab === 'past-land' || subTab === 'future-land') && pastView === 'sor';
 
 const tableRows = useMemo(() => {
   if (!isPastSor) return filteredData;
@@ -389,12 +441,40 @@ const tableRows = useMemo(() => {
   );
 }, [filteredData, isPastSor]);
 
-const columnDefs = useMemo(() => {
+const allColumnDefs = useMemo(() => {
   const actions = { onEditRow: handleEdit, onDeleteRow: handleDelete, canEdit, canRemove: canRemove && pastView !== 'sor' };
   if (subTab === 'land-abstract') return buildLandAbstractCols(actions);
-  if (subTab === 'past-land') return pastView === 'sor' ? buildPastSorCols(actions) : buildPastLandCols(actions);
-  return buildFutureLandCols(actions);
+  if (pastView === 'sor') return buildSorCols();
+  return subTab === 'past-land' ? buildPastLandCols(actions) : buildFutureLandCols(actions);
 }, [subTab, pastView, handleEdit, handleDelete, canEdit, canRemove]);
+
+// each tab/view remembers its own hidden columns
+const viewKey = `${subTab}:${subTab === 'land-abstract' ? 'parcel' : pastView}`;
+const hiddenForView = hiddenCols[viewKey] || {};
+
+const toggleCol = useCallback((field) => {
+  setHiddenCols((prev) => {
+    const cur = prev[viewKey] || {};
+    return { ...prev, [viewKey]: { ...cur, [field]: !cur[field] } };
+  });
+}, [viewKey]);
+
+const showAllCols = useCallback(() => {
+  setHiddenCols((prev) => ({ ...prev, [viewKey]: {} }));
+}, [viewKey]);
+
+// S.No and Action are not in the list, so they always stay
+const toggleableCols = useMemo(
+  () => allColumnDefs
+    .filter((c) => c.field && c.field !== 'sNo' && c.headerName)
+    .map((c) => ({ field: c.field, label: c.headerName })),
+  [allColumnDefs]
+);
+
+const columnDefs = useMemo(
+  () => allColumnDefs.filter((c) => !hiddenForView[c.field]),
+  [allColumnDefs, hiddenForView]
+);
 
  // Every column of the current tab (S.No included), with values as the grid shows them
 const exportColumns = useMemo(
@@ -410,6 +490,7 @@ const exportColumns = useMemo(
         if (Array.isArray(v)) v = v[0];
         if (c.cellRenderer === dateCellRenderer) return fmtDate(v);
         if (c.cellRenderer === sorDateCell) return rawDate(v);
+       
         return v == null || v === '' ? '-' : v;
       },
       })),
@@ -436,30 +517,41 @@ const handlePdf = () => {
         .replace(/[‘’]/g, "'")
         .replace(/[“”]/g, '"');
 
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a3' });
-    doc.setFontSize(14);
-    doc.text(safe(fullTitle), 30, 30);
-    doc.setFontSize(9);
-    doc.text(`Generated: ${new Date().toLocaleString()}  |  Records: ${tableRows.length}`, 30, 46);
+  
 
-    // Fixed widths: a wide table continues on extra pages instead of being squeezed
-    const columnStyles = {};
-    exportColumns.forEach((c, i) => {
-      columnStyles[i] = { cellWidth: c.field === 'sNo' ? 40 : 90 };
-    });
+    // Fit every visible column on one page width
+const colCount = exportColumns.length;
+const pageW = colCount > 22 ? 1684 : colCount > 14 ? 1191 : 842;   // A2 / A3 / A4 landscape, in pt
+const pageH = pageW === 1684 ? 1191 : pageW === 1191 ? 842 : 595;
+const margin = 20;
+const snoW = 28;
+const colW = (pageW - margin * 2 - snoW) / Math.max(colCount - 1, 1);
+const fontSize = colCount > 22 ? 6.5 : colCount > 14 ? 6 : 7;
 
-    autoTable(doc, {
-      startY: 58,
-      head: [exportColumns.map((c) => safe(c.label))],
-      body: tableRows.map((row) => exportColumns.map((c) => safe(c.exportValue(row)))),
-      columnStyles,
-      styles: { fontSize: 7, cellPadding: 3, overflow: 'linebreak', valign: 'middle' },
-      headStyles: { fillColor: [15, 65, 122], textColor: 255, halign: 'center' },
-      alternateRowStyles: { fillColor: [245, 247, 250] },
-      margin: { left: 30, right: 30, bottom: 30 },
-      horizontalPageBreak: true,
-      horizontalPageBreakRepeat: [0, 1], // repeat S.No and the name column on every page
-    });
+const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: [pageW, pageH], compress: true });
+doc.setFontSize(12);
+doc.text(safe(fullTitle), margin, 24);
+doc.setFontSize(8);
+doc.text(`Generated: ${new Date().toLocaleString()}  |  Records: ${tableRows.length}`, margin, 38);
+
+const columnStyles = {};
+exportColumns.forEach((c, i) => {
+  columnStyles[i] = { cellWidth: c.field === 'sNo' ? snoW : colW };
+});
+
+autoTable(doc, {
+  startY: 46,
+  head: [exportColumns.map((c) => safe(c.label))],
+  body: tableRows.map((row) => exportColumns.map((c) => safe(c.exportValue(row)))),
+  columnStyles,
+  tableWidth: pageW - margin * 2,
+  styles: { fontSize, cellPadding: 2, overflow: 'linebreak', valign: 'middle' },
+  headStyles: { fillColor: [15, 65, 122], textColor: 255, halign: 'center', fontSize },
+  alternateRowStyles: { fillColor: [245, 247, 250] },
+  margin: { left: margin, right: margin, bottom: 20 },
+});
+
+doc.save(`${exportBaseName}.pdf`);
 
     doc.save(`${exportBaseName}.pdf`);
     triggerNotification?.(`Downloaded ${exportBaseName}.pdf`, 'success');
@@ -471,6 +563,8 @@ const handlePdf = () => {
   }
 };
 
+
+
 const handleExport = (type) => {
   if (type === 'Copy') {
     const headers = exportColumns.map((c) => c.label);
@@ -478,9 +572,8 @@ const handleExport = (type) => {
     const tsv = [headers, ...rows].map((r) => r.join('\t')).join('\n') + '\n';
     navigator.clipboard.writeText(tsv).catch(() => {});
   } else if (type === 'Excel') {
-    gridApiRef.current?.exportDataAsCsv({
-      fileName: `NMP_${subTab}_${new Date().toISOString().slice(0, 10)}.csv`,
-    });
+    gridRef.current?.api?.exportDataAsCsv({ fileName: exportBaseName });
+    triggerNotification?.(`Downloaded ${exportBaseName}.csv`, 'success');
   }
 };
 
@@ -491,7 +584,7 @@ const handleExport = (type) => {
         {SUB_TABS.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => { setSubTab(tab.id); sessionStorage.setItem('nmpTab', tab.id); setSearchTerm(''); }}
+            onClick={() => { setSubTab(tab.id); setPastView('parcel'); sessionStorage.setItem('nmpTab', tab.id); setSearchTerm(''); }}
             className={`module-subtab-btn ${subTab === tab.id ? 'active' : ''}`}
           >
             {tab.label} ({subTab === tab.id ? filteredData.length : (tabCounts[tab.id] ?? '–')})
@@ -517,7 +610,7 @@ const handleExport = (type) => {
             )}
 
               {/* <-- paste the toggle here */}
-  {subTab === 'past-land' && (
+  {(subTab === 'past-land' || subTab === 'future-land') && (
     <div className="inline-flex items-center rounded-xl border border-slate-200 bg-white p-1 shadow-xs dark:bg-slate-900 dark:border-slate-800">
       {[
         { id: 'parcel', label: 'PARCEL DETAILS' },
@@ -585,7 +678,16 @@ const handleExport = (type) => {
             </div>
 
             {/* Copy */}
-            <CopyButton onCopy={() => handleExport('Copy')} color="#0f417a" hoverBg="#f1f5f9" />
+            {/* Columns */}
+          <ColumnChooser
+        columns={toggleableCols}
+        hidden={hiddenForView}
+        onToggle={toggleCol}
+        onShowAll={showAllCols}
+      />
+
+          {/* Copy */}
+          <CopyButton onCopy={() => handleExport('Copy')} color="#0f417a" hoverBg="#f1f5f9" />
 
             {/* Export */}
           <ExportDropdown
@@ -600,20 +702,21 @@ const handleExport = (type) => {
         {/* AG Grid table */}
         <div className="ag-theme-quartz module-datalist-grid w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
           <Table
-            rowData={tableRows}
-            columnDefs={columnDefs}
-            loading={loading}
-            pagination={true}
-            paginationPageSize={pageSize}
-            enableExport={false}
-            onGridReady={(params) => { gridApiRef.current = params.api; }}
-            defaultColDef={{
-              minWidth: 90,
-              filter: false,
-              sortable: true,
-              resizable: true,
-            }}
-          />
+  ref={gridRef}
+  theme="legacy"
+  rowData={tableRows}
+  columnDefs={columnDefs}
+  loading={loading}
+  pagination={true}
+  paginationPageSize={pageSize}
+  enableExport={false}
+  defaultColDef={{
+    minWidth: 90,
+    filter: false,
+    sortable: true,
+    resizable: true,
+  }}
+/>
         </div>
 
       </div>

@@ -18,11 +18,6 @@ const PAST_LEASE_STATUS_OPTIONS = [
   { id: 4, label: 'Renewed' },
 ];
 
-const FUTURE_LEASE_STATUS_OPTIONS = [
-  { id: 1, label: 'Planned' },
-  { id: 2, label: 'Active' },
-  { id: 3, label: 'Expired' },
-];
 
 const NMP_STATUS_OPTIONS = [
   { id: 1, label: 'Identified' },
@@ -79,8 +74,8 @@ const FY_OPTIONS = Array.from({ length: 15 }, (_, i) => {
 });
 
 // Old text key → new id key (+ options used to look the label up when editing old rows)
-const getIdFieldMap = (formType) => [
-  ['lease_status', 'lease_status_id', formType === 'past-land' ? PAST_LEASE_STATUS_OPTIONS : FUTURE_LEASE_STATUS_OPTIONS],
+const getIdFieldMap = () => [
+  ['lease_status', 'lease_status_id', PAST_LEASE_STATUS_OPTIONS],
   ['purpose', 'purpose_id', NMP_PURPOSE_OPTIONS],
   ['sector', 'sector_id', NMP_SECTOR_OPTIONS],
   ['status', 'status_id', NMP_STATUS_OPTIONS],
@@ -118,13 +113,6 @@ const MAX_REVISED_DATES = 3;
 
 const revisedKeysFor = (keyPrefix) => [`${keyPrefix}_revised`, `${keyPrefix}_revised_2`, `${keyPrefix}_revised_3`];
 
-const PARCEL_STAGES = [
-  { id: 1, title: 'Basic Details', desc: 'Parcel info & allotment' },
-  { id: 2, title: 'Financial Details', desc: 'Lease & rental values' },
-  { id: 3, title: 'Agreements', desc: 'Lessee & milestones' },
-  { id: 4, title: 'Remarks/Reason for Delay in allotment', desc: 'Remarks & final check' },
-];
-
 const PAST_STAGES = [
   { id: 1, title: 'Basic Details', desc: 'Parcel, milestones & allotment' },
   { id: 2, title: 'Lessee Details', desc: 'Lessee & lease expiry' },
@@ -132,24 +120,25 @@ const PAST_STAGES = [
   { id: 4, title: 'Remarks/Reason for Delay in allotment', desc: 'Remarks & final check' },
 ];
 
-async function generateUniquePastNmpId() {
+async function generateUniqueNmpId(formType) {
   try {
     const organisationId = getSessionOrganisationId();
     if (organisationId == null) throw new Error('organisationId missing in session');
 
-    const prefix = 'NMP' + String(organisationId).padStart(2, '0'); // e.g. NMP02
+    // Past: NMP0201, NMP0202 ...   Future: FNMP0201, FNMP0202 ...
+    const base = formType === 'future-land' ? 'FNMP' : 'NMP';
+    const prefix = base + String(organisationId).padStart(2, '0');
 
-    // API returns the latest record for this org (ORDER BY id DESC LIMIT 1)
-    const response = await getNmpCaseNumber(organisationId);
+    const response = await getNmpCaseNumber(organisationId, formType);
     const lastId = response.data?.[0]?.unique_nmp_id;
 
     let next = 1;
     if (lastId && lastId.startsWith(prefix)) {
-      const lastSeq = parseInt(lastId.slice(prefix.length), 10); // "NMP0201" -> 1
+      const lastSeq = parseInt(lastId.slice(prefix.length), 10);
       if (!Number.isNaN(lastSeq)) next = lastSeq + 1;
     }
 
-    return prefix + String(next).padStart(2, '0'); // NMP0201, NMP0202 ...
+    return prefix + String(next).padStart(2, '0');
   } catch (error) {
     console.error('Error generating NMP ID:', error);
     return null;
@@ -215,7 +204,9 @@ function normalizeEditData(data) {
     }
   }
 
-  
+  if (formType === 'future-land' && !out.year_of_allotment && out.target_yr_monetisation) {
+  out.year_of_allotment = out.target_yr_monetisation;
+}
 
   // Dropdowns: prefer the id from the API; fall back to matching an old text label to its id
   if (formType !== 'land-abstract') {
@@ -294,37 +285,36 @@ const getSorError = (rows) => {
   return '';
 };
 
-function validatePastStage(stage, formData) {
+function validatePastStage(stage, formData, isFuture = false) {
   const filled = (v) => (v ?? '').toString().trim() !== '';
-
   switch (stage) {
     case 1:
-    return !!(
-      formData.parcel_detail && formData.area_acres && has(formData.purpose_id) && has(formData.sector_id) &&
-      has(formData.lease_status_id) &&                                   // ← added
-      formData.industry_name && formData.year_of_allotment && has(formData.mode_of_allotment_id) && has(formData.status_id) &&
-      (formData.purpose_id !== 4 || filled(formData.other_purpose)) &&
-      (formData.sector_id !== 11 || filled(formData.other_sector))
-    );
-   case 2: // Lessee Details
       return !!(
-        filled(formData.lessee_name) &&
-        has(formData.type_of_lessee_id) &&                                 // ← added
-        filled(formData.lease_expiration_date) &&                          // ← added
-        has(formData.allotment_original) &&
-        (formData.type_of_lessee_id !== 5 || filled(formData.other_agency))
+        formData.parcel_detail && formData.area_acres && formData.industry_name &&
+        has(formData.purpose_id) && has(formData.sector_id) &&
+        has(formData.lease_status_id) && has(formData.allotment_original) &&
+        formData.year_of_allotment && has(formData.mode_of_allotment_id) && has(formData.status_id) &&
+        (formData.purpose_id !== 4 || filled(formData.other_purpose)) &&
+        (formData.sector_id !== 11 || filled(formData.other_sector))
       );
-    case 3: // Financial Details
-  return getSorError(formData.sor_rows) === '';
+    case 2:
+    return !!(
+      (isFuture || (filled(formData.lessee_name) && has(formData.type_of_lessee_id) && filled(formData.lease_expiration_date))) &&
+      (formData.type_of_lessee_id !== 5 || filled(formData.other_agency))
+    );
+    case 3:
+  return has(formData.upfront_premium) &&
+         has(formData.estimated_private_investment) &&
+         getSorError(formData.sor_rows) === '';
     case 4:
       return true;
     default:
       return false;
   }
 }
-function getMissingPastFields(stage, formData) {
-  const blank = (v) => !(v ?? '').toString().trim();
 
+function getMissingPastFields(stage, formData, isFuture = false) {
+  const blank = (v) => !(v ?? '').toString().trim();
   if (stage === 1) {
     const req = [
       ['parcel_detail', 'Parcel Detail'],
@@ -336,22 +326,31 @@ function getMissingPastFields(stage, formData) {
       ['year_of_allotment', 'Year of Allotment'],
       ['mode_of_allotment_id', 'Mode of Allotment'],
       ['status_id', 'Land Allotment Status'],
+      ['lease_status_id', 'Lease Status'],
     ];
     const missing = req.filter(([k]) => !has(formData[k])).map(([, l]) => l);
     if (formData.purpose_id === 4 && blank(formData.other_purpose)) missing.push('Other Purpose');
     if (formData.sector_id === 11 && blank(formData.other_sector)) missing.push('Other Sector');
     return missing.join(', ');
   }
-    if (stage === 2) {
-    const missing = [];
-    if (!has(formData.allotment_original)) missing.push('Date of Allotment of Land (Original Target Date)');
-    if (formData.type_of_lessee_id === 5 && blank(formData.other_agency)) missing.push('Other Lessee Type');
-    return missing.join(', ');
+ if (stage === 2) {
+  const missing = [];
+  if (!isFuture) {
+    if (blank(formData.lessee_name)) missing.push('Lessee Name');
+    if (!has(formData.type_of_lessee_id)) missing.push('Type of Lessee');
+    if (blank(formData.lease_expiration_date)) missing.push('Date of Lease Expiration');
   }
+  if (formData.type_of_lessee_id === 5 && blank(formData.other_agency)) missing.push('Other Lessee Type');
+  return missing.join(', ');
+}
   if (stage === 3) {
-    return getSorError(formData.sor_rows);
-  }
-  return '';
+  const missing = [];
+  if (!has(formData.upfront_premium)) missing.push('Upfront Premium [A]');
+  if (!has(formData.estimated_private_investment)) missing.push('Investment by Private Player [C]');
+  const sorErr = getSorError(formData.sor_rows);
+  if (sorErr) missing.push(sorErr);
+  return missing.join(', ');
+}
 }
 function getMissingFields(stage, formData, isFuture) {
   const blank = (v) => !(v ?? '').toString().trim();
@@ -487,9 +486,9 @@ function StageStepper({ stages, current, completed, onStageClick }) {
 function Section({ number, title, desc, colRef, children, id }) {
   return (
     <div id={id} className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden mb-5">
-      <div className="bg-slate-50 dark:bg-slate-800/60 px-5 py-3 border-b border-slate-200 dark:border-slate-700 flex items-start gap-2.5 flex-wrap">
+      <div className="bg-slate-50 dark:bg-slate-800/60 px-5 py-3 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2.5 flex-wrap">
         {number && (
-          <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-slate-800 dark:bg-slate-600 text-white text-xs font-extrabold flex-shrink-0 mt-0.5">
+          <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-slate-800 dark:bg-slate-600 text-white text-xs font-extrabold flex-shrink-0 ">
             {number}
           </span>
         )}
@@ -908,7 +907,7 @@ const calcNpv = (r) => {
   }
 
   const numerator =
-    alr * Math.pow(1 + esc / 100, (tenure - 1) / freq);
+    Math.pow(alr * (1 + esc / 100), (tenure - 1) / freq);
 
   const denominator =
     Math.pow(1 + DISCOUNT_RATE * alr, tenure);
@@ -917,7 +916,7 @@ const calcNpv = (r) => {
 
   return Number.isFinite(npv) ? npv.toFixed(2) : '';
 };
-function PastLandForm({ formData, onChange, stage = 1 }) {
+function PastLandForm({ formData, onChange, stage = 1, isFuture = false }) {
   const defaultRow = { sor_from: '', sor_to: '', annual_base_lease_rental: '', escalation_rate: '', frequency_of_escalation: '', lease_tenure: '', npv: '' };
 
   const [sorRows, setSorRows] = useState(() => {
@@ -993,7 +992,10 @@ function PastLandForm({ formData, onChange, stage = 1 }) {
     </div>
   </Section>
 
-  <div className="mb-3 px-1">
+  <div className="mb-3 px-[21px] flex items-center gap-2.5">
+  <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-slate-800 dark:bg-slate-600 text-white text-xs font-extrabold flex-shrink-0">
+    2
+  </span>
   <h3 className="text-sm font-extrabold text-slate-800 dark:text-slate-100">Milestone Details</h3>
 </div>
 
@@ -1007,7 +1009,7 @@ function PastLandForm({ formData, onChange, stage = 1 }) {
   
 </div>
 
-  <Section number={2} title="Allotment status" id="pl-s2">
+  <Section number={3} title="Allotment status" id="pl-s2">
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       <div>
         <FLabel label="Year of allotment (FY)" required />
@@ -1026,30 +1028,30 @@ function PastLandForm({ formData, onChange, stage = 1 }) {
 </>)}
 
 {stage === 2 && (
-  <Section number={3} title="Lessee Details" id="pl-s5">
+  <Section number={4} title="Lessee Details" id="pl-s5">
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
       <div>
-        <FLabel label="Lessee Name" required  />
+        <FLabel label="Lessee Name" required={!isFuture} />
         <input type="text" value={formData.lessee_name || ''} onChange={e => onChange('lessee_name', e.target.value)} className={inputCls} />
       </div>
       <div className="space-y-3">
-        <SelectField label="Type of Lessee" required  name="type_of_lessee_id" options={NMP_LESSEE_TYPE_OPTIONS} formData={formData} onChange={onChange} />
+        <SelectField label="Type of Lessee" required={!isFuture} name="type_of_lessee_id" options={NMP_LESSEE_TYPE_OPTIONS} formData={formData} onChange={onChange} />
         {formData.type_of_lessee_id === 5 && (
           <OtherField label="Other Lessee Type" name="other_agency" formData={formData} onChange={onChange} />
         )}
       </div>
       <div>
-        <FLabel label="Date of Lease Expiration" required  />
+        <FLabel label="Date of Lease Expiration" required={!isFuture} />
         <input type="date" value={formData.lease_expiration_date || ''} onChange={e => onChange('lease_expiration_date', e.target.value)} className={inputCls} />
       </div>
     </div>
   </Section>
 )}
       {stage === 3 && (<>
-        <Section number={3} title="Financial  Details" id="pl-s3">
+        <Section number={5} title="Financial  Details" id="pl-s3">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div><FLabel label="Upfront Premium in Year of Allotment [A] (INR Cr)" /><input type="number" step="any" value={formData.upfront_premium || ''} onChange={e => onChange('upfront_premium', e.target.value)} className={inputCls} /></div>
-            <div><FLabel label="Investment by Private Player [C] (INR Cr)" /><input type="number" step="any" value={formData.estimated_private_investment || ''} onChange={e => onChange('estimated_private_investment', e.target.value)} className={inputCls} /></div>
+            <div><FLabel label="Upfront Premium in Year of Allotment [A] (INR Cr)" required  /><input type="number" step="any" value={formData.upfront_premium || ''} onChange={e => onChange('upfront_premium', e.target.value)} className={inputCls} /></div>
+            <div><FLabel label="Investment by Private Player [C] (INR Cr)" required  /><input type="number" step="any" value={formData.estimated_private_investment || ''} onChange={e => onChange('estimated_private_investment', e.target.value)} className={inputCls} /></div>
           </div>
         </Section>
     
@@ -1117,7 +1119,7 @@ function PastLandForm({ formData, onChange, stage = 1 }) {
 
 
       {stage === 4 && (
-        <Section number={6} title="Remarks and Data Quality" id="pl-s6">
+        <Section number={6} title="Remarks/Reason for Delay in allotment" id="pl-s6">
           <div>
             <FLabel label="Remarks" />
             <textarea rows={3} value={formData.remarks || ''} onChange={e => onChange('remarks', e.target.value)} className="w-full px-3 py-2.5 text-xs border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none transition resize-y" />
@@ -1175,35 +1177,35 @@ export default function NmpInputForm({ editData, onSuccess, onCancel, triggerNot
   const [currentStage, setCurrentStage] = useState(1);
   const [completedStages, setCompletedStages] = useState(new Set());
   const [stageError, setStageError] = useState('');
-
-  const isAbstract = subTab === 'land-abstract';
-  const isFuture = subTab === 'future-land';
-  const isPast = subTab === 'past-land';
-  const stages = isPast ? PAST_STAGES : PARCEL_STAGES;
-
   const handleChange = useCallback((name, value) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
     setStageError('');
   }, []);
 
-  const canAdvance = useMemo(() => {
-    if (isAbstract) return true;
-    if (isPast) return validatePastStage(currentStage, formData);
-    return validateParcelStage(currentStage, formData, isFuture);
-  }, [currentStage, formData, isAbstract, isPast, isFuture]);
+  const isAbstract = subTab === 'land-abstract';
+  const isFuture = subTab === 'future-land';
+  const isPast = subTab === 'past-land';
+  const stages = PAST_STAGES;
 
-  const handleNext = useCallback(() => {
+const canAdvance = useMemo(() => {
+  if (isAbstract) return true;
+  return validatePastStage(currentStage, formData, isFuture);
+}, [currentStage, formData, isAbstract, isFuture]);
+
+ 
+
+
+
+const handleNext = useCallback(() => {
   if (!canAdvance) {
-    const missing = isPast
-      ? getMissingPastFields(currentStage, formData)
-      : getMissingFields(currentStage, formData, isFuture);
+    const missing = getMissingPastFields(currentStage, formData, isFuture);
     setStageError(missing ? `Missing: ${missing}` : 'Complete the required fields to proceed');
     return;
   }
   setStageError('');
   setCompletedStages((prev) => new Set([...prev, currentStage]));
   if (currentStage < 4) setCurrentStage(currentStage + 1);
-}, [canAdvance, currentStage, formData, isFuture, isPast]);
+}, [canAdvance, currentStage, formData, isFuture]);
 
   const handlePrev = useCallback(() => {
     if (currentStage > 1) {
@@ -1221,70 +1223,63 @@ export default function NmpInputForm({ editData, onSuccess, onCancel, triggerNot
   const labelOf = (options, id) => options.find((o) => o.id === Number(id))?.label ?? '';
 
   const handleSubmit = async () => {
-    if (!isAbstract && (currentStage !== 4 || !completedStages.has(1) || !completedStages.has(2) || !completedStages.has(3))) return;
-    setSubmitting(true);
-    try {
-      const userId = getCurrentUserId();
-      const payload = { ...formData, form_type: subTab, user_id: userId };
+  if (!isAbstract && (currentStage !== 4 || !completedStages.has(1) || !completedStages.has(2) || !completedStages.has(3))) return;
+  setSubmitting(true);
+  try {
+    const userId = getCurrentUserId();
+    const payload = { ...formData, form_type: subTab, user_id: userId };
 
-  if (!isAbstract) {
-    // backend reads these keys, so put the numeric ids in them
-    payload.lease_status      = formData.lease_status_id ?? null;
-    payload.purpose           = formData.purpose_id ?? null;
-    payload.sector            = formData.sector_id ?? null;
-    payload.status            = formData.status_id ?? null;
-    payload.mode_of_allotment = formData.mode_of_allotment_id ?? null;
-    payload.type_of_lessee    = formData.type_of_lessee_id ?? null;
-    payload.agreement_signed  = formData.agreement_signed_id ?? null;
-    payload.other_purpose = formData.purpose_id === 4 ? (formData.other_purpose || '').trim() : null;
-    payload.other_sector  = formData.sector_id === 11 ? (formData.other_sector || '').trim() : null;
-    payload.other_agency  = formData.type_of_lessee_id === 5 ? (formData.other_agency || '').trim() : null;
+    if (!isAbstract) {
+      // backend reads these keys, so put the numeric ids in them
+      payload.lease_status      = formData.lease_status_id ?? null;
+      payload.purpose           = formData.purpose_id ?? null;
+      payload.sector            = formData.sector_id ?? null;
+      payload.status            = formData.status_id ?? null;
+      payload.mode_of_allotment = formData.mode_of_allotment_id ?? null;
+      payload.type_of_lessee    = formData.type_of_lessee_id ?? null;
+      payload.agreement_signed  = formData.agreement_signed_id ?? null;
+      payload.other_purpose = formData.purpose_id === 4 ? (formData.other_purpose || '').trim() : null;
+      payload.other_sector  = formData.sector_id === 11 ? (formData.other_sector || '').trim() : null;
+      payload.other_agency  = formData.type_of_lessee_id === 5 ? (formData.other_agency || '').trim() : null;
+      payload.construction_target = formData.construction_original;
 
-    // future-land controller reads this key name
-    payload.construction_target = formData.construction_original;
-  }
-      // payload now carries ids: lease_status_id, purpose_id, sector_id, status_id,
-      // mode_of_allotment_id, type_of_lessee_id, agreement_signed_id
-
-      if (isFuture) {
-        payload.npv_lease_rental = parseFloat(parseFloat(formData.npv_lease_rental || 0).toFixed(2));
-        const a = parseFloat(formData.upfront_premium) || 0;
-        const c = parseFloat(formData.estimated_private_investment) || 0;
-        payload.total_monetization_value = parseFloat((a + payload.npv_lease_rental + c).toFixed(2));
-      } else if (isPast) {
-        const npv = parseFloat(formData.npv_lease_rental) || 0;
-        const a = parseFloat(formData.upfront_premium) || 0;
-        const c = parseFloat(formData.estimated_private_investment) || 0;
-        payload.total_monetization_value = parseFloat((a + npv + c).toFixed(2));
-        payload.sor_rows = (formData.sor_rows || []).filter(r =>
-        r.sor_from || r.sor_to || r.year_of_applicability || r.annual_base_lease_rental ||
+      const npv = parseFloat(formData.npv_lease_rental) || 0;
+      const a = parseFloat(formData.upfront_premium) || 0;
+      const c = parseFloat(formData.estimated_private_investment) || 0;
+      payload.npv_lease_rental = parseFloat(npv.toFixed(2));
+      payload.total_monetization_value = parseFloat((a + npv + c).toFixed(2));
+      payload.sor_rows = (formData.sor_rows || []).filter(r =>
+        r.sor_from || r.sor_to || r.annual_base_lease_rental ||
         r.escalation_rate || r.frequency_of_escalation || r.lease_tenure || r.npv
       );
 
-        if (!isEditMode) {
-          const uniqueNmpId = await generateUniquePastNmpId();
-          if (!uniqueNmpId) {
-            triggerNotification?.('Could not generate NMP ID. Please try again.', 'error');
-            return; // finally resets submitting
-          }
-          payload.unique_nmp_id = uniqueNmpId;
-        }
-      }
+      // future-land backend still reads this key
+      if (isFuture) payload.target_yr_monetisation = formData.year_of_allotment;
 
-      if (isEditMode && editData?.id) {
-        await updateNmpEntry({ ...payload, id: editData.id });
-        triggerNotification?.('NMP entry updated successfully.', 'success');
-      } else {
-        await createNmpEntry(payload);
-        triggerNotification?.('NMP entry created successfully.', 'success');
+      if (!isEditMode) {
+      const uniqueNmpId = await generateUniqueNmpId(subTab);
+      if (!uniqueNmpId) {
+        triggerNotification?.('Could not generate NMP ID. Please try again.', 'error');
+        return; // finally resets submitting
       }
-      onSuccess?.();
-    } catch (err) {
-      triggerNotification?.(err?.response?.data?.message || 'Failed to save NMP entry.', 'error');
-    } finally {
-      setSubmitting(false);
+      payload.unique_nmp_id = uniqueNmpId;
     }
-  };
+    }
+
+    if (isEditMode && editData?.id) {
+      await updateNmpEntry({ ...payload, id: editData.id });
+      triggerNotification?.('NMP entry updated successfully.', 'success');
+    } else {
+      await createNmpEntry(payload);
+      triggerNotification?.('NMP entry created successfully.', 'success');
+    }
+    onSuccess?.();
+  } catch (err) {
+    triggerNotification?.(err?.response?.data?.message || 'Failed to save NMP entry.', 'error');
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   const handleTabSwitch = useCallback((tabId) => {
     setSubTab(tabId);
@@ -1325,12 +1320,10 @@ export default function NmpInputForm({ editData, onSuccess, onCancel, triggerNot
         </div>
         <div className="mt-5">
           {isAbstract ? (
-            <LandAbstractForm formData={formData} onChange={handleChange} />
-          ) : isPast ? (
-            <PastLandForm formData={formData} onChange={handleChange} stage={currentStage} />
-          ) : (
-            <ParcelForm formType={subTab} formData={formData} onChange={handleChange} stage={currentStage} />
-          )}
+        <LandAbstractForm formData={formData} onChange={handleChange} />
+      ) : (
+        <PastLandForm key={subTab} formData={formData} onChange={handleChange} stage={currentStage} isFuture={isFuture} />
+      )}
 
           {/* Stage error */}
           {stageError && (

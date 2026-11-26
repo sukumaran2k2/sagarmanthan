@@ -36,5 +36,5 @@ export function fetchNmpById(id, formType = 'future-land') {
   return axiosInstance.get(`/nmp/${id}`, { params: { form_type: formType } });
 }
 
-export const getNmpCaseNumber = (organisationId) =>
-  axiosInstance.get(`/get-last-nmp-no/${organisationId}`);
+export const getNmpCaseNumber = (organisationId, formType = 'past-land') =>
+  axiosInstance.get(`/get-last-nmp-no/${organisationId}`, { params: { form_type: formType } });
