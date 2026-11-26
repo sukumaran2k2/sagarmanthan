@@ -1,5 +1,5 @@
 import { centerCell, serialColumn, lastUpdatedColumn, editColumn } from './examPerformanceColumns';
-import { CASUALTY_TYPES, YEAR_WISE_COUNTS } from '../data/marineCasualty';
+import { YEAR_WISE_COUNTS } from '../data/marineCasualty';
 
 // Data List columns for K-2.5 Marine Casualty. The Edit action opens the input form with the row in
 // route state; it is only added when the user has edit rights.
@@ -31,15 +31,3 @@ export function marineYearWiseColumns({ canEdit, onEdit }) {
     ...(canEdit ? [editColumn(onEdit)] : []),
   ];
 }
-
-// Casualty type tabs (Marine / Other) above the sheet lists, like K-2.4's type tabs
-export const CASUALTY_TABS = {
-  key: 'casualty', label: 'Casualty Type',
-  value: (r) => r.casualty_type,
-  options: (rows) => {
-    const present = new Set(rows.map((r) => r.casualty_type));
-    const known = CASUALTY_TYPES.filter((t) => present.has(t));
-    const others = [...present].filter((t) => t && !CASUALTY_TYPES.includes(t)).sort();
-    return [...known, ...others].map((t) => ({ value: t, label: t }));
-  },
-};

@@ -10,7 +10,7 @@ import { examMonthlyColumns, examOverallColumns } from '../components/examPerfor
 import { flagStateMmdWiseColumns, flagStateVesselWiseColumns } from '../components/flagStateInspectionColumns';
 import { portStateMmdWiseColumns, portStateVesselWiseColumns } from '../components/portStateInspectionColumns';
 import { entryExitColumns, ENTRY_EXIT_TABS } from '../components/entryExitColumns';
-import { marineSheetColumns, marineYearWiseColumns, CASUALTY_TABS } from '../components/marineCasualtyColumns';
+import { marineSheetColumns, marineYearWiseColumns } from '../components/marineCasualtyColumns';
 import { MARINE_SHEETS } from '../data/marineCasualty';
 import ListTabs from '../components/ListTabs';
 import { activeTabOf, rowsInTab } from '../data/listTabs';
@@ -66,7 +66,6 @@ const EXPORTS_BY_SLUG = {
 // Lists split into tabs above the table (rows of one tab at a time)
 const TABS_BY_SLUG = {
   'entry-exit-of-candidates': ENTRY_EXIT_TABS,
-  ...Object.fromEntries(Object.keys(MARINE_SHEETS).map((slug) => [slug, CASUALTY_TABS])),
 };
 
 // Lists that need an MMD filter populate the MMD panel from the fetched rows
