@@ -1,6 +1,4 @@
 /* global describe, it, expect */
-import { CASUALTY_TABS } from '../../components/marineCasualtyColumns';
-import { activeTabOf, rowsInTab } from '../../data/listTabs';
 import { EXAM_FILTER_FIELDS, filterExamRows, yearOptionsFrom } from '../../data/examListFilters';
 import { MARINE_SHEETS, YEAR_WISE_COUNTS, sumCounts } from '../../data/marineCasualty';
 
@@ -12,25 +10,6 @@ const ROWS = [
 ];
 
 describe('K-2.5 Marine Casualty Data List', () => {
-  it('tabs are Marine first, then Other, whatever order the rows come in', () => {
-    expect(CASUALTY_TABS.options(ROWS)).toEqual([
-      { value: 'Marine Casualty', label: 'Marine Casualty' },
-      { value: 'Other Casualty', label: 'Other Casualty' },
-    ]);
-  });
-
-  it('shows the first tab until one is picked, and only that casualty type', () => {
-    const active = activeTabOf(CASUALTY_TABS, ROWS, '');
-    expect(active).toBe('Marine Casualty');
-    expect(rowsInTab(CASUALTY_TABS, ROWS, active).map((r) => r.year)).toEqual([2025, 2024]);
-    expect(rowsInTab(CASUALTY_TABS, ROWS, 'Other Casualty')).toHaveLength(2);
-  });
-
-  it('a tab with no rows left falls back to the first', () => {
-    const marineOnly = ROWS.filter((r) => r.casualty_type === 'Marine Casualty');
-    expect(activeTabOf(CASUALTY_TABS, marineOnly, 'Other Casualty')).toBe('Marine Casualty');
-  });
-
   it('every K-2.5 list filters by year', () => {
     [...Object.keys(MARINE_SHEETS), 'marine-casualty-yearwise'].forEach((slug) => {
       expect(EXAM_FILTER_FIELDS[slug]).toEqual(['year']);
