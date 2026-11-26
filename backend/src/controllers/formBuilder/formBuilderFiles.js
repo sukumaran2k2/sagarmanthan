@@ -9,6 +9,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
+import { scanFile } from '../../utils/clamav.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -36,10 +37,30 @@ const upload = multer({
   limits: { fileSize: MAX_FILE_BYTES, files: MAX_FILES_PER_REQUEST },
 });
 
+// Virus scan of the files just stored, before the submission is read or saved. Like the other
+// uploads in the portal it fails closed: if any file is infected or could not be scanned, all
+// of them are deleted. Returns null when every file is clean, else the { status, message }.
+async function scanUploads(files, userId) {
+  for (const file of files) {
+    const scan = await scanFile(file.path);
+    if (scan.status === 'clean') continue;
+    await removeFiles(files.map((f) => f.path));
+    if (scan.status === 'infected') {
+      console.warn('Form Builder: infected upload rejected:', file.originalname, scan.threat, '| user:', userId);
+      return { status: 422, message: 'File rejected: a virus was detected.' };
+    }
+    return { status: 503, message: 'File scanning is unavailable. Please try again later.' };
+  }
+  return null;
+}
+
 // Accepts multipart submissions (files keyed by field id); JSON requests pass through.
 export function acceptFormFiles(req, res, next) {
-  upload.any()(req, res, (err) => {
-    if (!err) return next();
+  upload.any()(req, res, async (err) => {
+    if (!err) {
+      const rejected = req.files?.length ? await scanUploads(req.files, req.user?.userId) : null;
+      return rejected ? res.status(rejected.status).json({ message: rejected.message }) : next();
+    }
     if (err.code === 'LIMIT_FILE_SIZE') {
       return res.status(413).json({ message: 'A file is larger than the 50 MB limit' });
     }

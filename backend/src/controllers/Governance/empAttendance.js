@@ -224,7 +224,7 @@ async function createEmpAttendance(req, res) {
         const replaceFileID = await fileForPeriod(conn.request(), period);
         if (replaceFileID) {
             deleteFile(uniqueFileName);
-            return res.status(409).json({ error: "Record already exists for the specified financial year and month. Do you want to replace it ?", replaceFileID });
+            return res.status(409).json({ error: "Record already exists for the specified financial year, month and week. Do you want to replace it ?", replaceFileID });
         }
 
         const sheet = readAttendanceSheet(req.file.path);

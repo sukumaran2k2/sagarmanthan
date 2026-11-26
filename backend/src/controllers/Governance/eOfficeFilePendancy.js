@@ -379,8 +379,9 @@ async function updateFilePendancy(req, res) {
             deleteFile(req.file);
             return res.status(404).json({ error: 'The sheet to replace was not found. It may have been deleted.' });
         }
+        // The old file is removed only once the replacement is saved, so a failed save leaves the
+        // sheet's record pointing at a file that still exists
         const deleteFileName = fileName.recordset[0].File_name;
-        deleteFile(deleteFileName);
 
         // From here on, deleting the old rows, updating the file record, and
         // inserting the new rows all happen inside one transaction, so a
@@ -388,6 +389,24 @@ async function updateFilePendancy(req, res) {
         // replacement, or the file record renamed with stale row data.
         transaction = new sql.Transaction(conn);
         await transaction.begin();
+
+        // The new period must not belong to another sheet, or it would have two sheets. Locked so a
+        // parallel upload can't take the period before this commits.
+        const clashRequest = transaction.request();
+        clashRequest.input("FileId", sql.Int, Number(FileId));
+        clashRequest.input("month", sql.NVarChar, month);
+        clashRequest.input("Year", sql.Int, Number(Year));
+        clashRequest.input("week", sql.Int, Number(week));
+        const clash = await clashRequest.query(`
+            SELECT TOP (1) File_ID FROM tbl_file_pendancy WITH (UPDLOCK, HOLDLOCK)
+            WHERE Month = @month AND Year = @Year AND week = @week AND File_ID <> @FileId;
+        `);
+        if (clash.recordset[0]) {
+            await transaction.rollback();
+            transaction = null;
+            deleteFile(req.uniqueFileName);
+            return res.status(409).json({ error: `${month} ${Year} week ${week} already has another sheet.`, replaceFileID: clash.recordset[0].File_ID });
+        }
 
         const deleteRequest = transaction.request();
         deleteRequest.input("FileId", sql.Int, Number(FileId));
@@ -464,6 +483,7 @@ async function updateFilePendancy(req, res) {
         }
 
         await transaction.commit();
+        if (deleteFileName && deleteFileName !== uniqueFileName) deleteFile(deleteFileName);
                       
         res.status(200).json({
             message: " Data Updated Successfully",
