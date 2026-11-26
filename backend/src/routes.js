@@ -2998,34 +2998,21 @@ router.get('/get-category-wise-summary/:userId', auth, requireModulePermission("
 router.get('/get-physical-and-financial-progress-wise/:userId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getPhysicalAndFinancialProgressWise);
 router.get('/get-dropped-mous-report/:userId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getDroppedMousReport);
 
-//Marine Casualty
-router.post('/submit-marine-prev-data', marineTab.addMarinePrevIncident);
-router.post('/submit-marine-year-wise', marineTab.addMarineYearWise);
-router.get('/get-kpi-marine-data/:type', marineTab.getMarineCasultyData);
-router.get('/get-kpi-marine-data-by-year/:type/:year', marineTab.getMarineCasultyDataByYear);
-router.get('/get-kpi-marine-data-by-year/:type/:year/:casualtyType', marineTab.getMarineCasultyDataByYear);
-router.put('/update-marine-prev-data', marineTab.updateMarinePrevIncident);
-router.put('/update-marine-year-wise', marineTab.updateMarineYearWise);
-
-
-//KPI incidents country wise
-router.post("/submit-kpi-incident-country-wise", marineTab.submitIncidentCountryWise);
-router.get("/get-incidents-country-wise", marineTab.getCountryWise);
-router.get("/get-incidents-country-wise-data/:year/:casualtyType", marineTab.getCoutryWiseYearAndCasualty);//check year and casualty
-router.get("/get-incidents-country-wises-casualty-year/:year/:casualtyType", marineTab.getDataCountryWisebyYearAndCasualty);
-
-
-//KPI incidents vessel wise
-router.post("/submit-kpi-vessel-incident-country-wise", marineTab.submitIncidentVesselWise);
-router.get("/get-incidents-vessel-wise", marineTab.getVesselWise);
-router.get("/get-incidents-vessel-wise-data/:year/:casualtyType", marineTab.getIncidentsVesselDataByYearAndType);
-router.get("/get-incidents-vessel-wises-type-year/:year/:casualtyType", marineTab.getDataVesselWisebyYearAndCasualty);
-
-//Marine Report
-router.get('/get-kpi-marine-prev-curr-report', marineTab.getMarinePrevCurrYrReport);
-router.get('/get-kpi-marine-country-wise-report', marineTab.getMarineCountryWiseReport);
-router.get('/get-kpi-marine-year-wise-report', marineTab.getMarineYearWiseReport);
-router.get('/get-kpi-marine-vessel-wise-report', marineTab.getMarineVesselWiseReport);
+// DGS K-2.5 Marine Casualty Serious & Other Incidents: KPI_DGS rights on every route (login is
+// checked for all routes above). :sheet is incident-types (K-2.5.1), countries (K-2.5.3) or
+// vessels (K-2.5.4); the year-wise routes (K-2.5.2) come first so "year-wise" isn't read as a sheet.
+const dgs25Read = requireModulePermission("KPI_DGS", "read");
+const dgs25FormLookup = requireAnyModulePermission("KPI_DGS", ["create", "update", "read"]);
+router.get('/kpi-dgs-2-5/year-wise/list', dgs25Read, marineTab.listYearWise);
+router.get('/kpi-dgs-2-5/year-wise/entry', dgs25FormLookup, marineTab.getYearWiseEntry);
+router.post('/kpi-dgs-2-5/year-wise', requireModulePermission("KPI_DGS", "create"), validateKpiBody, marineTab.saveYearWise);
+router.put('/kpi-dgs-2-5/year-wise', requireModulePermission("KPI_DGS", "update"), validateKpiBody, marineTab.saveYearWise);
+router.get('/kpi-dgs-2-5/report/year-wise', dgs25Read, marineTab.yearWiseReport);
+router.get('/kpi-dgs-2-5/report/:sheet', dgs25Read, marineTab.sheetReport);
+router.get('/kpi-dgs-2-5/:sheet/list', dgs25Read, marineTab.listSheet);
+router.get('/kpi-dgs-2-5/:sheet/form', dgs25FormLookup, marineTab.getSheetForm);
+router.post('/kpi-dgs-2-5/:sheet', requireModulePermission("KPI_DGS", "create"), marineTab.saveSheet);
+router.put('/kpi-dgs-2-5/:sheet', requireModulePermission("KPI_DGS", "update"), marineTab.saveSheet);
 
 //Conciliation Court Case
 router.get("/get-last-conciliation-number-no/:organisationID", conciliationCourtCaseTab.getLastConciliationNumber);

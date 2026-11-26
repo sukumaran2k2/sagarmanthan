@@ -143,6 +143,10 @@ export const KPI_RULES = {
     // DGS K-2.4 Entry and Exit of Candidates (grade-of-type and future-month rules are in the handler)
     "POST /add-entry-exit-data": { financialYear: "year", month: "monthNo", type: "id", grade: "id", noOfCandidatesEntered: "count", noOfCandidatesExited: "count" },
     "PUT /update-entry-exit-data-by-id": { Id: "id", noOfCandidatesEntered: "count", noOfCandidatesExited: "count" },
+    // DGS K-2.5.2 Marine Casualty Year-wise (no future year: checked in the handler). The K-2.5.1 / 2.5.3 /
+    // 2.5.4 sheets are checked row by row in the handler.
+    "POST /kpi-dgs-2-5/year-wise": { year: "year", accidentalDeath: "count", missingDesertion: "count", naturalDeath: "count", suicides: "count", injuries: "count", manOverboard: "count", missingOnboard: "count" },
+    "PUT /kpi-dgs-2-5/year-wise": { year: "year", accidentalDeath: "count", missingDesertion: "count", naturalDeath: "count", suicides: "count", injuries: "count", manOverboard: "count", missingOnboard: "count" },
 };
 
 // Problems with the body for these rules, as one message per field ([] when it is fine)

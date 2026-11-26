@@ -14,6 +14,11 @@ export const EXAM_FILTER_FIELDS = {
   'port-state-inspection-mmd-wise': ['year', 'month', 'mmd'],
   'port-state-inspection-vessel-wise': ['year', 'month'],
   'entry-exit-of-candidates': ['year', 'month'], // K-2.4: the type is chosen with the tabs
+  // K-2.5: one entry per year (+ casualty type, chosen with the tabs)
+  'marine-casualty-previous-current': ['year'],
+  'marine-casualty-yearwise': ['year'],
+  'marine-casualty-country-wise': ['year'],
+  'marine-casualty-vessel-wise': ['year'],
 };
 
 // Old portal order: financial year, April first

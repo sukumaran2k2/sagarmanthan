@@ -10,6 +10,8 @@ import { examMonthlyColumns, examOverallColumns } from '../components/examPerfor
 import { flagStateMmdWiseColumns, flagStateVesselWiseColumns } from '../components/flagStateInspectionColumns';
 import { portStateMmdWiseColumns, portStateVesselWiseColumns } from '../components/portStateInspectionColumns';
 import { entryExitColumns, ENTRY_EXIT_TABS } from '../components/entryExitColumns';
+import { marineSheetColumns, marineYearWiseColumns, CASUALTY_TABS } from '../components/marineCasualtyColumns';
+import { MARINE_SHEETS } from '../data/marineCasualty';
 import ListTabs from '../components/ListTabs';
 import { activeTabOf, rowsInTab } from '../data/listTabs';
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal';
@@ -30,10 +32,10 @@ const LIST_FETCH_BY_SLUG = {
   'exam-monthly-performance': () => api.fetchKpi2_3_1_List(),
   'exam-overall-performance': () => api.fetchKpi2_3_2_List(),
   'entry-exit-of-candidates': () => api.fetchEntryExitList(),
-  'marine-casualty-previous-current': () => api.fetchKpi2_1_List(),
-  'marine-casualty-yearwise': () => api.fetchKpi2_1_List(),
-  'marine-casualty-country-wise': () => api.fetchKpi2_1_List(),
-  'marine-casualty-vessel-wise': () => api.fetchKpi2_1_List(),
+  'marine-casualty-previous-current': () => api.fetchMarineSheetList('incident-types'),
+  'marine-casualty-yearwise': () => api.fetchMarineYearWiseList(),
+  'marine-casualty-country-wise': () => api.fetchMarineSheetList('countries'),
+  'marine-casualty-vessel-wise': () => api.fetchMarineSheetList('vessels'),
   'flag-state-inspection-mmd-wise': () => api.fetchKpi2_6_1_List(),
   'flag-state-inspection-vessel-wise': () => api.fetchKpi2_6_2_List(),
   'port-state-inspection-mmd-wise': () => api.fetchKpi2_7_1_List(),
@@ -51,6 +53,10 @@ const EXPORTS_BY_SLUG = {
   'exam-monthly-performance': { exportTitle: 'DGS K-2.3.1 Exam Monthly Performance - Data List', exportFileName: 'DGS_K2_3_1_Exam_Monthly_Performance' },
   'exam-overall-performance': { exportTitle: 'DGS K-2.3.2 Exam Overall Performance Statistics - Data List', exportFileName: 'DGS_K2_3_2_Exam_Overall_Performance' },
   'entry-exit-of-candidates': { exportTitle: 'DGS K-2.4 Entry and Exit of Candidates - Data List', exportFileName: 'DGS_K2_4_Entry_Exit_of_Candidates' },
+  ...Object.fromEntries(Object.entries(MARINE_SHEETS).map(([slug, c]) => [slug, {
+    exportTitle: `DGS ${c.code} ${c.title} - Data List`, exportFileName: `DGS_${c.code.replace('-', '').replace(/\./g, '_')}_Marine_Casualty_${c.file}`,
+  }])),
+  'marine-casualty-yearwise': { exportTitle: 'DGS K-2.5.2 Marine Casualty Incidents - Year-wise - Data List', exportFileName: 'DGS_K2_5_2_Marine_Casualty_Year_Wise' },
   'flag-state-inspection-mmd-wise': { exportTitle: 'DGS K-2.6.1 Flag State Inspection - MMD Wise - Data List', exportFileName: 'DGS_K2_6_1_Flag_State_Inspection_MMD_Wise' },
   'flag-state-inspection-vessel-wise': { exportTitle: 'DGS K-2.6.2 Flag State Inspection & GI Performance - Vessel Wise - Data List', exportFileName: 'DGS_K2_6_2_Flag_State_Inspection_Vessel_Wise' },
   'port-state-inspection-mmd-wise': { exportTitle: 'DGS K-2.7.1 Port State Inspection - MMD Wise - Data List', exportFileName: 'DGS_K2_7_1_Port_State_Inspection_MMD_Wise' },
@@ -60,6 +66,7 @@ const EXPORTS_BY_SLUG = {
 // Lists split into tabs above the table (rows of one tab at a time)
 const TABS_BY_SLUG = {
   'entry-exit-of-candidates': ENTRY_EXIT_TABS,
+  ...Object.fromEntries(Object.keys(MARINE_SHEETS).map((slug) => [slug, CASUALTY_TABS])),
 };
 
 // Lists that need an MMD filter populate the MMD panel from the fetched rows
@@ -270,6 +277,8 @@ export default function DataListIndex({ triggerNotification }) {
       'exam-monthly-performance': examMonthlyColumns({ canEdit, onEdit: editIn('exam-monthly-performance') }),
       'exam-overall-performance': examOverallColumns({ canEdit, onEdit: editIn('exam-overall-performance') }),
       'entry-exit-of-candidates': entryExitColumns({ canEdit, onEdit: editIn('entry-exit-of-candidates') }),
+      ...Object.fromEntries(Object.entries(MARINE_SHEETS).map(([slug, c]) => [slug, marineSheetColumns({ rowLabel: c.rowLabel, canEdit, onEdit: editIn(slug) })])),
+      'marine-casualty-yearwise': marineYearWiseColumns({ canEdit, onEdit: editIn('marine-casualty-yearwise') }),
       'flag-state-inspection-mmd-wise': flagStateMmdWiseColumns({
         canEdit, canDelete: canRemove,
         onEdit: editMmdWiseFor('flag-state-inspection-mmd-wise'),

@@ -1,1443 +1,353 @@
-import { request } from "express";
+import sql from "mssql";
 import { pool } from "../../db.js";
-// import sql from 'mssql';
+import { sendError, resolveUserId } from "./kpiEntryCommon.js";
 
-async function addMarinePrevIncident(req, res) {
-  
-    const  year = req.body.year;
-    let casualtyType = req.body.casualtyType;
-    const  incidents = req.body.incidents;
-    const  createdBy = req.body.userID;
+// KPI DGS K-2.5 - Marine Casualty Serious & Other Incidents (the old portal's tables).
+//
+//   K-2.5.1 Previous & Current Year  tbl_kpi_incident_prev_curr_year  one row per incident type
+//   K-2.5.3 Country (Flag)-wise      tbl_kpi_incident_country_wise    one row per country
+//   K-2.5.4 Vessel-wise              tbl_kpi_vessel_incident          one row per vessel type
+//      An entry is a calendar year + casualty type (Marine / Other): a sheet of named rows, each
+//      with the number of incidents in every month. One entry per year + casualty type.
+//   K-2.5.2 Year-wise                tbl_kpi_incident_year_wise       one row per year, 7 counts
+//
+// Rules (the old portal's, with K-2.4's checks):
+//   add  - a year (+ casualty type) that already has an entry is refused (409), checked under lock
+//   edit - opened from the Data List; year and casualty type are fixed, the counts change. The
+//          sheet's rows are replaced in one transaction (the old portal deleted and re-added them
+//          one by one, and dropped the year / casualty type on rows added while editing)
+//   every count is a whole number >= 0; months after the current one must be 0; no future year
+// The reports compare a year with the one before it by quarter (Jan-Mar ... Oct-Dec), as the old
+// portal did; the year can now be chosen (the old portal always used this year and last year).
 
-    const conn = await pool;
+export const CASUALTY_TYPES = ["Marine Casualty", "Other Casualty"];
+export const MONTH_KEYS = ["january", "february", "march", "april", "may", "june", "july", "august",
+    "september", "october", "november", "december"];
+const MONTH_COLS = MONTH_KEYS.map((m) => `${m}_incidents`);
+const monthLabel = (i) => MONTH_KEYS[i][0].toUpperCase() + MONTH_KEYS[i].slice(1);
+const sumMonths = (alias, months = MONTH_COLS) => months.map((c) => `ISNULL(${alias}.${c}, 0)`).join(" + ");
+const QUARTERS = [[0, 3], [3, 6], [6, 9], [9, 12]].map(([a, b]) => MONTH_COLS.slice(a, b));
+const TODAY_SQL = "CAST(GETDATE() AS DATE)";
+const MAX_COUNT = 100000;
 
-    try {
-        const checkRequest = conn.request();
-        checkRequest.input('year', year);
-        checkRequest.input('casualtyType', casualtyType);
-        const checkResult = await checkRequest.query(`
-            SELECT COUNT(*) AS count FROM tbl_kpi_incident_prev_curr_year WHERE year = @year  AND casualty_type = @casualtyType
-        `);
+// The rows each sheet offers, in the old portal's order (the names its saved entries use)
+const INCIDENT_TYPES = {
+    "Marine Casualty": ["Collision", "Grounding", "Sinking", "Fire and Explosion", "Flooding",
+        "Hijacking/Piracy", "Incident Onboard", "Man Overboard", "Loss of Anchor / Propeller",
+        "Death ashore due to accident"],
+    "Other Casualty": ["Incident Onboard", "Man Overboard", "Missing Onboard", "Suicide", "Desertion",
+        "Sickness Onboard/Death Onboard", "Sickness Onboard/Death ashore", "Death ashore due to accident",
+        "Sickness", "Injury", "Incident Ashore", "Arrested Ashore"],
+};
+const COUNTRIES = ["Hong Kong", "Liberia", "India", "Panama", "Marshall Islands", "Gabon", "Japan",
+    "Singapore", "Bermuda", "Denmark", "Norway", "Bahamas", "Cook Island", "Malta", "Portugal",
+    "Cameroon", "China", "Isle of Man", "Kuwait", "Saint Vincent and the Grenadines",
+    "United Republic of Tanzania", "Barbados", "Union of Comoros"];
+const VESSEL_TYPES = ["Bulk Carrier", "Container Vessel", "Crude Oil Tanker", "LPG Tanker", "LNG Tanker",
+    "Oil Product Tanker", "Passenger", "Chemical Tanker", "General Cargo", "Livestock Carrier", "OSV",
+    "Tug", "FPSO", "Car Carrier", "MSV", "VLCC"];
 
-        if (checkResult.recordset[0].count > 0) {
-            return res.sendStatus(409);
-        }
-    } catch (error) {
-        return res.status(500).json({ error: 'Internal server error' });
-    }
-
-    for (const incident of incidents) { 
-        const { type, incidentValue } = incident; 
-
-        const request = conn.request(); 
-
-        request.input('year', year); 
-        request.input('casualtyType', casualtyType); 
-        request.input('type_of_incident', type); 
-        request.input('createdBy',createdBy);
-
-        for (const month of ['april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december', 'january', 'february', 'march']) {
-            request.input(`${month}_incidents`, incidentValue[month]); 
-        }
-
-        try {
-            const insertResult = await request.query(`
-                INSERT INTO tbl_kpi_incident_prev_curr_year 
-                (year,casualty_type,type_of_incident, april_incidents, may_incidents, june_incidents, july_incidents, 
-                 august_incidents, september_incidents, october_incidents, november_incidents, 
-                 december_incidents, january_incidents, february_incidents, march_incidents,created_date,created_by)
-                VALUES
-                (@year,@casualtyType, @type_of_incident, @april_incidents, @may_incidents, @june_incidents, 
-                 @july_incidents, @august_incidents, @september_incidents, @october_incidents, 
-                 @november_incidents, @december_incidents, @january_incidents, @february_incidents, 
-                 @march_incidents, GETDATE(),@createdBy)
-            `);
-        } catch (error) {
-            return res.status(500);
-        }
-    }
-    return res.sendStatus(201);
-}
-
-async function updateMarinePrevIncident(req, res) {
-    const year = req.body.year;
-    let casualtyType = req.body.casualtyType;
-    const prevIncidentData = req.body.incidents;
-    const updatedBy = req.body.userID;
-
-    const conn = await pool;
-    try {
-        const existingTypesRequest = conn.request();
-        existingTypesRequest.input('year', year);
-        existingTypesRequest.input('casualtyType', casualtyType);
-        const existingTypesQuery = `
-            SELECT type_of_incident,created_date FROM tbl_kpi_incident_prev_curr_year 
-            WHERE year = @year AND casualty_type = @casualtyType
-        `;
-        const existingTypesResult = await existingTypesRequest.query(existingTypesQuery);
-        const existingTypes = existingTypesResult.recordset.map(row => row.type_of_incident);
-        const existingCreatedDate = existingTypesResult.recordset[0]?.created_date;
-
-        for (const incident of prevIncidentData) {
-            const { type, incidentValue } = incident;
-
-            const updateRequest = conn.request();
-            updateRequest.input('year', year);
-            updateRequest.input('casualtyType', casualtyType);
-            updateRequest.input('typeOfIncident', type);
-            updateRequest.input('updatedBy', updatedBy);
-
-            const checkQuery = `
-                SELECT COUNT(*) AS count FROM tbl_kpi_incident_prev_curr_year 
-                WHERE year = @year AND casualty_type = @casualtyType AND type_of_incident = @typeOfIncident
-            `;
-            const checkResult = await updateRequest.query(checkQuery);
-
-            if (checkResult.recordset[0].count > 0) {
-                for (const month of ['april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december', 'january', 'february', 'march']) {
-                    updateRequest.input(`${month}_incidents`, incidentValue[month]);
-                }
-
-                await updateRequest.query(`
-                    UPDATE tbl_kpi_incident_prev_curr_year 
-                    SET 
-                        april_incidents = @april_incidents,
-                        may_incidents = @may_incidents,
-                        june_incidents = @june_incidents,
-                        july_incidents = @july_incidents,
-                        august_incidents = @august_incidents,
-                        september_incidents = @september_incidents,
-                        october_incidents = @october_incidents,
-                        november_incidents = @november_incidents,
-                        december_incidents = @december_incidents,
-                        january_incidents = @january_incidents,
-                        february_incidents = @february_incidents,
-                        march_incidents = @march_incidents,
-                        updated_date = GETDATE(),
-                        updated_by = @updatedBy 
-                    WHERE year = @year AND casualty_type = @casualtyType AND type_of_incident = @typeOfIncident
-                `);
-            } else {
-                const insertRequest = conn.request();
-                insertRequest.input('year', year);
-                insertRequest.input('casualtyType', casualtyType);
-                insertRequest.input('typeOfIncident', type);
-                insertRequest.input('createdBy', updatedBy);
-                insertRequest.input('createdDate', existingCreatedDate || new Date());
-                
-                for (const month of ['april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december', 'january', 'february', 'march']) {
-                    insertRequest.input(`${month}_incidents`, incidentValue[month]);
-                }
-                
-                await insertRequest.query(`
-                    INSERT INTO [tbl_kpi_incident_prev_curr_year] 
-                    (year, casualty_type, type_of_incident, april_incidents, may_incidents, june_incidents, july_incidents, 
-                     august_incidents, september_incidents, october_incidents, november_incidents, 
-                     december_incidents, january_incidents, february_incidents, march_incidents, created_date, created_by,updated_date,updated_by)
-                    VALUES
-                    (@year, @casualtyType, @typeOfIncident, @april_incidents, @may_incidents, @june_incidents, 
-                     @july_incidents, @august_incidents, @september_incidents, @october_incidents, 
-                     @november_incidents, @december_incidents, @january_incidents, @february_incidents, 
-                     @march_incidents, @createdDate, @createdBy, GETDATE(),@createdBy)
-                `);
-            }
-        }
-        const typesToDelete = existingTypes.filter(type => !prevIncidentData.some(incident => incident.type === type));
-        for (const typeToDelete of typesToDelete) {
-            const deleteRequest = conn.request();
-            deleteRequest.input('year', year);
-            deleteRequest.input('casualtyType', casualtyType);
-            deleteRequest.input('typeOfIncident', typeToDelete);
-
-            await deleteRequest.query(`
-                DELETE FROM tbl_kpi_incident_prev_curr_year 
-                WHERE year = @year AND casualty_type = @casualtyType AND type_of_incident = @typeOfIncident
-            `);
-        }
-
-        return res.status(200).json({ message: "Data updated successfully" });
-    } catch (error) {
-        return res.status(500).json({ error: 'Internal server error' });
-    }
-}
-
-
-async function addMarineYearWise(req, res) {
-  
-    const  year = req.body.year;
-    const  missingDesertion = req.body.missingDesertion;
-    const  accidentalDeath = req.body.accidentalDeath;
-    const  naturalDeath = req.body.naturalDeath;
-    const  suicides = req.body.suicides;
-    const  injuries = req.body.injuries;
-    const  manOverboard = req.body.manOverboard;
-    const  missingOnboard = req.body.missingOnboard;
-    const  createdBy = req.body.userID;
-
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input('year',year);
-    request.input('missingDesertion',missingDesertion);
-    request.input('accidentalDeath',accidentalDeath);
-    request.input('naturalDeath',naturalDeath);
-    request.input('suicides',suicides);
-    request.input('injuries',injuries);
-    request.input('manOverboard',manOverboard);
-    request.input('missingOnboard',missingOnboard);
-    request.input('createdBy',createdBy);
-
-    try {
-        const checkRequest = conn.request();
-        checkRequest.input('year', year);
-        const checkResult = await checkRequest.query(`
-            SELECT COUNT(*) AS count FROM tbl_kpi_incident_year_wise WHERE year = @year
-        `);
-
-        if (checkResult.recordset[0].count > 0) {
-            return res.sendStatus(409);
-        }
-    } catch (error) {
-        //console.error('Error checking existing data:', error);
-        return res.status(500);
-    }
-
-    try {
-        const insertResult = await request.query(`
-            INSERT INTO tbl_kpi_incident_year_wise
-            (year, missing_desertion, accidental_death, natural_death, suicides, injuries, 
-             man_overboard, missing_onboard,created_date,created_by)
-            VALUES
-            (@year, @missingDesertion, @accidentalDeath, @naturalDeath, @suicides, 
-             @injuries, @manOverboard, @missingOnboard, GETDATE(),@createdBy)
-        `);
-        return res.sendStatus(201);
-    } catch (error) {
-        //console.error('Error inserting incident data:', error);
-        res.status(500);
-    }
-}
-
-async function updateMarineYearWise(req, res) {
-    const year = req.body.year;
-    const missingDesertion = req.body.missingDesertion;
-    const accidentalDeath = req.body.accidentalDeath;
-    const naturalDeath = req.body.naturalDeath;
-    const suicides = req.body.suicides;
-    const injuries = req.body.injuries;
-    const manOverboard = req.body.manOverboard;
-    const missingOnboard = req.body.missingOnboard;
-    const updatedBy = req.body.userID;
-
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input('year', year);
-    request.input('missingDesertion', missingDesertion);
-    request.input('accidentalDeath', accidentalDeath);
-    request.input('naturalDeath', naturalDeath);
-    request.input('suicides', suicides);
-    request.input('injuries', injuries);
-    request.input('manOverboard', manOverboard);
-    request.input('missingOnboard', missingOnboard);
-    request.input('updatedBy', updatedBy);
-
-    try {
-        const updateResult = await request.query(`
-            UPDATE tbl_kpi_incident_year_wise
-            SET 
-                missing_desertion = @missingDesertion,
-                accidental_death = @accidentalDeath,
-                natural_death = @naturalDeath,
-                suicides = @suicides,
-                injuries = @injuries,
-                man_overboard = @manOverboard,
-                missing_onboard = @missingOnboard,
-                updated_date = GETDATE(),
-                updated_by = @updatedBy
-            WHERE year = @year
-        `);
-
-        if (updateResult.rowsAffected[0] === 0) {
-            return res.status(404).json({ message: "No record found for the given year." });
-        }
-
-        return res.status(200).json({ message: "Data updated successfully" });
-    } catch (error) {
-        return res.status(500).json({ error: 'Internal server error' });
-    }
-}
-
-async function getMarineCasultyDataByYear(req, res) {
-    const type = req.params.type;
-    const year = req.params.year;
-    const casualtyType = req.params.casualtyType;
-
-    if (!['tbl_kpi_incident_prev_curr_year', 'tbl_kpi_incident_year_wise'].includes(type)) {
-        return res.status(400).json({ error: 'Invalid type parameter' }); 
-    }
-    if (!year || isNaN(year)) {
-        return res.status(400).json({ error: 'Invalid year parameter' }); 
-    }
-
-    if(type == 'tbl_kpi_incident_prev_curr_year' && (!casualtyType || casualtyType == '')){
-        return res.status(400).json({ error: 'Missing Casualty Type parameter' }); 
-    }
-
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input('type', type);
-    request.input('year', year);
-    request.input('casualtyType', casualtyType);
-
-    let marineQuery;
-
-    try {
-        if (type === "tbl_kpi_incident_prev_curr_year") {
-            marineQuery = `SELECT * FROM tbl_kpi_incident_prev_curr_year WHERE year = @year  AND casualty_type = @casualtyType`;
-        } else if (type === "tbl_kpi_incident_year_wise") {
-            marineQuery = `SELECT * FROM tbl_kpi_incident_year_wise WHERE year = @year`;
-        }
-
-        const result = await request.query(marineQuery);
-        
-        if (result.recordset.length === 0) {
-            return res.status(404).json({ error: 'No data found for the given ID' }); 
-        }
-
-        res.json(result.recordset);
-
-    } catch (error) {
-        res.status(500).json({ error: 'Internal server error' });
-    } 
-}
-
-async function getMarineCasultyData(req, res) {
-    const type = req.params.type;
-
-    if (!['tbl_kpi_incident_prev_curr_year', 'tbl_kpi_incident_year_wise'].includes(type)) {
-        return res.sendStatus(400).json({ error: 'Invalid type parameter' });
-    }
-
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input('type', type);
-    let marineQuery;
-
-    try {
-        if (type == "tbl_kpi_incident_prev_curr_year") {
-            marineQuery = `SELECT [year],[casualty_type],
-                            SUM(ISNULL(april_incidents, 0) + 
-                            ISNULL(may_incidents, 0) + 
-                            ISNULL(june_incidents, 0) + 
-                            ISNULL(july_incidents, 0) + 
-                            ISNULL(august_incidents, 0) + 
-                            ISNULL(september_incidents, 0) + 
-                            ISNULL(october_incidents, 0) + 
-                            ISNULL(november_incidents, 0) + 
-                            ISNULL(december_incidents, 0) + 
-                            ISNULL(january_incidents, 0) + 
-                            ISNULL(february_incidents, 0) + 
-                            ISNULL(march_incidents, 0)) AS total_incidents,
-                            created_date,updated_date  FROM [tbl_kpi_incident_prev_curr_year] GROUP BY [year],[casualty_type],[created_date],[updated_date] ORDER BY [year]  DESC`;
-        } else if (type == "tbl_kpi_incident_year_wise") {
-            marineQuery = `SELECT 
-                                [year],
-                                SUM([accidental_death] + 
-                                    [missing_desertion] + 
-                                    [natural_death] + 
-                                    [suicides] + 
-                                    [injuries] + 
-                                    [man_overboard] + 
-                                    [missing_onboard]
-                                ) AS total_incidents,
-                                 created_date,updated_date
-                            FROM [tbl_kpi_incident_year_wise] GROUP BY [year],[created_date],[updated_date] ORDER BY [year] DESC;`;
-        }
-
-        const result = await request.query(marineQuery);
-
-        res.json(result.recordset);
-
-    } catch (error) {
-        //console.error('Error fetching marine casualty data:', error);
-        res.status(500).json({ error: 'Internal server error' });
-    } 
+export const SHEETS = {
+    "incident-types": {
+        code: "K-2.5.1", table: "tbl_kpi_incident_prev_curr_year", nameCol: "type_of_incident",
+        rowLabel: "Type of Incident", names: (casualtyType) => INCIDENT_TYPES[casualtyType] || [],
+    },
+    countries: {
+        code: "K-2.5.3", table: "tbl_kpi_incident_country_wise", nameCol: "country_name",
+        rowLabel: "Country (Flag)", names: () => COUNTRIES,
+    },
+    vessels: {
+        code: "K-2.5.4", table: "tbl_kpi_vessel_incident", nameCol: "vessel_name",
+        rowLabel: "Vessel Type", names: () => VESSEL_TYPES,
+    },
 };
 
-async function getMarinePrevCurrYrReport(req,res){
-    const currentYear = new Date().getFullYear();
-    const previousYear = new Date().getFullYear() - 1;
-    const financialYear = `${previousYear}-${currentYear}`;
-    const [startYear, endYear] = financialYear.split('-');
-
-    const conn = await pool;
-    const request = conn.request();
-    request.input("startYear", startYear);
-    request.input("endYear", endYear); 
-
-    try {
-        const query = `
-        SELECT 
-            casualty_type,
-            [type_of_incident],
-
-            SUM(CASE WHEN [year] = @startYear THEN 
-
-                ISNULL([january_incidents], 0) + ISNULL([february_incidents], 0) + ISNULL([march_incidents], 0) 
-
-                ELSE 0 END) AS [January-March '${startYear.slice(-2)}],
-
-            SUM(CASE WHEN [year] = @startYear  THEN ISNULL([april_incidents], 0) + ISNULL([may_incidents], 0) + ISNULL([june_incidents], 0) ELSE 0 END) AS [April-June '${startYear.slice(-2)}],
-
-            SUM(CASE WHEN [year] = @startYear  THEN ISNULL([july_incidents], 0) + ISNULL([august_incidents], 0) + ISNULL([september_incidents], 0) ELSE 0 END) AS [July-September '${startYear.slice(-2)}],
-
-            SUM(CASE WHEN [year] = @startYear  THEN ISNULL([october_incidents], 0) + ISNULL([november_incidents], 0) + ISNULL([december_incidents], 0) ELSE 0 END) AS [October-December '${startYear.slice(-2)}],
-
-            SUM(CASE WHEN [year] = @startYear  THEN 
-
-                ISNULL([january_incidents], 0) + ISNULL([february_incidents], 0) + ISNULL([march_incidents], 0) +
-
-                ISNULL([april_incidents], 0) + ISNULL([may_incidents], 0) + ISNULL([june_incidents], 0) +
-
-                ISNULL([july_incidents], 0) + ISNULL([august_incidents], 0) + ISNULL([september_incidents], 0) +
-
-                ISNULL([october_incidents], 0) + ISNULL([november_incidents], 0) + ISNULL([december_incidents], 0) 
-
-                ELSE 0 END
-
-            ) AS [Total Incidents in '${startYear.slice(-2)}],
-
-            SUM(CASE WHEN [year] = @endYear THEN ISNULL([january_incidents], 0) + ISNULL([february_incidents], 0) + ISNULL([march_incidents], 0) ELSE 0 END) AS [January-March '${endYear.slice(-2)}],
-
-            SUM(CASE WHEN [year] = @endYear THEN ISNULL([april_incidents], 0) + ISNULL([may_incidents], 0) + ISNULL([june_incidents], 0) ELSE 0 END) AS [April-June '${endYear.slice(-2)}],
-
-            SUM(CASE WHEN [year] = @endYear THEN ISNULL([july_incidents], 0) + ISNULL([august_incidents], 0) + ISNULL([september_incidents], 0) ELSE 0 END) AS [July-September '${endYear.slice(-2)}],
-
-            SUM(CASE WHEN [year] = @endYear THEN ISNULL([october_incidents], 0) + ISNULL([november_incidents], 0) + ISNULL([december_incidents], 0) ELSE 0 END) AS [October - December '${endYear.slice(-2)}],
-
-            SUM(CASE WHEN [year] = @endYear THEN 
-
-                ISNULL([january_incidents], 0) + ISNULL([february_incidents], 0) + ISNULL([march_incidents], 0) +
-
-                ISNULL([april_incidents], 0) + ISNULL([may_incidents], 0) + ISNULL([june_incidents], 0) +
-
-                ISNULL([july_incidents], 0) + ISNULL([august_incidents], 0) + ISNULL([september_incidents], 0) +
-
-                ISNULL([october_incidents], 0) + ISNULL([november_incidents], 0) + ISNULL([december_incidents], 0)
-
-                ELSE 0 END
-
-            ) AS [Total Incidents in '${endYear.slice(-2)}]
-
-        FROM 
-
-            [sagarmanthan_revamp].[dbo].[tbl_kpi_incident_prev_curr_year]
-
-        GROUP BY 
-            casualty_type,type_of_incident
-        ORDER BY casualty_type;
-
-    `;
-
-        const result = await request.query(query);
-
-        const rowData = result.recordset;  
-
-        // if (rowData.length === 0) {
-        //     return res.status(404).json({ error: 'No data available' });
-        // }
-        
-        let columnDefs = [
-            {
-                headerName: "Casualty Type",
-                field: "casualty_type",
-                headerClass: "headercenter",
-                cellStyle: {textAlign: 'center'}
-            },
-            {
-                headerName: "Type Of Incident",
-                field: "type_of_incident",
-                headerClass: "headercenter",
-                cellStyle: {textAlign: 'center'}
-            },
-            {
-                headerName: `January-March '${startYear.slice(-2)}`,
-                field: `January-March '${startYear.slice(-2)}`,
-                headerClass: "headercenter"
-            },
-            {
-                headerName: `April-June '${startYear.slice(-2)}`,
-                field: `April-June '${startYear.slice(-2)}`,
-                headerClass: "headercenter"
-            },
-            {
-                headerName: `July-September '${startYear.slice(-2)}`,
-                field: `July-September '${startYear.slice(-2)}`,
-                headerClass: "headercenter"
-            },
-            {
-                headerName: `October-December '${startYear.slice(-2)}`,
-                field: `October-December '${startYear.slice(-2)}`,
-                headerClass: "headercenter"
-            },
-            {
-                headerName: `Total Incidents in '${startYear.slice(-2)}`,
-                field: `Total Incidents in '${startYear.slice(-2)}`,
-                headerClass: "headercenter"
-            },
-            {
-                headerName: `January-March '${endYear.slice(-2)}`,
-                field: `January-March '${endYear.slice(-2)}`,
-                headerClass: "headercenter"
-            },
-            {
-                headerName: `April-June '${endYear.slice(-2)}`,
-                field: `April-June '${endYear.slice(-2)}`,
-                headerClass: "headercenter"
-            },
-            {
-                headerName: `July-September '${endYear.slice(-2)}`,
-                field: `July-September '${endYear.slice(-2)}`,
-                headerClass: "headercenter"
-            },
-            {
-                headerName: `October - December '${endYear.slice(-2)}`,
-                field: `October - December '${endYear.slice(-2)}`,
-                headerClass: "headercenter"
-            },
-            {
-                headerName: `Total Incidents in '${endYear.slice(-2)}`,
-                field: `Total Incidents in '${endYear.slice(-2)}`,
-                headerClass: "headercenter"
-            }
-        ];
-
-        // Adjusting column definitions for the last two columns to span
-        // columnDefs.forEach(col => {
-        //     if (col.children && col.children[0].headerName === 'No of vacancies') {
-        //         col.headerName = 'No of vacancies';
-        //         col.colSpan = 2;
-        //     }
-        // });
-
-        res.json({ columnDefs, rowData });
-    }catch(error){
-        //console.error('Error fetching marine casualty data:', error);
-        res.status(500).json({ error: 'Internal server error' });
-    }
+// K-2.5.2 counts: body field -> column
+export const YEAR_WISE_FIELDS = {
+    accidentalDeath: "accidental_death", missingDesertion: "missing_desertion", naturalDeath: "natural_death",
+    suicides: "suicides", injuries: "injuries", manOverboard: "man_overboard", missingOnboard: "missing_onboard",
 };
+const YEAR_WISE_TABLE = "tbl_kpi_incident_year_wise";
+const YEAR_WISE_TOTAL = Object.values(YEAR_WISE_FIELDS).map((c) => `ISNULL(${c}, 0)`).join(" + ");
 
-async function getMarineCountryWiseReport(req,res){
-    const currentYear = new Date().getFullYear();
-    const previousYear = new Date().getFullYear() - 1;
-    const financialYear = `${previousYear}-${currentYear}`;
-    const [startYear, endYear] = financialYear.split('-');
+const wholeNumber = (v) => (/^\s*\d+\s*$/.test(String(v ?? "")) ? Number(v) : NaN);
+const now = () => new Date();
+const validYear = (year) => Number.isInteger(year) && year >= 2000 && year <= now().getFullYear();
+// Months (1-12) of the year that haven't started yet; none for a past year
+const futureMonths = (year) => (year === now().getFullYear() ? MONTH_KEYS.map((_, i) => i + 1).filter((m) => m > now().getMonth() + 1) : []);
+const sheetOf = (req) => SHEETS[req.params.sheet] || null;
+const notFound = (res) => sendError(res, 404, "Not a K-2.5 sheet.");
 
-    const conn = await pool;
-    const request = conn.request();
-    request.input("startYear", startYear);
-    request.input("endYear", endYear);
+// ---------------------------------------------------------------------------
+// Sheets (K-2.5.1 / 2.5.3 / 2.5.4)
+// ---------------------------------------------------------------------------
 
-    try {
-        const query = `
-           SELECT 
-                [casualty_type],
-                [country_name],
-
-            SUM(CASE WHEN [year] = @startYear THEN 
-
-                ISNULL([january_incidents], 0) + ISNULL([february_incidents], 0) + ISNULL([march_incidents], 0) 
-
-                ELSE 0 END) AS [January-March '${startYear.slice(-2)}],
-
-            SUM(CASE WHEN [year] = @startYear  THEN ISNULL([april_incidents], 0) + ISNULL([may_incidents], 0) + ISNULL([june_incidents], 0) ELSE 0 END) AS [April-June '${startYear.slice(-2)}],
-
-            SUM(CASE WHEN [year] = @startYear  THEN ISNULL([july_incidents], 0) + ISNULL([august_incidents], 0) + ISNULL([september_incidents], 0) ELSE 0 END) AS [July-September '${startYear.slice(-2)}],
-
-            SUM(CASE WHEN [year] = @startYear  THEN ISNULL([october_incidents], 0) + ISNULL([november_incidents], 0) + ISNULL([december_incidents], 0) ELSE 0 END) AS [October-December '${startYear.slice(-2)}],
-
-            SUM(CASE WHEN [year] = @startYear  THEN 
-
-                ISNULL([january_incidents], 0) + ISNULL([february_incidents], 0) + ISNULL([march_incidents], 0) +
-
-                ISNULL([april_incidents], 0) + ISNULL([may_incidents], 0) + ISNULL([june_incidents], 0) +
-
-                ISNULL([july_incidents], 0) + ISNULL([august_incidents], 0) + ISNULL([september_incidents], 0) +
-
-                ISNULL([october_incidents], 0) + ISNULL([november_incidents], 0) + ISNULL([december_incidents], 0) 
-
-                ELSE 0 END
-
-            ) AS [Total Incidents in '${startYear.slice(-2)}],
-
-            SUM(CASE WHEN [year] = @endYear THEN ISNULL([january_incidents], 0) + ISNULL([february_incidents], 0) + ISNULL([march_incidents], 0) ELSE 0 END) AS [January-March '${endYear.slice(-2)}],
-
-            SUM(CASE WHEN [year] = @endYear THEN ISNULL([april_incidents], 0) + ISNULL([may_incidents], 0) + ISNULL([june_incidents], 0) ELSE 0 END) AS [April-June '${endYear.slice(-2)}],
-
-            SUM(CASE WHEN [year] = @endYear THEN ISNULL([july_incidents], 0) + ISNULL([august_incidents], 0) + ISNULL([september_incidents], 0) ELSE 0 END) AS [July-September '${endYear.slice(-2)}],
-
-            SUM(CASE WHEN [year] = @endYear THEN ISNULL([october_incidents], 0) + ISNULL([november_incidents], 0) + ISNULL([december_incidents], 0) ELSE 0 END) AS [October - December '${endYear.slice(-2)}],
-
-            SUM(CASE WHEN [year] = @endYear THEN 
-
-                ISNULL([january_incidents], 0) + ISNULL([february_incidents], 0) + ISNULL([march_incidents], 0) +
-
-                ISNULL([april_incidents], 0) + ISNULL([may_incidents], 0) + ISNULL([june_incidents], 0) +
-
-                ISNULL([july_incidents], 0) + ISNULL([august_incidents], 0) + ISNULL([september_incidents], 0) +
-
-                ISNULL([october_incidents], 0) + ISNULL([november_incidents], 0) + ISNULL([december_incidents], 0)
-
-                ELSE 0 END
-
-            ) AS [Total Incidents in '${endYear.slice(-2)}]
-
-        FROM 
-
-            [sagarmanthan_revamp].[dbo].[tbl_kpi_incident_country_wise]
-
-        GROUP BY 
-            [casualty_type],
-            [country_name] 
-        ORDER BY 
-            [casualty_type];`;
-
-        const result = await request.query(query);
-
-        const rowData = result.recordset;  
-
-        // if (rowData.length === 0) {
-        //     return res.status(404).json({ error: 'No data available' });
-        // }
-        
-        let columnDefs = [
-            {
-                headerName: "Casualty Type",
-                field: "casualty_type",
-                headerClass: "headercenter",
-                cellStyle: {textAlign: 'center'}
-            },
-            {
-                headerName: "Country Name",
-                field: "country_name",
-                headerClass: "headercenter",
-                cellStyle: {textAlign: 'center'}
-            },
-            {
-                headerName: `January-March '${startYear.slice(-2)}`,
-                field: `January-March '${startYear.slice(-2)}`,
-                headerClass: "headercenter"
-            },
-            {
-                headerName: `April-June '${startYear.slice(-2)}`,
-                field: `April-June '${startYear.slice(-2)}`,
-                headerClass: "headercenter"
-            },
-            {
-                headerName: `July-September '${startYear.slice(-2)}`,
-                field: `July-September '${startYear.slice(-2)}`,
-                headerClass: "headercenter"
-            },
-            {
-                headerName: `October-December '${startYear.slice(-2)}`,
-                field: `October-December '${startYear.slice(-2)}`,
-                headerClass: "headercenter"
-            },
-            {
-                headerName: `Total Incidents in '${startYear.slice(-2)}`,
-                field: `Total Incidents in '${startYear.slice(-2)}`,
-                headerClass: "headercenter"
-            },
-            {
-                headerName: `January-March '${endYear.slice(-2)}`,
-                field: `January-March '${endYear.slice(-2)}`,
-                headerClass: "headercenter"
-            },
-            {
-                headerName: `April-June '${endYear.slice(-2)}`,
-                field: `April-June '${endYear.slice(-2)}`,
-                headerClass: "headercenter"
-            },
-            {
-                headerName: `July-September '${endYear.slice(-2)}`,
-                field: `July-September '${endYear.slice(-2)}`,
-                headerClass: "headercenter"
-            },
-            {
-                headerName: `October - December '${endYear.slice(-2)}`,
-                field: `October - December '${endYear.slice(-2)}`,
-                headerClass: "headercenter"
-            },
-            {
-                headerName: `Total Incidents in '${endYear.slice(-2)}`,
-                field: `Total Incidents in '${endYear.slice(-2)}`,
-                headerClass: "headercenter"
-            }
-        ];
-            
-            
-        // Adjusting column definitions for the last two columns to span
-        // columnDefs.forEach(col => {
-        //     if (col.children && col.children[0].headerName === 'No of vacancies') {
-        //         col.headerName = 'No of vacancies';
-        //         col.colSpan = 2;
-        //     }
-        // });
-
-        res.json({ columnDefs, rowData });
-    }catch(error){
-        console.error('Error fetching marine casualty data:', error);
-        res.status(500).json({ error: 'Internal server error' });
+// The body's sheet, checked: { year, casualtyType, rows: [{ name, months: [12 counts] }] }.
+// Every listed row must be present once; returns { problem } or { year, casualtyType, rows }.
+function readSheetBody(sheet, body = {}) {
+    const year = wholeNumber(body.year);
+    if (!validYear(year)) return { problem: "Select a year up to the current one." };
+    const casualtyType = String(body.casualtyType ?? "").trim();
+    if (!CASUALTY_TYPES.includes(casualtyType)) return { problem: "Select Marine Casualty or Other Casualty." };
+    const names = sheet.names(casualtyType);
+    const rows = Array.isArray(body.rows) ? body.rows : [];
+    const byName = new Map();
+    for (const row of rows) {
+        const name = String(row?.name ?? "").trim();
+        if (!names.includes(name)) return { problem: `"${name}" is not one of the ${sheet.rowLabel.toLowerCase()} rows.` };
+        if (byName.has(name)) return { problem: `"${name}" is listed twice.` };
+        const months = Array.isArray(row.months) ? row.months : [];
+        if (months.length !== 12) return { problem: `${name}: a count is needed for every month.` };
+        const counts = months.map((v) => (v === "" || v == null ? 0 : wholeNumber(v)));
+        const bad = counts.findIndex((n) => !Number.isInteger(n) || n < 0 || n > MAX_COUNT);
+        if (bad >= 0) return { problem: `${name}, ${monthLabel(bad)}: the count must be a whole number of 0 or more.` };
+        const early = futureMonths(year).find((m) => counts[m - 1] > 0);
+        if (early) return { problem: `${name}: ${monthLabel(early - 1)} ${year} hasn't started yet, so its count must be 0.` };
+        byName.set(name, counts);
     }
+    const missing = names.filter((n) => !byName.has(n));
+    if (missing.length) return { problem: `Counts are missing for: ${missing.join(", ")}.` };
+    return { year, casualtyType, rows: names.map((name) => ({ name, counts: byName.get(name) })) };
 }
 
-async function getMarineVesselWiseReport(req,res){
-    const currentYear = new Date().getFullYear();
-    const previousYear = new Date().getFullYear() - 1;
-    const financialYear = `${previousYear}-${currentYear}`;
-    const [startYear, endYear] = financialYear.split('-');
-
-    const conn = await pool;
-    const request = conn.request();
-    request.input("startYear", startYear);
-    request.input('endYear',endYear);
-
-    try {
-        const query = `
-            SELECT 
-                [casualty_type],
-                [vessel_name],
-
-            SUM(CASE WHEN [year] = @startYear THEN 
-
-                ISNULL([january_incidents], 0) + ISNULL([february_incidents], 0) + ISNULL([march_incidents], 0) 
-
-                ELSE 0 END) AS [January-March '${startYear.slice(-2)}],
-
-            SUM(CASE WHEN [year] = @startYear  THEN ISNULL([april_incidents], 0) + ISNULL([may_incidents], 0) + ISNULL([june_incidents], 0) ELSE 0 END) AS [April-June '${startYear.slice(-2)}],
-
-            SUM(CASE WHEN [year] = @startYear  THEN ISNULL([july_incidents], 0) + ISNULL([august_incidents], 0) + ISNULL([september_incidents], 0) ELSE 0 END) AS [July-September '${startYear.slice(-2)}],
-
-            SUM(CASE WHEN [year] = @startYear  THEN ISNULL([october_incidents], 0) + ISNULL([november_incidents], 0) + ISNULL([december_incidents], 0) ELSE 0 END) AS [October-December '${startYear.slice(-2)}],
-
-            SUM(CASE WHEN [year] = @startYear  THEN 
-
-                ISNULL([january_incidents], 0) + ISNULL([february_incidents], 0) + ISNULL([march_incidents], 0) +
-
-                ISNULL([april_incidents], 0) + ISNULL([may_incidents], 0) + ISNULL([june_incidents], 0) +
-
-                ISNULL([july_incidents], 0) + ISNULL([august_incidents], 0) + ISNULL([september_incidents], 0) +
-
-                ISNULL([october_incidents], 0) + ISNULL([november_incidents], 0) + ISNULL([december_incidents], 0) 
-
-                ELSE 0 END
-
-            ) AS [Total Incidents in '${startYear.slice(-2)}],
-
-            SUM(CASE WHEN [year] = @endYear THEN ISNULL([january_incidents], 0) + ISNULL([february_incidents], 0) + ISNULL([march_incidents], 0) ELSE 0 END) AS [January-March '${endYear.slice(-2)}],
-
-            SUM(CASE WHEN [year] = @endYear THEN ISNULL([april_incidents], 0) + ISNULL([may_incidents], 0) + ISNULL([june_incidents], 0) ELSE 0 END) AS [April-June '${endYear.slice(-2)}],
-
-            SUM(CASE WHEN [year] = @endYear THEN ISNULL([july_incidents], 0) + ISNULL([august_incidents], 0) + ISNULL([september_incidents], 0) ELSE 0 END) AS [July-September '${endYear.slice(-2)}],
-
-            SUM(CASE WHEN [year] = @endYear THEN ISNULL([october_incidents], 0) + ISNULL([november_incidents], 0) + ISNULL([december_incidents], 0) ELSE 0 END) AS [October - December '${endYear.slice(-2)}],
-
-            SUM(CASE WHEN [year] = @endYear THEN 
-
-                ISNULL([january_incidents], 0) + ISNULL([february_incidents], 0) + ISNULL([march_incidents], 0) +
-
-                ISNULL([april_incidents], 0) + ISNULL([may_incidents], 0) + ISNULL([june_incidents], 0) +
-
-                ISNULL([july_incidents], 0) + ISNULL([august_incidents], 0) + ISNULL([september_incidents], 0) +
-
-                ISNULL([october_incidents], 0) + ISNULL([november_incidents], 0) + ISNULL([december_incidents], 0)
-
-                ELSE 0 END
-
-            ) AS [Total Incidents in '${endYear.slice(-2)}]
-
-        FROM 
-
-            [sagarmanthan_revamp].[dbo].[tbl_kpi_vessel_incident]
-
-        GROUP BY 
-            [casualty_type],
-            [vessel_name]
-        ORDER BY
-            [casualty_Type]`;
-
-        const result = await request.query(query);
-
-        const rowData = result.recordset;  
-
-        if (rowData.length === 0) {
-            return res.sendStatus(404).json({ error: 'No data available' });
-        }
-        
-        let columnDefs = [
-            {
-                headerName: "Casualty Type",
-                field: "casualty_type",
-                headerClass: "headercenter",
-                cellStyle: {textAlign: 'center'}
-            },
-            {
-                headerName: "Vessel Name",
-                field: "vessel_name",
-                headerClass: "headercenter",
-                cellStyle: {textAlign: 'center'}
-            },
-            {
-                headerName: `January-March '${startYear.slice(-2)}`,
-                field: `January-March '${startYear.slice(-2)}`,
-                headerClass: "headercenter"
-            },
-            {
-                headerName: `April-June '${startYear.slice(-2)}`,
-                field: `April-June '${startYear.slice(-2)}`,
-                headerClass: "headercenter"
-            },
-            {
-                headerName: `July-September '${startYear.slice(-2)}`,
-                field: `July-September '${startYear.slice(-2)}`,
-                headerClass: "headercenter"
-            },
-            {
-                headerName: `October-December '${startYear.slice(-2)}`,
-                field: `October-December '${startYear.slice(-2)}`,
-                headerClass: "headercenter"
-            },
-            {
-                headerName: `Total Incidents in '${startYear.slice(-2)}`,
-                field: `Total Incidents in '${startYear.slice(-2)}`,
-                headerClass: "headercenter"
-            },
-            {
-                headerName: `January-March '${endYear.slice(-2)}`,
-                field: `January-March '${endYear.slice(-2)}`,
-                headerClass: "headercenter"
-            },
-            {
-                headerName: `April-June '${endYear.slice(-2)}`,
-                field: `April-June '${endYear.slice(-2)}`,
-                headerClass: "headercenter"
-            },
-            {
-                headerName: `July-September '${endYear.slice(-2)}`,
-                field: `July-September '${endYear.slice(-2)}`,
-                headerClass: "headercenter"
-            },
-            {
-                headerName: `October - December '${endYear.slice(-2)}`,
-                field: `October - December '${endYear.slice(-2)}`,
-                headerClass: "headercenter"
-            },
-            {
-                headerName: `Total Incidents in '${endYear.slice(-2)}`,
-                field: `Total Incidents in '${endYear.slice(-2)}`,
-                headerClass: "headercenter"
-            }
-        ];
-            
-            
-        // Adjusting column definitions for the last two columns to span
-        // columnDefs.forEach(col => {
-        //     if (col.children && col.children[0].headerName === 'No of vacancies') {
-        //         col.headerName = 'No of vacancies';
-        //         col.colSpan = 2;
-        //     }
-        // });
-
-        res.json({ columnDefs, rowData });
-    }catch(error){
-        //console.error('Error fetching marine casualty data:', error);
-        res.status(500).json({ error: 'Internal server error',error });
-    }
-};
-
-async function getMarineYearWiseReport(req,res){
-    const conn = await pool;
-    const request = conn.request();
-
-    try {
-        const query = `
-            SELECT 
-                  [year] AS 'Year'
-                  ,[accidental_death] AS 'Accidental Death'
-                  ,[missing_desertion] AS 'Missing Desertion'
-                  ,[natural_death] AS 'Natural Death'
-                  ,[suicides] AS 'Suicides'
-                  ,[injuries] AS 'Injuries'
-                  ,[man_overboard] AS 'Man Overboard'
-                  ,[missing_onboard] AS 'Missing Overboard'
-            	  ,SUM([accidental_death] + [missing_desertion] + [natural_death] + [suicides] + [injuries] + [man_overboard] + [missing_onboard]) AS 'Total Incidents'
-              FROM [sagarmanthan_revamp].[dbo].[tbl_kpi_incident_year_wise]
-              GROUP BY year,[accidental_death],[missing_desertion],[natural_death],[suicides],[injuries],[man_overboard],[missing_onboard]
-            `;
-
-        const result = await request.query(query);
-
-        const rowData = result.recordset;  
-
-        // if (rowData.length === 0) {
-        //     return res.status(404).json({ error: 'No data available' });
-        // }
-        
-            let columnDefs = [
-                {
-                    headerName: "Year",
-                    field: "Year",
-                    headerClass: "headercenter",
-                    cellStyle: {textAlign: 'center'}
-                },
-                {
-                    headerName: `Accidental Death`,
-                    field: "Accidental Death",
-                    headerClass: "headercenter"
-                },
-                {
-                    headerName: `Missing Desertion`,
-                    field: "Missing Desertion",
-                    headerClass: "headercenter"
-                },
-                {
-                    headerName: `Natural Death`,
-                    field: "Natural Death",
-                    headerClass: "headercenter"
-                },
-                {
-                    headerName: `Suicides`,
-                    field: "Suicides",
-                    headerClass: "headercenter"
-                },
-                {
-                    headerName: `Injuries`,
-                    field: "Injuries",
-                    headerClass: "headercenter"
-                },
-                {
-                    headerName: `Man Overboard`,
-                    field: "Man Overboard",
-                    headerClass: "headercenter"
-                },
-                {
-                    headerName: `Total Incidents`,
-                    field: "Total Incidents",
-                    headerClass: "headercenter"
-                }
-            ];
-            
-            
-        // Adjusting column definitions for the last two columns to span
-        // columnDefs.forEach(col => {
-        //     if (col.children && col.children[0].headerName === 'No of vacancies') {
-        //         col.headerName = 'No of vacancies';
-        //         col.colSpan = 2;
-        //     }
-        // });
-
-        res.json({ columnDefs, rowData });
-    }catch(error){
-        //console.error('Error fetching marine casualty data:', error);
-        res.status(500).json({ error: 'Internal server error' });
-    }
+// Rows of one entry, inserted with one statement (created_* kept from the entry being replaced)
+function insertRowsSql(sheet, request, rows) {
+    const values = rows.map((row, i) => {
+        request.input(`name${i}`, sql.NVarChar(150), row.name);
+        row.counts.forEach((n, m) => request.input(`c${i}_${m}`, sql.Int, n));
+        return `(@year, @casualtyType, @name${i}, ${row.counts.map((_, m) => `@c${i}_${m}`).join(", ")}, @createdDate, @createdBy, @updatedDate, @updatedBy)`;
+    });
+    return `INSERT INTO ${sheet.table} (year, casualty_type, ${sheet.nameCol}, ${MONTH_COLS.join(", ")}, created_date, created_by, updated_date, updated_by)
+            VALUES ${values.join(",\n")};`;
 }
 
-async function submitIncidentVesselWise(req, res) {
-    const { year, casualtyType, incidents, userId } = req.body;
-    const conn = await pool;
-
+// Data List: one line per year + casualty type
+async function listSheet(req, res) {
+    const sheet = sheetOf(req);
+    if (!sheet) return notFound(res);
     try {
-        const checkRequest = conn.request();
-        checkRequest.input('year', year);
-        checkRequest.input('casualtyType', casualtyType);
-        const checkResult = await checkRequest.query(`
-            SELECT COUNT(*) AS count FROM tbl_kpi_vessel_incident 
-            WHERE year = @year AND casualty_type = @casualtyType
-        `);
-
-        if (checkResult.recordset[0].count > 0) {
-            const existingTypesRequest = conn.request();
-            existingTypesRequest.input('year', year);
-            existingTypesRequest.input('casualtyType', casualtyType);
-            const existingTypesQuery = `
-                SELECT vessel_name, created_date FROM tbl_kpi_vessel_incident 
-                WHERE year = @year AND casualty_type = @casualtyType
-            `;
-            const existingTypesResult = await existingTypesRequest.query(existingTypesQuery);
-            const existingTypes = existingTypesResult.recordset.map(row => row.vessel_name);
-            const existingCreatedDate = existingTypesResult.recordset[0]?.created_date;
-    
-            for (const incident of incidents) {
-                const { type, incidentValue } = incident;
-    
-                const updateRequest = conn.request();
-                updateRequest.input('year', year);
-                updateRequest.input('casualtyType', casualtyType);
-                updateRequest.input('vesselName', type);
-                updateRequest.input('updatedBy', userId);
-    
-                const checkQuery = `
-                    SELECT COUNT(*) AS count FROM tbl_kpi_vessel_incident 
-                    WHERE year = @year AND casualty_type = @casualtyType AND vessel_name = @vesselName
-                `;
-                const checkResult = await updateRequest.query(checkQuery);
-    
-                if (checkResult.recordset[0].count > 0) {
-                    for (const month of ['april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december', 'january', 'february', 'march']) {
-                        updateRequest.input(`${month}_incidents`, incidentValue[month]);
-                    }
-    
-                    await updateRequest.query(`
-                        UPDATE tbl_kpi_vessel_incident 
-                        SET 
-                            april_incidents = @april_incidents,
-                            may_incidents = @may_incidents,
-                            june_incidents = @june_incidents,
-                            july_incidents = @july_incidents,
-                            august_incidents = @august_incidents,
-                            september_incidents = @september_incidents,
-                            october_incidents = @october_incidents,
-                            november_incidents = @november_incidents,
-                            december_incidents = @december_incidents,
-                            january_incidents = @january_incidents,
-                            february_incidents = @february_incidents,
-                            march_incidents = @march_incidents,
-                            updated_date = GETDATE(),
-                            updated_by = @updatedBy
-                        WHERE year = @year AND casualty_type = @casualtyType AND vessel_name = @vesselName
-                    `);
-                } else {
-                    const insertRequest = conn.request();
-                    insertRequest.input('year', year);
-                    insertRequest.input('casualtyType', casualtyType);
-                    insertRequest.input('vesselName', type);
-                    insertRequest.input('createdBy', userId);
-                    insertRequest.input('createdDate', existingCreatedDate || new Date());
-    
-                    for (const month of ['april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december', 'january', 'february', 'march']) {
-                        insertRequest.input(`${month}_incidents`, incidentValue[month]);
-                    }
-    
-                    await insertRequest.query(`
-                        INSERT INTO [tbl_kpi_vessel_incident] 
-                        (year, casualty_type, vessel_name, april_incidents, may_incidents, june_incidents, july_incidents, 
-                         august_incidents, september_incidents, october_incidents, november_incidents, 
-                         december_incidents, january_incidents, february_incidents, march_incidents, 
-                         created_date, created_by, updated_date, updated_by)
-                        VALUES
-                        (@year, @casualtyType, @vesselName, @april_incidents, @may_incidents, @june_incidents, 
-                         @july_incidents, @august_incidents, @september_incidents, @october_incidents, 
-                         @november_incidents, @december_incidents, @january_incidents, @february_incidents, 
-                         @march_incidents, @createdDate, @createdBy, GETDATE(), @createdBy)
-                    `);
-                }
-            }
-            const typesToDelete = existingTypes.filter(type => !incidents.some(incident => incident.type === type));
-            for (const typeToDelete of typesToDelete) {
-                const deleteRequest = conn.request();
-                deleteRequest.input('year', year);
-                deleteRequest.input('casualtyType', casualtyType);
-                deleteRequest.input('vesselName', typeToDelete);
-    
-                await deleteRequest.query(`
-                    DELETE FROM tbl_kpi_vessel_incident 
-                    WHERE year = @year AND casualty_type = @casualtyType AND vessel_name = @vesselName
-                `);
-            }
-    
-            return res.status(201).json({ message: "Data updated successfully" });
-        } else {
-            for (const incident of incidents) { 
-                const { type, incidentValue } = incident; 
-                const insertRequest = conn.request(); 
-                insertRequest.input('year', year); 
-                insertRequest.input('casualtyType', casualtyType); 
-                insertRequest.input('vesselName', type); 
-                insertRequest.input('createdBy', userId);
-
-                for (const month of ['april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december', 'january', 'february', 'march']) {
-                    insertRequest.input(`${month}_incidents`, incidentValue[month]); 
-                }
-
-                await insertRequest.query(`
-                    INSERT INTO [tbl_kpi_vessel_incident] 
-                    (year, casualty_type, vessel_name, april_incidents, may_incidents, june_incidents, july_incidents, 
-                     august_incidents, september_incidents, october_incidents, november_incidents, 
-                     december_incidents, january_incidents, february_incidents, march_incidents, created_date, created_by)
-                    VALUES
-                    (@year, @casualtyType, @vesselName, @april_incidents, @may_incidents, @june_incidents, 
-                     @july_incidents, @august_incidents, @september_incidents, @october_incidents, 
-                     @november_incidents, @december_incidents, @january_incidents, @february_incidents, 
-                     @march_incidents, GETDATE(), @createdBy)
-                `);
-            }
-
-            return res.status(201).json({ message: 'Record inserted successfully' });
-        }
-    } catch (error) {
-        return res.status(500).json({ message: error.message });
-    }
-}
-
-async function getVesselWise(req, res) {
-    const conn = await pool;
-
-    try {
-        const result = await conn.query(`
-        SELECT [year],[casualty_type],
-            SUM(ISNULL(april_incidents, 0) + 
-            ISNULL(may_incidents, 0) + 
-            ISNULL(june_incidents, 0) + 
-            ISNULL(july_incidents, 0) + 
-            ISNULL(august_incidents, 0) + 
-            ISNULL(september_incidents, 0) + 
-            ISNULL(october_incidents, 0) + 
-            ISNULL(november_incidents, 0) + 
-            ISNULL(december_incidents, 0) + 
-            ISNULL(january_incidents, 0) + 
-            ISNULL(february_incidents, 0) + 
-            ISNULL(march_incidents, 0)) AS total_incidents,
-            created_date,updated_date  FROM [tbl_kpi_vessel_incident] GROUP BY [year],[casualty_type] ,[created_date],[updated_date] ORDER BY [year]  DESC
-         `);
-        const rowData = result.recordset;  
-
-        //  if (rowData.length === 0) {
-        //      return res.status(404).json({ error: 'No data available' });
-        //  }
-
+        const result = await (await pool).request().query(`
+            SELECT year, casualty_type, COUNT(*) AS row_count,
+                   SUM(${sumMonths("t")}) AS total_incidents,
+                   MIN(created_date) AS created_date,
+                   MAX(COALESCE(updated_date, created_date)) AS updated_date
+            FROM ${sheet.table} t
+            WHERE year IS NOT NULL AND casualty_type IS NOT NULL
+            GROUP BY year, casualty_type
+            ORDER BY year DESC, casualty_type`);
         res.json(result.recordset);
-    }
-    catch (err) {
-        // console.log(err);
-        return res.sendStatus(500);
-    }
-};
-
-
-async function submitIncidentCountryWise(req, res) {
-
-    const {year,casualtyType,incidentCountryWise,userID} = req.body;
-
-    const conn = await pool;
-    const request = conn.request(); 
-
-    try {
-        const checkRequestData = `
-            SELECT * FROM tbl_kpi_incident_country_wise
-            WHERE year = @year AND casualty_type = @casualtyType;
-        `;
-
-        request.input("year", year);
-        request.input('casualtyType',casualtyType);
-
-        const checkResult = await request.query(checkRequestData);
-    
-        if(checkResult.recordset.length!==0){
-            const existingRequest = conn.request();
-            existingRequest.input('year', year);
-            existingRequest.input('casualtyType', casualtyType);
-            const existingQuery = `
-                SELECT country_name FROM tbl_kpi_incident_country_wise 
-                WHERE year = @year AND casualty_type = @casualtyType
-            `;
-            const existingResult = await existingRequest.query(existingQuery);
-            const existingValues = existingResult.recordset.map(row => row.country_name);
-          
-        for (const incident of incidentCountryWise) { 
-            const { type, incidentValue } = incident; 
-                
-            const updateRequest = conn.request();
-            updateRequest.input("year", year);
-            updateRequest.input("casualtyType", casualtyType);
-            updateRequest.input('countryName', type); 
-            updateRequest.input("userID", userID) 
-
-        const checkQuery= `
-        SELECT COUNT(*) AS count FROM tbl_kpi_incident_country_wise
-        WHERE year = @year AND casualty_type = @casualtyType AND country_name=@countryName;
-        `;
-
-        const checkResult = await updateRequest.query(checkQuery);
-
-        if (checkResult.recordset[0].count > 0) {
-            for (const month of [ 'january', 'february', 'march','april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december']) {
-                updateRequest.input(`${month}_incidents`, incidentValue[month]); 
-            }
-
-            await updateRequest.query(`
-            UPDATE tbl_kpi_incident_country_wise 
-            SET 
-            january_incidents =@january_incidents , 
-            february_incidents = @february_incidents, 
-            march_incidents = @march_incidents, 
-            april_incidents = @april_incidents, 
-            may_incidents = @may_incidents, 
-            june_incidents = @june_incidents, 
-            july_incidents = @july_incidents,                 
-            august_incidents = @august_incidents, 
-            september_incidents = @september_incidents, 
-            october_incidents = @october_incidents, 
-            november_incidents = @november_incidents, 
-            december_incidents = @december_incidents,
-            updated_date = GETDATE(),
-            updated_by = @userID
-            WHERE year = @year AND casualty_type = @casualtyType AND country_name=@countryName
-            `);      
-        }else{
-            const insertRequest = conn.request();
-
-            insertRequest.input('year', year); 
-            insertRequest.input('casualtyType', casualtyType); 
-            insertRequest.input('countryName', type); 
-            insertRequest.input('userID', userID);
-
-            for (const month of ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december']) {
-                request.input(`${month}_incidents`, incidentValue[month]); 
-            }
-            await insertRequest.query(`
-                INSERT INTO tbl_kpi_incident_country_wise (
-                country_name, january_incidents, february_incidents, march_incidents, april_incidents, may_incidents, june_incidents, july_incidents, 
-                august_incidents, september_incidents, october_incidents, november_incidents, 
-                december_incidents, updated_date,updated_by)
-                VALUES (
-                @countryName, @january_incidents, @february_incidents, @march_incidents, @april_incidents, @may_incidents, @june_incidents, @july_incidents, 
-                @august_incidents, @september_incidents, @october_incidents, @november_incidents, 
-                @december_incidents, GETDATE(),@userID
-                );
-            `);         
-         } 
-         const deleteToValues = existingValues.filter(type => ! incidentCountryWise.some(incident => incident.type === type));
-         for(const deleteToValue of deleteToValues ){
-            const deleteRequest = conn.request();
-            deleteRequest.input('year', year);
-            deleteRequest.input('casualtyType', casualtyType);
-            deleteRequest.input('countryName', deleteToValue);
-            await deleteRequest.query(`
-                 DELETE FROM tbl_kpi_incident_country_wise 
-                        WHERE year = @year AND casualty_type = @casualtyType AND country_name = @countryName
-                `);
-          }
-        }
-            // console.log("updated query 2")
-            return res.status(201).json({ message: "Record updated successfully" });
-        }else{
-            for (const incident of incidentCountryWise) { 
-                const { type, incidentValue } = incident; 
-
-                const insertRequest = conn.request(); 
-                insertRequest.input('year', year); 
-                insertRequest.input('casualtyType', casualtyType); 
-                insertRequest.input('countryName', type); 
-                insertRequest.input('userID', userID);
-
-                for (const month of ['january', 'february', 'march','april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december']) {
-                    insertRequest.input(`${month}_incidents`, incidentValue[month]); 
-                 }
-                await insertRequest.query(`
-                INSERT INTO tbl_kpi_incident_country_wise (
-                year,casualty_type,country_name, january_incidents, february_incidents, march_incidents, april_incidents, may_incidents, june_incidents, july_incidents, 
-                august_incidents, september_incidents, october_incidents, november_incidents, 
-                december_incidents, created_date,created_by )
-                VALUES (
-                @year,@casualtyType,@countryName, @january_incidents, @february_incidents, @march_incidents, @april_incidents, @may_incidents, @june_incidents, @july_incidents, 
-                @august_incidents, @september_incidents, @october_incidents, @november_incidents, 
-                @december_incidents, GETDATE(),@userID
-                    );
-            `);
-            
-    }
-    // console.log("record inserted ")
-        return res.status(201).json({ message: 'Record inserted successfully' });
-    }
-        }catch(error){
-            // console.log("error ",error.message);
-            return res.status(500).json({ message: error.message});
-        }
-    }
-
-
-
-
-async function getCountryWise(req, res) {
-    const conn = await pool;
-
-    try {
-        const result = await conn.query(`
-        SELECT
-            year,
-            casualty_type,
-            SUM(ISNULL(april_incidents, 0) + 
-            ISNULL(may_incidents, 0) + 
-            ISNULL(june_incidents, 0) + 
-            ISNULL(july_incidents, 0) + 
-            ISNULL(august_incidents, 0) + 
-            ISNULL(september_incidents, 0) + 
-            ISNULL(october_incidents, 0) + 
-            ISNULL(november_incidents, 0) + 
-            ISNULL(december_incidents, 0) + 
-            ISNULL(january_incidents, 0) + 
-            ISNULL(february_incidents, 0) + 
-            ISNULL(march_incidents, 0)) AS total_incidents,
-            MAX(created_date) AS created_date,
-              MAX(updated_date) AS updated_date
-            FROM 
-                tbl_kpi_incident_country_wise
-            GROUP BY
-	            year, casualty_type
-            ORDER BY 
-                year DESC;
-         `);
-        res.json(result.recordset);
-    }
-    catch (err) {
-        console.log(err);
-        return res.status(500);
-    }
-};
-
-async function getDataCountryWisebyYearAndCasualty(req, res) {
-    const casualtyType = req.params.casualtyType;
-    const year = req.params.year;
- 
-    // Validate year and month
-    if (!year || !casualtyType) {
-        return res.status(400).json({ error: "Invalid year or casualtyType" });
-    }
-
-    const conn = await pool;
-    const request = conn.request();
-    request.input("casualtyType", casualtyType);
-    request.input("year", year);
-    
-    
-    let IncidentsQuery;
-    try {
-        IncidentsQuery = `SELECT * FROM tbl_kpi_incident_country_wise WHERE year = @year AND casualty_type = @casualtyType`;
-        const result = await request.query(IncidentsQuery);
-
-        res.json(result.recordset);
-
     } catch (err) {
-        //console.log(err);
-        return res.status(500).json({ message: "Internal Server Error" });
+        console.error(`K-2.5 ${req.params.sheet} list failed:`, err);
+        return sendError(res, 500, "The entries could not be loaded.");
     }
 }
 
-async function getDataVesselWisebyYearAndCasualty(req, res) {
-    const casualtyType = req.params.casualtyType;
-    const year = req.params.year;
-
-    if (!year || !casualtyType) {
-        return res.status(400).json({ error: "Invalid year or casualty type" });
+// Form: the rows to fill for a year + casualty type, and the saved counts if there is an entry
+async function getSheetForm(req, res) {
+    const sheet = sheetOf(req);
+    if (!sheet) return notFound(res);
+    const year = wholeNumber(req.query.year);
+    const casualtyType = String(req.query.casualtyType ?? "").trim();
+    if (!Number.isInteger(year) || !CASUALTY_TYPES.includes(casualtyType)) {
+        return sendError(res, 400, "A valid year and casualty type are required.");
     }
-
-    const conn = await pool;
-    const request = conn.request();
-    request.input("casualtyType", casualtyType);
-    request.input("year", year);
-    
-
-    let IncidentsQuery;
     try {
-        IncidentsQuery = `SELECT  casualty_type, year FROM tbl_kpi_vessel_incident WHERE casualty_type = @casualtyType AND year = @year`;
-        const result = await request.query(IncidentsQuery);
-
-        return res.json(result.recordset);
+        const request = (await pool).request();
+        request.input("year", sql.Int, year);
+        request.input("casualtyType", sql.NVarChar(150), casualtyType);
+        const saved = (await request.query(`
+            SELECT ${sheet.nameCol} AS name, ${MONTH_COLS.join(", ")}
+            FROM ${sheet.table} WHERE year = @year AND casualty_type = @casualtyType
+            ORDER BY id`)).recordset;
+        const byName = new Map(saved.map((r) => [r.name, MONTH_COLS.map((c) => r[c])]));
+        res.json({
+            year, casualtyType, rowLabel: sheet.rowLabel,
+            exists: saved.length > 0,
+            futureMonths: futureMonths(year),
+            rows: sheet.names(casualtyType).map((name) => ({ name, months: byName.get(name) || Array(12).fill(null) })),
+        });
     } catch (err) {
-        // //console.log(err);
-        return res.sendStatus(500);
+        console.error(`K-2.5 ${req.params.sheet} form failed:`, err);
+        return sendError(res, 500, "The entry could not be loaded.");
     }
 }
 
-async function getCoutryWiseYearAndCasualty(req,res) {
-
-    const year = req.params.year;
-    const casualtyType = req.params.casualtyType;
-    
-
-    if (!year || !casualtyType) {
-        return res.status(400).json({ error: "Invalid year or casualty type" });
-    }
-
-    const conn = await pool;
-    const request = conn.request();
-    request.input("year", year);
-    request.input("casualtyType", casualtyType);
-   
-    
-    let IncidentsQuery;
+// Add (POST) or replace (PUT) a year + casualty type's sheet, in one transaction
+async function saveSheet(req, res) {
+    const sheet = sheetOf(req);
+    if (!sheet) return notFound(res);
+    const isEdit = req.method === "PUT";
+    const parsed = readSheetBody(sheet, req.body);
+    if (parsed.problem) return sendError(res, 400, parsed.problem);
+    const { year, casualtyType, rows } = parsed;
+    const userId = resolveUserId(req);
+    const transaction = new sql.Transaction(await pool);
     try {
-        IncidentsQuery = `SELECT  year,casualty_type FROM tbl_kpi_incident_country_wise WHERE year = @year AND casualty_type = @casualtyType`;
-        const result = await request.query(IncidentsQuery);
-        
-        return res.json(result.recordset);
-    } catch (err) {
-        // //console.log(err); 
-        return res.sendStatus(500);
-    }
-    
-}
-
-async function getIncidentsVesselDataByYearAndType(req,res) {
-
-    const year = req.params.year;
-    const casualtyType = req.params.casualtyType;
-    
-
-    if (!year || !casualtyType) {
-        return res.status(400).json({ error: "Invalid year or casualty type" });
-    }
-
-    const conn = await pool;
-    const request = conn.request();
-    request.input("year", year);
-    request.input("casualtyType", casualtyType);
-   
-    
-    let IncidentsQuery;
-    try {
-        IncidentsQuery = `SELECT  * FROM tbl_kpi_vessel_incident WHERE year = @year AND casualty_type = @casualtyType`;
-        const result = await request.query(IncidentsQuery);
-        const rowData = result.recordset; 
-
-        if (rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available' });
+        await transaction.begin();
+        const request = new sql.Request(transaction);
+        request.input("year", sql.Int, year);
+        request.input("casualtyType", sql.NVarChar(150), casualtyType);
+        const existing = (await request.query(`
+            SELECT MIN(created_date) AS created_date, MIN(created_by) AS created_by, COUNT(*) AS n
+            FROM ${sheet.table} WITH (UPDLOCK, HOLDLOCK)
+            WHERE year = @year AND casualty_type = @casualtyType`)).recordset[0];
+        if (!isEdit && existing.n > 0) {
+            await transaction.rollback();
+            return sendError(res, 409, "An entry for this year and casualty type already exists. Edit it from the Data List instead.");
         }
-        
-        return res.json(result.recordset);
+        if (isEdit && existing.n === 0) {
+            await transaction.rollback();
+            return sendError(res, 404, "This entry no longer exists. Refresh the list and try again.");
+        }
+        if (isEdit) await request.query(`DELETE FROM ${sheet.table} WHERE year = @year AND casualty_type = @casualtyType`);
+        request.input("createdDate", sql.Date, isEdit ? existing.created_date : now());
+        request.input("createdBy", sql.Int, isEdit ? existing.created_by : userId);
+        request.input("updatedDate", sql.Date, isEdit ? now() : null);
+        request.input("updatedBy", sql.Int, isEdit ? userId : null);
+        await request.query(insertRowsSql(sheet, request, rows));
+        await transaction.commit();
+        return res.status(isEdit ? 200 : 201).json({ message: isEdit ? "Entry updated." : "Entry saved." });
     } catch (err) {
-        // //console.log(err); 
-        return res.sendStatus(500);
+        try { await transaction.rollback(); } catch { /* already rolled back */ }
+        console.error(`K-2.5 ${req.params.sheet} save failed:`, err);
+        return sendError(res, 500, isEdit ? "The entry could not be updated." : "The entry could not be saved.");
     }
-    
 }
 
-const marineTab = {
-    addMarinePrevIncident,
-    addMarineYearWise,
-    getMarineCasultyData,
-    getMarineCasultyDataByYear,
-    updateMarinePrevIncident,
-    updateMarineYearWise,
-    getMarinePrevCurrYrReport,
-    getMarineCountryWiseReport,
-    getMarineYearWiseReport,
-    getMarineVesselWiseReport,
-    submitIncidentVesselWise,
-    getVesselWise,
-    submitIncidentCountryWise,
-    getCountryWise,
-    getDataVesselWisebyYearAndCasualty,
-    getIncidentsVesselDataByYearAndType,
-    getDataCountryWisebyYearAndCasualty,
-    getCoutryWiseYearAndCasualty
+// ---------------------------------------------------------------------------
+// K-2.5.2 Year-wise
+// ---------------------------------------------------------------------------
+
+const yearWiseColumns = Object.values(YEAR_WISE_FIELDS).join(", ");
+
+async function listYearWise(req, res) {
+    try {
+        const result = await (await pool).request().query(`
+            SELECT id, year, ${yearWiseColumns}, ${YEAR_WISE_TOTAL} AS total_incidents,
+                   created_date, COALESCE(updated_date, created_date) AS updated_date
+            FROM ${YEAR_WISE_TABLE} WHERE year IS NOT NULL ORDER BY year DESC`);
+        res.json(result.recordset);
+    } catch (err) {
+        console.error("K-2.5.2 list failed:", err);
+        return sendError(res, 500, "The entries could not be loaded.");
+    }
+}
+
+async function getYearWiseEntry(req, res) {
+    const year = wholeNumber(req.query.year);
+    if (!Number.isInteger(year)) return sendError(res, 400, "A valid year is required.");
+    try {
+        const request = (await pool).request();
+        request.input("year", sql.Int, year);
+        const row = (await request.query(`SELECT year, ${yearWiseColumns} FROM ${YEAR_WISE_TABLE} WHERE year = @year`)).recordset[0];
+        res.json({ year, exists: Boolean(row), counts: row || null });
+    } catch (err) {
+        console.error("K-2.5.2 entry failed:", err);
+        return sendError(res, 500, "The entry could not be loaded.");
+    }
+}
+
+// Add (POST) or update (PUT) a year's counts (field checks are in middleware/kpiValidation.js)
+async function saveYearWise(req, res) {
+    const isEdit = req.method === "PUT";
+    const year = wholeNumber(req.body.year);
+    if (!validYear(year)) return sendError(res, 400, "Select a year up to the current one.");
+    const userId = resolveUserId(req);
+    try {
+        const request = (await pool).request();
+        request.input("year", sql.Int, year);
+        request.input("userId", sql.Int, userId);
+        Object.entries(YEAR_WISE_FIELDS).forEach(([field, col]) => request.input(col, sql.Int, wholeNumber(req.body[field])));
+        if (isEdit) {
+            const result = await request.query(`
+                UPDATE ${YEAR_WISE_TABLE}
+                SET ${Object.values(YEAR_WISE_FIELDS).map((c) => `${c} = @${c}`).join(", ")},
+                    updated_date = ${TODAY_SQL}, updated_by = @userId
+                WHERE year = @year`);
+            if (!result.rowsAffected[0]) return sendError(res, 404, "This entry no longer exists. Refresh the list and try again.");
+            return res.status(200).json({ message: "Entry updated." });
+        }
+        const cols = Object.values(YEAR_WISE_FIELDS);
+        const result = await request.query(`
+            SET XACT_ABORT ON;
+            BEGIN TRANSACTION;
+            INSERT INTO ${YEAR_WISE_TABLE} (year, ${cols.join(", ")}, created_date, created_by)
+            SELECT @year, ${cols.map((c) => `@${c}`).join(", ")}, ${TODAY_SQL}, @userId
+            WHERE NOT EXISTS (SELECT 1 FROM ${YEAR_WISE_TABLE} WITH (UPDLOCK, HOLDLOCK) WHERE year = @year);
+            DECLARE @added INT = @@ROWCOUNT;
+            COMMIT TRANSACTION;
+            SELECT @added AS added;`);
+        if (!result.recordset[0].added) {
+            return sendError(res, 409, "An entry for this year already exists. Edit it from the Data List instead.");
+        }
+        return res.status(201).json({ message: "Entry saved." });
+    } catch (err) {
+        console.error("K-2.5.2 save failed:", err);
+        return sendError(res, 500, isEdit ? "The entry could not be updated." : "The entry could not be saved.");
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Reports
+// ---------------------------------------------------------------------------
+
+// K-2.5.1 / 2.5.3 / 2.5.4: a year and the one before it, by quarter, per casualty type and row.
+// ?year= picks the year (default: the latest with data, not after this year).
+async function sheetReport(req, res) {
+    const sheet = sheetOf(req);
+    if (!sheet) return notFound(res);
+    try {
+        const conn = await pool;
+        const years = (await conn.request().query(`
+            SELECT DISTINCT year FROM ${sheet.table}
+            WHERE year IS NOT NULL AND year <= YEAR(GETDATE()) ORDER BY year DESC`)).recordset.map((r) => r.year);
+        const asked = wholeNumber(req.query.year);
+        const year = Number.isInteger(asked) ? asked : (years[0] ?? now().getFullYear());
+        const request = conn.request();
+        request.input("year", sql.Int, year);
+        request.input("previous", sql.Int, year - 1);
+        const quarterSums = (y, tag) => QUARTERS.map((cols, q) =>
+            `SUM(CASE WHEN t.year = ${y} THEN ${sumMonths("t", cols)} ELSE 0 END) AS ${tag}_q${q + 1}`).join(",\n");
+        const rows = (await request.query(`
+            SELECT t.casualty_type, t.${sheet.nameCol} AS name,
+                   ${quarterSums("@previous", "prev")},
+                   SUM(CASE WHEN t.year = @previous THEN ${sumMonths("t")} ELSE 0 END) AS prev_total,
+                   ${quarterSums("@year", "curr")},
+                   SUM(CASE WHEN t.year = @year THEN ${sumMonths("t")} ELSE 0 END) AS curr_total
+            FROM ${sheet.table} t
+            WHERE t.year IN (@year, @previous) AND t.casualty_type IS NOT NULL
+            GROUP BY t.casualty_type, t.${sheet.nameCol}`)).recordset;
+        // In the form's order: casualty type, then the listed rows, then any others by name
+        const order = (r) => {
+            const i = sheet.names(r.casualty_type).indexOf(r.name);
+            return [CASUALTY_TYPES.indexOf(r.casualty_type), i < 0 ? 1e6 : i, r.name];
+        };
+        rows.sort((a, b) => {
+            const [x, y] = [order(a), order(b)];
+            return x[0] - y[0] || x[1] - y[1] || String(x[2]).localeCompare(String(y[2]));
+        });
+        res.json({ year, previousYear: year - 1, years, rowLabel: sheet.rowLabel, rowData: rows });
+    } catch (err) {
+        console.error(`K-2.5 ${req.params.sheet} report failed:`, err);
+        return sendError(res, 500, "The report could not be built.");
+    }
+}
+
+// K-2.5.2: every year's counts and total, oldest first
+async function yearWiseReport(req, res) {
+    try {
+        const result = await (await pool).request().query(`
+            SELECT year, ${yearWiseColumns}, ${YEAR_WISE_TOTAL} AS total_incidents
+            FROM ${YEAR_WISE_TABLE} WHERE year IS NOT NULL ORDER BY year`);
+        res.json({ rowData: result.recordset });
+    } catch (err) {
+        console.error("K-2.5.2 report failed:", err);
+        return sendError(res, 500, "The report could not be built.");
+    }
+}
+
+export default {
+    listSheet, getSheetForm, saveSheet,
+    listYearWise, getYearWiseEntry, saveYearWise,
+    sheetReport, yearWiseReport,
 };
-
-
-export default marineTab;
-
-

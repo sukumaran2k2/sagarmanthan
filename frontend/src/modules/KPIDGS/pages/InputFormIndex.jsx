@@ -11,6 +11,16 @@ import FlagStateInspectionMmdWise from './inputs/FlagStateInspectionMmdWise';
 import FlagStateInspectionVesselWise from './inputs/FlagStateInspectionVesselWise';
 import PortStateInspectionMmdWise from './inputs/PortStateInspectionMmdWise';
 import PortStateInspectionVesselWise from './inputs/PortStateInspectionVesselWise';
+import MarineCasualtySheet from './inputs/MarineCasualtySheet';
+import MarineCasualtyYearWise from './inputs/MarineCasualtyYearWise';
+import { MARINE_SHEETS } from '../data/marineCasualty';
+
+// K-2.5.1 / 2.5.3 / 2.5.4 share one sheet form; each section gets its own component
+const marineSheetForm = (slug) => {
+  const Form = (props) => <MarineCasualtySheet slug={slug} config={MARINE_SHEETS[slug]} {...props} />;
+  Form.displayName = `MarineCasualtySheet(${slug})`;
+  return Form;
+};
 
 // slug → the real input-form component for sections that have been built.
 // Any slug missing from this map falls through to PlaceholderInputForm.
@@ -19,6 +29,10 @@ const FORM_BY_SLUG = {
   'exam-monthly-performance': ExamMonthlyPerformance,
   'exam-overall-performance': ExamOverallPerformance,
   'entry-exit-of-candidates': EntryExitCandidates,
+  'marine-casualty-previous-current': marineSheetForm('marine-casualty-previous-current'),
+  'marine-casualty-yearwise': MarineCasualtyYearWise,
+  'marine-casualty-country-wise': marineSheetForm('marine-casualty-country-wise'),
+  'marine-casualty-vessel-wise': marineSheetForm('marine-casualty-vessel-wise'),
   'vessel-port-survey': VesselPortSurvey,
   'flag-state-inspection-mmd-wise': FlagStateInspectionMmdWise,
   'flag-state-inspection-vessel-wise': FlagStateInspectionVesselWise,
@@ -26,9 +40,12 @@ const FORM_BY_SLUG = {
   'port-state-inspection-vessel-wise': PortStateInspectionVesselWise,
 };
 
-// K-2.3 / K-2.4 forms open for edit from the Data List (row in route state); keying them by route entry
+// K-2.3 / K-2.4 / K-2.5 forms open for edit from the Data List (row in route state); keying them by route entry
 // resets them to a blank Add form when reopened from the left list. Other forms keep their key.
-const RESET_ON_REOPEN = new Set(['exam-monthly-performance', 'exam-overall-performance', 'entry-exit-of-candidates']);
+const RESET_ON_REOPEN = new Set([
+  'exam-monthly-performance', 'exam-overall-performance', 'entry-exit-of-candidates',
+  'marine-casualty-previous-current', 'marine-casualty-yearwise', 'marine-casualty-country-wise', 'marine-casualty-vessel-wise',
+]);
 
 const BACKEND_NOTES = {
   'flagging-of-vessels': 'Backend: POST /add-kpi2-1-1 · GET /kpi2-1-list',
@@ -38,10 +55,10 @@ const BACKEND_NOTES = {
   'exam-monthly-performance': 'Backend: POST /add-kpi2-3-1 · PUT /edit-2-3-1-data · GET /kpi2-3-1-list',
   'exam-overall-performance': 'Backend: POST /add-kpi2-3-2 · GET /kpi2-3-2-list · masterdata: /get_addkpi2_3_masterdata/:year/:month/:type',
   'entry-exit-of-candidates': 'Backend: POST /add-entry-exit-data · PUT /update-entry-exit-data-by-id · GET /get-entry-exit-data',
-  'marine-casualty-previous-current': 'Backend: Marine casualty endpoints (to be confirmed with DGS team)',
-  'marine-casualty-yearwise': 'Backend: Marine casualty endpoints (to be confirmed with DGS team)',
-  'marine-casualty-country-wise': 'Backend: Marine casualty endpoints (to be confirmed with DGS team)',
-  'marine-casualty-vessel-wise': 'Backend: Marine casualty endpoints (to be confirmed with DGS team)',
+  'marine-casualty-previous-current': 'Backend: GET /kpi-dgs-2-5/incident-types/form · POST / PUT /kpi-dgs-2-5/incident-types',
+  'marine-casualty-yearwise': 'Backend: GET /kpi-dgs-2-5/year-wise/entry · POST / PUT /kpi-dgs-2-5/year-wise',
+  'marine-casualty-country-wise': 'Backend: GET /kpi-dgs-2-5/countries/form · POST / PUT /kpi-dgs-2-5/countries',
+  'marine-casualty-vessel-wise': 'Backend: GET /kpi-dgs-2-5/vessels/form · POST / PUT /kpi-dgs-2-5/vessels',
   'flag-state-inspection-mmd-wise': 'Backend: POST /add-kpi2-6-1 · GET /kpi2-6-1-list · check: /checkData-2-6-1-data/:year/:month/:mmdName',
   'flag-state-inspection-vessel-wise': 'Backend: POST /add-kpi2-6-2-data · GET /kpi2-6-2-list · check: /checkData-2-6-2-data/:year/:month',
   'port-state-inspection-mmd-wise': 'Backend: POST /add-kpi2-7-1 · GET /kpi2-7-1-list · check: /checkData-2-7-1-data/:year/:month/:mmdName',
