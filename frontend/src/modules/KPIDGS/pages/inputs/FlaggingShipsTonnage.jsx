@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle2 } from 'lucide-react';
+// import {
+//   fetchMmdList,
+//   createKpi2_1_1,
+//   fetchKpi2_1_PreviousCumulative, fetchKpi2_1_ByMonth, updateKpi2_1_1,
+// } from '../../api';
 import {
   fetchMmdList,
   createKpi2_1_1,
+  updateKpi2_1,
+  fetchKpi2_1_EditData,
   fetchKpi2_1_PreviousCumulative,
 } from '../../api';
 import { useKPIDGSPermissions } from '../../hooks/useKPIDGSPermissions';
@@ -35,9 +42,16 @@ export default function FlaggingShipsTonnage({ triggerNotification }) {
   const navigate = useNavigate();
   const notify = useNotifier(triggerNotification);
   const { canAdd } = useKPIDGSPermissions();
+  const [searchParams] = useSearchParams();
+const editYear = searchParams.get('year');
+const editMonth = searchParams.get('month');
+const isEdit = Boolean(editYear && editMonth);
 
-  const [year, setYear] = useState('');
-  const [month, setMonth] = useState('');
+const [year, setYear] = useState(editYear || '');
+const [month, setMonth] = useState(editMonth || '');
+
+  // const [year, setYear] = useState('');
+  // const [month, setMonth] = useState('');
   const [mmds, setMmds] = useState([]);
   const [values, setValues] = useState({}); // keyed by mmd_name
   const [prevCumulative, setPrevCumulative] = useState({}); // keyed by mmd_name
@@ -65,6 +79,33 @@ export default function FlaggingShipsTonnage({ triggerNotification }) {
       .finally(() => setLoadingMmds(false));
   }, [notify]);
 
+
+useEffect(() => {
+  if (!isEdit || mmds.length === 0) return;
+  fetchKpi2_1_EditData(editYear, editMonth)
+    .then((res) => {
+      const list = Array.isArray(res.data) ? res.data : [];
+      setValues((prev) => {
+        const next = { ...prev };
+        list.forEach((r) => {
+          if (!next[r.type]) return;
+          next[r.type] = {
+            additionApplicationReceived: String(r.addition_application_received ?? ''),
+            additionRegisteredShips: String(r.addition_registered_ship ?? ''),
+            additionTotalTonnage: String(r.addition_total_tonnage ?? ''),
+            deletionApplicationReceived: String(r.deletion_application_received ?? ''),
+            deletionRegisteredShips: String(r.deletion_registered_ship ?? ''),
+            deletionTotalTonnage: String(r.deletion_total_tonnage ?? ''),
+          };
+        });
+        return next;
+      });
+    })
+    .catch((err) => {
+      console.error('Error loading K-2.1 for edit:', err);
+      notify(COMMON_TOASTS.loadFailed('Flagging entry'));
+    });
+}, [isEdit, editYear, editMonth, mmds.length, notify]);
   // Previous-month cumulatives change whenever year/month change
   useEffect(() => {
     if (!year || !month) {
@@ -131,35 +172,43 @@ export default function FlaggingShipsTonnage({ triggerNotification }) {
   }, [computedRows]);
 
   const handleSubmit = useCallback(async () => {
-    if (!year || !month) {
-      notify(COMMON_TOASTS.requiredFields?.('Year and Month') || DGS_TOASTS.mmdNameRequired());
-      return;
-    }
-    const shipAndTonnageTab = computedRows.map((row) => ({
-      type: row.mmd.name,
-      additionApplicationReceived: n(row.raw.additionApplicationReceived),
-      additionRegisteredShips: n(row.raw.additionRegisteredShips),
-      additionApplicationPending: row.additionPending,
-      additionTotalTonnage: n(row.raw.additionTotalTonnage),
-      deletionApplicationReceived: n(row.raw.deletionApplicationReceived),
-      deletionRegisteredShips: n(row.raw.deletionRegisteredShips),
-      deletionApplicationPending: row.deletionPending,
-      deletionTotalTonnage: n(row.raw.deletionTotalTonnage),
-    }));
-    setSaving(true);
-    try {
-      // Backend expects shipAndTonnageTab as a stringified JSON (req.body.shipAndTonnageTab is JSON.parse'd).
-      await createKpi2_1_1({ year: Number(year), month: Number(month), shipAndTonnageTab: JSON.stringify(shipAndTonnageTab) });
+  if (!year || !month) {
+    notify(COMMON_TOASTS.requiredFields?.('Year and Month') || DGS_TOASTS.mmdNameRequired());
+    return;
+  }
+  const shipAndTonnageTab = computedRows.map((row) => ({
+    type: row.mmd.name,
+    additionApplicationReceived: n(row.raw.additionApplicationReceived),
+    additionRegisteredShips: n(row.raw.additionRegisteredShips),
+    additionApplicationPending: row.additionPending,
+    additionTotalTonnage: n(row.raw.additionTotalTonnage),
+    deletionApplicationReceived: n(row.raw.deletionApplicationReceived),
+    deletionRegisteredShips: n(row.raw.deletionRegisteredShips),
+    deletionApplicationPending: row.deletionPending,
+    deletionTotalTonnage: n(row.raw.deletionTotalTonnage),
+  }));
+  setSaving(true);
+  try {
+    const payload = {
+      year: Number(year),
+      month: Number(month),
+      shipAndTonnageTab: JSON.stringify(shipAndTonnageTab),
+    };
+    if (isEdit) {
+      await updateKpi2_1(payload);
+      notify(DGS_TOASTS.updated('Flagging - Ships & Tonnage')); // toastMessages.js la check pannunga
+    } else {
+      await createKpi2_1_1(payload);
       notify(DGS_TOASTS.added('Flagging - Ships & Tonnage'));
-      navigate('/kpi/dgs/input-forms');
-    } catch (err) {
-      console.error('Error saving K-2.1.1:', err);
-      notify(DGS_TOASTS.saveFailed(false, getErrorMessage(err)));
-    } finally {
-      setSaving(false);
     }
-  }, [year, month, computedRows, notify, navigate]);
-
+    navigate('/kpi/dgs/input-forms');
+  } catch (err) {
+    console.error('Error saving K-2.1.1:', err);
+    notify(DGS_TOASTS.saveFailed(isEdit, getErrorMessage(err)));
+  } finally {
+    setSaving(false);
+  }
+}, [year, month, computedRows, notify, navigate, isEdit]);
   const inputCls =
     'w-full h-8 px-2 text-xs text-center border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded focus:outline-none focus:border-[#0f417a] font-semibold text-slate-700 dark:text-slate-200';
   const readCls =

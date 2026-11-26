@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Edit } from 'lucide-react';
 import TableWithToolbar from '../../../components/TableWithToolbar';
 import { useNotifier, COMMON_TOASTS } from '../../../utils/notify';
 import { readGridForExport, toClipboardText, saveGridFile } from '../utils/gridExport';
@@ -19,6 +19,8 @@ export default function GenericReportPage({
   flat = false,
   color = BROWN,
   hoverColor = BROWN_HOVER,
+  showEditAction = false,
+  onEditRow,
   // Optional saved list state (KPI DGS store). Left undefined, the table keeps its own state.
   searchTerm,
   onSearchChange,
@@ -63,32 +65,74 @@ export default function GenericReportPage({
   }, [fetchFn, code, title, notify]);
 
   const colDefs = useMemo(() => {
-    if (columns && columns.length) return columns;
-    if (!rows.length) return [{ headerName: 'S.No', valueGetter: (p) => p.node.rowIndex + 1, minWidth: 80 }];
-    const first = rows[0];
-    return [
-      { headerName: 'S.No', valueGetter: (p) => p.node.rowIndex + 1, minWidth: 80, maxWidth: 100,
-        cellClass: 'text-center font-bold text-slate-500 flex items-center justify-center' },
-      ...Object.keys(first).map((k) => {
-        const heading = toHeading(k);
-        return {
-          headerName: heading,
-          field: k,
-          flex: 1,
-          // Give each column enough room so its header doesn't shrink to 2-3 lines.
-          // Derived from the header text length so short labels stay compact and
-          // long labels like "No Of Applications Received" get real room.
-          minWidth: headerMinWidth(heading),
-          wrapText: true,
-          autoHeight: true,
-          cellClass: 'text-center text-slate-700 flex items-center justify-center',
-        };
-      }),
-    ];
-  }, [rows, columns]);
+  const dataColumns = columns && columns.length
+    ? columns
+    : rows.length
+      ? [
+          {
+            headerName: 'S.No',
+            valueGetter: (p) => p.node.rowIndex + 1,
+            minWidth: 80,
+            maxWidth: 100,
+            cellClass: 'text-center font-bold text-slate-500 flex items-center justify-center',
+          },
+          ...Object.keys(rows[0])
+            .filter((key) => key !== 'month_number')
+            .map((key) => {
+              const heading = toHeading(key);
+
+              return {
+                headerName: heading,
+                field: key,
+                flex: 1,
+                minWidth: headerMinWidth(heading),
+                wrapText: true,
+                autoHeight: true,
+                cellClass: 'text-center text-slate-700 flex items-center justify-center',
+              };
+            }),
+        ]
+      : [
+          {
+            headerName: 'S.No',
+            valueGetter: (p) => p.node.rowIndex + 1,
+            minWidth: 80,
+          },
+        ];
+
+  return [
+    ...dataColumns,
+    ...(showEditAction
+      ? [
+          {
+            headerName: 'Action',
+            colId: 'action',
+            pinned: 'right',
+            minWidth: 90,
+            maxWidth: 110,
+            sortable: false,
+            filter: false,
+            cellClass: 'text-center flex items-center justify-center',
+            cellRenderer: (params) => (
+              <div className="flex items-center justify-center">
+                <button
+                  type="button"
+                  onClick={() => onEditRow?.(params.data)}
+                  className="inline-flex items-center justify-center h-7 w-7 bg-amber-400 hover:bg-amber-500 text-white rounded transition cursor-pointer"
+                  title="Edit entry"
+                >
+                  <Edit className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ),
+          },
+        ]
+      : []),
+  ];
+  }, [rows, columns, showEditAction, onEditRow]);
+
 
   const shownRows = useMemo(() => (filterRows ? filterRows(rows) : rows), [filterRows, rows]);
-
   const gridApiRef = useRef(null);
   const fileName = exportFileName || `dgs_${code.replace(/\./g, '_')}`;
 

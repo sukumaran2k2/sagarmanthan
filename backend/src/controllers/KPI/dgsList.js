@@ -1,94 +1,220 @@
 import { pool } from "../../db.js";
 import path from 'path';
 import fs from 'fs';
-
+import sql from 'mssql';
 
 async function createDgsKpi2_1_1Data(req, res) {
-    const year = req.body.year;
-    const month = req.body.month;
-    const shipAndTonnageTab = JSON.parse(req.body.shipAndTonnageTab);
-
-    const conn = await pool;
-    console.log(year, shipAndTonnageTab)
     try {
+        const year = Number(req.body.year);
+        const month = Number(req.body.month);
 
-        for (let p = 0; p < shipAndTonnageTab.length; p++) {
-        const type = shipAndTonnageTab[p].type
-        let additionApplicationReceived = Number(shipAndTonnageTab[p].additionApplicationReceived) || 0;
-        let additionRegisteredShips = Number(shipAndTonnageTab[p].additionRegisteredShips) || 0;
-        let additionApplicationPending = Number(shipAndTonnageTab[p].additionApplicationPending) || 0;
-        let additionTotalTonnage = Number(shipAndTonnageTab[p].additionTotalTonnage) || 0;
+        if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+            return res.status(400).json({ message: "Valid year and month are required" });
+        }
 
-        let deletionApplicationReceived = Number(shipAndTonnageTab[p].deletionApplicationReceived) || 0;
-        let deletionRegisteredShips = Number(shipAndTonnageTab[p].deletionRegisteredShips) || 0;
-        let deletionApplicationPending = Number(shipAndTonnageTab[p].deletionApplicationPending) || 0;
-        let deletionTotalTonnage = Number(shipAndTonnageTab[p].deletionTotalTonnage) || 0;
+        let shipAndTonnageTab = req.body.shipAndTonnageTab;
 
-        // let networthRegisteredShips = Number(shipAndTonnageTab[p].networthRegisteredShips) || 0;
-        // let networthTotalTonnage = Number(shipAndTonnageTab[p].networthTotalTonnage) || 0;
+        if (typeof shipAndTonnageTab === "string") {
+            shipAndTonnageTab = JSON.parse(shipAndTonnageTab);
+        }
 
-        // let cumulativeRegisteredShips = Number(shipAndTonnageTab[p].cumulativeRegisteredShips) || 0;
-        // let cumulativeTotalTonnage = Number(shipAndTonnageTab[p].cumulativeTotalTonnage) || 0;
+        if (!Array.isArray(shipAndTonnageTab) || shipAndTonnageTab.length === 0) {
+            return res.status(400).json({ message: "Invalid ship and tonnage data" });
+        }
 
-            // console.log(type, 'type')
-            // console.log(additionRegisteredShips, 'additionRegisteredShips')
+        const conn = await pool;
+
+        for (const row of shipAndTonnageTab) {
+            const type = String(row.type || "").trim();
+
+            if (!type) {
+                return res.status(400).json({ message: "Ship type is required" });
+            }
+
+            const additionApplicationReceived = Number(row.additionApplicationReceived) || 0;
+            const additionRegisteredShips = Number(row.additionRegisteredShips) || 0;
+            const additionApplicationPending = Number(row.additionApplicationPending) || 0;
+            const additionTotalTonnage = Number(row.additionTotalTonnage) || 0;
+
+            const deletionApplicationReceived = Number(row.deletionApplicationReceived) || 0;
+            const deletionRegisteredShips = Number(row.deletionRegisteredShips) || 0;
+            const deletionApplicationPending = Number(row.deletionApplicationPending) || 0;
+            const deletionTotalTonnage = Number(row.deletionTotalTonnage) || 0;
 
             const request = conn.request();
-            request.input("year", year);
-            request.input("month", month);
 
-            request.input("type", type);
+            request.input("year", sql.Int, year);
+            request.input("month", sql.Int, month);
+            request.input("type", sql.NVarChar(255), type);
 
-            request.input("additionApplicationReceived", additionApplicationReceived);
-            request.input("additionRegisteredShips", additionRegisteredShips);
-            request.input("additionApplicationPending", additionApplicationPending);
-            request.input("additionTotalTonnage", additionTotalTonnage);
-            request.input("deletionApplicationReceived", deletionApplicationReceived);
-            request.input("deletionRegisteredShips", deletionRegisteredShips);
-            request.input("deletionApplicationPending", deletionApplicationPending);
-            request.input("deletionTotalTonnage", deletionTotalTonnage);
-            // request.input("networthRegisteredShips", networthRegisteredShips);
-            // request.input("networthTotalTonnage", networthTotalTonnage);
-            // request.input("cumulativeRegisteredShips", cumulativeRegisteredShips);
-            // request.input("cumulativeTotalTonnage", cumulativeTotalTonnage);
+            request.input("additionApplicationReceived", sql.Int, additionApplicationReceived);
+            request.input("additionRegisteredShips", sql.Int, additionRegisteredShips);
+            request.input("additionApplicationPending", sql.Int, additionApplicationPending);
+            request.input("additionTotalTonnage", sql.Int, additionTotalTonnage);
 
+            request.input("deletionApplicationReceived", sql.Int, deletionApplicationReceived);
+            request.input("deletionRegisteredShips", sql.Int, deletionRegisteredShips);
+            request.input("deletionApplicationPending", sql.Int, deletionApplicationPending);
+            request.input("deletionTotalTonnage", sql.Int, deletionTotalTonnage);
 
-            const query = ` IF NOT EXISTS (SELECT tbl_kpi_dgs_2_1.flagging_ship_2_1_id FROM tbl_kpi_dgs_2_1 
-                WHERE year = @year and month =  @month and tbl_kpi_dgs_2_1.type = @type)
-
+            const query = `
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM tbl_kpi_dgs_2_1
+                    WHERE year = @year AND month = @month AND type = @type
+                )
                 BEGIN
-                    INSERT INTO tbl_kpi_dgs_2_1 (year, month, type, 
-                    addition_application_received, addition_registered_ship, addition_pending_application, addition_total_tonnage,
-                    deletion_application_received, deletion_registered_ship, deletion_pending_application, deletion_total_tonnage) 
-                    VALUES (@year, @month, @type, @additionApplicationReceived, @additionRegisteredShips, @additionApplicationPending,
-                    @additionTotalTonnage, @deletionApplicationReceived, @deletionRegisteredShips, @deletionApplicationPending,
-                    @deletionTotalTonnage)
-                End
-
-            ELSE
+                    INSERT INTO tbl_kpi_dgs_2_1 (
+                        year, month, type,
+                        addition_application_received,
+                        addition_registered_ship,
+                        addition_pending_application,
+                        addition_total_tonnage,
+                        deletion_application_received,
+                        deletion_registered_ship,
+                        deletion_pending_application,
+                        deletion_total_tonnage
+                    )
+                    VALUES (
+                        @year, @month, @type,
+                        @additionApplicationReceived,
+                        @additionRegisteredShips,
+                        @additionApplicationPending,
+                        @additionTotalTonnage,
+                        @deletionApplicationReceived,
+                        @deletionRegisteredShips,
+                        @deletionApplicationPending,
+                        @deletionTotalTonnage
+                    );
+                END
+                ELSE
                 BEGIN
                     UPDATE tbl_kpi_dgs_2_1
-                        SET addition_application_received = @additionApplicationReceived,
-                            addition_registered_ship = @additionRegisteredShips,
-                            addition_pending_application = @additionApplicationPending,
-                            addition_total_tonnage = @additionTotalTonnage,
-                            deletion_application_received = @deletionApplicationReceived,
-                            deletion_registered_ship = @deletionRegisteredShips,
-                            deletion_pending_application = @deletionApplicationPending,
-                            deletion_total_tonnage = @deletionTotalTonnage
-                          
-                        WHERE year = @year AND month = @month AND type = @type;
-                END `;
+                    SET
+                        addition_application_received = @additionApplicationReceived,
+                        addition_registered_ship = @additionRegisteredShips,
+                        addition_pending_application = @additionApplicationPending,
+                        addition_total_tonnage = @additionTotalTonnage,
+                        deletion_application_received = @deletionApplicationReceived,
+                        deletion_registered_ship = @deletionRegisteredShips,
+                        deletion_pending_application = @deletionApplicationPending,
+                        deletion_total_tonnage = @deletionTotalTonnage
+                    WHERE year = @year AND month = @month AND type = @type;
+                END
+            `;
 
-                const result = await request.query(query);
+            await request.query(query);
         }
-        res.sendStatus(201);
+
+        return res.status(201).json({ message: "Flagging - Ships & Tonnage saved successfully" });
+
+    } catch (err) {
+        console.error("Error saving K-2.1.1:", err);
+        return res.status(500).json({ message: "Error saving Flagging - Ships & Tonnage", error: err.message });
     }
-    catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
-    }
-};
+
+//     } catch (err) {
+//     console.error("K-2.1.1 SAVE ERROR:", err.message);
+//     console.error("SQL ERROR DETAILS:", err.originalError?.info || err);
+//     console.error("SQL ERROR NUMBER:", err.number);
+//     console.error("SQL ERROR CODE:", err.code);
+
+//     return res.status(500).json({
+//         message: "Error saving Flagging - Ships & Tonnage",
+//         error: err.message,
+//         number: err.number,
+//         code: err.code
+//     });
+// }
+}
+
+
+// async function createDgsKpi2_1_1Data(req, res) {
+//     const year = req.body.year;
+//     const month = req.body.month;
+//     const shipAndTonnageTab = JSON.parse(req.body.shipAndTonnageTab);
+
+//     const conn = await pool;
+//     console.log(year, shipAndTonnageTab)
+//     try {
+
+//         for (let p = 0; p < shipAndTonnageTab.length; p++) {
+//         const type = shipAndTonnageTab[p].type
+//         let additionApplicationReceived = Number(shipAndTonnageTab[p].additionApplicationReceived) || 0;
+//         let additionRegisteredShips = Number(shipAndTonnageTab[p].additionRegisteredShips) || 0;
+//         let additionApplicationPending = Number(shipAndTonnageTab[p].additionApplicationPending) || 0;
+//         let additionTotalTonnage = Number(shipAndTonnageTab[p].additionTotalTonnage) || 0;
+
+//         let deletionApplicationReceived = Number(shipAndTonnageTab[p].deletionApplicationReceived) || 0;
+//         let deletionRegisteredShips = Number(shipAndTonnageTab[p].deletionRegisteredShips) || 0;
+//         let deletionApplicationPending = Number(shipAndTonnageTab[p].deletionApplicationPending) || 0;
+//         let deletionTotalTonnage = Number(shipAndTonnageTab[p].deletionTotalTonnage) || 0;
+
+//         // let networthRegisteredShips = Number(shipAndTonnageTab[p].networthRegisteredShips) || 0;
+//         // let networthTotalTonnage = Number(shipAndTonnageTab[p].networthTotalTonnage) || 0;
+
+//         // let cumulativeRegisteredShips = Number(shipAndTonnageTab[p].cumulativeRegisteredShips) || 0;
+//         // let cumulativeTotalTonnage = Number(shipAndTonnageTab[p].cumulativeTotalTonnage) || 0;
+
+//             // console.log(type, 'type')
+//             // console.log(additionRegisteredShips, 'additionRegisteredShips')
+
+//             const request = conn.request();
+//             request.input("year", year);
+//             request.input("month", month);
+
+//             request.input("type", type);
+
+//             request.input("additionApplicationReceived", additionApplicationReceived);
+//             request.input("additionRegisteredShips", additionRegisteredShips);
+//             request.input("additionApplicationPending", additionApplicationPending);
+//             request.input("additionTotalTonnage", additionTotalTonnage);
+//             request.input("deletionApplicationReceived", deletionApplicationReceived);
+//             request.input("deletionRegisteredShips", deletionRegisteredShips);
+//             request.input("deletionApplicationPending", deletionApplicationPending);
+//             request.input("deletionTotalTonnage", deletionTotalTonnage);
+//             // request.input("networthRegisteredShips", networthRegisteredShips);
+//             // request.input("networthTotalTonnage", networthTotalTonnage);
+//             // request.input("cumulativeRegisteredShips", cumulativeRegisteredShips);
+//             // request.input("cumulativeTotalTonnage", cumulativeTotalTonnage);
+
+
+//             const query = ` IF NOT EXISTS (SELECT tbl_kpi_dgs_2_1.flagging_ship_2_1_id FROM tbl_kpi_dgs_2_1 
+//                 WHERE year = @year and month =  @month and tbl_kpi_dgs_2_1.type = @type)
+
+//                 BEGIN
+//                     INSERT INTO tbl_kpi_dgs_2_1 (year, month, type, 
+//                     addition_application_received, addition_registered_ship, addition_pending_application, addition_total_tonnage,
+//                     deletion_application_received, deletion_registered_ship, deletion_pending_application, deletion_total_tonnage) 
+//                     VALUES (@year, @month, @type, @additionApplicationReceived, @additionRegisteredShips, @additionApplicationPending,
+//                     @additionTotalTonnage, @deletionApplicationReceived, @deletionRegisteredShips, @deletionApplicationPending,
+//                     @deletionTotalTonnage)
+//                 End
+
+//             ELSE
+//                 BEGIN
+//                     UPDATE tbl_kpi_dgs_2_1
+//                         SET addition_application_received = @additionApplicationReceived,
+//                             addition_registered_ship = @additionRegisteredShips,
+//                             addition_pending_application = @additionApplicationPending,
+//                             addition_total_tonnage = @additionTotalTonnage,
+//                             deletion_application_received = @deletionApplicationReceived,
+//                             deletion_registered_ship = @deletionRegisteredShips,
+//                             deletion_pending_application = @deletionApplicationPending,
+//                             deletion_total_tonnage = @deletionTotalTonnage
+                          
+//                         WHERE year = @year AND month = @month AND type = @type;
+//                 END `;
+
+//                 const result = await request.query(query);
+//         }
+//         res.sendStatus(201);
+//     }
+//     catch (err) {
+//         console.log(err);
+//         return res.sendStatus(500);
+//     }
+// };
 
 // DECLARE @year INT = @inputYear;
 //                 DECLARE @month INT = @inputMonth;

@@ -25,6 +25,7 @@ export default function FlaggingReport({ kind, code, fetchFn, triggerNotificatio
   const [meta, setMeta] = useState({
     prevFyLabel: '',
     currFyUpto: '',
+    monthLabel: '',
     asOnDate: '',
     reportMonth: '',
   });
@@ -43,6 +44,7 @@ export default function FlaggingReport({ kind, code, fetchFn, triggerNotificatio
         setMeta({
           prevFyLabel: body.prevFyLabel || '',
           currFyUpto: body.currFyUpto || '',
+          monthLabel: body.monthLabel || '',
           asOnDate: body.asOnDate || '',
           reportMonth: body.reportMonth || '',
         });
@@ -63,22 +65,23 @@ export default function FlaggingReport({ kind, code, fetchFn, triggerNotificatio
   // stuck under the normal rows and outside any sorting the user might trigger.
   const totalsRow = useMemo(() => {
     if (!rows.length) return null;
-    return rows.reduce(
-      (t, r) => ({
-        _isTotal: true,
-        mmd_name: 'Total',
-        prev_received:   t.prev_received   + num(r.prev_received),
-        prev_registered: t.prev_registered + num(r.prev_registered),
-        prev_pending:    t.prev_pending    + num(r.prev_pending),
-        prev_tonnage:    t.prev_tonnage    + num(r.prev_tonnage),
-        curr_received:   t.curr_received   + num(r.curr_received),
-        curr_registered: t.curr_registered + num(r.curr_registered),
-        curr_pending:    t.curr_pending    + num(r.curr_pending),
-        curr_tonnage:    t.curr_tonnage    + num(r.curr_tonnage),
-      }),
-      { prev_received: 0, prev_registered: 0, prev_pending: 0, prev_tonnage: 0,
-        curr_received: 0, curr_registered: 0, curr_pending: 0, curr_tonnage: 0 },
-    );
+
+    const fields = [
+      'prev_received', 'prev_registered', 'prev_pending', 'prev_tonnage',
+      'curr_received', 'curr_registered', 'curr_pending', 'curr_tonnage',
+      'month_received', 'month_registered', 'month_pending', 'month_tonnage',
+      'total_registered', 'total_pending', 'total_tonnage',
+    ];
+
+    return rows.reduce((t, r) => {
+      const result = { ...t, _isTotal: true, mmd_name: 'Total' };
+
+      fields.forEach((field) => {
+        result[field] = num(t[field]) + num(r[field]);
+      });
+
+      return result;
+    }, Object.fromEntries(fields.map((field) => [field, 0])));
   }, [rows]);
 
   const colDefs = useMemo(() => {
@@ -98,12 +101,15 @@ export default function FlaggingReport({ kind, code, fetchFn, triggerNotificatio
       {
         headerName: 'S.No',
         valueGetter: (p) => (p.data?._isTotal ? 'Total' : (p.node?.rowIndex ?? 0) + 1),
-        maxWidth: 90,
-        minWidth: 70,
+        width: 100,
+        minWidth: 100,
+        maxWidth: 100,
+        pinned: 'left',
+        lockPinned: true,  
         ...centre,
         cellStyle: (p) => (p.data?._isTotal ? { fontWeight: 700 } : null),
       },
-      { headerName: 'MMD Name', field: 'mmd_name', minWidth: 160, flex: 1, ...centre,
+      { headerName: 'MMD Name', field: 'mmd_name', minWidth: 160,  pinned: 'left',  lockPinned: true, flex: 0, ...centre,
         cellStyle: (p) => (p.data?._isTotal ? { fontWeight: 700 } : null) },
       {
         headerName: `During the Previous FY (${meta.prevFyLabel || '-'})`,
@@ -115,18 +121,48 @@ export default function FlaggingReport({ kind, code, fetchFn, triggerNotificatio
           numeric('prev_tonnage',    'Total Tonnage',                 135),
         ],
       },
+      // {
+      //   headerName: `During the Current FY-upto ${meta.currFyUpto || '-'}`,
+      //   headerClass: 'text-center',
+      //   children: [
+      //     numeric('curr_received',   'No. of Applications Received', 185),
+      //     numeric('curr_registered', 'No. of Registered Ships',      170),
+      //     numeric('curr_pending',    'No. of Pending Ships',          160),
+      //     numeric('curr_tonnage',    'Total Tonnage',                 135),
+      //   ],
+      // },
       {
-        headerName: `During the Current FY-upto ${meta.currFyUpto || '-'}`,
-        headerClass: 'text-center',
-        children: [
-          numeric('curr_received',   'No. of Applications Received', 185),
-          numeric('curr_registered', 'No. of Registered Ships',      170),
-          numeric('curr_pending',    'No. of Pending Ships',          160),
-          numeric('curr_tonnage',    'Total Tonnage',                 135),
-        ],
-      },
+      headerName: `During the Current FY-upto ${meta.currFyUpto || '-'}`,
+      headerClass: 'text-center',
+      children: [
+        numeric('curr_received', 'No. of Applications Received', 185),
+        numeric('curr_registered', 'No. of Registered Ships', 170),
+        numeric('curr_pending', 'No. of Pending Ships', 160),
+        numeric('curr_tonnage', 'Total Tonnage', 135),
+      ],
+    },
+    {
+      headerName: `During the Month (${meta.monthLabel || '-'})`,
+      headerClass: 'text-center',
+      children: [
+        numeric('month_received', 'No. of Applications Received', 185),
+        numeric('month_registered', 'No. of Registered Ships', 170),
+        numeric('month_pending', 'No. of Pending Ships', 160),
+        numeric('month_tonnage', 'Total Tonnage', 135),
+      ],
+    },
+    {
+      headerName: `Total upto ${meta.asOnDate || '-'}`,
+      headerClass: 'text-center',
+      children: [
+        numeric('total_registered', 'No. of Registered Ships', 170),
+        numeric('total_pending', 'No. of Pending Ships', 160),
+        numeric('total_tonnage', 'Total Tonnage', 135),
+      ],
+    },
     ];
-  }, [meta.prevFyLabel, meta.currFyUpto]);
+  // }, [meta.prevFyLabel, meta.currFyUpto]);
+  }, [meta.prevFyLabel, meta.currFyUpto, meta.monthLabel, meta.asOnDate]);
 
   const kindLabel = kind === 'deletion' ? 'Deletion' : 'Addition';
   const title = `Form No. ${code} - Abstract - Flagging- ${kindLabel} of Ships & Tonnage`;
@@ -135,32 +171,80 @@ export default function FlaggingReport({ kind, code, fetchFn, triggerNotificatio
   // Flattened rows used by every export path, so Excel / PDF / Copy produce the
   // same 10 columns including the FY labels in the header strings.
   const flatRowsForExport = useMemo(() => {
-    const data = rows.map((r, i) => [
-      i + 1,
-      r.mmd_name,
-      num(r.prev_received), num(r.prev_registered), num(r.prev_pending), num(r.prev_tonnage),
-      num(r.curr_received), num(r.curr_registered), num(r.curr_pending), num(r.curr_tonnage),
+  const data = rows.map((r, i) => [
+    i + 1,
+    r.mmd_name,
+
+    num(r.prev_received),
+    num(r.prev_registered),
+    num(r.prev_pending),
+    num(r.prev_tonnage),
+
+    num(r.curr_received),
+    num(r.curr_registered),
+    num(r.curr_pending),
+    num(r.curr_tonnage),
+
+    num(r.month_received),
+    num(r.month_registered),
+    num(r.month_pending),
+    num(r.month_tonnage),
+
+    num(r.total_registered),
+    num(r.total_pending),
+    num(r.total_tonnage),
+  ]);
+
+  if (totalsRow) {
+    data.push([
+      'Total', '',
+
+      totalsRow.prev_received,
+      totalsRow.prev_registered,
+      totalsRow.prev_pending,
+      totalsRow.prev_tonnage,
+
+      totalsRow.curr_received,
+      totalsRow.curr_registered,
+      totalsRow.curr_pending,
+      totalsRow.curr_tonnage,
+
+      totalsRow.month_received,
+      totalsRow.month_registered,
+      totalsRow.month_pending,
+      totalsRow.month_tonnage,
+
+      totalsRow.total_registered,
+      totalsRow.total_pending,
+      totalsRow.total_tonnage,
     ]);
-    if (totalsRow) {
-      data.push([
-        'Total', '',
-        totalsRow.prev_received, totalsRow.prev_registered, totalsRow.prev_pending, totalsRow.prev_tonnage,
-        totalsRow.curr_received, totalsRow.curr_registered, totalsRow.curr_pending, totalsRow.curr_tonnage,
-      ]);
-    }
-    return data;
+  }
+
+  return data;
   }, [rows, totalsRow]);
 
   const flatHeaders = [
-    'S.No', 'MMD Name',
-    `Prev FY (${meta.prevFyLabel}) - Applications Received`,
-    `Prev FY (${meta.prevFyLabel}) - Registered Ships`,
-    `Prev FY (${meta.prevFyLabel}) - Pending Ships`,
-    `Prev FY (${meta.prevFyLabel}) - Total Tonnage`,
-    `Current FY upto ${meta.currFyUpto} - Applications Received`,
-    `Current FY upto ${meta.currFyUpto} - Registered Ships`,
-    `Current FY upto ${meta.currFyUpto} - Pending Ships`,
-    `Current FY upto ${meta.currFyUpto} - Total Tonnage`,
+  'S.No',
+  'MMD Name',
+
+  `Prev FY (${meta.prevFyLabel}) - Applications Received`,
+  `Prev FY (${meta.prevFyLabel}) - Registered Ships`,
+  `Prev FY (${meta.prevFyLabel}) - Pending Ships`,
+  `Prev FY (${meta.prevFyLabel}) - Total Tonnage`,
+
+  `Current FY upto ${meta.currFyUpto} - Applications Received`,
+  `Current FY upto ${meta.currFyUpto} - Registered Ships`,
+  `Current FY upto ${meta.currFyUpto} - Pending Ships`,
+  `Current FY upto ${meta.currFyUpto} - Total Tonnage`,
+
+  `During the Month (${meta.monthLabel}) - Applications Received`,
+  `During the Month (${meta.monthLabel}) - Registered Ships`,
+  `During the Month (${meta.monthLabel}) - Pending Ships`,
+  `During the Month (${meta.monthLabel}) - Total Tonnage`,
+
+  `Total upto ${meta.asOnDate} - Registered Ships`,
+  `Total upto ${meta.asOnDate} - Pending Ships`,
+  `Total upto ${meta.asOnDate} - Total Tonnage`,
   ];
 
   const handleCopy = () => {
@@ -185,10 +269,17 @@ export default function FlaggingReport({ kind, code, fetchFn, triggerNotificatio
     if (!rows.length) { notify(COMMON_TOASTS.nothingToExport()); return; }
     exportRowsToFile('pdf', {
       title,
+      // headers: [
+      //   'S.No', 'MMD Name',
+      //   'Prev FY: App. Rcvd', 'Prev FY: Reg. Ships', 'Prev FY: Pending', 'Prev FY: Tonnage',
+      //   'Curr FY: App. Rcvd', 'Curr FY: Reg. Ships', 'Curr FY: Pending', 'Curr FY: Tonnage',
+      // ],
       headers: [
         'S.No', 'MMD Name',
         'Prev FY: App. Rcvd', 'Prev FY: Reg. Ships', 'Prev FY: Pending', 'Prev FY: Tonnage',
         'Curr FY: App. Rcvd', 'Curr FY: Reg. Ships', 'Curr FY: Pending', 'Curr FY: Tonnage',
+        'Month: App. Rcvd', 'Month: Reg. Ships', 'Month: Pending', 'Month: Tonnage',
+        'Total: Reg. Ships', 'Total: Pending', 'Total: Tonnage',
       ],
       rows: flatRowsForExport,
       fileName: fileBase,

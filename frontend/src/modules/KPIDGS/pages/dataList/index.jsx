@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import GenericReportPage from '../../components/GenericReportPage';
 import { INPUT_FORM_LEAVES } from '../../data/inputFormIndex';
 import * as api from '../../api';
@@ -29,25 +29,45 @@ const LIST_FETCH_BY_SLUG = {
 
 export default function DataListLeaf({ triggerNotification }) {
   const { slug } = useParams();
+  const navigate = useNavigate();
+
   const leaf = INPUT_FORM_LEAVES.find((l) => l.slug === slug);
   const fetchFn = LIST_FETCH_BY_SLUG[slug];
+
+  const handleEditRow = (row) => {
+    navigate('/kpi/dgs/input-forms', {
+      state: {
+        mode: 'edit',
+        kpi: '2.1',
+        year: row.year,
+        month: row.month_number,
+      },
+    });
+  };
 
   if (!leaf || !fetchFn) {
     return (
       <div className="module-card">
-        <p className="text-sm text-slate-600">No data list is registered for slug "{slug}".</p>
+        <p className="text-sm text-slate-600">
+          No data list is registered for slug "{slug}".
+        </p>
       </div>
     );
   }
 
   return (
     <GenericReportPage
+    
       code={leaf.code}
       title={leaf.label}
       fetchFn={fetchFn}
+      
       triggerNotification={triggerNotification}
       backTo="/kpi/dgs/data-list"
       backLabel="Back to Data List"
+      showEditAction={slug?.trim().toLowerCase() === 'flagging-of-vessels'}
+      onEditRow={handleEditRow}
+
     />
   );
 }

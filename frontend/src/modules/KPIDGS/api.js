@@ -266,11 +266,11 @@ export function fetchCourseType(mtiId, courseId) {
 // =====================================================================
 
 // K-2.1.x Flagging of Vessels
-export const fetchReportKpi2_1_1 = () => api.get('/kpi-dgs-2-1-report');
-export const fetchReportKpi2_1_2 = () => api.get('/kpi-dgs-2-2-report');
-export const fetchReportKpi2_1_3 = () => api.get('/kpi-dgs-2-3-report');
-export const fetchReportKpi2_1_4 = () => api.get('/kpi-dgs-2-4-report');
-export const fetchReportKpi2_1_5 = () => api.get('/kpi-dgs-2-5-report');
+export const fetchReportKpi2_1_1 = () => api.get('/kpi-dgs-2-1-flagging-report');
+export const fetchReportKpi2_1_2 = () => api.get('/kpi-dgs-flagging-deletion-ship-report');
+export const fetchReportKpi2_1_3 = () => api.get('/kpi-dgs-flagging-cumulative-ship-report');
+export const fetchReportKpi2_1_4 = () => api.get('/kpi-dgs-flagging-tonnange-monthly-report');
+export const fetchReportKpi2_1_5 = () => api.get('/kpi-dgs-flagging-tonnange-yearly-report');
 
 // K-2.2.x SBFAP
 export const fetchReportKpi2_2_0 = () => api.get('/kpi-dgs-2-0-report');

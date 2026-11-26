@@ -135,6 +135,16 @@ export default function DataListIndex({ triggerNotification }) {
   const [refreshTick, setRefreshTick] = useState(0);
   const refresh = useCallback(() => setRefreshTick((t) => t + 1), []);
 
+  // K-2.1 Flagging: Edit icon -> input form with year + month
+  const editFlagging = useCallback((row) => {
+    const qs = new URLSearchParams({
+      year: String(row.year ?? ''),
+      month: String(row.month ?? ''),
+    }).toString();
+    navigate(`/kpi/dgs/input-forms/flagging-of-vessels?${qs}`);
+  }, [navigate]);
+
+
   // Pending delete opens the overlay confirm; its `run` is awaited when the user confirms.
   // Each delete handler below sets this, and the confirm button calls `run()` via the modal.
   const [pendingDelete, setPendingDelete] = useState(null);
@@ -227,6 +237,8 @@ export default function DataListIndex({ triggerNotification }) {
 
   // Sections with their own columns (labels, formatting, Update / Delete actions); others infer columns.
   // Update opens the section's input form with the row's keys as query params.
+  // Sections with their own columns (labels, formatting, Update / Delete actions); others infer columns.
+  // Update opens the section's input form with the row's keys as query params.
   const columnsBySlug = useMemo(() => {
     const editIn = (slug) => (item) => navigate(`/kpi/dgs/input-forms/${slug}`, { state: { slug, item } });
     const editMmdWiseFor = (slug) => (row) => {
@@ -269,7 +281,6 @@ export default function DataListIndex({ triggerNotification }) {
       }),
     };
   }, [navigate, canEdit, canRemove, deleteKpi2_6_1, deleteKpi2_6_2, deleteKpi2_7_1, deleteKpi2_7_2]);
-
   return (
     <>
       <ConfirmDeleteModal
@@ -315,6 +326,10 @@ export default function DataListIndex({ triggerNotification }) {
           flat,
           color: BLUE,
           hoverColor: BLUE_HOVER,
+          // Last column la Edit icon (K-2.1 only, update permission irundha mattum)
+          ...(slug === 'flagging-of-vessels' && canEdit
+            ? { showEditAction: true, onEditRow: editFlagging }
+            : {}),
           ...EXPORTS_BY_SLUG[slug],
         };
         // Re-key on refreshTick so a successful delete triggers a refetch for the active list.
