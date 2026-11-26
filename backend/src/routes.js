@@ -65,7 +65,6 @@ import revisedHrPost from "./controllers/HR/revisedHrPost.js";
 import revisedHrDepartment from "./controllers/HR/revisedHrDepartment.js";
 import hrHelperTab from "./controllers/HR/hrHelperFunctions.js";
 import { pinOwnOrganisation, pinOwnRole } from "./controllers/HR/hrHelperFunctions.js";
-import hrReportInputTab from "./controllers/HR/hrReportInput.js";
 import otherOrgVacancyDetailsTab from "./controllers/HR/otherOrgVacancyDetails.js";
 
 import postRequestTab from "./controllers/HR/postRequest.js";
@@ -758,9 +757,6 @@ router.post("/add-court-case-OM-details", litigationCourtCaseTab.addCourtCaseOMD
 router.post("/add-court-case-hearing-details", litigationCourtCaseTab.addCourtCaseHearingDetails);
 router.post("/add-court-case-interim-details", litigationCourtCaseTab.addCourtCaseInterimDetails);
 router.post("/create-case-status", litigationCourtCaseTab.submitCaseStatus);
-router.post("/add-professional-fee", litigationCourtCaseTab.addProfessionalFeeDetails);
-router.post("/add-other-expenses", litigationCourtCaseTab.addOtherExpensesDetails);
-router.post("/create-litigation-expenditure", litigationCourtCaseTab.submitLitigationExpenditure);
 router.get("/get-litigation-sub-table-court-cases-data/:typeName/:caseID", litigationCourtCaseTab.getSubTableCourtCasesData);
 router.get("/get-ministry-upload-document/:caseID", litigationCourtCaseTab.getMinistryUploadDocument);
 router.delete("/delete-ministry-uploaded-document/:caseID/:replyFiledDoc", litigationCourtCaseTab.deleteMinistryInterventionDocument);
@@ -771,19 +767,18 @@ router.post("/add-litigation-petitioner-and-respondent",litigationCourtCaseTab.a
 router.get("/get-litigation-petitioner-and-respondent/:caseID",litigationCourtCaseTab.getLitigationPetitionerAndRespondent);
 router.get("/check-case-number-exists/:organisationID/:caseNumber",litigationCourtCaseTab.checkCaseNumberExists);
 
-router.get("/litigation-domain-report", litigationCourtCaseTab.getLitigaitonDomainReport);
-router.get("/litigation-subdomain-report", litigationCourtCaseTab.getLitigaitonSubDomainReport);
-router.get("/litigation-domain-subdomain-report", litigationCourtCaseTab.getLitigaitonDomainAndSubDomainReport);
-router.get("/litigation-portwise-pendency-report", litigationCourtCaseTab.getLitigaitonPendencyPortWiseReport);
-router.get("/litigation-domainwise-pendency-report", litigationCourtCaseTab.getLitigaitonPendencyDomainWiseReport);
+router.get("/litigation-domain-report/:userID", litigationCourtCaseTab.getLitigationDomainReport);
+router.get("/litigation-subdomain-report/:userID", litigationCourtCaseTab.getLitigationSubDomainReport);
+router.get("/litigation-domain-subdomain-report/:userID", litigationCourtCaseTab.getLitigationDomainAndSubDomainReport);
+router.get("/litigation-portwise-pendency-report/:userID", litigationCourtCaseTab.getLitigationPendencyPortWiseReport);
+router.get("/litigation-domainwise-pendency-report/:userID", litigationCourtCaseTab.getLitigationPendencyDomainWiseReport);
 
 
-router.get("/litigation-domain-report-by-other-org", litigationCourtCaseTab.getLitigaitonDomainByOtherOrgReport);
-router.get("/litigation-sub-domain-report-by-other-org", litigationCourtCaseTab.getLitigaitonSubDomainByOtherOrgReport);
-router.get("/litigation-domain-subdomain-report-by-other-org", litigationCourtCaseTab.getLitigaitonDomainAndSubDomainByOtherOrgReport);
-router.get("/litigation-other-org-portwise-pendency-report", litigationCourtCaseTab.getLitigaitonPendencyOtherOrgWiseReport);
-router.get("/litigation-other-org-domainwise-pendency-report", litigationCourtCaseTab.getLitigaitonPendencyDomainWiseOtherOrgReport);
-// router.get("/litigation-domainwise-pendency-other-org-report", litigationCourtCaseTab.getLitigaitonPendencyDomainWiseOtherOrgReport);
+router.get("/litigation-domain-report-by-other-org/:userID", litigationCourtCaseTab.getLitigationDomainByOtherOrgReport);
+router.get("/litigation-sub-domain-report-by-other-org/:userID", litigationCourtCaseTab.getLitigationSubDomainByOtherOrgReport);
+router.get("/litigation-domain-subdomain-report-by-other-org/:userID", litigationCourtCaseTab.getLitigationDomainAndSubDomainByOtherOrgReport);
+router.get("/litigation-other-org-portwise-pendency-report/:userID", litigationCourtCaseTab.getLitigatonPendencyOtherOrgWiseReport);
+router.get("/litigation-other-org-domainwise-pendency-report/:userID", litigationCourtCaseTab.getLitigatonPendencyDomainWiseOtherOrgReport);
 
 router.get("/get-court-case-data-by-id/:caseType/:caseID", arbitCourtCaseTab.getCourtCaseDataByID);
 router.get("/get-sub-table-court-case-data/:typeName/:caseID", arbitCourtCaseTab.getSubTableCourtCaseData);
@@ -794,7 +789,6 @@ router.post("/add-hearing-court-case", arbitCourtCaseTab.addHearingCases);
 router.post("/add-interim-order-court-case", arbitCourtCaseTab.addInterimOrder);
 router.post("/create-arbitration-court-case", arbitCourtCaseTab.createArbitCourtCase);
 router.put("/update-arbitration-court-case-status", arbitCourtCaseTab.updateArbitCourtCaseStatus);
-router.put("/update-arbitration-court-case-expenditure", arbitCourtCaseTab.addArbitFeeExpenseData);
 router.post("/add-counsel-details", arbitCourtCaseTab.addDetailsOfCounsel);
 router.get("/court-case-get-acts/", arbitCourtCaseTab.getActDropDownData);
 router.post("/court-case-document", arbitCourtCaseTab.upload.single('file'), arbitCourtCaseTab.courtCaseUploadDocument);
@@ -1103,8 +1097,6 @@ router.get("/revised-hr-management-post/:Id", auth, requireModulePermission("HR_
 router.get("/get-hr-employee-data/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getHrEmployee);
 router.get("/get-hr-employee-by-id/:employeeMasterID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getHrEmployeeByID);
 router.get('/get-hr-department-dropdown-list', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getDepartmentList);
-router.post("/submit-employee-leave-history", auth, requireModulePermission("HR_MANAGEMENT", "update"), hrEmployeeTab.submitEmpLeaveHistory);
-router.get("/get-emp-leave-history-details/:employeeID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getEmpLeaveHistoryData);
 router.get("/get-post-names-by-org/:selectedOrganisationId", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getPostNamesByOrgId);
 router.post('/update-employee-status/:status/:empID/:referenceID', auth, requireModulePermission("HR_MANAGEMENT", "update"), hrEmployeeTab.updateEmployeeStatus);
 
@@ -1206,28 +1198,6 @@ router.put("/update-activity-data", auth, requireModulePermission("HR_MANAGEMENT
 
 router.get("/get-deputation-end-employees/:employeeId/:empMasterId/:empReferenceId", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getDeputationEndEmployees);
 
-
-router.post("/submit-report-input-1-5", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrReportInputTab.createHrReportInput1_5);
-router.post("/submit-report-input-1-6", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrReportInputTab.createHrReportInput1_6);
-router.post("/add-hr-vacancy-report-input-1-2", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrReportInputTab.createHrvacancyData);
-router.post("/add-hr-vacancy-report-input-1-3", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrReportInputTab.createHrreport1_3);
-router.post("/add-hr-vacancy-report-input-1-4", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrReportInputTab.createHrreportinput1_4);
-router.post("/add-hr-vacancy-report-input-1-8", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrReportInputTab.createHrreportinput1_8);
-router.post("/submit-report-input-1-7", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrReportInputTab.createHrreportinput1_7);
-router.post("/add-hr-vacancy-report-input-1-1", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrReportInputTab.submitReportInput1_1);
-router.get("/check-financial-hr-report-input", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportInputTab.checkFinancialYearExists);
-
-//update
-router.get("/hr-report-input-list/:userID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportInputTab.getHrreportInputformList);
-router.get('/update-Hr-report-Input/:organisationID/:financialYear/:month', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportInputTab.getUpdatehrReportdata);
-router.get('/update-Hr-report-Input-update1_3/:organisationID/:financialYear/:month', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportInputTab.getUpdatehrReport1_3data);
-router.get('/update-Hr-report-Input-update1_4/:organisationID/:financialYear/:month', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportInputTab.getUpdatehrReport1_4data);
-router.get('/update-Hr-report-Input-update1_6/:organisationID/:financialYear/:month', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportInputTab.getUpdatehrReport1_6data);
-router.get('/update-Hr-report-Input-update1_8/:organisationID/:financialYear/:month', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportInputTab.getUpdatehrReport1_8data);
-router.get('/update-Hr-report-Input-update1_7/:organisationID/:financialYear/:month', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportInputTab.getUpdatehrReport1_7data);
-router.get('/update-Hr-report-Input-update1_5/:organisationID/:financialYear/:month', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportInputTab.getUpdatehrReport1_5data);
-router.post("/update-hr-vacancy-report-input-1-1", auth, requireModulePermission("HR_MANAGEMENT", "update"), hrReportInputTab.updateReportInput1_1);
-router.get('/update-Hr-report-Input1_1/:organisationID/:financialYear', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportInputTab.getUpdatehrReport1_1data);
 // -------------------------------------------------------------------------------------------------------
 router.get('/get-hr-other-org-vacany-details/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), otherOrgVacancyDetailsTab.getOtherOrgVacancyDetails);
 router.get('/get-hr-dashboard-content-other-org/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), otherOrgVacancyDetailsTab.getHRDashboardContentOtherOrgData);
@@ -1506,15 +1476,6 @@ router.get("/hrsecond-report/:orgCatDrop/:orgDrop", auth, requireModulePermissio
 router.get("/hrdetailed-revival-report/:organisationID/:classID/:type/:postID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrReportTab.hrDetailedRevivalReport);
 router.get("/hrdetailed-status-report/:organisationID/:classID/:type/:postID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrReportTab.hrDetailedStatusReport);
 router.get("/hrdetailed-status-filling-report/:organisationID/:type", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrReportTab.detailedHrStatusFillingReport);
-
-router.get("/hrfirst-report-other-org/:roleID/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnRole(), pinOwnOrganisation(), hrReportInputTab.hrFirstReportOtherOrg);
-router.get("/hrsecond-report-other-org/:roleID/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnRole(), pinOwnOrganisation(), hrReportInputTab.hrSecondReportOtherOrg);
-router.get("/hrsixth-report-other-org/:roleID/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnRole(), pinOwnOrganisation(), hrReportInputTab.hrSixthReportOtherOrg);
-router.get("/hrseventh-report-other-org/:roleID/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnRole(), pinOwnOrganisation(), hrReportInputTab.hrSeventhReportOtherOrg);
-router.get("/hreighth-report-other-org/:roleID/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnRole(), pinOwnOrganisation(), hrReportInputTab.hrEighthReportOtherOrg);
-router.get("/hrabstarct-report-other-org/:roleID/:organisationID",auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnRole(), pinOwnOrganisation(), hrReportInputTab.hrAbstarctReportOtherOrg);
-router.get("/hrfourth-report-other-org/:roleID/:organisationID",auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnRole(), pinOwnOrganisation(), hrReportInputTab.hrFourthReportOtherOrg);
-router.get("/hrfifth-report-other-org/:roleID/:organisationID",auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnRole(), pinOwnOrganisation(), hrReportInputTab.hrFifthReportOtherOrg);
 
 // Capex report 
 router.get("/capex-report/:selectedYear", auth, requireStrictModulePermission("CAPEX", "read"), capexReportTab.capexReportData);
@@ -3050,9 +3011,6 @@ router.post("/create-conciliation-court-case", conciliationCourtCaseTab.createCo
 router.post("/add-first-party-data", conciliationCourtCaseTab.addConciliationFirstParty);
 router.post("/add-conciliators-hearing-data", conciliationCourtCaseTab.addConciliatorsHearingData);
 router.post("/create-conciliation-status", conciliationCourtCaseTab.createConciliationStatus);
-router.post("/add-fee-expenses-details", conciliationCourtCaseTab.addFeeExpensesdetails);
-router.post("/add-other-expenses-details", conciliationCourtCaseTab.addOtherExpensesdetails);
-router.post("/create-conciliation-expenditure", conciliationCourtCaseTab.createConciliationExpenditure);
 router.get("/get-conciliation-sub-tables-court-cases-data/:typeName/:caseID", conciliationCourtCaseTab.getSubTablesCourtCaseData);
 
 router.post("/add-conciliation-first-party-and-second-party", conciliationCourtCaseTab.addConciliationFirstPartyAndSecondParty);

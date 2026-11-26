@@ -367,21 +367,19 @@ async function addCategory(req, res, cfg) {
       });
     }
 
+    // updated_by / updated_date stay empty here: "Last Updated Date" shows when actuals were
+    // last saved (see saveMonthly), not target changes; target changes are in the GeM log
     const insertCols = [
       cfg.fyCol,
       cfg.orgCol,
       cfg.potentialCol,
       "created_by",
       "created_date",
-      "updated_by",
-      "updated_date",
     ];
     const insertVals = [
       "@financialYear",
       "@organisationId",
       "@potential",
-      "@userId",
-      "GETDATE()",
       "@userId",
       "GETDATE()",
     ];
@@ -481,11 +479,9 @@ async function updateCategory(req, res, cfg) {
       });
     }
 
-    const setParts = [
-      `${cfg.potentialCol} = @potential`,
-      "updated_by = @userId",
-      "updated_date = GETDATE()",
-    ];
+    // updated_by / updated_date are left as they are: "Last Updated Date" shows when actuals
+    // were last saved (see saveMonthly); target changes are recorded in the GeM log
+    const setParts = [`${cfg.potentialCol} = @potential`];
 
     if (columns.has("eight_months_proportional_target")) {
       setParts.push("eight_months_proportional_target = @eightMonthsProportionalTarget");
@@ -751,6 +747,18 @@ async function saveMonthly(req, res, cfg) {
         OUTPUT INSERTED.*
         VALUES (${insertVals.join(", ")})
       `);
+
+    // The list's "Last Updated Date" reads the target table, so stamp it on every actuals
+    // save (goods, service and works). Target add / edit no longer change it.
+    // Same timestamp as the monthly row just saved, so both tables carry one date
+    await request.query(`
+      UPDATE t
+      SET t.updated_by = m.updated_by,
+          t.updated_date = m.updated_date
+      FROM ${cfg.table} t
+      JOIN ${cfg.monthlyTable} m ON m.${cfg.idCol} = t.${cfg.idCol}
+      WHERE t.${cfg.idCol} = @gemId
+    `);
 
     await writeGemLog(transaction, cfg, {
       recordType: "ACTUAL",

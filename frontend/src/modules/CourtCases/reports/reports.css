@@ -1,0 +1,223 @@
+/* font + brand colours follow the module design system (module-report.css / module-datalist.css) */
+
+/* ---- theme: edit these to match MIV exactly ---- */
+.rpt {
+  --rpt-maroon: #4b2424;
+  --rpt-maroon-dark: #4b2424;
+  --rpt-maroon-hover: #6b3535;
+  --rpt-maroon-line: #7a3b3b;
+  --rpt-cream: #f9f3f0;
+  --rpt-border: #eadcd5;
+  --rpt-title: #3a1f1f;
+  --rpt-muted: #8a4b3c;
+  --rpt-row-alt: #f8faf6;
+  --rpt-shadow: 0 12px 32px rgba(92, 31, 31, 0.12);
+  --rpt-font: var(--module-report-font-family, var(--font-sans, "Google Sans", system-ui, -apple-system, sans-serif));
+  font-family: var(--rpt-font);
+}
+
+/* ---- card, banner, panel ---- */
+.rpt-card { background: #fff; border: 1px solid var(--rpt-border); border-radius: 20px; box-shadow: var(--rpt-shadow); overflow: hidden; }
+.rpt-banner { background: var(--rpt-cream); border-bottom: 1px solid var(--rpt-border); padding: 24px 32px; }
+.rpt-banner-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.rpt-eyebrow { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: var(--rpt-muted); }
+.rpt-title { font-size: 28px; font-weight: 800; color: var(--rpt-title); line-height: 1.25; margin: 8px 0 6px; }
+.rpt-sub { font-size: 14px; color: var(--rpt-muted); margin: 0; }
+.rpt-sub b { color: var(--rpt-title); }
+.rpt-dot { margin: 0 10px; opacity: .5; }
+.rpt-panel { padding: 22px 28px 26px; }
+
+/* ---- toolbar: title left, controls right on the SAME row ---- */
+.rpt-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.rpt-toolbar-title { flex: 1 1 320px; min-width: 0; }
+.rpt-toolbar-title h3 { font-size: 24px; font-weight: 800; color: var(--rpt-title); line-height: 1.25; margin: 6px 0 0; }
+.rpt-controls { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+@media (max-width: 1150px) { .rpt-controls { flex-wrap: wrap; } }
+
+.rpt-search { display: flex; align-items: center; gap: 8px; border: 1px solid var(--rpt-border); border-radius: 12px; padding: 10px 14px; background: #fff; color: var(--rpt-muted); }
+.rpt-search input { border: 0; outline: 0; width: 170px; font: inherit; font-size: 14px; color: var(--rpt-title); background: transparent; }
+.rpt-btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--rpt-border); background: #fff; color: var(--rpt-title);
+  border-radius: 12px; padding: 10px 16px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.rpt-btn:hover { background: var(--rpt-cream); }
+.rpt-btn.primary { background: var(--rpt-maroon-dark); border-color: var(--rpt-maroon-dark); color: #fff; }
+.rpt-btn.primary:hover { background: var(--rpt-maroon); }
+.rpt-btn:disabled { opacity: .5; cursor: not-allowed; }
+.rpt-select { border: 1px solid var(--rpt-border); border-radius: 10px; padding: 9px 10px; font: inherit; font-size: 14px; font-weight: 600; background: #fff; color: var(--rpt-title); }
+.rpt-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; min-width: 200px; max-height: 320px; overflow: auto;
+  background: #fff; border: 1px solid var(--rpt-border); border-radius: 12px; padding: 6px; box-shadow: var(--rpt-shadow); }
+.rpt-menu button, .rpt-menu label { display: flex; width: 100%; align-items: center; gap: 8px; padding: 8px 10px; border: 0; background: none;
+  border-radius: 8px; font: inherit; font-size: 14px; cursor: pointer; text-align: left; color: var(--rpt-title); }
+.rpt-menu button:hover, .rpt-menu label:hover { background: var(--rpt-cream); }
+
+/* ---- reports LIST table ---- */
+.rpt-table-wrap { border: 1px solid var(--rpt-border); border-radius: 14px; overflow: hidden; }
+.rpt-table { width: 100%; border-collapse: collapse; font-size: 15px; }
+.rpt-table thead th { background: var(--rpt-maroon); color: #fff; text-align: left; text-transform: uppercase;
+  font-size: 13px; font-weight: 800; letter-spacing: .05em; padding: 16px 22px; }
+.rpt-table tbody td { padding: 16px 22px; border-top: 1px solid var(--rpt-border); color: var(--rpt-title); }
+.rpt-table tbody tr:nth-child(even) { background: var(--rpt-row-alt); }
+.rpt-table tbody tr:hover { background: #f5e9e4; }
+.rpt-code { font-weight: 800; color: var(--rpt-muted); }
+.rpt-link { background: none; border: 0; padding: 0; font: inherit; font-weight: 700; color: var(--rpt-maroon-dark); cursor: pointer; text-align: left; }
+.rpt-link:hover { text-decoration: underline; }
+.rpt-footer { display: flex; align-items: center; justify-content: space-between; padding: 14px 4px 0; font-size: 14px; font-weight: 600; color: var(--rpt-muted); }
+.rpt-pager { display: flex; align-items: center; gap: 8px; }
+.rpt-pager button { border: 1px solid var(--rpt-border); background: #fff; color: var(--rpt-title); border-radius: 10px; padding: 8px 14px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.rpt-pager button:disabled { opacity: .45; cursor: not-allowed; }
+.rpt-pager .cur { background: var(--rpt-maroon-dark); border-color: var(--rpt-maroon-dark); color: #fff; }
+
+/* ---- AG grid: colours set directly so they work on any AG Grid version ---- */
+.report-grid { font-family: var(--rpt-font); --ag-font-family: var(--rpt-font); --ag-foreground-color: #3a2a2a; --ag-border-color: var(--rpt-border); --ag-odd-row-background-color: var(--rpt-row-alt); }
+.report-grid .ag-header,
+.report-grid .ag-header-row,
+.report-grid .ag-header-cell,
+.report-grid .ag-header-group-cell { background: var(--rpt-maroon) !important; color: #fff !important; }
+.report-grid .ag-header-cell { border-right: 1px solid var(--rpt-maroon-line); }
+.report-grid .ag-header-group-cell { border-bottom: 1px solid var(--rpt-maroon-line); }
+.report-grid .ag-header-cell-text,
+.report-grid .ag-header-group-text {
+  color: #fff !important; font-weight: 800; text-transform: uppercase; font-size: 13px; letter-spacing: .02em;
+  white-space: normal !important; overflow: visible !important; text-overflow: clip !important; line-height: 1.3;
+}
+.report-grid .ag-header-cell-label,
+.report-grid .ag-header-group-cell-label { justify-content: center; text-align: center; }
+.report-grid .ag-header-icon, .report-grid .ag-icon { color: #fff !important; }
+.report-grid .ag-cell .ag-icon { color: inherit !important; }
+.report-grid .ag-floating-bottom { border-top: 3px solid var(--rpt-maroon) !important; }
+.report-grid .ag-row-pinned { background: #f3e8e3; }
+.report-grid .ag-paging-panel { font-weight: 600; color: var(--rpt-title); }
+
+
+/* ---- body rows, total row, MIV-style footer ---- */
+.report-grid .ag-row { font-size: 15px; }
+.report-grid .ag-cell {
+  display: flex; align-items: center; justify-content: center;
+  border-right: 1px solid #efe6e2; line-height: 1.35;
+}
+.report-grid .ag-center-cols-container .ag-cell:first-child { font-weight: 700; color: var(--rpt-title); }
+.report-grid .ag-row-odd { background: var(--rpt-row-alt); }
+
+.report-grid .ag-floating-bottom { border-top: 3px solid var(--rpt-maroon) !important; background: #f6ece8; }
+.report-grid .ag-floating-bottom .ag-row { background: #f6ece8; }
+.report-grid .ag-floating-bottom .ag-cell { font-weight: 800; color: var(--rpt-title); }
+
+.rpt-footer { border-top: 1px solid var(--rpt-border); margin-top: 14px; padding: 16px 4px 0; }
+.rpt-footer b { color: var(--rpt-title); }
+.rpt-pager button { min-width: 40px; }
+.rpt-pager button:hover:not(:disabled):not(.cur) { background: var(--rpt-cream); }
+
+/* ===== LIST PAGE sizing (matches case list: compact font / row height / width) ===== */
+
+/* banner */
+.rpt-list .rpt-banner { padding: 16px 24px; }
+.rpt-list .rpt-eyebrow { font-size: 10px; letter-spacing: .12em; }
+.rpt-list .rpt-title { font-size: 20px; font-weight: 700; letter-spacing: .03em; margin: 4px 0 4px; }
+
+/* panel + toolbar */
+.rpt-list .rpt-panel { padding: 16px 20px 18px; }
+.rpt-list .rpt-toolbar { margin-bottom: 14px; gap: 12px; }
+.rpt-list .rpt-toolbar-title h3 { font-size: 20px; font-weight: 700; letter-spacing: .03em; margin: 4px 0 0; }
+
+.rpt-list .rpt-controls { gap: 8px; }
+.rpt-list .rpt-controls > span { font-size: 11px !important; font-weight: 700; text-transform: uppercase; }
+.rpt-list .rpt-search { height: 36px; padding: 0 12px; border-radius: 10px; }
+.rpt-list .rpt-search input { width: 200px; font-size: 12px; }
+.rpt-list .rpt-select { height: 36px; padding: 0 10px; font-size: 12px; border-radius: 10px; }
+
+/* table: header 40px, rows 42px, smaller font */
+.rpt-list .rpt-table { font-size: 12.5px; }
+.rpt-list .rpt-table thead th {
+  height: 40px;
+  padding: 0 16px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .05em;
+}
+.rpt-list .rpt-table tbody td {
+  height: 42px;
+  padding: 0 16px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.rpt-list .rpt-table thead th:first-child,
+.rpt-list .rpt-table tbody td:first-child { width: 150px; }   /* Report No. column width */
+.rpt-list .rpt-code { font-weight: 700; }
+.rpt-list .rpt-link { font-size: 12.5px; font-weight: 600; }
+
+/* footer + pager */
+.rpt-list .rpt-footer { margin-top: 12px; padding: 12px 4px 0; font-size: 12px; }
+.rpt-list .rpt-pager { gap: 6px; }
+.rpt-list .rpt-pager button {
+  height: 32px;
+  min-width: 32px;
+  padding: 0 12px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+/* ===== REPORT VIEWER (rpt-list also applies here): buttons + AG Grid sized like the case list ===== */
+.rpt-list .rpt-btn { height: 36px; padding: 0 12px; font-size: 12px; border-radius: 10px; }
+.rpt-list .rpt-btn svg { width: 14px; height: 14px; }
+.rpt-list .rpt-sub { font-size: 11px; }
+.rpt-list .rpt-menu button, .rpt-list .rpt-menu label { font-size: 12px; }
+
+.rpt-list .report-grid .ag-row { font-size: 12px; }
+.rpt-list .report-grid .ag-cell { padding: 0 12px; line-height: 1.3; font-weight: 400; }
+.rpt-list .report-grid .ag-header-cell,
+.rpt-list .report-grid .ag-header-group-cell { padding: 0 12px; }
+.rpt-list .report-grid .ag-header-cell-text,
+.rpt-list .report-grid .ag-header-group-text { font-size: 11px; font-weight: 700; letter-spacing: .04em; }
+.rpt-list .report-grid .ag-floating-bottom .ag-cell { font-weight: 700; }
+
+/* ---- vertical column lines (same grey as the module report grids) ---- */
+.rpt-list .report-grid .ag-root-wrapper { border: 1px solid #D3D6D9; border-radius: 0; }
+.rpt-list .report-grid .ag-cell { border-right: 1px solid #D3D6D9; }
+.rpt-list .report-grid .ag-row { border-bottom: 1px solid #D3D6D9; }
+.rpt-list .report-grid .ag-header-cell,
+.rpt-list .report-grid .ag-header-group-cell { border-right: 1px solid var(--rpt-maroon-line); }
+
+/* ---- first column after S.No (Domain / Organisation) in bold ---- */
+.rpt-list .report-grid .ag-cell.rpt-first-col { font-weight: 700; color: var(--rpt-title); }
+
+/* ---- Filters button + expandable filter panel ---- */
+.rpt-btn.primary:hover { background: var(--rpt-maroon-hover); }
+.rpt-btn.active { background: var(--rpt-cream); border-color: var(--rpt-maroon-dark); }
+.rpt-badge { background: var(--rpt-maroon-dark); color: #fff; border-radius: 999px; font-size: 10px; font-weight: 700; padding: 1px 6px; }
+.rpt-filter-panel {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px;
+  margin-bottom: 14px; padding: 14px 16px;
+  background: var(--rpt-cream); border: 1px solid var(--rpt-border); border-radius: 12px;
+}
+.rpt-filter-field { min-width: 260px; flex: 0 1 380px; }
+.rpt-filter-field label {
+  display: block; margin-bottom: 6px;
+  font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--rpt-muted);
+}
+.rpt-filter-field .rpt-select { width: 100%; height: 36px; font-size: 12px; }
+.rpt-clear { background: none; border: 0; padding: 0 0 8px; font: inherit; font-size: 12px; font-weight: 700; color: var(--rpt-maroon-dark); cursor: pointer; }
+.rpt-clear:hover { text-decoration: underline; }
+
+/* ---- Export dropdown: same look as the case list (green Excel icon, red PDF icon) ---- */
+.rpt-export-menu { width: 224px; min-width: 224px; padding: 4px; border-radius: 12px; border-color: #e2e8f0; box-shadow: 0 10px 25px rgba(15, 23, 42, .12); }
+.rpt-export-menu button { padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; color: #334155; }
+.rpt-export-menu button:hover { background: #f8fafc; }
+
+/* ---- MIV report typography: force the app font into AG Grid (it ignores inherited fonts) ---- */
+.rpt-list .report-grid,
+.rpt-list .report-grid .ag-root-wrapper,
+.rpt-list .report-grid .ag-row,
+.rpt-list .report-grid .ag-cell,
+.rpt-list .report-grid .ag-cell-value,
+.rpt-list .report-grid .ag-header-cell,
+.rpt-list .report-grid .ag-header-cell-text,
+.rpt-list .report-grid .ag-header-group-text,
+.rpt-list .report-grid .ag-paging-panel {
+  font-family: var(--rpt-font) !important;
+}
+.rpt-list .report-grid { --ag-font-family: var(--rpt-font); }
+
+/* S.No: small and bold like the MIV report */
+.rpt-list .report-grid .ag-cell.rpt-sno-col { font-size: 11px; font-weight: 700; color: var(--rpt-title); }
+
+/* Total row: bold, label in capitals like the MIV report */
+.rpt-list .report-grid .ag-floating-bottom .ag-cell { font-weight: 700; }
+.rpt-list .report-grid .ag-floating-bottom .ag-cell.rpt-first-col { text-transform: uppercase; }

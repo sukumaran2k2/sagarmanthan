@@ -58,6 +58,8 @@ export default function GEMDataListView({
         .map((col) => ({
           key: getColKey(col),
           label: col.headerName,
+          // initialHide: hidden until the user ticks it in Visibility
+          hiddenByDefault: col.initialHide === true,
         }))
         .filter((c) => c.key),
     [colDefs]
@@ -67,9 +69,9 @@ export default function GEMDataListView({
     setVisibleCols((prev) => {
       const next = { ...prev };
       let changed = false;
-      toggleableCols.forEach(({ key }) => {
+      toggleableCols.forEach(({ key, hiddenByDefault }) => {
         if (next[key] === undefined) {
-          next[key] = true;
+          next[key] = !hiddenByDefault;
           changed = true;
         }
       });

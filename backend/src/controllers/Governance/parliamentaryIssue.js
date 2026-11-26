@@ -159,13 +159,22 @@ const LIST_FROM_SQL = `
 // ISNULL: an issue with no stage has a NULL stage name, and NOT (NULL LIKE ...) is not true,
 // so without it that issue would match neither tab
 const STAGE_NAME_SQL = `LOWER(ISNULL(mps.parlia_stage_name, N''))`;
-const COMPLETED_SQL = `(
-  ${STAGE_NAME_SQL} LIKE N'%matter disposed%'
+
+// A stage name that means the issue is finished: Matter Disposed, Reply sent, Completed.
+// nameSql is a lower-cased, non-NULL stage name expression.
+export const completedStageNameSql = (nameSql) => `(
+  ${nameSql} LIKE N'%matter disposed%'
   OR (
-    (${STAGE_NAME_SQL} LIKE N'%reply%' OR ${STAGE_NAME_SQL} LIKE N'%replay%')
-    AND (${STAGE_NAME_SQL} LIKE N'%sent%' OR ${STAGE_NAME_SQL} LIKE N'%send%')
+    (${nameSql} LIKE N'%reply%' OR ${nameSql} LIKE N'%replay%')
+    AND (${nameSql} LIKE N'%sent%' OR ${nameSql} LIKE N'%send%')
   )
-  OR LTRIM(RTRIM(${STAGE_NAME_SQL})) = N'completed'
+  OR LTRIM(RTRIM(${nameSql})) = N'completed'
+)`;
+
+// Completed issues (the Completed tab); every other issue is Active, including one with no
+// stage. Shared with the dashboard so both count the same issues. Aliases: tpi, mps.
+export const COMPLETED_SQL = `(
+  ${completedStageNameSql(STAGE_NAME_SQL)}
   OR tpi.matter_disposed_date IS NOT NULL
   OR tpi.reply_send_date IS NOT NULL
 )`;

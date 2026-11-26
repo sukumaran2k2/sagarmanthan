@@ -8,6 +8,7 @@ import mime from 'mime-types';
 import { getDataScope } from '../../middleware/dataScope.js';
 import { checkModulePermission } from '../../middleware/modulePermission.js';
 import { ORG_GROUPS } from './capexDashboard.js';
+import { scanFile } from '../../utils/clamav.js';
 
 // Ministry / master users see every organisation's CSR data; organisation users only their own.
 // Decided from the signed token only (never from URL, query or body values), as in GMIS and CAPEX.
@@ -273,6 +274,22 @@ function hasSignature(filePath) {
 }
 // Removes stored upload files, ignoring ones already gone (QC CSR-28)
 const removeUploads = (files) => (files || []).forEach((f) => fs.rmSync(f.path || path.join(uploadDestination, f), { force: true }));
+// Virus scan of the files just stored by an upload (QC CSR-BE-01). Like the other uploads in the
+// portal it fails closed: if any file is infected, or could not be scanned, all of them are
+// deleted. Returns null when every file is clean, else the { status, error } to reply with.
+async function scanUploads(files, userId) {
+    for (const file of files) {
+        const scan = await scanFile(file.path);
+        if (scan.status === 'clean') continue;
+        removeUploads(files);
+        if (scan.status === 'infected') {
+            console.warn('CSR: infected upload rejected:', file.originalname, scan.threat, '| user:', userId);
+            return { status: 422, error: 'File rejected: a virus was detected.' };
+        }
+        return { status: 503, error: 'File scanning is unavailable. Please try again later.' };
+    }
+    return null;
+}
 
 // The completion document a save may refer to: none, the project's current one, or a PDF this
 // user has just uploaded that no project uses yet (QC CSR-07). Returns { name, isNew } or { error }.
@@ -353,7 +370,6 @@ async function createCsrProjects(req, res)
     const document = await documentForSave(req.body.csrDocumentFileName, req.user.userId);
     if (document.error) return res.status(400).json({ error: document.error });
     const uniqueFileName = document.name;
-    let focusID = req.body.focusID;
     const csrExpenditureTab = req.body.expenditures || [];
     // Gallery files are attached after the save, by /update-csr-gallery-upload: stored names
     // are never taken from the request body (QC CSR-07)
@@ -389,7 +405,6 @@ async function createCsrProjects(req, res)
         request.input("physicalprogresssofar", physicalprogresssofar);
         request.input("remarksoftheproject", remarksoftheproject);
         request.input("userID", userID);
-        request.input("focusID", focusID);
         request.input("uniqueFileName", uniqueFileName);
 
 
@@ -466,6 +481,8 @@ async function csrProjectDocumentUploader(req, res)
             removeUploads([req.file]);
             return res.status(400).json({ error: "The file is not a valid PDF." });
         }
+        const rejected = await scanUploads([req.file], req.user.userId);
+        if (rejected) return res.status(rejected.status).json({ error: rejected.error });
         res.status(200).json({ status: 'success', uniqueFileName: req.file.filename });
         await removeStaleUploads(req.user.userId).catch((err) => console.error('CSR: stale upload clean-up failed', err));
     } catch (err) {
@@ -926,6 +943,8 @@ async function uploadMediaGalleryFile(req,res) {
             removeUploads(req.files);
             return res.status(400).json({ error: 'A file is not a valid JPG, PNG, WebP photo or MP4 video.' });
         }
+        const rejected = await scanUploads(req.files, req.user.userId);
+        if (rejected) return res.status(rejected.status).json({ error: rejected.error });
 
         const conn = await pool;
         const transaction = new mssql.Transaction(conn);
@@ -1413,10 +1432,17 @@ async function getCsrDashboard(req, res) {
 }
 
 
+// The organisation a ministry user picked in a report URL: a positive whole number, or null for
+// 'all', a missing value or anything else, so a value like 'abc' can't fail the query (QC CSR-BE-02)
+function orgIdParam(value) {
+    const id = Number(value);
+    return /^\d+$/.test(String(value ?? '')) && Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+
 async function getCsrProjectsFocusWiseSummary(req, res) {
   try {
     const scope = csrScope(req.user);
-    let organisationId = req.params.orgId && req.params.orgId !== 'all' ? req.params.orgId : null;
+    let organisationId = orgIdParam(req.params.orgId);
 
     // organisationId is optional (NULL = all-org MOPSW view). An
     // organisation user must never get that all-org view -- force their
@@ -1425,7 +1451,7 @@ async function getCsrProjectsFocusWiseSummary(req, res) {
       return res.status(200).json([]);
     }
     if (scope.orgId) {
-      organisationId = String(scope.orgId);
+      organisationId = scope.orgId;
     }
 
     const conn = await pool;
@@ -1516,7 +1542,7 @@ async function getCsrProjectsOrgWiseSummary(req, res) {
 async function getCsrProjectsYearWiseSummary(req, res) {
   try {
     const scope = csrScope(req.user);
-    let organisationId = req.params.orgId && req.params.orgId !== 'all' ? req.params.orgId : null;
+    let organisationId = orgIdParam(req.params.orgId);
 
     // organisationId is optional (NULL = all-org MOPSW view). An
     // organisation user must never get that all-org view, even if they
@@ -1525,7 +1551,7 @@ async function getCsrProjectsYearWiseSummary(req, res) {
       return res.status(200).json([]);
     }
     if (scope.orgId) {
-      organisationId = String(scope.orgId);
+      organisationId = scope.orgId;
     }
 
     const conn = await pool;
@@ -1595,7 +1621,7 @@ async function getCsrProjectsYearWiseSummary(req, res) {
 async function getCsrFundOrgTrendReport(req, res) {
   try {
     const scope = csrScope(req.user);
-    let organisationId = req.params.orgId && req.params.orgId !== 'all' ? req.params.orgId : null;
+    let organisationId = orgIdParam(req.params.orgId);
 
     // Report 1.3 is org-facing (matches Organisation-sheet report 1.1) --
     // an organisation user can request any org via the URL param, so we
@@ -1605,7 +1631,7 @@ async function getCsrFundOrgTrendReport(req, res) {
       return res.status(200).json([]);
     }
     if (scope.orgId) {
-      organisationId = String(scope.orgId);
+      organisationId = scope.orgId;
     }
 
     if (!organisationId) {

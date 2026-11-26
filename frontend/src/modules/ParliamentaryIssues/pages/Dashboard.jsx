@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react';
+import { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { RefreshCw, TrendingUp, BarChart3, Layers, Clock } from 'lucide-react';
 import * as am5 from '@amcharts/amcharts5';
 import * as am5xy from '@amcharts/amcharts5/xy';
@@ -8,8 +8,6 @@ import ChartExportMenu from '../../../components/ChartExportMenu';
 import TableExportMenu from '../../../components/TableExportMenu';
 import { chartColors, useIsDark } from '../../../utils/amCharts';
 import { COMMON_TOASTS } from '../../../utils/notify';
-
-const COMPLETED_STAGE_NAMES = ['Matter Disposed', 'Replay sent'];
 
 function KpiCard({ label, value, subtext, icon: Icon, valueColorClass, iconWrapClass, subtextColorClass }) {
   return (
@@ -48,7 +46,7 @@ function StageDistributionChart({ data, onRootReady }) {
     const xRenderer = am5xy.AxisRendererX.new(root, {});
     xRenderer.labels.template.setAll({ fontSize: 10, fill: am5.color(c.text), fontWeight: '600' });
     xRenderer.grid.template.setAll({ stroke: am5.color(c.grid), strokeDasharray: [3, 3] });
-    const xAxis = chart.xAxes.push(am5xy.ValueAxis.new(root, { renderer: xRenderer, min: 0 }));
+    const xAxis = chart.xAxes.push(am5xy.ValueAxis.new(root, { renderer: xRenderer, min: 0, maxPrecision: 0, extraMax: 0.2 }));
     const series = chart.series.push(am5xy.ColumnSeries.new(root, { xAxis, yAxis, valueXField: 'note_count', categoryYField: 'stage_name', tooltip: am5.Tooltip.new(root, { labelText: '{categoryY}: [bold]{valueX}[/]' }) }));
     series.columns.template.setAll({ fill: am5.color(0x6366f1), stroke: am5.color(0x6366f1), height: am5.percent(60), cornerRadiusTR: 3, cornerRadiusBR: 3 });
     series.bullets.push(() => am5.Bullet.new(root, { locationX: 1, sprite: am5.Label.new(root, { text: '{valueX}', fill: am5.color(c.value), centerY: am5.p50, centerX: am5.p0, dx: 6, fontSize: 11, fontWeight: '700', populateText: true }) }));
@@ -81,7 +79,7 @@ function WingWiseChart({ data, onRootReady }) {
     const xRenderer = am5xy.AxisRendererX.new(root, {});
     xRenderer.labels.template.setAll({ fontSize: 10, fill: am5.color(c.text), fontWeight: '600' });
     xRenderer.grid.template.setAll({ stroke: am5.color(c.grid), strokeDasharray: [3, 3] });
-    const xAxis = chart.xAxes.push(am5xy.ValueAxis.new(root, { renderer: xRenderer, min: 0 }));
+    const xAxis = chart.xAxes.push(am5xy.ValueAxis.new(root, { renderer: xRenderer, min: 0, maxPrecision: 0, extraMax: 0.2 }));
     const series = chart.series.push(am5xy.ColumnSeries.new(root, { xAxis, yAxis, valueXField: 'pending_count', categoryYField: 'wing_name', tooltip: am5.Tooltip.new(root, { labelText: '{categoryY}: [bold]{valueX}[/]' }) }));
     series.columns.template.setAll({ fill: am5.color(0x6366f1), stroke: am5.color(0x6366f1), height: am5.percent(60), cornerRadiusTR: 3, cornerRadiusBR: 3 });
     series.bullets.push(() => am5.Bullet.new(root, { locationX: 1, sprite: am5.Label.new(root, { text: '{valueX}', fill: am5.color(c.value), centerY: am5.p50, centerX: am5.p0, dx: 6, fontSize: 11, fontWeight: '700', populateText: true }) }));
@@ -124,7 +122,6 @@ export default function ParliamentaryIssueDashboard({ notify }) {
   const error = loading ? null : result.error;
 
   const { kpi, lastDataUpdate, heatMap = [], wingWise = [], longPending = [] } = data || {};
-  const distData = useMemo(() => heatMap.filter((s) => !COMPLETED_STAGE_NAMES.includes(s.stage_name)), [heatMap]);
 
   if (loading) return (
     <div className="flex items-center justify-center py-20 text-slate-400 text-sm">
@@ -252,7 +249,7 @@ export default function ParliamentaryIssueDashboard({ notify }) {
           </div>
           <div className="p-5 flex-1 overflow-hidden flex flex-col">
             <div className="flex-1 min-h-0">
-              <StageDistributionChart data={distData} onRootReady={setDistChartRoot} />
+              <StageDistributionChart data={heatMap} onRootReady={setDistChartRoot} />
             </div>
             <p className="text-[9px] text-slate-600 dark:text-slate-300 text-center mt-1 flex-shrink-0">Number of issues →</p>
           </div>

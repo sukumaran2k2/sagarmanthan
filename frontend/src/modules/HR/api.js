@@ -237,6 +237,10 @@ export function fetchEmployeeList(roleId, orgId, depId = 'None', postId = 'None'
   return api.get(`/get-employee-list-by-organisation-dep-post/${roleId}/${orgId}/${depId}/${postId}`);
 }
 
+export function getAllEmployeeData(roleId, orgId) {
+  return api.get(`/get-hr-all-employee-data/${roleId}/${orgId}`);
+}
+
 // Vacant post codes of a post for a method of appointment (Add Employee)
 export function fetchPostCodesByPost(postId, methodOfAppointment) {
   return api.get(`/get-post-code-by-postId/${postId}/${methodOfAppointment}`);
