@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import RestrictedAccess from '../../../../../components/RestrictedAccess';
-import { fetchTrafficDashboardPart } from '../../../api';
+import { fetchTrafficDashboardOrganisations, fetchTrafficDashboardPart } from '../../../api';
 import { useTrafficPermissions } from '../../../hooks/useTrafficPermissions';
 import { useTrafficStore } from '../../../store/useTrafficStore';
 import { useNotifier, COMMON_TOASTS } from '../../../../../utils/notify';
@@ -40,7 +40,8 @@ function useDashboardPart(part, params, enabled, onError) {
  * KPI Major Ports → Traffic & Port Performance dashboard: a copy of the earlier portal's
  * trafficDashboard.html (sidebar panels, KPI cards, Overall table, Traffic KPI Summary and
  * the "Detail of KPI" drill-downs), with Overall at the top of the sidebar.
- * Organisation users see their own organisation only (the server enforces it).
+ * Organisation users start on their own organisation and may switch to any other (or All
+ * Organisations) to view it; the Traffic KPI Summary stays on their own organisation.
  */
 export default function TrafficDashboard({ triggerNotification }) {
   const { canView, isMinistryView } = useTrafficPermissions();
@@ -62,9 +63,23 @@ export default function TrafficDashboard({ triggerNotification }) {
   const [commodity, setCommodity] = useState('4');
   const [subcategoryId, setSubcategoryId] = useState('');
 
+  // Organisation users: their own organisation (masters hold only it) until they pick another
+  const [orgPick, setOrgPick] = useState(null);
+  const [allOrganisations, setAllOrganisations] = useState([]);
+
   useEffect(() => {
     if (canView) loadMasters();
   }, [canView, loadMasters]);
+
+  // The masters give organisation users only their own organisation; the dropdown lists all
+  useEffect(() => {
+    if (!canView || isMinistryView) return undefined;
+    let active = true;
+    fetchTrafficDashboardOrganisations()
+      .then((res) => { if (active) setAllOrganisations(res.data?.organisations || []); })
+      .catch(() => {}); // the dropdown then keeps just their own organisation
+    return () => { active = false; };
+  }, [canView, isMinistryView]);
 
   const panel = DASHBOARD_PANELS.find((p) => p.id === panelId) || DASHBOARD_PANELS[0];
   const labels = fiscalYearLabels(fiscalYear);
@@ -73,10 +88,15 @@ export default function TrafficDashboard({ triggerNotification }) {
     fy: fiscalYear || 'all',
     months: months.length ? months.join(',') : 'all',
   }), [fiscalYear, months]);
+  const ownOrganisation = organisations[0]?.organisation_id;
+  const orgUserPick = orgPick ?? (ownOrganisation != null ? String(ownOrganisation) : '');
+  const selectedOrganisationId = isMinistryView ? organisationId : orgUserPick;
   const cardParams = useMemo(() => ({
     ...baseFilters,
-    ...(isMinistryView && organisationId !== '0' ? { organisationId } : {}),
-  }), [baseFilters, isMinistryView, organisationId]);
+    ...(isMinistryView
+      ? (organisationId !== '0' ? { organisationId } : {})
+      : (orgUserPick ? { organisationId: orgUserPick } : {})),
+  }), [baseFilters, isMinistryView, organisationId, orgUserPick]);
   // The summary always covers every organisation the user may see
   const summaryParams = useMemo(() => ({
     ...baseFilters,
@@ -92,10 +112,12 @@ export default function TrafficDashboard({ triggerNotification }) {
   const coastal = useDashboardPart('coastal', cardParams, needsCards && panel.type !== 'overall', onError);
   const summary = useDashboardPart('summary', summaryParams, canView && panel.type === 'summary' && !drills.length, onError);
 
-  const organisationOptions = useMemo(() => (isMinistryView
-    ? [{ value: '0', label: 'All Organisations' }, ...organisations.map((o) => ({ value: String(o.organisation_id), label: o.organisation_name }))]
-    : organisations.map((o) => ({ value: String(o.organisation_id), label: o.organisation_name }))),
-  [isMinistryView, organisations]);
+  const organisationOptions = useMemo(() => {
+    const toOptions = (list) => list.map((o) => ({ value: String(o.organisation_id), label: o.organisation_name }));
+    if (isMinistryView) return [{ value: '0', label: 'All Organisations' }, ...toOptions(organisations)];
+    if (!allOrganisations.length) return toOptions(organisations);
+    return [{ value: '0', label: 'All Organisations' }, ...toOptions(allOrganisations)];
+  }, [isMinistryView, organisations, allOrganisations]);
 
   const groupId = SUMMARY_COMMODITIES.find((c) => c.value === commodity)?.groupId;
   const cargoTypeOptions = useMemo(() => [
@@ -119,8 +141,7 @@ export default function TrafficDashboard({ triggerNotification }) {
     setPanelId(id);
     setDrills([]);
   };
-  const ownOrganisationId = isMinistryView ? Number(organisationId) : Number(organisations[0]?.organisation_id) || 0;
-  const drillFilters = { ...baseFilters, organisationId: ownOrganisationId };
+  const drillFilters = { ...baseFilters, organisationId: Number(selectedOrganisationId) || 0 };
   const activeDrill = drills[drills.length - 1];
 
   return (
@@ -132,10 +153,13 @@ export default function TrafficDashboard({ triggerNotification }) {
           {panel.type !== 'summary' && (
             <DashboardSelect
               label="Organisation"
-              value={isMinistryView ? organisationId : organisationOptions[0]?.value ?? ''}
-              onChange={(value) => { setOrganisationId(value); setDrills([]); }}
+              value={selectedOrganisationId}
+              onChange={(value) => {
+                if (isMinistryView) setOrganisationId(value);
+                else setOrgPick(value);
+                setDrills([]);
+              }}
               options={organisationOptions.length ? organisationOptions : [{ value: '', label: '--Organisation--' }]}
-              disabled={!isMinistryView}
             />
           )}
           <DashboardSelect label="Financial Year" value={fiscalYear} onChange={changeFiscalYear} options={FY_OPTIONS} />

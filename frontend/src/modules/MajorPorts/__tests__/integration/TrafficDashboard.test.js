@@ -46,6 +46,12 @@ jest.mock('../../api', () => ({
     data: { commodityGroups: [], commodities: [], organisations: [{ organisation_id: 1, organisation_name: 'Chennai Port Authority' }] },
   })),
   fetchTrafficDashboardPart: jest.fn(),
+  fetchTrafficDashboardOrganisations: jest.fn(() => Promise.resolve({
+    data: { organisations: [
+      { organisation_id: 1, organisation_name: 'Chennai Port Authority' },
+      { organisation_id: 9, organisation_name: 'Paradip Port Authority' },
+    ] },
+  })),
 }));
 
 const RESPONSES = {
@@ -123,11 +129,20 @@ describe('Traffic & Port Performance dashboard', () => {
     ['Direct EXIM', 'Total Transshipment', 'Total Cargo', 'RO-Pax Traffic'].forEach((h) => expect(headers).toContain(h));
   });
 
-  it('locks the organisation filter for organisation users', async () => {
+  it('starts organisation users on their own organisation and lets them view others', async () => {
     mockPermissions.current = { canView: true, isMinistryView: false };
     render(<TrafficDashboard triggerNotification={jest.fn()} />);
-    await waitFor(() => expect(screen.getByLabelText('Organisation')).toBeDisabled());
-    await waitFor(() => expect(screen.getByLabelText('Organisation')).toHaveDisplayValue('Chennai Port Authority'));
+    const select = screen.getByLabelText('Organisation');
+    await waitFor(() => expect(select).toHaveDisplayValue('Chennai Port Authority'));
+    expect(select).toBeEnabled();
+    await waitFor(() => expect(within(select).getAllByRole('option').map((o) => o.textContent))
+      .toEqual(['All Organisations', 'Chennai Port Authority', 'Paradip Port Authority']));
+    await waitFor(() => expect(fetchTrafficDashboardPart).toHaveBeenCalledWith('traffic', expect.objectContaining({ organisationId: '1' }), expect.anything()));
+
+    fireEvent.change(select, { target: { value: '9' } });
+    await waitFor(() => expect(fetchTrafficDashboardPart).toHaveBeenCalledWith('traffic', expect.objectContaining({ organisationId: '9' }), expect.anything()));
+    fireEvent.change(select, { target: { value: '0' } });
+    await waitFor(() => expect(fetchTrafficDashboardPart).toHaveBeenCalledWith('traffic', expect.objectContaining({ organisationId: '0' }), expect.anything()));
   });
 });
 

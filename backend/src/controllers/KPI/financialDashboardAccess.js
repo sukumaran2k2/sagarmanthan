@@ -1,5 +1,5 @@
 import Legacy from "./financialDashboardLegacy.js";
-import { cleanFiscalYear, cleanMonths, resolveOrganisation } from "./trafficDashboardAccess.js";
+import { cleanFiscalYear, cleanMonths, resolveDashboardOrganisation } from "./trafficDashboardAccess.js";
 
 /**
  * KPI Major Ports — Financial dashboard endpoints.
@@ -8,8 +8,8 @@ import { cleanFiscalYear, cleanMonths, resolveOrganisation } from "./trafficDash
  * (financialDashboardLegacy.js, copied verbatim). The detail handler builds its SQL column
  * from the KPI name, so every request passes through here first:
  *  - the year and months are reduced to known shapes, the KPI to one of the eight cards;
- *  - organisation users always get their own organisation, whatever they ask for;
- *    ministry users may pick any organisation (0 = all).
+ *  - ministry users and organisation users may pick any organisation (0 = all) to view;
+ *    organisation users get their own when they pick none (see resolveDashboardOrganisation).
  * Routes add login and KPI_MAJOR_PORTS read permission (see routes.js).
  */
 
@@ -32,7 +32,7 @@ function sendError(res, status, message) {
 /** Validated values are handed over as both req.params and req.query, as the earlier handlers read both. */
 function legacyHandler(handler, { needsKpi = false } = {}) {
     return (req, res) => {
-        const scope = resolveOrganisation(req);
+        const scope = resolveDashboardOrganisation(req);
         if (!scope.ok) return sendError(res, 403, "Your account is not linked to an organisation.");
 
         const kpi = String(req.query.kpi ?? "").trim();
