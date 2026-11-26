@@ -1714,6 +1714,7 @@ router.get('/kpi/traffic/access', auth, requireModulePermission(TRAFFIC_MODULE, 
 router.post('/kpi/traffic/access', auth, requireModulePermission(TRAFFIC_MODULE, "create"), TrafficEntry.createTrafficAccessGrant);
 router.patch('/kpi/traffic/access/:accessId/revoke', auth, requireModulePermission(TRAFFIC_MODULE, "update"), TrafficEntry.revokeTrafficAccessGrant);
 // Traffic dashboard: the earlier portal's queries behind login, permission and organisation scope
+router.get('/kpi/traffic/dashboard/organisations', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficEntry.getTrafficDashboardOrganisations);
 router.get('/kpi/traffic/dashboard/traffic', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.traffic);
 router.get('/kpi/traffic/dashboard/cargo', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.cargo);
 router.get('/kpi/traffic/dashboard/performance', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.performance);
@@ -1762,6 +1763,7 @@ router.post('/kpi/financial-parameters/targets', auth, requireModulePermission(T
 router.put('/kpi/financial-parameters/targets/:id', auth, requireModulePermission(TRAFFIC_MODULE, "update"), FinancialParameterEntry.updateFinancialParameterTarget);
 router.delete('/kpi/financial-parameters/targets/:id', auth, requireModulePermission(TRAFFIC_MODULE, "delete"), FinancialParameterEntry.deleteFinancialParameterTarget);
 // Financial dashboard: the earlier portal's queries behind login, read permission and input validation
+router.get('/kpi/financial-parameters/dashboard/organisations', auth, requireModulePermission(TRAFFIC_MODULE, "read"), FinancialParameterEntry.getFinancialDashboardOrganisations);
 router.get('/kpi/financial-parameters/dashboard/summary', auth, requireModulePermission(TRAFFIC_MODULE, "read"), FinancialDashboard.summary);
 router.get('/kpi/financial-parameters/dashboard/drill', auth, requireModulePermission(TRAFFIC_MODULE, "read"), FinancialDashboard.drill);
 

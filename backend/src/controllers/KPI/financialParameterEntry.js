@@ -209,6 +209,36 @@ async function getFinancialParameterMasters(req, res) {
     }
 }
 
+/**
+ * Organisations of the financial dashboard's Organisation dropdown, for every user: the same
+ * list ministry users get from getFinancialParameterMasters. Organisation users only view other
+ * organisations on the dashboard; getFinancialParameterMasters (entry forms) still gives them their own.
+ */
+let dashboardOrganisationsCache = null; // { rows, at }
+async function getFinancialDashboardOrganisations(req, res) {
+    if (dashboardOrganisationsCache && Date.now() - dashboardOrganisationsCache.at < MASTERS_TTL_MS) {
+        return res.status(200).json({ organisations: dashboardOrganisationsCache.rows });
+    }
+    try {
+        const conn = await pool;
+        const request = conn.request();
+        request.input("portCategoryId", sql.Int, PORT_ORG_CATEGORY_ID);
+        const { recordset } = await request.query(`
+            SELECT org.organisation_id, org.organisation_name
+            FROM mmt_organisation org
+            WHERE org.organisation_category_id = @portCategoryId
+               OR EXISTS (SELECT 1 FROM tbl_financial_parameter f WHERE f.organisation_id = org.organisation_id)
+               OR EXISTS (SELECT 1 FROM tbl_financial_paramaters_mopsw_target t WHERE t.organisation_id = org.organisation_id)
+            ORDER BY CASE WHEN org.organisation_category_id = @portCategoryId THEN 0 ELSE 1 END, org.organisation_name
+        `);
+        dashboardOrganisationsCache = { rows: recordset, at: Date.now() };
+        return res.status(200).json({ organisations: recordset });
+    } catch (error) {
+        console.error("Error fetching financial dashboard organisations:", error);
+        return sendError(res, 500, "Organisations could not be loaded.");
+    }
+}
+
 const ACTUAL_SELECT_SQL = `
     f.financial_parameter_id AS id, ${FY_SQL("f")} AS fiscal_year, ${MONTH_SQL("f")} AS month,
     f.organisation_id, org.organisation_name,
@@ -597,6 +627,7 @@ async function deleteFinancialParameterTarget(req, res) {
 
 const FinancialParameterEntry = {
     getFinancialParameterMasters,
+    getFinancialDashboardOrganisations,
     getFinancialParameterActuals,
     getFinancialParameterActual,
     createFinancialParameterActual,
