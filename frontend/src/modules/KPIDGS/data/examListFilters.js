@@ -1,8 +1,9 @@
 import { MONTHS, EXAM_TYPES } from './periodOptions';
 
-// Data List filter rules for K-2.3.1 (Year, Month), K-2.3.2 (Year, Month, Type) and K-2.6
-// (MMD-wise: Year, Month, MMD; Vessel-wise: Year, Month). The old portal's lists had these
-// same filters. Logic only; the button and panel are in components/ExamListFilters.jsx.
+// Data List filter rules for K-2.3.1 (Year, Month), K-2.3.2 (Year, Month, Type), K-2.4 (Year,
+// Month; the type is chosen with the tabs) and K-2.6 / K-2.7 (MMD-wise: Year, Month, MMD;
+// Vessel-wise: Year, Month). The old portal's lists had these same filters. Logic only; the
+// button and panel are in components/ExamListFilters.jsx.
 
 // Filters each Data List offers
 export const EXAM_FILTER_FIELDS = {
@@ -12,6 +13,12 @@ export const EXAM_FILTER_FIELDS = {
   'flag-state-inspection-vessel-wise': ['year', 'month'],
   'port-state-inspection-mmd-wise': ['year', 'month', 'mmd'],
   'port-state-inspection-vessel-wise': ['year', 'month'],
+  'entry-exit-of-candidates': ['year', 'month'], // K-2.4: the type is chosen with the tabs
+  // K-2.5: one entry per year (+ casualty type, chosen with the tabs)
+  'marine-casualty-previous-current': ['year'],
+  'marine-casualty-yearwise': ['year'],
+  'marine-casualty-country-wise': ['year'],
+  'marine-casualty-vessel-wise': ['year'],
 };
 
 // Old portal order: financial year, April first
