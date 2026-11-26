@@ -11,7 +11,7 @@ const LIST_FETCH_BY_SLUG = {
   'flagging-of-vessels': () => api.fetchKpi2_1_List(),
   'sbfap': () => api.fetchKpi2_2_List(),
   'exam-overall-performance': () => api.fetchKpi2_3_2_List(),
-  'entry-exit-of-candidates': () => api.fetchKpi2_3_1_List(),
+  'entry-exit-of-candidates': () => api.fetchEntryExitList(),
   // K-2.5 marine casualty: endpoints TBD; fall back to parent section list.
   'marine-casualty-previous-current': () => api.fetchKpi2_1_List(),
   'marine-casualty-yearwise': () => api.fetchKpi2_1_List(),

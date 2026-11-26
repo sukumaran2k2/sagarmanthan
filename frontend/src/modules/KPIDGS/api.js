@@ -123,18 +123,52 @@ export function updateKpi2_3_1(payload) {
   return api.put('/edit-2-3-1-data', payload).then(clearingCache);
 }
 
-// K-2.4 Entry and Exit of Candidates
-export function createEntryExit(payload) {
-  return api.post('/add-entry-exit-data', payload);
+// K-2.4 Entry and Exit of Candidates (one entry per year + month + grade)
+// 205 = that year / month / grade already has an entry, 201 = free (as K-2.3)
+export function checkEntryExit(year, month, grade) {
+  return api.get(`/checkData-entry-exit/${year}/${month}/${grade}`);
 }
+export function createEntryExit(payload) {
+  return api.post('/add-entry-exit-data', payload).then(clearingCache);
+}
+// Cached for a minute (dgsRequestCache): reopening the Data List is instant
 export function fetchEntryExitList(params = {}) {
-  return api.get('/get-entry-exit-data', { params });
+  return cachedGet(`entry-exit-list ${JSON.stringify(params)}`, () => api.get('/get-entry-exit-data', { params }));
 }
 export function fetchEntryExitById(id) {
   return api.get(`/get-entry-exit-data-by-id/${id}`);
 }
 export function updateEntryExit(payload) {
-  return api.put('/update-entry-exit-data-by-id', payload);
+  return api.put('/update-entry-exit-data-by-id', payload).then(clearingCache);
+}
+
+// ---- K-2.5 Marine Casualty ----
+// sheet: 'incident-types' (K-2.5.1), 'countries' (K-2.5.3), 'vessels' (K-2.5.4)
+export function fetchMarineSheetList(sheet) {
+  return api.get(`/kpi-dgs-2-5/${sheet}/list`);
+}
+// The rows to fill for a year + casualty type, with the saved counts when there is an entry
+export function fetchMarineSheetForm(sheet, year, casualtyType) {
+  return api.get(`/kpi-dgs-2-5/${sheet}/form`, { params: { year, casualtyType } });
+}
+// payload: { year, casualtyType, rows: [{ name, months: [12 counts] }] }
+export function createMarineSheet(sheet, payload) {
+  return api.post(`/kpi-dgs-2-5/${sheet}`, payload);
+}
+export function updateMarineSheet(sheet, payload) {
+  return api.put(`/kpi-dgs-2-5/${sheet}`, payload);
+}
+export function fetchMarineYearWiseList() {
+  return api.get('/kpi-dgs-2-5/year-wise/list');
+}
+export function fetchMarineYearWiseEntry(year) {
+  return api.get('/kpi-dgs-2-5/year-wise/entry', { params: { year } });
+}
+export function createMarineYearWise(payload) {
+  return api.post('/kpi-dgs-2-5/year-wise', payload);
+}
+export function updateMarineYearWise(payload) {
+  return api.put('/kpi-dgs-2-5/year-wise', payload);
 }
 export function fetchDgsType() {
   return api.get('/mmt-dropdown/mmt_kpi_dgs_type');
@@ -287,15 +321,19 @@ export const fetchReportKpi2_3_2 = () => api.get('/kpi-dgs-2-3-2-report');
 export const fetchReportKpi2_3_3 = () => api.get('/kpi-dgs-2-3-3-report');
 
 // K-2.4.x Entry and Exit
-export const fetchReportKpi2_4_1 = () => api.get('/kpi-dgs-1-1-report');
-export const fetchReportKpi2_4_2 = () => api.get('/kpi-dgs-1-2-report');
-export const fetchReportKpi2_4_3 = () => api.get('/kpi-dgs-1-3-report');
+// K-2.4.1 abstract for one month ({ year, month }; none = the latest month with entries)
+export const fetchReportKpi2_4_1 = (params = {}) => api.get('/get-abstract-entry-exit-report', { params });
+// K-2.4.2 month by month for one financial year ({ fy: start year }; none = the latest one)
+export const fetchReportKpi2_4_2 = (params = {}) => api.get('/get-monthly-entry-exit-report', { params });
+// K-2.4.3 year by year
+export const fetchReportKpi2_4_3 = () => api.get('/get-yearly-entry-exit-report');
 
-// K-2.5.x Marine Casualty (currently sharing legacy endpoints; replace when distinct)
-export const fetchReportKpi2_5_1 = () => api.get('/kpi-dgs-1-4-report');
-export const fetchReportKpi2_5_2 = () => api.get('/kpi-dgs-1-5-report');
-export const fetchReportKpi2_5_3 = () => api.get('/kpi-dgs-1-4-report');
-export const fetchReportKpi2_5_4 = () => api.get('/kpi-dgs-1-5-report');
+// K-2.5.x Marine Casualty
+// K-2.5 reports: a year (params.year; default the latest) against the one before it, by quarter
+export const fetchReportKpi2_5_1 = (params = {}) => api.get('/kpi-dgs-2-5/report/incident-types', { params });
+export const fetchReportKpi2_5_2 = () => api.get('/kpi-dgs-2-5/report/year-wise');
+export const fetchReportKpi2_5_3 = (params = {}) => api.get('/kpi-dgs-2-5/report/countries', { params });
+export const fetchReportKpi2_5_4 = (params = {}) => api.get('/kpi-dgs-2-5/report/vessels', { params });
 
 // K-2.6.x Flag State Inspection
 export const fetchReportKpi2_6_1 = () => api.get('/kpi-dgs-2-6-1-report');
