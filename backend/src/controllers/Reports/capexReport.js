@@ -128,11 +128,25 @@ async function capexReportData(req, res) {
         `mmt_organisation.organisation_category_id IN (3,6,5)${whereSql}`
       )
     );
+    // Own report sections, as in the old portal (sagarmalaALHW / secretariatEconomic):
+    // 9 = Sagarmala + ALHW Projects, 8 = Secretariat-Economic Service (capital)
+    const sagarmalaALHWQuery = await request.query(
+      detailedReportSelectSql(
+        `mmt_organisation.organisation_category_id = 9${whereSql}`
+      )
+    );
+    const secretariatEconomicQuery = await request.query(
+      detailedReportSelectSql(
+        `mmt_organisation.organisation_category_id = 8${whereSql}`
+      )
+    );
 
     res.json({
       majorPorts: majorPortsQuery.recordset,
       otherOrganisations: otherOrganisations.recordset,
       shippingsectorOrganisations: shippingsectorOrganisationsQuery.recordset,
+      sagarmalaALHW: sagarmalaALHWQuery.recordset,
+      secretariatEconomic: secretariatEconomicQuery.recordset,
     });
   } catch (err) {
     console.log(err);
