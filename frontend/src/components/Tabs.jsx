@@ -45,6 +45,8 @@ import {
   ListTodo,
   FolderSync,
   FilePieChart,
+  Gavel,
+  Handshake,
   UserX,
   UserPlus,
   BookOpen,
@@ -220,6 +222,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           title: 'DGS',
           icon: Anchor,
           items: [
+            m('KPI_DGS', { label: 'MMD Shipyard', tab: 'MMD SHIPYARD', icon: ClipboardList }),
             m('KPI_DGS', { label: 'MMD Master', tab: 'MMD Master', icon: ClipboardList }),
             m('KPI_DGS', { label: 'Input Form', tab: 'DGS Input Form', icon: FileEdit }),
             m('KPI_DGS', { label: 'Data List', tab: 'DGS Data List', icon: ClipboardList }),
@@ -405,6 +408,20 @@ export default function Tabs({ activeTab, setActiveTab }) {
       align: 'left-0',
       width: 'w-[260px]',
       items: [
+        m('COURT_CASES', {
+          label: 'Court Cases', icon: Gavel,
+          targetTab: 'Court cases - Arbitration',
+          clickableHeader: true,
+          subItems: [
+            { label: 'Arbitration',  tab: 'Court cases - Arbitration',  icon: Handshake },
+            { label: 'Litigation',   tab: 'Court cases - Litigation',   icon: Gavel },
+            { label: 'Conciliation', tab: 'Court cases - Conciliation', icon: Users },
+            ...withCreate(canCreateIn.COURT_CASES, [
+              { label: 'Input Form', tab: 'Court cases - Input Form', icon: FileEdit },
+            ]),
+            { label: 'Reports',      tab: 'Court cases - Reports',      icon: FilePieChart },
+          ]
+        }),
         m('BILLS_PRE_CONSTITUTION', {
           label: 'Bills/PreConstitutions Act', icon: BookMarked,
           targetTab: 'Bills/PreConstitutions Act',

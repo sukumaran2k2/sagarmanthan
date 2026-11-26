@@ -14,9 +14,8 @@ const INPUT_FORM_INDEX = [
     label: 'DGS- Shipbuilding Financial Assistance Policy (SBFAP)',
     isGroup: true,
     children: [
-      { code: 'K-2.2.A', label: 'Shipyard List', slug: 'sbfap-shipyard-list' },
-      { code: 'K-2.2.B', label: 'In-Principle Approval Application', slug: 'sbfap-inprincipal-approval' },
-      { code: 'K-2.2.C', label: 'Financial Assistance Application', slug: 'sbfap-financial-assistance' },
+      { code: 'K-2.2.A', label: 'In-Principle Approval Application', slug: 'sbfap-inprincipal-approval' },
+      { code: 'K-2.2.B', label: 'Financial Assistance Application', slug: 'sbfap-financial-assistance' },
     ],
   },
   {

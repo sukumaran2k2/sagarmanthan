@@ -1995,6 +1995,9 @@ router.get('/get-kpi-dgs-k-1-4-3-report', kpiDgsPortPerformanceTab.getPortPerfor
 // KPI DGS report 2.0
 router.get('/kpi-dgs-2-0-report', kpiDgs2_0Tab.getKpiDgs2_0);
 router.get('/kpi-dgs-2-1-report', kpiDgs2_0Tab.getKpiDgs2_1);
+router.post('/submit-shipyard-data', kpiDgs2_0Tab.submitShipyard);
+router.post('/update-shipyard-data', kpiDgs2_0Tab.updateShipyard);
+router.post('/update-shipyard-status', kpiDgs2_0Tab.updateShipyardStatus);
 
 // K-2.1.1 and K-2.1.2 — Flagging of Vessels (Addition / Deletion) MMD-wise reports
 router.get('/kpi-dgs-flagging-addition-report', kpiDgsFlaggingReports.getFlaggingAdditionReport);

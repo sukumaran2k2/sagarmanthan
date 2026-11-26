@@ -41,8 +41,17 @@ export function updateKpi2_1(payload) {
 
 // ---- K-2.2 SBFAP (Input) ----
 export function fetchShipyardList() {
-  // mmt_shipyard is exposed via the generic dropdown endpoint as { shipyard_id, shipyard_name }.
-  return api.get('/mmt-dropdown/mmt_shipyard');
+  return api.get('/mmt/mmt_shipyard');
+
+}
+export function createShipyard(shipyardName) {
+  return api.post('/submit-shipyard-data', { shipyardName, status: 1 });
+}
+export function updateShipyard(shipyardId, shipyardName) {
+  return api.post('/update-shipyard-data', { shipyardId, shipyardName });
+}
+export function updateShipyardStatus(shipyardId, status) {
+  return api.post('/update-shipyard-status', { shipyardId, status });
 }
 export function fetchKpi2_2_List(params = {}) {
   return api.get('/kpi2-2-list', { params });

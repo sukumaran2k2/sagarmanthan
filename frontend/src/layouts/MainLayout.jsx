@@ -75,6 +75,7 @@ export const ROUTE_MAP = {
   'DGLL Input Form': 'kpi/dgll?tab=add',
   'DGLL Data List': 'kpi/dgll?tab=list',
   'DGLL Reports': 'kpi/dgll?tab=report',
+  'MMD Shipyard': 'kpi/dgs/mmd-shipyard',
   'MMD Master': 'kpi/dgs/mmd-master',
   'DGS Input Form': 'kpi/dgs/input-forms',
   'DGS Data List': 'kpi/dgs/data-list',
@@ -126,9 +127,15 @@ export const ROUTE_MAP = {
   'GEM Procurements': 'governance/gem-procurements/total',
 
   // Legal nested routes
-  'Courtcases': 'legal/courtcases',
+  'Court cases': 'legal/court-cases',
+  'Court cases - Arbitration': 'legal/court-cases/arbitration',
+  'Court cases - Litigation': 'legal/court-cases/litigation',
+  'Court cases - Conciliation': 'legal/court-cases/conciliation',
+  'Court cases - Input Form': 'legal/court-cases/input-form',
+  'Court cases - Reports': 'legal/court-cases/reports',
   'Bills/PreConstitutions Act': 'legal/acts-rules',
   'Acts & Rules': 'legal/acts-and-rules',
+
 
   // Strategies nested routes
   'MIV 2030': 'strategies/miv-2030/dashboard',
@@ -311,6 +318,7 @@ if (
   if (cleanSlug.startsWith('kpi/major-ports/major-ports-reports')) return 'Major Ports Reports';
   if (cleanSlug.startsWith('kpi/major-ports/major-ports-entry-access')) return 'Major Ports Entry Access';
   if (cleanSlug.startsWith('kpi/major-ports')) return 'Major Ports Dashboard';
+  if (cleanSlug.startsWith('kpi/dgs/mmd-shipyard')) return 'MMD Shipyard';
   if (cleanSlug.startsWith('kpi/dgs/input-forms')) return 'DGS Input Form';
   if (cleanSlug.startsWith('kpi/dgs/data-list')) return 'DGS Data List';
   if (cleanSlug.startsWith('kpi/dgs/reports')) return 'DGS Reports';
@@ -371,6 +379,7 @@ const getBreadcrumbs = (tab) => {
     'Major Ports Input Form': ['KPI', 'Major Ports'],
     'Major Ports Entry Access': ['KPI', 'Major Ports'],
     'Major Ports Reports': ['KPI', 'Major Ports'],
+    'MMD Shipyard': ['KPI', 'DGS'],
     'MMD Master': ['KPI', 'DGS'],
     'DGS Input Form': ['KPI', 'DGS'],
     'DGS Data List': ['KPI', 'DGS'],
@@ -437,7 +446,10 @@ const getBreadcrumbs = (tab) => {
   const nmpItems = ['National Monetisation Pipeline', 'NMP Dashboard', 'NMP Data List', 'NMP Input Form'];
   if (nmpItems.includes(tab)) return ['Home', 'Finance', 'National Monetisation Pipeline', tab === 'National Monetisation Pipeline' ? 'Dashboard' : tab];
 
-  const legalItems = ['Courtcases', 'Bills/PreConstitutions Act', 'Acts & Rules'];
+  const courtCaseSubItems = ['Court cases - Arbitration', 'Court cases - Litigation', 'Court cases - Conciliation', 'Court cases - Input Form', 'Court cases - Reports'];
+  if (courtCaseSubItems.includes(tab)) return ['Home', 'Legal', 'Court cases', tab.replace('Court cases - ', '')];
+
+  const legalItems = ['Court cases', 'Bills/PreConstitutions Act', 'Acts & Rules'];
   if (legalItems.includes(tab)) return ['Home', 'Legal', tab];
 
   const mivItems = ['MIV 2030', 'MIV Dashboard', 'MIV Data List', 'MIV Input Form', 'MIV Meetings', 'MIV Reports', 'MIV Report', 'MIV Org Report', 'MIV Theme Report', 'Organisation Report', 'Theme Report'];

@@ -99,8 +99,8 @@ export const MODULE_PAGES = {
   },
 
   KPI_DGS: {
-    tabs: ['MMD Master', 'DGS Input Form', 'DGS Data List', 'DGS Reports'],
-    uiTabs: ['MMD Master', 'DGS Input Form', 'DGS Data List', 'DGS Reports'],
+    tabs: ['MMD Shipyard','MMD Master', 'DGS Input Form', 'DGS Data List', 'DGS Reports'],
+    uiTabs: ['MMD Shipyard','MMD Master', 'DGS Input Form', 'DGS Data List', 'DGS Reports'],
   },
 
   KPI_DGLL: {
@@ -288,7 +288,22 @@ export const MODULE_PAGES = {
   },
 
   COURT_CASES: {
-    tabs: ['Courtcases'],
+    tabs: [
+      'Court cases',
+      'Court cases - Arbitration',
+      'Court cases - Litigation',
+      'Court cases - Conciliation',
+      'Court cases - Input Form',
+      'Court cases - Reports',
+    ],
+    uiTabs: [
+      'Court cases',
+      'Court cases - Arbitration',
+      'Court cases - Litigation',
+      'Court cases - Conciliation',
+      'Court cases - Input Form',
+      'Court cases - Reports',
+    ],
   },
 
   BILLS_PRE_CONSTITUTION: {

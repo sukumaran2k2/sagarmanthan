@@ -1,9 +1,10 @@
 import { useMemo } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { Anchor, FileEdit, FilePieChart, ClipboardList } from 'lucide-react';
+import { Anchor, FileEdit, FilePieChart, ClipboardList, Ship } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
 import { useKPIDGSPermissions } from './hooks/useKPIDGSPermissions';
+import MMDShipyard from './pages/MMDShipyard';
 import MMDMaster from './pages/MMDMaster';
 import InputFormIndex from './pages/InputFormIndex';
 import DataListIndex from './pages/DataListIndex';
@@ -19,6 +20,7 @@ export default function KPIDGSView({ triggerNotification }) {
 
   const currentTab = useMemo(() => {
     const p = location.pathname;
+    if (p.includes('/mmd-shipyard')) return 'mmd-shipyard';
     if (p.includes('/input-forms')) return 'input-forms';
     if (p.includes('/data-list')) return 'data-list';
     if (p.includes('/reports')) return 'reports';
@@ -26,6 +28,7 @@ export default function KPIDGSView({ triggerNotification }) {
   }, [location.pathname]);
 
   const tabs = [
+    { id: 'mmd-shipyard', label: 'MMD Shipyard', icon: Ship },
     { id: 'mmd-master', label: 'MMD Master', icon: Anchor },
     { id: 'input-forms', label: 'Input Form', icon: FileEdit },
     { id: 'data-list', label: 'Data List', icon: ClipboardList },
@@ -52,6 +55,7 @@ export default function KPIDGSView({ triggerNotification }) {
 
       <Routes>
         <Route index element={<Navigate to="mmd-master" replace />} />
+        <Route path="mmd-shipyard" element={<MMDShipyard triggerNotification={triggerNotification} />} />
         <Route path="mmd-master" element={<MMDMaster triggerNotification={triggerNotification} />} />
         {/* The index pages render a split-pane (list on left, selected leaf on right)
             and read the slug from the URL, so both /input-forms and /input-forms/:slug
