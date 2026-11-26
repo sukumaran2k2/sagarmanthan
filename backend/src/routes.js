@@ -65,7 +65,6 @@ import revisedHrPost from "./controllers/HR/revisedHrPost.js";
 import revisedHrDepartment from "./controllers/HR/revisedHrDepartment.js";
 import hrHelperTab from "./controllers/HR/hrHelperFunctions.js";
 import { pinOwnOrganisation, pinOwnRole } from "./controllers/HR/hrHelperFunctions.js";
-import hrReportInputTab from "./controllers/HR/hrReportInput.js";
 import otherOrgVacancyDetailsTab from "./controllers/HR/otherOrgVacancyDetails.js";
 
 import postRequestTab from "./controllers/HR/postRequest.js";
@@ -1101,8 +1100,6 @@ router.get("/revised-hr-management-post/:Id", auth, requireModulePermission("HR_
 router.get("/get-hr-employee-data/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getHrEmployee);
 router.get("/get-hr-employee-by-id/:employeeMasterID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getHrEmployeeByID);
 router.get('/get-hr-department-dropdown-list', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getDepartmentList);
-router.post("/submit-employee-leave-history", auth, requireModulePermission("HR_MANAGEMENT", "update"), hrEmployeeTab.submitEmpLeaveHistory);
-router.get("/get-emp-leave-history-details/:employeeID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getEmpLeaveHistoryData);
 router.get("/get-post-names-by-org/:selectedOrganisationId", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getPostNamesByOrgId);
 router.post('/update-employee-status/:status/:empID/:referenceID', auth, requireModulePermission("HR_MANAGEMENT", "update"), hrEmployeeTab.updateEmployeeStatus);
 
@@ -1204,28 +1201,6 @@ router.put("/update-activity-data", auth, requireModulePermission("HR_MANAGEMENT
 
 router.get("/get-deputation-end-employees/:employeeId/:empMasterId/:empReferenceId", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getDeputationEndEmployees);
 
-
-router.post("/submit-report-input-1-5", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrReportInputTab.createHrReportInput1_5);
-router.post("/submit-report-input-1-6", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrReportInputTab.createHrReportInput1_6);
-router.post("/add-hr-vacancy-report-input-1-2", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrReportInputTab.createHrvacancyData);
-router.post("/add-hr-vacancy-report-input-1-3", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrReportInputTab.createHrreport1_3);
-router.post("/add-hr-vacancy-report-input-1-4", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrReportInputTab.createHrreportinput1_4);
-router.post("/add-hr-vacancy-report-input-1-8", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrReportInputTab.createHrreportinput1_8);
-router.post("/submit-report-input-1-7", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrReportInputTab.createHrreportinput1_7);
-router.post("/add-hr-vacancy-report-input-1-1", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrReportInputTab.submitReportInput1_1);
-router.get("/check-financial-hr-report-input", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportInputTab.checkFinancialYearExists);
-
-//update
-router.get("/hr-report-input-list/:userID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportInputTab.getHrreportInputformList);
-router.get('/update-Hr-report-Input/:organisationID/:financialYear/:month', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportInputTab.getUpdatehrReportdata);
-router.get('/update-Hr-report-Input-update1_3/:organisationID/:financialYear/:month', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportInputTab.getUpdatehrReport1_3data);
-router.get('/update-Hr-report-Input-update1_4/:organisationID/:financialYear/:month', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportInputTab.getUpdatehrReport1_4data);
-router.get('/update-Hr-report-Input-update1_6/:organisationID/:financialYear/:month', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportInputTab.getUpdatehrReport1_6data);
-router.get('/update-Hr-report-Input-update1_8/:organisationID/:financialYear/:month', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportInputTab.getUpdatehrReport1_8data);
-router.get('/update-Hr-report-Input-update1_7/:organisationID/:financialYear/:month', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportInputTab.getUpdatehrReport1_7data);
-router.get('/update-Hr-report-Input-update1_5/:organisationID/:financialYear/:month', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportInputTab.getUpdatehrReport1_5data);
-router.post("/update-hr-vacancy-report-input-1-1", auth, requireModulePermission("HR_MANAGEMENT", "update"), hrReportInputTab.updateReportInput1_1);
-router.get('/update-Hr-report-Input1_1/:organisationID/:financialYear', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportInputTab.getUpdatehrReport1_1data);
 // -------------------------------------------------------------------------------------------------------
 router.get('/get-hr-other-org-vacany-details/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), otherOrgVacancyDetailsTab.getOtherOrgVacancyDetails);
 router.get('/get-hr-dashboard-content-other-org/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), otherOrgVacancyDetailsTab.getHRDashboardContentOtherOrgData);
@@ -1504,15 +1479,6 @@ router.get("/hrsecond-report/:orgCatDrop/:orgDrop", auth, requireModulePermissio
 router.get("/hrdetailed-revival-report/:organisationID/:classID/:type/:postID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrReportTab.hrDetailedRevivalReport);
 router.get("/hrdetailed-status-report/:organisationID/:classID/:type/:postID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrReportTab.hrDetailedStatusReport);
 router.get("/hrdetailed-status-filling-report/:organisationID/:type", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrReportTab.detailedHrStatusFillingReport);
-
-router.get("/hrfirst-report-other-org/:roleID/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnRole(), pinOwnOrganisation(), hrReportInputTab.hrFirstReportOtherOrg);
-router.get("/hrsecond-report-other-org/:roleID/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnRole(), pinOwnOrganisation(), hrReportInputTab.hrSecondReportOtherOrg);
-router.get("/hrsixth-report-other-org/:roleID/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnRole(), pinOwnOrganisation(), hrReportInputTab.hrSixthReportOtherOrg);
-router.get("/hrseventh-report-other-org/:roleID/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnRole(), pinOwnOrganisation(), hrReportInputTab.hrSeventhReportOtherOrg);
-router.get("/hreighth-report-other-org/:roleID/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnRole(), pinOwnOrganisation(), hrReportInputTab.hrEighthReportOtherOrg);
-router.get("/hrabstarct-report-other-org/:roleID/:organisationID",auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnRole(), pinOwnOrganisation(), hrReportInputTab.hrAbstarctReportOtherOrg);
-router.get("/hrfourth-report-other-org/:roleID/:organisationID",auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnRole(), pinOwnOrganisation(), hrReportInputTab.hrFourthReportOtherOrg);
-router.get("/hrfifth-report-other-org/:roleID/:organisationID",auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnRole(), pinOwnOrganisation(), hrReportInputTab.hrFifthReportOtherOrg);
 
 // Capex report 
 router.get("/capex-report/:selectedYear", auth, requireStrictModulePermission("CAPEX", "read"), capexReportTab.capexReportData);
