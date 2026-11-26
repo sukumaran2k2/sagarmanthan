@@ -192,84 +192,6 @@ async function getDepartmentList(req, res) {
     }
 }
 
-async function submitEmpLeaveHistory(req, res) {
-    const leaveData = req.body; // Expecting an array of leave data objects
-    if (!Array.isArray(leaveData) || leaveData.length === 0) {
-        return res.status(400).send({ message: "Invalid leave data" });
-    }
-
-    const conn = await pool;
-    const transaction = conn.transaction();
-    const request = transaction.request();
-
-    try {
-        await transaction.begin();
-
-        const employeeID = leaveData[0].empID;
-        const empMasterID = leaveData[0].empMasterID;
-        request.input("employeeID", employeeID);
-        request.input("empMasterID", empMasterID);
-
-        await request.query(`
-            DELETE FROM tbl_emp_leave_history
-            WHERE emp_id = @employeeID;
-        `);
-
-        let insertQuery = `
-            INSERT INTO tbl_emp_leave_history (
-                emp_id, emp_master_id, leave_year, leave_q1, leave_q2, leave_q3, leave_q4
-            ) VALUES 
-        `;
-        const values = [];
-        leaveData.forEach((leave, index) => {
-            const { year, q1, q2, q3, q4 } = leave;
-            insertQuery += `(@employeeID,@empMasterID, @year${index}, @q1${index}, @q2${index}, @q3${index}, @q4${index}),`;
-            request.input(`year${index}`, year);
-            request.input(`q1${index}`, q1);
-            request.input(`q2${index}`, q2);
-            request.input(`q3${index}`, q3);
-            request.input(`q4${index}`, q4);
-        });
-        insertQuery = insertQuery.slice(0, -1);
-
-        await request.query(insertQuery);
-
-        await transaction.commit();
-        return res.status(201).send({ message: "Employee leave history saved successfully" });
-    } catch (err) {
-        if (transaction) {
-            await transaction.rollback();
-        }
-
-        return res.status(500).send({ message: "Failed to save leave history", error: err.message });
-    }
-}
-
-
-async function getEmpLeaveHistoryData(req, res) {
-    const employeeID = req.params.employeeID;
-
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input("employeeID", employeeID);
-    try {
-        const result = await request.query(`
-                SELECT emp_name,elh.* FROM tbl_emp_leave_history elh
-                LEFT JOIN tbl_employee_master em ON elh.emp_master_id = em.emp_master_id
-                    WHERE emp_id = @employeeID;
-            `);
-
-        if (result.recordset.length === 0) {
-            return res.status(404).json({ message: "Employee not found" });
-        }
-        res.json(result.recordset);
-    } catch (err) {
-        // //console.log(err);
-        return res.status(500).json({message:"Internal Server Error",error:err});
-    }
-}
-
 async function updateEmployeeStatus(req, res) {
     const conn = await pool;
     const request = conn.request();
@@ -1349,7 +1271,7 @@ async function listVacancyOverview(req, res) {
 }
 
 export default {
-    getDeputedEndEmployeeData,getHrEmployee,getTransferInEmployeeListByOrgId, getEmpDetailsForVacancyManagement,getHrEmployeeByID, getDepartmentList, submitEmpLeaveHistory, getEmpLeaveHistoryData, updateEmployeeStatus,
+    getDeputedEndEmployeeData,getHrEmployee,getTransferInEmployeeListByOrgId, getEmpDetailsForVacancyManagement,getHrEmployeeByID, getDepartmentList, updateEmployeeStatus,
     getHrDepartmentList, getHrDivisionList, getHrPostList, getHrPostDetails, getHrVacancyDetails, getEmployeeDetailsByOrgID, getEmployeeDetailsByEmpId,
     getPostNamesByOrgId, getEmployeeListByOrgId, getEmployeeListByOrgDepPost, getPostCodeByPostId,getEmployeeListHoldingDesig, getTransactionHstryOfEmp,
     updatedVaccancyPosts, getDeputedEmployeeListByOrgId, getDeputedEmployeesByOrgId, getHrEmployeeListByOrgId, getHrCompositeEmployeeListByOrgId,getEmployeeDetailsByReferenceId,
