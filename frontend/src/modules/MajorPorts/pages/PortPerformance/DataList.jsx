@@ -367,6 +367,7 @@ const handlePdf = async () => {
     });
 
     doc.save(`${exportBaseName}.pdf`);
+    notify(COMMON_TOASTS.downloadStarted(`${exportBaseName}.pdf`));
   } catch (err) {
     console.error('PDF export failed:', err);
     notify(COMMON_TOASTS.loadFailed('Port performance data'));
@@ -501,7 +502,7 @@ const handlePdf = async () => {
         loading={deleting}
         title="Delete Port Performance"
         message={pendingDelete
-          ? `All 14 steps of port performance for ${monthLabel(pendingDelete.month)} ${pendingDelete.fiscal_year} will be deleted. This cannot be undone.`
+          ? `All 13 steps of port performance for ${monthLabel(pendingDelete.month)} ${pendingDelete.fiscal_year} will be deleted. This cannot be undone.`
           : ''}
       />
     </div>
