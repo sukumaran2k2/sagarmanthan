@@ -2,6 +2,7 @@
 
 import { pool } from "../../db.js";
 import { getDataScope } from "../../middleware/dataScope.js";
+import { isSuperAdminUser } from "../../middleware/userAdmin.js";
 import sql from 'mssql';
 
 async function getLumpSumProjectList(req, res) {
@@ -276,17 +277,42 @@ async function createLumpSumData(req, res) {
 //     }
 // };
 
+// Organisation users only see lumpsum of their own organisation's projects (QC PRJ-BE-08),
+// using the same rule as getLumpSumProjectList; Ministry / Master users and the superadmin see all.
+// Returns { denied } when the user has no usable scope, else the SQL filter to add.
+function lumpSumScope(user, request) {
+    if (isSuperAdminUser(user)) return { denied: false, whereSql: '' };
+    const { organisationId, isWide, isOrganisation } = getDataScope(user || {});
+    if (isWide) return { denied: false, whereSql: '' };
+    if (!isOrganisation || !Number.isFinite(organisationId) || organisationId <= 0) {
+        return { denied: true, whereSql: '' };
+    }
+    request.input('scopeOrganisationID', sql.Int, organisationId);
+    return {
+        denied: false,
+        whereSql: ` AND project_id IN (
+            SELECT p.project_id FROM tbl_project p WHERE p.organisation_id = @scopeOrganisationID
+            UNION
+            SELECT sp.project_id FROM tbl_sub_project sp WHERE sp.sub_organisation_id = @scopeOrganisationID
+        )`,
+    };
+}
+
 async function getLumpSumList(req, res) {
     try {
-        console.log("hi")
         const conn = await pool;
-        const result = await conn.query(`
-            SELECT 
+        const request = conn.request();
+        const scope = lumpSumScope(req.user, request);
+        if (scope.denied) return res.json([]);
+
+        const result = await request.query(`
+            SELECT
                 MAX(updated_date) AS updated_date,
-                project_id, 
-                project_name, 
+                project_id,
+                project_name,
                 SUM(activity_cost) AS activity_cost
             FROM tbl_lump_sum
+            WHERE 1 = 1 ${scope.whereSql}
             GROUP BY project_id, project_name
             ORDER BY project_id;
         `);
@@ -305,6 +331,8 @@ async function getLumpSumData(req, res) {
     const conn = await pool;
 
     const request = conn.request();
+    const scope = lumpSumScope(req.user, request);
+    if (scope.denied) return res.json([]);
 
     request.input('projectID', projectID);
 
@@ -317,7 +345,7 @@ async function getLumpSumData(req, res) {
         activity_cost,
         activity_date
       FROM tbl_lump_sum
-      WHERE project_id = @projectID
+      WHERE project_id = @projectID ${scope.whereSql}
       ORDER BY lumpsum_activity_id ASC
     `);
 
@@ -343,6 +371,25 @@ async function editLumpSumData(req, res) {
       return res.status(400).json({
         message: 'Invalid LumpSum data.'
       });
+    }
+
+    // Same row checks as createLumpSumData (QC PRJ-BE-07)
+    for (let p = 0; p < lumpSumDataTab.length; p++) {
+      const row = lumpSumDataTab[p] || {};
+      if (!String(row.projectName ?? '').trim()) {
+        return res.status(400).json({ message: `Project name missing at row ${p + 1}` });
+      }
+      if (!String(row.activityName ?? '').trim()) {
+        return res.status(400).json({ message: `Activity name missing at row ${p + 1}` });
+      }
+      const cost = Number(row.activityCost);
+      if (row.activityCost === undefined || row.activityCost === null || row.activityCost === ''
+        || !Number.isFinite(cost) || cost <= 0) {
+        return res.status(400).json({ message: `Invalid activity cost at row ${p + 1}` });
+      }
+      if (!row.activityDate) {
+        return res.status(400).json({ message: `Activity date missing at row ${p + 1}` });
+      }
     }
 
     const conn = await pool;

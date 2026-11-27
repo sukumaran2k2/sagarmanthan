@@ -197,8 +197,12 @@ function getInitialForm(initialData) {
     subProjectID: String(subProjectID || '').replace(/-/g, ''),
     projectName: initialData.projectName || raw.project_name || '',
     projectBrief: initialData.projectBrief || raw.project_brief || '',
+    // The project's own estimated cost first, as in the old portal. `initialData.cost` is the
+    // list's present cost (award / closure cost by stage), so it is only a last fallback.
     estimatedProjectCost:
-      initialData.estimatedProjectCost || initialData.cost || raw.estimated_cost || raw.sanctioned_cost || '',
+      raw.estimated_cost != null && String(raw.estimated_cost).trim() !== ''
+        ? raw.estimated_cost
+        : initialData.estimatedProjectCost || initialData.cost || raw.sanctioned_cost || '',
     projectType: initialData.projectType || raw.project_type || '',
     implementationMode:
       initialData.implementationMode ||

@@ -527,6 +527,13 @@ export default function ProjectBasicInformationPage({
       }
 
       if (isUpdateMode) {
+        // Reload the saved row so the form shows what is now in the database,
+        // not the values it had when the page was opened.
+        try {
+          await refreshProjectStageState(createdId, createdSubId);
+        } catch (reloadError) {
+          console.error(reloadError);
+        }
         const unlock = await refreshStageUnlock(createdId, createdSubId);
         setActiveStage(unlock.planning ? 'planning' : 'basic');
         if (!unlock.planning) {
