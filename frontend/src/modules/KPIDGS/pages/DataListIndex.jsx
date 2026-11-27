@@ -513,7 +513,14 @@ const editSbfapFor = useCallback(
         ...(SBFAP_EDIT_SLUGS.includes(slug) && canEdit
           ? { showEditAction: true, onEditRow: editSbfapFor(slug) }
           : {}),
-        ...EXPORTS_BY_SLUG[slug],
+        exportTitle:
+          EXPORTS_BY_SLUG[slug]?.exportTitle ||
+          `DGS ${leaf.code} ${leaf.label} - Data List`,
+
+        exportFileName:
+          EXPORTS_BY_SLUG[slug]?.exportFileName ||
+          `DGS_${String(leaf.code).replace(/\./g, '_')}_Data_List`,
+
         defaultVisible: SBFAP_DEFAULT_VISIBLE[slug],
         
       };
