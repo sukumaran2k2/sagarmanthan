@@ -215,7 +215,7 @@ export default function PortsReportsView() {
           </div>
 
           {/* Filters */}
-          <div className="bg-slate-50/50 border border-slate-150 rounded-2xl p-5 grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div className="bg-slate-50/50 border border-slate-200 rounded-2xl p-5 grid grid-cols-1 md:grid-cols-3 gap-5">
             <div className="space-y-1">
               <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Financial Year</label>
               <div className="relative">

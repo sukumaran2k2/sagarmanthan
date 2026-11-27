@@ -135,7 +135,7 @@ const fetchAllRows = useCallback(async () => {
 
   return all.map((row, index) => ({ ...row, sNo: index + 1 }));
 }, [params]);
-  // Copy / export only what is on screen once the newest page has arrived
+  // Block Copy / export while a page load is in flight (exports fetch all matching rows)
   const busy = loading || refreshing;
 
   // After a delete empties the last page, step back to the new last page

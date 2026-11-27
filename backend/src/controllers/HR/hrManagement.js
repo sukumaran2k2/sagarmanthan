@@ -1895,48 +1895,6 @@ async function getAbolishedVacantPosts(req,res) {
     }
 }
 
-// Months that have a vacancy log (tbl_hr_post_strength_log), newest first.
-// organisationID 0 = every organisation (ministry view).
-async function getYearAndMonth(req, res) {
-    // Organisation users read their own organisation; ministry users any (0 = all)
-    const organisationID = resolveReportOrganisation(req, req.params.organisationID);
-    if (organisationID === null) {
-        return res.status(403).json({ error: "Your account is not linked to an organisation." });
-    }
-
-    try {
-        const conn = await pool;
-        const request = conn.request();
-        request.input("organisationID", sql.Int, organisationID);
-
-        const result = await request.query(`
-            SELECT DISTINCT
-                l.log_year,
-                l.log_month
-            FROM tbl_hr_post_strength_log l
-            WHERE l.log_year IS NOT NULL
-              AND l.log_month IS NOT NULL
-              AND (@organisationID = 0 OR l.organisation_id = @organisationID)
-            ORDER BY l.log_year DESC, l.log_month DESC
-        `);
-
-        res.status(200).json(result.recordset);
-
-    } catch (error) {
-        console.error("Error fetching vacancy log years and months:", error);
-        // An Error serialises to {} in JSON, so copy out the fields that explain it.
-        return res.status(500).json({
-            message: "Error occurred while fetching vacancy log years and months",
-            error: {
-                name: error.name,
-                message: error.message,
-                code: error.code,
-                number: error.number,
-            },
-        });
-    }
-}
-
 async function updateActivityData(req, res) {
     const transaction = new sql.Transaction(await pool);
 
@@ -2125,10 +2083,6 @@ async function getDeputationEndEmployees(req, res) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Server-side paginated list: abolished posts
-// ---------------------------------------------------------------------------
-
 // Vacant for 5+ years (not exempted from abolition), or revived (stage 9).
 const ABOLISHED_FROM_SQL = `
     FROM tbl_hr_post_strength h
@@ -2144,8 +2098,6 @@ const ABOLISHED_FROM_SQL = `
     )
 `;
 
-// Revival status shown on the list (same rules as the page's status buttons), and the
-// abolition date (vacancy date + 5 years) as dd-mm-yyyy, so search can match what is shown.
 const ABOLISHED_STATUS_SQL = `CASE
     WHEN h.revival_stage_id = 9 OR h.order_of_revival_issued_date IS NOT NULL THEN 'Approved by Ministry'
     WHEN h.revival_stage_id = 8 OR h.revive_rejection_date_from_doe IS NOT NULL THEN 'Rejected by Ministry'
@@ -2153,11 +2105,6 @@ const ABOLISHED_STATUS_SQL = `CASE
     ELSE 'Request' END`;
 const ABOLITION_DATE_SQL = "CONVERT(VARCHAR(10), DATEADD(YEAR, 5, h.date_of_arise_in_vacancy), 105)";
 
-/**
- * List of Abolished Posts, one page at a time.
- * GET /hr/abolished-posts?page&limit&organisationName&departmentName&postName&className&search
- * Organisation users see their own organisation; ministry users every organisation.
- */
 async function listAbolishedPosts(req, res) {
     const scope = resolveListOrganisation(req);
     if (!scope.ok) return res.status(403).json({ message: "Your account is not linked to an organisation." });
@@ -2266,7 +2213,7 @@ export default  {
     getPostStrengthData, getFilledPost, getVacantPost, getPermanentAbolishedPostOrg, getPermanentAbolishedPost, postReviveDate,
     updateRevivePostApprovalDetails, addAnticipatedVancancies, updateAnticipatedVacancies, getAnticipatedVacancies,
     deleteAnticipatedVacancy, deleteHrPostData, deleteHrDepartment, getHRAllData, getHRAllEmployeeData,  getPostListByOrgId, addNewEmployee, editEmployeeDetails, upload,
-    getDetailedSanctionedStrength,getDetailedTotalFilledPosts,getTotalVacantPosts,getAbolishedVacantPosts,getYearAndMonth,updateActivityData,getDeputationEndEmployees,
+    getDetailedSanctionedStrength,getDetailedTotalFilledPosts,getTotalVacantPosts,getAbolishedVacantPosts,updateActivityData,getDeputationEndEmployees,
     listAbolishedPosts, listAbolishedPostFilters
 };
 

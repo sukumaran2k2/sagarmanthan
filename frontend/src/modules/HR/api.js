@@ -271,6 +271,10 @@ export function fetchHrStaffingOverviewReport(orgCategory) {
   return api.get(`/get-hr-staffing-overview-report/${orgCategory}`);
 }
 
+export function fetchHrNonPortStaffingOverview(orgCategory) {
+  return api.get(`/get-hr-non-port-staffing-overview/${orgCategory}`);
+}
+
 export function fetchTotalManpowerSanctionActual(departmentId, classId, orgCategory, deptCategory) {
   return api.get(
     `/get-hr-mis-total-manpower-actual/${departmentId}/${classId}/${orgCategory}/${deptCategory}`
@@ -302,10 +306,6 @@ export function fetchDepartmentWisePostStatusFiltered(clusterId, orgId, year, mo
   return api.get(
     `/get-department-wise-emp-count-by-org-data-filter/${clusterId}/${orgId}/${year}/${month}`
   );
-}
-
-export function fetchVacancyLogYearsAndMonths(orgId) {
-  return api.get(`/get-year-and-month/${orgId}`);
 }
 
 export function fetchOrganisationsByCluster(clusterId) {

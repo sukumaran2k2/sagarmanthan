@@ -26,8 +26,10 @@ import {
   Cell
 } from 'recharts';
 import {
+  fetchOvdDashboardCounts,
   fetchOvdMinistryChart,
   fetchOvdMinistryChartB2,
+  fetchOvdOrganisationChart,
   fetchOvdStatusCounts,
   getUserIdFromToken
 } from '../api';
@@ -577,6 +579,13 @@ export default function Dashboard({ triggerNotification }) {
   const [levelA, setLevelA] = useState(EMPTY_LEVEL);
   const [levelB, setLevelB] = useState(EMPTY_LEVEL);
   const [statusCounts, setStatusCounts] = useState({ notApplicable: 0, dropped: 0 });
+  // Stat-card totals come from /OVD-data-count (the same source the Intervention List uses),
+  // NOT from the category-grouped chart totals, so the cards match the Intervention List exactly.
+  const [cardCounts, setCardCounts] = useState({
+    goalsA1: 0, interventionsA2: 0, actionItemsA3: 0,
+    goalsB1: 0, interventionsB2: 0, actionItemsB3: 0,
+    totalCostA: 0, totalCostB: 0
+  });
 
   useEffect(() => {
     loadOrganisations();
@@ -597,17 +606,59 @@ export default function Dashboard({ triggerNotification }) {
       makvThemeSelect: selectedMakvTheme
     };
 
+    const userID = getUserIdFromToken();
     const requests = [
-      fetchOvdMinistryChartB2(params),
-      fetchOvdStatusCounts({ ...params, userID: getUserIdFromToken() }),
+      // Org users get their own organisation's B-level charts (backend scopes by userID);
+      // ministry users get the all-organisation B2 chart filtered by the selected org.
+      isOrgUser
+        ? fetchOvdOrganisationChart({
+            vision: selectedVision,
+            priority: selectedPriority,
+            vibhasID: selectedVibhas,
+            userID,
+            mivChapterSelect: selectedMivChapter,
+            makvThemeSelect: selectedMakvTheme
+          })
+        : fetchOvdMinistryChartB2(params),
+      fetchOvdStatusCounts({ ...params, userID }),
+      fetchOvdDashboardCounts({ ...params, userID }),
       ...(!isOrgUser ? [fetchOvdMinistryChart(params)] : [])
     ];
-    const [b, s, a] = await Promise.allSettled(requests);
+    const [b, s, c, a] = await Promise.allSettled(requests);
     if (requestId !== latestRequestRef.current) return;
 
     setLevelB(b.status === 'fulfilled' ? shapeLevel(b.value) : EMPTY_LEVEL);
     if (!isOrgUser && a) {
       setLevelA(a.status === 'fulfilled' ? shapeLevel(a.value) : EMPTY_LEVEL);
+    }
+
+    // Stat cards: use /OVD-data-count, mapped exactly like the Intervention List.
+    // /OVD-data-count returns a one-row array.
+    const cRow = c.status === 'fulfilled'
+      ? (Array.isArray(c.value) ? c.value[0] : c.value?.total?.[0])
+      : null;
+    if (cRow) {
+      setCardCounts(isOrgUser
+        ? {
+          // Org users: backend returns goals/intervention/action as B1/B2/B3
+          goalsA1: 0, interventionsA2: 0, actionItemsA3: 0,
+          goalsB1: Number(cRow.goals ?? 0),
+          interventionsB2: Number(cRow.intervention ?? 0),
+          actionItemsB3: Number(cRow.action ?? 0),
+          totalCostA: 0,
+          totalCostB: Number(cRow.total_cost_b ?? cRow.total_cost ?? 0)
+        }
+        : {
+          // Ministry users: goals/intervention/action = A1/A2/A3; *_b* = B1/B2/B3
+          goalsA1: Number(cRow.goals ?? 0),
+          interventionsA2: Number(cRow.intervention ?? 0),
+          actionItemsA3: Number(cRow.action ?? 0),
+          goalsB1: Number(cRow.goals_b1 ?? 0),
+          interventionsB2: Number(cRow.interventions_b2 ?? 0),
+          actionItemsB3: Number(cRow.actions_b3 ?? 0),
+          totalCostA: Number(cRow.total_cost_a ?? 0),
+          totalCostB: Number(cRow.total_cost_b ?? cRow.total_cost ?? 0)
+        });
     }
     const sc = s.status === 'fulfilled' && Array.isArray(s.value) ? s.value[0] : null;
     setStatusCounts({
@@ -723,19 +774,19 @@ export default function Dashboard({ triggerNotification }) {
       {/* Stat cards: A row — ministry users only */}
       {!isOrgUser && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-          <StatCard loading={loading} value={fmtInt(levelA.totals.goals)} label="Total Goals [A1]" icon={Star} accent="border-l-violet-500" tint="bg-violet-50 dark:bg-violet-950/50" iconColor="text-violet-500" />
-          <StatCard loading={loading} value={fmtInt(levelA.totals.interventions)} label="Total Interventions [A2]" icon={Layers} accent="border-l-blue-500" tint="bg-blue-50 dark:bg-blue-950/50" iconColor="text-blue-500" />
-          <StatCard loading={loading} value={fmtInt(levelA.totals.actions)} label="Total Action Items [A3]" icon={Users} accent="border-l-cyan-500" tint="bg-cyan-50 dark:bg-cyan-950/50" iconColor="text-cyan-600" />
-          <StatCard loading={loading} value={`₹ ${fmtCost(levelA.totals.cost)}`} label="Total Cost [A] (In Cr.)" icon={DollarSign} accent="border-l-emerald-500" tint="bg-emerald-50 dark:bg-emerald-950/50" iconColor="text-emerald-600" />
+          <StatCard loading={loading} value={fmtInt(cardCounts.goalsA1)} label="Total Goals [A1]" icon={Star} accent="border-l-violet-500" tint="bg-violet-50 dark:bg-violet-950/50" iconColor="text-violet-500" />
+          <StatCard loading={loading} value={fmtInt(cardCounts.interventionsA2)} label="Total Interventions [A2]" icon={Layers} accent="border-l-blue-500" tint="bg-blue-50 dark:bg-blue-950/50" iconColor="text-blue-500" />
+          <StatCard loading={loading} value={fmtInt(cardCounts.actionItemsA3)} label="Total Action Items [A3]" icon={Users} accent="border-l-cyan-500" tint="bg-cyan-50 dark:bg-cyan-950/50" iconColor="text-cyan-600" />
+          <StatCard loading={loading} value={`₹ ${fmtCost(cardCounts.totalCostA)}`} label="Total Cost [A] (In Cr.)" icon={DollarSign} accent="border-l-emerald-500" tint="bg-emerald-50 dark:bg-emerald-950/50" iconColor="text-emerald-600" />
         </div>
       )}
 
       {/* Stat cards: B row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-        <StatCard loading={loading} value={fmtInt(levelB.totals.goals)} label="Total Goals [B1]" icon={Star} accent="border-l-orange-500" tint="bg-orange-50 dark:bg-orange-950/50" iconColor="text-orange-500" />
-        <StatCard loading={loading} value={fmtInt(levelB.totals.interventions)} label="Total Interventions [B2]" icon={Layers} accent="border-l-indigo-500" tint="bg-indigo-50 dark:bg-indigo-950/50" iconColor="text-indigo-500" />
-        <StatCard loading={loading} value={fmtInt(levelB.totals.actions)} label="Total Action Items [B3]" icon={Users} accent="border-l-teal-500" tint="bg-teal-50 dark:bg-teal-950/50" iconColor="text-teal-600" />
-        <StatCard loading={loading} value={`₹ ${fmtCost(levelB.totals.cost)}`} label="Total Cost [B] (In Cr.)" icon={DollarSign} accent="border-l-yellow-500" tint="bg-yellow-50 dark:bg-yellow-950/50" iconColor="text-yellow-600" />
+        <StatCard loading={loading} value={fmtInt(cardCounts.goalsB1)} label="Total Goals [B1]" icon={Star} accent="border-l-orange-500" tint="bg-orange-50 dark:bg-orange-950/50" iconColor="text-orange-500" />
+        <StatCard loading={loading} value={fmtInt(cardCounts.interventionsB2)} label="Total Interventions [B2]" icon={Layers} accent="border-l-indigo-500" tint="bg-indigo-50 dark:bg-indigo-950/50" iconColor="text-indigo-500" />
+        <StatCard loading={loading} value={fmtInt(cardCounts.actionItemsB3)} label="Total Action Items [B3]" icon={Users} accent="border-l-teal-500" tint="bg-teal-50 dark:bg-teal-950/50" iconColor="text-teal-600" />
+        <StatCard loading={loading} value={`₹ ${fmtCost(cardCounts.totalCostB)}`} label="Total Cost [B] (In Cr.)" icon={DollarSign} accent="border-l-yellow-500" tint="bg-yellow-50 dark:bg-yellow-950/50" iconColor="text-yellow-600" />
       </div>
 
       {/* Not Applicable / Dropped */}

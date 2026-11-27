@@ -1,15 +1,20 @@
-// HR reports, ported from the live (uncommented) rows of the legacy
-// pages/HR/hrMinistryReviewReports.html. The index lists every section and report; inside a
-// section with a Major Ports and a Non-Major Ports report, a filter switches between them.
-
-// Organisations the legacy index treats as "other organisations": their users do not
-// get the Major Ports vacancy history. hrView (utils/hrViews.js, from the organisation category)
-// decides when known; the legacy list is the fallback.
 const NON_MAJOR_PORT_ORG_IDS = new Set([15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 27, 62]);
 
-export function canSeeMajorPortVacancyHistory({ isOrgUser, orgId, hrView }) {
-  if (hrView) return hrView !== 'NON_PORT';
-  return !(isOrgUser && NON_MAJOR_PORT_ORG_IDS.has(Number(orgId)));
+export function portScopeOf({ isOrgUser, orgId, hrView }) {
+  if (hrView === 'NON_PORT') return NON_MAJOR_PORTS;
+  if (!isOrgUser) return null;
+  if (!hrView && NON_MAJOR_PORT_ORG_IDS.has(Number(orgId))) return NON_MAJOR_PORTS;
+  return MAJOR_PORTS;
+}
+
+export function canSeeMajorPortVacancyHistory(identity) {
+  return portScopeOf(identity) !== NON_MAJOR_PORTS;
+}
+
+function canSeeReport(report, identity) {
+  if (report.isVisible && !report.isVisible(identity)) return false;
+  const scope = portScopeOf(identity);
+  return scope === null || !report.orgCategory || report.orgCategory === scope;
 }
 
 export const REPORTS_BASE = '/hr/hr-management/reports';
@@ -80,11 +85,10 @@ export const REPORT_SECTIONS = [
   },
 ];
 
-/** Sections and reports the signed-in user may open. */
 export function visibleSections(identity) {
   return REPORT_SECTIONS.map((s) => ({
     ...s,
-    reports: s.reports.filter((r) => !r.isVisible || r.isVisible(identity)),
+    reports: s.reports.filter((r) => canSeeReport(r, identity)),
   })).filter((s) => s.reports.length > 0);
 }
 
@@ -95,12 +99,10 @@ export function visibleReports(identity) {
 export const portCategoryLabel = (report) =>
   report.orgCategory === NON_MAJOR_PORTS ? 'Non-Major Ports' : 'Major Ports';
 
-/** The visible section holding `reportId`, or null. */
 export function sectionOf(identity, reportId) {
   return visibleSections(identity).find((s) => s.reports.some((r) => r.id === reportId)) || null;
 }
 
-/** Rows for the reports index: a bold section row followed by its report links. */
 export function indexRows(identity) {
   const rows = [];
   visibleSections(identity).forEach((section, i) => {

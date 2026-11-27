@@ -171,11 +171,20 @@ export default function FinancialParametersTargets({
   };
   const handleExcel = () => {
     if (busy) return notify(COMMON_TOASTS.tableNotReady('export'));
-    return notify(COMMON_TOASTS.excelExported(downloadExcel(exportColumns, rowsWithSerial, exportBaseName, 'Targets')));
+    try {
+      return notify(COMMON_TOASTS.excelExported(downloadExcel(exportColumns, rowsWithSerial, exportBaseName, 'Targets')));
+    } catch {
+      return notify(COMMON_TOASTS.exportFailed());
+    }
   };
   const handlePdf = () => {
     if (busy) return notify(COMMON_TOASTS.tableNotReady('export'));
-    return downloadPdf('Financial Parameters - Targets', exportColumns.filter((c) => c.field !== 'sNo'), rowsWithSerial, exportBaseName);
+    try {
+      downloadPdf('Financial Parameters - Targets', exportColumns.filter((c) => c.field !== 'sNo'), rowsWithSerial, exportBaseName);
+      return notify(COMMON_TOASTS.downloadStarted(`${exportBaseName}.pdf`));
+    } catch {
+      return notify(COMMON_TOASTS.exportFailed());
+    }
   };
 
   const organisationOptions = useMemo(

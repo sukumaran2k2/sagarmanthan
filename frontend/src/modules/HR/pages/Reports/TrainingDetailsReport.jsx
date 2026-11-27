@@ -5,12 +5,8 @@ import ReportLayout from './components/ReportLayout';
 import { totalRow } from './reportUtils';
 import { COMMON_TOASTS } from '../../../../utils/notify';
 
-// Report H-4.1, ported from pages/HR/trainingReports.html: one row per training type, one
-// column per organisation (participant counts), with row and column totals.
 export default function TrainingDetailsReport({ report, onBack, notify }) {
   const { roleId, orgId, isMinistryView } = useHRPermissions();
-  // Ministry users see every organisation (0); organisation users their own. The server
-  // applies the same rule from the token, so these values only shape the request.
   const scopeOrgId = isMinistryView ? 0 : orgId;
 
   const [data, setData] = useState({ columnDefs: [], rowData: [] });
@@ -46,7 +42,6 @@ export default function TrainingDetailsReport({ report, onBack, notify }) {
   }, [load]);
 
   const { columns, rows } = useMemo(() => {
-    // The backend's S.No uses a string valueGetter; replace it, and keep Total last.
     const orgCols = data.columnDefs.filter((c) => c.headerName !== 'S.No' && c.field !== 'Training_Type' && c.field !== 'Total');
     const orgFields = orgCols.map((c) => c.field);
     return {
@@ -56,7 +51,6 @@ export default function TrainingDetailsReport({ report, onBack, notify }) {
         ...orgCols.map((c) => ({ headerName: c.headerName, field: c.field, minWidth: 140 })),
         { headerName: 'Total', field: 'Total', minWidth: 90, emphasis: true },
       ],
-      // Organisations without that training type count as 0, as on the legacy page.
       rows: data.rowData.map((r) => {
         const row = { ...r };
         let total = 0;
@@ -75,6 +69,7 @@ export default function TrainingDetailsReport({ report, onBack, notify }) {
   return (
     <ReportLayout
       report={report}
+      headerHeight={72}
       meta="Participants by training type and organisation"
       onBack={onBack}
       note="The Total column adds each training type's participants across organisations; the Total row adds each organisation's participants across training types."

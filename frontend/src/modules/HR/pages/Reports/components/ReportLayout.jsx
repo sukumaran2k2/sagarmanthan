@@ -79,6 +79,7 @@ export default function ReportLayout({
   summary,
   notify,
   emptyMessage,
+  headerHeight,
 }) {
   const [search, setSearch] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(true);
@@ -234,7 +235,7 @@ export default function ReportLayout({
 
       {summary}
 
-      <GroupedTable columns={columns} rows={shownRows} totals={totals} loading={loading} emptyMessage={emptyMessage} />
+      <GroupedTable columns={columns} rows={shownRows} totals={totals} loading={loading} emptyMessage={emptyMessage} headerHeight={headerHeight} />
     </div>
   );
 }

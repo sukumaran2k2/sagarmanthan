@@ -148,12 +148,6 @@ export default function DwellUploadCard({ onUploaded, triggerNotification }) {
 
   const handleSave = () => (preview?.existing ? setConfirmReplace(true) : save(false));
 
-  const problemsText = () => [
-    `Dwell time upload problems: ${file?.name || ''} (${period.monthLabel} ${fiscalYear})`,
-    '',
-    ...problems.map((p, i) => `${i + 1}. ${[problemText(p), p.message].filter(Boolean).join(': ')}`),
-  ].join('\n');
-
   const busy = checking || saving;
 
   return (
@@ -298,7 +292,13 @@ export default function DwellUploadCard({ onUploaded, triggerNotification }) {
                 <p className="font-extrabold uppercase tracking-wide text-rose-800 dark:text-rose-200">
                   {problems.length} problem{problems.length === 1 ? '' : 's'} found · nothing was saved
                 </p>
-                <CopyButton onCopy={() => navigator.clipboard?.writeText(problemsText())} color="#be123c" hoverBg="#fff1f2" />
+                <CopyButton
+                  headers={['#', 'Problem']}
+                  rows={() => problems.map((p, i) => [i + 1, [problemText(p), p.message].filter(Boolean).join(': ')])}
+                  triggerNotification={triggerNotification}
+                  color="#be123c"
+                  hoverBg="#fff1f2"
+                />
               </div>
               <ul className="mt-2 space-y-1">
                 {problems.map((p, i) => (

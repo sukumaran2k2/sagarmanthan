@@ -143,6 +143,36 @@ async function getTrafficMasters(req, res) {
     }
 }
 
+/**
+ * Organisations of the traffic dashboard's Organisation dropdown, for every user: the same
+ * list ministry users get from getTrafficMasters. Organisation users only view other
+ * organisations on the dashboard; getTrafficMasters (entry forms) still gives them their own.
+ */
+let dashboardOrganisationsCache = null; // { rows, at }
+async function getTrafficDashboardOrganisations(req, res) {
+    if (dashboardOrganisationsCache && Date.now() - dashboardOrganisationsCache.at < MASTERS_TTL_MS) {
+        return res.status(200).json({ organisations: dashboardOrganisationsCache.rows });
+    }
+    try {
+        const conn = await pool;
+        const request = conn.request();
+        request.input("portCategoryId", sql.Int, PORT_ORG_CATEGORY_ID);
+        const { recordset } = await request.query(`
+            SELECT org.organisation_id, org.organisation_name
+            FROM mmt_organisation org
+            WHERE org.organisation_category_id = @portCategoryId
+               OR EXISTS (SELECT 1 FROM tbl_traffic_commodity_data d WHERE d.organisation_id = org.organisation_id)
+               OR EXISTS (SELECT 1 FROM tbl_traffic_fiscal_target t WHERE t.organisation_id = org.organisation_id)
+            ORDER BY org.organisation_name
+        `);
+        dashboardOrganisationsCache = { rows: recordset, at: Date.now() };
+        return res.status(200).json({ organisations: recordset });
+    } catch (error) {
+        console.error("Error fetching dashboard organisations:", error);
+        return sendError(res, 500, "Organisations could not be loaded.");
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Actuals — list
 // ---------------------------------------------------------------------------
@@ -982,6 +1012,7 @@ async function deleteTrafficTarget(req, res) {
 
 const TrafficEntry = {
     getTrafficMasters,
+    getTrafficDashboardOrganisations,
     getTrafficActuals,
     getTrafficPeriod,
     saveTrafficPeriod,

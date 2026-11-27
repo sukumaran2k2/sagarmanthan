@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import RestrictedAccess from '../../../../../components/RestrictedAccess';
-import { fetchFinancialDashboardPart } from '../../../api';
+import { fetchFinancialDashboardOrganisations, fetchFinancialDashboardPart } from '../../../api';
 import { useFinancialParametersPermissions } from '../../../hooks/useFinancialParametersPermissions';
 import { useFinancialParametersStore } from '../../../store/useFinancialParametersStore';
 import { useNotifier, COMMON_TOASTS } from '../../../../../utils/notify';
@@ -24,8 +24,8 @@ const FY_OPTIONS = [
  * KPI Major Ports → Financial Dashboard: a copy of the earlier portal's financialDashboard.html
  * (Organisation, Financial Year and Month filters; eight cards with current and last FY YTD and
  * YoY; each card opens its "Detail of KPI"). It uses the same parts as the Traffic &
- * Port Performance dashboard. Organisation users see their own organisation only
- * (the server enforces it).
+ * Port Performance dashboard. Organisation users start on their own organisation and may
+ * switch to any other (or All Organisations) to view it.
  */
 export default function FinancialDashboard({ triggerNotification }) {
   const { canView, isMinistryView } = useFinancialParametersPermissions();
@@ -39,9 +39,23 @@ export default function FinancialDashboard({ triggerNotification }) {
   const [months, setMonths] = useState([]);
   const [drillKpi, setDrillKpi] = useState(null);
 
+  // Organisation users: their own organisation (masters hold only it) until they pick another
+  const [orgPick, setOrgPick] = useState(null);
+  const [allOrganisations, setAllOrganisations] = useState([]);
+
   useEffect(() => {
     if (canView) loadMasters();
   }, [canView, loadMasters]);
+
+  // The masters give organisation users only their own organisation; the dropdown lists all
+  useEffect(() => {
+    if (!canView || isMinistryView) return undefined;
+    let active = true;
+    fetchFinancialDashboardOrganisations()
+      .then((res) => { if (active) setAllOrganisations(res.data?.organisations || []); })
+      .catch(() => {}); // the dropdown then keeps just their own organisation
+    return () => { active = false; };
+  }, [canView, isMinistryView]);
 
   const panel = FINANCIAL_DASHBOARD_PANELS[0];
   const labels = fiscalYearLabels(fiscalYear);
@@ -50,10 +64,15 @@ export default function FinancialDashboard({ triggerNotification }) {
     fy: fiscalYear || 'all',
     months: months.length ? months.join(',') : 'all',
   }), [fiscalYear, months]);
+  const ownOrganisation = organisations[0]?.organisation_id;
+  const orgUserPick = orgPick ?? (ownOrganisation != null ? String(ownOrganisation) : '');
+  const selectedOrganisationId = isMinistryView ? organisationId : orgUserPick;
   const cardParams = useMemo(() => ({
     ...baseFilters,
-    ...(isMinistryView && organisationId !== '0' ? { organisationId } : {}),
-  }), [baseFilters, isMinistryView, organisationId]);
+    ...(isMinistryView
+      ? (organisationId !== '0' ? { organisationId } : {})
+      : (orgUserPick ? { organisationId: orgUserPick } : {})),
+  }), [baseFilters, isMinistryView, organisationId, orgUserPick]);
 
   const onError = useCallback(() => notify(COMMON_TOASTS.loadFailed('Financial dashboard data')), [notify]);
   const summary = useCachedRequest(
@@ -63,9 +82,11 @@ export default function FinancialDashboard({ triggerNotification }) {
   );
 
   const organisationOptions = useMemo(() => {
-    const list = organisations.map((o) => ({ value: String(o.organisation_id), label: o.organisation_name }));
-    return isMinistryView ? [{ value: '0', label: 'All Organisations' }, ...list] : list;
-  }, [isMinistryView, organisations]);
+    const toOptions = (list) => list.map((o) => ({ value: String(o.organisation_id), label: o.organisation_name }));
+    if (isMinistryView) return [{ value: '0', label: 'All Organisations' }, ...toOptions(organisations)];
+    if (!allOrganisations.length) return toOptions(organisations);
+    return [{ value: '0', label: 'All Organisations' }, ...toOptions(allOrganisations)];
+  }, [isMinistryView, organisations, allOrganisations]);
 
   if (!canView) return <RestrictedAccess moduleName="KPI - Major Ports · Financial Dashboard" />;
 
@@ -74,7 +95,6 @@ export default function FinancialDashboard({ triggerNotification }) {
     if (months.length === 12) setMonths(allMonthsFor(value));
     setFiscalYear(value);
   };
-  const ownOrganisationId = isMinistryView ? Number(organisationId) : Number(organisations[0]?.organisation_id) || 0;
   const data = { summary: summary.value };
 
   return (
@@ -85,10 +105,13 @@ export default function FinancialDashboard({ triggerNotification }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <DashboardSelect
             label="Organisation"
-            value={isMinistryView ? organisationId : organisationOptions[0]?.value ?? ''}
-            onChange={(value) => { setOrganisationId(value); setDrillKpi(null); }}
+            value={selectedOrganisationId}
+            onChange={(value) => {
+              if (isMinistryView) setOrganisationId(value);
+              else setOrgPick(value);
+              setDrillKpi(null);
+            }}
             options={organisationOptions.length ? organisationOptions : [{ value: '', label: '--Organisation--' }]}
-            disabled={!isMinistryView}
           />
           <DashboardSelect label="Financial Year" value={fiscalYear} onChange={changeFiscalYear} options={FY_OPTIONS} />
           <MonthPicker value={months} onChange={setMonths} fiscalYear={fiscalYear} />
@@ -98,7 +121,7 @@ export default function FinancialDashboard({ triggerNotification }) {
           <FinancialDrillDown
             key={drillKpi}
             kpi={drillKpi}
-            filters={{ ...baseFilters, organisationId: ownOrganisationId }}
+            filters={{ ...baseFilters, organisationId: Number(selectedOrganisationId) || 0 }}
             labels={labels}
             onBack={() => setDrillKpi(null)}
             triggerNotification={triggerNotification}

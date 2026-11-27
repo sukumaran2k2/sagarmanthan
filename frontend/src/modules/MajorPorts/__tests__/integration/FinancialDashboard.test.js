@@ -51,9 +51,18 @@ jest.mock('../../api', () => ({
     },
   })),
   fetchFinancialDashboardPart: jest.fn(),
+  fetchFinancialDashboardOrganisations: jest.fn(() => Promise.resolve({
+    data: {
+      organisations: [
+        { organisation_id: 1, organisation_name: 'Chennai Port Authority' },
+        { organisation_id: 10, organisation_name: 'Paradip Port Authority' },
+      ],
+    },
+  })),
   // The Traffic dashboard (other tab) is not opened in these tests
   fetchTrafficMasters: jest.fn(() => Promise.resolve({ data: { organisations: [], commodities: [], commodityGroups: [] } })),
   fetchTrafficDashboardPart: jest.fn(() => Promise.resolve({ data: {} })),
+  fetchTrafficDashboardOrganisations: jest.fn(() => Promise.resolve({ data: { organisations: [] } })),
 }));
 
 const SUMMARY = {
@@ -139,14 +148,28 @@ describe('Financial dashboard', () => {
     expect(await screen.findByRole('button', { name: /^Net Surplus/ })).toBeInTheDocument();
   });
 
-  it('keeps organisation users on their own organisation', async () => {
+  it('starts organisation users on their own organisation and lets them view others', async () => {
     mockPermissions.current = { canView: true, isMinistryView: false };
     render(<FinancialDashboard triggerNotification={jest.fn()} />);
 
+    // The masters of an organisation user hold only their own organisation (the first one here)
     const org = screen.getByRole('combobox', { name: 'Organisation' });
-    expect(org).toBeDisabled();
-    await waitFor(() => expect(fetchFinancialDashboardPart).toHaveBeenCalled());
-    expect(fetchFinancialDashboardPart.mock.calls.every(([, params]) => !('organisationId' in params))).toBe(true);
+    expect(org).toBeEnabled();
+    await waitFor(() => expect(org).toHaveDisplayValue('Paradip Port Authority'));
+    await waitFor(() => expect(within(org).getAllByRole('option').map((o) => o.textContent))
+      .toEqual(['All Organisations', 'Chennai Port Authority', 'Paradip Port Authority']));
+    await waitFor(() => expect(fetchFinancialDashboardPart).toHaveBeenCalledWith(
+      'summary', { fy: 'all', months: 'all', organisationId: '10' }, expect.anything()
+    ));
+
+    fireEvent.change(org, { target: { value: '1' } });
+    await waitFor(() => expect(fetchFinancialDashboardPart).toHaveBeenLastCalledWith(
+      'summary', { fy: 'all', months: 'all', organisationId: '1' }, expect.anything()
+    ));
+    fireEvent.change(org, { target: { value: '0' } });
+    await waitFor(() => expect(fetchFinancialDashboardPart).toHaveBeenLastCalledWith(
+      'summary', { fy: 'all', months: 'all', organisationId: '0' }, expect.anything()
+    ));
   });
 
   it('shows Restricted Access without read permission', () => {

@@ -1,16 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Users, CheckCircle2, FileText, Ban, Sigma } from 'lucide-react';
-import {
-  fetchDepartmentWisePostStatus,
-  fetchDepartmentWisePostStatusFiltered,
-  fetchHrDepartments,
-  fetchOrganisationsByCluster,
-  fetchVacancyLogYearsAndMonths,
-} from '../../api';
+import { fetchDepartmentWisePostStatus } from '../../api';
 import { useHRPermissions } from '../../hooks/useHRPermissions';
 import ReportLayout, { FilterSelect } from './components/ReportLayout';
 import { REPORT_THEME as T } from './theme';
-import { asList, yearMonthOptions } from './reportUtils';
+import { asList } from './reportUtils';
 import { CLASS_OPTIONS } from '../../constants';
 import { COMMON_TOASTS } from '../../../../utils/notify';
 
@@ -22,6 +16,14 @@ const COUNT_FIELDS = ['total_sanctioned_strength', 'filled_post', 'totalLivePost
 
 const sumCounts = (rows) =>
   Object.fromEntries(COUNT_FIELDS.map((f) => [f, rows.reduce((acc, r) => acc + num(r[f]), 0)]));
+
+// One dropdown option per distinct id found in the rows, sorted by name.
+const uniqueOptions = (rows, idField, labelField) => {
+  const byId = new Map(
+    rows.filter((r) => r[idField] != null && r[labelField]).map((r) => [String(r[idField]), String(r[labelField])])
+  );
+  return Array.from(byId, ([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
+};
 
 function KpiCard({ label, value, icon: Icon, accent }) {
   return (
@@ -50,8 +52,7 @@ const COLUMNS_BASE = [
   },
 ];
 
-// Report H-2.0.1, ported from pages/HR/hrVacancyHistory.html: post totals for the Major Ports,
-// optionally as recorded in a given month's vacancy log, plus a department-wise breakdown.
+// Report H-2.0.1, ported from pages/HR/hrVacancyHistory.html: current post totals for the Major
 export default function VacancyHistoryReport({ report, onBack, notify }) {
   const { orgId: sessionOrgId, isMinistryView } = useHRPermissions();
   // Ministry users see every Major Port (organisation 0); organisation users their own.
@@ -59,37 +60,12 @@ export default function VacancyHistoryReport({ report, onBack, notify }) {
 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [periods, setPeriods] = useState({ years: [], months: [] });
-  const [year, setYear] = useState('');
-  const [month, setMonth] = useState('');
-  const [organisations, setOrganisations] = useState([]);
-  const [departments, setDepartments] = useState([]);
   const [orgFilter, setOrgFilter] = useState('');
   const [classFilter, setClassFilter] = useState('');
   const [deptFilter, setDeptFilter] = useState('');
 
   const notifyRef = useRef(notify);
   useEffect(() => { notifyRef.current = notify; }, [notify]);
-
-  useEffect(() => {
-    if (scopeOrgId == null) return undefined;
-    let alive = true;
-    fetchVacancyLogYearsAndMonths(scopeOrgId)
-      .then((res) => { if (alive) setPeriods(yearMonthOptions(asList(res))); })
-      .catch(() => {});
-    fetchHrDepartments(scopeOrgId)
-      .then((res) => { if (alive) setDepartments(asList(res)); })
-      .catch(() => {});
-    if (isMinistryView) {
-      fetchOrganisationsByCluster(MAJOR_PORTS_CLUSTER)
-        .then((res) => { if (alive) setOrganisations(asList(res)); })
-        .catch(() => {});
-    }
-    return () => { alive = false; };
-  }, [scopeOrgId, isMinistryView]);
-
-  // The month view applies only once both a year and a month are chosen.
-  const hasPeriod = Boolean(year && month);
 
   const load = useCallback(async () => {
     if (scopeOrgId == null) {
@@ -98,9 +74,7 @@ export default function VacancyHistoryReport({ report, onBack, notify }) {
     }
     setLoading(true);
     try {
-      const res = hasPeriod
-        ? await fetchDepartmentWisePostStatusFiltered(MAJOR_PORTS_CLUSTER, scopeOrgId, year, month)
-        : await fetchDepartmentWisePostStatus(MAJOR_PORTS_CLUSTER, scopeOrgId);
+      const res = await fetchDepartmentWisePostStatus(MAJOR_PORTS_CLUSTER, scopeOrgId);
       setRows(
         asList(res).map((r) => ({
           ...r,
@@ -115,13 +89,29 @@ export default function VacancyHistoryReport({ report, onBack, notify }) {
     } finally {
       setLoading(false);
     }
-  }, [scopeOrgId, hasPeriod, year, month]);
+  }, [scopeOrgId]);
 
-  // Deferred a tick so the load's setState does not run synchronously in the effect.
   useEffect(() => {
     const timer = setTimeout(load, 0);
     return () => clearTimeout(timer);
   }, [load]);
+
+  const organisationOptions = useMemo(() => uniqueOptions(rows, 'organisation_id', 'organisation_name'), [rows]);
+
+  const departmentOptions = useMemo(
+    () =>
+      uniqueOptions(
+        rows.filter((r) => !orgFilter || String(r.organisation_id) === orgFilter),
+        'department_id',
+        'department_name'
+      ),
+    [rows, orgFilter]
+  );
+
+  const changeOrganisation = (value) => {
+    setOrgFilter(value);
+    setDeptFilter('');
+  };
 
   const filteredRows = useMemo(
     () =>
@@ -134,8 +124,6 @@ export default function VacancyHistoryReport({ report, onBack, notify }) {
     [rows, orgFilter, classFilter, deptFilter]
   );
 
-  // The cards and the table's total row are summed from the same filtered rows, so they always
-  // agree with each other and follow the Organisation / Class / Department filters.
   const kpis = useMemo(() => sumCounts(filteredRows), [filteredRows]);
 
   const getTotals = useCallback(
@@ -155,8 +143,6 @@ export default function VacancyHistoryReport({ report, onBack, notify }) {
   }, [isMinistryView]);
 
   const resetFilters = () => {
-    setYear('');
-    setMonth('');
     setOrgFilter('');
     setClassFilter('');
     setDeptFilter('');
@@ -164,14 +150,12 @@ export default function VacancyHistoryReport({ report, onBack, notify }) {
 
   const filters = (
     <>
-      <FilterSelect label="Year" value={year} onChange={setYear} options={periods.years} placeholder="--Year--" />
-      <FilterSelect label="Month" value={month} onChange={setMonth} options={periods.months} placeholder="--Month--" />
       {isMinistryView && (
         <FilterSelect
           label="Organisation"
           value={orgFilter}
-          onChange={setOrgFilter}
-          options={organisations.map((o) => ({ value: String(o.organisation_id), label: o.organisation_name }))}
+          onChange={changeOrganisation}
+          options={organisationOptions}
         />
       )}
       <FilterSelect
@@ -184,12 +168,10 @@ export default function VacancyHistoryReport({ report, onBack, notify }) {
         label="Department"
         value={deptFilter}
         onChange={setDeptFilter}
-        options={departments.map((d) => ({ value: String(d.department_id), label: d.department_name }))}
+        options={departmentOptions}
       />
     </>
   );
-
-  const periodLabel = hasPeriod ? `${periods.months.find((m) => m.value === month)?.label} ${year}` : 'Current position';
 
   const summary = (
     // Same order as the table: Sanctioned, Actual, then Vacancy (Live, Abolished, Total).
@@ -205,7 +187,7 @@ export default function VacancyHistoryReport({ report, onBack, notify }) {
   return (
     <ReportLayout
       report={report}
-      meta={<>Major Ports • Period — <strong style={{ color: T.brand }}>{periodLabel}</strong></>}
+      meta={<>Major Ports • Period — <strong style={{ color: T.brand }}>Current position</strong></>}
       rows={filteredRows}
       columns={columns}
       getTotals={getTotals}
@@ -213,8 +195,7 @@ export default function VacancyHistoryReport({ report, onBack, notify }) {
       onRefresh={load}
       filters={filters}
       onBack={onBack}
-      filtersActive={Boolean(year || month || orgFilter || classFilter || deptFilter)}
-      note="Choose both a year and a month to see the position recorded in that month's vacancy log."
+      filtersActive={Boolean(orgFilter || classFilter || deptFilter)}
       onResetFilters={resetFilters}
       summary={summary}
       notify={notify}

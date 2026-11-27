@@ -9598,7 +9598,169 @@ async function hrDetailedStatusReport(req, res) {
   }
 }
 
+const NON_PORT_CATEGORY = 3;
 
+const CLASS_NUMBERS = { 1: 1, 2: 2, 3: 3, 4: 4, I: 1, II: 2, III: 3, IV: 4 };
+
+const toClassNumber = (value) =>
+  CLASS_NUMBERS[String(value ?? "").toUpperCase().replace(/CLASS|[\s.\-]/g, "")] ?? null;
+
+const GENDERS = { M: "Male", MALE: "Male", F: "Female", FEMALE: "Female", T: "Transgender", TRANSGENDER: "Transgender" };
+const toGender = (value) => GENDERS[String(value ?? "").trim().toUpperCase()] ?? null;
+
+const cleanOrgName = (name) => String(name).replace(/\./g, " ");
+const byName = (a, b) => a.localeCompare(b);
+const column = (headerName, field = headerName) => ({
+  headerName,
+  field,
+  headerClass: "headerGroup",
+  cellStyle: { textAlign: "center" },
+});
+
+async function fetchNonPortRows(conn) {
+  const request = conn.request();
+  request.input("orgCategory", NON_PORT_CATEGORY);
+
+  const result = await request.query(`
+    DECLARE @lastMonth DATE = DATEADD(MONTH, -1, GETDATE());
+
+    SELECT
+      o.organisation_name,
+      v.department,
+      v.class,
+      v.gender,
+      COUNT(v.Entry_id) AS sanctioned,
+      SUM(CASE WHEN LTRIM(RTRIM(v.vacant_or_filled)) = 'filled' THEN 1 ELSE 0 END) AS actual,
+      MONTH(@lastMonth) AS periodMonth,
+      YEAR(@lastMonth) AS periodYear
+    FROM mmt_organisation o
+    LEFT JOIN tbl_hr_other_org_vacancy_details v
+      ON v.organisation_id = o.organisation_id
+      AND v.Uploaded_year = YEAR(@lastMonth)
+      AND v.Uploaded_month = MONTH(@lastMonth)
+    WHERE o.organisation_category_id = @orgCategory
+    GROUP BY o.organisation_name, v.department, v.class, v.gender;
+  `);
+
+  return result.recordset || [];
+}
+
+function sendNonPortReport(res, source, columnDefs, rowData) {
+  const { periodMonth, periodYear } = source[0];
+  return res.json({
+    period: `${String(periodMonth).padStart(2, "0")}/${periodYear}`,
+    columnDefs,
+    rowData,
+  });
+}
+
+const noData = (res) => res.status(404).json({ error: "No data available" });
+
+function pivotByDepartment(records, measures) {
+  const orgs = [...new Set(records.map((r) => cleanOrgName(r.organisation_name)))].sort(byName);
+  const fields = orgs.flatMap((org) => measures.map((m) => `${org}_${m.suffix}`));
+  const departments = new Map(); // upper-case name -> row, so spelling in different case is merged
+
+  records.forEach((r) => {
+    const name = String(r.department ?? "").trim() || "Not specified";
+    const key = name.toUpperCase();
+    if (!departments.has(key)) {
+      departments.set(key, { Department: name, ...Object.fromEntries(fields.map((f) => [f, 0])) });
+    }
+    const row = departments.get(key);
+    measures.forEach((m) => {
+      row[`${cleanOrgName(r.organisation_name)}_${m.suffix}`] += m.count(r);
+    });
+  });
+
+  return {
+    columnDefs: [
+      column("Department"),
+      ...orgs.map((org) => ({
+        headerName: org,
+        children: measures.map((m) => column(m.header, `${org}_${m.suffix}`)),
+      })),
+    ],
+    rowData: [...departments.values()].sort((a, b) => byName(a.Department, b.Department)),
+  };
+}
+
+// H-2.1  Manpower Overview: Organisation | Regular (Sanctioned, Actual)
+async function getNonPortStaffingOverview(req, res) {
+  try {
+    if (Number(req.params.orgCategory) !== NON_PORT_CATEGORY) return noData(res);
+
+    const records = await fetchNonPortRows(await pool);
+    if (!records.some((r) => r.sanctioned > 0)) return noData(res);
+
+    const orgs = new Map();
+    records.forEach((r) => {
+      const name = r.organisation_name;
+      if (!orgs.has(name)) orgs.set(name, { Organisation: name, Sanctioned: 0, Actual: 0 });
+      orgs.get(name).Sanctioned += r.sanctioned;
+      orgs.get(name).Actual += r.actual;
+    });
+
+    return sendNonPortReport(
+      res,
+      records,
+      [column("Organisation"), { headerName: "Regular", children: [column("Sanctioned"), column("Actual")] }],
+      [...orgs.values()].sort((a, b) => byName(a.Organisation, b.Organisation))
+    );
+  } catch (err) {
+    console.error("Error occurred while fetching non-port staffing overview", err);
+    return res.status(500).json({ error: "Could not load the report." });
+  }
+}
+
+// H-2.2  Total Manpower Sanction and Actual
+async function sendNonPortSanctionActual(conn, classID, res) {
+  const records = (await fetchNonPortRows(conn)).filter(
+    (r) => r.sanctioned > 0 && (!classID || toClassNumber(r.class) === classID)
+  );
+  if (!records.length) return noData(res);
+
+  const { columnDefs, rowData } = pivotByDepartment(records, [
+    { header: "Sanctioned", suffix: "Sanctioned", count: (r) => r.sanctioned },
+    { header: "Actual", suffix: "Actual", count: (r) => r.actual },
+  ]);
+  return sendNonPortReport(res, records, columnDefs, rowData);
+}
+
+// H-2.4  Actual Manpower: total filled posts only, without the class split
+async function sendNonPortClassWise(conn, res) {
+  const records = (await fetchNonPortRows(conn)).filter((r) => r.actual > 0);
+  if (!records.length) return noData(res);
+
+  const { columnDefs, rowData } = pivotByDepartment(records, [
+    { header: "Total", suffix: "Total_Filled", count: (r) => r.actual },
+  ]);
+  return sendNonPortReport(res, records, columnDefs, rowData);
+}
+
+// H-2.3  Gender Wise Manpower: Male, Female and Total filled posts, without classes
+async function sendNonPortGenderWise(conn, res) {
+  const records = (await fetchNonPortRows(conn)).filter(
+    (r) => r.actual > 0 && ["Male", "Female"].includes(toGender(r.gender))
+  );
+  if (!records.length) return noData(res);
+
+  const orgs = [...new Set(records.map((r) => cleanOrgName(r.organisation_name)))].sort(byName);
+
+  const rowData = ["Male", "Female", "Total"].map((gender) => {
+    const row = { GENDER: gender };
+    orgs.forEach((org) => {
+      row[org] = records
+        .filter((r) => cleanOrgName(r.organisation_name) === org)
+        .filter((r) => gender === "Total" || toGender(r.gender) === gender)
+        .reduce((sum, r) => sum + r.actual, 0);
+    });
+    return row;
+  });
+
+  const columnDefs = ["GENDER", ...orgs].map((name) => column(name));
+  return sendNonPortReport(res, records, columnDefs, rowData);
+}
 async function getTotalManpowerSanctionActual(req, res) {
   const departmentID = parseInt(req.params.departmentID, 10);
   const classID = req.params.classID;
@@ -9614,6 +9776,10 @@ async function getTotalManpowerSanctionActual(req, res) {
   if (classID !== 0) request.input("classID", classID);
 
   try {
+    if (Number(orgCategory) === NON_PORT_CATEGORY) {
+      return await sendNonPortSanctionActual(conn, Number(classID), res);
+    }
+
     const departmentFilter =
       departmentID != 0 ? `AND p.department_id = @departmentID` : "";
     const classFilter = classID != 0 ? `AND p.class_id = @classID` : "";
@@ -9801,6 +9967,10 @@ async function getHRGenderWiseCountMajorReport(req, res) {
   const request = await conn.request();
 
   try {
+    if (Number(orgCategory) === NON_PORT_CATEGORY) {
+      return await sendNonPortGenderWise(conn, res);
+    }
+
     const query = `
             DECLARE @sql NVARCHAR(MAX) = '';
 DECLARE @selectCols NVARCHAR(MAX) = '';
@@ -9966,6 +10136,9 @@ async function getTotalManpowerClassWiseReport(req, res) {
 
 
   try {
+    if (Number(orgCategory) === NON_PORT_CATEGORY) {
+      return await sendNonPortClassWise(conn, res);
+    }
 
        if(!deptCategory || deptCategory==0){
             query = `
@@ -10116,6 +10289,9 @@ async function getTotalManpowerClassWiseReport(req, res) {
     res.status(500).json({ error: err });
   }
 }
+
+
+
 
 async function getHRStaffingOverviewReport(req, res) {
   const orgCategory = req.params.orgCategory;
@@ -10747,5 +10923,5 @@ export default {
   getHRStaffingOverviewReport,
   getTrainingDetailsReport,
   hrAnticipatedReportData,
-  getContractDetailsReport
+  getContractDetailsReport,getNonPortStaffingOverview
 };

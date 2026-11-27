@@ -87,6 +87,11 @@ export function fetchTrafficDashboardPart(part, params = {}, config = {}) {
   return api.get(`/kpi/traffic/dashboard/${part}`, { ...config, params });
 }
 
+// Every organisation of the dashboard's Organisation dropdown (organisation users included)
+export function fetchTrafficDashboardOrganisations() {
+  return api.get('/kpi/traffic/dashboard/organisations');
+}
+
 // ---- Port Performance ----
 // Same rules as Traffic: user and organisation come from the session token, GETs take
 // { signal }, and every write clears the response cache.
@@ -254,6 +259,11 @@ export const FINANCIAL_DASHBOARD_PARTS = ['summary', 'drill'];
 export function fetchFinancialDashboardPart(part, params = {}, config = {}) {
   if (!FINANCIAL_DASHBOARD_PARTS.includes(part)) return Promise.reject(new Error(`Unknown dashboard part: ${part}`));
   return api.get(`/kpi/financial-parameters/dashboard/${part}`, { ...config, params });
+}
+
+// Every organisation of the financial dashboard's Organisation dropdown (organisation users included)
+export function fetchFinancialDashboardOrganisations() {
+  return api.get('/kpi/financial-parameters/dashboard/organisations');
 }
 
 // ---- Cruise and Passenger Traffic ----

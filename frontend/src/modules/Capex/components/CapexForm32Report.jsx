@@ -54,14 +54,19 @@ const DEFAULT_SHIPPING_ORGS = [
   { code: 'DCI', name: 'Dredging Corporation of India' },
 ];
 
+// Own sections (C and D), as in the old portal: organisation categories 9 and 8
+const DEFAULT_SAGARMALA_ALHW_ORGS = [{ code: 'CAPEX1', name: 'sagarmala+ALHW' }];
+
+const DEFAULT_SECRETARIAT_ORGS = [
+  { code: 'CAPEX2', name: 'Secretariat-Economic Service (capital)' },
+];
+
 const DEFAULT_OTHER_ORGS = [
   { code: 'IWAI', name: 'Inland Waterways Authority of India' },
-  { code: 'CAPEX1', name: 'sagarmala+ALHW' },
   { code: 'DGLL', name: 'Directorate General of Lighthouses and Lightships' },
   { code: 'DGS', name: 'Directorate General of Shipping, Mumbai' },
   { code: 'IMU', name: 'Indian Maritime University' },
   { code: 'ALHW', name: 'Andaman, Lakshadweep Harbour Works' },
-  { code: 'CAPEX2', name: 'Secretariat-Economic Service (capital)' },
 ];
 
 function fmt(num) {
@@ -268,6 +273,8 @@ export default function CapexForm32Report({ notify, orgScoped = false }) {
   const [reportData, setReportData] = useState({
     majorPorts: [],
     shippingsectorOrganisations: [],
+    sagarmalaALHW: [],
+    secretariatEconomic: [],
     otherOrganisations: [],
   });
 
@@ -279,6 +286,8 @@ export default function CapexForm32Report({ notify, orgScoped = false }) {
         let majorPorts = res.data.majorPorts || [];
         let shippingsectorOrganisations = res.data.shippingsectorOrganisations || [];
         let otherOrganisations = res.data.otherOrganisations || [];
+        let sagarmalaALHW = res.data.sagarmalaALHW || [];
+        let secretariatEconomic = res.data.secretariatEconomic || [];
 
         if (orgScoped) {
           const orgId = String(getSessionOrganisationId() || '');
@@ -289,11 +298,15 @@ export default function CapexForm32Report({ notify, orgScoped = false }) {
           majorPorts = onlyOwn(majorPorts);
           shippingsectorOrganisations = onlyOwn(shippingsectorOrganisations);
           otherOrganisations = onlyOwn(otherOrganisations);
+          sagarmalaALHW = onlyOwn(sagarmalaALHW);
+          secretariatEconomic = onlyOwn(secretariatEconomic);
         }
 
         setReportData({
           majorPorts,
           shippingsectorOrganisations,
+          sagarmalaALHW,
+          secretariatEconomic,
           otherOrganisations,
         });
       }
@@ -329,48 +342,38 @@ export default function CapexForm32Report({ notify, orgScoped = false }) {
     () => processCategoryData(reportData.otherOrganisations, DEFAULT_OTHER_ORGS, filterOpts),
     [reportData.otherOrganisations, selectedOrgFilter, orgScoped, quickFilter]
   );
+  const sagarmalaCategory = useMemo(
+    () =>
+      processCategoryData(reportData.sagarmalaALHW, DEFAULT_SAGARMALA_ALHW_ORGS, filterOpts),
+    [reportData.sagarmalaALHW, selectedOrgFilter, orgScoped, quickFilter]
+  );
+  const secretariatCategory = useMemo(
+    () =>
+      processCategoryData(reportData.secretariatEconomic, DEFAULT_SECRETARIAT_ORGS, filterOpts),
+    [reportData.secretariatEconomic, selectedOrgFilter, orgScoped, quickFilter]
+  );
 
-  const grandGbsBE =
-    majorCategory.totals.capexGbsSum +
-    shippingCategory.totals.capexGbsSum +
-    otherCategory.totals.capexGbsSum;
-  const grandIebrBE =
-    majorCategory.totals.capexIebrSum +
-    shippingCategory.totals.capexIebrSum +
-    otherCategory.totals.capexIebrSum;
-  const grandPppBE =
-    majorCategory.totals.capexPppSum +
-    shippingCategory.totals.capexPppSum +
-    otherCategory.totals.capexPppSum;
-  const grandTotalBE =
-    majorCategory.totals.capexTotalSum +
-    shippingCategory.totals.capexTotalSum +
-    otherCategory.totals.capexTotalSum;
-  const grandGbsExp =
-    majorCategory.totals.totalGbsSum +
-    shippingCategory.totals.totalGbsSum +
-    otherCategory.totals.totalGbsSum;
-  const grandIebrExp =
-    majorCategory.totals.totalIebrSum +
-    shippingCategory.totals.totalIebrSum +
-    otherCategory.totals.totalIebrSum;
+  // Grand total (A+B+C+D+E) adds up every section's totals
+  const allCategories = [
+    majorCategory,
+    shippingCategory,
+    sagarmalaCategory,
+    secretariatCategory,
+    otherCategory,
+  ];
+  const sumOf = (key) => allCategories.reduce((sum, c) => sum + c.totals[key], 0);
+
+  const grandGbsBE = sumOf('capexGbsSum');
+  const grandIebrBE = sumOf('capexIebrSum');
+  const grandPppBE = sumOf('capexPppSum');
+  const grandTotalBE = sumOf('capexTotalSum');
+  const grandGbsExp = sumOf('totalGbsSum');
+  const grandIebrExp = sumOf('totalIebrSum');
   // As in the old portal: the grand IR % / PPP % add up the sections' IR % / PPP %
-  const grandIebrPct =
-    majorCategory.totals.categoryIRpct +
-    shippingCategory.totals.categoryIRpct +
-    otherCategory.totals.categoryIRpct;
-  const grandPppExp =
-    majorCategory.totals.totalPppSum +
-    shippingCategory.totals.totalPppSum +
-    otherCategory.totals.totalPppSum;
-  const grandPppPct =
-    majorCategory.totals.categoryPPPpct +
-    shippingCategory.totals.categoryPPPpct +
-    otherCategory.totals.categoryPPPpct;
-  const grandTotalExp =
-    majorCategory.totals.totalGbsIebrPppSum +
-    shippingCategory.totals.totalGbsIebrPppSum +
-    otherCategory.totals.totalGbsIebrPppSum;
+  const grandIebrPct = sumOf('categoryIRpct');
+  const grandPppExp = sumOf('totalPppSum');
+  const grandPppPct = sumOf('categoryPPPpct');
+  const grandTotalExp = sumOf('totalGbsIebrPppSum');
   const grandTotalPct = grandTotalBE > 0 ? (grandTotalExp * 100) / grandTotalBE : 0;
 
   // As-on date: last day of previous calendar month; year from FY start (legacy capexReport.html).
@@ -393,6 +396,8 @@ export default function CapexForm32Report({ notify, orgScoped = false }) {
     const fromApi = [
       ...keepSectionOrgs(reportData.majorPorts, DEFAULT_MAJOR_PORTS),
       ...keepSectionOrgs(reportData.shippingsectorOrganisations, DEFAULT_SHIPPING_ORGS),
+      ...keepSectionOrgs(reportData.sagarmalaALHW, DEFAULT_SAGARMALA_ALHW_ORGS),
+      ...keepSectionOrgs(reportData.secretariatEconomic, DEFAULT_SECRETARIAT_ORGS),
       ...keepSectionOrgs(reportData.otherOrganisations, DEFAULT_OTHER_ORGS),
     ]
       .map((o) => o.organisation_name)
@@ -400,6 +405,8 @@ export default function CapexForm32Report({ notify, orgScoped = false }) {
     const fallback = [
       ...DEFAULT_MAJOR_PORTS.map((o) => o.name),
       ...DEFAULT_SHIPPING_ORGS.map((o) => o.name),
+      ...DEFAULT_SAGARMALA_ALHW_ORGS.map((o) => o.name),
+      ...DEFAULT_SECRETARIAT_ORGS.map((o) => o.name),
       ...DEFAULT_OTHER_ORGS.map((o) => o.name),
     ];
     return Array.from(new Set(fromApi.length ? fromApi : fallback)).sort();
@@ -724,9 +731,47 @@ export default function CapexForm32Report({ notify, orgScoped = false }) {
                 </>
               )}
 
+              {(!orgScoped || sagarmalaCategory.rows.length > 0) && (
+                <>
+                  {!orgScoped && <SectionHeader title="C. Sagarmala + ALHW Projects" />}
+                  {sagarmalaCategory.rows.map((row) => {
+                    const sNo = rowCounter++;
+                    return (
+                      <DataRow key={`sg-${row.organisation_id || sNo}`} sNo={sNo} row={row} />
+                    );
+                  })}
+                  {!orgScoped && (
+                    <CategoryTotalRow
+                      label="Total Sagarmala + ALHW Projects (C)"
+                      totals={sagarmalaCategory.totals}
+                    />
+                  )}
+                </>
+              )}
+
+              {(!orgScoped || secretariatCategory.rows.length > 0) && (
+                <>
+                  {!orgScoped && (
+                    <SectionHeader title="D. Secretariat-Economic Service (capital)" />
+                  )}
+                  {secretariatCategory.rows.map((row) => {
+                    const sNo = rowCounter++;
+                    return (
+                      <DataRow key={`se-${row.organisation_id || sNo}`} sNo={sNo} row={row} />
+                    );
+                  })}
+                  {!orgScoped && (
+                    <CategoryTotalRow
+                      label="Total Secretariat-Economic Service (D)"
+                      totals={secretariatCategory.totals}
+                    />
+                  )}
+                </>
+              )}
+
               {(!orgScoped || otherCategory.rows.length > 0) && (
                 <>
-                  {!orgScoped && <SectionHeader title="C. Other Organisations" />}
+                  {!orgScoped && <SectionHeader title="E. Other Organisations" />}
                   {otherCategory.rows.map((row) => {
                     const sNo = rowCounter++;
                     return (
@@ -735,7 +780,7 @@ export default function CapexForm32Report({ notify, orgScoped = false }) {
                   })}
                   {!orgScoped && (
                     <CategoryTotalRow
-                      label="Total Other Organisations (C)"
+                      label="Total Other Organisations (E)"
                       totals={otherCategory.totals}
                     />
                   )}
@@ -743,9 +788,7 @@ export default function CapexForm32Report({ notify, orgScoped = false }) {
               )}
 
               {orgScoped &&
-              majorCategory.rows.length === 0 &&
-              shippingCategory.rows.length === 0 &&
-              otherCategory.rows.length === 0 ? (
+              allCategories.every((c) => c.rows.length === 0) ? (
                 <tr>
                   <td
                     colSpan={13}
@@ -763,7 +806,7 @@ export default function CapexForm32Report({ notify, orgScoped = false }) {
                 >
                   <td className="p-2.5 border border-[#6b3535] text-center" />
                   <td className="p-2.5 border border-[#6b3535] text-left uppercase tracking-wider">
-                    Total (A+B+C)
+                    Total (A+B+C+D+E)
                   </td>
                   <td className="p-2.5 border border-[#6b3535] text-right">{fmt(grandGbsBE)}</td>
                   <td className="p-2.5 border border-[#6b3535] text-right">{fmt(grandIebrBE)}</td>
