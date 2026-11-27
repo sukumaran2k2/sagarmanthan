@@ -116,10 +116,10 @@ async function getKpiDgs1_3(req, res) {
         ORDER BY [type];
       `);
 
-    const P = `Prev FY (${d.prevLabel})`;
-    const C = `Current FY upto ${fmt(d.cutoff)}`;
-    const M = `Month (${d.monthLabel})`;
-    const T = `Total FY upto ${fmt(d.asOn)}`;
+    const P = `During the Previous FY (${d.prevLabel})`;
+    const C = `During the Current FY-upto ${fmt(d.cutoff)}`;
+    const M = `During the Month (${d.monthLabel})`;
+    const T = `Total upto ${fmt(d.asOn)}`;
 
     const rows = result.recordset.map((r) => ({
       'MMD Name': r.mmd_name,
@@ -129,7 +129,11 @@ async function getKpiDgs1_3(req, res) {
       [`${T} - Ships`]: r.total_ships,  [`${T} - Tonnage`]: r.total_ton,
     }));
 
-    res.json(rows);
+      res.json({
+      data: rows,
+      asOnDate: fmt(d.asOn),
+      reportMonth: d.reportMonth,
+    });
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Internal Server Error');
@@ -186,7 +190,11 @@ async function getKpiDgs1_4(req, res) {
       cats.cum[kS] = cumShip;      cats.cum[kT] = cumTon;
     });
 
-    res.json([cats.reg, cats.dereg, cats.net, cats.cum]);
+      res.json({
+      data: [cats.reg, cats.dereg, cats.net, cats.cum],
+      asOnDate: fmt(d.asOn),
+      reportMonth: d.reportMonth,
+    });
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Internal Server Error');
@@ -197,6 +205,7 @@ async function getKpiDgs1_4(req, res) {
 async function getKpiDgs1_5(req, res) {
   try {
     const now = new Date();
+    const d = getReportDates();
     const fyNow = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
     const prevMonthName = new Date(now.getFullYear(), now.getMonth() - 1, 1)
       .toLocaleString('en-GB', { month: 'long' });
@@ -254,7 +263,11 @@ async function getKpiDgs1_5(req, res) {
       cum[`${fy} - Ships`] = cumShips;     cum[`${fy} - Tonnage`] = cumTon;
     }
 
-    res.json([reg, dereg, net, cum]);
+    res.json({
+      data: [reg, dereg, net, cum],
+      asOnDate: fmt(d.asOn),
+      reportMonth: d.reportMonth,
+    });
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Internal Server Error');

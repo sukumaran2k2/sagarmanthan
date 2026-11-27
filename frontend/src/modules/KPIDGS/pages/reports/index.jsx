@@ -8,8 +8,7 @@ import ExamPerformanceReport from '../../components/ExamPerformanceReport';
 import ExamTrendReport from '../../components/ExamTrendReport';
 import * as api from '../../api';
 
-
-
+const BANNER_SLUGS = ['flagging-cumulative', 'flagging-monthly-trends', 'flagging-yearly-trends'];
 
 const CUSTOM_PAGE_BY_SLUG = {
   'flagging-addition': { Component: FlaggingReport, props: { kind: 'addition' } },
@@ -185,6 +184,14 @@ export default function ReportLeaf({ triggerNotification }) {
       title={leaf.label}
       fetchFn={fetchFn}
       triggerNotification={triggerNotification}
+      // showTotal={TOTAL_SLUGS.includes(slug)}
+       showTotal={slug === 'flagging-cumulative'}
+       {...(BANNER_SLUGS.includes(slug) && {
+        centerTitle: true,
+        showBack: false,
+        exportTitle: `Form No. ${leaf.code} - Abstract - ${leaf.label}`,
+        exportFileName: `DGS_${leaf.code.replace(/\./g, '_')}`,
+      })}
     />
   );
 }

@@ -1,11 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle2 } from 'lucide-react';
-// import {
-//   fetchMmdList,
-//   createKpi2_1_1,
-//   fetchKpi2_1_PreviousCumulative, fetchKpi2_1_ByMonth, updateKpi2_1_1,
-// } from '../../api';
 import {
   fetchMmdList,
   createKpi2_1_1,
@@ -43,126 +38,76 @@ export default function FlaggingShipsTonnage({ triggerNotification }) {
   const notify = useNotifier(triggerNotification);
   const { canAdd, canEdit } = useKPIDGSPermissions();
   const [searchParams] = useSearchParams();
-const editYear = searchParams.get('year');
-const editMonth = searchParams.get('month');
-const isEdit = Boolean(editYear && editMonth);
+  const editYear = searchParams.get('year');
+  const editMonth = searchParams.get('month');
+  const isEdit = Boolean(editYear && editMonth);
 
-const [year, setYear] = useState(editYear || '');
-const [month, setMonth] = useState(editMonth || '');
+  const [year, setYear] = useState(editYear || '');
+  const [month, setMonth] = useState(editMonth || '');
 
-useEffect(() => {
-  setYear(editYear || '');
-  setMonth(editMonth || '');
-}, [editYear, editMonth]);
-  // const [year, setYear] = useState('');
-  // const [month, setMonth] = useState('');
+  useEffect(() => {
+    setYear(editYear || '');
+    setMonth(editMonth || '');
+  }, [editYear, editMonth]);
+
   const [mmds, setMmds] = useState([]);
   const [values, setValues] = useState({}); // keyed by mmd_name
   const [prevCumulative, setPrevCumulative] = useState({}); // keyed by mmd_name
   const [loadingMmds, setLoadingMmds] = useState(false);
   const [saving, setSaving] = useState(false);
 
-const notifyRef = useRef(notify);
-notifyRef.current = notify;
+  const notifyRef = useRef(notify);
+  notifyRef.current = notify;
 
-useEffect(() => {
-  let cancelled = false;
-  const norm = (s) => String(s ?? '').trim().toLowerCase();
+  useEffect(() => {
+    let cancelled = false;
+    const norm = (s) => String(s ?? '').trim().toLowerCase();
 
-  (async () => {
-    setLoadingMmds(true);
-    try {
-      const res = await fetchMmdList();
-      const list = (Array.isArray(res.data) ? res.data : [])
-        .filter((m) => m.status === 1 || m.status === true)
-        .map((m) => ({ id: m.mmd_id, name: m.mmd_name }));
+    (async () => {
+      setLoadingMmds(true);
+      try {
+        const res = await fetchMmdList();
+        const list = (Array.isArray(res.data) ? res.data : [])
+          .filter((m) => m.status === 1 || m.status === true)
+          .map((m) => ({ id: m.mmd_id, name: m.mmd_name }));
 
-      const init = {};
-      list.forEach((m) => { init[m.name] = { ...BLANK_ROW }; });
+        const init = {};
+        list.forEach((m) => { init[m.name] = { ...BLANK_ROW }; });
 
-      if (isEdit) {
-        const editRes = await fetchKpi2_1_EditData(editYear, editMonth);
-        const rows = Array.isArray(editRes.data) ? editRes.data : [];
-        console.log('K-2.1 edit rows:', rows);
-        rows.forEach((r) => {
-          const m = list.find((x) => norm(x.name) === norm(r.type));
-          if (!m) { console.warn('No MMD match for type:', r.type); return; }
-          init[m.name] = {
-            additionApplicationReceived: String(r.addition_application_received ?? ''),
-            additionRegisteredShips: String(r.addition_registered_ship ?? ''),
-            additionTotalTonnage: String(r.addition_total_tonnage ?? ''),
-            deletionApplicationReceived: String(r.deletion_application_received ?? ''),
-            deletionRegisteredShips: String(r.deletion_registered_ship ?? ''),
-            deletionTotalTonnage: String(r.deletion_total_tonnage ?? ''),
-          };
-        });
+        if (isEdit) {
+          const editRes = await fetchKpi2_1_EditData(editYear, editMonth);
+          const rows = Array.isArray(editRes.data) ? editRes.data : [];
+          console.log('K-2.1 edit rows:', rows);
+          rows.forEach((r) => {
+            const m = list.find((x) => norm(x.name) === norm(r.type));
+            if (!m) { console.warn('No MMD match for type:', r.type); return; }
+            init[m.name] = {
+              additionApplicationReceived: String(r.addition_application_received ?? ''),
+              additionRegisteredShips: String(r.addition_registered_ship ?? ''),
+              additionTotalTonnage: String(r.addition_total_tonnage ?? ''),
+              deletionApplicationReceived: String(r.deletion_application_received ?? ''),
+              deletionRegisteredShips: String(r.deletion_registered_ship ?? ''),
+              deletionTotalTonnage: String(r.deletion_total_tonnage ?? ''),
+            };
+          });
+        }
+
+        if (cancelled) return;
+        setMmds(list);
+        setValues(init);
+      } catch (err) {
+        if (cancelled) return;
+        console.error('Error loading K-2.1 form data:', err);
+        notifyRef.current(COMMON_TOASTS.loadFailed(isEdit ? 'Flagging entry' : 'MMD list'));
+        setMmds([]);
+      } finally {
+        if (!cancelled) setLoadingMmds(false);
       }
+    })();
 
-      if (cancelled) return;
-      setMmds(list);
-      setValues(init);
-    } catch (err) {
-      if (cancelled) return;
-      console.error('Error loading K-2.1 form data:', err);
-      notifyRef.current(COMMON_TOASTS.loadFailed(isEdit ? 'Flagging entry' : 'MMD list'));
-      setMmds([]);
-    } finally {
-      if (!cancelled) setLoadingMmds(false);
-    }
-  })();
+    return () => { cancelled = true; };
+  }, [isEdit, editYear, editMonth]);
 
-  return () => { cancelled = true; };
-}, [isEdit, editYear, editMonth]);
-
-
-  // Load active MMDs
-  // useEffect(() => {
-  //   setLoadingMmds(true);
-  //   fetchMmdList()
-  //     .then((res) => {
-  //       const list = (Array.isArray(res.data) ? res.data : [])
-  //         .filter((m) => m.status === 1 || m.status === true)
-  //         .map((m) => ({ id: m.mmd_id, name: m.mmd_name }));
-  //       setMmds(list);
-  //       const init = {};
-  //       list.forEach((m) => { init[m.name] = { ...BLANK_ROW }; });
-  //       setValues(init);
-  //     })
-  //     .catch((err) => {
-  //       console.error('Error loading MMDs:', err);
-  //       notify(COMMON_TOASTS.loadFailed('MMD list'));
-  //       setMmds([]);
-  //     })
-  //     .finally(() => setLoadingMmds(false));
-  // }, [notify]);
-
-
-// useEffect(() => {
-//   if (!isEdit || mmds.length === 0) return;
-//   fetchKpi2_1_EditData(editYear, editMonth)
-//     .then((res) => {
-//       const list = Array.isArray(res.data) ? res.data : [];
-//       setValues((prev) => {
-//         const next = { ...prev };
-//         list.forEach((r) => {
-//           if (!next[r.type]) return;
-//           next[r.type] = {
-//             additionApplicationReceived: String(r.addition_application_received ?? ''),
-//             additionRegisteredShips: String(r.addition_registered_ship ?? ''),
-//             additionTotalTonnage: String(r.addition_total_tonnage ?? ''),
-//             deletionApplicationReceived: String(r.deletion_application_received ?? ''),
-//             deletionRegisteredShips: String(r.deletion_registered_ship ?? ''),
-//             deletionTotalTonnage: String(r.deletion_total_tonnage ?? ''),
-//           };
-//         });
-//         return next;
-//       });
-//     })
-//     .catch((err) => {
-//       console.error('Error loading K-2.1 for edit:', err);
-//       notify(COMMON_TOASTS.loadFailed('Flagging entry'));
-//     });
-// }, [isEdit, editYear, editMonth, mmds.length, notify]);
   // Previous-month cumulatives change whenever year/month change
   useEffect(() => {
     if (!year || !month) {
@@ -253,7 +198,7 @@ useEffect(() => {
     };
     if (isEdit) {
       await updateKpi2_1(payload);
-      notify(DGS_TOASTS.updated('Flagging - Ships & Tonnage')); // toastMessages.js la check pannunga
+      notify(DGS_TOASTS.updated('Flagging - Ships & Tonnage')); 
     } else {
       await createKpi2_1_1(payload);
       notify(DGS_TOASTS.added('Flagging - Ships & Tonnage'));
@@ -423,7 +368,6 @@ useEffect(() => {
         <button
           type="button"
           onClick={handleSubmit}
-          // disabled={saving || !canAdd || !year || !month || mmds.length === 0}
           disabled={saving || !(isEdit ? canEdit : canAdd) || !year || !month || mmds.length === 0}
           className="px-5 py-2 bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-300 text-white text-xs font-bold rounded transition cursor-pointer disabled:cursor-not-allowed"
         >
@@ -433,8 +377,6 @@ useEffect(() => {
           type="button"
           onClick={() => navigate('/kpi/dgs/data-list/flagging-of-vessels')}
           disabled={saving}
-          // onClick={() => navigate(isEdit ? '/kpi/dgs/data-list/flagging-of-vessels' : '/kpi/dgs/input-forms')}ac
-          // disabled={saving}
           className="px-5 py-2 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded transition cursor-pointer"
         >
           Exit

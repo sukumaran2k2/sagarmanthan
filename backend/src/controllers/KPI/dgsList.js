@@ -112,149 +112,7 @@ async function createDgsKpi2_1_1Data(req, res) {
         console.error("Error saving K-2.1.1:", err);
         return res.status(500).json({ message: "Error saving Flagging - Ships & Tonnage", error: err.message });
     }
-
-//     } catch (err) {
-//     console.error("K-2.1.1 SAVE ERROR:", err.message);
-//     console.error("SQL ERROR DETAILS:", err.originalError?.info || err);
-//     console.error("SQL ERROR NUMBER:", err.number);
-//     console.error("SQL ERROR CODE:", err.code);
-
-//     return res.status(500).json({
-//         message: "Error saving Flagging - Ships & Tonnage",
-//         error: err.message,
-//         number: err.number,
-//         code: err.code
-//     });
-// }
 }
-
-
-// async function createDgsKpi2_1_1Data(req, res) {
-//     const year = req.body.year;
-//     const month = req.body.month;
-//     const shipAndTonnageTab = JSON.parse(req.body.shipAndTonnageTab);
-
-//     const conn = await pool;
-//     console.log(year, shipAndTonnageTab)
-//     try {
-
-//         for (let p = 0; p < shipAndTonnageTab.length; p++) {
-//         const type = shipAndTonnageTab[p].type
-//         let additionApplicationReceived = Number(shipAndTonnageTab[p].additionApplicationReceived) || 0;
-//         let additionRegisteredShips = Number(shipAndTonnageTab[p].additionRegisteredShips) || 0;
-//         let additionApplicationPending = Number(shipAndTonnageTab[p].additionApplicationPending) || 0;
-//         let additionTotalTonnage = Number(shipAndTonnageTab[p].additionTotalTonnage) || 0;
-
-//         let deletionApplicationReceived = Number(shipAndTonnageTab[p].deletionApplicationReceived) || 0;
-//         let deletionRegisteredShips = Number(shipAndTonnageTab[p].deletionRegisteredShips) || 0;
-//         let deletionApplicationPending = Number(shipAndTonnageTab[p].deletionApplicationPending) || 0;
-//         let deletionTotalTonnage = Number(shipAndTonnageTab[p].deletionTotalTonnage) || 0;
-
-//         // let networthRegisteredShips = Number(shipAndTonnageTab[p].networthRegisteredShips) || 0;
-//         // let networthTotalTonnage = Number(shipAndTonnageTab[p].networthTotalTonnage) || 0;
-
-//         // let cumulativeRegisteredShips = Number(shipAndTonnageTab[p].cumulativeRegisteredShips) || 0;
-//         // let cumulativeTotalTonnage = Number(shipAndTonnageTab[p].cumulativeTotalTonnage) || 0;
-
-//             // console.log(type, 'type')
-//             // console.log(additionRegisteredShips, 'additionRegisteredShips')
-
-//             const request = conn.request();
-//             request.input("year", year);
-//             request.input("month", month);
-
-//             request.input("type", type);
-
-//             request.input("additionApplicationReceived", additionApplicationReceived);
-//             request.input("additionRegisteredShips", additionRegisteredShips);
-//             request.input("additionApplicationPending", additionApplicationPending);
-//             request.input("additionTotalTonnage", additionTotalTonnage);
-//             request.input("deletionApplicationReceived", deletionApplicationReceived);
-//             request.input("deletionRegisteredShips", deletionRegisteredShips);
-//             request.input("deletionApplicationPending", deletionApplicationPending);
-//             request.input("deletionTotalTonnage", deletionTotalTonnage);
-//             // request.input("networthRegisteredShips", networthRegisteredShips);
-//             // request.input("networthTotalTonnage", networthTotalTonnage);
-//             // request.input("cumulativeRegisteredShips", cumulativeRegisteredShips);
-//             // request.input("cumulativeTotalTonnage", cumulativeTotalTonnage);
-
-
-//             const query = ` IF NOT EXISTS (SELECT tbl_kpi_dgs_2_1.flagging_ship_2_1_id FROM tbl_kpi_dgs_2_1 
-//                 WHERE year = @year and month =  @month and tbl_kpi_dgs_2_1.type = @type)
-
-//                 BEGIN
-//                     INSERT INTO tbl_kpi_dgs_2_1 (year, month, type, 
-//                     addition_application_received, addition_registered_ship, addition_pending_application, addition_total_tonnage,
-//                     deletion_application_received, deletion_registered_ship, deletion_pending_application, deletion_total_tonnage) 
-//                     VALUES (@year, @month, @type, @additionApplicationReceived, @additionRegisteredShips, @additionApplicationPending,
-//                     @additionTotalTonnage, @deletionApplicationReceived, @deletionRegisteredShips, @deletionApplicationPending,
-//                     @deletionTotalTonnage)
-//                 End
-
-//             ELSE
-//                 BEGIN
-//                     UPDATE tbl_kpi_dgs_2_1
-//                         SET addition_application_received = @additionApplicationReceived,
-//                             addition_registered_ship = @additionRegisteredShips,
-//                             addition_pending_application = @additionApplicationPending,
-//                             addition_total_tonnage = @additionTotalTonnage,
-//                             deletion_application_received = @deletionApplicationReceived,
-//                             deletion_registered_ship = @deletionRegisteredShips,
-//                             deletion_pending_application = @deletionApplicationPending,
-//                             deletion_total_tonnage = @deletionTotalTonnage
-                          
-//                         WHERE year = @year AND month = @month AND type = @type;
-//                 END `;
-
-//                 const result = await request.query(query);
-//         }
-//         res.sendStatus(201);
-//     }
-//     catch (err) {
-//         console.log(err);
-//         return res.sendStatus(500);
-//     }
-// };
-
-// DECLARE @year INT = @inputYear;
-//                 DECLARE @month INT = @inputMonth;
-
-//                 DECLARE @numericMonth INT = @month;
-//                 DECLARE @numericYear INT = @year;
-
-//                 DECLARE @fyStartYear INT;
-//                 DECLARE @fyEndYear INT;
-//                 DECLARE @yearEntered INT;
-
-//                 IF @numericMonth >= 4 AND @numericMonth <= 12
-//                 BEGIN
-//                     SET @fyStartYear = @numericYear;
-//                     SET @fyEndYear = @numericYear + 1;
-//                     SET @yearEntered = @numericYear;
-//                 END
-//                 ELSE
-//                 BEGIN
-//                     SET @fyStartYear = @numericYear - 1;
-//                     SET @fyEndYear = @numericYear;
-//                     SET @yearEntered = @numericYear + 1;
-//                 END
-
-//                 -- Final result query
-//                 SELECT 
-//                     type,
-//                     SUM(addition_registered_ship - deletion_registered_ship) AS cummulativeRegisteredShips,
-//                     SUM(addition_total_tonnage - deletion_total_tonnage) AS cummulativeTonnage
-//                 FROM tbl_kpi_dgs_2_1
-//                 WHERE 
-//                 (
-//                     (@numericMonth >= 4 AND month >= 4 AND month < @numericMonth AND year = @fyStartYear)
-//                     OR
-//                     (@numericMonth < 4 AND (
-//                         (month >= 4 AND year = @fyStartYear) OR
-//                         (month < @numericMonth AND year = @fyEndYear)
-//                     ))
-//                 )
-//                 GROUP BY type;
 
 async function getPreviousCumulativeData(req, res) {
     const year = req.params.year;
@@ -329,44 +187,8 @@ async function getPreviousCumulativeData(req, res) {
 
 async function getKpi2_1_List(req, res) {
     const conn = await pool;
-    // const userID = req.params.userID;
 
     try {
-        // const userResult = await conn.query(` SELECT role_id FROM tbl_user WHERE user_id = ${userID} `);
-        // const { role_id } = userResult.recordset[0];
-
-    //     SELECT 
-    //     [year],
-    //     [month],
-
-    //     -- Sum of Addition of Ships & Tonnage
-    //     SUM([addition_application_received]) AS addition_application_received,
-    //     SUM([addition_registered_ship]) AS addition_registered_ship,
-    //     (SUM([addition_application_received]) - SUM([addition_registered_ship])) AS addition_pending_application,
-
-    //     SUM([addition_total_tonnage]) AS addition_total_tonnage,
-
-    //     -- Sum of Deletion of Ships & Tonnage
-    //     SUM([deletion_application_received]) AS deletion_application_received,
-    //     SUM([deletion_registered_ship]) AS deletion_registered_ship,
-    //     (SUM([deletion_application_received]) - SUM([deletion_registered_ship])) AS deletion_pending_application,
-    //     SUM([deletion_total_tonnage]) AS deletion_total_tonnage,
-
-    //     -- Net Worth Calculated Dynamically
-    //     (SUM([addition_registered_ship]) - SUM([deletion_registered_ship])) AS networth_registered_ship,
-    //     (SUM([addition_total_tonnage]) - SUM([deletion_total_tonnage])) AS networth_total_tonnage,
-
-    //     -- Sum of Cumulative Active Ships & Tonnage
-    //     SUM([cumulative_registered_ship]) AS cumulative_registered_ship,
-    //     SUM([cumulative_total_tonnage]) AS cumulative_total_tonnage
-
-    // FROM 
-    //     [sagarmanthan_revamp].[dbo].[tbl_kpi_dgs_2_1]
-    // GROUP BY 
-    //     [year], [month]
-    // ORDER BY 
-    //     [year] DESC, [month] DESC;
-
         const result = await conn.query(` WITH MonthlyData AS (
             SELECT 
                 [year],
@@ -423,8 +245,7 @@ async function getKpi2_1_List(req, res) {
         ;`);
 
         res.json(result.recordset);
-        // }
-
+     
     } catch (err) {
         console.log(err);
         return res.sendStatus(500);
@@ -440,139 +261,73 @@ async function getUpdateMmd_2_1Data(req, res) {
     const request = conn.request();
     request.input("year", year);
     request.input("month", month);
-    // SELECT * FROM tbl_kpi_dgs_2_1 
-    // WHERE year = @year AND month = @month;
-
-
-
-    // DECLARE @selectedYear INT = CAST(@year AS INT);
-    // DECLARE @selectedMonth INT = CAST(@month AS INT);
-
-    // -- Main data for selected year and month
-    // WITH CurrentMonthData AS (
-    //     SELECT
-    //         flagging_ship_2_1_id,
-    //         year,
-    //         month,
-    //         type,
-    //         addition_application_received,
-    //         addition_registered_ship,
-    //         (addition_application_received - addition_registered_ship) AS addition_pending_application,
-    //         addition_total_tonnage,
-
-    //         deletion_application_received,
-    //         deletion_registered_ship,
-    //         (deletion_application_received - deletion_registered_ship) AS deletion_pending_application,
-    //         deletion_total_tonnage,
-
-    //         (addition_registered_ship - deletion_registered_ship) AS networth_registered_ship,
-    //         (addition_total_tonnage - deletion_total_tonnage) AS networth_total_tonnage
-    //     FROM tbl_kpi_dgs_2_1
-    //     WHERE year = @selectedYear AND month = @selectedMonth
-    // ),
-
-    // -- Cumulative data up to previous month
-    // CumulativeData AS (
-    //     SELECT 
-    //         type,
-    //         SUM(addition_registered_ship - deletion_registered_ship) AS cumulative_registered_ship,
-    //         SUM(addition_total_tonnage - deletion_total_tonnage) AS cumulative_total_tonnage
-    //     FROM tbl_kpi_dgs_2_1
-    //     WHERE 
-    //     (year < @selectedYear OR (year = @selectedYear AND month = @selectedMonth))
-    //     -- (year < @selectedYear OR (year = @selectedYear AND month < @selectedMonth))
-    //     GROUP BY type
-    // )
-
-    // -- Join current and cumulative
-    // SELECT 
-    //     c.flagging_ship_2_1_id,
-    //     c.year,
-    //     c.month,
-    //     c.type,
-    //     c.addition_application_received,
-    //     c.addition_registered_ship,
-    //     c.addition_pending_application,
-    //     c.addition_total_tonnage,
-    //     c.deletion_application_received,
-    //     c.deletion_registered_ship,
-    //     c.deletion_pending_application,
-    //     c.deletion_total_tonnage,
-    //     c.networth_registered_ship,
-    //     c.networth_total_tonnage,
-    //     ISNULL(cd.cumulative_registered_ship, 0) AS cumulative_registered_ship,
-    //     ISNULL(cd.cumulative_total_tonnage, 0) AS cumulative_total_tonnage
-    // FROM CurrentMonthData c
-    // LEFT JOIN CumulativeData cd ON c.type = cd.type
-    // ORDER BY c.flagging_ship_2_1_id;
-
-
+  
     try {
         const result = await request.query(`
         DECLARE @selectedYear INT = CAST(@year AS INT);
-DECLARE @selectedMonth INT = CAST(@month AS INT);
+                DECLARE @selectedMonth INT = CAST(@month AS INT);
 
--- Main data for selected year and month
-WITH AllData AS (
-    SELECT
-        flagging_ship_2_1_id,
-        year,
-        month,
-        type,
-        addition_application_received,
-        addition_registered_ship,
-        (addition_application_received - addition_registered_ship) AS addition_pending_application,
-        addition_total_tonnage,
+                -- Main data for selected year and month
+                WITH AllData AS (
+                    SELECT
+                        flagging_ship_2_1_id,
+                        year,
+                        month,
+                        type,
+                        addition_application_received,
+                        addition_registered_ship,
+                        (addition_application_received - addition_registered_ship) AS addition_pending_application,
+                        addition_total_tonnage,
 
-        deletion_application_received,
-        deletion_registered_ship,
-        (deletion_application_received - deletion_registered_ship) AS deletion_pending_application,
-        deletion_total_tonnage,
+                        deletion_application_received,
+                        deletion_registered_ship,
+                        (deletion_application_received - deletion_registered_ship) AS deletion_pending_application,
+                        deletion_total_tonnage,
 
-        (addition_registered_ship - deletion_registered_ship) AS networth_registered_ship,
-        (addition_total_tonnage - deletion_total_tonnage) AS networth_total_tonnage
-    FROM tbl_kpi_dgs_2_1
-),
-CumulativeData AS (
-    SELECT
-        *,
-        SUM(addition_registered_ship - deletion_registered_ship) OVER (
-            PARTITION BY type
-            ORDER BY year, month
-            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-        ) AS cumulative_registered_ship,
+                        (addition_registered_ship - deletion_registered_ship) AS networth_registered_ship,
+                        (addition_total_tonnage - deletion_total_tonnage) AS networth_total_tonnage
+                    FROM tbl_kpi_dgs_2_1
+                ),
+                CumulativeData AS (
+                    SELECT
+                        *,
+                        SUM(addition_registered_ship - deletion_registered_ship) OVER (
+                            PARTITION BY type
+                            ORDER BY year, month
+                            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                        ) AS cumulative_registered_ship,
 
-        SUM(addition_total_tonnage - deletion_total_tonnage) OVER (
-            PARTITION BY type
-            ORDER BY year, month
-            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-        ) AS cumulative_total_tonnage
-    FROM AllData
-),
-FinalData AS (
-    SELECT * 
-    FROM CumulativeData 
-    WHERE year = @selectedYear AND month = @selectedMonth
-)
-SELECT 
-    flagging_ship_2_1_id,
-    year,
-    month,
-    type,
-    addition_application_received,
-    addition_registered_ship,
-    addition_pending_application,
-    addition_total_tonnage,
-    deletion_application_received,
-    deletion_registered_ship,
-    deletion_pending_application,
-    deletion_total_tonnage,
-    networth_registered_ship,
-    networth_total_tonnage,
-    cumulative_registered_ship,
-    cumulative_total_tonnage
-FROM FinalData
-ORDER BY flagging_ship_2_1_id;
+                        SUM(addition_total_tonnage - deletion_total_tonnage) OVER (
+                            PARTITION BY type
+                            ORDER BY year, month
+                            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                        ) AS cumulative_total_tonnage
+                    FROM AllData
+                ),
+                FinalData AS (
+                    SELECT * 
+                    FROM CumulativeData 
+                    WHERE year = @selectedYear AND month = @selectedMonth
+                )
+                SELECT 
+                    flagging_ship_2_1_id,
+                    year,
+                    month,
+                    type,
+                    addition_application_received,
+                    addition_registered_ship,
+                    addition_pending_application,
+                    addition_total_tonnage,
+                    deletion_application_received,
+                    deletion_registered_ship,
+                    deletion_pending_application,
+                    deletion_total_tonnage,
+                    networth_registered_ship,
+                    networth_total_tonnage,
+                    cumulative_registered_ship,
+                    cumulative_total_tonnage
+                FROM FinalData
+                ORDER BY flagging_ship_2_1_id;
 
             `);
         res.json(result.recordset);
@@ -609,9 +364,6 @@ async function editDgsKpi2_1Data(req, res) {
 
             let cumulativeRegisteredShips = shipAndTonnageTab[p].cumulativeRegisteredShips
             let cumulativeTotalTonnage = shipAndTonnageTab[p].cumulativeTotalTonnage
-
-            // console.log(type, 'type')
-            // console.log(additionRegisteredShips, 'additionRegisteredShips')
 
             const request = conn.request();
             request.input("year", year);
@@ -853,11 +605,9 @@ async function editDgsKpi2_6_2Data(req, res) {
 
     const conn = await pool;
 
-    // console.log(year, flagStateInspectionTab)
     try {
 
         for (let p = 0; p < flagStateInspectionTab.length; p++) {
-            // let status	    = flagStateInspectionTab[p]["status"]  
             const shipType = flagStateInspectionTab[p].shipType
 
             let upto5YrsInspection = flagStateInspectionTab[p].upto5YrsInspection
@@ -879,9 +629,6 @@ async function editDgsKpi2_6_2Data(req, res) {
             let above25YrsDetentions = flagStateInspectionTab[p].above25YrsDetentions
             let above25YrsDeficiencies = flagStateInspectionTab[p].above25YrsDeficiencies
             let above25YrsNilDeficiencies = flagStateInspectionTab[p].above25YrsNilDeficiencies
-
-            // console.log(shipType, 'shipType')
-            // console.log(upto5YrsDetentions, 'upto5YrsDetentions')
 
             const request = conn.request();
             request.input("year", year);

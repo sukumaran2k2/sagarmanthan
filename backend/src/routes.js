@@ -1593,17 +1593,15 @@ router.get("/Financial-Fin-Year-Chart-Data", financialParameterTab.getFinancialF
 
 
 // -------------------------------------------KPI 2.1 -----------------------------------------------------
-// router.post('/add-kpi2-1-1', dgsTabList.createDgsKpi2_1_1Data);
-
-// const sciRead = requireModulePermission("KPI_SCI", "read");
-// const sciCreate = requireModulePermission("KPI_SCI", "create");
-// const sciUpdate = requireModulePermission("KPI_SCI", "update");
-// const sciDelete = requireModulePermission("KPI_SCI", "delete");
 router.post("/add-kpi2-1-1", auth, requireModulePermission("KPI_DGS", "create"),  dgsTabList.createDgsKpi2_1_1Data);
-router.get("/previousCumulative-2-1-data/:year/:month", dgsTabList.getPreviousCumulativeData);
-router.get("/kpi2-1-list", dgsTabList.getKpi2_1_List);
-router.get("/getedit-2-1-data/:year/:month", dgsTabList.getUpdateMmd_2_1Data);
-router.put("/edit-2-1-data", dgsTabList.editDgsKpi2_1Data);
+// router.get("/previousCumulative-2-1-data/:year/:month", dgsTabList.getPreviousCumulativeData);
+router.get("/previousCumulative-2-1-data/:year/:month", auth, requireModulePermission("KPI_DGS", "read"),  dgsTabList.getPreviousCumulativeData);
+// router.get("/kpi2-1-list", dgsTabList.getKpi2_1_List);
+router.get("/kpi2-1-list", auth, requireModulePermission("KPI_DGS", "read"),  dgsTabList.getKpi2_1_List);
+// router.get("/getedit-2-1-data/:year/:month", dgsTabList.getUpdateMmd_2_1Data);
+router.get("/getedit-2-1-data/:year/:month", auth, requireModulePermission("KPI_DGS", "read"),  dgsTabList.getUpdateMmd_2_1Data);
+router.put("/edit-2-1-data", auth, requireModulePermission("KPI_DGS", "update"),  dgsTabList.editDgsKpi2_1Data);
+// router.put("/edit-2-1-data", dgsTabList.editDgsKpi2_1Data);
 
 router.get("/kpi2-2-list", KpiDGS_2_2_Tab.getKpi2_2_List);
 router.get("/checkData-2-2-data/:applicationNumber", KpiDGS_2_2_Tab.checkData_2_2);
@@ -1939,7 +1937,7 @@ router.get('/get-kpi-majorports-20-3-reports',kpiDgsPortPerformanceTab.getEffect
 
 // // KPI DGS report 1.0
 // router.get('/kpi-dgs-1-1-report', kpiDgs1_0Tab.getKpiDgs1_1);
-router.get('/kpi-dgs-2-1-flagging-report', auth, requireModulePermission("KPI_DGS", "read"), kpiDgs1_0Tab.getKpiDgsFlaggingAddition);
+router.get('/kpi-dgs-flagging-addition-ship-report', auth, requireModulePermission("KPI_DGS", "read"), kpiDgs1_0Tab.getKpiDgsFlaggingAddition);
 router.get('/kpi-dgs-flagging-deletion-ship-report', auth, requireModulePermission("KPI_DGS", "read"), kpiDgs1_0Tab.getKpiDgsFlaggingDeletion);
 router.get('/kpi-dgs-flagging-cumulative-ship-report', auth, requireModulePermission("KPI_DGS", "read"), kpiDgs1_0Tab.getKpiDgs1_3);
 router.get('/kpi-dgs-flagging-tonnange-monthly-report', auth, requireModulePermission("KPI_DGS", "read"), kpiDgs1_0Tab.getKpiDgs1_4);

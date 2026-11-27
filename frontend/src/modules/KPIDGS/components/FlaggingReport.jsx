@@ -121,16 +121,6 @@ export default function FlaggingReport({ kind, code, fetchFn, triggerNotificatio
           numeric('prev_tonnage',    'Total Tonnage',                 135),
         ],
       },
-      // {
-      //   headerName: `During the Current FY-upto ${meta.currFyUpto || '-'}`,
-      //   headerClass: 'text-center',
-      //   children: [
-      //     numeric('curr_received',   'No. of Applications Received', 185),
-      //     numeric('curr_registered', 'No. of Registered Ships',      170),
-      //     numeric('curr_pending',    'No. of Pending Ships',          160),
-      //     numeric('curr_tonnage',    'Total Tonnage',                 135),
-      //   ],
-      // },
       {
       headerName: `During the Current FY-upto ${meta.currFyUpto || '-'}`,
       headerClass: 'text-center',
@@ -161,7 +151,6 @@ export default function FlaggingReport({ kind, code, fetchFn, triggerNotificatio
       ],
     },
     ];
-  // }, [meta.prevFyLabel, meta.currFyUpto]);
   }, [meta.prevFyLabel, meta.currFyUpto, meta.monthLabel, meta.asOnDate]);
 
   const kindLabel = kind === 'deletion' ? 'Deletion' : 'Addition';
@@ -269,11 +258,6 @@ export default function FlaggingReport({ kind, code, fetchFn, triggerNotificatio
     if (!rows.length) { notify(COMMON_TOASTS.nothingToExport()); return; }
     exportRowsToFile('pdf', {
       title,
-      // headers: [
-      //   'S.No', 'MMD Name',
-      //   'Prev FY: App. Rcvd', 'Prev FY: Reg. Ships', 'Prev FY: Pending', 'Prev FY: Tonnage',
-      //   'Curr FY: App. Rcvd', 'Curr FY: Reg. Ships', 'Curr FY: Pending', 'Curr FY: Tonnage',
-      // ],
       headers: [
         'S.No', 'MMD Name',
         'Prev FY: App. Rcvd', 'Prev FY: Reg. Ships', 'Prev FY: Pending', 'Prev FY: Tonnage',
