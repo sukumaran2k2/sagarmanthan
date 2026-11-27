@@ -31,6 +31,7 @@ import {
     parseDwellSheet,
     parseRowValues,
 } from "./dwellTimeSheet.js";
+import { scanFile } from "../../utils/clamav.js";
 
 /**
  * KPI Major Ports — Port Performance: Dwell Time uploaded from Excel.
@@ -376,6 +377,28 @@ async function uploadDwellSheet(req, res) {
         await fs.mkdir(UPLOAD_DIR, { recursive: true });
         savedPath = path.join(UPLOAD_DIR, fileName);
         await fs.writeFile(savedPath, req.file.buffer);
+
+        // Antivirus scan (ClamAV) before anything is saved; fails closed like the other uploads
+        const scanResult = await scanFile(savedPath);
+        if (scanResult.status === "infected") {
+            console.warn("[KPI Dwell] Malware detected:", scanResult.threat, "| user:", userId);
+            await fs.unlink(savedPath).catch(() => {});
+            savedPath = null;
+            return res.status(422).json({
+                success: false,
+                status: "infected",
+                message: "File rejected: malware or virus detected.",
+            });
+        }
+        if (scanResult.status !== "clean") {
+            await fs.unlink(savedPath).catch(() => {});
+            savedPath = null;
+            return res.status(503).json({
+                success: false,
+                status: "scanner_error",
+                message: "File scanning service is unavailable. Please try again later.",
+            });
+        }
 
         transaction = new sql.Transaction(conn);
         await transaction.begin();
