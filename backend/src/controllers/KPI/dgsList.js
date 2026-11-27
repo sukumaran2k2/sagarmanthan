@@ -646,10 +646,12 @@ async function editDgsKpi2_1Data(req, res) {
                     deletion_pending_application = @deletionApplicationPending,
                     deletion_total_tonnage = @deletionTotalTonnage
                    
-                WHERE year = @year AND month = @month AND type = @type;`);
+                WHERE year = @year AND month = @month
+                    AND LTRIM(RTRIM(REPLACE(REPLACE(type, CHAR(13), ''), CHAR(10), '')))
+                        = LTRIM(RTRIM(REPLACE(REPLACE(@type, CHAR(13), ''), CHAR(10), '')))  ;`);
 
-            console.log(result, "result")
-
+                
+            console.log(type, 'rowsAffected:', result.rowsAffected);
         }
         res.sendStatus(201);
     }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle2 } from 'lucide-react';
 // import {
@@ -41,7 +41,7 @@ const BLANK_ROW = {
 export default function FlaggingShipsTonnage({ triggerNotification }) {
   const navigate = useNavigate();
   const notify = useNotifier(triggerNotification);
-  const { canAdd } = useKPIDGSPermissions();
+  const { canAdd, canEdit } = useKPIDGSPermissions();
   const [searchParams] = useSearchParams();
 const editYear = searchParams.get('year');
 const editMonth = searchParams.get('month');
@@ -50,6 +50,10 @@ const isEdit = Boolean(editYear && editMonth);
 const [year, setYear] = useState(editYear || '');
 const [month, setMonth] = useState(editMonth || '');
 
+useEffect(() => {
+  setYear(editYear || '');
+  setMonth(editMonth || '');
+}, [editYear, editMonth]);
   // const [year, setYear] = useState('');
   // const [month, setMonth] = useState('');
   const [mmds, setMmds] = useState([]);
@@ -58,38 +62,32 @@ const [month, setMonth] = useState(editMonth || '');
   const [loadingMmds, setLoadingMmds] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Load active MMDs
-  useEffect(() => {
-    setLoadingMmds(true);
-    fetchMmdList()
-      .then((res) => {
-        const list = (Array.isArray(res.data) ? res.data : [])
-          .filter((m) => m.status === 1 || m.status === true)
-          .map((m) => ({ id: m.mmd_id, name: m.mmd_name }));
-        setMmds(list);
-        const init = {};
-        list.forEach((m) => { init[m.name] = { ...BLANK_ROW }; });
-        setValues(init);
-      })
-      .catch((err) => {
-        console.error('Error loading MMDs:', err);
-        notify(COMMON_TOASTS.loadFailed('MMD list'));
-        setMmds([]);
-      })
-      .finally(() => setLoadingMmds(false));
-  }, [notify]);
-
+const notifyRef = useRef(notify);
+notifyRef.current = notify;
 
 useEffect(() => {
-  if (!isEdit || mmds.length === 0) return;
-  fetchKpi2_1_EditData(editYear, editMonth)
-    .then((res) => {
-      const list = Array.isArray(res.data) ? res.data : [];
-      setValues((prev) => {
-        const next = { ...prev };
-        list.forEach((r) => {
-          if (!next[r.type]) return;
-          next[r.type] = {
+  let cancelled = false;
+  const norm = (s) => String(s ?? '').trim().toLowerCase();
+
+  (async () => {
+    setLoadingMmds(true);
+    try {
+      const res = await fetchMmdList();
+      const list = (Array.isArray(res.data) ? res.data : [])
+        .filter((m) => m.status === 1 || m.status === true)
+        .map((m) => ({ id: m.mmd_id, name: m.mmd_name }));
+
+      const init = {};
+      list.forEach((m) => { init[m.name] = { ...BLANK_ROW }; });
+
+      if (isEdit) {
+        const editRes = await fetchKpi2_1_EditData(editYear, editMonth);
+        const rows = Array.isArray(editRes.data) ? editRes.data : [];
+        console.log('K-2.1 edit rows:', rows);
+        rows.forEach((r) => {
+          const m = list.find((x) => norm(x.name) === norm(r.type));
+          if (!m) { console.warn('No MMD match for type:', r.type); return; }
+          init[m.name] = {
             additionApplicationReceived: String(r.addition_application_received ?? ''),
             additionRegisteredShips: String(r.addition_registered_ship ?? ''),
             additionTotalTonnage: String(r.addition_total_tonnage ?? ''),
@@ -98,14 +96,73 @@ useEffect(() => {
             deletionTotalTonnage: String(r.deletion_total_tonnage ?? ''),
           };
         });
-        return next;
-      });
-    })
-    .catch((err) => {
-      console.error('Error loading K-2.1 for edit:', err);
-      notify(COMMON_TOASTS.loadFailed('Flagging entry'));
-    });
-}, [isEdit, editYear, editMonth, mmds.length, notify]);
+      }
+
+      if (cancelled) return;
+      setMmds(list);
+      setValues(init);
+    } catch (err) {
+      if (cancelled) return;
+      console.error('Error loading K-2.1 form data:', err);
+      notifyRef.current(COMMON_TOASTS.loadFailed(isEdit ? 'Flagging entry' : 'MMD list'));
+      setMmds([]);
+    } finally {
+      if (!cancelled) setLoadingMmds(false);
+    }
+  })();
+
+  return () => { cancelled = true; };
+}, [isEdit, editYear, editMonth]);
+
+
+  // Load active MMDs
+  // useEffect(() => {
+  //   setLoadingMmds(true);
+  //   fetchMmdList()
+  //     .then((res) => {
+  //       const list = (Array.isArray(res.data) ? res.data : [])
+  //         .filter((m) => m.status === 1 || m.status === true)
+  //         .map((m) => ({ id: m.mmd_id, name: m.mmd_name }));
+  //       setMmds(list);
+  //       const init = {};
+  //       list.forEach((m) => { init[m.name] = { ...BLANK_ROW }; });
+  //       setValues(init);
+  //     })
+  //     .catch((err) => {
+  //       console.error('Error loading MMDs:', err);
+  //       notify(COMMON_TOASTS.loadFailed('MMD list'));
+  //       setMmds([]);
+  //     })
+  //     .finally(() => setLoadingMmds(false));
+  // }, [notify]);
+
+
+// useEffect(() => {
+//   if (!isEdit || mmds.length === 0) return;
+//   fetchKpi2_1_EditData(editYear, editMonth)
+//     .then((res) => {
+//       const list = Array.isArray(res.data) ? res.data : [];
+//       setValues((prev) => {
+//         const next = { ...prev };
+//         list.forEach((r) => {
+//           if (!next[r.type]) return;
+//           next[r.type] = {
+//             additionApplicationReceived: String(r.addition_application_received ?? ''),
+//             additionRegisteredShips: String(r.addition_registered_ship ?? ''),
+//             additionTotalTonnage: String(r.addition_total_tonnage ?? ''),
+//             deletionApplicationReceived: String(r.deletion_application_received ?? ''),
+//             deletionRegisteredShips: String(r.deletion_registered_ship ?? ''),
+//             deletionTotalTonnage: String(r.deletion_total_tonnage ?? ''),
+//           };
+//         });
+//         return next;
+//       });
+//     })
+//     .catch((err) => {
+//       console.error('Error loading K-2.1 for edit:', err);
+//       notify(COMMON_TOASTS.loadFailed('Flagging entry'));
+//     });
+// }, [isEdit, editYear, editMonth, mmds.length, notify]);
   // Previous-month cumulatives change whenever year/month change
   useEffect(() => {
     if (!year || !month) {
@@ -201,7 +258,8 @@ useEffect(() => {
       await createKpi2_1_1(payload);
       notify(DGS_TOASTS.added('Flagging - Ships & Tonnage'));
     }
-    navigate('/kpi/dgs/input-forms');
+    // navigate('/kpi/dgs/input-forms');
+    navigate('/kpi/dgs/data-list/flagging-of-vessels');
   } catch (err) {
     console.error('Error saving K-2.1.1:', err);
     notify(DGS_TOASTS.saveFailed(isEdit, getErrorMessage(err)));
@@ -227,7 +285,7 @@ useEffect(() => {
     <div className="module-card space-y-5">
       <div>
         <h2 className="text-base font-bold text-slate-800 dark:text-slate-100 pb-2 border-b border-slate-200 dark:border-slate-700">
-          Add Flagging - Ships &amp; Tonnage
+            {isEdit ? 'Update' : 'Add'} Flagging - Ships &amp; Tonnage
         </h2>
       </div>
 
@@ -237,11 +295,12 @@ useEffect(() => {
           <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">
             Year<span className="text-red-500">*</span>
           </label>
-          <select
-            value={year}
-            onChange={(e) => setYear(e.target.value)}
-            className="w-full h-9 px-3 text-xs border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded focus:outline-none focus:border-[#0f417a] font-semibold text-slate-700 dark:text-slate-200"
-          >
+            <select
+              value={year}
+              disabled={isEdit}
+              onChange={(e) => setYear(e.target.value)}
+              className="w-full h-9 px-3 text-xs border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded focus:outline-none focus:border-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed"
+            >
             <option value="">--Select Year--</option>
             {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
           </select>
@@ -250,11 +309,12 @@ useEffect(() => {
           <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">
             Month<span className="text-red-500">*</span>
           </label>
-          <select
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-            className="w-full h-9 px-3 text-xs border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded focus:outline-none focus:border-[#0f417a] font-semibold text-slate-700 dark:text-slate-200"
-          >
+            <select
+              value={month}
+              disabled={isEdit}
+              onChange={(e) => setMonth(e.target.value)}
+              className="w-full h-9 px-3 text-xs border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded focus:outline-none focus:border-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed"
+            >
             <option value="">--Select Month--</option>
             {MONTHS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
           </select>
@@ -363,15 +423,18 @@ useEffect(() => {
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={saving || !canAdd || !year || !month || mmds.length === 0}
+          // disabled={saving || !canAdd || !year || !month || mmds.length === 0}
+          disabled={saving || !(isEdit ? canEdit : canAdd) || !year || !month || mmds.length === 0}
           className="px-5 py-2 bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-300 text-white text-xs font-bold rounded transition cursor-pointer disabled:cursor-not-allowed"
         >
-          {saving ? 'Submitting...' : 'Submit'}
+          {saving ? 'Saving...' : isEdit ? 'Update' : 'Submit'}
         </button>
         <button
           type="button"
-          onClick={() => navigate('/kpi/dgs/input-forms')}
+          onClick={() => navigate('/kpi/dgs/data-list/flagging-of-vessels')}
           disabled={saving}
+          // onClick={() => navigate(isEdit ? '/kpi/dgs/data-list/flagging-of-vessels' : '/kpi/dgs/input-forms')}ac
+          // disabled={saving}
           className="px-5 py-2 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded transition cursor-pointer"
         >
           Exit
