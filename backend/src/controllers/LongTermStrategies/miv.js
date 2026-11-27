@@ -454,6 +454,7 @@ async function getMIVData(req, res) {
                     OR tbl_initiative.initiative_name LIKE @searchTerm
                     OR tbl_initiative.project_detail LIKE @searchTerm
                     OR tbl_initiative.category LIKE @searchTerm
+                    OR ISNULL(tbl_initiative.status_current, tbl_initiative.status_on) LIKE @searchTerm
                     OR mmt_organisation.organisation_name LIKE @searchTerm
                 )
             `);
@@ -501,7 +502,7 @@ async function getMIVData(req, res) {
             );
 
             baseWhereClauses.push(`
-                tbl_initiative.category = @categoryFilter
+                LOWER(LTRIM(RTRIM(tbl_initiative.category))) = LOWER(@categoryFilter)
             `);
         }
 
@@ -556,6 +557,16 @@ async function getMIVData(req, res) {
                         tbl_initiative.status_current,
                         tbl_initiative.status_on
                     )) LIKE '%dropped%'
+                `);
+            } else if (
+                lowerStatus === "not_applicable" ||
+                lowerStatus === "not applicable"
+            ) {
+                filteredWhereClauses.push(`
+                    LOWER(ISNULL(
+                        tbl_initiative.status_current,
+                        tbl_initiative.status_on
+                    )) LIKE '%not applicable%'
                 `);
             }
         }
@@ -654,7 +665,15 @@ async function getMIVData(req, res) {
                         tbl_initiative.status_on
                     )) LIKE '%dropped%'
                     THEN 1 ELSE 0
-                END) AS dropped_count
+                END) AS dropped_count,
+
+                SUM(CASE
+                    WHEN LOWER(ISNULL(
+                        tbl_initiative.status_current,
+                        tbl_initiative.status_on
+                    )) LIKE '%not applicable%'
+                    THEN 1 ELSE 0
+                END) AS not_applicable_count
 
             ${fromClause}
             ${baseWhereSql};
@@ -668,7 +687,8 @@ async function getMIVData(req, res) {
             ui: countRow.ui_count || 0,
             completed: countRow.completed_count || 0,
             yetToStart: countRow.yet_to_start_count || 0,
-            dropped: countRow.dropped_count || 0
+            dropped: countRow.dropped_count || 0,
+            notApplicable: countRow.not_applicable_count || 0
         };
 
         const dataQuery = `
