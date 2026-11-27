@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react';
 import {
-  RefreshCw, Layers, CheckCircle2, Clock, AlertTriangle, PlayCircle, XCircle,
+  RefreshCw, Layers, CheckCircle2, Clock, AlertTriangle, PlayCircle, XCircle, MinusCircle,
   Filter, ChevronDown, ChevronRight,
 } from 'lucide-react';
 import * as am5 from '@amcharts/amcharts5';
@@ -22,7 +22,7 @@ const STATUS_STYLE = {
   delayed: { color: '#f59e0b', icon: AlertTriangle, card: 'amber' },
   yetToStart: { color: '#8b5cf6', icon: PlayCircle, card: 'violet' },
   dropped: { color: '#f43f5e', icon: XCircle, card: 'rose' },
-  notApplicable: { color: '#94a3b8' },
+  notApplicable: { color: '#94a3b8', icon: MinusCircle, card: 'slate' },
 };
 
 // Tailwind classes per card colour (spelled out so Tailwind keeps them).
@@ -33,6 +33,7 @@ const CARD_THEME = {
   amber: { value: 'text-amber-700 dark:text-amber-400', icon: 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-900', bar: 'bg-amber-500' },
   violet: { value: 'text-violet-700 dark:text-violet-400', icon: 'bg-violet-50 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400 border-violet-100 dark:border-violet-900', bar: 'bg-violet-500' },
   rose: { value: 'text-rose-700 dark:text-rose-400', icon: 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-900', bar: 'bg-rose-500' },
+  slate: { value: 'text-slate-600 dark:text-slate-300', icon: 'bg-slate-100 dark:bg-slate-800/60 text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-700', bar: 'bg-slate-400' },
 };
 
 // Both charts share one fixed height so the two cards line up.
@@ -319,13 +320,12 @@ export default function MIVDashboard({ onNavigateToTab }) {
   const isOrgView = data.view?.level === 'organisation';
   const total = kpis.total;
   const card = (key) => kpis.statuses.find((s) => s.key === key);
-  const notApplicable = card('notApplicable');
   const avg = (count, value) => (count ? formatCrore(value / count) : '—');
-  const statusCards = ['completed', 'onTime', 'delayed', 'yetToStart', 'dropped'].map(card).filter(Boolean);
+  const statusCards = ['completed', 'onTime', 'delayed', 'yetToStart', 'dropped', 'notApplicable'].map(card).filter(Boolean);
   const statusDetails = (s) => {
     const rows = [['Share of cost', `${s.valueShare}%`]];
     if (s.key === 'completed') rows.push(['Completed after target date', formatCount(s.completedLate), s.completedLate > 0]);
-    else if (s.key === 'dropped') rows.push(['Avg. cost', avg(s.count, s.value)]);
+    else if (s.key === 'dropped' || s.key === 'notApplicable') rows.push(['Avg. cost', avg(s.count, s.value)]);
     else rows.push(['Target date passed', formatCount(s.targetPassed), s.targetPassed > 0]);
     return rows;
   };
@@ -362,7 +362,7 @@ export default function MIVDashboard({ onNavigateToTab }) {
       </div>
 
       {/* KPI cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
         <KpiCard
           label="Total Initiatives"
           count={total.count}
@@ -374,7 +374,6 @@ export default function MIVDashboard({ onNavigateToTab }) {
             ['MIV initiative numbers', formatCount(total.initiativeNumbers)],
             // Meetings have no theme: with a theme chosen they are still all the meetings
             [themeId ? 'MVIC meetings (all themes)' : 'MVIC meetings', formatCount(total.meetings)],
-            ...(notApplicable?.count ? [['Not applicable', formatCount(notApplicable.count)]] : []),
             ...(total.notRecorded ? [['Status not recorded', formatCount(total.notRecorded)]] : []),
           ]}
         />
