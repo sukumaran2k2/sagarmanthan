@@ -36,6 +36,7 @@ export default function GenericReportPage({
   // displayed). Left undefined, the table's own Copy / CSV / print are used.
   exportTitle,
   exportFileName,
+  defaultVisible
 }) {
   const navigate = useNavigate();
   const notify = useNotifier(triggerNotification);
@@ -77,21 +78,23 @@ export default function GenericReportPage({
             maxWidth: 100,
             cellClass: 'text-center font-bold text-slate-500 flex items-center justify-center',
           },
-          ...Object.keys(rows[0])
-            .filter((key) => key !== 'month_number')
-            .map((key) => {
-              const heading = toHeading(key);
+        ...Object.keys(rows[0])
+      .filter((key) => !SKIP_KEY.test(key))
+      .map((key) => {
+        const heading = toHeading(key);
 
-              return {
-                headerName: heading,
-                field: key,
-                flex: 1,
-                minWidth: headerMinWidth(heading),
-                wrapText: true,
-                autoHeight: true,
-                cellClass: 'text-center text-slate-700 flex items-center justify-center',
-              };
-            }),
+        return {
+          headerName: heading,
+          field: key,
+          flex: 1,
+          minWidth: headerMinWidth(heading),
+          wrapText: true,
+          autoHeight: true,
+          cellClass: 'text-center text-slate-700 flex items-center justify-center',
+          valueFormatter: (p) => showDate(p.value),
+          hide: defaultVisible ? !defaultVisible.includes(key) : false,
+        };
+      }),
         ]
       : [
           {
@@ -130,7 +133,7 @@ export default function GenericReportPage({
         ]
       : []),
   ];
-  }, [rows, columns, showEditAction, onEditRow]);
+  }, [rows, columns, showEditAction, onEditRow, defaultVisible]);
 
 
   const shownRows = useMemo(() => (filterRows ? filterRows(rows) : rows), [filterRows, rows]);
@@ -235,3 +238,17 @@ function headerMinWidth(heading) {
   const estimated = len * 8 + 40;
   return Math.max(150, Math.min(260, estimated));
 }
+// Serial / id columns that should not appear as their own column
+const SKIP_KEY = /^(month_number|sr_?no|s_?no)$/i;
+
+// 2026-11-01T00:00:00.000Z -> 01/11/2026 ; everything else passes through
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}(T|$)/;
+const showDate = (value) => {
+  if (typeof value === 'string' && ISO_DATE.test(value)) {
+    const d = new Date(value);
+    if (!Number.isNaN(d.getTime())) {
+      return d.toLocaleDateString('en-GB', { timeZone: 'UTC' });
+    }
+  }
+  return value;
+};

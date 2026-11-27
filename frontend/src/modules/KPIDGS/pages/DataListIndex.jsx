@@ -24,6 +24,7 @@ import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../utils/noti
 import { DGS_TOASTS } from '../toastMessages';
 import { monthName } from '../data/periodOptions';
 
+
 const LIST_FETCH_BY_SLUG = {
   'flagging-of-vessels': () => api.fetchKpi2_1_List(),
   'sbfap-shipyard-list': () => api.fetchShipyardList(),
@@ -47,6 +48,15 @@ const LIST_FETCH_BY_SLUG = {
   'placement-record': () => api.fetchMtiMasterList(),
 };
 
+const SBFAP_DEFAULT_VISIBLE = {
+  'sbfap-inprincipal-approval': [
+    'unique_application_no', 'shipyard_name', 'no_of_vessels', 'contractual_value_inr',
+  ],
+  'sbfap-financial-assistance': [
+    'fund_application_no', 'shipyard_name', 'no_of_vessels', 'actual_contract_price',
+  ],
+};
+
 // Lists with the portal's standard Copy / Excel (.xlsx) / PDF exports; the others keep the
 // table's own export until they are moved over
 const EXPORTS_BY_SLUG = {
@@ -56,6 +66,14 @@ const EXPORTS_BY_SLUG = {
   ...Object.fromEntries(Object.entries(MARINE_SHEETS).map(([slug, c]) => [slug, {
     exportTitle: `DGS ${c.code} ${c.title} - Data List`, exportFileName: `DGS_${c.code.replace('-', '').replace(/\./g, '_')}_Marine_Casualty_${c.file}`,
   }])),
+  'sbfap-inprincipal-approval': {
+    exportTitle: 'DGS K-2.2 SBFAP In-Principle Approval - Data List',
+    exportFileName: 'DGS_K2_2_SBFAP_In_Principle_Approval',
+  },
+    'sbfap-financial-assistance': {
+    exportTitle: 'DGS K-2.2 SBFAP Financial Assistance - Data List',
+    exportFileName: 'DGS_K2_2_SBFAP_Financial_Assistance',
+  },
   'marine-casualty-yearwise': { exportTitle: 'DGS K-2.5.2 Marine Casualty Incidents - Year-wise - Data List', exportFileName: 'DGS_K2_5_2_Marine_Casualty_Year_Wise' },
   'flag-state-inspection-mmd-wise': { exportTitle: 'DGS K-2.6.1 Flag State Inspection - MMD Wise - Data List', exportFileName: 'DGS_K2_6_1_Flag_State_Inspection_MMD_Wise' },
   'flag-state-inspection-vessel-wise': { exportTitle: 'DGS K-2.6.2 Flag State Inspection & GI Performance - Vessel Wise - Data List', exportFileName: 'DGS_K2_6_2_Flag_State_Inspection_Vessel_Wise' },
@@ -73,7 +91,8 @@ const MMD_FILTER_SLUGS = new Set([
   'flag-state-inspection-mmd-wise',
   'port-state-inspection-mmd-wise',
 ]);
-
+// K-2.2 SBFAP lists that get the Edit icon
+const SBFAP_EDIT_SLUGS = ['sbfap-inprincipal-approval', 'sbfap-financial-assistance'];
 // Data List reuses the same merged-layout / sticky-header / scrollable-body
 // pattern as Reports, but keeps the existing blue theme instead of the Reports
 // brown — so Data List and Reports read as siblings of the module, not clones.
@@ -87,6 +106,129 @@ function defaultVisibleCols(columns) {
     .filter(([key]) => key));
 }
 
+
+const SBFAP_STATUS_TABS = {
+  'sbfap-inprincipal-approval': [
+    { kind: 'pend', label: 'Pending In-Principle' },
+    { kind: 'approv', label: 'Approved In-Principle' },
+    { kind: 'reject', label: 'Rejected In-Principle' },
+  ],
+  'sbfap-financial-assistance': [
+    { kind: 'pend', label: 'Pending Fund Release' },
+    { kind: 'approv', label: 'Approved Fund Release' },
+    { kind: 'reject', label: 'Rejected Fund Release' },
+  ],
+};
+
+const statusKind = (s) => {
+  const v = String(s ?? '').toLowerCase();
+  if (v.includes('approv')) return 'approv';
+  if (v.includes('reject')) return 'reject';
+  if (v.includes('pend')) return 'pend';
+  return '';
+};
+
+// Filter fields for the K-2.2 SBFAP lists (the application-no. key differs per list)
+const SBFAP_FILTER_CONFIG = {
+  'sbfap-inprincipal-approval': { appKey: 'unique_application_no', appLabel: 'Application No.' },
+  'sbfap-financial-assistance': { appKey: 'fund_application_no', appLabel: 'Fund Application No.' },
+};
+const EMPTY_SBFAP_FILTERS = {  shipyard: '' };
+
+function SbfapStatusList({ slug, tabs, ...props }) {
+  const [tab, setTab] = useState(tabs[0].kind);
+  const [filters, setFilters] = useState(EMPTY_SBFAP_FILTERS);
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const notify = useNotifier(props.triggerNotification);
+  
+
+  const activeCount = Object.values(filters).filter(Boolean).length;
+
+  // Filters only (used for the tab counts)
+  const applyFilters = useCallback(
+  (rows) => rows.filter((r) => !filters.shipyard || r.shipyard_name === filters.shipyard),
+  [filters],
+);
+
+  // Filters, then the active status tab (what the table and exports show)
+  const filterRows = useCallback(
+    (rows) => applyFilters(rows).filter((r) => statusKind(r.status) === tab),
+    [applyFilters, tab],
+  );
+
+  const handleReset = useCallback(() => {
+    setFilters(EMPTY_SBFAP_FILTERS);
+    notify(COMMON_TOASTS.filtersReset());
+  }, [notify]);
+
+  const renderAboveTable = useCallback(
+    (allRows) => {
+      const filtered = applyFilters(allRows);
+      return (
+        <div className="flex flex-wrap gap-2 border-b border-slate-200 dark:border-slate-700">
+          {tabs.map((t) => {
+            const count = filtered.filter((r) => statusKind(r.status) === t.kind).length;
+            const active = t.kind === tab;
+            return (
+              <button
+                key={t.kind}
+                type="button"
+                onClick={() => setTab(t.kind)}
+                className={`px-4 py-2 text-xs font-bold border-b-2 -mb-px transition cursor-pointer ${
+                  active
+                    ? 'border-[#0f417a] text-[#0f417a] dark:text-blue-400'
+                    : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {t.label} <span className="ml-1 text-[10px] opacity-70">({count})</span>
+              </button>
+            );
+          })}
+        </div>
+      );
+    },
+    [tabs, tab, applyFilters],
+  );
+
+  const filterToolbar = (
+    <ExamFilterButton
+      activeCount={activeCount}
+      open={showFilterPanel}
+      onToggle={() => setShowFilterPanel((o) => !o)}
+      onReset={handleReset}
+    />
+  );
+
+  const renderFilterPanel = (allRows) => {
+  if (!showFilterPanel) return null;
+  const shipyards = [...new Set(allRows.map((r) => r.shipyard_name).filter(Boolean))].sort();
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 p-4 rounded-xl border border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-700">
+      <label className="flex flex-col gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+        Shipyard
+        <select
+          value={filters.shipyard}
+          onChange={(e) => setFilters((f) => ({ ...f, shipyard: e.target.value }))}
+          className="h-9 px-3 text-sm font-normal normal-case tracking-normal rounded-lg border border-slate-300 focus:outline-none focus:border-[#0f417a]"
+        >
+          <option value="">All shipyards</option>
+          {shipyards.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+      </label>
+    </div>
+  );
+};
+
+  return (
+    <GenericReportPage
+      {...props}
+      filterRows={filterRows}
+      renderAboveTable={renderAboveTable}
+      filterToolbar={filterToolbar}
+      renderFilterPanel={renderFilterPanel}
+    />
+  );
+}
 // Data List for a section whose search text, filters and column visibility are kept in the DGS
 // store, so they survive switching section or tab. Subscribes to its own slot only.
 function StoredDataList({ slug, columns, ...props }) {
@@ -172,6 +314,12 @@ export default function DataListIndex({ triggerNotification }) {
     navigate(`/kpi/dgs/input-forms/flagging-of-vessels?${qs}`);
   }, [navigate]);
 
+  // K-2.2 SBFAP: Edit icon -> input form with the row in route state (same as K-2.3 / K-2.4 / K-2.5)
+// K-2.2 SBFAP: Edit icon -> input form with the row in route state (same as K-2.3 / K-2.4 / K-2.5)
+const editSbfapFor = useCallback(
+  (slug) => (row) => navigate(`/kpi/dgs/input-forms/${slug}`, { state: { slug, item: row } }),
+  [navigate],
+);
 
   // Pending delete opens the overlay confirm; its `run` is awaited when the user confirms.
   // Each delete handler below sets this, and the confirm button calls `run()` via the modal.
@@ -348,23 +496,34 @@ export default function DataListIndex({ triggerNotification }) {
           return <p className="text-sm text-slate-600">No data list is registered for slug "{slug}".</p>;
         }
         const pageProps = {
-          code: leaf.code,
-          title: leaf.label,
-          fetchFn,
-          columns: columnsBySlug[slug] || null,
-          triggerNotification,
-          showBack: false,
-          flat,
-          color: BLUE,
-          hoverColor: BLUE_HOVER,
-          // Last column la Edit icon (K-2.1 only, update permission irundha mattum)
-          ...(slug === 'flagging-of-vessels' && canEdit
-            ? { showEditAction: true, onEditRow: editFlagging }
-            : {}),
-          ...EXPORTS_BY_SLUG[slug],
-        };
+        code: leaf.code,
+        title: leaf.label,
+        fetchFn,
+        columns: columnsBySlug[slug] || null,
+        triggerNotification,
+        showBack: false,
+        flat,
+        color: BLUE,
+        hoverColor: BLUE_HOVER,
+        // Last column la Edit icon (K-2.1 only, update permission irundha mattum)
+        ...(slug === 'flagging-of-vessels' && canEdit
+          ? { showEditAction: true, onEditRow: editFlagging }
+          : {}),
+        // K-2.2 SBFAP: Edit icon for In-Principle Approval / Financial Assistance
+        ...(SBFAP_EDIT_SLUGS.includes(slug) && canEdit
+          ? { showEditAction: true, onEditRow: editSbfapFor(slug) }
+          : {}),
+        ...EXPORTS_BY_SLUG[slug],
+        defaultVisible: SBFAP_DEFAULT_VISIBLE[slug],
+        
+      };
         // Re-key on refreshTick so a successful delete triggers a refetch for the active list.
-        const key = `${slug}-${refreshTick}`;
+                const key = `${slug}-${refreshTick}`;
+
+        if (SBFAP_STATUS_TABS[slug]) {
+          return <SbfapStatusList key={key} slug={slug} tabs={SBFAP_STATUS_TABS[slug]} {...pageProps} />;
+        }
+
         return DGS_STORED_LIST_SLUGS.includes(slug)
           ? <StoredDataList key={key} slug={slug} {...pageProps} />
           : <GenericReportPage key={key} {...pageProps} />;

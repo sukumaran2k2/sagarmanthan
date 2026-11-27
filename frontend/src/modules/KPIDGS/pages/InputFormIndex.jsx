@@ -15,12 +15,16 @@ import MarineCasualtySheet from './inputs/MarineCasualtySheet';
 import MarineCasualtyYearWise from './inputs/MarineCasualtyYearWise';
 import { MARINE_SHEETS } from '../data/marineCasualty';
 
+
+
 // K-2.5.1 / 2.5.3 / 2.5.4 share one sheet form; each section gets its own component
 const marineSheetForm = (slug) => {
   const Form = (props) => <MarineCasualtySheet slug={slug} config={MARINE_SHEETS[slug]} {...props} />;
   Form.displayName = `MarineCasualtySheet(${slug})`;
   return Form;
 };
+import InPrincipalApprovalForm from './inputs/InPrincipalApprovalForm';
+import FinancialAssistanceApplicationForm from './inputs/FinancialAssistanceApplicationForm';
 
 // slug → the real input-form component for sections that have been built.
 // Any slug missing from this map falls through to PlaceholderInputForm.
@@ -38,6 +42,9 @@ const FORM_BY_SLUG = {
   'flag-state-inspection-vessel-wise': FlagStateInspectionVesselWise,
   'port-state-inspection-mmd-wise': PortStateInspectionMmdWise,
   'port-state-inspection-vessel-wise': PortStateInspectionVesselWise,
+  'sbfap-inprincipal-approval':InPrincipalApprovalForm,
+    'sbfap-financial-assistance': FinancialAssistanceApplicationForm,
+  
 };
 
 // K-2.3 / K-2.4 / K-2.5 forms open for edit from the Data List (row in route state); keying them by route entry

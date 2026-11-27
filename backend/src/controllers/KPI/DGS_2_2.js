@@ -58,7 +58,6 @@ async function getKpi2_2_List(req, res) {
                 application_date,
                 application_date_fy,
                 status,
-                current_stage,
                 approval_or_rejection_date,
                 rejection_date,
                 remarks_for_rejections,

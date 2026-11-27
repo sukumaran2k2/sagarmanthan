@@ -65,10 +65,11 @@ export function createKpi2_2_1(payload) {
 export function updateKpi2_2_1(payload) {
   return api.put('/edit-2-2-1-data', payload);
 }
+
 export function downloadKpi2_2_Template() {
   return api.get('/kpi2-2-template', { responseType: 'blob' });
 }
-export function fetchKpi2_2_EditData(uniqueAppId) {
+export function getUpdateMmd_2_2Data(uniqueAppId) {
   return api.get(`/getedit-2-2-data/${encodeURIComponent(uniqueAppId)}`);
 }
 export function fetchKpi2_2_Fa_List(params = {}) {
@@ -80,10 +81,14 @@ export function checkKpi2_2_Fa_Data(fundApplicationNumber) {
 export function createKpi2_2_Fa(payload) {
   return api.post('/add-2-2-fa-data', payload);
 }
+
+// export function getUpdateMmd_2_2Fa_Data(payload) {
+//   return api.get('/getedit-2-2-fa', payload);
+// }
 export function updateKpi2_2_Fa(payload) {
   return api.put('/edit-2-2-fa-data', payload);
 }
-export function fetchKpi2_2_Fa_EditData(fundAppId) {
+export function getUpdateMmd_2_2Fa_Data(fundAppId) {
   return api.get(`/getedit-2-2-fa/${encodeURIComponent(fundAppId)}`);
 }
 export function downloadKpi2_2_Fa_Template() {
