@@ -1,655 +1,350 @@
+import sql from "mssql";
 import { pool } from "../../db.js";
-// import sql from 'mssql';
+import { sendError, resolveUserId } from "./kpiEntryCommon.js";
 
-async function addEntryExitData(req, res) {
-  const { financialYear, month, type, grade, noOfCandidatesEntered, noOfCandidatesExited, createdBy } = req.body;
-  const conn = await pool;
-  const request = conn.request(); 
+// KPI DGS K-2.4 - Entry and Exit of Candidates (tbl_kpi_dgs_entry_exit).
+// One entry per year + month + grade (a grade belongs to one type: Nautical or Engineering),
+// holding how many candidates entered the system (assessments done) and exited it (CoC issued).
+// Rules (as the old portal, with K-2.3's checks):
+//   add  - a year + month + grade that already has an entry is refused (409), checked under lock
+//   edit - opened from the Data List; year, month, type and grade are fixed, the two counts change
+// Field checks (year, month, ids, counts) are in middleware/kpiValidation.js; the handlers add the
+// rules that need the database or today's date. The user comes from the JWT.
+//
+// The reports are worked out from the entries themselves. The per-month, per-type totals table
+// (tbl_kpi_dgs_entry_exit_log) is still kept, rebuilt from the entries after every save, for
+// anything else that reads it, but the reports no longer depend on it (its running totals had
+// drifted from the entries).
 
-  request.input('type', type);
-  request.input('grade', grade);
-  request.input('noOfCandidatesEntered', noOfCandidatesEntered);
-  request.input('noOfCandidatesExited', noOfCandidatesExited);
-  request.input('createdBy', createdBy);
-  request.input('month', month);
-  request.input('year', financialYear);
+const TABLE = "tbl_kpi_dgs_entry_exit";
+const LOG_TABLE = "tbl_kpi_dgs_entry_exit_log";
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August",
+    "September", "October", "November", "December"];
+// Financial-year order of the months: April first
+const FY_MONTHS = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
+const TODAY_SQL = "CAST(GETDATE() AS DATE)";
+const EXITED_TOO_MANY = "No. of candidates exited cannot be more than no. of candidates entered.";
+// Candidates exited (CoC issued) can't be more than candidates entered (assessments done)
+const exitedTooMany = (body) => Number(body.noOfCandidatesExited) > Number(body.noOfCandidatesEntered);
+const DUPLICATE = "An entry for this grade already exists for the selected year and month. Edit it from the Data List instead.";
 
-  try {
-      const checkResult = await request.query(`
-          SELECT COUNT(*) AS count
-          FROM tbl_kpi_dgs_entry_exit
-          WHERE year = @year AND month = @month AND grade_id = @grade
-      `);
+// A whole number of 0 or more (as a number or digits), else NaN
+const wholeNumber = (v) => (/^\s*\d+\s*$/.test(String(v ?? "")) ? Number(v) : NaN);
+const fyStartOf = (year, month) => (month >= 4 ? year : year - 1);
+const fyLabel = (start) => `${start}-${start + 1}`;
+const lastDay = (year, month) => new Date(Date.UTC(year, month, 0)).toLocaleDateString("en-GB", { timeZone: "UTC" });
+const isFutureMonth = (year, month) => {
+    const now = new Date();
+    return year * 100 + month > now.getFullYear() * 100 + now.getMonth() + 1;
+};
 
-      if (checkResult.recordset[0].count > 0) {
-          return res.status(400).json({ error: "Record already exists for the specified financialYear and month." });
-      }
-
-      await request.query(`
-          INSERT INTO tbl_kpi_dgs_entry_exit 
-          (year, month, type_id, grade_id, no_of_candidates_entered, no_of_candidates_exited, created_date, created_by)
-          VALUES (@year, @month, @type, @grade, @noOfCandidatesEntered, @noOfCandidatesExited, GETDATE(), @createdBy)
-      `);
-
-      const logCheckResult = await request.query(`
-          SELECT total_no_of_candidate_entered, total_no_of_candidate_exited
-          FROM tbl_kpi_dgs_entry_exit_log
-          WHERE year = @year AND month = @month AND type_id = @type
-      `);
-
-      if (logCheckResult.recordset.length === 0) {
-          await request.query(`
-              INSERT INTO tbl_kpi_dgs_entry_exit_log
-              (year, month, type_id, total_no_of_candidate_entered, total_no_of_candidate_exited, created_date, created_by)
-              VALUES (@year, @month, @type, @noOfCandidatesEntered, @noOfCandidatesExited, GETDATE(), @createdBy)
-          `);
-      } else {
-          const currentTotalEntered = logCheckResult.recordset[0].total_no_of_candidate_entered || 0;
-          const currentTotalExited = logCheckResult.recordset[0].total_no_of_candidate_exited || 0;
-
-          const updatedTotalEntered = currentTotalEntered + parseInt(noOfCandidatesEntered, 10);
-          const updatedTotalExited = currentTotalExited + parseInt(noOfCandidatesExited, 10);
-
-          request.input('updatedTotalEntered',updatedTotalEntered);
-          request.input('updatedTotalExited',updatedTotalExited);
-
-          await request.query(`
-              UPDATE tbl_kpi_dgs_entry_exit_log
-              SET total_no_of_candidate_entered = @updatedTotalEntered,
-                  total_no_of_candidate_exited = @updatedTotalExited,
-                  created_date = GETDATE(),
-                  created_by = @createdBy
-              WHERE year = @year AND month = @month AND type_id = @type
-          `);
-      }
-
-      return res.sendStatus(201);
-  } catch (error) {
-      //console.error('Error adding entry exit data:', error);
-      res.sendStatus(500);
-  }
-}
-
-
-async function updateEntryExitData(req, res) {
-  const { Id, year, month, type, grade, noOfCandidatesEntered, noOfCandidatesExited, updatedBy } = req.body;
-
-  const conn = await pool;
-
-  try {
-      const request = conn.request();
-      request.input('Id', Id);
-      request.input('year', year);
-      request.input('month', month);
-      request.input('type', type);
-      request.input('grade', grade);
-      request.input('noOfCandidatesEntered', noOfCandidatesEntered);
-      request.input('noOfCandidatesExited', noOfCandidatesExited);
-      request.input('updatedBy', updatedBy);
-
-    //   const checkResult = await request.query(`
-    //     SELECT COUNT(*) AS count
-    //     FROM tbl_kpi_dgs_entry_exit
-    //     WHERE year = @year AND month = @month AND grade_id = @grade
-    // `);
-
-    // if (checkResult.recordset[0].count > 0) {
-    //     return res.status(400).json({ error: "Record already exists for the specified financialYear and month." });
-    // }
-
-
-      const existingRequest = conn.request();
-      existingRequest.input('Id', Id);
-
-      const existingResult = await existingRequest.query(`
-          SELECT no_of_candidates_entered, no_of_candidates_exited 
-          FROM tbl_kpi_dgs_entry_exit 
-          WHERE id = @Id
-      `);
-
-      if (existingResult.recordset.length === 0) {
-          return res.status(404).json({ message: 'No record found to update.' });
-      }
-
-      const previousEntered = parseInt(existingResult.recordset[0].no_of_candidates_entered, 10) || 0;
-      const previousExited = parseInt(existingResult.recordset[0].no_of_candidates_exited, 10) || 0;
-
-      const enteredDifference = parseInt(noOfCandidatesEntered, 10) - previousEntered;
-      const exitedDifference = parseInt(noOfCandidatesExited, 10) - previousExited;
-
-      const updateResult = await request.query(`
-          UPDATE tbl_kpi_dgs_entry_exit 
-          SET 
-              type_id = @type,
-              grade_id = @grade,
-              no_of_candidates_entered = @noOfCandidatesEntered,
-              no_of_candidates_exited = @noOfCandidatesExited,
-              updated_date = GETDATE(),
-              updated_by = @updatedBy
-          WHERE id = @Id
-      `);
-
-      if (updateResult.rowsAffected[0] > 0) {
-          const logCheckRequest = conn.request();
-          logCheckRequest.input('year', year);
-          logCheckRequest.input('month', month);
-          logCheckRequest.input('type', type);
-
-          const logCheckResult = await logCheckRequest.query(`
-              SELECT log_id, total_no_of_candidate_entered, total_no_of_candidate_exited 
-              FROM tbl_kpi_dgs_entry_exit_log 
-              WHERE year = @year AND month = @month AND type_id = @type
-          `);
-
-          if (logCheckResult.recordset.length > 0) {
-              const logId = logCheckResult.recordset[0].log_id;
-              const currentTotalEntered = parseInt(logCheckResult.recordset[0].total_no_of_candidate_entered, 10) || 0;
-              const currentTotalExited = parseInt(logCheckResult.recordset[0].total_no_of_candidate_exited, 10) || 0;
-
-              const updatedTotalEntered = currentTotalEntered + enteredDifference;
-              const updatedTotalExited = currentTotalExited + exitedDifference;
-
-              const updateLogRequest = conn.request();
-              updateLogRequest.input('id', logId);
-              updateLogRequest.input('updatedTotalEntered', updatedTotalEntered);
-              updateLogRequest.input('updatedTotalExited', updatedTotalExited);
-              updateLogRequest.input('updatedBy', updatedBy);
-
-              await updateLogRequest.query(`
-                  UPDATE tbl_kpi_dgs_entry_exit_log 
-                  SET 
-                      total_no_of_candidate_entered = @updatedTotalEntered,
-                      total_no_of_candidate_exited = @updatedTotalExited,
-                      updated_by = @updatedBy,
-                      updated_date = GETDATE()
-                  WHERE log_id = @id
-              `);
-          } else {
-              const insertLogRequest = conn.request();
-              insertLogRequest.input('year', year);
-              insertLogRequest.input('month', month);
-              insertLogRequest.input('type', type);
-              insertLogRequest.input('totalSurveyCarriedEntered', parseInt(noOfCandidatesEntered, 10));
-              insertLogRequest.input('totalSurveyCarriedExited', parseInt(noOfCandidatesExited, 10));
-              insertLogRequest.input('updatedBy', updatedBy);
-
-              await insertLogRequest.query(`
-                  INSERT INTO tbl_kpi_dgs_entry_exit_log 
-                  (year, month,type_id, total_no_of_candidate_entered, total_no_of_candidate_exited, created_by, created_date) 
-                  VALUES (@year, @month, @type, @totalSurveyCarriedEntered, @totalSurveyCarriedExited, @updatedBy, GETDATE())
-              `);
-          }
-
-          return res.status(201).json({ message: 'Entry and log data updated successfully.' });
-      } else {
-          return res.status(404).json({ message: 'No record found to update.' });
-      }
-  } catch (error) {
-      //console.error("Error updating entry exit data:", error);
-      return res.status(500).json({ message: 'Error updating entry exit data.' });
-  }
-}
-
-
-
-async function getEntryExitData(req, res) {
-  const conn = await pool;
-  try {
-    const result = await conn.query(`
-        SELECT id,year,month,t.type_name,g.grade_name,no_of_candidates_entered,no_of_candidates_exited,created_date
-         FROM
-        tbl_kpi_dgs_entry_exit 
-        LEFT JOIN mmt_kpi_dgs_grade g ON tbl_kpi_dgs_entry_exit.grade_id = g.grade_id
-        LEFT JOIN mmt_kpi_dgs_type t ON tbl_kpi_dgs_entry_exit.type_id = t.type_id
-    ORDER BY year DESC, month DESC;
-    `);
-
-    res.json(result.recordset);
-  } catch (err) {
-    //console.log(err);
-    return res.sendStatus(500);
-  }
-}
-
-async function getMonthlyPassengerData(req, res) {
-  const conn = await pool;
-  try {
-    const result = await conn.query(`
-        SELECT
-            year,
-            month,
-            national_waterway,
-            SUM(number_of_trips) AS number_of_trips,
-            SUM(number_of_day_cruise_passengers) AS total_day_cruise_passengers,
-            SUM(number_of_night_cruise_passengers) AS total_night_cruise_passengers,
-            SUM(total_passengers) AS total_passengers
-        FROM tbl_iwai_nw_passengers
-        GROUP BY year, month, national_waterway
-        ORDER BY year DESC, month DESC;
-    `);
-
-    res.json(result.recordset);
-  } catch (err) {
-    //console.log(err);
-    return res.sendStatus(500);
-  }
-}
-
-async function getEntryExitDataByID(req, res) {
-    const Id = req.params.Id;
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input("Id",Id);
-    try {
-      const result = await request.query(`
-          SELECT
-          *
-          FROM tbl_kpi_dgs_entry_exit
-          WHERE id = @Id
-      `);
-  
-      res.json(result.recordset);
-    } catch (err) {
-      //console.log(err);
-      return res.sendStatus(500);
+// Rebuilds the per-type totals row of each given year + month + type from the entries
+async function rebuildLog(periods, userId) {
+    const seen = new Set();
+    for (const { year, month, type } of periods) {
+        const key = `${year}-${month}-${type}`;
+        if (year == null || month == null || type == null || seen.has(key)) continue;
+        seen.add(key);
+        const request = (await pool).request();
+        request.input("year", sql.Int, year);
+        request.input("month", sql.Int, month);
+        request.input("type", sql.Int, type);
+        request.input("userId", sql.Int, userId);
+        await request.query(`
+            SET XACT_ABORT ON;
+            BEGIN TRANSACTION;
+            DELETE FROM ${LOG_TABLE} WHERE year = @year AND month = @month AND type_id = @type;
+            INSERT INTO ${LOG_TABLE} (year, month, type_id, total_no_of_candidate_entered, total_no_of_candidate_exited, created_date, created_by)
+            SELECT @year, @month, @type, SUM(no_of_candidates_entered), SUM(no_of_candidates_exited), ${TODAY_SQL}, @userId
+            FROM ${TABLE} WHERE year = @year AND month = @month AND type_id = @type
+            HAVING COUNT(*) > 0;
+            COMMIT TRANSACTION;`);
     }
 }
 
-async function getQuarterlyPassengerData(req, res) {
-  const conn = await pool;
-  try {
-    const result = await conn.query(`
-        SELECT
-            year,
-            national_waterway,
-            CASE
-                WHEN month IN ('January', 'February', 'March') THEN 'Quarter 4'
-                WHEN month IN ('April', 'May', 'June') THEN 'Quarter 1'
-                WHEN month IN ('July', 'August', 'September') THEN 'Quarter 2'
-                WHEN month IN ('October', 'November', 'December') THEN 'Quarter 3'
-            END AS quarter_number,
-            SUM(number_of_trips) AS number_of_trips,
-            SUM(number_of_day_cruise_passengers) AS total_day_cruise_passengers,
-            SUM(number_of_night_cruise_passengers) AS total_night_cruise_passengers,
-            SUM(total_passengers) AS total_passengers
-        FROM tbl_iwai_nw_passengers
-        GROUP BY year, national_waterway,
-            CASE
-                WHEN month IN ('January', 'February', 'March') THEN 'Quarter 4'
-                WHEN month IN ('April', 'May', 'June') THEN 'Quarter 1'
-                WHEN month IN ('July', 'August', 'September') THEN 'Quarter 2'
-                WHEN month IN ('October', 'November', 'December') THEN 'Quarter 3'
+// Input form: whether the year + month + grade already has an entry (205 yes, 201 no, as K-2.3)
+async function checkEntryExitData(req, res) {
+    const year = wholeNumber(req.params.year);
+    const month = wholeNumber(req.params.month);
+    const grade = wholeNumber(req.params.grade);
+    if (!(year >= 2000 && year <= 2100) || !(month >= 1 && month <= 12) || !(grade > 0)) {
+        return sendError(res, 400, "A valid year, month and grade are required.");
+    }
+    try {
+        const request = (await pool).request();
+        request.input("year", sql.Int, year);
+        request.input("month", sql.Int, month);
+        request.input("grade", sql.Int, grade);
+        const result = await request.query(`SELECT TOP 1 1 AS taken FROM ${TABLE} WHERE year = @year AND month = @month AND grade_id = @grade`);
+        return res.sendStatus(result.recordset.length ? 205 : 201);
+    } catch (err) {
+        console.error("K-2.4 duplicate check failed:", err);
+        return sendError(res, 500, "An error occurred while checking the data.");
+    }
+}
+
+async function addEntryExitData(req, res) {
+    const year = Number(req.body.financialYear);
+    const month = Number(req.body.month);
+    const type = Number(req.body.type);
+    const grade = Number(req.body.grade);
+    const userId = resolveUserId(req);
+    if (isFutureMonth(year, month)) return sendError(res, 400, "Month cannot be in the future.");
+    if (exitedTooMany(req.body)) return sendError(res, 400, EXITED_TOO_MANY);
+    try {
+        const request = (await pool).request();
+        request.input("year", sql.Int, year);
+        request.input("month", sql.Int, month);
+        request.input("type", sql.Int, type);
+        request.input("grade", sql.Int, grade);
+        request.input("entered", sql.Int, Number(req.body.noOfCandidatesEntered));
+        request.input("exited", sql.Int, Number(req.body.noOfCandidatesExited));
+        request.input("userId", sql.Int, userId);
+        // The grade must be one of the type's grades; duplicate check and insert in one statement,
+        // under lock, so a grade's month is never added twice
+        const result = await request.query(`
+            SET XACT_ABORT ON;
+            IF NOT EXISTS (SELECT 1 FROM mmt_kpi_dgs_grade WHERE grade_id = @grade AND type_id = @type)
+            BEGIN
+                SELECT CAST(0 AS BIT) AS gradeOk, CAST(0 AS INT) AS added;
+                RETURN;
             END
-        ORDER BY year DESC, quarter_number DESC;
-    `);
-
-    res.json(result.recordset);
-  } catch (err) {
-    //console.log(err);
-    return res.sendStatus(500);
-  }
+            BEGIN TRANSACTION;
+            INSERT INTO ${TABLE} (year, month, type_id, grade_id, no_of_candidates_entered, no_of_candidates_exited, created_date, created_by)
+            SELECT @year, @month, @type, @grade, @entered, @exited, ${TODAY_SQL}, @userId
+            WHERE NOT EXISTS (
+                SELECT 1 FROM ${TABLE} WITH (UPDLOCK, HOLDLOCK) WHERE year = @year AND month = @month AND grade_id = @grade);
+            DECLARE @added INT = @@ROWCOUNT;
+            COMMIT TRANSACTION;
+            SELECT CAST(1 AS BIT) AS gradeOk, @added AS added;`);
+        const { gradeOk, added } = result.recordset[0];
+        if (!gradeOk) return sendError(res, 400, "Grade is not one of the selected type's grades.");
+        if (!added) return sendError(res, 409, DUPLICATE);
+        await rebuildLog([{ year, month, type }], userId);
+        return res.sendStatus(201);
+    } catch (err) {
+        console.error("K-2.4 save failed:", err);
+        return sendError(res, 500, "The entry could not be saved.");
+    }
 }
 
-async function getAnnuallyPassengerData(req, res) {
-  const conn = await pool;
-  try {
-    const result = await conn.query(`
-        SELECT
-            year,
-            national_waterway,
-            SUM(number_of_trips) AS number_of_trips,
-            SUM(number_of_day_cruise_passengers) AS total_day_cruise_passengers,
-            SUM(number_of_night_cruise_passengers) AS total_night_cruise_passengers,
-            SUM(total_passengers) AS total_passengers
-        FROM tbl_iwai_nw_passengers
-        GROUP BY year, national_waterway
-        ORDER BY year DESC;
-    `);
-
-    res.json(result.recordset);
-  } catch (err) {
-    //console.log(err);
-    return res.sendStatus(500);
-  }
+// Edit: only the two counts change (year, month, type and grade identify the entry)
+async function updateEntryExitData(req, res) {
+    const id = Number(req.body.Id);
+    const userId = resolveUserId(req);
+    if (exitedTooMany(req.body)) return sendError(res, 400, EXITED_TOO_MANY);
+    try {
+        const request = (await pool).request();
+        request.input("id", sql.Int, id);
+        request.input("entered", sql.Int, Number(req.body.noOfCandidatesEntered));
+        request.input("exited", sql.Int, Number(req.body.noOfCandidatesExited));
+        request.input("userId", sql.Int, userId);
+        const result = await request.query(`
+            UPDATE ${TABLE}
+            SET no_of_candidates_entered = @entered, no_of_candidates_exited = @exited,
+                updated_date = ${TODAY_SQL}, updated_by = @userId
+            OUTPUT inserted.year, inserted.month, inserted.type_id
+            WHERE id = @id`);
+        if (!result.recordset.length) {
+            return sendError(res, 404, "This entry no longer exists. Refresh the list and try again.");
+        }
+        const { year, month, type_id: type } = result.recordset[0];
+        await rebuildLog([{ year, month, type }], userId);
+        return res.status(201).json({ message: "Entry updated." });
+    } catch (err) {
+        console.error("K-2.4 update failed:", err);
+        return sendError(res, 500, "The entry could not be updated.");
+    }
 }
 
-async function getAbstractEntryExitReport(req,res){
-  const currentYear = new Date().getFullYear();
-  const previousYear = new Date().getFullYear() - 1;
-  const financialYear = `${previousYear}-${currentYear}`;
-  const [startYear, endYear] = financialYear.split('-');
-
-  const conn = await pool;
-  const request = conn.request();
-
-  try {
-      const query = `
-          SELECT 
-              ty.type_name AS type_name,
-              gr.grade_name AS grade_name,
-              SUM(CASE WHEN ([year] = ${startYear} AND month >=4) OR ([year] =${endYear} AND month <=3) THEN no_of_candidates_entered ELSE 0 END) AS no_of_candidate_entered_prev,
-              SUM(CASE WHEN ([year] = ${startYear} AND month >=4) OR ([year] =${endYear} AND month <=3) THEN no_of_candidates_exited ELSE 0 END) AS no_of_candidate_exited_prev,
-              SUM(CASE WHEN ([year] = ${endYear} AND month BETWEEN 4 AND MONTH(GETDATE())-2) THEN no_of_candidates_entered ELSE 0 END) AS no_of_candidate_entered_upto,
-              SUM(CASE WHEN ([year] = ${endYear} AND month BETWEEN 4 AND MONTH(GETDATE())-2)  THEN no_of_candidates_exited ELSE 0 END) AS no_of_candidate_exited_upto,
-              SUM(CASE WHEN ([year] = ${endYear} AND [month] = MONTH(GETDATE())-1) THEN no_of_candidates_entered ELSE 0 END) AS no_of_candidate_entered_during,
-              SUM(CASE WHEN ([year] = ${endYear} AND [month] = MONTH(GETDATE())-1) THEN no_of_candidates_exited ELSE 0 END) AS no_of_candidate_exited_during,
-              SUM(CASE WHEN ([year] = ${endYear} AND month BETWEEN 4 AND MONTH(GETDATE())-1) THEN no_of_candidates_entered ELSE 0 END) AS total_no_of_candidates_entered,
-              SUM(CASE WHEN ([year] = ${endYear} AND month BETWEEN 4 AND MONTH(GETDATE())-1) THEN no_of_candidates_exited ELSE 0 END) AS total_no_of_candidates_exited
-          FROM tbl_kpi_dgs_entry_exit  exi
-              LEFT JOIN mmt_kpi_dgs_type ty ON exi.type_id = ty.type_id
-              LEFT JOIN mmt_kpi_dgs_grade gr ON exi.grade_id = gr.grade_id
-          GROUP BY ty.type_name,gr.grade_name
-          ORDER BY ty.type_name`;
-
-      const result = await request.query(query);
-
-      const rowData = result.recordset;  
-
-      if (rowData.length === 0) {
-          return res.status(404).json({ error: 'No data available' });
-      }
-
-      const currentDate = new Date();
-      const currentYear = currentDate.getFullYear(); // Get the current year
-
-      // Calculate month -2 (two months ago) and month -3 (three months ago)
-      const monthMinus2 = new Date(currentDate);
-      monthMinus2.setMonth(currentDate.getMonth() - 2); // Month -2 (two months ago)
-      const monthMinus2Year = monthMinus2.getFullYear();
-
-      const monthMinus3 = new Date(currentDate);
-      monthMinus3.setMonth(currentDate.getMonth() - 3); // Month -3 (three months ago)
-      const monthMinus3Year = monthMinus3.getFullYear();
-
-      // Get full month name for month -2
-      const monthMinus2Name = monthMinus2.toLocaleString('default', { month: 'long' });
-      // const monthMinus2Year = (monthMinus2.getMonth() + 1) <= 12 ? monthMinus2.getFullYear() : monthMinus2.getFullYear() - 1;
-
-
-      // Get the last date of month -2
-      const lastDateOfMonthMinus2 = new Date(monthMinus2Year, monthMinus2.getMonth() + 1, 0);
-      const lastDateOfMonthMinus2Formatted = lastDateOfMonthMinus2.toLocaleDateString('en-GB');
-
-      // Get the last date of month -3
-      const lastDateOfMonthMinus3 = new Date(monthMinus3Year, monthMinus3.getMonth() + 1, 0);
-      const lastDateOfMonthMinus3Formatted = lastDateOfMonthMinus3.toLocaleDateString('en-GB');
-
-      // Financial year calculation based on the previous month
-      let previousFinancialYear, currentFinancialYear;
-      if (monthMinus2.getMonth() + 1 >= 4) {
-          previousFinancialYear = `${currentYear - 1}-${currentYear}`;
-          currentFinancialYear = `${currentYear}-${currentYear + 1}`;
-      } else {
-          previousFinancialYear = `${currentYear - 2}-${currentYear - 1}`;
-          currentFinancialYear = `${currentYear - 1}-${currentYear}`;
-      }
-
-      // // Output results
-      // console.log(`Previous Financial Year: ${previousFinancialYear}`);
-      // console.log(`Current Financial Year: ${currentFinancialYear}`);
-      // console.log(`Month -2 Full Name: ${monthMinus2Name}-${monthMinus2Year}`);
-      // console.log(`Month -2 Last Date: ${lastDateOfMonthMinus2Formatted}`);
-      // console.log(`Month -3 Last Date: ${lastDateOfMonthMinus3Formatted}`);
-
-      
-          let columnDefs = [
-              {
-                  headerName: "Type",
-                  field: "type_name",
-                  headerClass: "headercenter",
-                  cellStyle: {textAlign: 'center'}
-              },
-              {
-                  headerName: `Grade`,
-                  field: "grade_name",
-                  headerClass: "headercenter"
-              },
-              {
-                headerName:  `During the Previous FY (${previousFinancialYear})`,
-                field: "During the Previous FY",
-                headerClass : "headercenter",
-                children: [
-                  {
-                    headerName: `No of candidates entered the system (i.e.Assessment done)`,
-                    field: "no_of_candidate_entered_prev",
-                    headerClass: "headercenter"
-                  },
-                  {
-                      headerName: `No of candidates exited the system (i.e.COC Issued)`,
-                      field: "no_of_candidate_exited_prev",
-                      headerClass: "headercenter"
-                  }
-                ]
-              },
-              {
-                headerName: `During the Current FY-upto ${lastDateOfMonthMinus3Formatted}`,
-                field: "During the Current Year - Upto the month",
-                headerClass : "headercenter",
-                children: [
-                  {
-                    headerName: `No of candidates entered the system (i.e.Assessment done)`,
-                    field: "no_of_candidate_entered_upto",
-                    headerClass: "headercenter"
-                  },
-                  {
-                      headerName: `No of candidates exited the system (i.e.COC Issued)`,
-                      field: "no_of_candidate_exited_upto",
-                      headerClass: "headercenter"
-                  }
-                ]
-              },
-              {
-                headerName: `During the month (${monthMinus2Name}-${monthMinus2Year})`,
-                field: "During the month",
-                headerClass : "headercenter",
-                children: [
-                  {
-                    headerName: `No of candidates entered the system (i.e.Assessment done)`,
-                    field: "no_of_candidate_entered_during",
-                    headerClass: "headercenter"
-                  },
-                  {
-                      headerName: `No of candidates exited the system (i.e.COC Issued)`,
-                      field: "no_of_candidate_exited_during",
-                      headerClass: "headercenter"
-                  }
-                ]
-              },
-              {
-                // headerName: `Total for the Current FY (${endYear}-${parseInt(endYear)+1})`,
-                headerName: `Total for the current FY up to ${lastDateOfMonthMinus2Formatted}`,
-
-                field: "During the month",
-                headerClass : "headercenter",
-                children: [
-                  {
-                    headerName: `No of candidates entered the system (i.e.Assessment done)`,
-                    field: "total_no_of_candidates_entered",
-                    headerClass: "headercenter"
-                  },
-                  {
-                      headerName: `No of candidates exited the system (i.e.COC Issued)`,
-                      field: "total_no_of_candidates_exited",
-                      headerClass: "headercenter"
-                  }
-                ]
-              }
-          ];
-
-      res.json({ columnDefs, rowData });
-  }catch(error){
-      //console.error('Error fetching marine casualty data:', error);
-      //console.log("error ",error.message);
-      res.status(500).json({ error});
-  }
+async function getEntryExitData(req, res) {
+    try {
+        const result = await (await pool).request().query(`
+            SELECT e.id, e.year, e.month, e.type_id, t.type_name, e.grade_id, g.grade_name,
+                   e.no_of_candidates_entered, e.no_of_candidates_exited,
+                   e.created_date, e.updated_date
+            FROM ${TABLE} e
+            LEFT JOIN mmt_kpi_dgs_grade g ON e.grade_id = g.grade_id
+            LEFT JOIN mmt_kpi_dgs_type t ON e.type_id = t.type_id
+            ORDER BY e.year DESC, e.month DESC, e.type_id, e.grade_id`);
+        res.json(result.recordset);
+    } catch (err) {
+        console.error("K-2.4 list failed:", err);
+        return sendError(res, 500, "The entries could not be loaded.");
+    }
 }
 
-async function getMonthlyEntryExitReport(req,res){
-  const currentYear = new Date().getFullYear();
-  const previousYear = new Date().getFullYear() - 1;
-  const financialYear = `${previousYear}-${currentYear}`;
-  const [startYear, endYear] = financialYear.split('-');
-
-  const conn = await pool;
-  const request = conn.request();
-  request.input('endYear', endYear);
-  request.input('nextYear',endYear+1);
-
-  try {
-    const query = `
-    SELECT
-        mmt.type_name AS 'type',
-        'Total Candidates Entered' AS category,
-        SUM(CASE WHEN year = @endYear   AND  month = 4 THEN total_no_of_candidate_entered ELSE 0 END) AS April,
-        SUM(CASE WHEN year = @endYear   AND  month = 5 THEN total_no_of_candidate_entered ELSE 0 END) AS May,
-        SUM(CASE WHEN year = @endYear   AND  month = 6 THEN total_no_of_candidate_entered ELSE 0 END) AS June,
-        SUM(CASE WHEN year = @endYear   AND  month = 7 THEN total_no_of_candidate_entered ELSE 0 END) AS July,
-        SUM(CASE WHEN year = @endYear   AND  month = 8 THEN total_no_of_candidate_entered ELSE 0 END) AS August,
-        SUM(CASE WHEN year = @endYear   AND  month = 9 THEN total_no_of_candidate_entered ELSE 0 END) AS September,
-        SUM(CASE WHEN year = @endYear   AND  month = 10 THEN total_no_of_candidate_entered ELSE 0 END) AS October,
-        SUM(CASE WHEN year = @endYear   AND  month = 11 THEN total_no_of_candidate_entered ELSE 0 END) AS November,
-        SUM(CASE WHEN year = @endYear   AND  month = 12 THEN total_no_of_candidate_entered ELSE 0 END) AS December,
-        SUM(CASE WHEN year = @nextYear AND  month = 1 THEN total_no_of_candidate_entered ELSE 0 END) AS January,
-        SUM(CASE WHEN year = @nextYear AND  month = 2 THEN total_no_of_candidate_entered ELSE 0 END) AS February,
-        SUM(CASE WHEN year = @nextYear AND  month = 3 THEN total_no_of_candidate_entered ELSE 0 END) AS March
-        FROM tbl_kpi_dgs_entry_exit_log log
-        LEFT JOIN mmt_kpi_dgs_type mmt ON log.type_id = mmt.type_id
-        GROUP BY mmt.type_name
-        UNION ALL
-        SELECT
-        mmt.type_name AS 'type',
-        'Total Candidates Exited' AS category,
-        SUM(CASE WHEN year = @endYear AND month = 4 THEN total_no_of_candidate_exited ELSE 0 END) AS April,
-        SUM(CASE WHEN year = @endYear AND month = 5 THEN total_no_of_candidate_exited ELSE 0 END) AS May,
-        SUM(CASE WHEN year = @endYear AND month = 6 THEN total_no_of_candidate_exited ELSE 0 END) AS June,
-        SUM(CASE WHEN year = @endYear AND month = 7 THEN total_no_of_candidate_exited ELSE 0 END) AS July,
-        SUM(CASE WHEN year = @endYear AND month = 8 THEN total_no_of_candidate_exited ELSE 0 END) AS August,
-        SUM(CASE WHEN year = @endYear AND month = 9 THEN total_no_of_candidate_exited ELSE 0 END) AS September,
-        SUM(CASE WHEN year = @endYear AND month = 10 THEN total_no_of_candidate_exited ELSE 0 END) AS October,
-        SUM(CASE WHEN year = @endYear AND month = 11 THEN total_no_of_candidate_exited ELSE 0 END) AS November,
-        SUM(CASE WHEN year = @endYear AND month = 12 THEN total_no_of_candidate_exited ELSE 0 END) AS December,
-        SUM(CASE WHEN year = @nextYear AND month = 1 THEN total_no_of_candidate_exited ELSE 0 END) AS January,
-        SUM(CASE WHEN year = @nextYear AND month = 2 THEN total_no_of_candidate_exited ELSE 0 END) AS February,
-        SUM(CASE WHEN year = @nextYear AND month = 3 THEN total_no_of_candidate_exited ELSE 0 END) AS March
-      FROM tbl_kpi_dgs_entry_exit_log log
-      LEFT JOIN mmt_kpi_dgs_type mmt ON log.type_id = mmt.type_id
-      GROUP BY mmt.type_name
-      ORDER BY mmt.type_name`;
-
-      const result = await request.query(query);
-
-      const rowData = result.recordset;  
-
-      if (rowData.length === 0) {
-          return res.status(404).json({ error: 'No data available' });
-      }
-      
-      const columnDefs = [
-          { headerName: "Type", field: "type", pinned: "left", width: 150 },
-          { headerName: "Category", field: "category", pinned: "left", width: 200 },
-          { headerName: "April", field: "April", width: 100 },
-          { headerName: "May", field: "May", width: 100 },
-          { headerName: "June", field: "June", width: 100 },
-          { headerName: "July", field: "July", width: 100 },
-          { headerName: "August", field: "August", width: 100 },
-          { headerName: "September", field: "September", width: 100 },
-          { headerName: "October", field: "October", width: 100 },
-          { headerName: "November", field: "November", width: 100 },
-          { headerName: "December", field: "December", width: 100 },
-          { headerName: "January", field: "January", width: 100 },
-          { headerName: "February", field: "February", width: 100 },
-          { headerName: "March", field: "March", width: 100 }
-    ];
-
-      res.json({ columnDefs, rowData });
-  }catch(error){
-      //console.log("error ",error.message);
-      res.status(500).json({ error});
-  }
+async function getEntryExitDataByID(req, res) {
+    const id = wholeNumber(req.params.Id);
+    if (!(id > 0)) return sendError(res, 400, "Not a valid entry.");
+    try {
+        const request = (await pool).request();
+        request.input("id", sql.Int, id);
+        const result = await request.query(`
+            SELECT e.*, t.type_name, g.grade_name
+            FROM ${TABLE} e
+            LEFT JOIN mmt_kpi_dgs_grade g ON e.grade_id = g.grade_id
+            LEFT JOIN mmt_kpi_dgs_type t ON e.type_id = t.type_id
+            WHERE e.id = @id`);
+        res.json(result.recordset);
+    } catch (err) {
+        console.error("K-2.4 entry load failed:", err);
+        return sendError(res, 500, "The entry could not be loaded.");
+    }
 }
 
+// The latest year + month that has an entry, not after the current month; null when there are none
+async function latestPeriod() {
+    const now = new Date();
+    const request = (await pool).request();
+    request.input("upTo", sql.Int, now.getFullYear() * 100 + now.getMonth() + 1);
+    const result = await request.query(`SELECT TOP 1 year, month FROM ${TABLE}
+        WHERE year IS NOT NULL AND month BETWEEN 1 AND 12 AND year * 100 + month <= @upTo
+        ORDER BY year DESC, month DESC`);
+    return result.recordset[0] || null;
+}
 
+// The financial years that have entries, oldest first
+async function financialYears() {
+    const result = await (await pool).request().query(`
+        SELECT DISTINCT CASE WHEN month >= 4 THEN year ELSE year - 1 END AS fy_start
+        FROM ${TABLE} WHERE year IS NOT NULL AND month BETWEEN 1 AND 12 ORDER BY fy_start`);
+    return result.recordset.map((r) => r.fy_start);
+}
+
+// Form K-2.4.1: each grade's candidates entered / exited during the previous financial year, the
+// current financial year up to the month before the chosen one, the chosen month, and the current
+// financial year up to the end of the chosen month. ?year=&month= picks the month; without them,
+// the latest month that has entries.
+async function getAbstractEntryExitReport(req, res) {
+    try {
+        let year = wholeNumber(req.query.year);
+        let month = wholeNumber(req.query.month);
+        if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+            const latest = await latestPeriod();
+            const now = new Date();
+            year = latest?.year ?? now.getFullYear();
+            month = latest?.month ?? now.getMonth() + 1;
+        }
+        const fyStart = fyStartOf(year, month);
+        const request = (await pool).request();
+        request.input("prevFrom", sql.Int, (fyStart - 1) * 100 + 4);
+        request.input("prevTo", sql.Int, fyStart * 100 + 3);
+        request.input("fyFrom", sql.Int, fyStart * 100 + 4);
+        request.input("chosen", sql.Int, year * 100 + month);
+        const result = await request.query(`
+            WITH e AS (SELECT grade_id, year * 100 + month AS ym, no_of_candidates_entered AS en, no_of_candidates_exited AS ex
+                       FROM ${TABLE} WHERE year IS NOT NULL AND month BETWEEN 1 AND 12)
+            SELECT g.grade_id, t.type_id, t.type_name, g.grade_name,
+                ISNULL(SUM(CASE WHEN e.ym BETWEEN @prevFrom AND @prevTo THEN e.en END), 0) AS prev_entered,
+                ISNULL(SUM(CASE WHEN e.ym BETWEEN @prevFrom AND @prevTo THEN e.ex END), 0) AS prev_exited,
+                ISNULL(SUM(CASE WHEN e.ym >= @fyFrom AND e.ym < @chosen THEN e.en END), 0) AS upto_entered,
+                ISNULL(SUM(CASE WHEN e.ym >= @fyFrom AND e.ym < @chosen THEN e.ex END), 0) AS upto_exited,
+                ISNULL(SUM(CASE WHEN e.ym = @chosen THEN e.en END), 0) AS month_entered,
+                ISNULL(SUM(CASE WHEN e.ym = @chosen THEN e.ex END), 0) AS month_exited,
+                ISNULL(SUM(CASE WHEN e.ym BETWEEN @fyFrom AND @chosen THEN e.en END), 0) AS total_entered,
+                ISNULL(SUM(CASE WHEN e.ym BETWEEN @fyFrom AND @chosen THEN e.ex END), 0) AS total_exited
+            FROM mmt_kpi_dgs_grade g
+            JOIN mmt_kpi_dgs_type t ON g.type_id = t.type_id
+            LEFT JOIN e ON e.grade_id = g.grade_id
+            GROUP BY g.grade_id, t.type_id, t.type_name, g.grade_name
+            ORDER BY t.type_id, g.grade_id`);
+
+        const previousMonth = month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 };
+        res.json({
+            period: {
+                year,
+                month,
+                monthLabel: `${MONTH_NAMES[month - 1]}-${year}`,
+                previousFy: fyLabel(fyStart - 1),
+                currentFy: fyLabel(fyStart),
+                // Up to the end of the month before the chosen one; nothing when the chosen month is April
+                uptoLabel: month === 4 ? null : lastDay(previousMonth.year, previousMonth.month),
+                totalLabel: lastDay(year, month),
+            },
+            rowData: result.recordset,
+        });
+    } catch (error) {
+        console.error("K-2.4.1 report failed:", error);
+        sendError(res, 500, "The report could not be built.");
+    }
+}
+
+// Form K-2.4.2: candidates entered / exited each month (April to March) of one financial year, per
+// type. ?fy=2025 (the year the financial year starts) picks it; without it, the financial year of
+// the latest month that has entries.
+async function getMonthlyEntryExitReport(req, res) {
+    try {
+        const years = await financialYears();
+        let fyStart = wholeNumber(req.query.fy);
+        if (!Number.isInteger(fyStart)) {
+            const latest = await latestPeriod();
+            const now = new Date();
+            fyStart = latest ? fyStartOf(latest.year, latest.month) : fyStartOf(now.getFullYear(), now.getMonth() + 1);
+        }
+        const request = (await pool).request();
+        request.input("from", sql.Int, fyStart * 100 + 4);
+        request.input("to", sql.Int, (fyStart + 1) * 100 + 3);
+        const result = await request.query(`
+            SELECT t.type_id, t.type_name, e.month,
+                   SUM(e.no_of_candidates_entered) AS entered, SUM(e.no_of_candidates_exited) AS exited
+            FROM mmt_kpi_dgs_type t
+            LEFT JOIN ${TABLE} e ON e.type_id = t.type_id AND e.year * 100 + e.month BETWEEN @from AND @to
+            GROUP BY t.type_id, t.type_name, e.month
+            ORDER BY t.type_id`);
+
+        const types = [...new Map(result.recordset.map((r) => [r.type_id, r.type_name])).entries()];
+        const months = FY_MONTHS.map((m) => ({ field: `m${m}`, label: `${MONTH_NAMES[m - 1]}-${String(m >= 4 ? fyStart : fyStart + 1).slice(2)}` }));
+        const rowData = types.flatMap(([typeId, typeName]) => [["entered", "No. of Candidates Entered"], ["exited", "No. of Candidates Exited"]].map(([key, category]) => {
+            const row = { type_id: typeId, type_name: typeName, category, measure: key, total: 0 };
+            FY_MONTHS.forEach((m) => {
+                const found = result.recordset.find((r) => r.type_id === typeId && r.month === m);
+                row[`m${m}`] = found ? found[key] ?? 0 : 0;
+                row.total += row[`m${m}`];
+            });
+            return row;
+        }));
+        res.json({ period: { fy: fyLabel(fyStart), fyStart, financialYears: years.map((s) => ({ value: s, label: fyLabel(s) })) }, months, rowData });
+    } catch (error) {
+        console.error("K-2.4.2 report failed:", error);
+        sendError(res, 500, "The report could not be built.");
+    }
+}
+
+// Form K-2.4.3: candidates entered / exited in each financial year that has entries, per type
 async function getYearlyEntryExitReport(req, res) {
-  const conn = await pool;
-  const request = conn.request();
+    try {
+        const years = await financialYears();
+        const result = await (await pool).request().query(`
+            SELECT t.type_id, t.type_name, x.fy_start,
+                   SUM(x.en) AS entered, SUM(x.ex) AS exited
+            FROM mmt_kpi_dgs_type t
+            LEFT JOIN (SELECT type_id, CASE WHEN month >= 4 THEN year ELSE year - 1 END AS fy_start,
+                              no_of_candidates_entered AS en, no_of_candidates_exited AS ex
+                       FROM ${TABLE} WHERE year IS NOT NULL AND month BETWEEN 1 AND 12) x ON x.type_id = t.type_id
+            GROUP BY t.type_id, t.type_name, x.fy_start
+            ORDER BY t.type_id`);
 
-  try {
-    const mainQuery = `
-      WITH FinancialYears AS (
-          SELECT CONCAT('FY', year, '-', year + 1) AS financial_year
-          FROM (VALUES (2014), (2015), (2016), (2017), (2018), (2019), 
-                       (2020), (2021), (2022), (2023), (2024), (2025)) AS Years(year)
-      ),
-      EntryExitData AS (
-          SELECT 
-              CASE 
-                  WHEN log.[month] BETWEEN 4 AND 12 THEN CONCAT('FY', log.[year], '-', log.[year] + 1)
-                  ELSE CONCAT('FY', log.[year] - 1, '-', log.[year])
-              END AS financial_year,
-              type.type_name,
-              SUM(log.total_no_of_candidate_entered) AS total_entered,
-              SUM(log.total_no_of_candidate_exited) AS total_exited
-          FROM tbl_kpi_dgs_entry_exit_log AS log
-          JOIN mmt_kpi_dgs_type AS type ON log.type_id = type.type_id
-          WHERE log.[year] >= 2014 AND log.[year] <= 2025
-          GROUP BY 
-              CASE 
-                  WHEN log.[month] BETWEEN 4 AND 12 THEN CONCAT('FY', log.[year], '-', log.[year] + 1)
-                  ELSE CONCAT('FY', log.[year] - 1, '-', log.[year])
-              END,
-              type.type_name
-      )
-      SELECT 
-          f.financial_year,
-          e.type_name,
-          ISNULL(e.total_entered, 0) AS total_entered,
-          ISNULL(e.total_exited, 0) AS total_exited
-      FROM FinancialYears f
-      LEFT JOIN EntryExitData e ON f.financial_year = e.financial_year
-      ORDER BY f.financial_year, e.type_name;
-    `;
-
-    const result = await request.query(mainQuery);
-    const dynamicColumns = [...new Set(result.recordset.map(row => row.financial_year))];
-
-    const columnDefs = [
-      { headerName: "Type Name", field: "type_name", pinned: "left", width: 200 },
-      { headerName: "Category", field: "Category", pinned: "left", width: 200 },
-      ...dynamicColumns.map(col => ({
-        headerName: col,
-        field: col,
-        width: 150
-      }))
-    ];
-
-    const rowData = [];
-    const validRecords = result.recordset.filter(row => row.type_name !== null);
-
-const types = [...new Set(validRecords.map(row => row.type_name))];
-
-types.forEach(typeName => {
-  const enteredRow = { Category: 'Total No. of Candidates Entered', type_name: typeName };
-  const exitedRow = { Category: 'Total No. of Candidates Exited', type_name: typeName };
-
-  dynamicColumns.forEach(financialYear => {
-    const data = validRecords.find(row => row.financial_year === financialYear && row.type_name === typeName);
-    enteredRow[financialYear] = data ? data.total_entered : 0;
-    exitedRow[financialYear] = data ? data.total_exited : 0;
-  });
-
-  rowData.push(enteredRow, exitedRow);
-});
-
-    res.json({ columnDefs, rowData });
-  } catch (error) {
-    console.log("error ", error.message);
-    res.status(500).json({ error });
-  }
+        const types = [...new Map(result.recordset.map((r) => [r.type_id, r.type_name])).entries()];
+        const columns = years.map((s) => ({ field: `fy${s}`, label: `FY ${fyLabel(s)}` }));
+        const rowData = types.flatMap(([typeId, typeName]) => [["entered", "No. of Candidates Entered"], ["exited", "No. of Candidates Exited"]].map(([key, category]) => {
+            const row = { type_id: typeId, type_name: typeName, category, measure: key };
+            years.forEach((s) => {
+                const found = result.recordset.find((r) => r.type_id === typeId && r.fy_start === s);
+                row[`fy${s}`] = found ? found[key] ?? 0 : 0;
+            });
+            return row;
+        }));
+        res.json({ columns, rowData });
+    } catch (error) {
+        console.error("K-2.4.3 report failed:", error);
+        sendError(res, 500, "The report could not be built.");
+    }
 }
 
-
-const entryExitTab = { addEntryExitData, getEntryExitData, getEntryExitDataByID, updateEntryExitData, getAbstractEntryExitReport,
-  getMonthlyEntryExitReport, getYearlyEntryExitReport};
+const entryExitTab = {
+    checkEntryExitData, addEntryExitData, getEntryExitData, getEntryExitDataByID, updateEntryExitData,
+    getAbstractEntryExitReport, getMonthlyEntryExitReport, getYearlyEntryExitReport,
+};
 
 export default entryExitTab;

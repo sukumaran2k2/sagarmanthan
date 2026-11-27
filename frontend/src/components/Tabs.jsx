@@ -219,6 +219,17 @@ export default function Tabs({ activeTab, setActiveTab }) {
           ]
         },
         {
+          title: 'DGS',
+          icon: Anchor,
+          items: [
+            m('KPI_DGS', { label: 'MMD Shipyard', tab: 'MMD SHIPYARD', icon: ClipboardList }),
+            m('KPI_DGS', { label: 'MMD Master', tab: 'MMD Master', icon: ClipboardList }),
+            m('KPI_DGS', { label: 'Input Form', tab: 'DGS Input Form', icon: FileEdit }),
+            m('KPI_DGS', { label: 'Data List', tab: 'DGS Data List', icon: ClipboardList }),
+            m('KPI_DGS', { label: 'Reports', tab: 'DGS Reports', icon: FilePieChart }),
+          ]
+        },
+        {
           title: 'DGLL',
           icon: Compass,
           items: [

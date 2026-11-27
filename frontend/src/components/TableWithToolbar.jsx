@@ -23,8 +23,14 @@ export default function TableWithToolbar({
   onExportPdf,
   extraLeftToolbarContent,
   extraRightToolbarContent,
+  // Optional content shown under the toolbar, above the table (e.g. a collapsible filter panel)
+  belowToolbarContent,
   pagination = true,
   paginationPageSize = 10,
+  // When true the toolbar card fills a flex-column parent (parent must supply
+  // a bounded height via min-h-0 / max-h) and the ag-Grid body scrolls while
+  // the header, toolbar and any pinned rows stay fixed.
+  fillHeight = false,
   ...props
 }) {
   const [gridApi, setGridApi] = useState(null);
@@ -77,21 +83,20 @@ export default function TableWithToolbar({
     setLocalVisibleCols(initialMap);
   }, [columnDefs, isVisibleColsControlled]);
 
-  // Compute processed columns based on visibility toggles
+  // Compute processed columns based on visibility toggles. A column's tick wins over its
+  // hide flag, so a column that starts hidden (hide: true) can still be turned on.
   const processedColumnDefs = useMemo(() => {
+    const isHidden = (key, colHide) => (key && visibleCols[key] !== undefined ? visibleCols[key] === false : colHide === true);
     return columnDefs.map(col => {
       const key = col.field || col.headerName;
-      let hide = col.hide === true;
-      if (key && visibleCols[key] === false) {
-        hide = true;
-      }
+      const hide = isHidden(key, col.hide);
 
       if (col.children) {
         const processedChildren = col.children.map(child => {
           const childKey = child.field || child.headerName;
           return {
             ...child,
-            hide: child.hide === true || (childKey && visibleCols[childKey] === false)
+            hide: isHidden(childKey, child.hide)
           };
         });
         // Hide parent group if all children are hidden
@@ -202,7 +207,9 @@ export default function TableWithToolbar({
   };
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm flex flex-col w-full relative dark:bg-slate-950 dark:border-slate-800">
+    <div
+      className={`bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm flex flex-col w-full relative dark:bg-slate-950 dark:border-slate-800 ${fillHeight ? 'flex-1 min-h-0' : ''}`}
+    >
       
       {/* Integrated Toolbar header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#f8fafc]/95 border-b border-slate-200 px-4 py-3 select-none dark:bg-slate-900/95 dark:border-slate-800">
@@ -324,8 +331,10 @@ export default function TableWithToolbar({
         </div>
       </div>
 
+      {belowToolbarContent}
+
       {/* Styled AG Grid wrapper */}
-      <div className="media-outreach-table-wrapper w-full">
+      <div className={`media-outreach-table-wrapper w-full ${fillHeight ? 'flex-1 min-h-0 flex flex-col' : ''}`}>
         <Table
           rowData={filteredRowData}
           columnDefs={processedColumnDefs}
@@ -338,6 +347,8 @@ export default function TableWithToolbar({
           paginationPageSize={pageSize}
           loading={loading}
           enableExport={false}
+          color={color}
+          fillHeight={fillHeight}
           {...props}
         />
       </div>

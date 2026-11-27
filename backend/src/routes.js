@@ -125,6 +125,7 @@ import projectsDataQcReportTab from "./controllers/Reports/dataQc/index.js";
 import projectsMisReportTab from "./controllers/Reports/projectMis/index.js";
 import kpiDgs1_0Tab from "./controllers/Reports/kpiDgs1_0.js";
 import kpiDgs2_0Tab from "./controllers/Reports/kpiDgs2_0.js";
+import kpiDgsFlaggingReports from "./controllers/Reports/kpiDgsFlagging.js";
 import kpiDgs3_0Tab from "./controllers/Reports/kpiDgs2_3.js";
 import TrafficVesselReportTab from "./controllers/Reports/trafficVesselReports.js";
 import TrafficVesselDrilldownReportTab from "./controllers/Reports/trafficVesselDrilldownReports.js";
@@ -1591,8 +1592,14 @@ router.get("/Financial-Chart-Data/:getCurrentFinancialYear", financialParameterT
 router.get("/Financial-Fin-Year-Chart-Data", financialParameterTab.getFinancialFinYearChartData);
 
 
-// -------------------------------------------kpi-----------------------------------------------------
-router.post('/add-kpi2-1-1', dgsTabList.createDgsKpi2_1_1Data);
+// -------------------------------------------KPI 2.1 -----------------------------------------------------
+// router.post('/add-kpi2-1-1', dgsTabList.createDgsKpi2_1_1Data);
+
+// const sciRead = requireModulePermission("KPI_SCI", "read");
+// const sciCreate = requireModulePermission("KPI_SCI", "create");
+// const sciUpdate = requireModulePermission("KPI_SCI", "update");
+// const sciDelete = requireModulePermission("KPI_SCI", "delete");
+router.post("/add-kpi2-1-1", auth, requireModulePermission("KPI_DGS", "create"),  dgsTabList.createDgsKpi2_1_1Data);
 router.get("/previousCumulative-2-1-data/:year/:month", dgsTabList.getPreviousCumulativeData);
 router.get("/kpi2-1-list", dgsTabList.getKpi2_1_List);
 router.get("/getedit-2-1-data/:year/:month", dgsTabList.getUpdateMmd_2_1Data);
@@ -1614,20 +1621,25 @@ router.get("/getedit-2-2-fa/:fundAppId", KpiDGS_2_2_Tab.getUpdateMmd_2_2Fa_Data)
 
 router.get("/kpi2-2-fa-template", KpiDGS_2_2_Tab.downloadFASampleDocument);
 
-// 2.3.2
-router.get("/get_addkpi2_3_masterdata/:year/:month/:type", KpiDGS_2_3_Tab.getAddKpi2_3_Masterdata);
-router.get("/get_editkpi2_3_masterdata/:year/:month/:typeId", KpiDGS_2_3_Tab.getEditKpi2_3_Masterdata);
+// DGS K-2.3 Exam Performance: KPI_DGS rights on every route (login is checked for all routes above).
+// The input-form lookups (grid, duplicate check, saved entry) also serve users who can only add or edit.
+const dgs23Read = requireModulePermission("KPI_DGS", "read");
+const dgs23FormLookup = requireAnyModulePermission("KPI_DGS", ["create", "update", "read"]);
 
-router.get("/checkData-2-3-2-data/:year/:month/:onType", KpiDGS_2_3_Tab.checkData_2_3_2);
-router.post('/add-kpi2-3-2', KpiDGS_2_3_Tab.createDgsKpi2_3_2Data);
-router.get("/kpi2-3-2-list", KpiDGS_2_3_Tab.getKpi2_3_2_List);
+// 2.3.2 (the save adds new rows and updates saved ones; the handler checks create / update for each)
+router.get("/get_addkpi2_3_masterdata/:year/:month/:type", dgs23FormLookup, KpiDGS_2_3_Tab.getAddKpi2_3_Masterdata);
+router.get("/get_editkpi2_3_masterdata/:year/:month/:typeId", dgs23FormLookup, KpiDGS_2_3_Tab.getEditKpi2_3_Masterdata);
+
+router.get("/checkData-2-3-2-data/:year/:month/:onType", dgs23FormLookup, KpiDGS_2_3_Tab.checkData_2_3_2);
+router.post('/add-kpi2-3-2', requireAnyModulePermission("KPI_DGS", ["create", "update"]), validateKpiBody, KpiDGS_2_3_Tab.createDgsKpi2_3_2Data);
+router.get("/kpi2-3-2-list", dgs23Read, KpiDGS_2_3_Tab.getKpi2_3_2_List);
 
 // 2.3.1
-router.get("/checkData-2-3-1-data/:year/:month", KpiDGS_2_3_Tab.checkData_2_3_1);
-router.post('/add-kpi2-3-1', KpiDGS_2_3_Tab.createDgsKpi2_3_1Data);
-router.get("/kpi2-3-1-list", KpiDGS_2_3_Tab.getKpi2_3_1_List);
-router.get("/getedit-2-3-1-data/:year/:month", KpiDGS_2_3_Tab.getUpdateMmd_2_3_1Data);
-router.put("/edit-2-3-1-data", KpiDGS_2_3_Tab.editDgsKpi2_3_1Data);
+router.get("/checkData-2-3-1-data/:year/:month", dgs23FormLookup, KpiDGS_2_3_Tab.checkData_2_3_1);
+router.post('/add-kpi2-3-1', requireModulePermission("KPI_DGS", "create"), validateKpiBody, KpiDGS_2_3_Tab.createDgsKpi2_3_1Data);
+router.get("/kpi2-3-1-list", dgs23Read, KpiDGS_2_3_Tab.getKpi2_3_1_List);
+router.get("/getedit-2-3-1-data/:year/:month", dgs23FormLookup, KpiDGS_2_3_Tab.getUpdateMmd_2_3_1Data);
+router.put("/edit-2-3-1-data", requireModulePermission("KPI_DGS", "update"), validateKpiBody, KpiDGS_2_3_Tab.editDgsKpi2_3_1Data);
 
 //2.6.1
 router.get("/checkData-2-6-1-data/:year/:month/:mmdName", dgsTab.checkData_2_6_1);
@@ -1925,12 +1937,15 @@ router.get('/get-kpi-majorports-20-1-reports',kpiDgsPortPerformanceTab.getEffect
 router.get('/get-kpi-majorports-20-2-reports',kpiDgsPortPerformanceTab.getEffectiveObsd_20_2_1_Report);
 router.get('/get-kpi-majorports-20-3-reports',kpiDgsPortPerformanceTab.getEffectiveObsd_20_3_1_Report);
 
-// KPI DGS report 1.0
-router.get('/kpi-dgs-1-1-report', kpiDgs1_0Tab.getKpiDgs1_1);
-router.get('/kpi-dgs-1-2-report', kpiDgs1_0Tab.getKpiDgs1_2);
-router.get('/kpi-dgs-1-3-report', kpiDgs1_0Tab.getKpiDgs1_3);
-router.get('/kpi-dgs-1-4-report', kpiDgs1_0Tab.getKpiDgs1_4);
-router.get('/kpi-dgs-1-5-report', kpiDgs1_0Tab.getKpiDgs1_5);
+// // KPI DGS report 1.0
+// router.get('/kpi-dgs-1-1-report', kpiDgs1_0Tab.getKpiDgs1_1);
+router.get('/kpi-dgs-2-1-flagging-report', auth, requireModulePermission("KPI_DGS", "read"), kpiDgs1_0Tab.getKpiDgsFlaggingAddition);
+router.get('/kpi-dgs-flagging-deletion-ship-report', auth, requireModulePermission("KPI_DGS", "read"), kpiDgs1_0Tab.getKpiDgsFlaggingDeletion);
+router.get('/kpi-dgs-flagging-cumulative-ship-report', auth, requireModulePermission("KPI_DGS", "read"), kpiDgs1_0Tab.getKpiDgs1_3);
+router.get('/kpi-dgs-flagging-tonnange-monthly-report', auth, requireModulePermission("KPI_DGS", "read"), kpiDgs1_0Tab.getKpiDgs1_4);
+router.get('/kpi-dgs-flagging-tonnange-yearly-report', auth, requireModulePermission("KPI_DGS", "read"), kpiDgs1_0Tab.getKpiDgs1_5);
+
+
 
 router.get('/kpi-dgs-1-3-1-report', kpiDgsPortPerformanceTab.getDwellTimeImportCycle_k_1_3_1_Report);
 router.get('/kpi-dgs-1-3-2-report',kpiDgsPortPerformanceTab.getDwellTimeCalMonthWise_k_1_3_2_Report);
@@ -1943,15 +1958,23 @@ router.get('/get-kpi-dgs-k-1-4-3-report', kpiDgsPortPerformanceTab.getPortPerfor
 // KPI DGS report 2.0
 router.get('/kpi-dgs-2-0-report', kpiDgs2_0Tab.getKpiDgs2_0);
 router.get('/kpi-dgs-2-1-report', kpiDgs2_0Tab.getKpiDgs2_1);
+router.post('/submit-shipyard-data', kpiDgs2_0Tab.submitShipyard);
+router.post('/update-shipyard-data', kpiDgs2_0Tab.updateShipyard);
+router.post('/update-shipyard-status', kpiDgs2_0Tab.updateShipyardStatus);
+
+// K-2.1.1 and K-2.1.2 — Flagging of Vessels (Addition / Deletion) MMD-wise reports
+router.get('/kpi-dgs-flagging-addition-report', kpiDgsFlaggingReports.getFlaggingAdditionReport);
+router.get('/kpi-dgs-flagging-deletion-report', kpiDgsFlaggingReports.getFlaggingDeletionReport);
 router.get('/kpi-dgs-2-2-report', kpiDgs2_0Tab.getKpiDgs2_2);
 router.get('/kpi-dgs-2-3-report', kpiDgs2_0Tab.getKpiDgs2_3);
 router.get('/kpi-dgs-2-4-report', kpiDgs2_0Tab.getKpiDgs2_4);
 router.get('/kpi-dgs-2-5-report', kpiDgs2_0Tab.getKpiDgs2_5);
 router.get('/kpi-dgs-2-6-report', kpiDgs2_0Tab.getKpiDgs2_6);
 
-router.get('/kpi-dgs-2-3-1-report', kpiDgs3_0Tab.getReportKpiDgs2_3_1);
-router.get('/kpi-dgs-2-3-2-report', kpiDgs3_0Tab.getReportKpiDgs2_3_2);
-router.get('/kpi-dgs-2-3-3-report', kpiDgs3_0Tab.getReportKpiDgs2_3_3);
+// K-2.3 reports need KPI_DGS read, like the K-2.3 lists above
+router.get('/kpi-dgs-2-3-1-report', dgs23Read, kpiDgs3_0Tab.getReportKpiDgs2_3_1);
+router.get('/kpi-dgs-2-3-2-report', dgs23Read, kpiDgs3_0Tab.getReportKpiDgs2_3_2);
+router.get('/kpi-dgs-2-3-3-report', dgs23Read, kpiDgs3_0Tab.getReportKpiDgs2_3_3);
 
 // KPI DGS report 6
 //kpi report 2_6_1 Report
@@ -2950,34 +2973,21 @@ router.get('/get-category-wise-summary/:userId', auth, requireModulePermission("
 router.get('/get-physical-and-financial-progress-wise/:userId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getPhysicalAndFinancialProgressWise);
 router.get('/get-dropped-mous-report/:userId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getDroppedMousReport);
 
-//Marine Casualty
-router.post('/submit-marine-prev-data', marineTab.addMarinePrevIncident);
-router.post('/submit-marine-year-wise', marineTab.addMarineYearWise);
-router.get('/get-kpi-marine-data/:type', marineTab.getMarineCasultyData);
-router.get('/get-kpi-marine-data-by-year/:type/:year', marineTab.getMarineCasultyDataByYear);
-router.get('/get-kpi-marine-data-by-year/:type/:year/:casualtyType', marineTab.getMarineCasultyDataByYear);
-router.put('/update-marine-prev-data', marineTab.updateMarinePrevIncident);
-router.put('/update-marine-year-wise', marineTab.updateMarineYearWise);
-
-
-//KPI incidents country wise
-router.post("/submit-kpi-incident-country-wise", marineTab.submitIncidentCountryWise);
-router.get("/get-incidents-country-wise", marineTab.getCountryWise);
-router.get("/get-incidents-country-wise-data/:year/:casualtyType", marineTab.getCoutryWiseYearAndCasualty);//check year and casualty
-router.get("/get-incidents-country-wises-casualty-year/:year/:casualtyType", marineTab.getDataCountryWisebyYearAndCasualty);
-
-
-//KPI incidents vessel wise
-router.post("/submit-kpi-vessel-incident-country-wise", marineTab.submitIncidentVesselWise);
-router.get("/get-incidents-vessel-wise", marineTab.getVesselWise);
-router.get("/get-incidents-vessel-wise-data/:year/:casualtyType", marineTab.getIncidentsVesselDataByYearAndType);
-router.get("/get-incidents-vessel-wises-type-year/:year/:casualtyType", marineTab.getDataVesselWisebyYearAndCasualty);
-
-//Marine Report
-router.get('/get-kpi-marine-prev-curr-report', marineTab.getMarinePrevCurrYrReport);
-router.get('/get-kpi-marine-country-wise-report', marineTab.getMarineCountryWiseReport);
-router.get('/get-kpi-marine-year-wise-report', marineTab.getMarineYearWiseReport);
-router.get('/get-kpi-marine-vessel-wise-report', marineTab.getMarineVesselWiseReport);
+// DGS K-2.5 Marine Casualty Serious & Other Incidents: KPI_DGS rights on every route (login is
+// checked for all routes above). :sheet is incident-types (K-2.5.1), countries (K-2.5.3) or
+// vessels (K-2.5.4); the year-wise routes (K-2.5.2) come first so "year-wise" isn't read as a sheet.
+const dgs25Read = requireModulePermission("KPI_DGS", "read");
+const dgs25FormLookup = requireAnyModulePermission("KPI_DGS", ["create", "update", "read"]);
+router.get('/kpi-dgs-2-5/year-wise/list', dgs25Read, marineTab.listYearWise);
+router.get('/kpi-dgs-2-5/year-wise/entry', dgs25FormLookup, marineTab.getYearWiseEntry);
+router.post('/kpi-dgs-2-5/year-wise', requireModulePermission("KPI_DGS", "create"), validateKpiBody, marineTab.saveYearWise);
+router.put('/kpi-dgs-2-5/year-wise', requireModulePermission("KPI_DGS", "update"), validateKpiBody, marineTab.saveYearWise);
+router.get('/kpi-dgs-2-5/report/year-wise', dgs25Read, marineTab.yearWiseReport);
+router.get('/kpi-dgs-2-5/report/:sheet', dgs25Read, marineTab.sheetReport);
+router.get('/kpi-dgs-2-5/:sheet/list', dgs25Read, marineTab.listSheet);
+router.get('/kpi-dgs-2-5/:sheet/form', dgs25FormLookup, marineTab.getSheetForm);
+router.post('/kpi-dgs-2-5/:sheet', requireModulePermission("KPI_DGS", "create"), marineTab.saveSheet);
+router.put('/kpi-dgs-2-5/:sheet', requireModulePermission("KPI_DGS", "update"), marineTab.saveSheet);
 
 //Conciliation Court Case
 router.get("/get-last-conciliation-number-no/:organisationID", conciliationCourtCaseTab.getLastConciliationNumber);
@@ -2995,14 +3005,18 @@ router.get("/get-conciliation-sub-tables-court-cases-data/:typeName/:caseID", co
 router.post("/add-conciliation-first-party-and-second-party", conciliationCourtCaseTab.addConciliationFirstPartyAndSecondParty);
 router.get("/get-conciliation-first-party-and-second-party/:caseID", conciliationCourtCaseTab.getConciliationFirstPartyAndSecondParty);
 
-//KPI DGS Entry Exit
-router.post('/add-entry-exit-data', entryExitTab.addEntryExitData);
-router.get('/get-entry-exit-data', entryExitTab.getEntryExitData);
-router.get('/get-entry-exit-data-by-id/:Id', entryExitTab.getEntryExitDataByID);
-router.put('/update-entry-exit-data-by-id', entryExitTab.updateEntryExitData);
-router.get('/get-abstract-entry-exit-report', entryExitTab.getAbstractEntryExitReport);
-router.get('/get-monthly-entry-exit-report', entryExitTab.getMonthlyEntryExitReport);
-router.get('/get-yearly-entry-exit-report', entryExitTab.getYearlyEntryExitReport);
+// DGS K-2.4 Entry and Exit of Candidates: KPI_DGS rights on every route, as K-2.3 (login is
+// checked for all routes above). The input-form lookups also serve users who can only add or edit.
+const dgs24Read = requireModulePermission("KPI_DGS", "read");
+const dgs24FormLookup = requireAnyModulePermission("KPI_DGS", ["create", "update", "read"]);
+router.get('/checkData-entry-exit/:year/:month/:grade', dgs24FormLookup, entryExitTab.checkEntryExitData);
+router.post('/add-entry-exit-data', requireModulePermission("KPI_DGS", "create"), validateKpiBody, entryExitTab.addEntryExitData);
+router.get('/get-entry-exit-data', dgs24Read, entryExitTab.getEntryExitData);
+router.get('/get-entry-exit-data-by-id/:Id', dgs24FormLookup, entryExitTab.getEntryExitDataByID);
+router.put('/update-entry-exit-data-by-id', requireModulePermission("KPI_DGS", "update"), validateKpiBody, entryExitTab.updateEntryExitData);
+router.get('/get-abstract-entry-exit-report', dgs24Read, entryExitTab.getAbstractEntryExitReport);
+router.get('/get-monthly-entry-exit-report', dgs24Read, entryExitTab.getMonthlyEntryExitReport);
+router.get('/get-yearly-entry-exit-report', dgs24Read, entryExitTab.getYearlyEntryExitReport);
 
 
 // rbac

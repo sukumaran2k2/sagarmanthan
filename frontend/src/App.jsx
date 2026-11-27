@@ -34,6 +34,7 @@ const BillsPreConstitutionsView = lazy(() => import('./modules/BillsPreConstitut
 const ActsAndRulesView = lazy(() => import('./modules/ActsAndRules/ActsAndRules'));
 const GEMProcurementView = lazy(() => import('./modules/GEMProcurement/GEMProcurement'));
 const KPIDGLLView = lazy(() => import('./modules/KPIDGLL/KPIDGLL'));
+const KPIDGSView = lazy(() => import('./modules/KPIDGS/KPIDGS'));
 const CSLView = lazy(() => import('./modules/CSL/CSL'));
 const IMUView = lazy(() => import('./modules/IMU/IMU'));
 const SCIView = lazy(() => import('./modules/SCI/SCI'));
@@ -521,7 +522,8 @@ export default function App() {
             <Route path="kpi/major-ports" element={<Navigate to="/kpi/major-ports/major-ports-input-form" replace />} />
             <Route path="kpi/major-ports/*" element={<Navigate to="/kpi/major-ports/major-ports-input-form" replace />} />
 
-            {/* KPI - DGLL, CSL, IMU, SCI */}
+            {/* KPI - DGS, DGLL, CSL, IMU, SCI */}
+            <Route path="kpi/dgs/*" element={<KPIDGSView triggerNotification={triggerNotification} />} />
             <Route path="kpi/dgll/*" element={<KPIDGLLView triggerNotification={triggerNotification} />} />
             <Route path="kpi/csl/*" element={<CSLView triggerNotification={triggerNotification} />} />
             <Route path="kpi/imu/*" element={<IMUView triggerNotification={triggerNotification} />} />

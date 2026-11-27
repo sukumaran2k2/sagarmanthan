@@ -473,5 +473,82 @@ async function getKpiDgs2_6 (req, res)
         return res.sendStatus(500);
     }
 };
+async function submitShipyard(req, res) {
+    const { shipyardName } = req.body;
+    const status = req.body.status === undefined ? 1 : Number(req.body.status) ? 1 : 0;
+    const conn = await pool;
 
-export default {getKpiDgs2_0,  getKpiDgs2_1,getKpiDgs2_2,getKpiDgs2_3,getKpiDgs2_4, getKpiDgs2_5, getKpiDgs2_6 };
+    try {
+        const request = conn.request();
+        request.input("shipyardName", shipyardName);
+        request.input("status", status);
+
+        const result = await request.query(`
+            INSERT INTO mmt_shipyard
+            (shipyard_name, status)
+            VALUES (@shipyardName, @status)
+        `);
+
+        if (result.rowsAffected[0] > 0) {
+            return res.status(201).send("Shipyard data added successfully.");
+        } else {
+            return res.status(400).send("Error adding shipyard data.");
+        }
+    } catch (error) {
+        console.error("Error submitting shipyard data:", error);
+        return res.sendStatus(500);
+    }
+}
+async function updateShipyard(req, res) {
+    const { shipyardId, shipyardName } = req.body;
+    const conn = await pool;
+
+    try {
+        const request = conn.request();
+        request.input("shipyardId", shipyardId);
+        request.input("shipyardName", shipyardName);
+
+        const result = await request.query(`
+            UPDATE mmt_shipyard
+            SET shipyard_name = @shipyardName
+            WHERE shipyard_id = @shipyardId
+        `);
+
+        if (result.rowsAffected[0] > 0) {
+            return res.status(200).send("Shipyard data updated successfully.");
+        } else {
+            return res.status(404).send("Shipyard not found.");
+        }
+    } catch (error) {
+        console.error("Error updating shipyard data:", error);
+        return res.sendStatus(500);
+    }
+}
+
+async function updateShipyardStatus(req, res) {
+    const { shipyardId, status } = req.body;
+    const conn = await pool;
+
+    try {
+        const request = conn.request();
+        request.input("shipyardId", shipyardId);
+        request.input("status", Number(status) ? 1 : 0);
+
+        const result = await request.query(`
+            UPDATE mmt_shipyard
+            SET status = @status
+            WHERE shipyard_id = @shipyardId
+        `);
+
+        if (result.rowsAffected[0] > 0) {
+            return res.status(200).send("Shipyard status updated successfully.");
+        } else {
+            return res.status(404).send("Shipyard not found.");
+        }
+    } catch (error) {
+        console.error("Error updating shipyard status:", error);
+        return res.sendStatus(500);
+    }
+}
+
+export default {getKpiDgs2_0,  getKpiDgs2_1,getKpiDgs2_2,getKpiDgs2_3,getKpiDgs2_4, getKpiDgs2_5, getKpiDgs2_6,submitShipyard ,updateShipyardStatus,updateShipyard};

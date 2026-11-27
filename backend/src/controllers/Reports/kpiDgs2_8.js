@@ -184,22 +184,8 @@ async function getKpi2_8_1_report(req, res) {
                     { headerName: '% Vessel Surveys Achieved', field: 'PercentPrevFY' }
                 ]
             },
-            {
-                headerName: `During the Current FY-upto ${lastDateOfMonthMinus3Formatted}`, headerClass: 'headercenter',
-                children: [
-                    { headerName: 'Target No. of Vessels to be Surveyed', field: 'TargetCurrentFY' },
-                    { headerName: 'Actual No. of Vessels to be Surveyed', field: 'ActualVesselsDuringCurrentFY' },
-                    { headerName: '% Vessel Surveys Achieved', field: 'PercentCurrentFY' }
-                ]
-            },
-            {
-                headerName: `During the month (${monthMinus2Name}-${monthMinus2Year})`, headerClass: 'headercenter',
-                children: [
-                    { headerName: 'Target No. of Vessels to be Surveyed', field: 'TargetMonthFY' },
-                    { headerName: 'Actual No. of Vessels to be Surveyed', field: 'ActualVesselsDuringCurrentMonth' },
-                    { headerName: '% Vessel Surveys Achieved', field: 'PercentMonthFY' }
-                ]
-            },
+          
+        
             {
                 headerName: `Total for the current FY up to ${lastDateOfMonthMinus2Formatted}`, headerClass: 'headercenter',
                 children: [

@@ -75,6 +75,11 @@ export const ROUTE_MAP = {
   'DGLL Input Form': 'kpi/dgll?tab=add',
   'DGLL Data List': 'kpi/dgll?tab=list',
   'DGLL Reports': 'kpi/dgll?tab=report',
+  'MMD Shipyard': 'kpi/dgs/mmd-shipyard',
+  'MMD Master': 'kpi/dgs/mmd-master',
+  'DGS Input Form': 'kpi/dgs/input-forms',
+  'DGS Data List': 'kpi/dgs/data-list',
+  'DGS Reports': 'kpi/dgs/reports',
   'CSL Input Form': 'kpi/csl?tab=add',
   'CSL Data List': 'kpi/csl?tab=list',
   'CSL Reports': 'kpi/csl?tab=report',
@@ -313,6 +318,11 @@ if (
   if (cleanSlug.startsWith('kpi/major-ports/major-ports-reports')) return 'Major Ports Reports';
   if (cleanSlug.startsWith('kpi/major-ports/major-ports-entry-access')) return 'Major Ports Entry Access';
   if (cleanSlug.startsWith('kpi/major-ports')) return 'Major Ports Dashboard';
+  if (cleanSlug.startsWith('kpi/dgs/mmd-shipyard')) return 'MMD Shipyard';
+  if (cleanSlug.startsWith('kpi/dgs/input-forms')) return 'DGS Input Form';
+  if (cleanSlug.startsWith('kpi/dgs/data-list')) return 'DGS Data List';
+  if (cleanSlug.startsWith('kpi/dgs/reports')) return 'DGS Reports';
+  if (cleanSlug.startsWith('kpi/dgs')) return 'MMD Master';
   if (cleanSlug.startsWith('kpi/dgll')) return 'DGLL Input Form';
   if (cleanSlug.startsWith('kpi/csl')) return 'CSL Input Form';
   if (cleanSlug.startsWith('kpi/imu')) return 'IMU Input Form';
@@ -369,9 +379,11 @@ const getBreadcrumbs = (tab) => {
     'Major Ports Input Form': ['KPI', 'Major Ports'],
     'Major Ports Entry Access': ['KPI', 'Major Ports'],
     'Major Ports Reports': ['KPI', 'Major Ports'],
-    'MMD Master': ['KPI', 'DSG'],
-    'DSG Input Form': ['KPI', 'DSG'],
-    'DSG Reports': ['KPI', 'DSG'],
+    'MMD Shipyard': ['KPI', 'DGS'],
+    'MMD Master': ['KPI', 'DGS'],
+    'DGS Input Form': ['KPI', 'DGS'],
+    'DGS Data List': ['KPI', 'DGS'],
+    'DGS Reports': ['KPI', 'DGS'],
     'DGLL Input Form': ['KPI', 'DGLL'],
     'DGLL Data List': ['KPI', 'DGLL'],
     'DGLL Reports': ['KPI', 'DGLL'],
