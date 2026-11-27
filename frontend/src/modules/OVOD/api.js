@@ -96,6 +96,24 @@ export const fetchOvdMinistryChartB2 = async ({
 };
 
 /**
+ * Organisation dashboard analytics - B level, scoped to the logged-in organisation.
+ * The backend resolves the organisation from userID (imp_agency), so no wingID/orgID is sent.
+ * Returns the same { total, categories } shape as the ministry B2 chart.
+ */
+export const fetchOvdOrganisationChart = async ({
+  vision = 0,
+  priority = 0,
+  vibhasID = 0,
+  userID = '1',
+  mivChapterSelect = '0',
+  makvThemeSelect = '0'
+} = {}) => {
+  const url = `${API_BASE_URL}/OVD-organisation-chart/${userID}/${vision}/${priority}/${vibhasID}/${mivChapterSelect}/${makvThemeSelect}`;
+  const response = await axios.get(url, getAuthHeaders());
+  return response.data;
+};
+
+/**
  * Not Applicable / Dropped counts (A3 / B3 items) for the dashboard
  */
 export const fetchOvdStatusCounts = async ({
