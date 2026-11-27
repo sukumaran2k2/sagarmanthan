@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   fetchHrGenderWiseReport,
+  fetchHrNonPortStaffingOverview,
   fetchHrStaffingOverviewReport,
   fetchTotalManpowerClassWiseReport,
   fetchTotalManpowerSanctionActual,
@@ -23,25 +24,21 @@ import {
 } from './reportUtils';
 import { COMMON_TOASTS } from '../../../../utils/notify';
 
+const NON_PORT_CATEGORY = 3; // 1 = Major Ports, 3 = Non-Major Ports
+const isNonPortReport = (r) => Number(r.orgCategory) === NON_PORT_CATEGORY;
+
 const GENDER_CLASS_SERIAL = { 'CLASS 1': 1, 'CLASS 2': 2, 'CLASS 3': 3, 'CLASS 4': 4 };
 
-// How each MIS report is fetched and shaped (ported from pages/HR/hr*MisReport.html).
-//   orgFilter 'rows'   - one row per organisation; the filter keeps that row.
-//   orgFilter 'group'  - one column group per organisation; the filter keeps that group.
-//   orgFilter 'column' - one column per organisation; the filter keeps that column.
 const MIS = {
-  // H-2.1.x  Manpower Overview
   staffingOverview: {
-    fetch: (r) => fetchHrStaffingOverviewReport(r.orgCategory),
+    fetch: (r) =>
+      isNonPortReport(r) ? fetchHrNonPortStaffingOverview(r.orgCategory) : fetchHrStaffingOverviewReport(r.orgCategory),
     labelKey: 'Organisation',
     orgFilter: 'rows',
     totals: true,
   },
   // H-2.2.x  Total Manpower Sanction and actual (Department / Class filters)
   sanctionActual: {
-    // Department is filtered on the page by name, not sent as an id: with clusters the rows are
-    // department clusters and the backend ignores the id, and the id list would only cover the
-    // signed-in organisation's departments.
     fetch: (r, f) => fetchTotalManpowerSanctionActual(0, f.classId || 0, r.orgCategory, f.deptCategory),
     labelKey: 'Department',
     orgFilter: 'group',
@@ -68,8 +65,17 @@ const MIS = {
   },
 };
 
+// Non-Major Ports gender wise: no CLASS column, only Male, Female and Total rows.
+const NON_PORT_GENDER_SERIAL = { Male: 1, Female: 2 };
+const NON_PORT_GENDER_WISE = {
+  ...MIS.genderWise,
+  labelKey: 'GENDER',
+  keep: ['GENDER'],
+  serial: (row) => NON_PORT_GENDER_SERIAL[row?.GENDER] ?? '',
+};
+
 export default function MisReport({ report, categoryFilter, onBack, notify }) {
-  const config = MIS[report.mis];
+  const config = report.mis === 'genderWise' && isNonPortReport(report) ? NON_PORT_GENDER_WISE : MIS[report.mis];
   const { isMinistryView, orgName: sessionOrgName } = useHRPermissions();
 
   const [data, setData] = useState({ columnDefs: [], rowData: [] });
@@ -81,7 +87,9 @@ export default function MisReport({ report, categoryFilter, onBack, notify }) {
   const [department, setDepartment] = useState('');
   const [classId, setClassId] = useState('');
   const [withCluster, setWithCluster] = useState(true);
-  const deptCategory = report.clusterToggle && withCluster ? 1 : 0;
+  // Uploaded departments of Non-Major Ports have no clusters.
+  const showClusterToggle = Boolean(report.clusterToggle) && !isNonPortReport(report);
+  const deptCategory = showClusterToggle && withCluster ? 1 : 0;
 
   const notifyRef = useRef(notify);
   useEffect(() => { notifyRef.current = notify; }, [notify]);
@@ -93,6 +101,7 @@ export default function MisReport({ report, categoryFilter, onBack, notify }) {
       const res = await config.fetch(report, { classId, deptCategory });
       if (signal?.aborted) return;
       setData({
+        period: res.data?.period,
         columnDefs: Array.isArray(res.data?.columnDefs) ? res.data.columnDefs : [],
         rowData: Array.isArray(res.data?.rowData) ? res.data.rowData : [],
       });
@@ -110,8 +119,6 @@ export default function MisReport({ report, categoryFilter, onBack, notify }) {
     }
   }, [config, report, classId, deptCategory]);
 
-  // Deferred a tick so the load's setState does not run synchronously in the effect;
-  // a stale response (filters changed meanwhile) is ignored.
   useEffect(() => {
     const controller = { aborted: false };
     const timer = setTimeout(() => load(controller), 0);
@@ -141,11 +148,16 @@ export default function MisReport({ report, categoryFilter, onBack, notify }) {
     if (isMinistryView) return '';
     return orgOptions.find((o) => normaliseOrgName(o) === normaliseOrgName(sessionOrgName)) || '';
   }, [isMinistryView, orgOptions, sessionOrgName]);
-  const orgName = orgChoice ?? defaultOrg;
+  // Organisation users only ever see their own organisation.
+  const orgName = isMinistryView ? orgChoice ?? '' : defaultOrg;
+  const noOwnData = !isMinistryView && !defaultOrg;
 
   const { rows, columns } = useMemo(() => {
     let cols = base.cols;
     let rowList = base.rows;
+
+    // Their organisation is not in the report: show nothing rather than everyone else's figures.
+    if (noOwnData) rowList = [];
 
     if (department) rowList = rowList.filter((r) => r[config.labelKey] === department);
 
@@ -169,7 +181,7 @@ export default function MisReport({ report, categoryFilter, onBack, notify }) {
     const labelCol = (c) => (c.field === config.labelKey ? { ...c, minWidth: 220, align: 'left', emphasis: true } : c);
 
     return { rows: rowList, columns: [serial, ...cols.map(labelCol)] };
-  }, [base, config, orgName, department]);
+  }, [base, config, orgName, department, noOwnData]);
 
   const getTotals = useCallback(
     (shown) => (config.totals ? totalRow(shown, { labelKey: config.labelKey }) : null),
@@ -190,19 +202,21 @@ export default function MisReport({ report, categoryFilter, onBack, notify }) {
   };
 
   const filtersActive =
-    orgName !== defaultOrg || Boolean(department || classId) || Boolean(report.clusterToggle && !withCluster);
+    orgName !== defaultOrg || Boolean(department || classId) || (showClusterToggle && !withCluster);
   const clusterLabel = withCluster ? 'With Cluster' : 'Without Cluster';
 
   const filters = (
     <>
       {categoryFilter}
-      <FilterSelect
-        label="Organisation"
-        value={orgName}
-        onChange={setOrgChoice}
-        options={orgOptions.map((o) => ({ value: o, label: o }))}
-      />
-      {report.clusterToggle && (
+      {isMinistryView && (
+        <FilterSelect
+          label="Organisation"
+          value={orgName}
+          onChange={setOrgChoice}
+          options={orgOptions.map((o) => ({ value: o, label: o }))}
+        />
+      )}
+      {showClusterToggle && (
         <ToggleField
           label="Department Cluster"
           checked={withCluster}
@@ -213,7 +227,7 @@ export default function MisReport({ report, categoryFilter, onBack, notify }) {
       )}
       {config.filters?.department && (
         <FilterSelect
-          label={report.clusterToggle && withCluster ? 'Department Cluster' : 'Department'}
+          label={showClusterToggle && withCluster ? 'Department Cluster' : 'Department'}
           value={department}
           onChange={setDepartment}
           options={departmentOptions.map((d) => ({ value: d, label: d }))}
@@ -228,7 +242,9 @@ export default function MisReport({ report, categoryFilter, onBack, notify }) {
   return (
     <ReportLayout
       report={report}
-      meta={report.clusterToggle ? `${portCategoryLabel(report)} • ${clusterLabel}` : portCategoryLabel(report)}
+      meta={[portCategoryLabel(report), showClusterToggle && clusterLabel, data.period && `Month ${data.period}`]
+        .filter(Boolean)
+        .join(' • ')}
       onBack={onBack}
       filtersActive={filtersActive}
       rows={rows}

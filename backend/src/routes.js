@@ -1088,7 +1088,6 @@ router.get("/get-sanctioned-strength-details/:userID", auth, requireModulePermis
 router.get("/get-total-filled-post-details/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrManagementTab.getDetailedTotalFilledPosts);
 router.get("/get-total-vacant-posts-details/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrManagementTab.getTotalVacantPosts);
 router.get("/get-abolised-vacant-posts-details/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrManagementTab.getAbolishedVacantPosts);
-router.get("/get-year-and-month/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getYearAndMonth);
 
 router.post("/revised-hr-post", auth, requireModulePermission("HR_MANAGEMENT", "create"), revisedHrPost.createRevisedHrPost);
 router.get("/revised-hr-post/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), revisedHrPost.getRevisedHrPost);
@@ -1169,6 +1168,7 @@ router.get('/get-hr-staffing-overview-report/:orgCategory', auth, requireModuleP
 router.get('/get-deputed-end-employee-data-org/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getDeputedEndEmployeeData);
 router.get('/get-training-details-report/:roleID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportTab.getTrainingDetailsReport);
 router.get('/get-contract-details-report/:roleID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportTab.getContractDetailsReport);
+router.get('/get-hr-non-port-staffing-overview/:orgCategory', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportTab.getNonPortStaffingOverview);
 
 router.post('/hr/create-hr-training-data', auth, requireModulePermission("HR_MANAGEMENT", "create"), hrTrainingTab.createHRTraining);
 router.put('/hr/update-hr-training-data/:trainingID', auth, requireModulePermission("HR_MANAGEMENT", "update"), hrTrainingTab.updateHRTraining);
