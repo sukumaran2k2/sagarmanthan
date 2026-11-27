@@ -11,6 +11,7 @@ import MIVDetailView from '../components/MIVDetailView';
 import { fetchMIVData, fetchOrganisations } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
 import { exportRowsToFile, exportGridApiToExcel } from '../../../utils/exportGridReport';
+import { CATEGORY_OPTIONS } from '../categories';
 
 // Column chooser labels for the columns brought over from the 2.0 list
 const MIV_EXTRA_LABELS = {
@@ -28,6 +29,7 @@ const STATUS_COLORS = {
   'Completed': '#10b981',
   'Yet to be Started': '#f59e0b',
   'Dropped': '#ef4444',
+  'Not Applicable': '#94a3b8',
 };
 
 export default function MIVDataList({
@@ -41,7 +43,7 @@ export default function MIVDataList({
   const [pageSize, setPageSize] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
-  const [counts, setCounts] = useState({ all: 0, ui: 0, completed: 0, yetToStart: 0, dropped: 0 });
+  const [counts, setCounts] = useState({ all: 0, ui: 0, completed: 0, yetToStart: 0, dropped: 0, notApplicable: 0 });
 
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -214,11 +216,6 @@ export default function MIVDataList({
   };
 
   // Categories list
-  const CATEGORIES = [
-    'General', 'Infrastructure', 'Digital / IT', 'Policy & Regulatory',
-    'Green & Sustainability', 'Port Modernization', 'Operations & Logistics',
-    'Capacity Expansion', 'Maritime Security', 'Coastal Shipping'
-  ];
 
   // Format date helper
   const formatDate = (val) => {
@@ -460,6 +457,7 @@ export default function MIVDataList({
       { name: 'Under Implementation', count: counts.ui, fill: STATUS_COLORS['Under Implementation'] },
       { name: 'Yet to be Started', count: counts.yetToStart, fill: STATUS_COLORS['Yet to be Started'] },
       { name: 'Dropped', count: counts.dropped, fill: STATUS_COLORS['Dropped'] },
+      { name: 'Not Applicable', count: counts.notApplicable, fill: STATUS_COLORS['Not Applicable'] },
     ];
   }, [counts]);
 
@@ -705,6 +703,17 @@ export default function MIVDataList({
           >
             DROPPED ({counts.dropped})
           </button>
+
+          <button
+            onClick={() => handleStatusTabChange('not_applicable')}
+            className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeStatusTab === 'not_applicable'
+                ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
+                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+            }`}
+          >
+            NOT APPLICABLE ({counts.notApplicable ?? 0})
+          </button>
         </div>
       </div>
 
@@ -937,8 +946,8 @@ export default function MIVDataList({
                   className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer capitalize"
                 >
                   <option value="">All Categories</option>
-                  {CATEGORIES.map((cat, i) => (
-                    <option key={i} value={cat}>{cat}</option>
+                  {CATEGORY_OPTIONS.map((cat) => (
+                    <option key={cat.value} value={cat.value}>{cat.label}</option>
                   ))}
                 </select>
               </div>
