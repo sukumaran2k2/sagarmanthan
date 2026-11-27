@@ -132,16 +132,27 @@ export default function ContractualDataForm({ editData = null, notify }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isSubmitting) return; // a double click must not save twice
+
+   
+    const contractId = editData
+      ? editData['Contract ID'] ?? editData.contract_id ?? editData.contractId ?? editData.ContractId ?? editData.id
+      : null;
+
+    if (editData && !contractId) {
+      console.error('Missing contract id for update. Row was:', editData);
+      notify?.(HR_TOASTS.recordIdMissing());
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      // Re-check at submit time so a slow or skipped check can't let a duplicate through
       if (await checkFiscalYear(formData.financialYear)) {
-        return; // alert shown (and redirected, when adding) by checkFiscalYear
+        return; 
       }
 
       const payload = {
-        contractId: editData?.id || null,
+        contractId, 
 
         financialYear: formData.financialYear,
 
