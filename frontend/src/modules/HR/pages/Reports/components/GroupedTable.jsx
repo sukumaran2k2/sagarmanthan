@@ -34,7 +34,7 @@ function TextCell({ value }) {
  * Alignment: S.No and text columns (department, organisation, post...) are left-aligned;
  * number columns are centred. A column's own `align` wins.
  */
-export default function GroupedTable({ columns, rows, totals, loading, emptyMessage = 'No data available' }) {
+export default function GroupedTable({ columns, rows, totals, loading, emptyMessage = 'No data available', headerHeight }) {
   const gridColumns = useMemo(() => {
     const leaves = leafColumns(columns);
     // A column is numeric when every non-empty value in it is a number; the serial column
@@ -93,6 +93,7 @@ export default function GroupedTable({ columns, rows, totals, loading, emptyMess
         lockPinned: frozen,
         sortable: false,
         filter: false,
+        ...(headerHeight ? { wrapHeaderText: true, autoHeaderHeight: true } : {}),
         cellRenderer: align === 'left' && !serial ? TextCell : undefined,
         valueGetter: (p) => {
           if (p.node.rowPinned) return col.value ? '' : totals?.[col.field] ?? '';
@@ -107,7 +108,7 @@ export default function GroupedTable({ columns, rows, totals, loading, emptyMess
       };
     };
     return columns.map((c, i) => toGrid(c, String(i)));
-  }, [columns, rows, totals]);
+  }, [columns, rows, totals, headerHeight]);
 
   const rowData = useMemo(() => wrapRows(rows), [rows]);
   const pinnedBottomRowData = useMemo(() => (totals && rows.length ? [{ total: true }] : undefined), [totals, rows.length]);
@@ -123,6 +124,7 @@ export default function GroupedTable({ columns, rows, totals, loading, emptyMess
         pagination
         paginationPageSize={PAGE_SIZE}
         rowHeight={ROW_HEIGHT}
+        {...(headerHeight ? { headerHeight } : {})}
         color="var(--module-report-header-bg, #4b2424)"
         suppressMovableColumns
         overlayNoRowsTemplate={`<span class="text-sm font-semibold text-slate-500">${emptyMessage}</span>`}
