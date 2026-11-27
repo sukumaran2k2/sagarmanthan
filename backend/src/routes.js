@@ -3110,13 +3110,17 @@ router.post('/ai/report-copilot', reportCopilotTab.chatReportCopilot);
 // ── NMP (National Monetization Plan) ─────────────────────────────────────────
 import nmpTab from "./controllers/Finance/nmp.js";
 router.get("/nmp/dashboard", auth, nmpTab.getNmpDashboard);
-router.get("/nmp/land-abstract", auth, nmpTab.getLandAbstractList);
-router.get("/nmp/past-land", auth, nmpTab.getPastLandList);
-router.get("/nmp/future-land", auth, nmpTab.getFutureLandList);
+// The list endpoints carry :userId so they match what the frontend sends
+// (/nmp/land-abstract/<userId>); the controller reads the user from the token
+// first and uses this param only as a fallback. Declared before "/nmp/:id" so
+// the single-segment id route never shadows them.
+router.get("/nmp/land-abstract/:userId", auth, nmpTab.getLandAbstractList);
+router.get("/nmp/past-land/:userId", auth, nmpTab.getPastLandList);
+router.get("/nmp/future-land/:userId", auth, nmpTab.getFutureLandList);
 router.get("/nmp/:id", auth, nmpTab.getNmpById);
 router.post("/nmp", auth, nmpTab.createNmpEntry);
 router.put("/nmp", auth, nmpTab.updateNmpEntry);
 router.delete("/nmp/:id/:userId", auth, nmpTab.deleteNmpEntry);
-router.get("/get-last-nmp-no/:organisationID", nmpTab.getnmpCaseNumber);
+router.get("/get-last-nmp-no/:organisationID", auth, nmpTab.getnmpCaseNumber);
 
 export default router;
