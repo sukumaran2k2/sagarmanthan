@@ -566,12 +566,7 @@ doc.save(`${exportBaseName}.pdf`);
 
 
 const handleExport = (type) => {
-  if (type === 'Copy') {
-    const headers = exportColumns.map((c) => c.label);
-    const rows = tableRows.map((row) => exportColumns.map((c) => c.exportValue(row)));
-    const tsv = [headers, ...rows].map((r) => r.join('\t')).join('\n') + '\n';
-    navigator.clipboard.writeText(tsv).catch(() => {});
-  } else if (type === 'Excel') {
+  if (type === 'Excel') {
     gridRef.current?.api?.exportDataAsCsv({ fileName: exportBaseName });
     triggerNotification?.(`Downloaded ${exportBaseName}.csv`, 'success');
   }
@@ -686,8 +681,14 @@ const handleExport = (type) => {
         onShowAll={showAllCols}
       />
 
-          {/* Copy */}
-          <CopyButton onCopy={() => handleExport('Copy')} color="#0f417a" hoverBg="#f1f5f9" />
+          {/* Copy — let CopyButton build the TSV, copy (with fallback) and toast */}
+          <CopyButton
+            headers={exportColumns.map((c) => c.label)}
+            rows={() => tableRows.map((row) => exportColumns.map((c) => c.exportValue(row)))}
+            triggerNotification={triggerNotification}
+            color="#0f417a"
+            hoverBg="#f1f5f9"
+          />
 
             {/* Export */}
           <ExportDropdown

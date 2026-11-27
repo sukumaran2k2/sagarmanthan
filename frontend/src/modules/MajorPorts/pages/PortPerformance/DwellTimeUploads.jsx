@@ -217,11 +217,20 @@ export default function DwellTimeUploads({ canUpload, canEdit, canDelete, trigge
   };
   const handleExcel = () => {
     if (busy) return notify(COMMON_TOASTS.tableNotReady('export'));
-    return notify(COMMON_TOASTS.excelExported(downloadExcel(exportColumns, rowsWithSerial, exportBaseName, 'Dwell Time')));
+    try {
+      return notify(COMMON_TOASTS.excelExported(downloadExcel(exportColumns, rowsWithSerial, exportBaseName, 'Dwell Time')));
+    } catch {
+      return notify(COMMON_TOASTS.exportFailed());
+    }
   };
   const handlePdf = () => {
     if (busy) return notify(COMMON_TOASTS.tableNotReady('export'));
-    return downloadPdf('KPI Port Performance - Dwell Time Uploads', ALL_COLUMNS, rowsWithSerial, exportBaseName);
+    try {
+      downloadPdf('KPI Port Performance - Dwell Time Uploads', ALL_COLUMNS, rowsWithSerial, exportBaseName);
+      return notify(COMMON_TOASTS.downloadStarted(`${exportBaseName}.pdf`));
+    } catch {
+      return notify(COMMON_TOASTS.exportFailed());
+    }
   };
 
   const confirmDelete = async () => {

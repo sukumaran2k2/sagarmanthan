@@ -168,11 +168,20 @@ export default function KpiEntryAccess({
   };
   const handleExcel = () => {
     if (busy) return notify(COMMON_TOASTS.tableNotReady('export'));
-    return notify(COMMON_TOASTS.excelExported(downloadExcel(exportColumns, rowsWithSerial, exportBaseName, 'Entry Access')));
+    try {
+      return notify(COMMON_TOASTS.excelExported(downloadExcel(exportColumns, rowsWithSerial, exportBaseName, 'Entry Access')));
+    } catch {
+      return notify(COMMON_TOASTS.exportFailed());
+    }
   };
   const handlePdf = () => {
     if (busy) return notify(COMMON_TOASTS.tableNotReady('export'));
-    return downloadPdf(`${source.label} - Data Entry Access`, exportColumns.filter((c) => c.field !== 'sNo'), rowsWithSerial, exportBaseName);
+    try {
+      downloadPdf(`${source.label} - Data Entry Access`, exportColumns.filter((c) => c.field !== 'sNo'), rowsWithSerial, exportBaseName);
+      return notify(COMMON_TOASTS.downloadStarted(`${exportBaseName}.pdf`));
+    } catch {
+      return notify(COMMON_TOASTS.exportFailed());
+    }
   };
 
   const organisationOptions = useMemo(

@@ -1167,8 +1167,7 @@ const SUB_TABS = [
 
 export default function NmpInputForm({ editData, onSuccess, onCancel, triggerNotification }) {
   const location = useLocation();
-  const userId = getCurrentUserId(); 
-  console.log('userId:', userId);  
+  const userId = getCurrentUserId();
   const isEditMode = !!editData;
   const defaultTab = editData?.form_type || location.state?.formType || 'land-abstract';
   const [subTab, setSubTab] = useState(defaultTab);

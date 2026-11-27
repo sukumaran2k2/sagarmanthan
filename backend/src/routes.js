@@ -1085,7 +1085,6 @@ router.get("/get-sanctioned-strength-details/:userID", auth, requireModulePermis
 router.get("/get-total-filled-post-details/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrManagementTab.getDetailedTotalFilledPosts);
 router.get("/get-total-vacant-posts-details/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrManagementTab.getTotalVacantPosts);
 router.get("/get-abolised-vacant-posts-details/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrManagementTab.getAbolishedVacantPosts);
-router.get("/get-year-and-month/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getYearAndMonth);
 
 router.post("/revised-hr-post", auth, requireModulePermission("HR_MANAGEMENT", "create"), revisedHrPost.createRevisedHrPost);
 router.get("/revised-hr-post/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), revisedHrPost.getRevisedHrPost);
@@ -1166,6 +1165,7 @@ router.get('/get-hr-staffing-overview-report/:orgCategory', auth, requireModuleP
 router.get('/get-deputed-end-employee-data-org/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getDeputedEndEmployeeData);
 router.get('/get-training-details-report/:roleID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportTab.getTrainingDetailsReport);
 router.get('/get-contract-details-report/:roleID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportTab.getContractDetailsReport);
+router.get('/get-hr-non-port-staffing-overview/:orgCategory', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportTab.getNonPortStaffingOverview);
 
 router.post('/hr/create-hr-training-data', auth, requireModulePermission("HR_MANAGEMENT", "create"), hrTrainingTab.createHRTraining);
 router.put('/hr/update-hr-training-data/:trainingID', auth, requireModulePermission("HR_MANAGEMENT", "update"), hrTrainingTab.updateHRTraining);
@@ -1726,6 +1726,7 @@ router.get('/kpi/traffic/access', auth, requireModulePermission(TRAFFIC_MODULE, 
 router.post('/kpi/traffic/access', auth, requireModulePermission(TRAFFIC_MODULE, "create"), TrafficEntry.createTrafficAccessGrant);
 router.patch('/kpi/traffic/access/:accessId/revoke', auth, requireModulePermission(TRAFFIC_MODULE, "update"), TrafficEntry.revokeTrafficAccessGrant);
 // Traffic dashboard: the earlier portal's queries behind login, permission and organisation scope
+router.get('/kpi/traffic/dashboard/organisations', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficEntry.getTrafficDashboardOrganisations);
 router.get('/kpi/traffic/dashboard/traffic', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.traffic);
 router.get('/kpi/traffic/dashboard/cargo', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.cargo);
 router.get('/kpi/traffic/dashboard/performance', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.performance);
@@ -1774,6 +1775,7 @@ router.post('/kpi/financial-parameters/targets', auth, requireModulePermission(T
 router.put('/kpi/financial-parameters/targets/:id', auth, requireModulePermission(TRAFFIC_MODULE, "update"), FinancialParameterEntry.updateFinancialParameterTarget);
 router.delete('/kpi/financial-parameters/targets/:id', auth, requireModulePermission(TRAFFIC_MODULE, "delete"), FinancialParameterEntry.deleteFinancialParameterTarget);
 // Financial dashboard: the earlier portal's queries behind login, read permission and input validation
+router.get('/kpi/financial-parameters/dashboard/organisations', auth, requireModulePermission(TRAFFIC_MODULE, "read"), FinancialParameterEntry.getFinancialDashboardOrganisations);
 router.get('/kpi/financial-parameters/dashboard/summary', auth, requireModulePermission(TRAFFIC_MODULE, "read"), FinancialDashboard.summary);
 router.get('/kpi/financial-parameters/dashboard/drill', auth, requireModulePermission(TRAFFIC_MODULE, "read"), FinancialDashboard.drill);
 
@@ -3122,13 +3124,17 @@ router.post('/ai/report-copilot', reportCopilotTab.chatReportCopilot);
 // ── NMP (National Monetization Plan) ─────────────────────────────────────────
 import nmpTab from "./controllers/Finance/nmp.js";
 router.get("/nmp/dashboard", auth, nmpTab.getNmpDashboard);
-router.get("/nmp/land-abstract", auth, nmpTab.getLandAbstractList);
-router.get("/nmp/past-land", auth, nmpTab.getPastLandList);
-router.get("/nmp/future-land", auth, nmpTab.getFutureLandList);
+// The list endpoints carry :userId so they match what the frontend sends
+// (/nmp/land-abstract/<userId>); the controller reads the user from the token
+// first and uses this param only as a fallback. Declared before "/nmp/:id" so
+// the single-segment id route never shadows them.
+router.get("/nmp/land-abstract/:userId", auth, nmpTab.getLandAbstractList);
+router.get("/nmp/past-land/:userId", auth, nmpTab.getPastLandList);
+router.get("/nmp/future-land/:userId", auth, nmpTab.getFutureLandList);
 router.get("/nmp/:id", auth, nmpTab.getNmpById);
 router.post("/nmp", auth, nmpTab.createNmpEntry);
 router.put("/nmp", auth, nmpTab.updateNmpEntry);
 router.delete("/nmp/:id/:userId", auth, nmpTab.deleteNmpEntry);
-router.get("/get-last-nmp-no/:organisationID", nmpTab.getnmpCaseNumber);
+router.get("/get-last-nmp-no/:organisationID", auth, nmpTab.getnmpCaseNumber);
 
 export default router;

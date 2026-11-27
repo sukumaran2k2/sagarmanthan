@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Landmark, TrendingUp, Target, FileSignature, Check, ChevronDown, AlertTriangle } from 'lucide-react';
+import { useMemo, useState, useRef, useEffect } from 'react';
+import { Landmark, TrendingUp, Target, FileSignature, Check, ChevronDown, AlertTriangle, Download } from 'lucide-react';
 import {
   ResponsiveContainer,
   BarChart,
@@ -158,14 +158,23 @@ function Panel({ children }) {
   );
 }
 
-function ChartCard({ title, children }) {
+function ChartCard({ title, children, fileName = 'chart', legend = [], notify }) {
+  const bodyRef = useRef(null);
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow p-4">
-      <div className="flex items-center gap-2 mb-4">
-        <span className="h-4 w-1 rounded-full bg-gradient-to-b from-[#0f417a] to-[#1a73e8]" />
-        <h3 className="text-xs font-extrabold text-[#17306b] dark:text-slate-100 uppercase tracking-wide">{title}</h3>
+      <div className="flex items-center justify-between gap-2 mb-4">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="h-4 w-1 rounded-full bg-gradient-to-b from-[#0f417a] to-[#1a73e8] flex-shrink-0" />
+          <h3 className="text-xs font-extrabold text-[#17306b] dark:text-slate-100 uppercase tracking-wide truncate">{title}</h3>
+        </div>
+        <ExportMenu
+          options={[
+            { label: 'Chart as JPG', onClick: () => runExport(() => exportChartAsJpg(bodyRef.current, fileName, title, legend), notify, 'Chart downloaded as JPG.') },
+            { label: 'Chart as PDF', onClick: () => runExport(() => exportChartAsPdf(bodyRef.current, fileName, title, legend), notify, 'Chart downloaded as PDF.') },
+          ]}
+        />
       </div>
-      <div className="h-[330px] text-slate-500 dark:text-slate-400">{children}</div>
+      <div ref={bodyRef} className="h-[330px] text-slate-500 dark:text-slate-400">{children}</div>
     </div>
   );
 }
@@ -180,7 +189,306 @@ const tooltipStyle = {
 
 const legendStyle = { fontSize: 11, paddingTop: 8 };
 
-export default function NmpDashboard() {
+// ── Export helpers ───────────────────────────────────────────────────────────
+
+const stamp = () => {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
+};
+
+const isDarkMode = () => document.documentElement.classList.contains('dark');
+
+const downloadDataUrl = (dataUrl, filename) => {
+  const a = document.createElement('a');
+  a.href = dataUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+};
+
+// NOTE: we deliberately do NOT use html2canvas here. This app is on Tailwind v4,
+// whose palette compiles to oklch() colors, and html2canvas@1.4.1 throws on
+// oklch(). So images are built directly: tables are drawn from their data, and
+// charts are rasterised from their own self-contained SVG.
+
+// Scale a canvas onto an A4 jsPDF page (title on top), preserving aspect ratio.
+async function canvasToPdf(canvas, fileName, title) {
+  const { default: jsPDF } = await import('jspdf');
+  const landscape = canvas.width >= canvas.height;
+  const doc = new jsPDF({ orientation: landscape ? 'landscape' : 'portrait', unit: 'pt', format: 'a4' });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const margin = 28;
+  let y = margin;
+  if (title) {
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.text(title.replace(/₹/g, 'Rs.'), pageW / 2, y + 4, { align: 'center' });
+    y += 22;
+  }
+  const maxW = pageW - margin * 2;
+  const maxH = pageH - y - margin;
+  let w = maxW;
+  let h = (canvas.height / canvas.width) * w;
+  if (h > maxH) { h = maxH; w = (canvas.width / canvas.height) * h; }
+  doc.addImage(canvas.toDataURL('image/png'), 'PNG', (pageW - w) / 2, y, w, h);
+  doc.save(`${fileName}_${stamp()}.pdf`);
+}
+
+// Draw a data table onto a canvas: brand header band, alternating rows, grid.
+function tableDataToCanvas(headers, rows, { scale = 2, maxColW = 240 } = {}) {
+  const dark = isDarkMode();
+  const pad = 10, rowH = 30, headH = 36;
+  const bodyFont = '13px Arial, sans-serif';
+  const headFont = 'bold 12px Arial, sans-serif';
+
+  const meas = document.createElement('canvas').getContext('2d');
+  const colW = headers.map((h, c) => {
+    meas.font = headFont;
+    let w = meas.measureText(String(h ?? '')).width;
+    meas.font = bodyFont;
+    for (const r of rows) w = Math.max(w, meas.measureText(String(r[c] ?? '')).width);
+    return Math.min(Math.ceil(w) + pad * 2, maxColW);
+  });
+  const tableW = colW.reduce((a, b) => a + b, 0);
+  const tableH = headH + rows.length * rowH;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(tableW * scale));
+  canvas.height = Math.max(1, Math.round(tableH * scale));
+  const ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+  ctx.textBaseline = 'middle';
+
+  ctx.fillStyle = dark ? '#0f172a' : '#ffffff';
+  ctx.fillRect(0, 0, tableW, tableH);
+
+  // header band
+  ctx.fillStyle = '#0f417a';
+  ctx.fillRect(0, 0, tableW, headH);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = headFont;
+  let x = 0;
+  headers.forEach((h, c) => {
+    ctx.textAlign = c === 0 ? 'left' : 'center';
+    const tx = c === 0 ? x + pad : x + colW[c] / 2;
+    ctx.fillText(String(h ?? ''), tx, headH / 2, colW[c] - pad);
+    x += colW[c];
+  });
+
+  // body rows
+  ctx.font = bodyFont;
+  let y = headH;
+  rows.forEach((r, ri) => {
+    ctx.fillStyle = ri % 2 ? (dark ? '#1e293b' : '#f5f7fa') : (dark ? '#0f172a' : '#ffffff');
+    ctx.fillRect(0, y, tableW, rowH);
+    x = 0;
+    r.forEach((cell, c) => {
+      ctx.fillStyle = dark ? '#cbd5e1' : '#334155';
+      ctx.textAlign = c === 0 ? 'left' : 'center';
+      const tx = c === 0 ? x + pad : x + colW[c] / 2;
+      ctx.fillText(String(cell ?? ''), tx, y + rowH / 2, colW[c] - pad);
+      x += colW[c];
+    });
+    y += rowH;
+  });
+
+  // grid lines
+  ctx.strokeStyle = dark ? '#334155' : '#e2e8f0';
+  ctx.lineWidth = 1;
+  x = 0;
+  colW.forEach((w) => { x += w; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, tableH); ctx.stroke(); });
+  for (let i = 0, yy = headH; i <= rows.length; i++, yy += rowH) {
+    ctx.beginPath(); ctx.moveTo(0, yy); ctx.lineTo(tableW, yy); ctx.stroke();
+  }
+  return canvas;
+}
+
+// Rasterise a Recharts SVG (self-contained) to a canvas, with title + legend.
+async function chartSvgToCanvas(container, { title, legend = [], scale = 2 } = {}) {
+  const svg = container?.querySelector('svg');
+  if (!svg) throw new Error('Chart is not ready yet.');
+  const rect = svg.getBoundingClientRect();
+  const w = Math.ceil(rect.width) || 600;
+  const h = Math.ceil(rect.height) || 330;
+
+  const clone = svg.cloneNode(true);
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  clone.setAttribute('width', String(w));
+  clone.setAttribute('height', String(h));
+  clone.setAttribute('color', isDarkMode() ? '#cbd5e1' : '#334155'); // resolves currentColor
+  clone.style.fontFamily = 'Arial, sans-serif';
+
+  const xml = new XMLSerializer().serializeToString(clone);
+  const src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
+  const img = new Image();
+  await new Promise((res, rej) => {
+    img.onload = res;
+    img.onerror = () => rej(new Error('Could not render the chart image.'));
+    img.src = src;
+  });
+
+  const dark = isDarkMode();
+  const titleH = title ? 34 : 0;
+  const legendH = legend.length ? 30 : 0;
+  const canvas = document.createElement('canvas');
+  canvas.width = w * scale;
+  canvas.height = (h + titleH + legendH) * scale;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+  ctx.fillStyle = dark ? '#0f172a' : '#ffffff';
+  ctx.fillRect(0, 0, w, h + titleH + legendH);
+  ctx.textBaseline = 'middle';
+
+  let y = 0;
+  if (title) {
+    ctx.fillStyle = dark ? '#e2e8f0' : '#17306b';
+    ctx.font = 'bold 13px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(title, w / 2, titleH / 2);
+    y = titleH;
+  }
+  ctx.drawImage(img, 0, y, w, h);
+
+  if (legend.length) {
+    const ly = y + h + legendH / 2;
+    ctx.font = '12px Arial, sans-serif';
+    const items = legend.map((it) => ({ ...it, tw: ctx.measureText(it.label).width + 22 }));
+    const total = items.reduce((a, it) => a + it.tw + 12, -12);
+    let lx = Math.max(8, (w - total) / 2);
+    for (const it of items) {
+      ctx.fillStyle = it.color;
+      ctx.beginPath(); ctx.arc(lx + 5, ly, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = dark ? '#cbd5e1' : '#334155';
+      ctx.textAlign = 'left';
+      ctx.fillText(it.label, lx + 16, ly);
+      lx += it.tw + 12;
+    }
+  }
+  return canvas;
+}
+
+function exportTableAsJpg(headers, rows, fileName) {
+  const canvas = tableDataToCanvas(headers, rows);
+  downloadDataUrl(canvas.toDataURL('image/jpeg', 0.95), `${fileName}_${stamp()}.jpg`);
+}
+
+async function exportChartAsJpg(container, fileName, title, legend) {
+  const canvas = await chartSvgToCanvas(container, { title, legend });
+  downloadDataUrl(canvas.toDataURL('image/jpeg', 0.95), `${fileName}_${stamp()}.jpg`);
+}
+
+async function exportChartAsPdf(container, fileName, title, legend) {
+  const canvas = await chartSvgToCanvas(container, { title, legend });
+  await canvasToPdf(canvas, fileName, title);
+}
+
+async function exportTableAsExcel(headers, rows, fileName, sheetName) {
+  const mod = await import('xlsx');
+  const XLSX = mod.utils ? mod : mod.default;
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));
+  XLSX.writeFile(wb, `${fileName}_${stamp()}.xlsx`);
+}
+
+async function exportTableAsPdf(headers, rows, fileName, title) {
+  const { default: jsPDF } = await import('jspdf');
+  const autoTable = (await import('jspdf-autotable')).default;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+  const pageW = doc.internal.pageSize.getWidth();
+  doc.setFontSize(13);
+  doc.setFont('helvetica', 'bold');
+  doc.text(title.replace(/₹/g, 'Rs.'), pageW / 2, 30, { align: 'center' });
+  autoTable(doc, {
+    head: [headers.map((h) => String(h).replace(/₹/g, 'Rs.'))],
+    body: rows,
+    startY: 44,
+    styles: { fontSize: 8, cellPadding: 4, halign: 'center', valign: 'middle', overflow: 'linebreak' },
+    headStyles: { fillColor: [15, 65, 122], textColor: 255, fontStyle: 'bold', fontSize: 7.5 },
+    alternateRowStyles: { fillColor: [245, 247, 250] },
+    columnStyles: { 0: { halign: 'left' } },
+    margin: { left: 24, right: 24 },
+  });
+  doc.save(`${fileName}_${stamp()}.pdf`);
+}
+
+// Runs an export, then toasts success or failure (when a notifier is available).
+const runExport = async (fn, notify, okMsg) => {
+  try {
+    await fn();
+    notify?.(okMsg, 'success');
+  } catch (err) {
+    console.error('NMP dashboard export failed:', err);
+    notify?.('Export failed. Please try again.', 'error');
+  }
+};
+
+// ── Table export data (headers + rows, incl. the Total row) ───────────────────
+
+const YEAR_EXPORT_HEADERS = [
+  'Target year', 'Agreement signed / leased (₹ cr)', 'NIT issued / in process (₹ cr)',
+  'Identified only (₹ cr)', 'Total TMV (₹ cr)', 'Parcels: signed / leased',
+  'Parcels: NIT / in process', 'Parcels: identified only', 'Parcels: total',
+];
+const yearRaw = [
+  ...YEAR_ROWS.map((r) => [r.year, r.signed, r.nit, r.identified, r.tmv, r.pSigned, r.pNit, r.pIdentified, r.pTotal]),
+  ['Total', YEAR_TOTAL.signed, YEAR_TOTAL.nit, YEAR_TOTAL.identified, YEAR_TOTAL.tmv, YEAR_TOTAL.pSigned, YEAR_TOTAL.pNit, YEAR_TOTAL.pIdentified, YEAR_TOTAL.pTotal],
+];
+const YEAR_EXCEL_ROWS = yearRaw.map((row) => row.map((v) => (v == null ? '' : v)));
+const YEAR_PDF_ROWS = yearRaw.map((row) => row.map((v, i) => (i === 0 ? v : fmt(v))));
+
+const PORT_EXPORT_HEADERS = [
+  'Port', 'Agreement signed / leased (₹ cr)', 'NIT issued / in process (₹ cr)', 'Identified only (₹ cr)', 'Total (₹ cr)',
+];
+const portRaw = [
+  ...PORT_ROWS.map((r) => [r.port, r.signed, r.nit, r.identified, r.total]),
+  ['Total', PORT_TOTAL.signed, PORT_TOTAL.nit, PORT_TOTAL.identified, PORT_TOTAL.total],
+];
+const PORT_EXCEL_ROWS = portRaw.map((row) => row.map((v) => (v == null ? '' : v)));
+const PORT_PDF_ROWS = portRaw.map((row) => row.map((v, i) => (i === 0 ? v : fmt(v))));
+
+// ── Export dropdown ──────────────────────────────────────────────────────────
+
+function ExportMenu({ options, label = 'Export' }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [open]);
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-[#0f417a] dark:text-blue-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xs hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
+      >
+        <Download className="h-3.5 w-3.5" /> {label} <ChevronDown className="h-3.5 w-3.5" />
+      </button>
+      {open && (
+        <div className="absolute right-0 mt-1.5 z-40 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg overflow-hidden">
+          {options.map((o) => (
+            <button
+              key={o.label}
+              type="button"
+              onClick={() => { setOpen(false); o.onClick(); }}
+              className="flex items-center gap-2 w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer border-none bg-transparent"
+            >
+              <Download className="h-3.5 w-3.5 text-[#0f417a] dark:text-blue-400 flex-shrink-0" /> {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function NmpDashboard({ triggerNotification }) {
   const [organisation, setOrganisation] = useState('');
   const [targetYear, setTargetYear] = useState('FY 2026-2027');
   const [category, setCategory] = useState('');
@@ -259,7 +567,20 @@ export default function NmpDashboard() {
 
       {/* Pipeline by target year */}
       <div className="space-y-3">
-        <SectionTitle>NMP Pipeline by Target Year</SectionTitle>
+        <div className="flex items-center gap-3">
+          <div className="flex-1" />
+          <SectionTitle>NMP Pipeline by Target Year</SectionTitle>
+          <div className="flex-1 flex justify-end">
+            <ExportMenu
+              label="Export table"
+              options={[
+                { label: 'Table as Excel', onClick: () => runExport(() => exportTableAsExcel(YEAR_EXPORT_HEADERS, YEAR_EXCEL_ROWS, 'NMP_Pipeline_By_Target_Year', 'Pipeline by Year'), triggerNotification, 'Table downloaded as Excel.') },
+                { label: 'Table as PDF', onClick: () => runExport(() => exportTableAsPdf(YEAR_EXPORT_HEADERS, YEAR_PDF_ROWS, 'NMP_Pipeline_By_Target_Year', 'NMP Pipeline by Target Year'), triggerNotification, 'Table downloaded as PDF.') },
+                { label: 'Table as JPG', onClick: () => runExport(() => exportTableAsJpg(YEAR_EXPORT_HEADERS, YEAR_PDF_ROWS, 'NMP_Pipeline_By_Target_Year'), triggerNotification, 'Table downloaded as JPG.') },
+              ]}
+            />
+          </div>
+        </div>
         <Panel>
           <table className="w-full min-w-[1000px] border-collapse">
             <thead>
@@ -316,9 +637,22 @@ export default function NmpDashboard() {
 
       {/* Pipeline by port */}
       <div className="space-y-3">
-        <SectionTitle sub={`TMV (${RUPEE} crore), FY25-26 to FY29-30, by stage.`}>
-          Pipeline value by port (all ports, other filters apply)
-        </SectionTitle>
+        <div className="flex items-center gap-3">
+          <div className="flex-1" />
+          <SectionTitle sub={`TMV (${RUPEE} crore), FY25-26 to FY29-30, by stage.`}>
+            Pipeline value by port (all ports, other filters apply)
+          </SectionTitle>
+          <div className="flex-1 flex justify-end">
+            <ExportMenu
+              label="Export table"
+              options={[
+                { label: 'Table as Excel', onClick: () => runExport(() => exportTableAsExcel(PORT_EXPORT_HEADERS, PORT_EXCEL_ROWS, 'NMP_Pipeline_By_Port', 'Pipeline by Port'), triggerNotification, 'Table downloaded as Excel.') },
+                { label: 'Table as PDF', onClick: () => runExport(() => exportTableAsPdf(PORT_EXPORT_HEADERS, PORT_PDF_ROWS, 'NMP_Pipeline_By_Port', 'Pipeline value by Port'), triggerNotification, 'Table downloaded as PDF.') },
+                { label: 'Table as JPG', onClick: () => runExport(() => exportTableAsJpg(PORT_EXPORT_HEADERS, PORT_PDF_ROWS, 'NMP_Pipeline_By_Port'), triggerNotification, 'Table downloaded as JPG.') },
+              ]}
+            />
+          </div>
+        </div>
         <Panel>
           <table className="w-full min-w-[720px] border-collapse">
             <thead>
@@ -356,7 +690,7 @@ export default function NmpDashboard() {
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ChartCard title={`NMP pipeline TMV by target year (${RUPEE} crore)`}>
+        <ChartCard title={`NMP pipeline TMV by target year (${RUPEE} crore)`} fileName="NMP_TMV_By_Target_Year" legend={STAGES} notify={triggerNotification}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={yearChartData} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
               <CartesianGrid stroke="currentColor" strokeOpacity={0.12} vertical={false} />
@@ -379,7 +713,7 @@ export default function NmpDashboard() {
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title={`Pipeline TMV by port (${RUPEE} crore)`}>
+        <ChartCard title={`Pipeline TMV by port (${RUPEE} crore)`} fileName="NMP_TMV_By_Port" legend={STAGES} notify={triggerNotification}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={portChartData} layout="vertical" margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
               <CartesianGrid stroke="currentColor" strokeOpacity={0.12} horizontal={false} />

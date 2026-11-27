@@ -8,8 +8,8 @@ import Legacy from "./trafficDashboardLegacy.js";
  * copied verbatim). Those handlers trust their inputs and build parts of their SQL from the
  * year and month text, so every request passes through here first:
  *  - inputs are reduced to known shapes (year "2025-2026", month numbers, known KPI keys);
- *  - organisation users always get their own organisation, whatever they ask for;
- *    ministry users may pick any organisation (0 = all).
+ *  - ministry users and organisation users may pick any organisation (0 = all) to view;
+ *    organisation users get their own when they pick none (see resolveDashboardOrganisation).
  * Routes add login and KPI_MAJOR_PORTS read permission (see routes.js).
  */
 
@@ -48,12 +48,27 @@ export function resolveOrganisation(req) {
 }
 
 /**
+ * Organisation for this (traffic) dashboard only. Ministry users: as resolveOrganisation.
+ * Organisation users may also view any organisation here (0 = all), read only; without an
+ * organisationId they get their own, so the summary panel stays on their own organisation.
+ * Other screens (entry forms, financial dashboard) keep resolveOrganisation.
+ */
+export function resolveDashboardOrganisation(req) {
+    const { isWide, isOrganisation, organisationId } = getDataScope(req.user);
+    if (isWide) return resolveOrganisation(req);
+    if (!isOrganisation || !Number.isInteger(organisationId) || organisationId <= 0) return { ok: false };
+    const text = String(req.query.organisationId ?? "").trim();
+    if (!/^\d+$/.test(text)) return { ok: true, organisationId };
+    return { ok: true, organisationId: Number(text) };
+}
+
+/**
  * Wraps a legacy handler: validated values are handed over as both req.params and
  * req.query, the two places the earlier handlers read from.
  */
 function legacyHandler(handler) {
     return (req, res) => {
-        const scope = resolveOrganisation(req);
+        const scope = resolveDashboardOrganisation(req);
         if (!scope.ok) return sendError(res, 403, "Your account is not linked to an organisation.");
 
         const commodity = Number.parseInt(req.query.commodity, 10);

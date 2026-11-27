@@ -82,7 +82,7 @@ export default function NMPView({ triggerNotification }) {
         <Routes>
           <Route
             path="dashboard"
-            element={<Dashboard onNavigateToTab={handleTabChange} />}
+            element={<Dashboard onNavigateToTab={handleTabChange} triggerNotification={triggerNotification} />}
           />
           <Route
             path="data-list"
