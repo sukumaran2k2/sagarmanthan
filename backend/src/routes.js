@@ -1515,63 +1515,63 @@ router.get("/hr-drilled-balance-fill-to-be-in-moa-wise-report/:organisationID/:c
 
 // ---------------------------------------------------------- Project Report --------------------------------------------------
 // Report 1.0
-router.get("/proposalhistory-report/:isSagarmalaFunded", proposalHistoryReportTab.projectHistoryAbstractData);
-router.get("/getdetail-history-data/:organisationID/:modOfImp/:columnNo/:isSagarmalaFunded", proposalHistoryReportTab.getDetailsHistoryData);
-router.get("/get-total-history-data/:modOfImp/:columnNo/:isSagarmalaFunded/:orgCategoryFilter/:orgFilter", proposalHistoryReportTab.getGrandTotalHistoryData);
+router.get("/proposalhistory-report/:isSagarmalaFunded", requireModulePermission("PROJECTS", "read"), proposalHistoryReportTab.projectHistoryAbstractData);
+router.get("/getdetail-history-data/:organisationID/:modOfImp/:columnNo/:isSagarmalaFunded", requireModulePermission("PROJECTS", "read"), proposalHistoryReportTab.getDetailsHistoryData);
+router.get("/get-total-history-data/:modOfImp/:columnNo/:isSagarmalaFunded/:orgCategoryFilter/:orgFilter", requireModulePermission("PROJECTS", "read"), proposalHistoryReportTab.getGrandTotalHistoryData);
 
 // Report 1.1
-router.get("/proposalabstract-report/:isSagarmalaFunded", proposalReportTab.proposalAbstractReportData);
-router.get("/getdetail-proposal/:organisationID/:proposalStage/:modOfImp/:isSagarmalaFunded", proposalReportTab.getDataProposalReportStageWise);
-router.get("/get-stagewise-grandtotal/:proposalStage/:modOfImp/:isSagarmalaFunded/:orgCategoryFilter/:orgFilter", proposalReportTab.getGrandTotalProposalStagewise);
-router.get("/getdetailtotal-proposal/:organisationID/:modOfImp/:columnNo/:isSagarmalaFunded", proposalReportTab.getDetailsProposalCol4);
-router.get("/get-proposalcolum-grandtotal/:modOfImp/:columnNo/:isSagarmalaFunded/:orgCategoryFilter/:orgFilter", proposalReportTab.getGrandTotalProposalCol4);
+router.get("/proposalabstract-report/:isSagarmalaFunded", requireModulePermission("PROJECTS", "read"), proposalReportTab.proposalAbstractReportData);
+router.get("/getdetail-proposal/:organisationID/:proposalStage/:modOfImp/:isSagarmalaFunded", requireModulePermission("PROJECTS", "read"), proposalReportTab.getDataProposalReportStageWise);
+router.get("/get-stagewise-grandtotal/:proposalStage/:modOfImp/:isSagarmalaFunded/:orgCategoryFilter/:orgFilter", requireModulePermission("PROJECTS", "read"), proposalReportTab.getGrandTotalProposalStagewise);
+router.get("/getdetailtotal-proposal/:organisationID/:modOfImp/:columnNo/:isSagarmalaFunded", requireModulePermission("PROJECTS", "read"), proposalReportTab.getDetailsProposalCol4);
+router.get("/get-proposalcolum-grandtotal/:modOfImp/:columnNo/:isSagarmalaFunded/:orgCategoryFilter/:orgFilter", requireModulePermission("PROJECTS", "read"), proposalReportTab.getGrandTotalProposalCol4);
 
 // Report 1.2
-router.get("/undertendering-report/:isSagarmalaFunded", underTenderingReportTab.underTenderingReport);
-router.get("/getdetail-undertendering/:organisationID/:subStageId/:modOfImp/:isSagarmalaFunded", underTenderingReportTab.getDetailsUTStageWise);
-router.get("/getdetailtotal-ut-stagewise/:subStageId/:modOfImp/:isSagarmalaFunded/:orgCategoryFilter/:orgFilter", underTenderingReportTab.getGrandTotalUTStageWise);
+router.get("/undertendering-report/:isSagarmalaFunded", requireModulePermission("PROJECTS", "read"), underTenderingReportTab.underTenderingReport);
+router.get("/getdetail-undertendering/:organisationID/:subStageId/:modOfImp/:isSagarmalaFunded", requireModulePermission("PROJECTS", "read"), underTenderingReportTab.getDetailsUTStageWise);
+router.get("/getdetailtotal-ut-stagewise/:subStageId/:modOfImp/:isSagarmalaFunded/:orgCategoryFilter/:orgFilter", requireModulePermission("PROJECTS", "read"), underTenderingReportTab.getGrandTotalUTStageWise);
 
-router.get("/getdetailtotal-ut/:organisationID/:modOfImp/:isSagarmalaFunded", underTenderingReportTab.getDetailsUnderTenderingcol4);
-router.get("/get-grandtotal-utcol4/:modOfImp/:isSagarmalaFunded/:orgCategoryFilter/:orgFilter", underTenderingReportTab.getGrandTotalUTcol4);
+router.get("/getdetailtotal-ut/:organisationID/:modOfImp/:isSagarmalaFunded", requireModulePermission("PROJECTS", "read"), underTenderingReportTab.getDetailsUnderTenderingcol4);
+router.get("/get-grandtotal-utcol4/:modOfImp/:isSagarmalaFunded/:orgCategoryFilter/:orgFilter", requireModulePermission("PROJECTS", "read"), underTenderingReportTab.getGrandTotalUTcol4);
 
-router.get("/getdetail-utbeginingstage/:organisationID/:modOfImp/:isSagarmalaFunded", underTenderingReportTab.getDetailsUTbeginStage);
-router.get("/get-grandtotal-utbeginingstage/:modOfImp/:isSagarmalaFunded/:orgCategoryFilter/:orgFilter", underTenderingReportTab.getGrandTotalUTbeginStage);
+router.get("/getdetail-utbeginingstage/:organisationID/:modOfImp/:isSagarmalaFunded", requireModulePermission("PROJECTS", "read"), underTenderingReportTab.getDetailsUTbeginStage);
+router.get("/get-grandtotal-utbeginingstage/:modOfImp/:isSagarmalaFunded/:orgCategoryFilter/:orgFilter", requireModulePermission("PROJECTS", "read"), underTenderingReportTab.getGrandTotalUTbeginStage);
 
 // Report 1.3
-router.get("/underimplementation-report/:isSagarmalaFunded", underImplementationReportTab.underImplementationReport);
-router.get("/getdetail-uistage1/:organisationID/:milestoneId/:modOfImp/:isSagarmalaFunded", underImplementationReportTab.getDetailsUnderImpStage1Report);
-router.get("/getdetailtotal-uistage1/:milestoneId/:modOfImp/:isSagarmalaFunded/:orgCategoryFilter/:orgFilter", underImplementationReportTab.getDetailsUIStage1GrTotal);
-router.get("/getdetailtotal-uistage/:organisationID/:subStage/:modOfImp/:isSagarmalaFunded", underImplementationReportTab.getDetailsUnderImpColmn45);
-router.get("/get-grandtotal-ui/:subStage/:modOfImp/:isSagarmalaFunded/:orgCategoryFilter/:orgFilter", underImplementationReportTab.getGrandTotalUIColmn45);
-router.get("/getdetail-underimplementation/:organisationID/:milestoneId/:modOfImp/:isSagarmalaFunded", underImplementationReportTab.getDetailsUIColumnBtoFReport);
-router.get("/getdetailtotal-ui-column/:milestoneId/:modOfImp/:isSagarmalaFunded/:orgCategoryFilter/:orgFilter", underImplementationReportTab.getDetailsGrTotalUIColumnBtoF);
-router.get("/ui-projectimage/download/:filename/:subProjectID", underImplementationReportTab.uiReportImageDownload);
+router.get("/underimplementation-report/:isSagarmalaFunded", requireModulePermission("PROJECTS", "read"), underImplementationReportTab.underImplementationReport);
+router.get("/getdetail-uistage1/:organisationID/:milestoneId/:modOfImp/:isSagarmalaFunded", requireModulePermission("PROJECTS", "read"), underImplementationReportTab.getDetailsUnderImpStage1Report);
+router.get("/getdetailtotal-uistage1/:milestoneId/:modOfImp/:isSagarmalaFunded/:orgCategoryFilter/:orgFilter", requireModulePermission("PROJECTS", "read"), underImplementationReportTab.getDetailsUIStage1GrTotal);
+router.get("/getdetailtotal-uistage/:organisationID/:subStage/:modOfImp/:isSagarmalaFunded", requireModulePermission("PROJECTS", "read"), underImplementationReportTab.getDetailsUnderImpColmn45);
+router.get("/get-grandtotal-ui/:subStage/:modOfImp/:isSagarmalaFunded/:orgCategoryFilter/:orgFilter", requireModulePermission("PROJECTS", "read"), underImplementationReportTab.getGrandTotalUIColmn45);
+router.get("/getdetail-underimplementation/:organisationID/:milestoneId/:modOfImp/:isSagarmalaFunded", requireModulePermission("PROJECTS", "read"), underImplementationReportTab.getDetailsUIColumnBtoFReport);
+router.get("/getdetailtotal-ui-column/:milestoneId/:modOfImp/:isSagarmalaFunded/:orgCategoryFilter/:orgFilter", requireModulePermission("PROJECTS", "read"), underImplementationReportTab.getDetailsGrTotalUIColumnBtoF);
+router.get("/ui-projectimage/download/:filename/:subProjectID", requireModulePermission("PROJECTS", "read"), underImplementationReportTab.uiReportImageDownload);
 
 // Report 1.4
-router.get("/financialprogress-report/:isSagarmalaFunded", financialProgressReportTab.financialProgressReport);
-router.get("/getDetail-financialprogress/:organisationID/:modOfImp/:columnNo/:isSagarmalaFunded", financialProgressReportTab.getDetailsFinancialReport);
-router.get("/get-grandtotal-financialreport/:modOfImp/:columnNo/:isSagarmalaFunded/:orgCategoryFilter/:orgFilter", financialProgressReportTab.getGrandTotalFinancialReport);
+router.get("/financialprogress-report/:isSagarmalaFunded", requireModulePermission("PROJECTS", "read"), financialProgressReportTab.financialProgressReport);
+router.get("/getDetail-financialprogress/:organisationID/:modOfImp/:columnNo/:isSagarmalaFunded", requireModulePermission("PROJECTS", "read"), financialProgressReportTab.getDetailsFinancialReport);
+router.get("/get-grandtotal-financialreport/:modOfImp/:columnNo/:isSagarmalaFunded/:orgCategoryFilter/:orgFilter", requireModulePermission("PROJECTS", "read"), financialProgressReportTab.getGrandTotalFinancialReport);
 
 //Report 1.0 IWAI
-router.get("/iwai-proposalhistory-report/:orgCate/:organisation/:category/:isSagarmalaFunded", proposalHistoryReportTab.iwaiProjectHistoryAbstractData);
-router.get("/iwai-getdetail-history-data/:organisationID/:modOfImp/:columnNo/:isSagarmalaFunded/:projectId", proposalHistoryReportTab.getIwaiDetailsHistoryData);
+router.get("/iwai-proposalhistory-report/:orgCate/:organisation/:category/:isSagarmalaFunded", requireModulePermission("PROJECTS", "read"), proposalHistoryReportTab.iwaiProjectHistoryAbstractData);
+router.get("/iwai-getdetail-history-data/:organisationID/:modOfImp/:columnNo/:isSagarmalaFunded/:projectId", requireModulePermission("PROJECTS", "read"), proposalHistoryReportTab.getIwaiDetailsHistoryData);
 
 // Report 1.1
-router.get("/iwai-proposalabstract-report/:orgCate/:organisation/:category/:isSagarmalaFunded", proposalReportTab.iwaiProposalAbstractReportData);
-router.get("/iwai-getdetailtotal-proposal/:organisationID/:modOfImp/:columnNo/:isSagarmalaFunded/:projectId/:stageId", proposalReportTab.iwaigetDetailsProposal);
+router.get("/iwai-proposalabstract-report/:orgCate/:organisation/:category/:isSagarmalaFunded", requireModulePermission("PROJECTS", "read"), proposalReportTab.iwaiProposalAbstractReportData);
+router.get("/iwai-getdetailtotal-proposal/:organisationID/:modOfImp/:columnNo/:isSagarmalaFunded/:projectId/:stageId", requireModulePermission("PROJECTS", "read"), proposalReportTab.iwaigetDetailsProposal);
 
 // Report 1.2
-router.get("/iwai-undertendering-report/:orgCate/:organisation/:category/:isSagarmalaFunded", underTenderingReportTab.iwaiUnderTenderingReport);
+router.get("/iwai-undertendering-report/:orgCate/:organisation/:category/:isSagarmalaFunded", requireModulePermission("PROJECTS", "read"), underTenderingReportTab.iwaiUnderTenderingReport);
 // router.get("/iwai-detail-ut-othercolumn/:organisationID/:modOfImp/:columnNo/:isSagarmalaFunded/:projectId", underTenderingReportTab.iwaiUT2BOtherColumn);
 // router.get("/iwai-detail-ut-stagebegin/:organisationID/:modOfImp/:columnNo/:isSagarmalaFunded/:projectId/:stageId", underTenderingReportTab.iwaiUT2BOtherColumn);
 
 // Report 1.3
-router.get("/iwai-underimplementation-report/:orgCate/:organisation/:category/:isSagarmalaFunded", underImplementationReportTab.iwaiUnderImplementationReport);
+router.get("/iwai-underimplementation-report/:orgCate/:organisation/:category/:isSagarmalaFunded", requireModulePermission("PROJECTS", "read"), underImplementationReportTab.iwaiUnderImplementationReport);
 // router.get("/iwai-getdetail-ui/:organisationID/:modOfImp/:columnNo/:isSagarmalaFunded/:projectId", underImplementationReportTab.iwaiUIgetDetail);
 
 // Report 1.4
-router.get("/iwai-financialprogress-report/:orgCate/:organisation/:category/:isSagarmalaFunded", financialProgressReportTab.iwaiFinancialProgressReport);
-router.get("/iwai-getDetail-financialprogress/:organisationID/:modOfImp/:columnNo/:isSagarmalaFunded/:projectId", financialProgressReportTab.getDetailsIwaiFinancialReport);
+router.get("/iwai-financialprogress-report/:orgCate/:organisation/:category/:isSagarmalaFunded", requireModulePermission("PROJECTS", "read"), financialProgressReportTab.iwaiFinancialProgressReport);
+router.get("/iwai-getDetail-financialprogress/:organisationID/:modOfImp/:columnNo/:isSagarmalaFunded/:projectId", requireModulePermission("PROJECTS", "read"), financialProgressReportTab.getDetailsIwaiFinancialReport);
 
 
 // projectReport
@@ -1580,7 +1580,7 @@ router.get("/iwai-getDetail-financialprogress/:organisationID/:modOfImp/:columnN
 
 
 // --------------------------------------------------- Lumpsum Report ------------------------------------------------------
-router.get('/lumpsum-report', lumpsumReportTab.lumpsumReport);
+router.get('/lumpsum-report', requireModulePermission("PROJECTS", "read"), lumpsumReportTab.lumpsumReport);
 
 
 router.get("/get-organisation-name/:organisationID", financialParameterTab.getOrganisationName);

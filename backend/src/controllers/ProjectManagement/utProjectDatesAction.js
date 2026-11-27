@@ -4,6 +4,8 @@ import sql from 'mssql';
 import fs from 'fs';
 import path from 'path';
 import { pool } from "../../db.js";
+import { escapesFolder } from '../../middleware/pathGuard.js';
+import { scanProjectUploads } from './projectUploadScan.js';
 import { fileURLToPath } from 'url';
 import { CONNREFUSED } from 'dns';
 import { count } from 'console';
@@ -652,7 +654,8 @@ const storage = multer.diskStorage({
         callback(null, uploadDestination);
     },
     filename: (req, file, callback) => {
-        callback(null, file.originalname);
+        // Keep the temp file inside the upload folder (QC PRJ-BE-01)
+        callback(null, path.basename(file.originalname).replace(/[\\/]/g, ''));
     },
 });
 
@@ -669,6 +672,15 @@ async function utProjectDocumentUploader(req, res) {
         }
 
         const { projectID, subProjectID, folderName } = req.body;
+
+        // folderName comes from the multipart body, which the global path guard never sees
+        if (escapesFolder(folderName)) {
+            return res.status(400).json({ error: 'Invalid folder name' });
+        }
+        const scanError = await scanProjectUploads(req.files);
+        if (scanError) {
+            return res.status(scanError.status).json({ error: scanError.error });
+        }
 
         const filenames = [];
 

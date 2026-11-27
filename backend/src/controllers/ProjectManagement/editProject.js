@@ -7,6 +7,8 @@ import { pool } from "../../db.js";
 import { fileURLToPath } from 'url';
 import { CONNREFUSED } from 'dns';
 import { escapesFolder } from '../../middleware/pathGuard.js';
+import { scanProjectUploads } from './projectUploadScan.js';
+import { checkProjectBasics } from './projectValidation.js';
 
 /** Bind empty/invalid FK ids as SQL NULL (avoids `col = ,` when interpolated/empty). */
 function bindNullableInt(request, name, value) {
@@ -267,7 +269,12 @@ async function updateViewProjectDetails(req, res)
     }
     projectInitiatedDate = toSqlDateValue(projectInitiatedDate);
     targetCompletionDate = toSqlDateValue(targetCompletionDate);
-    
+
+    const basicsError = checkProjectBasics({ projectName, estimatedProjectCost, projectInitiatedDate, targetCompletionDate });
+    if (basicsError) {
+        return res.status(400).json({ message: basicsError });
+    }
+
     if (Array.isArray(projectCategory)) {
         projectCategory = projectCategory.join(",");
     }
@@ -577,7 +584,8 @@ const storage = multer.diskStorage({
         callback(null, uploadDestination);
     },
     filename: (req, file, callback) => {
-        callback(null, file.originalname);
+        // Keep the temp file inside the upload folder (QC PRJ-BE-01)
+        callback(null, path.basename(file.originalname).replace(/[\\/]/g, ''));
     },
 });
 
@@ -603,6 +611,10 @@ async function addProjectDocumentUploader(req, res) {
         }
         if (escapesFolder(folderName)) {
             return res.status(400).json({ error: 'Invalid folder name' });
+        }
+        const scanError = await scanProjectUploads(req.files);
+        if (scanError) {
+            return res.status(scanError.status).json({ error: scanError.error });
         }
 
         const subfolder = isMainProject ? 'mainProject' : 'subProject';
@@ -788,6 +800,10 @@ async function editProjectDocumentUploader(req, res) {
         }
         if (escapesFolder(folderName)) {
             return res.status(400).json({ error: 'Invalid folder name' });
+        }
+        const scanError = await scanProjectUploads(req.files);
+        if (scanError) {
+            return res.status(scanError.status).json({ error: scanError.error });
         }
 
         const subfolder = isMainProject ? 'mainProject' : 'subProject';

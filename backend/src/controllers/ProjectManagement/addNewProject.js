@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import { pool } from "../../db.js";
 import { getDataScope } from "../../middleware/dataScope.js";
+import { checkProjectBasics } from "./projectValidation.js";
 import { fileURLToPath } from 'url';
 import { CONNREFUSED } from 'dns';
 import nodemailer from "nodemailer";
@@ -68,8 +69,24 @@ async function createNewProject(req, res)
         const selectedStage = normalizeNum(req.body.selectedStage) ?? 0;
 
         const userID = normalizeStr(req.body.userID);
-        const organisationID = normalizeStr(req.body.organisationID);
-        const wingID = normalizeStr(req.body.wingID);
+        let organisationID = normalizeStr(req.body.organisationID);
+        let wingID = normalizeStr(req.body.wingID);
+
+        const basicsError = checkProjectBasics({ projectName, estimatedProjectCost, projectInitiatedDate, targetCompletionDate });
+        if (basicsError) {
+            return res.status(400).json({ message: basicsError });
+        }
+
+        // Organisation users always create projects for their own organisation (QC PRJ-BE-03);
+        // Ministry / Master users keep the organisation sent with the form.
+        const dataScope = getDataScope(req.user || {});
+        if (dataScope.isOrganisation) {
+            if (!Number.isFinite(dataScope.organisationId) || dataScope.organisationId <= 0) {
+                return res.status(403).json({ message: 'Your account is not linked to an organisation.' });
+            }
+            organisationID = String(dataScope.organisationId);
+            wingID = normalizeStr(req.user.wingId);
+        }
 
         let onSubProjectAvailable = normalizeNum(req.body.onSubProjectAvailable) ?? 0;
         const subProjectNum = normalizeNum(req.body.subProjectNum) ?? 0;
