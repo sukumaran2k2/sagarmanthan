@@ -15,11 +15,7 @@ import { getErrorMessage } from '../../../../utils/notify';
 import { HR_TOASTS } from '../../toastMessages';
 import { FormActions } from '../../components/HrFormControls';
 import ParticipantsTable from './components/ParticipantsTable';
-import { isCountOnlyOrganisation ,readParticipantCount} from './trainingConfig';
 
-const isCountOnlyOrg = isCountOnlyOrganisation(getSessionOrganisationId());
-
-const COUNT_ONLY_ORG_IDS = [15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 27, 62];
 
 // editData: the record being edited (from location.state.item, via InputForm); null when adding
 export default function TrainingDataForm({ editData = null, notify }) {
@@ -42,8 +38,7 @@ export default function TrainingDataForm({ editData = null, notify }) {
     outsideAgencyName: '',
     country: '',
     location: '',
-    expenditure: '',
-    numberOfParticipant: ''  
+    expenditure: ''
   });
 
   const [participants, setParticipants] = useState([
@@ -73,14 +68,10 @@ const [loadingStaff, setLoadingStaff] = useState(false);
 
 const isWithinCountry = formData.trainingSource === 'Outside Agency (within country)';
 const isInternational = formData.trainingSource === 'International';
-const isOtherTitle = formData.trainingTitle === '0';
-
-let isCountOnlyOrg = COUNT_ONLY_ORG_IDS.includes(Number(getSessionOrganisationId()));
 
 // Defined before handleChange, which calls it
 async function fetchTrainingTitles(trainingType) {
   const organisationID = getSessionOrganisationId();
-  isCountOnlyOrg = COUNT_ONLY_ORG_IDS.includes(organisationID);
 
   if (!trainingType || !organisationID) {
     setTrainingTitles([]);
@@ -205,8 +196,7 @@ useEffect(() => {
       }
 
       const typeId = training.TRAINING_TYPE_ID ?? "";
-      // const titleId = training.TRAINING_TITLE_ID ?? "";
-      const titleId = training.TRAINING_TITLE_ID ?? (training.other_title ? 0 : "");
+      const titleId = training.TRAINING_TITLE_ID ?? "";
 
       setFormData((prev) => ({
         ...prev,
@@ -220,14 +210,8 @@ useEffect(() => {
         outsideAgencyName: training.outside_agency_name ?? "",
         country: training.country_id != null ? String(training.country_id) : "",
         location: training.location ?? "",
-        expenditure: training.expenditure ?? "" ,
-        numberOfParticipant: (() => {
-  const saved = readParticipantCount(training) ?? readParticipantCount(editData) ?? (participantRows.length || null);
-  return saved != null ? String(saved) : "";
-})(),
-      
-      }));
-     
+        expenditure: training.expenditure ?? "" }));
+
       if (typeId !== "") {
         await fetchTrainingTitles(String(typeId));
       }
@@ -303,16 +287,17 @@ const fetchStaff = async (organisationID) => {
   }
 };
 
-useEffect(() => {
-  const organisationID = getSessionOrganisationId();
+  useEffect(() => {
+    const organisationID = getSessionOrganisationId();
 
-  if (!organisationID || isCountOnlyOrg) {
-    return undefined;
-  }
+    if (!organisationID) {
+        return undefined;
+    }
 
-  const timer = setTimeout(() => fetchStaff(organisationID), 0);
-  return () => clearTimeout(timer);
-}, [isCountOnlyOrg]);
+    // Deferred a tick so the load's setState does not run synchronously in the effect
+    const timer = setTimeout(() => fetchStaff(organisationID), 0);
+    return () => clearTimeout(timer);
+}, []);
 
 const handleStaffChange = (rowId, staffReferenceId) => {
   const selectedStaff = staffList.find(
@@ -406,7 +391,6 @@ const handleRemoveParticipant = (id) => {
     setParticipants(prev => [...prev, { id: newId, staffId: '', name: '', designation: '', department: '' }]);
   };
 
-// Organisations that enter only a participant count (no staff table)
 
 const handleSubmit = async (e) => {
   e.preventDefault();
@@ -414,7 +398,6 @@ const handleSubmit = async (e) => {
 
   try {
     const organisationID = getSessionOrganisationId();
-    isCountOnlyOrg = COUNT_ONLY_ORG_IDS.includes(organisationID);
     const userID = getCurrentUserId();
 
     if (
@@ -426,48 +409,42 @@ const handleSubmit = async (e) => {
       return;
     }
 
-    if (isOtherTitle && !formData.otherTitleName.trim()) {
-      notify?.(HR_TOASTS.otherTitleRequired());   // add this toast, or reuse an existing one
+    const participantData = participants
+      .filter((participant) => participant.staffId)
+      .map((participant) => ({
+        emp_master_id: participant.emp_master_id,
+        employee_id: participant.employee_id || null,
+        emp_reference_id: participant.emp_reference_id || null,
+        name: participant.name || "",
+        designation: participant.designation || "",
+        department: participant.department || "",
+        emp_transaction_id: participant.emp_transaction_id || null
+      }));
+
+    if (participantData.length === 0) {
+      notify?.(HR_TOASTS.participantRequired());
       return;
     }
 
-    let participantData = [];
+    const invalidParticipant = participantData.some(
+      (participant) =>
+        !participant.emp_master_id ||
+        !participant.name
+    );
 
-    if (isCountOnlyOrg) {
-      if (!formData.numberOfParticipant || Number(formData.numberOfParticipant) < 1) {
-        notify?.(HR_TOASTS.participantRequired());   // or add a dedicated toast, e.g. HR_TOASTS.participantCountRequired()
-        return;
-      }
-    } else {
-      participantData = participants
-        .filter((participant) => participant.staffId)
-        .map((participant) => ({
-          emp_master_id: participant.emp_master_id,
-          employee_id: participant.employee_id || null,
-          emp_reference_id: participant.emp_reference_id || null,
-          name: participant.name || "",
-          designation: participant.designation || "",
-          department: participant.department || "",
-          emp_transaction_id: participant.emp_transaction_id || null
-        }));
-
-      if (participantData.length === 0) {
-        notify?.(HR_TOASTS.participantRequired());
-        return;
-      }
-
-      if (participantData.some((p) => !p.emp_master_id || !p.name)) {
-        notify?.(HR_TOASTS.participantFieldsMissing());
-        return;
-      }
-
-      const empMasterIds = participantData.map((p) => String(p.emp_master_id));
-      if (new Set(empMasterIds).size !== empMasterIds.length) {
-        notify?.(HR_TOASTS.duplicateParticipant());
-        return;
-      }
+    if (invalidParticipant) {
+      notify?.(HR_TOASTS.participantFieldsMissing());
+      return;
     }
 
+    const empMasterIds = participantData.map(
+      (participant) => String(participant.emp_master_id)
+    );
+
+    if (new Set(empMasterIds).size !== empMasterIds.length) {
+      notify?.(HR_TOASTS.duplicateParticipant());
+      return;
+    }
 
     const payload = {
       trainingTitle: Number(formData.trainingTitle) || 0,
@@ -483,9 +460,8 @@ const handleSubmit = async (e) => {
       expenditure: Number(formData.expenditure) || 0,
       organisationID: Number(organisationID),
       userID: Number(userID),
-      numberOfParticipant: isCountOnlyOrg ? Number(formData.numberOfParticipant) : participantData.length,
-      participantData,
-      otherTitleName: isOtherTitle ? formData.otherTitleName.trim() : null,
+      numberOfParticipant: participantData.length,
+      participantData
     };
 
 
@@ -577,23 +553,6 @@ const handleSubmit = async (e) => {
               <option value="0">Others</option>
             </select>
           </div>
-
-          {isOtherTitle && (
-            <div>
-              <label className="block text-xs font-bold mb-1.5 text-slate-700 dark:text-slate-300">
-                Enter the title name<span className="text-red-500 ml-0.5">*</span>
-              </label>
-              <input
-                type="text"
-                name="otherTitleName"
-                value={formData.otherTitleName}
-                onChange={handleChange}
-                required
-                placeholder="Title Name"
-                className="w-full px-3 py-2 text-sm border rounded"
-              />
-            </div>
-          )}
 
           {/* Empty div for layout if needed, or Training Source */}
           <div className="md:col-start-1 lg:col-start-3">
@@ -721,25 +680,6 @@ const handleSubmit = async (e) => {
 
       {/* Expenditure: All training sources */}
 
-
-      {isCountOnlyOrg && (
-        <div>
-          <label className="block text-xs font-bold mb-1.5">
-            Number of Participants <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="number"
-            min="1"
-            name="numberOfParticipant"
-            value={formData.numberOfParticipant}
-            onChange={handleChange}
-            required
-            placeholder="Enter number of participants"
-            className="w-full px-3 py-2 text-sm border rounded"
-          />
-        </div>
-      )}
-
       <div>
         <label className="block text-xs font-bold mb-1.5">
           Expenditure (In Lakh) <span className="text-red-500">*</span>
@@ -758,16 +698,15 @@ const handleSubmit = async (e) => {
       </div>
         </div>
 
-        {!isCountOnlyOrg && (
-          <ParticipantsTable
-            handleAddParticipant={handleAddParticipant}
-            handleRemoveParticipant={handleRemoveParticipant}
-            handleStaffChange={handleStaffChange}
-            loadingStaff={loadingStaff}
-            participants={participants}
-            staffList={staffList}
-          />
-        )}
+        {/* Participant Details Section */}
+        <ParticipantsTable
+          handleAddParticipant={handleAddParticipant}
+          handleRemoveParticipant={handleRemoveParticipant}
+          handleStaffChange={handleStaffChange}
+          loadingStaff={loadingStaff}
+          participants={participants}
+          staffList={staffList}
+        />
 
         <FormActions
           onExit={() => navigate('/hr/hr-management/training-details')}

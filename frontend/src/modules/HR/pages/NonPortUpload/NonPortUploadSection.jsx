@@ -23,7 +23,7 @@ export default function NonPortMonthlyUpload({ notify, triggerNotification }) {
 
   return (
     <div className="space-y-4 animate-fade-in">
-      <HrIconTabs tabs={TABS} current={current} onChange={(id) => navigate(`${BASE}/${id}`)} label="Monthly Vacancy Upload" variant="pill" />
+      <HrIconTabs tabs={TABS} current={current} onChange={(id) => navigate(`${BASE}/${id}`)} label="Non port monthly upload" variant="pill" />
 
       <Routes>
         <Route path="data" element={<NonPortVacancyList triggerNotification={triggerNotification} />} />
