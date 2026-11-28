@@ -2,7 +2,6 @@ import { pool } from "../../db.js";
 import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
-import { fileURLToPath } from 'url';
 import { isWideRole } from "../../middleware/dataScope.js";
 
 
@@ -23,145 +22,6 @@ async function getLastLitigationCaseNumber(req,res){
         return res.status(500).json({message: 'Internal Server Error'})
     }
 }
-
-async function addLitigationPrevConnCases(req, res) {
-    const { caseID, prevConnCaseData } = req.body;
-    // connectedases
-    if (!caseID ||!Array.isArray(prevConnCaseData) || prevConnCaseData.length === 0) {
-        return res.status(400).json({ error: "Invalid prevConnCaseData" });
-    }
-
-    const conn = await pool;
-    const request = conn.request(); 
-
-    const checkCaseId = `SELECT * FROM tbl_prev_conn_court_cases WHERE case_id = @caseID`;
-    request.input("caseID", caseID);  
-
-    try {
-
-        const checkResult = await request.query(checkCaseId);
-
-        if (checkResult.recordset.length != 0) {
-            let deleteExistingData = `DELETE tbl_prev_conn_court_cases WHERE case_id = @caseID`;
-            await request.query(deleteExistingData);
-        }
-        
-        for (const caseData of prevConnCaseData) {
-            const request = conn.request(); 
-
-            request.input("caseID", caseID);
-            request.input("prevConnectedCourt", caseData.prevConnectedCourt); 
-            request.input("prevConnectedCaseNumber", caseData.prevConnectedCaseNumber); 
-            request.input("prevConnectedCNRNumber", caseData.prevConnectedCNRNumber); 
-            request.input("caseStatus", caseData.caseStatus); 
-            request.input("caseDetails", caseData.caseDetails); 
-
-            await request.query(`INSERT INTO tbl_prev_conn_court_cases (case_id, prev_conn_case_court_name, prev_conn_case_no, prev_conn_cnr_no, case_status, details) 
-            VALUES (@caseID, @prevConnectedCourt, @prevConnectedCaseNumber, @prevConnectedCNRNumber, @caseStatus, @caseDetails)`);
-        }
-
-        return res.status(201).json({ message: "Previous connected cases added successfully." });
-    } catch (err) {
-        // console.log("prev",err)
-        return res.sendStatus(500);
-    }
-}
-
-async function addLitigationDetailsOfCounsel(req, res) {
-    const { caseID, detailsOfCounselData } = req.body;
-   
-    if (!caseID ||!Array.isArray(detailsOfCounselData) || detailsOfCounselData.length === 0) {
-        return res.status(400).json({ error: "Invalid details of counsel" });
-    }
-
-    const conn = await pool;
-    const request = conn.request(); 
-
-    const checkCaseId = `SELECT * FROM tbl_court_cases_counsel_details WHERE case_id = @caseID`;
-    request.input("caseID", caseID);
-
-    try {
-     
-        const checkResult = await request.query(checkCaseId);
-
-            if (checkResult.recordset.length != 0) {
-                let deleteExistingData = `DELETE tbl_court_cases_counsel_details WHERE case_id = @caseID`;
-                await request.query(deleteExistingData);
-            }
-
-        for (const detailData of detailsOfCounselData) {    
-            const request = conn.request();    
-            
-            request.input("caseID", caseID);
-            request.input("nameOfCounsel", detailData.nameOfCounsel); 
-            request.input("counselContact", detailData.counselContact); 
-            request.input("typeCounsel", detailData.typeCounsel); 
-            request.input("counselDetails", detailData.counselDetails); 
-            await request.query(`
-                INSERT INTO tbl_court_cases_counsel_details (case_id, name_of_counsel, contact, type_of_counsel, details) 
-                VALUES (@caseID, @nameOfCounsel, @counselContact, @typeCounsel, @counselDetails)
-            `);
-        }
-        return res.status(201).json({ message: "Details of Counsel added successfully." });
-    } catch (err) {
-        // console.log("err",err)
-        return res.status(500).json({error: "Internal server error" });
-    }
-}
-
-async function addLitigationOtherCourtCaseOrg(req, res) {
-    const { otherOrg } = req.body;
-
-    if (!Array.isArray(otherOrg) || otherOrg.length === 0) {
-        return res.status(400).json({ error: "Invalid data" });
-    }
-
-    const conn = await pool;
-
-    try {
-        const existingOrgNames = [];
-
-        //check which organisations already exist in the database
-        const placeholders = otherOrg.map((_, index) => `@organisationName${index}`).join(', ');
-        const selectRequest = conn.request();
-        otherOrg.forEach((orgName, index) => {
-            selectRequest.input(`organisationName${index}`, orgName);
-        });
-
-        const result = await selectRequest.query(
-            `SELECT organisation_name FROM tbl_court_case_organisations WHERE organisation_name IN (${placeholders})`
-        );
-
-        // Extract the existing organisation names from the result
-        result.recordset.forEach(row => existingOrgNames.push(row.organisation_name));
-
-        // Insert new organisations that don't already exist
-        for (const orgName of otherOrg) {
-            if (!existingOrgNames.includes(orgName)) {
-                const request = conn.request();
-                request.input("organisationName", orgName);
-                await request.query(`INSERT INTO tbl_court_case_organisations (organisation_name,status) VALUES (@organisationName ,1) `);
-            }
-        }
-
-        // Fetch and return the organisation IDs for all input organisations (including both new and existing ones)
-        const finalSelectRequest = conn.request();
-        otherOrg.forEach((orgName, index) => {
-            finalSelectRequest.input(`organisationName${index}`, orgName);
-        });
-
-        const finalResult = await finalSelectRequest.query(
-            `SELECT organisation_id, organisation_name FROM tbl_court_case_organisations WHERE organisation_name IN (${placeholders})`
-        );
-
-        res.json(finalResult.recordset);
-    } catch (err) {
-        // Log the error for debugging purposes (optional)
-        // console.log(err);
-        return res.status(500).json({ error: "Internal Server Error" });
-    }
-}
-
 
 async function createLitigationCourtCase(req,res) {
     const {caseID,caseName,courtType,state,district,courtComplex,nameOfCourt,subCourt,highCourtBench,consumerForum,caseType,caseNumber,year,cnrNumber,filedOnDate,domain,subDomain,description,
@@ -249,7 +109,6 @@ async function createLitigationCourtCase(req,res) {
         @prevConnCaseOrNot,@counterClaimAmountOrNot,@claimAmountValue,@counterClaimAmountValue,GETDATE(),@userID, @organisationID,@organisationName
         );
         `;
-        console.log("➡️ Inserting Case:", caseName);
 
         const result = await request
         .input("caseName",caseName)
@@ -334,280 +193,6 @@ async function addMinistryDetailsOfCounsel(req, res) {
     }
 }
 //Generate Uunique File Name
-
-function generateUniquelitigationFileName(originalFileName) {
-    const currentDate = new Date();
-    const year = currentDate.getFullYear();
-    const month = (currentDate.getMonth() + 1).toString().padStart(2, '0');
-    const day = currentDate.getDate().toString().padStart(2, '0');
-
-    const hours = currentDate.getHours().toString().padStart(2, '0');
-    const minutes = currentDate.getMinutes().toString().padStart(2, '0');
-    const seconds = currentDate.getSeconds().toString().padStart(2, '0');
-
-    const fileExtension = originalFileName.split('.').pop();
-    const baseFileName = originalFileName.substring(0, originalFileName.lastIndexOf('.'));
-
-    return `${baseFileName}_${day}${month}${year}_${hours}${minutes}${seconds}.${fileExtension}`;
-}
-
-
-const uploadDestination = './fileuploads/filed_document';
-if (!fs.existsSync(uploadDestination)) {
-    fs.mkdirSync(uploadDestination, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-    destination: (req, file, callback) => { 
-        callback(null, uploadDestination);
-    },
-    filename: (req, file, callback) => {
-        const uniqueFileName = generateUniquelitigationFileName(file.originalname);
-        req.uniqueFileName = uniqueFileName; 
-        callback(null, uniqueFileName); 
-    },
-});
-
-const upload = multer({
-    storage: storage,
-    limits: { fileSize: 10000000 }
-});
-
-//ministryUploadDocument
-async function ministryUploadDocument(req,res) {
-    try {
-        const conn = await pool;
-        const request = conn.request();
-
-        const caseID = req.body.caseID;
-        const pathFolder = req.body.path; 
-
-        request.input("caseID", caseID);
-        
-        //check path is Litigation
-        if(pathFolder === 'Litigation'){
-            const fullPath = path.join(uploadDestination, pathFolder); 
-
-            if (!fs.existsSync(fullPath)) {
-                fs.mkdirSync(fullPath, { recursive: true });
-            }
-            const existingDocResult = await request.query(`
-                SELECT filed_document FROM tbl_litigation_cases 
-                WHERE case_id = @caseID
-            `);
-            const existingFileName = existingDocResult.recordset[0]?.filed_document;
-            if (existingFileName) {
-                const existingFilePath = path.join(fullPath, existingFileName);
-                if (fs.existsSync(existingFilePath)) {
-                    try {
-                        fs.unlinkSync(existingFilePath);
-                    } catch (err) {
-                        console.error("Error deleting file:", err); 
-                    }
-                }
-            }
-
-            const newFileName = req.uniqueFileName;
-            const filePath = path.join(fullPath, newFileName);
-
-            request.input("newFileName", newFileName);
-
-            if (req.file && req.file.path) {
-                fs.renameSync(req.file.path, filePath); 
-            } else {
-                console.error("No file found in req.file or req.file.path");
-            } 
-
-            await request.query(`
-                UPDATE tbl_litigation_cases 
-                SET filed_document = @newFileName
-                WHERE case_id = @caseID
-            `);
-
-            res.status(201).json({ message: "Document uploaded successfully" });
-        } else {
-            return res.status(400).json({ error: "Invalid path. Document upload is only allowed for 'Arbitration'." });    
-        }
-
-    } catch (error) {
-        return res.status(500).json({error: "Internal server error" });
-    }    
-}
-
-async function getMinistryUploadDocument(req,res) {
-    const caseID = req.params.caseID;
-    try {
-        // console.log("caseID",caseID)
-        const conn = await pool;
-        const request = conn.request();
-        request.input("caseID", caseID);
-
-        let result = await request.query(`SELECT case_id,filed_document,file_of_affidavit, filed_intervention_document FROM tbl_litigation_cases WHERE case_id = @caseID ;`);
-        if (result.recordset.length === 0) {
-            return res.status(404).json({ message: "No data available" });
-        }
-        return res.json(result.recordset);
-    } catch (error) {
-        console.log("error",error)
-        return res.status(500).json({error: "Internal server error" });
-    }    
-}
-
-async function deleteMinistryInterventionDocument(req, res) {
-    const caseID = req.params.caseID;
-    const replyFiledDoc = req.params.replyFiledDoc;
-    
-    const conn = await pool;
-    const request = conn.request();
-    request.input("caseID", caseID);
-    request.input("replyFiledDoc", replyFiledDoc);
-
-    try {
-        const checkResult = await request.query(`SELECT case_id,filed_document FROM tbl_litigation_cases WHERE case_id = @caseID`);
-        
-        if (checkResult.recordset.length > 0) {
-            await request.query(`UPDATE tbl_litigation_cases SET filed_document = NULL WHERE case_id = @caseID AND filed_document = @replyFiledDoc`);
-            const fileDeleted = deleteFile(replyFiledDoc);
-            if (fileDeleted) {
-                return res.status(200).json({ message: "Document and file deleted successfully." });
-            } else {
-                return res.status(500).json({ error: "File deletion failed" });
-            }
-        } else {
-            const fileDeleted = deleteFile(replyFiledDoc);
-            if (fileDeleted) {
-                return res.status(200).json({ message: "File deleted successfully" });
-            } else {
-                return res.status(404).json({ error: "File not found " });
-            }
-        }
-    } catch (err) {
-        console.log(err);
-        return res.status(500).json({error: "Internal server error" });
-    }
-}
-
-
-function deleteFile(fileName) {
-    try{
-        if (fileName) {
-            const filePath = `./fileuploads/filed_document/Litigation/${fileName}`;
-            if (fs.existsSync(filePath)) {
-                fs.unlinkSync(filePath); 
-                return true; 
-            }else {
-                return false;
-            }
-        }     
-    }catch(err){
-        console.error("Error deleting file:", error);
-        return false;
-    }
-}
-
-async function deleteMinistryInterventionDoc(req, res) {
-    const caseID = req.params.caseID;
-    const intrevenDoc = req.params.intrevenDoc;
-    
-    const conn = await pool;
-    const request = conn.request();
-    request.input("caseID", caseID);
-    request.input("intrevenDoc", intrevenDoc);
-
-    try {
-        const checkResult = await request.query(`SELECT case_id,filed_intervention_document FROM tbl_litigation_cases WHERE case_id = @caseID`);
-        
-        if (checkResult.recordset.length > 0) {
-            await request.query(`UPDATE tbl_litigation_cases SET filed_intervention_document = NULL WHERE case_id = @caseID AND filed_intervention_document = @intrevenDoc`);
-            const fileDeleted = deleteInterventionDocFile(intrevenDoc);
-            if (fileDeleted) {
-                return res.status(200).json({ message: "Document and file deleted successfully." });
-            } else {
-                return res.status(500).json({ error: "File deletion failed" });
-            }
-        } else {
-            const fileDeleted = deleteInterventionDocFile(intrevenDoc);
-            if (fileDeleted) {
-                return res.status(200).json({ message: "File deleted successfully" });
-            } else {
-                return res.status(404).json({ error: "File not found " });
-            }
-        }
-    } catch (err) {
-        console.log(err);
-        return res.status(500).json({error: "Internal server error" });
-    }
-}
-
-function deleteInterventionDocFile(fileName) {
-    try{
-        if (fileName) {
-            const filePath = `./fileuploads/filed_intervention_document/Litigation/${fileName}`;
-            if (fs.existsSync(filePath)) {
-                fs.unlinkSync(filePath); 
-                return true; 
-            }else {
-                return false;
-            }
-        }     
-    }catch(error){
-        console.error("Error deleting file:", error);
-        return false;
-    }
-}
-
-
-async function deletecounterAffiDocument(req, res) {
-    const caseID = req.params.caseID;
-    const affidavitFile = req.params.affidavitFile;
-    
-    const conn = await pool;
-    const request = conn.request();
-    request.input("caseID", caseID);
-    request.input("affidavitFile", affidavitFile);
-
-    try {
-        const checkResult = await request.query(`SELECT case_id,file_of_affidavit FROM tbl_litigation_cases WHERE case_id = @caseID`);
-        
-        if (checkResult.recordset.length > 0) {
-            await request.query(`UPDATE tbl_litigation_cases SET file_of_affidavit = NULL WHERE case_id = @caseID AND file_of_affidavit = @affidavitFile`);
-            const fileDeleted = deletecounterAffiFile(affidavitFile);
-            if (fileDeleted) {
-                return res.status(200).json({ message: "Document and file deleted successfully." });
-            } else {
-                return res.status(500).json({ error: "File deletion failed" });
-            }
-        } else {
-            const fileDeleted = deletecounterAffiFile(affidavitFile);
-            if (fileDeleted) {
-                return res.status(200).json({ message: "File deleted successfully" });
-            } else {
-                return res.status(404).json({ error: "File not found " });
-            }
-        }
-    } catch (err) {
-        console.log(err);
-        return res.status(500).json({error: "Internal server error" });
-    }
-}
-
-function deletecounterAffiFile(fileName) {
-    try{
-        if (fileName) {
-            const filePath = `./fileuploads/file_of_affidavit/Litigation/${fileName}`;
-            if (fs.existsSync(filePath)) {
-                fs.unlinkSync(filePath); 
-                return true; 
-            }else {
-                return false;
-            }
-        }     
-    }catch(error){
-        console.error("Error deleting file:", error);
-        return false;
-    }
-}
-
 async function addCourtCaseOMDetails(req,res){
 
     const { caseID, courtCaseOMDetailsData } = req.body;
@@ -651,91 +236,6 @@ async function addCourtCaseOMDetails(req,res){
     }
 
 
-}
-
-//file upload ministry
-const fileUploadDestination = './fileuploads/filed_intervention_document';
-
-if (!fs.existsSync(fileUploadDestination)) {
-    fs.mkdirSync(fileUploadDestination, { recursive: true });
-}
-
-let fileStorage = multer.diskStorage({
-    destination: (req, file, callback) => {
-        callback(null, fileUploadDestination );
-    },
-    filename: (req, file, callback) => {
-        const uniqueFileName = generateUniquelitigationFileName(file.originalname);
-        req.uniqueFileName = uniqueFileName; 
-        callback(null, uniqueFileName); 
-    },
-});
-
-const fileUpload= multer({
-    storage: fileStorage,
-    limits: { fileSize: 10000000}
-});
-
-async function ministryInterventionDocument(req,res) {
-    try {
-        const conn = await pool;
-        const request = conn.request();
-
-        const caseID = req.body.caseID;
-        const pathFolder = req.body.path; 
-
-        request.input("caseID", caseID);
-
-        //check if the path is 'Litigation
-        if (pathFolder === 'Litigation') {
-
-            const fullPath = path.join(fileUploadDestination, pathFolder); 
-        
-            if (!fs.existsSync(fullPath)) {
-                fs.mkdirSync(fullPath, { recursive: true });
-            }
-            const existingDocResult = await request.query(`
-                SELECT filed_intervention_document FROM tbl_litigation_cases 
-                WHERE case_id = @caseID
-            `);
-            const existingFileName = existingDocResult.recordset[0]?.filed_intervention_document;
-            
-            if (existingFileName) {
-                const existingFilePath = path.join(fullPath, existingFileName);
-                if(existingFilePath)
-                if (fs.existsSync(existingFilePath)) {
-                    try {
-                        fs.unlinkSync(existingFilePath);
-                    } catch (err) {
-                        return res.status(400).json({ error: "Error deleting file:" });
-                    }
-                }
-            }
-
-            const newFileName = req.uniqueFileName; 
-            const filePath = path.join(fullPath, newFileName);
-
-            request.input("newFileName", newFileName);
-         
-            if (req.file && req.file.path) {
-                fs.renameSync(req.file.path, filePath); 
-            } else {
-                return res.status(400).json({ error: "No file uploaded." });
-            }
-
-            await request.query(`
-                UPDATE tbl_litigation_cases 
-                SET filed_intervention_document = @newFileName 
-                WHERE case_id = @caseID
-                `);
-                res.status(201).json({ message: "Document uploaded successfully" });
-        } else {
-            return res.status(400).json({ error: "Invalid path. Document upload is only allowed for 'Litigation'." });
-        } 
-    } catch (error) {
-        // console.log("error",error)
-        res.status(500).json({ error: "Internal server error" });
-    }
 }
 
 async function createMinistryIntervention(req, res) {
@@ -825,170 +325,6 @@ async function createMinistryIntervention(req, res) {
 
     } catch (error) {
         res.status(500).json({ error: "Internal server error" });
-    }
-}
-
-//addCourtCaseHearingDetails
-async function addCourtCaseHearingDetails(req,res) {
-    const { caseID, detailsOfCourtCaseHearingData } = req.body;
-   
-    if (!Array.isArray(detailsOfCourtCaseHearingData) || detailsOfCourtCaseHearingData.length === 0) {
-        return res.status(400).json({ error: "Invalid details of court case hearing data " });
-    }
-
-    const conn = await pool;
-    const request = conn.request();
-
-    const checkCaseIdQuery = `SELECT * FROM tbl_court_case_hearing WHERE case_id = @caseID`;
-    request.input("caseID", caseID);
-
-    try {
-        const checkResult = await request.query(checkCaseIdQuery);
-
-        // If existing records found, delete them
-        if (checkResult.recordset.length > 0) {
-            const deleteExistingDataQuery = `
-                DELETE FROM tbl_court_case_hearing WHERE case_id = @caseID`;
-            await request.query(deleteExistingDataQuery);
-        }
-
-        for (const detailsData of detailsOfCourtCaseHearingData) {
-            const request = conn.request();  
-        
-            request.input("caseID", caseID);
-            request.input("hearingDate", detailsData.hearingDate); 
-            request.input("detailsOfHearing", detailsData.detailsOfHearing); 
-            request.input("nextHearingDate", detailsData.nextHearingDate);
-            request.input("outcomeOfHearing", detailsData.outcomeOfHearing); 
-            await request.query(`
-             INSERT INTO tbl_court_case_hearing (case_id, date_of_hearing,details_of_hearing,next_date_of_hearing,outcome_of_hearing) 
-                VALUES (@caseID, @hearingDate, @detailsOfHearing, ${detailsData.nextHearingDate ? '@nextHearingDate' : 'NULL'} ,@outcomeOfHearing)
-            `);
-        }
-
-        return res.status(201).json({ message: "Details of court case hearing added successfully." });
-    } catch (err) {
-        return res.status(500).json({error: "Internal server error" });
-    }
-    
-}
-//addCourtCaseInterimDetails
-async function addCourtCaseInterimDetails(req,res) {
-    const { caseID, detailsOfCourtCaseInterimData } = req.body;
-
-    if (!Array.isArray(detailsOfCourtCaseInterimData) || detailsOfCourtCaseInterimData.length === 0) {
-        return res.status(400).json({ error: "Invalid details of court case Interim data " });
-    }
-
-    const conn = await pool;
-    const request = conn.request();
-
-    // Check for existing records
-    const checkCaseIdQuery = `SELECT * FROM tbl_court_case_interim_order WHERE case_id = @caseID;`;
-    request.input("caseID", caseID);
-
-    try {
-        const checkResult = await request.query(checkCaseIdQuery);
-
-        // If existing records found, delete them
-        if (checkResult.recordset.length > 0) {
-            const deleteExistingDataQuery = `DELETE FROM tbl_court_case_interim_order WHERE case_id = @caseID`;
-            await request.query(deleteExistingDataQuery);
-        }
-
-        for (const detailsData of detailsOfCourtCaseInterimData) {
-            const complianceBit =
-                detailsData.complianceReq === true ||
-                detailsData.complianceReq === 1 ||
-                detailsData.complianceReq === "1" ||
-                (typeof detailsData.complianceReq === "string" &&
-                ["yes", "true"].includes(detailsData.complianceReq.toLowerCase()))
-                    ? 1
-                    : 0;
-            const request = conn.request();    
-            
-            request.input("caseID", caseID);
-            request.input("natureInterimOrder", detailsData.natureInterimOrder); 
-            request.input("dateOfInterimOrder", detailsData.dateOfInterimOrder); 
-            request.input("detailsOfInterimOrder", detailsData.detailsOfInterimOrder);
-            request.input("complianceReq", complianceBit);
-            request.input("lastDateOfDoingAction", detailsData.lastDateOfDoingAction); 
-           
-            await request.query(`
-                INSERT INTO tbl_court_case_interim_order (case_id, nature_of_interim_order,date_of_interim_order,details_of_interim_order,is_action_req_complaince,last_date_for_complaince) 
-                VALUES (@caseID, @natureInterimOrder, @dateOfInterimOrder, @detailsOfInterimOrder,@complianceReq, ${detailsData.lastDateOfDoingAction ? '@lastDateOfDoingAction' : 'NULL'})
-            `);
-        }
-
-        return res.status(201).json({ message: "Details of court case Interim added successfully." });
-    } catch (err) {
-        console.log("err",err);
-        return res.status(500).json({error: "Internal server error" });
-    }
-}
-
-//Counter Affidavit Filed
-const filedestination = './fileuploads/file_of_affidavit';
-
-if (!fs.existsSync(filedestination)) {
-    fs.mkdirSync(filedestination, { recursive: true });
-}
-
-let filestorage = multer.diskStorage({
-    destination: (req, file, callback) => {
-        callback(null, "./fileuploads/file_of_affidavit" );
-    },
-    filename: (req, file, callback) => {
-        const uniqueFileName = generateUniquelitigationFileName(file.originalname);
-        req.uniqueFileName = uniqueFileName; 
-        callback(null, uniqueFileName); 
-    },
-});
-
-const fileupload= multer({
-    storage: filestorage,
-    limits: { fileSize: 10000000}
-});
-
-async function counterAffidavitDocument(req, res) {
-    try {
-        const caseID = req.body.caseID;
-        const pathFolder = req.body.path;
-
-        if (!caseID) return res.status(400).json({ error: "Invalid case ID" });
-        if (pathFolder !== "Litigation")
-            return res.status(400).json({ error: "Invalid path. Document upload is only allowed for 'Litigation'." });
-        if (!req.file || !req.file.path)
-            return res.status(400).json({ error: "No file uploaded." });   // checked BEFORE touching the old file
-
-        const fullPath = path.join(filedestination, pathFolder);
-        if (!fs.existsSync(fullPath)) fs.mkdirSync(fullPath, { recursive: true });
-
-        const conn = await pool;
-        const existing = await conn.request()
-            .input("caseID", caseID)
-            .query(`SELECT file_of_affidavit FROM tbl_litigation_cases WHERE case_id = @caseID`);
-        const oldFileName = existing.recordset[0]?.file_of_affidavit;
-
-        const newFileName = req.uniqueFileName;
-        fs.renameSync(req.file.path, path.join(fullPath, newFileName));
-
-        await conn.request()
-            .input("caseID", caseID)
-            .input("newFileName", newFileName)
-            .query(`UPDATE tbl_litigation_cases SET file_of_affidavit = @newFileName WHERE case_id = @caseID`);
-
-        // remove the old file only after the new one is saved
-        if (oldFileName && oldFileName !== newFileName) {
-            const oldPath = path.join(fullPath, oldFileName);
-            try { if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath); }
-            catch (err) { console.error("Error deleting old file:", err); }
-        }
-
-        return res.status(201).json({ message: "Document uploaded successfully" });
-    } catch (error) {
-        console.error("counterAffidavitDocument error:", error);   // your catch hid the real error
-        return res.status(500).json({ error: "Internal server error" });
     }
 }
 
@@ -1990,254 +1326,254 @@ async function getLitigationPetitionerAndRespondent(req,res){
     }
 }
 
-async function getLitigationDomainByOtherOrgReport(req, res) {
-    try {
-        const conn = await pool;
-        const result = await conn.query(`SELECT 
-            -- The domain details from the mmt_domain table or NULL if there is no domain
-            mmt_domain.domain_id AS [Domain ID],
-            mmt_domain.domain_name AS [Domain Name],
+// async function getLitigationDomainByOtherOrgReport(req, res) {
+//     try {
+//         const conn = await pool;
+//         const result = await conn.query(`SELECT 
+//             -- The domain details from the mmt_domain table or NULL if there is no domain
+//             mmt_domain.domain_id AS [Domain ID],
+//             mmt_domain.domain_name AS [Domain Name],
             
-            -- Counting cases per organization
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Andaman, Lakshadweep Harbour Works' THEN 1 ELSE 0 END) AS [ALHW],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Cochin Shipyard Limited' THEN 1 ELSE 0 END) AS [CSL],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Dredging Corporation of India' THEN 1 ELSE 0 END) AS [DCI],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Directorate General of Lighthouses and Lightships' THEN 1 ELSE 0 END) AS [DGLL],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Directorate General of Shipping, Mumbai' THEN 1 ELSE 0 END) AS [DGS],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Indian Maritime University' THEN 1 ELSE 0 END) AS [IMU],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Indian Ports Rail Corporation Limited' THEN 1 ELSE 0 END) AS [IPRCL],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Inland Waterways Authority of India' THEN 1 ELSE 0 END) AS [IWAI],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Shipping Corporation of India' THEN 1 ELSE 0 END) AS [SCI],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Sagarmala Development Company Limited' THEN 1 ELSE 0 END) AS [SDCL],
+//             -- Counting cases per organization
+//             SUM(CASE WHEN mmt_organisation.organisation_name = 'Andaman, Lakshadweep Harbour Works' THEN 1 ELSE 0 END) AS [ALHW],
+//             SUM(CASE WHEN mmt_organisation.organisation_name = 'Cochin Shipyard Limited' THEN 1 ELSE 0 END) AS [CSL],
+//             SUM(CASE WHEN mmt_organisation.organisation_name = 'Dredging Corporation of India' THEN 1 ELSE 0 END) AS [DCI],
+//             SUM(CASE WHEN mmt_organisation.organisation_name = 'Directorate General of Lighthouses and Lightships' THEN 1 ELSE 0 END) AS [DGLL],
+//             SUM(CASE WHEN mmt_organisation.organisation_name = 'Directorate General of Shipping, Mumbai' THEN 1 ELSE 0 END) AS [DGS],
+//             SUM(CASE WHEN mmt_organisation.organisation_name = 'Indian Maritime University' THEN 1 ELSE 0 END) AS [IMU],
+//             SUM(CASE WHEN mmt_organisation.organisation_name = 'Indian Ports Rail Corporation Limited' THEN 1 ELSE 0 END) AS [IPRCL],
+//             SUM(CASE WHEN mmt_organisation.organisation_name = 'Inland Waterways Authority of India' THEN 1 ELSE 0 END) AS [IWAI],
+//             SUM(CASE WHEN mmt_organisation.organisation_name = 'Shipping Corporation of India' THEN 1 ELSE 0 END) AS [SCI],
+//             SUM(CASE WHEN mmt_organisation.organisation_name = 'Sagarmala Development Company Limited' THEN 1 ELSE 0 END) AS [SDCL],
             
-            -- Calculate total count of cases across all organizations
-            SUM(
-                CASE WHEN mmt_organisation.organisation_name IN 
-                    ('Andaman, Lakshadweep Harbour Works', 'Cochin Shipyard Limited', 'Dredging Corporation of India', 'Directorate General of Lighthouses and Lightships',
-                    'Directorate General of Shipping, Mumbai', 'Indian Maritime University', 'Indian Ports Rail Corporation Limited', 'Inland Waterways Authority of India', 
-                    'Shipping Corporation of India', 'Sagarmala Development Company Limited') 
-                THEN 1 ELSE 0 END
-            ) AS [Total]
-        FROM 
-            -- mmt_domain is being left joined with tbl_litigation_cases
-            mmt_domain
-        LEFT JOIN 
-            tbl_litigation_cases ON mmt_domain.domain_id = tbl_litigation_cases.domain AND (tbl_litigation_cases.stage_id IS NULL OR tbl_litigation_cases.stage_id <> 7)
-        LEFT JOIN 
-            mmt_organisation ON mmt_organisation.organisation_id = tbl_litigation_cases.organisation_id
-        GROUP BY 
-            mmt_domain.domain_id, 
-            mmt_domain.domain_name
+//             -- Calculate total count of cases across all organizations
+//             SUM(
+//                 CASE WHEN mmt_organisation.organisation_name IN 
+//                     ('Andaman, Lakshadweep Harbour Works', 'Cochin Shipyard Limited', 'Dredging Corporation of India', 'Directorate General of Lighthouses and Lightships',
+//                     'Directorate General of Shipping, Mumbai', 'Indian Maritime University', 'Indian Ports Rail Corporation Limited', 'Inland Waterways Authority of India', 
+//                     'Shipping Corporation of India', 'Sagarmala Development Company Limited') 
+//                 THEN 1 ELSE 0 END
+//             ) AS [Total]
+//         FROM 
+//             -- mmt_domain is being left joined with tbl_litigation_cases
+//             mmt_domain
+//         LEFT JOIN 
+//             tbl_litigation_cases ON mmt_domain.domain_id = tbl_litigation_cases.domain AND (tbl_litigation_cases.stage_id IS NULL OR tbl_litigation_cases.stage_id <> 7)
+//         LEFT JOIN 
+//             mmt_organisation ON mmt_organisation.organisation_id = tbl_litigation_cases.organisation_id
+//         GROUP BY 
+//             mmt_domain.domain_id, 
+//             mmt_domain.domain_name
 
-        -- UNION to include the cases where domain is NULL in the tbl_litigation_cases table
-        UNION ALL
+//         -- UNION to include the cases where domain is NULL in the tbl_litigation_cases table
+//         UNION ALL
 
-        SELECT 
-            NULL AS [Domain ID], -- NULL for domain_id
-            'NULL' AS [Domain Name], -- 'NULL' as a string for domain_name
-            -- For counting NULL domain cases (only for the specified organizations)
-             SUM(CASE WHEN mmt_organisation.organisation_name = 'Andaman, Lakshadweep Harbour Works' THEN 1 ELSE 0 END) AS [ALHW],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Cochin Shipyard Limited' THEN 1 ELSE 0 END) AS [CSL],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Dredging Corporation of India' THEN 1 ELSE 0 END) AS [DCI],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Directorate General of Lighthouses and Lightships' THEN 1 ELSE 0 END) AS [DGLL],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Directorate General of Shipping, Mumbai' THEN 1 ELSE 0 END) AS [DGS],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Indian Maritime University' THEN 1 ELSE 0 END) AS [IMU],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Indian Ports Rail Corporation Limited' THEN 1 ELSE 0 END) AS [IPRCL],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Inland Waterways Authority of India' THEN 1 ELSE 0 END) AS [IWAI],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Shipping Corporation of India' THEN 1 ELSE 0 END) AS [SCI],
-            SUM(CASE WHEN mmt_organisation.organisation_name = 'Sagarmala Development Company Limited' THEN 1 ELSE 0 END) AS [SDCL],
-            -- Total for NULL domains in tbl_litigation_cases for the specified organizations
-            SUM(
-                CASE WHEN tbl_litigation_cases.domain IS NULL
-                    AND mmt_organisation.organisation_name IN 
-                       ('Andaman, Lakshadweep Harbour Works', 'Cochin Shipyard Limited', 'Dredging Corporation of India', 'Directorate General of Lighthouses and Lightships',
-                    'Directorate General of Shipping, Mumbai', 'Indian Maritime University', 'Indian Ports Rail Corporation Limited', 'Inland Waterways Authority of India', 
-                    'Shipping Corporation of India', 'Sagarmala Development Company Limited') 
-                THEN 1 ELSE 0 END
-            ) AS [Total]
-        FROM 
-            tbl_litigation_cases
-        LEFT JOIN 
-            mmt_organisation ON mmt_organisation.organisation_id = tbl_litigation_cases.organisation_id
-        WHERE 
-            tbl_litigation_cases.domain IS NULL AND (tbl_litigation_cases.stage_id IS NULL OR tbl_litigation_cases.stage_id <> 7)
-        GROUP BY 
-            tbl_litigation_cases.domain;
-    `);
+//         SELECT 
+//             NULL AS [Domain ID], -- NULL for domain_id
+//             'NULL' AS [Domain Name], -- 'NULL' as a string for domain_name
+//             -- For counting NULL domain cases (only for the specified organizations)
+//              SUM(CASE WHEN mmt_organisation.organisation_name = 'Andaman, Lakshadweep Harbour Works' THEN 1 ELSE 0 END) AS [ALHW],
+//             SUM(CASE WHEN mmt_organisation.organisation_name = 'Cochin Shipyard Limited' THEN 1 ELSE 0 END) AS [CSL],
+//             SUM(CASE WHEN mmt_organisation.organisation_name = 'Dredging Corporation of India' THEN 1 ELSE 0 END) AS [DCI],
+//             SUM(CASE WHEN mmt_organisation.organisation_name = 'Directorate General of Lighthouses and Lightships' THEN 1 ELSE 0 END) AS [DGLL],
+//             SUM(CASE WHEN mmt_organisation.organisation_name = 'Directorate General of Shipping, Mumbai' THEN 1 ELSE 0 END) AS [DGS],
+//             SUM(CASE WHEN mmt_organisation.organisation_name = 'Indian Maritime University' THEN 1 ELSE 0 END) AS [IMU],
+//             SUM(CASE WHEN mmt_organisation.organisation_name = 'Indian Ports Rail Corporation Limited' THEN 1 ELSE 0 END) AS [IPRCL],
+//             SUM(CASE WHEN mmt_organisation.organisation_name = 'Inland Waterways Authority of India' THEN 1 ELSE 0 END) AS [IWAI],
+//             SUM(CASE WHEN mmt_organisation.organisation_name = 'Shipping Corporation of India' THEN 1 ELSE 0 END) AS [SCI],
+//             SUM(CASE WHEN mmt_organisation.organisation_name = 'Sagarmala Development Company Limited' THEN 1 ELSE 0 END) AS [SDCL],
+//             -- Total for NULL domains in tbl_litigation_cases for the specified organizations
+//             SUM(
+//                 CASE WHEN tbl_litigation_cases.domain IS NULL
+//                     AND mmt_organisation.organisation_name IN 
+//                        ('Andaman, Lakshadweep Harbour Works', 'Cochin Shipyard Limited', 'Dredging Corporation of India', 'Directorate General of Lighthouses and Lightships',
+//                     'Directorate General of Shipping, Mumbai', 'Indian Maritime University', 'Indian Ports Rail Corporation Limited', 'Inland Waterways Authority of India', 
+//                     'Shipping Corporation of India', 'Sagarmala Development Company Limited') 
+//                 THEN 1 ELSE 0 END
+//             ) AS [Total]
+//         FROM 
+//             tbl_litigation_cases
+//         LEFT JOIN 
+//             mmt_organisation ON mmt_organisation.organisation_id = tbl_litigation_cases.organisation_id
+//         WHERE 
+//             tbl_litigation_cases.domain IS NULL AND (tbl_litigation_cases.stage_id IS NULL OR tbl_litigation_cases.stage_id <> 7)
+//         GROUP BY 
+//             tbl_litigation_cases.domain;
+//     `);
         
-        const rowData = result.recordset;
+//         const rowData = result.recordset;
 
-        if (rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available for this.' });
-        }
+//         if (rowData.length === 0) {
+//             return res.status(404).json({ error: 'No data available for this.' });
+//         }
     
-        let columnDefs = [
+//         let columnDefs = [
                 
-                {
-                    headerName: 'Domain ID', 
-                    field: 'Domain ID', 
-                    width: 100,
-                    hide: true
-                },
-                { 
-                    headerName: 'Domain Name', 
-                    field: 'Domain Name',           
-                },
-                {
+//                 {
+//                     headerName: 'Domain ID', 
+//                     field: 'Domain ID', 
+//                     width: 100,
+//                     hide: true
+//                 },
+//                 { 
+//                     headerName: 'Domain Name', 
+//                     field: 'Domain Name',           
+//                 },
+//                 {
 
-                headerName: "Number of Active Cases",
-                headerClass: "headercenter",
-                cellStyle: { textAlign: 'center' },
+//                 headerName: "Number of Active Cases",
+//                 headerClass: "headercenter",
+//                 cellStyle: { textAlign: 'center' },
 
-                children: [
+//                 children: [
               
    
-            { headerName: 'Andaman, Lakshadweep Harbour Works', field: 'ALHW',width: 400 },
-            { headerName: 'Cochin Shipyard Limited', field: 'CSL',width: 280  },
-            { headerName: 'Dredging Corporation of India', field: 'DCI',width: 280  },
-            { headerName: 'Directorate General of Lighthouses and Lightships', field: 'DGLL',width: 400   },
-            { headerName: 'Directorate General of Shipping, Mumbai', field: 'DGS',width: 400   },   
-            { headerName: 'Indian Maritime University', field: 'IMU',width: 280 },
-            { headerName: 'Indian Ports Rail Corporation Limited', field: 'IPRCL',width: 400 },
-            { headerName: 'Inland Waterways Authority of India', field: 'IWAI',width: 400 },
-            { headerName: 'Shipping Corporation of India', field: 'SCI',width: 280 },
-            { headerName: 'Sagarmala Development Company Limited', field: 'SDCL',width: 400  },  
-            { headerName: 'Total', field: 'Total',width: 280},   
-         ]}];
+//             { headerName: 'Andaman, Lakshadweep Harbour Works', field: 'ALHW',width: 400 },
+//             { headerName: 'Cochin Shipyard Limited', field: 'CSL',width: 280  },
+//             { headerName: 'Dredging Corporation of India', field: 'DCI',width: 280  },
+//             { headerName: 'Directorate General of Lighthouses and Lightships', field: 'DGLL',width: 400   },
+//             { headerName: 'Directorate General of Shipping, Mumbai', field: 'DGS',width: 400   },   
+//             { headerName: 'Indian Maritime University', field: 'IMU',width: 280 },
+//             { headerName: 'Indian Ports Rail Corporation Limited', field: 'IPRCL',width: 400 },
+//             { headerName: 'Inland Waterways Authority of India', field: 'IWAI',width: 400 },
+//             { headerName: 'Shipping Corporation of India', field: 'SCI',width: 280 },
+//             { headerName: 'Sagarmala Development Company Limited', field: 'SDCL',width: 400  },  
+//             { headerName: 'Total', field: 'Total',width: 280},   
+//          ]}];
 
-        res.json({ columnDefs, rowData });
+//         res.json({ columnDefs, rowData });
 
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Internal Server Error');
-    }
+//     } catch (err) {
+//         console.error(err.message);
+//         res.status(500).send('Internal Server Error');
+//     }
 
-}
+// }
 
-async function getLitigationSubDomainByOtherOrgReport(req,res) {
-     try {
-        const conn = await pool;
+// async function getLitigationSubDomainByOtherOrgReport(req,res) {
+//      try {
+//         const conn = await pool;
 
-        const result = await conn.query(`
-                SELECT 
-            -- The sub_domain details from the mmt_sub_domain table or NULL if there is no sub_domain
-            mmt_sub_domain.sub_domain_id AS [Sub Domain ID],
-            mmt_sub_domain.sub_domain_name AS [Sub Domain Name],
+//         const result = await conn.query(`
+//                 SELECT 
+//             -- The sub_domain details from the mmt_sub_domain table or NULL if there is no sub_domain
+//             mmt_sub_domain.sub_domain_id AS [Sub Domain ID],
+//             mmt_sub_domain.sub_domain_name AS [Sub Domain Name],
             
-            -- Counting cases per organization
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Andaman, Lakshadweep Harbour Works' THEN 1 ELSE 0 END) AS [ALHW],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Cochin Shipyard Limited' THEN 1 ELSE 0 END) AS [CSL],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Dredging Corporation of India' THEN 1 ELSE 0 END) AS [DCI],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Directorate General of Lighthouses and Lightships' THEN 1 ELSE 0 END) AS [DGLL],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Directorate General of Shipping, Mumbai' THEN 1 ELSE 0 END) AS [DGS],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Indian Maritime University' THEN 1 ELSE 0 END) AS [IMU],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Indian Ports Rail Corporation Limited' THEN 1 ELSE 0 END) AS [IPRCL],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Inland Waterways Authority of India' THEN 1 ELSE 0 END) AS [IWAI],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Shipping Corporation of India' THEN 1 ELSE 0 END) AS [SCI],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Sagarmala Development Company Limited' THEN 1 ELSE 0 END) AS [SDCL],
+//             -- Counting cases per organization
+//             SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Andaman, Lakshadweep Harbour Works' THEN 1 ELSE 0 END) AS [ALHW],
+//             SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Cochin Shipyard Limited' THEN 1 ELSE 0 END) AS [CSL],
+//             SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Dredging Corporation of India' THEN 1 ELSE 0 END) AS [DCI],
+//             SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Directorate General of Lighthouses and Lightships' THEN 1 ELSE 0 END) AS [DGLL],
+//             SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Directorate General of Shipping, Mumbai' THEN 1 ELSE 0 END) AS [DGS],
+//             SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Indian Maritime University' THEN 1 ELSE 0 END) AS [IMU],
+//             SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Indian Ports Rail Corporation Limited' THEN 1 ELSE 0 END) AS [IPRCL],
+//             SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Inland Waterways Authority of India' THEN 1 ELSE 0 END) AS [IWAI],
+//             SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Shipping Corporation of India' THEN 1 ELSE 0 END) AS [SCI],
+//             SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Sagarmala Development Company Limited' THEN 1 ELSE 0 END) AS [SDCL],
             
-            -- Calculate total count of cases across all organizations
-            SUM(
-                CASE WHEN tbl_litigation_cases.organisation_name IN 
-                    ('Andaman, Lakshadweep Harbour Works', 'Cochin Shipyard Limited', 'Dredging Corporation of India', 'Directorate General of Lighthouses and Lightships',
-                    'Directorate General of Shipping, Mumbai', 'Indian Maritime University', 'Indian Ports Rail Corporation Limited', 'Inland Waterways Authority of India', 
-                    'Shipping Corporation of India', 'Sagarmala Development Company Limited') 
-                THEN 1 ELSE 0 END
-            ) AS [Total]
-        FROM 
-            -- mmt_sub_domain is being left joined with tbl_litigation_cases
-            mmt_sub_domain
-        LEFT JOIN 
-            tbl_litigation_cases ON mmt_sub_domain.sub_domain_id = tbl_litigation_cases.sub_domain AND (tbl_litigation_cases.stage_id IS NULL OR tbl_litigation_cases.stage_id <> 7)
+//             -- Calculate total count of cases across all organizations
+//             SUM(
+//                 CASE WHEN tbl_litigation_cases.organisation_name IN 
+//                     ('Andaman, Lakshadweep Harbour Works', 'Cochin Shipyard Limited', 'Dredging Corporation of India', 'Directorate General of Lighthouses and Lightships',
+//                     'Directorate General of Shipping, Mumbai', 'Indian Maritime University', 'Indian Ports Rail Corporation Limited', 'Inland Waterways Authority of India', 
+//                     'Shipping Corporation of India', 'Sagarmala Development Company Limited') 
+//                 THEN 1 ELSE 0 END
+//             ) AS [Total]
+//         FROM 
+//             -- mmt_sub_domain is being left joined with tbl_litigation_cases
+//             mmt_sub_domain
+//         LEFT JOIN 
+//             tbl_litigation_cases ON mmt_sub_domain.sub_domain_id = tbl_litigation_cases.sub_domain AND (tbl_litigation_cases.stage_id IS NULL OR tbl_litigation_cases.stage_id <> 7)
        
-        GROUP BY 
-            mmt_sub_domain.sub_domain_id, 
-            mmt_sub_domain.sub_domain_name
+//         GROUP BY 
+//             mmt_sub_domain.sub_domain_id, 
+//             mmt_sub_domain.sub_domain_name
 
-        -- UNION to include the cases where sub_domain is NULL in the tbl_litigation_cases table
-        UNION ALL
+//         -- UNION to include the cases where sub_domain is NULL in the tbl_litigation_cases table
+//         UNION ALL
 
-        SELECT 
-            NULL AS [Domain ID], -- NULL for sub_domain_id
-            'NULL' AS [Domain Name], -- 'NULL' as a string for sub_domain_name
-            -- For counting NULL sub_domain cases (only for the specified organizations)
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Andaman, Lakshadweep Harbour Works' THEN 1 ELSE 0 END) AS [ALHW],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Cochin Shipyard Limited' THEN 1 ELSE 0 END) AS [CSL],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Dredging Corporation of India' THEN 1 ELSE 0 END) AS [DCI],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Directorate General of Lighthouses and Lightships' THEN 1 ELSE 0 END) AS [DGLL],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Directorate General of Shipping, Mumbai' THEN 1 ELSE 0 END) AS [DGS],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Indian Maritime University' THEN 1 ELSE 0 END) AS [IMU],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Indian Ports Rail Corporation Limited' THEN 1 ELSE 0 END) AS [IPRCL],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Inland Waterways Authority of India' THEN 1 ELSE 0 END) AS [IWAI],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Shipping Corporation of India' THEN 1 ELSE 0 END) AS [SCI],
-            SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Sagarmala Development Company Limited' THEN 1 ELSE 0 END) AS [SDCL],
+//         SELECT 
+//             NULL AS [Domain ID], -- NULL for sub_domain_id
+//             'NULL' AS [Domain Name], -- 'NULL' as a string for sub_domain_name
+//             -- For counting NULL sub_domain cases (only for the specified organizations)
+//             SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Andaman, Lakshadweep Harbour Works' THEN 1 ELSE 0 END) AS [ALHW],
+//             SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Cochin Shipyard Limited' THEN 1 ELSE 0 END) AS [CSL],
+//             SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Dredging Corporation of India' THEN 1 ELSE 0 END) AS [DCI],
+//             SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Directorate General of Lighthouses and Lightships' THEN 1 ELSE 0 END) AS [DGLL],
+//             SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Directorate General of Shipping, Mumbai' THEN 1 ELSE 0 END) AS [DGS],
+//             SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Indian Maritime University' THEN 1 ELSE 0 END) AS [IMU],
+//             SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Indian Ports Rail Corporation Limited' THEN 1 ELSE 0 END) AS [IPRCL],
+//             SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Inland Waterways Authority of India' THEN 1 ELSE 0 END) AS [IWAI],
+//             SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Shipping Corporation of India' THEN 1 ELSE 0 END) AS [SCI],
+//             SUM(CASE WHEN tbl_litigation_cases.organisation_name = 'Sagarmala Development Company Limited' THEN 1 ELSE 0 END) AS [SDCL],
             
-            -- Total for NULL domains in tbl_litigation_cases for the specified organizations
-            SUM(
-                CASE WHEN tbl_litigation_cases.sub_domain IS NULL
-                    AND tbl_litigation_cases.organisation_name IN 
-                        ('Andaman, Lakshadweep Harbour Works', 'Cochin Shipyard Limited', 'Dredging Corporation of India', 'Directorate General of Lighthouses and Lightships',
-                    'Directorate General of Shipping, Mumbai', 'Indian Maritime University', 'Indian Ports Rail Corporation Limited', 'Inland Waterways Authority of India', 
-                    'Shipping Corporation of India', 'Sagarmala Development Company Limited') 
-                THEN 1 ELSE 0 END
-            ) AS [Total]
-        FROM 
-            tbl_litigation_cases
+//             -- Total for NULL domains in tbl_litigation_cases for the specified organizations
+//             SUM(
+//                 CASE WHEN tbl_litigation_cases.sub_domain IS NULL
+//                     AND tbl_litigation_cases.organisation_name IN 
+//                         ('Andaman, Lakshadweep Harbour Works', 'Cochin Shipyard Limited', 'Dredging Corporation of India', 'Directorate General of Lighthouses and Lightships',
+//                     'Directorate General of Shipping, Mumbai', 'Indian Maritime University', 'Indian Ports Rail Corporation Limited', 'Inland Waterways Authority of India', 
+//                     'Shipping Corporation of India', 'Sagarmala Development Company Limited') 
+//                 THEN 1 ELSE 0 END
+//             ) AS [Total]
+//         FROM 
+//             tbl_litigation_cases
      
-        WHERE 
-            tbl_litigation_cases.sub_domain IS NULL AND (tbl_litigation_cases.stage_id IS NULL OR tbl_litigation_cases.stage_id <> 7)
-        GROUP BY 
-            tbl_litigation_cases.sub_domain;
+//         WHERE 
+//             tbl_litigation_cases.sub_domain IS NULL AND (tbl_litigation_cases.stage_id IS NULL OR tbl_litigation_cases.stage_id <> 7)
+//         GROUP BY 
+//             tbl_litigation_cases.sub_domain;
 
-            `);
+//             `);
 
-        const rowData = result.recordset;
+//         const rowData = result.recordset;
 
-        if (rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available for this.' });
-        }
+//         if (rowData.length === 0) {
+//             return res.status(404).json({ error: 'No data available for this.' });
+//         }
     
-        let columnDefs = [
+//         let columnDefs = [
                 
-                {
-                    headerName: 'Sub Domain ID', 
-                    field: 'Sub Domain ID', 
-                    width: 100,
-                    hide: true
-                },
-                { 
-                    headerName: 'Sub Domain Name', 
-                    field: 'Sub Domain Name', 
-                    width: 350
-                },
+//                 {
+//                     headerName: 'Sub Domain ID', 
+//                     field: 'Sub Domain ID', 
+//                     width: 100,
+//                     hide: true
+//                 },
+//                 { 
+//                     headerName: 'Sub Domain Name', 
+//                     field: 'Sub Domain Name', 
+//                     width: 350
+//                 },
 
-                {
-            headerName: "Number of Active Cases",
-            headerClass: "headercenter",
-            cellStyle: { textAlign: 'center' },
+//                 {
+//             headerName: "Number of Active Cases",
+//             headerClass: "headercenter",
+//             cellStyle: { textAlign: 'center' },
 
-            children: [
-            { headerName: 'Andaman, Lakshadweep Harbour Works', field: 'ALHW',width: 400 },
-            { headerName: 'Cochin Shipyard Limited', field: 'CSL',width: 400 },
-            { headerName: 'Dredging Corporation of India', field: 'DCI',width: 400 },
-            { headerName: 'Directorate General of Lighthouses and Lightships', field: 'DGLL',width: 400 },
-            { headerName: 'Directorate General of Shipping, Mumbai', field: 'DGS',width: 400 },   
-            { headerName: 'Indian Maritime University', field: 'IMU',width: 400 },
-            { headerName: 'Indian Ports Rail Corporation Limited', field: 'IPRCL',width: 400 },
-            { headerName: 'Inland Waterways Authority of India', field: 'IWAI',width: 400},
-            { headerName: 'Shipping Corporation of India', field: 'SCI',width: 400 },
-            { headerName: 'Sagarmala Development Company Limited', field: 'SDCL',width: 400 },  
-            { headerName: 'Total', field: 'Total' },   
-           ]}];
+//             children: [
+//             { headerName: 'Andaman, Lakshadweep Harbour Works', field: 'ALHW',width: 400 },
+//             { headerName: 'Cochin Shipyard Limited', field: 'CSL',width: 400 },
+//             { headerName: 'Dredging Corporation of India', field: 'DCI',width: 400 },
+//             { headerName: 'Directorate General of Lighthouses and Lightships', field: 'DGLL',width: 400 },
+//             { headerName: 'Directorate General of Shipping, Mumbai', field: 'DGS',width: 400 },   
+//             { headerName: 'Indian Maritime University', field: 'IMU',width: 400 },
+//             { headerName: 'Indian Ports Rail Corporation Limited', field: 'IPRCL',width: 400 },
+//             { headerName: 'Inland Waterways Authority of India', field: 'IWAI',width: 400},
+//             { headerName: 'Shipping Corporation of India', field: 'SCI',width: 400 },
+//             { headerName: 'Sagarmala Development Company Limited', field: 'SDCL',width: 400 },  
+//             { headerName: 'Total', field: 'Total' },   
+//            ]}];
 
-        res.json({ columnDefs, rowData });
+//         res.json({ columnDefs, rowData });
 
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Internal Server Error');
-    }
+//     } catch (err) {
+//         console.error(err.message);
+//         res.status(500).send('Internal Server Error');
+//     }
 
-}
+// }
 
 const OTHER_ORGS = [
   { key: 'ALHW',  name: 'Andaman, Lakshadweep Harbour Works' },
@@ -2573,41 +1909,36 @@ async function checkCaseNumberExists(req, res) {
     const organisationID = req.params.organisationID;
     const caseNumber = req.params.caseNumber;
 
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input("organisationID", organisationID);
-    request.input("caseNumber", caseNumber);
-
     try {
+        const conn = await pool;
+        const request = conn.request();
+
+        request.input("organisationID", organisationID);
+        request.input("caseNumber", caseNumber);
+
         const result = await request.query(`
             SELECT TOP 1 case_id
             FROM tbl_litigation_cases
-            WHERE organisation_id = @organisationID 
-              AND case_number = @caseNumber
+            WHERE organisation_id = @organisationID
+              AND LOWER(LTRIM(RTRIM(case_number))) = LOWER(LTRIM(RTRIM(@caseNumber)))
         `);
 
-        if (result.recordset && result.recordset.length > 0) {
-            // Case number exists
-            return res.sendStatus(205);  // You can also return a JSON if needed
-        } else {
-            // Case number does not exist
-            return res.sendStatus(200);
-        }
-
+        return res.status(200).json({
+            exists: result.recordset.length > 0,
+            caseID: result.recordset[0]?.case_id ?? null,
+        });
     } catch (err) {
         console.error("Error: ", err);
-        return res.status(500).json({ message: 'Internal Server Error' });
+        return res.status(500).json({ message: "Internal Server Error" });
     }
 }
 
-export default {submitCaseStatus,getSubTableCourtCasesData,fileupload,counterAffidavitDocument,addCourtCaseInterimDetails,addCourtCaseHearingDetails,upload,fileUpload,getLastLitigationCaseNumber,addLitigationOtherCourtCaseOrg,
-    addLitigationPrevConnCases,addLitigationDetailsOfCounsel,createLitigationCourtCase,addMinistryDetailsOfCounsel,
-    ministryUploadDocument,ministryInterventionDocument,createMinistryIntervention,addCourtCaseOMDetails,
-    getMinistryUploadDocument,deleteMinistryInterventionDocument,deleteMinistryInterventionDoc,
-    deletecounterAffiDocument, getLitigationDomainReport, getLitigationSubDomainReport, getLitigationDomainAndSubDomainReport,
+export default {submitCaseStatus,getSubTableCourtCasesData,getLastLitigationCaseNumber,
+    createLitigationCourtCase,addMinistryDetailsOfCounsel,
+    createMinistryIntervention,addCourtCaseOMDetails,
+     getLitigationDomainReport, getLitigationSubDomainReport, getLitigationDomainAndSubDomainReport,
     getLitigationPendencyPortWiseReport, getLitigationPendencyDomainWiseReport,  getAllLitigationData,addLitigationPetitionerAndRespondent,getLitigationPetitionerAndRespondent,
-getLitigationDomainByOtherOrgReport,getLitigationSubDomainByOtherOrgReport,getLitigationDomainAndSubDomainByOtherOrgReport,getLitigatonPendencyOtherOrgWiseReport,
+    getLitigationDomainAndSubDomainByOtherOrgReport,getLitigatonPendencyOtherOrgWiseReport,
 getLitigatonPendencyDomainWiseOtherOrgReport,checkCaseNumberExists
 }
 

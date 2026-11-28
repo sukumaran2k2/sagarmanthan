@@ -98,8 +98,6 @@ const SCHEMAS = {
             showIf: (v) => v.isMinistryParty === "1", options: ["Appellant", "Petitioner", "Respondent"] },
           { name: "replyFiled", label: "Is Reply Filed on behalf of Ministry?", type: "radio", required: true, span: 4,
             showIf: (v) => v.isMinistryParty === "1", options: YES_NO },
-          { name: "replyFiledDoc", label: "Upload Document", type: "file", span: 6,
-            showIf: (v) => v.isMinistryParty === "1" && v.replyFiled === "1" },
 
           { name: "ministryInvolved", label: "2. Any Act/Rules/Regulations/Guidelines/Schemes/Policies/OMs/Orders/Notifications challenged / invoked?",
             type: "radio", required: true, span: 12,
@@ -116,7 +114,7 @@ const SCHEMAS = {
             showIf: (v) => v.docChallenged === "Act" || v.docInvoked === "Act" },
           { name: "otherAct", label: "Other Acts Details", type: "text", span: 4,
             showIf: (v) => v.docChallenged === "Act" || v.docInvoked === "Act" },
-          { name: "omData", label: "OM Details", type: "table", span: 12,
+          { name: "courtCaseOMDetailsData", label: "OM Details", type: "table", span: 12,
             showIf: (v) => v.docChallenged === "OMS" || v.docInvoked === "OMS",
             columns: [
               { name: "ministryDept", label: "Ministry/Department", type: "text" },
@@ -137,8 +135,6 @@ const SCHEMAS = {
             showIf: (v) => v.ministryIntervention === "1" },
           { name: "intervenReqDate", label: "Intervention Request Date", type: "date", span: 6,
             showIf: (v) => v.ministryIntervention === "1" },
-          { name: "intervenDoc", label: "Upload Intervention Document", type: "file", span: 6,
-            showIf: (v) => v.ministryIntervention === "1" },
 
           { name: "actionMinistry", label: "4. Does execution require any action from the Ministry?", type: "radio", required: true, span: 12, options: YES_NO },
           { name: "actionDescribe", label: "Nature of Execution", type: "select", required: true, span: 6,
@@ -154,8 +150,6 @@ const SCHEMAS = {
         label: "Case Status",
         fields: [
           { name: "counterAffiFiled", label: "1. Counter Affidavit Filed", type: "radio", span: 6, options: YES_NO },
-          { name: "counterAffiDoc", label: "Upload Document", type: "file", span: 6,
-            showIf: (v) => v.counterAffiFiled === "1" },
           { name: "hearingStarted", label: "2. Hearing started?", type: "radio", span: 12, options: YES_NO },
           { name: "hearingData", label: "Hearings", type: "table", span: 12,
             showIf: (v) => v.hearingStarted === "1",
@@ -350,8 +344,6 @@ const SCHEMAS = {
               { name: "outcomeOfHearing", label: "Outcome of Hearing", type: "select", options: HEARING_OUTCOMES },
             ] },
           { name: "defenceStatement", label: "2. Defence Statement Filed", type: "radio", required: true, span: 6, options: YES_NO },
-          { name: "defenceDoc", label: "Upload Document", type: "file", span: 6,
-            showIf: (v) => v.defenceStatement === "1" },
           { name: "interimOrder", label: "3. Interim Order?", type: "radio", required: true, span: 12, options: YES_NO },
           { name: "interimData", label: "Interim Orders", type: "table", span: 12,
             showIf: (v) => v.interimOrder === "1",
@@ -550,15 +542,6 @@ function FieldRenderer({ f, values, setValue }) {
       break;
     case "table":
       control = <TableField f={f} rows={value} onChange={(rows) => setValue(f.name, rows)} />;
-      break;
-    case "file":
-      control = (
-        <>
-          <input type="file" accept=".pdf" className="cc-input"
-            onChange={(e) => setValue(f.name, e.target.files[0] || "")} />
-          <div className="cc-hint">Allows only PDF files (Maximum file size is 20MB)</div>
-        </>
-      );
       break;
     default:
       control = <Input f={f} value={value} onChange={(val) => setValue(f.name, val)} />;

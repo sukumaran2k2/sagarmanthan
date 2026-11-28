@@ -24,8 +24,11 @@ export const COURT_TYPES = [
   { value: COURT.OTHERS, label: "Others" },
 ];
 
-const isAct = (v) => v.docChallenged === "Act" || v.docInvoked === "Act";
-const isOM = (v) => v.docChallenged === "OMS" || v.docInvoked === "OMS";
+// the document picked for the current answer (a value left from the other answer is ignored)
+const pickedDoc = (v) =>
+  v.ministryInvolved === "1" ? v.docChallenged : v.ministryInvolved === "2" ? v.docInvoked : "";
+const isAct = (v) => pickedDoc(v) === "Act";
+export const isOM = (v) => pickedDoc(v) === "OMS";
 
 export const litigationSchema = {
   title: "Add Litigation Court Case",
@@ -112,8 +115,6 @@ export const litigationSchema = {
           showIf: (v) => v.isMinistryParty === "1", options: ["Appellant", "Petitioner", "Respondent"] },
         { name: "replyFiled", label: "Is Reply Filed on behalf of Ministry?", type: "radio", required: true, span: 4,
           showIf: (v) => v.isMinistryParty === "1", options: YES_NO },
-        { name: "replyFiledDoc", label: "Upload Document", type: "file", span: 6,
-          showIf: (v) => v.isMinistryParty === "1" && v.replyFiled === "1" },
 
         { name: "ministryInvolved", type: "radio", required: true, span: 12,
           label: "2. Any Act/Rules/Regulations/Guidelines/Schemes/Policies/OMs/Orders/Notifications challenged / invoked?",
@@ -127,7 +128,7 @@ export const litigationSchema = {
         { name: "act", label: "Act", type: "select", required: true, span: 4, options: [], showIf: isAct },
         { name: "rule", label: "Rule", type: "select", required: true, span: 4, options: [], showIf: isAct },
         { name: "otherAct", label: "Other Acts Details", type: "text", span: 4, showIf: isAct },
-        { name: "omData", label: "OM Details", type: "table", span: 12, showIf: isOM,
+        { name: "courtCaseOMDetailsData", label: "OM Details", type: "table", span: 12, showIf: isOM,
           columns: [
             { name: "ministryDept", label: "Ministry/Department", type: "text" },
             { name: "OMNumber", label: "OM Number", type: "text" },
@@ -147,8 +148,6 @@ export const litigationSchema = {
           showIf: (v) => v.ministryIntervention === "1" },
         { name: "intervenReqDate", label: "Intervention Request Date", type: "date", span: 6,
           showIf: (v) => v.ministryIntervention === "1" },
-        { name: "intervenDoc", label: "Upload Intervention Document", type: "file", span: 6,
-          showIf: (v) => v.ministryIntervention === "1" },
 
         { name: "actionMinistry", label: "4. Does execution require any action from the Ministry?", type: "radio", required: true, span: 12, options: YES_NO },
         { name: "actionDescribe", label: "Nature of Execution", type: "select", required: true, span: 6,
@@ -166,9 +165,6 @@ export const litigationSchema = {
       label: "Case Status",
       fields: [
         { name: "counterAffiFiled", label: "1. Counter Affidavit Filed", type: "radio", required: true, span: 6, options: YES_NO },
-        { name: "counterAffiDoc", label: "Upload Document", type: "file", span: 6,
-          existingKey: "counterAffiDocName", existingPath: "file_of_affidavit/Litigation",
-          showIf: (v) => v.counterAffiFiled === "1" },
 
         { name: "hearingStarted", label: "2. Hearing started?", type: "radio", required: true, span: 12, options: YES_NO },
         { name: "hearingData", label: "Hearings", type: "table", span: 12,
