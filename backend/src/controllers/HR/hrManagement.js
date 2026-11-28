@@ -27,60 +27,6 @@ const upload = multer({
     limits: { fileSize: 10000000 }  
 });
 
-async function getOrganisationCode(req, res) {
-    const organisationId = req.params.organisationId;
-
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input("organisationId", organisationId);
-
-    try {
-        const result = await request.query(`SELECT organisation_code FROM mmt_organisation WHERE organisation_id = @organisationId`);
-        res.json(result.recordset);
-    } catch (err) {
-        ////console.log(err);
-        return res.status(500).json({message:"Internal Server Error",error:err});
-    }
-
-};
-
-async function getDepartmentId(req, res) {
-    const postId = req.params.postId;
-
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input("postId", postId);
-
-    try {
-        const result = await request.query(`SELECT department_id FROM tbl_hr_post WHERE post_id = @postId`);
-        res.json(result.recordset);
-    } catch (err) {
-        ////console.log(err);
-        return res.status(500).json({message:"Internal Server Error",error:err});
-    }
-
-}
-
-async function checkPostCode(req, res) {
-    const Id = req.params.Id;
-
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input("Id", Id);
-
-    try {
-        const result = await request.query(`SELECT COUNT(*) as number FROM tbl_hr_post_strength WHERE post_code = @Id`);
-        res.json(result.recordset);
-    } catch (err) {
-        ////console.log(err);
-        return res.status(500).json({message:"Internal Server Error",error:err});
-    }
-
-}
-
 async function addRevivePost(req, res) {
     const postCode = req.body.postCode;
     let dateOfApproval = req.body.dateOfApproval;
@@ -151,329 +97,329 @@ async function addRevivePost(req, res) {
 }
 
 
-async function addPostStrengthDetail(req, res) {
-    const userID = req.body.userID;
-    const postCode = req.body.postCode;
-    const postId = req.body.postId;
-    const stageId = req.body.stage_id;
-    const vacantFilled = req.body.vacantFilled;
-    const exceptionAbolish = req.body.exceptionAbolish;
-    let vacancyDate = req.body.vacancyDate;
-    const toBeFilledThrough = req.body.toBeFilledThrough;
-    let employeeJoiningDate = req.body.employeeJoining;
-    const nameOfEmployee = req.body.nameOfEmployee;
-    // const processNotInitiated = req.body.processNotInitiated;
-    // let processNotInitiatedDate = req.body.processNotInitiatedDate;
-    const processInitiatedNoNotification = req.body.processInitiatedNoNotification;
-    // let processInitiatedNoNotificationDate = req.body.processInitiatedNoNotificationDate;
-    // const processNotStarted = req.body.processNotStarted;
-    // let processNotStartedDate = req.body.processNotStartedDate;
-    const processStartedNoAdvertisement = req.body.processStartedNoAdvertisement;
-    // let processStartedNoAdvertisementDate = req.body.processStartedNoAdvertisementDate;
-    const notificationIssued = req.body.notificationIssued;
-    let notificationIssuedDate = req.body.notificationIssuedDate;
-    const examCompleted = req.body.examCompleted;
-    let examCompletedDate = req.body.examCompletedDate;
-    const resultDeclared = req.body.resultDeclared;
-    let resultDeclaredDate = req.body.resultDeclaredDate;
-    const appointmentLetterIssued = req.body.appointmentLetterIssued;
-    let appointmentLetterIssuedDate = req.body.appointmentLetterIssuedDate;
-    const applicationReceived = req.body.applicationReceived;
-    let applicationReceivedDate = req.body.applicationReceivedDate;
-    const reviewByCommittee = req.body.reviewByCommittee;
-    let reviewByCommitteeDate = req.body.reviewByCommitteeDate;
-    const approvalReceived = req.body.approvalReceived;
-    let approvalReceivedDate = req.body.approvalReceivedDate;
-    const orderIssued = req.body.orderIssued;
-    let orderIssuedDate = req.body.orderIssuedDate;
-    const processInitiatedVCNotReceived = req.body.processInitiatedVCNotReceived;
-    // let processInitiatedVCNotReceivedDate = req.body.processInitiatedVCNotReceivedDate;
-    const vigilanceClearanceReceived = req.body.vigilanceClearanceReceived;
-    let vigilanceClearanceReceivedDate = req.body.vigilanceClearanceReceivedDate;
-    const dpcConducted = req.body.dpcConducted;
-    let dpcConductedDate = req.body.dpcConductedDate;
-    const approvalCompetentAuthority = req.body.approvalCompetentAuthority;
-    let approvalCompetentAuthorityDate = req.body.approvalCompetentAuthorityDate;
-    const promotionOrderIssued = req.body.promotionOrderIssued;
-    let promotionOrderIssuedDate = req.body.promotionOrderIssuedDate;
-    const employeesJoined = req.body.employeesJoined;
-    let employeesJoinedDate = req.body.employeesJoinedDate;
-    let recruitmentAgencyName = req.body.recruitmentAgencyName;
-    let organisationName = req.body.organisationName;
-    let organisationId = req.body.organisationId;
-    const transferredFrom = req.body.transferredFrom;
-    let transferredOn = req.body.transferredOn;
+// async function addPostStrengthDetail(req, res) {
+//     const userID = req.body.userID;
+//     const postCode = req.body.postCode;
+//     const postId = req.body.postId;
+//     const stageId = req.body.stage_id;
+//     const vacantFilled = req.body.vacantFilled;
+//     const exceptionAbolish = req.body.exceptionAbolish;
+//     let vacancyDate = req.body.vacancyDate;
+//     const toBeFilledThrough = req.body.toBeFilledThrough;
+//     let employeeJoiningDate = req.body.employeeJoining;
+//     const nameOfEmployee = req.body.nameOfEmployee;
+//     // const processNotInitiated = req.body.processNotInitiated;
+//     // let processNotInitiatedDate = req.body.processNotInitiatedDate;
+//     const processInitiatedNoNotification = req.body.processInitiatedNoNotification;
+//     // let processInitiatedNoNotificationDate = req.body.processInitiatedNoNotificationDate;
+//     // const processNotStarted = req.body.processNotStarted;
+//     // let processNotStartedDate = req.body.processNotStartedDate;
+//     const processStartedNoAdvertisement = req.body.processStartedNoAdvertisement;
+//     // let processStartedNoAdvertisementDate = req.body.processStartedNoAdvertisementDate;
+//     const notificationIssued = req.body.notificationIssued;
+//     let notificationIssuedDate = req.body.notificationIssuedDate;
+//     const examCompleted = req.body.examCompleted;
+//     let examCompletedDate = req.body.examCompletedDate;
+//     const resultDeclared = req.body.resultDeclared;
+//     let resultDeclaredDate = req.body.resultDeclaredDate;
+//     const appointmentLetterIssued = req.body.appointmentLetterIssued;
+//     let appointmentLetterIssuedDate = req.body.appointmentLetterIssuedDate;
+//     const applicationReceived = req.body.applicationReceived;
+//     let applicationReceivedDate = req.body.applicationReceivedDate;
+//     const reviewByCommittee = req.body.reviewByCommittee;
+//     let reviewByCommitteeDate = req.body.reviewByCommitteeDate;
+//     const approvalReceived = req.body.approvalReceived;
+//     let approvalReceivedDate = req.body.approvalReceivedDate;
+//     const orderIssued = req.body.orderIssued;
+//     let orderIssuedDate = req.body.orderIssuedDate;
+//     const processInitiatedVCNotReceived = req.body.processInitiatedVCNotReceived;
+//     // let processInitiatedVCNotReceivedDate = req.body.processInitiatedVCNotReceivedDate;
+//     const vigilanceClearanceReceived = req.body.vigilanceClearanceReceived;
+//     let vigilanceClearanceReceivedDate = req.body.vigilanceClearanceReceivedDate;
+//     const dpcConducted = req.body.dpcConducted;
+//     let dpcConductedDate = req.body.dpcConductedDate;
+//     const approvalCompetentAuthority = req.body.approvalCompetentAuthority;
+//     let approvalCompetentAuthorityDate = req.body.approvalCompetentAuthorityDate;
+//     const promotionOrderIssued = req.body.promotionOrderIssued;
+//     let promotionOrderIssuedDate = req.body.promotionOrderIssuedDate;
+//     const employeesJoined = req.body.employeesJoined;
+//     let employeesJoinedDate = req.body.employeesJoinedDate;
+//     let recruitmentAgencyName = req.body.recruitmentAgencyName;
+//     let organisationName = req.body.organisationName;
+//     let organisationId = req.body.organisationId;
+//     const transferredFrom = req.body.transferredFrom;
+//     let transferredOn = req.body.transferredOn;
 
-    if (vacancyDate == "") {
-        vacancyDate = null;
-    }
-    if (transferredOn == "") {
-        transferredOn = null;
-    }
+//     if (vacancyDate == "") {
+//         vacancyDate = null;
+//     }
+//     if (transferredOn == "") {
+//         transferredOn = null;
+//     }
 
-    if (employeeJoiningDate == "") {
-        employeeJoiningDate = null;
-    }
+//     if (employeeJoiningDate == "") {
+//         employeeJoiningDate = null;
+//     }
 
-    if (notificationIssuedDate == "") {
-        notificationIssuedDate = null;
-    }
+//     if (notificationIssuedDate == "") {
+//         notificationIssuedDate = null;
+//     }
 
-    if (examCompletedDate == "") {
-        examCompletedDate = null;
-    }
+//     if (examCompletedDate == "") {
+//         examCompletedDate = null;
+//     }
 
-    if (resultDeclaredDate == "") {
-        resultDeclaredDate = null;
-    }
+//     if (resultDeclaredDate == "") {
+//         resultDeclaredDate = null;
+//     }
 
-    if (appointmentLetterIssuedDate == "") {
-        appointmentLetterIssuedDate = null;
-    }
+//     if (appointmentLetterIssuedDate == "") {
+//         appointmentLetterIssuedDate = null;
+//     }
 
-    if (applicationReceivedDate == "") {
-        applicationReceivedDate = null;
-    }
+//     if (applicationReceivedDate == "") {
+//         applicationReceivedDate = null;
+//     }
 
-    if (reviewByCommitteeDate == "") {
-        reviewByCommitteeDate = null;
-    }
+//     if (reviewByCommitteeDate == "") {
+//         reviewByCommitteeDate = null;
+//     }
 
-    if (approvalReceivedDate == "") {
-        approvalReceivedDate = null;
-    }
+//     if (approvalReceivedDate == "") {
+//         approvalReceivedDate = null;
+//     }
 
-    if (orderIssuedDate == "") {
-        orderIssuedDate = null;
-    }
+//     if (orderIssuedDate == "") {
+//         orderIssuedDate = null;
+//     }
 
-    if (vigilanceClearanceReceivedDate == "") {
-        vigilanceClearanceReceivedDate = null;
-    }
+//     if (vigilanceClearanceReceivedDate == "") {
+//         vigilanceClearanceReceivedDate = null;
+//     }
 
-    if (dpcConductedDate == "") {
-        dpcConductedDate = null;
-    }
+//     if (dpcConductedDate == "") {
+//         dpcConductedDate = null;
+//     }
 
-    if (approvalCompetentAuthorityDate == "") {
-        approvalCompetentAuthorityDate = null;
-    }
+//     if (approvalCompetentAuthorityDate == "") {
+//         approvalCompetentAuthorityDate = null;
+//     }
 
-    if (promotionOrderIssuedDate == "") {
-        promotionOrderIssuedDate = null;
-    }
+//     if (promotionOrderIssuedDate == "") {
+//         promotionOrderIssuedDate = null;
+//     }
 
-    if (employeesJoinedDate == "") {
-        employeesJoinedDate = null;
-    }
+//     if (employeesJoinedDate == "") {
+//         employeesJoinedDate = null;
+//     }
 
-    const conn = await pool;
-    const request = conn.request();
+//     const conn = await pool;
+//     const request = conn.request();
 
-    request.input("userID", userID);
-    request.input("postCode", postCode);
-    request.input("postId", postId);
-    request.input("stageId", stageId);
-    request.input("vacantFilled", vacantFilled);
-    request.input("exceptionAbolish", exceptionAbolish);
-    request.input("employeeJoiningDate", employeeJoiningDate);
-    request.input("vacancyDate", vacancyDate);
-    request.input("toBeFilledThrough", toBeFilledThrough);
-    request.input("nameOfEmployee", nameOfEmployee);
-    request.input("processInitiatedNoNotification", processInitiatedNoNotification);
-    request.input("processStartedNoAdvertisement", processStartedNoAdvertisement);
-    request.input("notificationIssued", notificationIssued);
-    request.input("notificationIssuedDate", notificationIssuedDate);
-    request.input("examCompleted", examCompleted);
-    request.input("examCompletedDate", examCompletedDate);
-    request.input("resultDeclared", resultDeclared);
-    request.input("resultDeclaredDate", resultDeclaredDate);
-    request.input("appointmentLetterIssued", appointmentLetterIssued);
-    request.input("appointmentLetterIssuedDate", appointmentLetterIssuedDate);
-    request.input("applicationReceived", applicationReceived);
-    request.input("applicationReceivedDate", applicationReceivedDate);
-    request.input("reviewByCommittee", reviewByCommittee);
-    request.input("reviewByCommitteeDate", reviewByCommitteeDate);
-    request.input("approvalReceived", approvalReceived);
-    request.input("approvalReceivedDate", approvalReceivedDate);
-    request.input("orderIssued", orderIssued);
-    request.input("orderIssuedDate", orderIssuedDate);
-    request.input("processInitiatedVCNotReceived", processInitiatedVCNotReceived);
-    request.input("vigilanceClearanceReceived", vigilanceClearanceReceived);
-    request.input("vigilanceClearanceReceivedDate", vigilanceClearanceReceivedDate);
-    request.input("dpcConducted", dpcConducted);
-    request.input("dpcConductedDate", dpcConductedDate);
-    request.input("approvalCompetentAuthority", approvalCompetentAuthority);
-    request.input("approvalCompetentAuthorityDate", approvalCompetentAuthorityDate);
-    request.input("promotionOrderIssued", promotionOrderIssued);
-    request.input("promotionOrderIssuedDate", promotionOrderIssuedDate);
-    request.input("employeesJoined", employeesJoined);
-    request.input("employeesJoinedDate", employeesJoinedDate);
-    request.input("recruitmentAgencyName", recruitmentAgencyName);
-    request.input("organisationName", organisationName);
-    request.input("organisationId", organisationId);
-    request.input("transferredFrom", transferredFrom);
-    request.input("transferredOn", transferredOn);
+//     request.input("userID", userID);
+//     request.input("postCode", postCode);
+//     request.input("postId", postId);
+//     request.input("stageId", stageId);
+//     request.input("vacantFilled", vacantFilled);
+//     request.input("exceptionAbolish", exceptionAbolish);
+//     request.input("employeeJoiningDate", employeeJoiningDate);
+//     request.input("vacancyDate", vacancyDate);
+//     request.input("toBeFilledThrough", toBeFilledThrough);
+//     request.input("nameOfEmployee", nameOfEmployee);
+//     request.input("processInitiatedNoNotification", processInitiatedNoNotification);
+//     request.input("processStartedNoAdvertisement", processStartedNoAdvertisement);
+//     request.input("notificationIssued", notificationIssued);
+//     request.input("notificationIssuedDate", notificationIssuedDate);
+//     request.input("examCompleted", examCompleted);
+//     request.input("examCompletedDate", examCompletedDate);
+//     request.input("resultDeclared", resultDeclared);
+//     request.input("resultDeclaredDate", resultDeclaredDate);
+//     request.input("appointmentLetterIssued", appointmentLetterIssued);
+//     request.input("appointmentLetterIssuedDate", appointmentLetterIssuedDate);
+//     request.input("applicationReceived", applicationReceived);
+//     request.input("applicationReceivedDate", applicationReceivedDate);
+//     request.input("reviewByCommittee", reviewByCommittee);
+//     request.input("reviewByCommitteeDate", reviewByCommitteeDate);
+//     request.input("approvalReceived", approvalReceived);
+//     request.input("approvalReceivedDate", approvalReceivedDate);
+//     request.input("orderIssued", orderIssued);
+//     request.input("orderIssuedDate", orderIssuedDate);
+//     request.input("processInitiatedVCNotReceived", processInitiatedVCNotReceived);
+//     request.input("vigilanceClearanceReceived", vigilanceClearanceReceived);
+//     request.input("vigilanceClearanceReceivedDate", vigilanceClearanceReceivedDate);
+//     request.input("dpcConducted", dpcConducted);
+//     request.input("dpcConductedDate", dpcConductedDate);
+//     request.input("approvalCompetentAuthority", approvalCompetentAuthority);
+//     request.input("approvalCompetentAuthorityDate", approvalCompetentAuthorityDate);
+//     request.input("promotionOrderIssued", promotionOrderIssued);
+//     request.input("promotionOrderIssuedDate", promotionOrderIssuedDate);
+//     request.input("employeesJoined", employeesJoined);
+//     request.input("employeesJoinedDate", employeesJoinedDate);
+//     request.input("recruitmentAgencyName", recruitmentAgencyName);
+//     request.input("organisationName", organisationName);
+//     request.input("organisationId", organisationId);
+//     request.input("transferredFrom", transferredFrom);
+//     request.input("transferredOn", transferredOn);
 
-    try {
-        const checkResult = await request.query(`
-            SELECT * FROM tbl_hr_post_strength
-            WHERE post_code = @postCode
-        `);
+//     try {
+//         const checkResult = await request.query(`
+//             SELECT * FROM tbl_hr_post_strength
+//             WHERE post_code = @postCode
+//         `);
 
-        if (checkResult.recordset.length > 0) {
-            const updateResult = await request.query(`
-                UPDATE tbl_hr_post_strength
-                SET
-                    vacant_or_filled = @vacantFilled,
-                    exception_abolish = @exceptionAbolish,
-                    date_of_arise_in_vacancy = @vacancyDate,
-                    to_be_filled_through = @toBeFilledThrough,
-                    employee_joining_date = @employeeJoiningDate,
-                    name_of_employee = @nameOfEmployee,
-                    process_initiated_notification_yet_to_be_issued = @processInitiatedNoNotification,
-                    process_started_advertisement_yet = @processStartedNoAdvertisement,
-                    notification_issued = @notificationIssued,
-                    notification_issued_date = @notificationIssuedDate,
-                    exam_conducted = @examCompleted,
-                    exam_conducted_date = @examCompletedDate,
-                    result_declared = @resultDeclared,
-                    result_declared_date = @resultDeclaredDate,
-                    appointment_letter_issued = @appointmentLetterIssued,
-                    appointment_letter_issued_date = @appointmentLetterIssuedDate,
-                    application_received = @applicationReceived,
-                    application_received_date = @applicationReceivedDate,
-                    review_of_application = @reviewByCommittee,
-                    review_of_application_date = @reviewByCommitteeDate,
-                    approval_received = @approvalReceived,
-                    approval_received_date = @approvalReceivedDate,
-                    order_issued = @orderIssued,
-                    order_issued_date = @orderIssuedDate,
-                    process_initiated_vc_not_received = @processInitiatedVCNotReceived,
-                    vigilance_clearance_received = @vigilanceClearanceReceived,
-                    vigilance_clearance_received_date = @vigilanceClearanceReceivedDate,
-                    dpc_conducted = @dpcConducted,
-                    dpc_conducted_date = @dpcConductedDate,
-                    approval_by_competent_authority = @approvalCompetentAuthority,
-                    approval_by_competent_authority_date = @approvalCompetentAuthorityDate,
-                    promotion_order_issued = @promotionOrderIssued,
-                    promotion_order_issued_date = @promotionOrderIssuedDate,
-                    employees_joined = @employeesJoined,
-                    employees_joined_date = @employeesJoinedDate,
-                    recruitment_agency_name = @recruitmentAgencyName,
-                    stage_id = @stageId,
-                    updated_by = @userID,
-                    updated_date = getDate(),
-                    transferred_from =@transferredFrom,
-                    transferred_on = @transferredOn,
-                    organisation_name = @organisationName,
-                    organisation_id = @organisationId
-                WHERE post_code = @postCode
-            `);
-        } else {
-            const insertResult = await request.query(`
-                INSERT INTO tbl_hr_post_strength (
-                    post_code,
-                    post_id,
-                    vacant_or_filled,
-                    exception_abolish,
-                    date_of_arise_in_vacancy,
-                    to_be_filled_through,
-                    employee_joining_date,
-                    name_of_employee,
-                    process_initiated_notification_yet_to_be_issued,
-                    process_started_advertisement_yet,
-                    notification_issued,
-                    notification_issued_date,
-                    exam_conducted,
-                    exam_conducted_date,
-                    result_declared,
-                    result_declared_date,
-                    appointment_letter_issued,
-                    appointment_letter_issued_date,
-                    application_received,
-                    application_received_date,
-                    review_of_application,
-                    review_of_application_date,
-                    approval_received,
-                    approval_received_date,
-                    order_issued,
-                    order_issued_date,
-                    process_initiated_vc_not_received,
-                    vigilance_clearance_received,
-                    vigilance_clearance_received_date,
-                    dpc_conducted,
-                    dpc_conducted_date,
-                    approval_by_competent_authority,
-                    approval_by_competent_authority_date,
-                    promotion_order_issued,
-                    promotion_order_issued_date,
-                    employees_joined,
-                    employees_joined_date,
-                    recruitment_agency_name,
-                    transferred_from,
-                    transferred_on,
-                    stage_id,
-                    created_by,
-                    organisation_name,
-                    organisation_id
-                )
-                VALUES (
-                    @postCode,
-                    @postId,
-                    @vacantFilled,
-                    @exceptionAbolish,
-                    @vacancyDate,
-                    @toBeFilledThrough,
-                    @employeeJoiningDate,
-                    @nameOfEmployee,
-                    @processInitiatedNoNotification,
-                    @processStartedNoAdvertisement,
-                    @notificationIssued,
-                    @notificationIssuedDate,
-                    @examCompleted,
-                    @examCompletedDate,
-                    @resultDeclared,
-                    @resultDeclaredDate,
-                    @appointmentLetterIssued,
-                    @appointmentLetterIssuedDate,
-                    @applicationReceived,
-                    @applicationReceivedDate,
-                    @reviewByCommittee,
-                    @reviewByCommitteeDate,
-                    @approvalReceived,
-                    @approvalReceivedDate,
-                    @orderIssued,
-                    @orderIssuedDate,
-                    @processInitiatedVCNotReceived,
-                    @vigilanceClearanceReceived,
-                    @vigilanceClearanceReceivedDate,
-                    @dpcConducted,
-                    @dpcConductedDate,
-                    @approvalCompetentAuthority,
-                    @approvalCompetentAuthorityDate,
-                    @promotionOrderIssued,
-                    @promotionOrderIssuedDate,
-                    @employeesJoined,
-                    @employeesJoinedDate,
-                    @recruitmentAgencyName,
-                    @transferredFrom,
-                    @transferredOn,
-                    @stageId,
-                    @userID,
-                    @organisationName,
-                    @organisationId
+//         if (checkResult.recordset.length > 0) {
+//             const updateResult = await request.query(`
+//                 UPDATE tbl_hr_post_strength
+//                 SET
+//                     vacant_or_filled = @vacantFilled,
+//                     exception_abolish = @exceptionAbolish,
+//                     date_of_arise_in_vacancy = @vacancyDate,
+//                     to_be_filled_through = @toBeFilledThrough,
+//                     employee_joining_date = @employeeJoiningDate,
+//                     name_of_employee = @nameOfEmployee,
+//                     process_initiated_notification_yet_to_be_issued = @processInitiatedNoNotification,
+//                     process_started_advertisement_yet = @processStartedNoAdvertisement,
+//                     notification_issued = @notificationIssued,
+//                     notification_issued_date = @notificationIssuedDate,
+//                     exam_conducted = @examCompleted,
+//                     exam_conducted_date = @examCompletedDate,
+//                     result_declared = @resultDeclared,
+//                     result_declared_date = @resultDeclaredDate,
+//                     appointment_letter_issued = @appointmentLetterIssued,
+//                     appointment_letter_issued_date = @appointmentLetterIssuedDate,
+//                     application_received = @applicationReceived,
+//                     application_received_date = @applicationReceivedDate,
+//                     review_of_application = @reviewByCommittee,
+//                     review_of_application_date = @reviewByCommitteeDate,
+//                     approval_received = @approvalReceived,
+//                     approval_received_date = @approvalReceivedDate,
+//                     order_issued = @orderIssued,
+//                     order_issued_date = @orderIssuedDate,
+//                     process_initiated_vc_not_received = @processInitiatedVCNotReceived,
+//                     vigilance_clearance_received = @vigilanceClearanceReceived,
+//                     vigilance_clearance_received_date = @vigilanceClearanceReceivedDate,
+//                     dpc_conducted = @dpcConducted,
+//                     dpc_conducted_date = @dpcConductedDate,
+//                     approval_by_competent_authority = @approvalCompetentAuthority,
+//                     approval_by_competent_authority_date = @approvalCompetentAuthorityDate,
+//                     promotion_order_issued = @promotionOrderIssued,
+//                     promotion_order_issued_date = @promotionOrderIssuedDate,
+//                     employees_joined = @employeesJoined,
+//                     employees_joined_date = @employeesJoinedDate,
+//                     recruitment_agency_name = @recruitmentAgencyName,
+//                     stage_id = @stageId,
+//                     updated_by = @userID,
+//                     updated_date = getDate(),
+//                     transferred_from =@transferredFrom,
+//                     transferred_on = @transferredOn,
+//                     organisation_name = @organisationName,
+//                     organisation_id = @organisationId
+//                 WHERE post_code = @postCode
+//             `);
+//         } else {
+//             const insertResult = await request.query(`
+//                 INSERT INTO tbl_hr_post_strength (
+//                     post_code,
+//                     post_id,
+//                     vacant_or_filled,
+//                     exception_abolish,
+//                     date_of_arise_in_vacancy,
+//                     to_be_filled_through,
+//                     employee_joining_date,
+//                     name_of_employee,
+//                     process_initiated_notification_yet_to_be_issued,
+//                     process_started_advertisement_yet,
+//                     notification_issued,
+//                     notification_issued_date,
+//                     exam_conducted,
+//                     exam_conducted_date,
+//                     result_declared,
+//                     result_declared_date,
+//                     appointment_letter_issued,
+//                     appointment_letter_issued_date,
+//                     application_received,
+//                     application_received_date,
+//                     review_of_application,
+//                     review_of_application_date,
+//                     approval_received,
+//                     approval_received_date,
+//                     order_issued,
+//                     order_issued_date,
+//                     process_initiated_vc_not_received,
+//                     vigilance_clearance_received,
+//                     vigilance_clearance_received_date,
+//                     dpc_conducted,
+//                     dpc_conducted_date,
+//                     approval_by_competent_authority,
+//                     approval_by_competent_authority_date,
+//                     promotion_order_issued,
+//                     promotion_order_issued_date,
+//                     employees_joined,
+//                     employees_joined_date,
+//                     recruitment_agency_name,
+//                     transferred_from,
+//                     transferred_on,
+//                     stage_id,
+//                     created_by,
+//                     organisation_name,
+//                     organisation_id
+//                 )
+//                 VALUES (
+//                     @postCode,
+//                     @postId,
+//                     @vacantFilled,
+//                     @exceptionAbolish,
+//                     @vacancyDate,
+//                     @toBeFilledThrough,
+//                     @employeeJoiningDate,
+//                     @nameOfEmployee,
+//                     @processInitiatedNoNotification,
+//                     @processStartedNoAdvertisement,
+//                     @notificationIssued,
+//                     @notificationIssuedDate,
+//                     @examCompleted,
+//                     @examCompletedDate,
+//                     @resultDeclared,
+//                     @resultDeclaredDate,
+//                     @appointmentLetterIssued,
+//                     @appointmentLetterIssuedDate,
+//                     @applicationReceived,
+//                     @applicationReceivedDate,
+//                     @reviewByCommittee,
+//                     @reviewByCommitteeDate,
+//                     @approvalReceived,
+//                     @approvalReceivedDate,
+//                     @orderIssued,
+//                     @orderIssuedDate,
+//                     @processInitiatedVCNotReceived,
+//                     @vigilanceClearanceReceived,
+//                     @vigilanceClearanceReceivedDate,
+//                     @dpcConducted,
+//                     @dpcConductedDate,
+//                     @approvalCompetentAuthority,
+//                     @approvalCompetentAuthorityDate,
+//                     @promotionOrderIssued,
+//                     @promotionOrderIssuedDate,
+//                     @employeesJoined,
+//                     @employeesJoinedDate,
+//                     @recruitmentAgencyName,
+//                     @transferredFrom,
+//                     @transferredOn,
+//                     @stageId,
+//                     @userID,
+//                     @organisationName,
+//                     @organisationId
 
-                )
-            `);
-        }
+//                 )
+//             `);
+//         }
 
-        return res.sendStatus(201);
-    } catch (err) {
-        //console.error(err);
-        return res.status(500).json({message:"Internal Server Error",error:err});
-    }
-}
+//         return res.sendStatus(201);
+//     } catch (err) {
+//         //console.error(err);
+//         return res.status(500).json({message:"Internal Server Error",error:err});
+//     }
+// }
 
 async function getPostStrengthData(req, res) {
     const Id = req.params.Id;
@@ -492,216 +438,199 @@ async function getPostStrengthData(req, res) {
     }
 }
 
-async function getPostStrengthAbsoluteData(req, res) {
-    const Id = req.params.Id;
+// async function getPermanentAbolishedPost(req, res) {
+//     const conn = await pool;
+//     const request = conn.request();
 
-    const conn = await pool;
-    const request = conn.request();
+//     const currentYear = new Date().getFullYear();
+//     const financialYear = new Date().getMonth() > 3 ? `${currentYear}-${currentYear + 1}` : `${currentYear - 1}-${currentYear}`;
+//     const [startYear, endYear] = financialYear.split('-');
+//     const fiscalYearStart = `${startYear}-04-01`;
+//     const fiscalYearEnd = `${endYear}-03-31`;
+//     const previousYrEnd = `${startYear}-03-31`;
 
-    request.input("Id", Id);
+//     // Ministry / master scope see every organisation; organisation users only their own
+//     const { isWide, isOrganisation, organisationId } = getDataScope(req.user);
+//     let scopeSql = '';
+//     if (!isWide) {
+//         if (!isOrganisation || !(organisationId > 0)) return res.status(403).json({ message: "You may not view this data." });
+//         request.input("scopeOrganisationId", organisationId);
+//         scopeSql = 'AND h.organisation_id = @scopeOrganisationId';
+//     }
 
-    try {
-        const result = await request.query(`SELECT * FROM tbl_hr_post_strength WHERE post_id = @Id`);
-        res.json(result.recordset);
-    } catch (err) {
-        //console.log(err);
-        return res.status(500).json({message:"Internal Server Error",error:err});
-    }
-}
+//     try {
+//         const query1 = `
+//     SELECT
+//         d.department_name,
+//         h.post_code,
+//         h.updated_date,
+//         p.post_name,
+//         c.class AS class_name,
+//         h.date_of_arise_in_vacancy,
+//         h.revival_stage_id,
+//         h.revival_submission_date,
+//         h.order_of_revival_issued_date,
+//         o.organisation_name
+//     FROM
+//         [tbl_hr_post_strength] h
+//     LEFT JOIN
+//         mmt_organisation o ON o.organisation_id = h.organisation_id
+//     LEFT JOIN
+//         [mmt_hr_post] p ON h.post_id = p.post_id
+//     LEFT JOIN
+//         [mmt_hr_department] d ON p.department_id = d.department_id
+//     LEFT JOIN
+//         [mmt_class] c ON p.class_id = c.class_id
+//     WHERE
+//         ((h.vacant_or_filled='vacant' AND h.date_of_arise_in_vacancy < DATEADD(YEAR, -5, GETDATE())) OR h.revival_stage_id = 9)
+//         ${scopeSql};
+// `;
 
-async function getPermanentAbolishedPost(req, res) {
-    const conn = await pool;
-    const request = conn.request();
+// const [result1] = await Promise.all([
+//     request.query(query1)
+// ]);
 
-    const currentYear = new Date().getFullYear();
-    const financialYear = new Date().getMonth() > 3 ? `${currentYear}-${currentYear + 1}` : `${currentYear - 1}-${currentYear}`;
-    const [startYear, endYear] = financialYear.split('-');
-    const fiscalYearStart = `${startYear}-04-01`;
-    const fiscalYearEnd = `${endYear}-03-31`;
-    const previousYrEnd = `${startYear}-03-31`;
-
-    // Ministry / master scope see every organisation; organisation users only their own
-    const { isWide, isOrganisation, organisationId } = getDataScope(req.user);
-    let scopeSql = '';
-    if (!isWide) {
-        if (!isOrganisation || !(organisationId > 0)) return res.status(403).json({ message: "You may not view this data." });
-        request.input("scopeOrganisationId", organisationId);
-        scopeSql = 'AND h.organisation_id = @scopeOrganisationId';
-    }
-
-    try {
-        const query1 = `
-    SELECT
-        d.department_name,
-        h.post_code,
-        h.updated_date,
-        p.post_name,
-        c.class AS class_name,
-        h.date_of_arise_in_vacancy,
-        h.revival_stage_id,
-        h.revival_submission_date,
-        h.order_of_revival_issued_date,
-        o.organisation_name
-    FROM
-        [tbl_hr_post_strength] h
-    LEFT JOIN
-        mmt_organisation o ON o.organisation_id = h.organisation_id
-    LEFT JOIN
-        [mmt_hr_post] p ON h.post_id = p.post_id
-    LEFT JOIN
-        [mmt_hr_department] d ON p.department_id = d.department_id
-    LEFT JOIN
-        [mmt_class] c ON p.class_id = c.class_id
-    WHERE
-        ((h.vacant_or_filled='vacant' AND h.date_of_arise_in_vacancy < DATEADD(YEAR, -5, GETDATE())) OR h.revival_stage_id = 9)
-        ${scopeSql};
-`;
-
-const [result1] = await Promise.all([
-    request.query(query1)
-]);
-
-// Send both results in a single JSON object
-res.json({
-    query1Result: result1.recordset
-});
+// // Send both results in a single JSON object
+// res.json({
+//     query1Result: result1.recordset
+// });
 
 
-        // const result = await request.query(query);
-        // res.json(result.recordset);
-    } catch (err) {
-        //console.log(err);
-        return res.status(500).json({message:"Internal Server Error",error:err});
-    }
-}
+//         // const result = await request.query(query);
+//         // res.json(result.recordset);
+//     } catch (err) {
+//         //console.log(err);
+//         return res.status(500).json({message:"Internal Server Error",error:err});
+//     }
+// }
 
-async function getPermanentAbolishedPostOrg(req, res) {
-    const organisationId = req.params.organisationID;
+// async function getPermanentAbolishedPostOrg(req, res) {
+//     const organisationId = req.params.organisationID;
 
-    const currentYear = new Date().getFullYear();
-    const financialYear = new Date().getMonth() > 3 ? `${currentYear}-${currentYear + 1}` : `${currentYear - 1}-${currentYear}`;
-    const [startYear, endYear] = financialYear.split('-');
-    const fiscalYearStart = `${startYear}-04-01`;
-    const fiscalYearEnd = `${endYear}-03-31`;
-    const previousYrEnd = `${startYear}-03-31`;
+//     const currentYear = new Date().getFullYear();
+//     const financialYear = new Date().getMonth() > 3 ? `${currentYear}-${currentYear + 1}` : `${currentYear - 1}-${currentYear}`;
+//     const [startYear, endYear] = financialYear.split('-');
+//     const fiscalYearStart = `${startYear}-04-01`;
+//     const fiscalYearEnd = `${endYear}-03-31`;
+//     const previousYrEnd = `${startYear}-03-31`;
 
-    const conn = await pool;
-    const request = conn.request();
+//     const conn = await pool;
+//     const request = conn.request();
 
-    request.input("organisationId", organisationId);
+//     request.input("organisationId", organisationId);
 
-    try {
-            const query1 = `
-        SELECT
-            d.department_name,
-            h.post_code,
-            p.post_name,
-            c.class AS class_name,
-            h.date_of_arise_in_vacancy,
-            h.revival_stage_id,
-            h.revival_submission_date,
-            h.order_of_revival_issued_date,
-            h.updated_date,
-            o.organisation_name
-        FROM
-            [tbl_hr_post_strength] h
-        LEFT JOIN
-            mmt_organisation o ON o.organisation_id = h.organisation_id
-        LEFT JOIN
-            [mmt_hr_post] p ON h.post_id = p.post_id
-        LEFT JOIN
-            [mmt_hr_department] d ON p.department_id = d.department_id
-        LEFT JOIN
-            [mmt_class] c ON p.class_id = c.class_id
-        WHERE h.organisation_id = @organisationId
-            AND ((
-                (h.vacant_or_filled = 'vacant'
-                AND (h.exception_abolish IS NULL OR h.exception_abolish = 0)
-                AND h.date_of_arise_in_vacancy < DATEADD(YEAR, -5, GETDATE()))
-            ) OR h.revival_stage_id = 9)
-        ORDER BY h.revival_stage_id DESC
-    `;
+//     try {
+//             const query1 = `
+//         SELECT
+//             d.department_name,
+//             h.post_code,
+//             p.post_name,
+//             c.class AS class_name,
+//             h.date_of_arise_in_vacancy,
+//             h.revival_stage_id,
+//             h.revival_submission_date,
+//             h.order_of_revival_issued_date,
+//             h.updated_date,
+//             o.organisation_name
+//         FROM
+//             [tbl_hr_post_strength] h
+//         LEFT JOIN
+//             mmt_organisation o ON o.organisation_id = h.organisation_id
+//         LEFT JOIN
+//             [mmt_hr_post] p ON h.post_id = p.post_id
+//         LEFT JOIN
+//             [mmt_hr_department] d ON p.department_id = d.department_id
+//         LEFT JOIN
+//             [mmt_class] c ON p.class_id = c.class_id
+//         WHERE h.organisation_id = @organisationId
+//             AND ((
+//                 (h.vacant_or_filled = 'vacant'
+//                 AND (h.exception_abolish IS NULL OR h.exception_abolish = 0)
+//                 AND h.date_of_arise_in_vacancy < DATEADD(YEAR, -5, GETDATE()))
+//             ) OR h.revival_stage_id = 9)
+//         ORDER BY h.revival_stage_id DESC
+//     `;
 
-    const [result1] = await Promise.all([
-        request.query(query1)
-    ]);
+//     const [result1] = await Promise.all([
+//         request.query(query1)
+//     ]);
 
-    res.json({
-        query1Result: result1.recordset
-    });
+//     res.json({
+//         query1Result: result1.recordset
+//     });
 
-    } catch (err) {
-        //console.log(err);
-        return res.status(500).json({message:"Internal Server Error",error:err});
-    }
-}
-
-
-async function postReviveDate(req, res) {
-    const postCode = req.body.postCode;
-    const revivalDate = req.body.revivalDate;
-
-    const conn = await pool;
-    const request = conn.request();
+//     } catch (err) {
+//         //console.log(err);
+//         return res.status(500).json({message:"Internal Server Error",error:err});
+//     }
+// }
 
 
-    request.input("postCode", postCode);
-    request.input("revivalDate", revivalDate);
+// async function postReviveDate(req, res) {
+//     const postCode = req.body.postCode;
+//     const revivalDate = req.body.revivalDate;
 
-    try {
-        const result = await request.query(`INSERT  INTO tbl_hr_post_strength(revival_date) INTO VALUES(@revivalDate) WHERE post_code = @postCode`);
-        res.json(result.recordset);
-    } catch (err) {
-        //console.log(err);
-        return res.status(500).json({message:"Internal Server Error",error:err});
-    }
-}
+//     const conn = await pool;
+//     const request = conn.request();
+
+
+//     request.input("postCode", postCode);
+//     request.input("revivalDate", revivalDate);
+
+//     try {
+//         const result = await request.query(`INSERT  INTO tbl_hr_post_strength(revival_date) INTO VALUES(@revivalDate) WHERE post_code = @postCode`);
+//         res.json(result.recordset);
+//     } catch (err) {
+//         //console.log(err);
+//         return res.status(500).json({message:"Internal Server Error",error:err});
+//     }
+// }
 
 
 
 
 
-async function getFilledPost(req, res) {
-    const postId = req.params.postId;
+// async function getFilledPost(req, res) {
+//     const postId = req.params.postId;
 
-    const conn = await pool;
-    const request = conn.request();
+//     const conn = await pool;
+//     const request = conn.request();
 
-    request.input("postId", postId);
+//     request.input("postId", postId);
 
-    try {
-        const result = await request.query(`SELECT COUNT(*) AS numOfPostFilled
-        FROM tbl_hr_post_strength
-        WHERE post_id = @postId
-          AND vacant_or_filled = 'filled';
-        `);
-        res.json(result.recordset);
-    } catch (err) {
-        //console.log(err);
-        return res.status(500).json({message:"Internal Server Error",error:err});
-    }
-}
+//     try {
+//         const result = await request.query(`SELECT COUNT(*) AS numOfPostFilled
+//         FROM tbl_hr_post_strength
+//         WHERE post_id = @postId
+//           AND vacant_or_filled = 'filled';
+//         `);
+//         res.json(result.recordset);
+//     } catch (err) {
+//         //console.log(err);
+//         return res.status(500).json({message:"Internal Server Error",error:err});
+//     }
+// }
 
-async function getVacantPost(req, res) {
-    const postId = req.params.postId;
+// async function getVacantPost(req, res) {
+//     const postId = req.params.postId;
 
-    const conn = await pool;
-    const request = conn.request();
+//     const conn = await pool;
+//     const request = conn.request();
 
-    request.input("postId", postId);
+//     request.input("postId", postId);
 
-    try {
-        const result = await request.query(`SELECT COUNT(*) AS numOfPostVacant
-        FROM tbl_hr_post_strength
-        WHERE post_id = @postId
-          AND vacant_or_filled = 'vacant';
-        `);
-        res.json(result.recordset);
-    } catch (err) {
-        //console.log(err);
-        return res.status(500).json({message:"Internal Server Error",error:err});
-    }
-}
+//     try {
+//         const result = await request.query(`SELECT COUNT(*) AS numOfPostVacant
+//         FROM tbl_hr_post_strength
+//         WHERE post_id = @postId
+//           AND vacant_or_filled = 'vacant';
+//         `);
+//         res.json(result.recordset);
+//     } catch (err) {
+//         //console.log(err);
+//         return res.status(500).json({message:"Internal Server Error",error:err});
+//     }
+// }
 
 async function updateRevivePostApprovalDetails(req, res) {
 
@@ -783,248 +712,248 @@ async function updateRevivePostApprovalDetails(req, res) {
     }
 }
 
-async function addAnticipatedVancancies(req, res) {
-    const financialYr = req.body.financialYr;
-    const anticipatedVacancies = req.body.anticipatedVacancies;
-    const organisationID = req.body.organisationID;
-    const userId = req.body.userId;
-    let createdDate = new Date().toISOString().split('T')[0];
+// async function addAnticipatedVancancies(req, res) {
+//     const financialYr = req.body.financialYr;
+//     const anticipatedVacancies = req.body.anticipatedVacancies;
+//     const organisationID = req.body.organisationID;
+//     const userId = req.body.userId;
+//     let createdDate = new Date().toISOString().split('T')[0];
 
-    const conn = await pool;
-    const request = conn.request();
+//     const conn = await pool;
+//     const request = conn.request();
 
-    request.input("financialYr", financialYr);
-    request.input("organisationID", organisationID);
-    request.input("anticipatedVacancies", anticipatedVacancies);
-    request.input("userId", userId);
-    request.input("createdDate", createdDate);
-
-
-    try {
-        const checkResult = await request.query(`
-            SELECT * FROM tbl_hr_anticipated
-            WHERE fiscl_Yr = @financialYr AND organisation_id = @organisationID
-        `);
-
-        if (checkResult.recordset.length > 0) {
-            return res.status(200).send("Data already exists. Cannot insert.");
-        } else {
-            const insertResult = await request.query(`
-                INSERT INTO tbl_hr_anticipated (
-                    fiscl_yr,
-                    anticipated_vacancies_next_fy,
-                    organisation_id,
-                    created_date,
-                    created_by
-                )
-                VALUES (
-                    @financialYr,
-                    @anticipatedVacancies,
-                    @organisationID,
-                    @createdDate,
-                    @userId
-                )
-            `);
-            return res.sendStatus(201);
-        }
-    } catch (err) {
-        //console.error(err);
-        return res.status(500).json({message:"Internal Server Error",error:err});
-    }
-}
-
-async function updateAnticipatedVacancies(req, res) {
-    const financialYr = req.body.financialYr;
-    const anticipatedVacancies = req.body.anticipatedVacancies;
-    const organisationID = req.body.organisationID;
-    const userId = req.body.userId;
-    let updatedDate = new Date().toISOString().split('T')[0];
-
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input("financialYr", financialYr);
-    request.input("anticipatedVacancies", anticipatedVacancies);
-    request.input("organisationID", organisationID);
-    request.input("userId", userId);
-    request.input("updatedDate", updatedDate);
-
-    try {
-        const updateResult = await request.query(`
-            UPDATE tbl_hr_anticipated
-            SET
-                anticipated_vacancies_next_fy = @anticipatedVacancies,
-                updated_by = @userId,
-                updated_date = @updatedDate
-            WHERE fiscl_yr = @financialYr AND organisation_id = @organisationID
-        `);
-
-        if (updateResult.rowsAffected[0] === 0) {
-            return res.status(404).send("Data not found. Cannot update.");
-        }
-
-        return res.sendStatus(201);
-    } catch (err) {
-        //console.error(err);
-        return res.status(500).json({message:"Internal Server Error",error:err});
-    }
-}
-
-async function deleteAnticipatedVacancy(req, res) {
-    const anticipatedId = req.params.anticipatedId;
-
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input("anticipatedId", anticipatedId);
-
-    try {
-        const deleteResult = await request.query(`
-            DELETE FROM tbl_hr_anticipated
-            WHERE anticipated_id = @anticipatedId
-        `);
-
-        if (deleteResult.rowsAffected[0] === 0) {
-            return res.status(404).send("Data not found. Cannot delete.");
-        }
-
-        return res.sendStatus(201);
-    } catch (err) {
-        //console.error(err);
-        return res.status(500).json({message:"Internal Server Error",error:err});
-    }
-}
-
-async function deleteHrPostData(req, res) {
-    const postId = req.params.postId;
-    const postCode = req.params.postCode;
-
-    let successStatus;
-
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input("postId", postId);
-    request.input("postCode", postCode);
-
-    const basePostCode = postCode.slice(0, -1);
-    const postIndex = parseInt(postCode.slice(-1));
-    try {
-        const result = await request.query(
-            `SELECT sanctioned_strength FROM tbl_hr_post WHERE post_id = @postId`
-        );
-
-        const rows = result.recordset;
-
-        if (rows.length === 0) {
-            throw new Error("Post not found");
-        }
-
-        let strength = rows[0].sanctioned_strength;
-
-        if (postIndex === strength) {
-            await request.query(
-                `DELETE FROM tbl_hr_post_strength WHERE post_id = @postId AND post_code = @postCode AND vacant_or_filled!='filled'`
-            );
-
-            if (strength === 1 && postIndex === 1) {
-                successStatus = 200;
-                await request.query(
-                    `DELETE FROM tbl_hr_post WHERE post_id = @postId`
-                );
-            } else {
-                await request.input("newStrength", strength - 1).query(
-                    `UPDATE tbl_hr_post SET sanctioned_strength = @newStrength WHERE post_id = @postId`
-                );
-            }
-        } else {
-            await request.query(
-                `DELETE FROM tbl_hr_post_strength WHERE post_id = @postId AND post_code = @postCode AND vacant_or_filled!='filled'`
-            );
-            await request.input("newStrength", strength - 1).query(
-                `UPDATE tbl_hr_post SET sanctioned_strength = @newStrength WHERE post_id = @postId`
-            );
-
-            for (let i = postIndex; i < strength; i++) {
-                let oldPostCode = `${basePostCode}${i + 1}`;
-                let newPostCode = `${basePostCode}${i}`;
-
-                const updateRequest = conn.request();
-                await updateRequest.input("newPostCode", newPostCode)
-                    .input("oldPostCode", oldPostCode)
-                    .input("postId", postId)
-                    .query(
-                        `UPDATE tbl_hr_post_strength SET post_code = @newPostCode WHERE post_code = @oldPostCode AND post_id = @postId`
-                    );
-            }
-        }
-
-        let finalStatus = (successStatus) ? successStatus : 201;
-        return res.sendStatus(finalStatus);
-    } catch (err) {
-        //console.error(err);
-        return res.status(500).json({message:"Internal Server Error",error:err});
-    }
-}
+//     request.input("financialYr", financialYr);
+//     request.input("organisationID", organisationID);
+//     request.input("anticipatedVacancies", anticipatedVacancies);
+//     request.input("userId", userId);
+//     request.input("createdDate", createdDate);
 
 
+//     try {
+//         const checkResult = await request.query(`
+//             SELECT * FROM tbl_hr_anticipated
+//             WHERE fiscl_Yr = @financialYr AND organisation_id = @organisationID
+//         `);
+
+//         if (checkResult.recordset.length > 0) {
+//             return res.status(200).send("Data already exists. Cannot insert.");
+//         } else {
+//             const insertResult = await request.query(`
+//                 INSERT INTO tbl_hr_anticipated (
+//                     fiscl_yr,
+//                     anticipated_vacancies_next_fy,
+//                     organisation_id,
+//                     created_date,
+//                     created_by
+//                 )
+//                 VALUES (
+//                     @financialYr,
+//                     @anticipatedVacancies,
+//                     @organisationID,
+//                     @createdDate,
+//                     @userId
+//                 )
+//             `);
+//             return res.sendStatus(201);
+//         }
+//     } catch (err) {
+//         //console.error(err);
+//         return res.status(500).json({message:"Internal Server Error",error:err});
+//     }
+// }
+
+// async function updateAnticipatedVacancies(req, res) {
+//     const financialYr = req.body.financialYr;
+//     const anticipatedVacancies = req.body.anticipatedVacancies;
+//     const organisationID = req.body.organisationID;
+//     const userId = req.body.userId;
+//     let updatedDate = new Date().toISOString().split('T')[0];
+
+//     const conn = await pool;
+//     const request = conn.request();
+
+//     request.input("financialYr", financialYr);
+//     request.input("anticipatedVacancies", anticipatedVacancies);
+//     request.input("organisationID", organisationID);
+//     request.input("userId", userId);
+//     request.input("updatedDate", updatedDate);
+
+//     try {
+//         const updateResult = await request.query(`
+//             UPDATE tbl_hr_anticipated
+//             SET
+//                 anticipated_vacancies_next_fy = @anticipatedVacancies,
+//                 updated_by = @userId,
+//                 updated_date = @updatedDate
+//             WHERE fiscl_yr = @financialYr AND organisation_id = @organisationID
+//         `);
+
+//         if (updateResult.rowsAffected[0] === 0) {
+//             return res.status(404).send("Data not found. Cannot update.");
+//         }
+
+//         return res.sendStatus(201);
+//     } catch (err) {
+//         //console.error(err);
+//         return res.status(500).json({message:"Internal Server Error",error:err});
+//     }
+// }
+
+// async function deleteAnticipatedVacancy(req, res) {
+//     const anticipatedId = req.params.anticipatedId;
+
+//     const conn = await pool;
+//     const request = conn.request();
+
+//     request.input("anticipatedId", anticipatedId);
+
+//     try {
+//         const deleteResult = await request.query(`
+//             DELETE FROM tbl_hr_anticipated
+//             WHERE anticipated_id = @anticipatedId
+//         `);
+
+//         if (deleteResult.rowsAffected[0] === 0) {
+//             return res.status(404).send("Data not found. Cannot delete.");
+//         }
+
+//         return res.sendStatus(201);
+//     } catch (err) {
+//         //console.error(err);
+//         return res.status(500).json({message:"Internal Server Error",error:err});
+//     }
+// }
+
+// async function deleteHrPostData(req, res) {
+//     const postId = req.params.postId;
+//     const postCode = req.params.postCode;
+
+//     let successStatus;
+
+//     const conn = await pool;
+//     const request = conn.request();
+
+//     request.input("postId", postId);
+//     request.input("postCode", postCode);
+
+//     const basePostCode = postCode.slice(0, -1);
+//     const postIndex = parseInt(postCode.slice(-1));
+//     try {
+//         const result = await request.query(
+//             `SELECT sanctioned_strength FROM tbl_hr_post WHERE post_id = @postId`
+//         );
+
+//         const rows = result.recordset;
+
+//         if (rows.length === 0) {
+//             throw new Error("Post not found");
+//         }
+
+//         let strength = rows[0].sanctioned_strength;
+
+//         if (postIndex === strength) {
+//             await request.query(
+//                 `DELETE FROM tbl_hr_post_strength WHERE post_id = @postId AND post_code = @postCode AND vacant_or_filled!='filled'`
+//             );
+
+//             if (strength === 1 && postIndex === 1) {
+//                 successStatus = 200;
+//                 await request.query(
+//                     `DELETE FROM tbl_hr_post WHERE post_id = @postId`
+//                 );
+//             } else {
+//                 await request.input("newStrength", strength - 1).query(
+//                     `UPDATE tbl_hr_post SET sanctioned_strength = @newStrength WHERE post_id = @postId`
+//                 );
+//             }
+//         } else {
+//             await request.query(
+//                 `DELETE FROM tbl_hr_post_strength WHERE post_id = @postId AND post_code = @postCode AND vacant_or_filled!='filled'`
+//             );
+//             await request.input("newStrength", strength - 1).query(
+//                 `UPDATE tbl_hr_post SET sanctioned_strength = @newStrength WHERE post_id = @postId`
+//             );
+
+//             for (let i = postIndex; i < strength; i++) {
+//                 let oldPostCode = `${basePostCode}${i + 1}`;
+//                 let newPostCode = `${basePostCode}${i}`;
+
+//                 const updateRequest = conn.request();
+//                 await updateRequest.input("newPostCode", newPostCode)
+//                     .input("oldPostCode", oldPostCode)
+//                     .input("postId", postId)
+//                     .query(
+//                         `UPDATE tbl_hr_post_strength SET post_code = @newPostCode WHERE post_code = @oldPostCode AND post_id = @postId`
+//                     );
+//             }
+//         }
+
+//         let finalStatus = (successStatus) ? successStatus : 201;
+//         return res.sendStatus(finalStatus);
+//     } catch (err) {
+//         //console.error(err);
+//         return res.status(500).json({message:"Internal Server Error",error:err});
+//     }
+// }
 
 
-async function getAnticipatedVacancies(req, res) {
-    const organisationId = req.params.Id;
-    const conn = await pool;
-    const request = conn.request();
 
-    //console.log("org id", organisationId);
 
-    request.input("organisationId", organisationId);
+// async function getAnticipatedVacancies(req, res) {
+//     const organisationId = req.params.Id;
+//     const conn = await pool;
+//     const request = conn.request();
 
-    try {
-        const result = await request.query(`
-    SELECT 
-        *
-    FROM 
-        tbl_hr_anticipated
-    WHERE 
-        organisation_id = @organisationId
-        `);
-        res.json(result.recordset);
-    } catch (err) {
-        //console.log(err);
-        return res.status(500).json({message:"Internal Server Error",error:err});
-    }
-}
+//     //console.log("org id", organisationId);
 
-async function deleteHrDepartment(req, res) {
-    const deptID = req.params.deptID;
-    const orgID = req.params.orgID;
+//     request.input("organisationId", organisationId);
 
-    const conn = await pool;
-    const request = conn.request();
+//     try {
+//         const result = await request.query(`
+//     SELECT 
+//         *
+//     FROM 
+//         tbl_hr_anticipated
+//     WHERE 
+//         organisation_id = @organisationId
+//         `);
+//         res.json(result.recordset);
+//     } catch (err) {
+//         //console.log(err);
+//         return res.status(500).json({message:"Internal Server Error",error:err});
+//     }
+// }
 
-    request.input("deptID", deptID);
-    request.input("orgID", orgID);
+// async function deleteHrDepartment(req, res) {
+//     const deptID = req.params.deptID;
+//     const orgID = req.params.orgID;
 
-    try {
-        const deleteDepPostData = await request.query(`DELETE FROM tbl_hr_post_strength WHERE post_id IN (SELECT post_id FROM tbl_hr_post WHERE department_id= @deptID)`);
+//     const conn = await pool;
+//     const request = conn.request();
 
-        const deleteDepPost = await request.query(`DELETE FROM tbl_hr_post WHERE department_id =@deptID`);
+//     request.input("deptID", deptID);
+//     request.input("orgID", orgID);
 
-        const deletedep = await request.query(`
-            DELETE FROM tbl_hr_department
-            WHERE department_id = @deptID
-        `);
+//     try {
+//         const deleteDepPostData = await request.query(`DELETE FROM tbl_hr_post_strength WHERE post_id IN (SELECT post_id FROM tbl_hr_post WHERE department_id= @deptID)`);
 
-        if (deletedep.rowsAffected[0] === 0) {
-            return res.status(404).send("Department Data not found. Cannot delete.");
-        }
+//         const deleteDepPost = await request.query(`DELETE FROM tbl_hr_post WHERE department_id =@deptID`);
 
-        return res.sendStatus(201);
-    } catch (err) {
-        //console.error(err);
-        return res.status(500).json({message:"Internal Server Error",error:err});
-    }
-}
+//         const deletedep = await request.query(`
+//             DELETE FROM tbl_hr_department
+//             WHERE department_id = @deptID
+//         `);
+
+//         if (deletedep.rowsAffected[0] === 0) {
+//             return res.status(404).send("Department Data not found. Cannot delete.");
+//         }
+
+//         return res.sendStatus(201);
+//     } catch (err) {
+//         //console.error(err);
+//         return res.status(500).json({message:"Internal Server Error",error:err});
+//     }
+// }
 
 async function getHRAllData(req, res) {
     // Organisation users export their own organisation; ministry users the one requested
@@ -1186,28 +1115,28 @@ async function getHRAllEmployeeData(req, res) {
     }
 }
 
-async function getPostListByOrgId(req, res) {
-    const deptID = req.params.departmentId;
-    const orgID = req.params.organisationID;
+// async function getPostListByOrgId(req, res) {
+//     const deptID = req.params.departmentId;
+//     const orgID = req.params.organisationID;
 
-    const conn = await pool;
-    const request = conn.request();
+//     const conn = await pool;
+//     const request = conn.request();
 
-    request.input("deptID", deptID);
-    request.input("orgID", orgID);
-    try {
-        const result = await request.query(`
-            SELECT p.* FROM mmt_hr_post as p
-            JOIN mmt_hr_department as d on p.department_id = d.department_id
-            JOIN mmt_organisation as o ON o.organisation_id = p.organisation_id
-            WHERE p.organisation_id = @orgID and d.department_id =@deptID
-        `);
-        res.json(result.recordset);
-    } catch (err) {
-        //console.log(err);
-        return res.status(500).json({message:"Internal Server Error",error:err});
-    }
-}
+//     request.input("deptID", deptID);
+//     request.input("orgID", orgID);
+//     try {
+//         const result = await request.query(`
+//             SELECT p.* FROM mmt_hr_post as p
+//             JOIN mmt_hr_department as d on p.department_id = d.department_id
+//             JOIN mmt_organisation as o ON o.organisation_id = p.organisation_id
+//             WHERE p.organisation_id = @orgID and d.department_id =@deptID
+//         `);
+//         res.json(result.recordset);
+//     } catch (err) {
+//         //console.log(err);
+//         return res.status(500).json({message:"Internal Server Error",error:err});
+//     }
+// }
 
 async function addNewEmployee(req, res) {
     const conn = await pool;
@@ -1717,183 +1646,183 @@ async function editEmployeeDetails(req, res) {
   }
 }
 
-async function getDetailedSanctionedStrength(req, res) {
+// async function getDetailedSanctionedStrength(req, res) {
 
-    const conn = await pool;
-    const request = conn.request();
-    // Scope comes from the logged-in user, not the :userID in the URL
-    const userID = req.user?.userId;
-    request.input("userID",userID );
-    try {
-        const userResult = await request.query(` SELECT role_id,organisation_id FROM tbl_user WHERE user_id = @userID `);
-        if (!userResult.recordset.length) {
-            return res.status(403).json({ message: "Your account was not found." });
-        }
-        const { role_id,organisation_id  } = userResult.recordset[0];
-        let result;
-        if (await isWideRole(role_id)) {
-            result = await conn.query(`
-           SELECT
-                o.organisation_name,
-                d.department_name,
-                h.post_code,
-                p.post_name,
-                h.date_of_arise_in_vacancy,
-                h.vacant_or_filled,
-                h.method_of_appointment
-            FROM
-                [tbl_hr_post_strength] h
-            LEFT JOIN
-                mmt_organisation o ON o.organisation_id = h.organisation_id
-            LEFT JOIN
-                [mmt_hr_post] p ON h.post_id = p.post_id
-            LEFT JOIN
-                [mmt_hr_department] d ON p.department_id = d.department_id
-            `);
-        }else{
-            request.input("organisation_id", organisation_id);
-            result = await request.query(`
-            SELECT
-                o.organisation_name,
-                d.department_name,
-                h.post_code,
-                p.post_name,
-                h.date_of_arise_in_vacancy,
-                h.vacant_or_filled,
-                h.method_of_appointment
-            FROM
-                [tbl_hr_post_strength] h
-            LEFT JOIN
-                mmt_organisation o ON o.organisation_id = h.organisation_id
-            LEFT JOIN
-                [mmt_hr_post] p ON h.post_id = p.post_id
-            LEFT JOIN
-                [mmt_hr_department] d ON p.department_id = d.department_id
-                WHERE o.organisation_id = @organisation_id
-            `); 
-        }
-        res.status(200).json(result.recordset);
-    } catch (error) {
-        return res.status(500).json({error: "Internal Server Error" });
-    }
-}
+//     const conn = await pool;
+//     const request = conn.request();
+//     // Scope comes from the logged-in user, not the :userID in the URL
+//     const userID = req.user?.userId;
+//     request.input("userID",userID );
+//     try {
+//         const userResult = await request.query(` SELECT role_id,organisation_id FROM tbl_user WHERE user_id = @userID `);
+//         if (!userResult.recordset.length) {
+//             return res.status(403).json({ message: "Your account was not found." });
+//         }
+//         const { role_id,organisation_id  } = userResult.recordset[0];
+//         let result;
+//         if (await isWideRole(role_id)) {
+//             result = await conn.query(`
+//            SELECT
+//                 o.organisation_name,
+//                 d.department_name,
+//                 h.post_code,
+//                 p.post_name,
+//                 h.date_of_arise_in_vacancy,
+//                 h.vacant_or_filled,
+//                 h.method_of_appointment
+//             FROM
+//                 [tbl_hr_post_strength] h
+//             LEFT JOIN
+//                 mmt_organisation o ON o.organisation_id = h.organisation_id
+//             LEFT JOIN
+//                 [mmt_hr_post] p ON h.post_id = p.post_id
+//             LEFT JOIN
+//                 [mmt_hr_department] d ON p.department_id = d.department_id
+//             `);
+//         }else{
+//             request.input("organisation_id", organisation_id);
+//             result = await request.query(`
+//             SELECT
+//                 o.organisation_name,
+//                 d.department_name,
+//                 h.post_code,
+//                 p.post_name,
+//                 h.date_of_arise_in_vacancy,
+//                 h.vacant_or_filled,
+//                 h.method_of_appointment
+//             FROM
+//                 [tbl_hr_post_strength] h
+//             LEFT JOIN
+//                 mmt_organisation o ON o.organisation_id = h.organisation_id
+//             LEFT JOIN
+//                 [mmt_hr_post] p ON h.post_id = p.post_id
+//             LEFT JOIN
+//                 [mmt_hr_department] d ON p.department_id = d.department_id
+//                 WHERE o.organisation_id = @organisation_id
+//             `); 
+//         }
+//         res.status(200).json(result.recordset);
+//     } catch (error) {
+//         return res.status(500).json({error: "Internal Server Error" });
+//     }
+// }
 
 
-async function getDetailedTotalFilledPosts(req,res) {
-    const conn = await pool;
-    const request = conn.request();
-    const organisationID = req.params.organisationID;
-    request.input("organisationID",organisationID );
-    try {
-        let result = await request.query(`
-            SELECT
-                o.organisation_name,
-                d.department_name,
-                h.post_code,
-                p.post_name,
-                h.date_of_arise_in_vacancy,
-                h.vacant_or_filled,
-                m.emp_name,
-                m.emp_reference_id,
-                h.method_of_appointment
-            FROM
-                [tbl_hr_post_strength] h
-            LEFT JOIN
-                mmt_organisation o ON o.organisation_id = h.organisation_id
-            LEFT JOIN
-                [mmt_hr_post] p ON h.post_id = p.post_id
-            LEFT JOIN
-                tbl_employee_master m ON h.emp_master_id = m.emp_master_id
-            LEFT JOIN
-                [mmt_hr_department] d ON p.department_id = d.department_id
-                WHERE o.organisation_id = @organisationID AND h.vacant_or_filled = 'filled'
-            `); 
+// async function getDetailedTotalFilledPosts(req,res) {
+//     const conn = await pool;
+//     const request = conn.request();
+//     const organisationID = req.params.organisationID;
+//     request.input("organisationID",organisationID );
+//     try {
+//         let result = await request.query(`
+//             SELECT
+//                 o.organisation_name,
+//                 d.department_name,
+//                 h.post_code,
+//                 p.post_name,
+//                 h.date_of_arise_in_vacancy,
+//                 h.vacant_or_filled,
+//                 m.emp_name,
+//                 m.emp_reference_id,
+//                 h.method_of_appointment
+//             FROM
+//                 [tbl_hr_post_strength] h
+//             LEFT JOIN
+//                 mmt_organisation o ON o.organisation_id = h.organisation_id
+//             LEFT JOIN
+//                 [mmt_hr_post] p ON h.post_id = p.post_id
+//             LEFT JOIN
+//                 tbl_employee_master m ON h.emp_master_id = m.emp_master_id
+//             LEFT JOIN
+//                 [mmt_hr_department] d ON p.department_id = d.department_id
+//                 WHERE o.organisation_id = @organisationID AND h.vacant_or_filled = 'filled'
+//             `); 
         
-        res.status(200).json(result.recordset);
-    } catch (error) {
-        return res.status(500).json({error: "Internal Server Error" });
-    }
-}
+//         res.status(200).json(result.recordset);
+//     } catch (error) {
+//         return res.status(500).json({error: "Internal Server Error" });
+//     }
+// }
 
-async function getTotalVacantPosts(req,res) {
-    const conn = await pool;
-    const request = conn.request();
-    const organisationID = req.params.organisationID;
-    request.input("organisationID",organisationID );
-    try {
-        let result = await request.query(`
-            SELECT
-                o.organisation_name,
-                d.department_name,
-                h.post_code,
-                p.post_name,
-                h.date_of_arise_in_vacancy,
-                h.vacant_or_filled,
-                h.method_of_appointment
-            FROM
-                [tbl_hr_post_strength] h
-            LEFT JOIN
-                mmt_organisation o ON o.organisation_id = h.organisation_id
-            LEFT JOIN
-                [mmt_hr_post] p ON h.post_id = p.post_id
-            LEFT JOIN
-                [mmt_hr_department] d ON p.department_id = d.department_id
-            WHERE o.organisation_id = @organisationID 
-                AND h.vacant_or_filled = 'vacant'
-                AND h.date_of_arise_in_vacancy IS NOT NULL 
-                AND (
-                    ( (h.exception_abolish IS NULL OR h.exception_abolish = 0)
-                        AND DATEADD(YEAR, 5, h.date_of_arise_in_vacancy) > GETDATE()
-                    )
-                    OR h.exception_abolish = 1
-                )
-            `); 
+// async function getTotalVacantPosts(req,res) {
+//     const conn = await pool;
+//     const request = conn.request();
+//     const organisationID = req.params.organisationID;
+//     request.input("organisationID",organisationID );
+//     try {
+//         let result = await request.query(`
+//             SELECT
+//                 o.organisation_name,
+//                 d.department_name,
+//                 h.post_code,
+//                 p.post_name,
+//                 h.date_of_arise_in_vacancy,
+//                 h.vacant_or_filled,
+//                 h.method_of_appointment
+//             FROM
+//                 [tbl_hr_post_strength] h
+//             LEFT JOIN
+//                 mmt_organisation o ON o.organisation_id = h.organisation_id
+//             LEFT JOIN
+//                 [mmt_hr_post] p ON h.post_id = p.post_id
+//             LEFT JOIN
+//                 [mmt_hr_department] d ON p.department_id = d.department_id
+//             WHERE o.organisation_id = @organisationID 
+//                 AND h.vacant_or_filled = 'vacant'
+//                 AND h.date_of_arise_in_vacancy IS NOT NULL 
+//                 AND (
+//                     ( (h.exception_abolish IS NULL OR h.exception_abolish = 0)
+//                         AND DATEADD(YEAR, 5, h.date_of_arise_in_vacancy) > GETDATE()
+//                     )
+//                     OR h.exception_abolish = 1
+//                 )
+//             `); 
         
-        res.status(200).json(result.recordset);
-    } catch (error) {
-        console.log("error",error)
-        return res.status(500).json({error: "Internal Server Error" });
-    }
-}
+//         res.status(200).json(result.recordset);
+//     } catch (error) {
+//         console.log("error",error)
+//         return res.status(500).json({error: "Internal Server Error" });
+//     }
+// }
 
-async function getAbolishedVacantPosts(req,res) {
-    const conn = await pool;
-    const request = conn.request();
-    const organisationID = req.params.organisationID;
-    request.input("organisationID",organisationID );
-    try {
-        let result = await request.query(`
-            SELECT
-                o.organisation_name,
-                d.department_name,
-                h.post_code,
-                p.post_name,
-                h.date_of_arise_in_vacancy,
-                h.vacant_or_filled,
-                h.method_of_appointment
-            FROM
-                [tbl_hr_post_strength] h
-            LEFT JOIN
-                mmt_organisation o ON o.organisation_id = h.organisation_id
-            LEFT JOIN
-                [mmt_hr_post] p ON h.post_id = p.post_id
-            LEFT JOIN
-                [mmt_hr_department] d ON p.department_id = d.department_id
-            WHERE o.organisation_id = @organisationID 
-                AND h.vacant_or_filled = 'vacant'
-                AND h.date_of_arise_in_vacancy IS NOT NULL 
-                AND (
-                    ( (h.exception_abolish IS NULL OR h.exception_abolish = 0)
-                        AND DATEADD(YEAR, 5, h.date_of_arise_in_vacancy) <= GETDATE()
-                    )
-                )
-            `); 
+// async function getAbolishedVacantPosts(req,res) {
+//     const conn = await pool;
+//     const request = conn.request();
+//     const organisationID = req.params.organisationID;
+//     request.input("organisationID",organisationID );
+//     try {
+//         let result = await request.query(`
+//             SELECT
+//                 o.organisation_name,
+//                 d.department_name,
+//                 h.post_code,
+//                 p.post_name,
+//                 h.date_of_arise_in_vacancy,
+//                 h.vacant_or_filled,
+//                 h.method_of_appointment
+//             FROM
+//                 [tbl_hr_post_strength] h
+//             LEFT JOIN
+//                 mmt_organisation o ON o.organisation_id = h.organisation_id
+//             LEFT JOIN
+//                 [mmt_hr_post] p ON h.post_id = p.post_id
+//             LEFT JOIN
+//                 [mmt_hr_department] d ON p.department_id = d.department_id
+//             WHERE o.organisation_id = @organisationID 
+//                 AND h.vacant_or_filled = 'vacant'
+//                 AND h.date_of_arise_in_vacancy IS NOT NULL 
+//                 AND (
+//                     ( (h.exception_abolish IS NULL OR h.exception_abolish = 0)
+//                         AND DATEADD(YEAR, 5, h.date_of_arise_in_vacancy) <= GETDATE()
+//                     )
+//                 )
+//             `); 
         
-       res.status(200).json(result.recordset);
-    } catch (error) {
-        return res.status(500).json({error: "Internal Server Error" });
-    }
-}
+//        res.status(200).json(result.recordset);
+//     } catch (error) {
+//         return res.status(500).json({error: "Internal Server Error" });
+//     }
+// }
 
 async function updateActivityData(req, res) {
     const transaction = new sql.Transaction(await pool);
@@ -2209,11 +2138,11 @@ async function listAbolishedPostFilters(req, res) {
 }
 
 export default  {
-    getOrganisationCode, getPostStrengthAbsoluteData, getDepartmentId, checkPostCode, addRevivePost, addPostStrengthDetail,
-    getPostStrengthData, getFilledPost, getVacantPost, getPermanentAbolishedPostOrg, getPermanentAbolishedPost, postReviveDate,
-    updateRevivePostApprovalDetails, addAnticipatedVancancies, updateAnticipatedVacancies, getAnticipatedVacancies,
-    deleteAnticipatedVacancy, deleteHrPostData, deleteHrDepartment, getHRAllData, getHRAllEmployeeData,  getPostListByOrgId, addNewEmployee, editEmployeeDetails, upload,
-    getDetailedSanctionedStrength,getDetailedTotalFilledPosts,getTotalVacantPosts,getAbolishedVacantPosts,updateActivityData,getDeputationEndEmployees,
+    addRevivePost,
+    getPostStrengthData,
+    updateRevivePostApprovalDetails,
+    getHRAllData, getHRAllEmployeeData, addNewEmployee, editEmployeeDetails, upload,
+    updateActivityData,getDeputationEndEmployees,
     listAbolishedPosts, listAbolishedPostFilters
 };
 
