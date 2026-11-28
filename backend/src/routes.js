@@ -786,7 +786,7 @@ router.get("/court-case-consumer-typeID/:consumerTypeID", arbitCourtCaseTab.getC
 router.get("/court-case/:roleID/:organisationID", pinOwnRole(), pinOwnOrganisation(), arbitCourtCaseTab.getCourtCase);
 
 router.get("/court-case/:roleID/:organisationID", arbitCourtCaseTab.getCourtCase);
-router.get("/court-case/:courtCaseID", arbitCourtCaseTab.getUpdateCourtCase);
+// router.get("/court-case/:courtCaseID", arbitCourtCaseTab.getUpdateCourtCase);
 router.get("/get-last-case-no/:organisationID", arbitCourtCaseTab.fetchLastCaseNumber);
 
 router.delete("/delete-court-case/:caseID/:userID", arbitCourtCaseTab.deleteCourtCaseData);
