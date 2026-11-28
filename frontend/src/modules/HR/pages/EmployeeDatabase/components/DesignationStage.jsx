@@ -3,6 +3,7 @@ import { Button } from '../../../components/HrFormControls';
 import { OTHER_ORGANISATION_ID } from '../../../constants';
 import { SELECTABLE_APPOINTMENT_METHODS } from '../../../utils/addEmployeeHandoff';
 import { MAX_LENGTH } from '../employeeFormConfig';
+import SeparatedEmployeeField from './SeparatedEmployeeField';
 
 // A value fixed by the vacancy hand-off: shown read-only, in the same box as an editable field
 function LockedValue({ value, type = 'text', label }) {
@@ -20,7 +21,7 @@ function LockedValue({ value, type = 'text', label }) {
 }
 
 // Stage 3 of the Employee Data form: post, department, appointment and joining.
-export default function DesignationStage({ departments, edit, formData, formErrors, handleBack, handleDepartmentChange, handleInputChange, handleNavigateToStage, handlePostChange, handoff, handoffBlockedToast, isDeputationHandoff, isEditMode, isSubmitting, lockMethod, lockPost, lockVacancyDate, organisations, otherOrganisation, otherOrganisationLabel, postCodes, posts }) {
+export default function DesignationStage({ departments, edit, formData, formErrors, handleBack, handleDepartmentChange, handleInputChange, handleNavigateToStage, handlePostChange, handoff, handoffBlockedToast, isDeputationHandoff, isEditMode, isSubmitting, lockMethod, lockPost, lockVacancyDate, organisations, otherOrganisation, otherOrganisationLabel, postCodes, posts, handleMethodChange, handlePostCodeChange, handleSeparatedAnswer, selectSeparatedEmployee, isDirectRecruitment, separated, postCodeStatus }) {
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
@@ -97,7 +98,7 @@ export default function DesignationStage({ departments, edit, formData, formErro
           ) : (
           <select
             value={formData.appoinmentMethod}
-            onChange={e => handleInputChange('appoinmentMethod', e.target.value)}
+            onChange={e => handleMethodChange(e.target.value)}
             className={`w-full px-3.5 py-2.5 text-xs font-medium bg-white dark:bg-slate-800 border ${
               formErrors.appoinmentMethod ? 'border-rose-500 ring-1 ring-rose-500' : 'border-slate-300 dark:border-slate-700'
             } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 shadow-2xs`}
@@ -111,6 +112,16 @@ export default function DesignationStage({ departments, edit, formData, formErro
           {formErrors.appoinmentMethod && <p className="text-2xs text-rose-500 mt-1">{formErrors.appoinmentMethod}</p>}
         </div>
 
+        {/* Direct Recruitment: is the employee separated? */}
+        {isDirectRecruitment && (
+          <SeparatedEmployeeField
+            separated={separated}
+            errors={formErrors}
+            onAnswer={handleSeparatedAnswer}
+            onSelect={selectSeparatedEmployee}
+          />
+        )}
+
         {/* Post Code */}
         <div>
           <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
@@ -118,31 +129,36 @@ export default function DesignationStage({ departments, edit, formData, formErro
           </label>
           {handoff || isEditMode ? (
             <LockedValue value={formData.postCode} label="Post Code" />
-          ) : postCodes.length > 0 ? (
+          ) : (
             <select
               value={formData.postCode}
-              onChange={e => handleInputChange('postCode', e.target.value)}
+              onChange={e => handlePostCodeChange(e.target.value)}
+              disabled={postCodeStatus !== 'ready'}
+              aria-label="Post Code"
               className={`w-full px-3.5 py-2.5 text-xs font-medium bg-white dark:bg-slate-800 border ${
                 formErrors.postCode ? 'border-rose-500 ring-1 ring-rose-500' : 'border-slate-300 dark:border-slate-700'
-              } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 shadow-2xs`}
+              } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 shadow-2xs disabled:opacity-50`}
             >
-              <option value="">--Select Post Code--</option>
-              {postCodes.map(pc => (
-                <option key={pc.post_code || pc.postCode} value={pc.post_code || pc.postCode}>
-                  {pc.post_code || pc.postCode}
-                </option>
-              ))}
+              <option value="">{postCodeStatus === 'loading' ? 'Loading post codes…' : '--Select Post Code--'}</option>
+              {postCodes.map(pc => {
+                const code = pc.post_code ?? pc.postCode;
+                const arose = String(pc.date_of_arise_in_vacancy || '').slice(0, 10).split('-').reverse().join('-');
+                return (
+                  <option key={code} value={code}>
+                    {arose ? `${code} - Date of vacancy (${arose})` : code}
+                  </option>
+                );
+              })}
             </select>
-          ) : (
-            <input
-              type="text"
-              value={formData.postCode}
-              onChange={e => handleInputChange('postCode', e.target.value)}
-              placeholder="Enter Post Code"
-              className={`w-full px-3.5 py-2.5 text-xs font-medium bg-white dark:bg-slate-800 border ${
-                formErrors.postCode ? 'border-rose-500 ring-1 ring-rose-500' : 'border-slate-300 dark:border-slate-700'
-              } rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 shadow-2xs`}
-            />
+          )}
+          {postCodeStatus === 'idle' && !handoff && !isEditMode && (
+            <p className="text-2xs text-slate-500 mt-1">Select the post name and method of appointment first.</p>
+          )}
+          {postCodeStatus === 'ready' && postCodes.length === 0 && (
+            <p className="text-2xs text-amber-600 mt-1">Vacant posts appear only after all activities have been entered in Vacancy Management.</p>
+          )}
+          {postCodeStatus === 'error' && (
+            <p className="text-2xs text-rose-500 mt-1">The post codes could not be loaded. Select the method of appointment again to retry.</p>
           )}
           {formErrors.postCode && <p className="text-2xs text-rose-500 mt-1">{formErrors.postCode}</p>}
         </div>

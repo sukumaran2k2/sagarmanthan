@@ -1,10 +1,10 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Lock } from 'lucide-react';
 import { getSessionClaims, getSessionOrganisationId } from '../../../../utils/authSession';
 import { COMMON_TOASTS, getErrorMessage } from '../../../../utils/notify';
 import { HR_TOASTS } from '../../toastMessages';
-import { addNewEmployee, checkAadhaarExists, checkReferenceNumberExists, fetchHrDepartments, fetchHrEmployeeById, fetchHrPostsByDepartment, fetchMmtDropdown, fetchPostByPostCode, fetchPostCodesByPost, updateHrEmployee } from '../../api';
+import { addNewEmployee, checkAadhaarExists, checkReferenceNumberExists, fetchHrDepartments, fetchHrEmployeeById, fetchHrPostsByDepartment, fetchMmtDropdown, fetchPostByPostCode, fetchPostCodesByPost, getEmployeeDetailsByReferenceIdOnly, updateHrEmployee } from '../../api';
 import { employeeFormFromRecord, readEmployeeEditIds } from './employeeEdit';
 import { useLatestRef } from '../../hooks/usePagedList';
 import { OTHER_ORGANISATION_ID } from '../../constants';
@@ -18,6 +18,43 @@ import { readAddEmployeeHandoff, vacancyFromPostRow } from '../../utils/addEmplo
 // yyyy-mm-dd from a local date (toISOString would convert to UTC: a day early in India)
 const toLocalIsoDate = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+// Only this method asks whether the employee is separated (as the legacy page does)
+const DIRECT_RECRUITMENT = 'Direct Recruitment';
+
+// Filled from a separated employee's record; the posting chosen on this form is never overwritten
+const BLANK_PERSONAL = {
+  employeeName: '', referenceNumber: '', dateOfBirth: '', employeeAadhar: '', whethVhorOh: '', religion: '',
+  ethnicOrigin: '', domicileState: '', gender: 'Male', exService: '0', retirementDate: '', empDivisionName: '',
+  empHighestEdu: '', ugCount: '', pgCount: '', ugDisciplines: [], pgDisciplines: [],
+  parentOrganisation: '', otherParentOrg: '', parentOrgJoiningDate: '',
+};
+
+const NOT_ASKED = { answer: '', employee: null, loading: false };
+
+const listOf = (data) => {
+  const list = Array.isArray(data) ? data : data?.recordset ?? data?.data;
+  return Array.isArray(list) ? list : [];
+};
+
+// Form fields from get-emp-details-by-reference-id-and-emp-name, whose columns differ a little
+// from the edit-employee record (names as the legacy page read them)
+const fieldsFromSeparatedRecord = (record) => {
+  const parentOrg = record.emp_parent_org_id ?? record.emp_parent_org_designation;
+  const fields = employeeFormFromRecord({
+    ...record,
+    emp_disability: record.emp_disability ?? record.emp_whethVhorOh,
+    // the dropdown needs an organisation id, not a designation text
+    emp_parent_org_id: /^\d+$/.test(String(parentOrg ?? '')) ? parentOrg : null,
+    ex_service_or_not: record.ex_service_or_not == null ? null : Number(record.ex_service_or_not),
+  });
+  // One discipline box per degree, even when only the count is sent
+  ['ug', 'pg'].forEach(level => {
+    const count = Math.min(Number(fields[`${level}Count`]) || 0, MAX_DEGREES);
+    if (!fields[`${level}Disciplines`].length) fields[`${level}Disciplines`] = Array(count).fill('');
+  });
+  return Object.fromEntries(Object.keys(BLANK_PERSONAL).map(key => [key, fields[key]]));
+};
 
 // editData: the Employee Database row being edited (from location.state.item, via InputForm); null when adding
 export default function EmployeeDataForm({ notify, onCancel, editData = null }) {
@@ -104,13 +141,18 @@ export default function EmployeeDataForm({ notify, onCancel, editData = null }) 
   // Dropdown options
   const [departments, setDepartments] = useState([]);
   const [deptPosts, setPosts] = useState([]);
-  const [postCodeList, setPostCodes] = useState([]);
+  // Post codes of the latest request; 'key' names the post and method they belong to
+  const [postCodeResult, setPostCodeResult] = useState({ key: '', list: [], failed: false });
   const [organisations, setOrganisations] = useState([]);
   const [states, setStates] = useState([]); // mmt_state: { state_id, state_name }
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formErrors, setFormErrors] = useState({});
-  // Values found to belong to another employee: { referenceNumber: 'REF-1', employeeAadhar: '1234…' }
-  const [duplicates, setDuplicates] = useState({});
+  // Direct Recruitment: answer '' | '1' (separated) | '0', and the separated employee chosen
+  const [separated, setSeparated] = useState(NOT_ASKED);
+  const separatedRequest = useRef(0); // ignores a slow response after the choice has changed
+  const isDirectRecruitment = !isEditMode && formData.appoinmentMethod === DIRECT_RECRUITMENT;
+  // A separated employee joining again keeps their reference and Aadhaar numbers
+  const isRejoining = isDirectRecruitment && separated.answer === '1';
 
   // Stage completion tracker for the stepper progress indicators
   const stageProgress = useMemo(() => {
@@ -137,6 +179,7 @@ export default function EmployeeDataForm({ notify, onCancel, editData = null }) 
       formData.postCode &&
       formData.vacancyAriseDate &&
       formData.joiningDate &&
+      (!isDirectRecruitment || separated.answer === '0' || Boolean(separated.employee)) &&
       (formData.parentOrganisation !== OTHER_ORGANISATION_ID || formData.otherParentOrg?.trim())
     );
 
@@ -144,7 +187,7 @@ export default function EmployeeDataForm({ notify, onCancel, editData = null }) 
       basic: isBasicComplete,
       education: isEducationComplete,
       designation: isDesignationComplete };
-  }, [formData]);
+  }, [formData, isDirectRecruitment, separated]);
 
   // Fetch Departments and Organisations on mount
   useEffect(() => {
@@ -263,7 +306,12 @@ export default function EmployeeDataForm({ notify, onCancel, editData = null }) 
 
   // Lists that depend on a selection are empty while nothing is selected
   const posts = formData.department ? deptPosts : [];
-  const postCodes = formData.empPostId && formData.appoinmentMethod ? postCodeList : [];
+  const postCodeKey = !handoff && !isEditMode && formData.empPostId && formData.appoinmentMethod
+    ? `${formData.empPostId}|${formData.appoinmentMethod}`
+    : '';
+  const postCodesArrived = Boolean(postCodeKey) && postCodeResult.key === postCodeKey;
+  const postCodes = postCodesArrived ? postCodeResult.list : [];
+  const postCodeStatus = !postCodeKey ? 'idle' : !postCodesArrived ? 'loading' : postCodeResult.failed ? 'error' : 'ready';
 
   // Fetch posts when department changes
   useEffect(() => {
@@ -283,19 +331,20 @@ export default function EmployeeDataForm({ notify, onCancel, editData = null }) 
 
   // Fetch post codes when post or method of appointment changes (a hand-off fixes the post code)
   useEffect(() => {
-    if (handoff || !formData.empPostId || !formData.appoinmentMethod) return undefined;
+    if (!postCodeKey) return undefined;
     let isMounted = true;
     fetchPostCodesByPost(formData.empPostId, formData.appoinmentMethod)
       .then(res => {
-        if (isMounted && Array.isArray(res.data)) {
-          setPostCodes(res.data);
-        }
+        if (isMounted) setPostCodeResult({ key: postCodeKey, list: listOf(res.data), failed: false });
       })
-      .catch(() => {
-        if (isMounted) setPostCodes([]);
+      .catch(err => {
+        console.error('Error loading post codes:', err);
+        if (!isMounted) return;
+        setPostCodeResult({ key: postCodeKey, list: [], failed: true });
+        notifyRef.current?.(COMMON_TOASTS.loadFailed('The list of post codes'));
       });
     return () => { isMounted = false; };
-  }, [handoff, formData.empPostId, formData.appoinmentMethod]);
+  }, [postCodeKey, formData.empPostId, formData.appoinmentMethod, notifyRef]);
 
   // Auto-calculate Date of Retirement from Date of Birth
   const handleDobChange = (e) => {
@@ -364,6 +413,7 @@ export default function EmployeeDataForm({ notify, onCancel, editData = null }) 
     const value = field === 'employeeAadhar'
       ? formData.employeeAadhar.replace(/\s+/g, '')
       : formData.referenceNumber.trim();
+    if (isRejoining) return true;
     if (!value || (field === 'employeeAadhar' && !/^\d{12}$/.test(value)) || (field === 'referenceNumber' && !orgId)) return true;
     // Editing: the employee's own unchanged value is not a duplicate
     if (isEditMode && edit.original[field] === value) return true;
@@ -372,7 +422,6 @@ export default function EmployeeDataForm({ notify, onCancel, editData = null }) 
         ? await checkAadhaarExists(value)
         : await checkReferenceNumberExists(value, orgId);
       const exists = Number(res.data?.exists) === 1;
-      setDuplicates(prev => ({ ...prev, [field]: exists ? value : null }));
       if (exists) {
         setFormErrors(prev => ({
           ...prev,
@@ -397,7 +446,8 @@ export default function EmployeeDataForm({ notify, onCancel, editData = null }) 
       departmentName: depObj ? (depObj.department_name || depObj.departmentName) : '',
       empPostId: '',
       empPostName: '',
-      postCode: ''
+      postCode: '',
+      vacancyAriseDate: ''
     }));
   };
 
@@ -408,8 +458,69 @@ export default function EmployeeDataForm({ notify, onCancel, editData = null }) 
       ...prev,
       empPostId: postId,
       empPostName: postObj ? (postObj.post_name || postObj.postName) : '',
-      postCode: ''
+      postCode: '',
+      vacancyAriseDate: ''
     }));
+  };
+
+  // Yes / No to "Is the employee separated?" ('' = not asked)
+  const handleSeparatedAnswer = (answer) => {
+    separatedRequest.current += 1;
+    // Details copied from a separated employee must not stay on a different person's form
+    if (separated.employee) setFormData(prev => ({ ...prev, ...BLANK_PERSONAL }));
+    setSeparated({ ...NOT_ASKED, answer });
+    setFormErrors(prev => ({ ...prev, isSeparated: null, separatedEmployee: null }));
+  };
+
+  // Fill the personal and education details from the chosen separated employee
+  const selectSeparatedEmployee = async (option) => {
+    if (!option) {
+      handleSeparatedAnswer('1');
+      return;
+    }
+    const requestId = ++separatedRequest.current;
+    // The previous employee's details must not stay while another one is loading
+    if (separated.employee) setFormData(prev => ({ ...prev, ...BLANK_PERSONAL }));
+    setSeparated({ answer: '1', employee: null, loading: true });
+    setFormErrors(prev => ({ ...prev, separatedEmployee: null }));
+    try {
+      // By reference number, as the legacy page did
+      const res = await getEmployeeDetailsByReferenceIdOnly(option.emp_reference_id);
+      if (requestId !== separatedRequest.current) return;
+      const record = listOf(res.data)[0] ?? (res.data?.emp_name ? res.data : null);
+      if (!record) throw new Error('No data found for this employee');
+      const masterId = option.emp_master_id ?? record.emp_master_id;
+      const employeeId = option.employee_id ?? record.employee_id;
+      if (masterId == null || employeeId == null) throw new Error('The API reply has no emp_master_id or employee_id');
+      const personal = fieldsFromSeparatedRecord(record);
+      setFormData(prev => ({ ...prev, ...personal }));
+      setSeparated({ answer: '1', employee: { masterId, employeeId, referenceId: option.emp_reference_id }, loading: false });
+      setFormErrors({});
+    } catch (err) {
+      if (requestId !== separatedRequest.current) return;
+      console.error('Error loading the separated employee:', err);
+      setSeparated({ answer: '1', employee: null, loading: false, error: getErrorMessage(err) });
+    }
+  };
+
+  const handleMethodChange = (method) => {
+    if (separated.answer) handleSeparatedAnswer('');
+    setFormData(prev => ({ ...prev, appoinmentMethod: method, postCode: '', vacancyAriseDate: '' }));
+    setFormErrors(prev => ({ ...prev, appoinmentMethod: null }));
+  };
+
+  // The post code carries its date of vacancy, as on the legacy page
+  const handlePostCodeChange = (code) => {
+    const row = postCodes.find(pc => String(pc.post_code ?? pc.postCode) === code);
+    const arose = String(row?.date_of_arise_in_vacancy || '').slice(0, 10);
+    setFormData(prev => ({
+      ...prev,
+      postCode: code,
+      vacancyAriseDate: arose,
+      // Joining can't be before the vacancy arose
+      joiningDate: arose && prev.joiningDate && prev.joiningDate < arose ? '' : prev.joiningDate,
+    }));
+    setFormErrors(prev => ({ ...prev, postCode: null, vacancyAriseDate: arose ? null : prev.vacancyAriseDate }));
   };
 
   // Stage 1 Validation: Basic Employee Details
@@ -427,12 +538,8 @@ export default function EmployeeDataForm({ notify, onCancel, editData = null }) 
     if (formData.employeeAadhar && !/^\d{12}$/.test(formData.employeeAadhar.replace(/\s+/g, ''))) {
       errors.employeeAadhar = 'Aadhaar Number must be 12 digits';
     }
-    if (duplicates.referenceNumber && duplicates.referenceNumber === formData.referenceNumber.trim()) {
-      errors.referenceNumber = 'An employee with this reference / personnel number already exists in your organisation.';
-    }
-    if (duplicates.employeeAadhar && duplicates.employeeAadhar === formData.employeeAadhar.replace(/\s+/g, '')) {
-      errors.employeeAadhar = 'An employee with this Aadhaar number already exists.';
-    }
+    // Duplicate numbers do not block moving between stages: the employee may turn out to be a
+    // separated one (asked in stage 3). They are checked again before saving.
 
     if (Object.keys(errors).length > 0) {
       setFormErrors(prev => ({ ...prev, ...errors }));
@@ -472,6 +579,8 @@ export default function EmployeeDataForm({ notify, onCancel, editData = null }) 
       if (!formData.postCode) errors.postCode = 'Post Code is required';
       if (!formData.vacancyAriseDate) errors.vacancyAriseDate = 'Date of Arise in Vacancy is required';
       if (!formData.joiningDate) errors.joiningDate = 'Date of Joining is required';
+      if (isDirectRecruitment && !separated.answer) errors.isSeparated = 'Choose whether the employee is separated';
+      if (isRejoining && !separated.employee) errors.separatedEmployee = 'Select the separated employee';
     }
     if (formData.parentOrganisation === OTHER_ORGANISATION_ID && !formData.otherParentOrg.trim()) {
       errors.otherParentOrg = 'Name of the organisation is required';
@@ -593,7 +702,10 @@ export default function EmployeeDataForm({ notify, onCancel, editData = null }) 
         ugDisciplines: formData.ugDisciplines,
         pgDisciplines: formData.pgDisciplines,
         userID: claims.userId || claims.id || null,
-        technicalResPerson: 0
+        technicalResPerson: isRejoining ? 1 : 0,
+        // The separated employee's existing record
+        empMasterId: isRejoining ? separated.employee.masterId : null,
+        employeeId: isRejoining ? separated.employee.employeeId : null
       };
 
       const res = await addNewEmployee(payload);
@@ -777,6 +889,13 @@ export default function EmployeeDataForm({ notify, onCancel, editData = null }) 
               handleInputChange={handleInputChange}
               handleNavigateToStage={handleNavigateToStage}
               handlePostChange={handlePostChange}
+              handleMethodChange={handleMethodChange}
+              handlePostCodeChange={handlePostCodeChange}
+              handleSeparatedAnswer={handleSeparatedAnswer}
+              selectSeparatedEmployee={selectSeparatedEmployee}
+              isDirectRecruitment={isDirectRecruitment}
+              separated={separated}
+              postCodeStatus={postCodeStatus}
               handoff={handoff}
               handoffBlockedToast={handoffBlockedToast}
               isDeputationHandoff={isDeputationHandoff}

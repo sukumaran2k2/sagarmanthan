@@ -385,5 +385,13 @@ export function deleteTrainingData(trainingID, organisationID) {
   return api.delete(`/delete-training-data/${trainingID}/${organisationID}`);
 }
 
+export function fetchSeparatedEmployees() {
+  return api.get('/get-emp-details-by-reference-id');
+}
+
+export function getEmployeeDetailsByReferenceIdOnly(referenceID) {
+  return api.get(`/get-emp-details-by-reference-id-and-emp-name/${referenceID}`);
+}
+
 
 export default api;

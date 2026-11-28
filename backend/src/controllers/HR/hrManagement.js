@@ -1332,7 +1332,8 @@ async function addNewEmployee(req, res) {
                 pg_count = @pgCount,
                 ug_discipline = @ugDisciplines,
                 pg_discipline = @pgDisciplines,
-                emp_curr_org_join_date= @currentOrgJoiningDate
+                emp_curr_org_join_date= @currentOrgJoiningDate,
+                emp_curr_org_id = @empCurrOrgId
         WHERE emp_master_id = @empMasterId`
         }
         
