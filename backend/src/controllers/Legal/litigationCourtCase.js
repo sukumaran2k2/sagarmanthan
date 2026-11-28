@@ -1,4 +1,5 @@
 import { pool } from "../../db.js";
+import { touchCourtCase } from "./courtCaseTouch.js";
 import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
@@ -101,12 +102,12 @@ async function createLitigationCourtCase(req,res) {
         const litigationCaseInsertQuery = `
         INSERT INTO tbl_litigation_cases(
         case_id,case_name,court_type,state,district,court_complex,name_of_court,sub_court,bench_seat,consumer_forum,case_type,case_number,year,cnr_number,file_on_date,domain,sub_domain,case_description,dept_division,pre_connected_cases,
-        counter_claim_amount_or_not,claim_amount,counter_claim_amount,created_date,created_by,organisation_id,organisation_name
+        counter_claim_amount_or_not,claim_amount,counter_claim_amount,created_date,updated_date,created_by,organisation_id,organisation_name
         )
         OUTPUT INSERTED.case_id
         VALUES (
         @caseID,@caseName,@courtType,@state,@district,@courtComplex,@nameOfCourt,@subCourt,@highCourtBench,@consumerForum,@caseType,@caseNumber,@year,@cnrNumber,@filedOnDate,@domain,@subDomain,@description,@deptDivision,
-        @prevConnCaseOrNot,@counterClaimAmountOrNot,@claimAmountValue,@counterClaimAmountValue,GETDATE(),@userID, @organisationID,@organisationName
+        @prevConnCaseOrNot,@counterClaimAmountOrNot,@claimAmountValue,@counterClaimAmountValue,GETDATE(),GETDATE(),@userID, @organisationID,@organisationName
         );
         `;
 
@@ -186,6 +187,7 @@ async function addMinistryDetailsOfCounsel(req, res) {
             `);
         }
 
+        await touchCourtCase(caseID);
         return res.status(201).json({ message: "Details of Counsel added successfully." });
     } catch (err) {
         // console.log("error",err)
@@ -229,6 +231,7 @@ async function addCourtCaseOMDetails(req,res){
                 VALUES (@caseID, @ministryDept, @OMNumber, @omDate)`);
         }
         
+        await touchCourtCase(caseID);
         return res.status(201).json({ message: "court Case OM Details Data  added successfully" });
     } catch (err) {
         // console.log("err",err)
@@ -1297,6 +1300,7 @@ async function addLitigationPetitionerAndRespondent(req, res) {
             .input("respondents", respondentStr)
             .query(insertQuery);
 
+        await touchCourtCase(caseID);
         return res.status(201).json({ message: "Inserted successfully" });
 
     } catch (error) {

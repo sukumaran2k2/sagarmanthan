@@ -458,13 +458,13 @@ async function addOFVData(req, res) {
                 year, visit, visit_type, purpose, title, name, organisation, designation_organisation,
                 GOI_designation, from_date, to_date, duration, country_visited, total_city, cities_name,check_sanctioned,
                 ministerial_delegation, competent_authority, sponsoring_agency, sanctioned_authority,
-                FVMS,reason_for_not_visited, created_by,other_cities_name,other_designation,other_visit_type
+                FVMS,reason_for_not_visited, created_by,other_cities_name,other_designation,other_visit_type, created_date, updated_date
             )
             VALUES (@foreignVisitId,
                 @reportYear, @visit, @visitType, @visitPurpose, @title, @officerName, @organisationSelect, @designation,
                 @designationGOI, @visitFrom, @visitTo, @visitDuration, @country, @noCities, @city, @checkSanctioned,
                 @ministryDelegation, @authority, @sponsoringAgency, @sanctionedAuthority, 
-                @FVMS,@remarks, @userID,@otherCityName,@newDesignation,@newVisitType
+                @FVMS,@remarks, @userID,@otherCityName,@newDesignation,@newVisitType, GETDATE(), GETDATE()
             )
         `);
 

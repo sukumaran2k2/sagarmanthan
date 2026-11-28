@@ -136,10 +136,10 @@ async function createMIVData(req, res) {
         await request.query(`
             INSERT INTO tbl_initiative (
                 organisation_id, initiative_id, initiative_name, project_detail, total_cost, category, outcomes, source_of_funding, status_on, status_current, physical_progress, reasons_for_drop, reasons_for_delay,
-                start_date, completion_date, actual_date, created_by, direct_Emp_Gen, inDirect_Emp_Gen, direct_Inv_Created, inDirect_Inv_Created, theme_Initiative, Feedback, Response, Outcomes_Remarks
+                start_date, completion_date, actual_date, created_by, direct_Emp_Gen, inDirect_Emp_Gen, direct_Inv_Created, inDirect_Inv_Created, theme_Initiative, Feedback, Response, Outcomes_Remarks, updated_date
             ) VALUES (
                 @organisationID, @initiativeID, @initiativeName, @projectDetail, @totalCost, @category, @outcomes, @sourceOfFunding, @statusOn, @statusCurrent, @physicalProgress, @reasonsForDrop, @reasonsForDelay,
-                @startDate, @completionDate, @actualDate, @userID, @directEmpGen, @inDirectEmpGen, @directInvCreated, @inDirectInvCreated, @themeInitiative, @Feedback, @Response, @OutcomesRemarks
+                @startDate, @completionDate, @actualDate, @userID, @directEmpGen, @inDirectEmpGen, @directInvCreated, @inDirectInvCreated, @themeInitiative, @Feedback, @Response, @OutcomesRemarks, GETDATE()
             )
         `);
 

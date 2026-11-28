@@ -415,6 +415,9 @@ async function addPostStrengthDetail(req, res) {
                     transferred_on,
                     stage_id,
                     created_by,
+                    created_date,
+                    updated_by,
+                    updated_date,
                     organisation_name,
                     organisation_id
                 )
@@ -461,6 +464,9 @@ async function addPostStrengthDetail(req, res) {
                     @transferredOn,
                     @stageId,
                     @userID,
+                    GETDATE(),
+                    @userID,
+                    GETDATE(),
                     @organisationName,
                     @organisationId
 

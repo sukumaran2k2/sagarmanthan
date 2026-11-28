@@ -596,7 +596,8 @@ async function submitGmisMouData(req, res) {
                 document_uploader,
                 next_steps,
                 created_on,
-                created_by
+                created_by,
+                updated_on
             )
             VALUES (
                 @organisationId,
@@ -616,7 +617,8 @@ async function submitGmisMouData(req, res) {
                 @uniqueFileName,
                 @nextSteps,
                 GETDATE(),
-                @userID
+                @userID,
+                GETDATE()
             );
 
             DECLARE @progressMouId INT = SCOPE_IDENTITY();

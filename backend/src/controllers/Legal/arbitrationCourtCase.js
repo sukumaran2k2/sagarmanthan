@@ -1,4 +1,5 @@
 import { pool } from "../../db.js";
+import { touchCourtCase } from "./courtCaseTouch.js";
 import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
@@ -281,6 +282,7 @@ async function addPrevConnCases(req, res) {
             `);
         }
 
+        await touchCourtCase(caseID);
         res.status(201).json({ message: "Previous connected cases added successfully." });
     } catch (err) {
         // //console.log(err);
@@ -323,6 +325,7 @@ async function addHearingCases(req, res) {
             `);
         }
 
+        await touchCourtCase(caseID);
         res.status(201).json({ message: "Hearing cases added successfully." });
     } catch (err) {
         // //console.log(err);
@@ -366,6 +369,7 @@ async function addInterimOrder(req, res) {
             `);
         }
 
+        await touchCourtCase(caseID);
         res.status(201).json({ message: "Interim Order added successfully." });
     } catch (err) {
         // //console.log(err);
@@ -409,6 +413,7 @@ async function addDetailsOfCounsel(req, res) {
             `);
         }
 
+        await touchCourtCase(caseID);
         res.status(200).json({ message: "Details of Counsel added successfully." });
     } catch (err) {
         console.log("add details counsel",err);
@@ -501,13 +506,13 @@ async function createArbitCourtCase(req, res) {
                     [case_id],  [name_of_party_referring_matter], 
                     [date_of_reference], [is_domestic_or_international], [claim_amount],[case_name], [counter_claim_amount], 
                     [place_of_arbitration], [domain], [sub_domain], [case_description], [dept_division], 
-                    [is_prev_conn_cases], [created_by], [organisation_id],[organisation_name],[created_date]
+                    [is_prev_conn_cases], [created_by], [organisation_id],[organisation_name],[created_date],[updated_date]
                 ) OUTPUT INSERTED.case_id
                 VALUES (
                     @caseID, @partyRefArbitName, @dateOfReference, 
                     @domOrInterArbit, @claimAmount, @caseName, @counterClaimAmount, @placeOfArbitration, 
                     @domain, @subDomain, @caseDescription, @deptDivison, @prevConnCaseOrNot, 
-                    @userID, @organisationID, @organisationName, GETDATE()
+                    @userID, @organisationID, @organisationName, GETDATE(), GETDATE()
                 );
             `;
             request.input("partyRefArbitName", partyRefArbitName);
@@ -1561,6 +1566,7 @@ async function addArbitrationClaimantAndRespondent(req, res) {
             .input("respondents", respondentStr)
             .query(insertQuery);
 
+        await touchCourtCase(caseID);
         return res.status(201).json({ message: "Inserted successfully" });
 
     } catch (error) {

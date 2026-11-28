@@ -1,4 +1,5 @@
 import { pool } from "../../db.js";
+import { touchCourtCase } from "./courtCaseTouch.js";
 
 //generateUniqueConciliationCaseId
 async function getLastConciliationNumber(req,res){
@@ -62,6 +63,7 @@ async function addConciliatorsData(req,res) {
             `);
         }
 
+        await touchCourtCase(caseID);
         res.status(201).json({ message: "conciliators Data added successfully." });
     } catch (err) {
         // console.log(err);
@@ -107,6 +109,7 @@ async function addConciliationFirstParty(req, res) {
 
         }
 
+        await touchCourtCase(caseID);
         return res.status(201).json({ message: "first Parties Data added successfully." });
     } catch (err) {
         // console.log(err);
@@ -148,6 +151,7 @@ async function addSecondPartyData(req,res) {
                 VALUES (@caseID, @secondClaimDescription, @secondPartyclaimAmount)
             `);
         }
+        await touchCourtCase(caseID);
         return res.status(201).json({ message: "secondParties Data added successfully." });
     } catch (err) {
         // console.log(err);
@@ -192,6 +196,7 @@ async function addConciliationPrevConnCases(req, res) {
             `);
         }
 
+        await touchCourtCase(caseID);
         return res.status(201).json({ message: "Previous connected cases added successfully." });
     } catch (err) {
         // console.log(err);
@@ -254,14 +259,14 @@ async function createConciliationCourtCase(req, res) {
         INSERT INTO tbl_conciliation_cases(
         case_id, 
         date_of_request_conciliation, date_of_reference_to_conciliators,
-        dept_division, is_pre_conn_case,case_name, created_date,
+        dept_division, is_pre_conn_case,case_name, created_date, updated_date,
         created_by, organisation_id, organisation_name
         ) 
         OUTPUT INSERTED.case_id
         VALUES 
         (@caseID, 
         @dateOfRequestConciliation, @dateOFReferenceConciliators,
-        @deptDivision, @prevConnCaseOrNot, @caseName, GETDATE(),
+        @deptDivision, @prevConnCaseOrNot, @caseName, GETDATE(), GETDATE(),
         @userID, @organisationID, @organisationName
         )`;
 
@@ -322,6 +327,7 @@ async function addConciliatorsHearingData(req, res) {
             `);
         }
 
+        await touchCourtCase(caseID);
         return res.status(201).json({ message: "ConciliatorsHearingData added successfully." });
     } catch (error) {
         // console.error(error.message)
@@ -476,6 +482,7 @@ async function addConciliationFirstPartyAndSecondParty(req,res) {
             .input("secondParty", secondPartyStr)
             .query(insertQuery);
 
+        await touchCourtCase(caseID);
         return res.status(201).json({ message: "Inserted successfully" });
 
     } catch (error) {
