@@ -83,8 +83,6 @@ export const arbitrationSchema = {
           ] },
 
         { name: "defenceStatement", label: "2. Defence Statement Filed", type: "radio", required: true, span: 6, options: YES_NO },
-        { name: "defenceDoc", label: "Upload Document", type: "file", span: 6,
-          showIf: (v) => v.defenceStatement === "1" },
 
         { name: "interimOrder", label: "3. Interim Order?", type: "radio", required: true, span: 12, options: YES_NO },
         { name: "interimData", label: "Interim Orders", type: "table", span: 12,

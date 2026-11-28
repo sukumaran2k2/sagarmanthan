@@ -745,23 +745,14 @@ router.delete("/delete-bill/:billID", auth, billsDelete, billTab.deleteBill);
 //litigation court case
 router.get("/get-last-Litigation-case-no/:organisationID", litigationCourtCaseTab.getLastLitigationCaseNumber);
 router.post("/create-litigation-court-case", litigationCourtCaseTab.createLitigationCourtCase);
-router.post("/add-litigation-prev-conn-court-case", litigationCourtCaseTab.addLitigationPrevConnCases);
-router.post("/add-litigation-counsel-details", litigationCourtCaseTab.addLitigationDetailsOfCounsel);
-router.post("/add-litigation-new-court-case-org", litigationCourtCaseTab.addLitigationOtherCourtCaseOrg);
 router.post("/add-ministry-counsel-details", litigationCourtCaseTab.addMinistryDetailsOfCounsel);
-router.post("/ministry-upload-document", litigationCourtCaseTab.upload.single('file'), litigationCourtCaseTab.ministryUploadDocument);
-router.post("/ministry-intervention-document", litigationCourtCaseTab.fileUpload.single('file'), litigationCourtCaseTab.ministryInterventionDocument);
-router.post("/counter-affidavit-document", litigationCourtCaseTab.fileupload.single('file'), litigationCourtCaseTab.counterAffidavitDocument);
+
 router.post("/add-ministry-intervention", litigationCourtCaseTab.createMinistryIntervention);
 router.post("/add-court-case-OM-details", litigationCourtCaseTab.addCourtCaseOMDetails);
-router.post("/add-court-case-hearing-details", litigationCourtCaseTab.addCourtCaseHearingDetails);
-router.post("/add-court-case-interim-details", litigationCourtCaseTab.addCourtCaseInterimDetails);
+
 router.post("/create-case-status", litigationCourtCaseTab.submitCaseStatus);
 router.get("/get-litigation-sub-table-court-cases-data/:typeName/:caseID", litigationCourtCaseTab.getSubTableCourtCasesData);
-router.get("/get-ministry-upload-document/:caseID", litigationCourtCaseTab.getMinistryUploadDocument);
-router.delete("/delete-ministry-uploaded-document/:caseID/:replyFiledDoc", litigationCourtCaseTab.deleteMinistryInterventionDocument);
-router.delete("/delete-ministry-intervention-document/:caseID/:intrevenDoc", litigationCourtCaseTab.deleteMinistryInterventionDoc);
-router.delete("/delete-ministry-affidavit-file-document/:caseID/:affidavitFile", litigationCourtCaseTab.deletecounterAffiDocument);
+
 router.get("/get-all-litigation-case-data/:userID", litigationCourtCaseTab.getAllLitigationData);
 router.post("/add-litigation-petitioner-and-respondent",litigationCourtCaseTab.addLitigationPetitionerAndRespondent);
 router.get("/get-litigation-petitioner-and-respondent/:caseID",litigationCourtCaseTab.getLitigationPetitionerAndRespondent);
@@ -774,16 +765,15 @@ router.get("/litigation-portwise-pendency-report/:userID", litigationCourtCaseTa
 router.get("/litigation-domainwise-pendency-report/:userID", litigationCourtCaseTab.getLitigationPendencyDomainWiseReport);
 
 
-router.get("/litigation-domain-report-by-other-org/:userID", litigationCourtCaseTab.getLitigationDomainByOtherOrgReport);
-router.get("/litigation-sub-domain-report-by-other-org/:userID", litigationCourtCaseTab.getLitigationSubDomainByOtherOrgReport);
+// router.get("/litigation-domain-report-by-other-org/:userID", litigationCourtCaseTab.getLitigationDomainByOtherOrgReport);
+// router.get("/litigation-sub-domain-report-by-other-org/:userID", litigationCourtCaseTab.getLitigationSubDomainByOtherOrgReport);
 router.get("/litigation-domain-subdomain-report-by-other-org/:userID", litigationCourtCaseTab.getLitigationDomainAndSubDomainByOtherOrgReport);
 router.get("/litigation-other-org-portwise-pendency-report/:userID", litigationCourtCaseTab.getLitigatonPendencyOtherOrgWiseReport);
 router.get("/litigation-other-org-domainwise-pendency-report/:userID", litigationCourtCaseTab.getLitigatonPendencyDomainWiseOtherOrgReport);
 
 router.get("/get-court-case-data-by-id/:caseType/:caseID", arbitCourtCaseTab.getCourtCaseDataByID);
 router.get("/get-sub-table-court-case-data/:typeName/:caseID", arbitCourtCaseTab.getSubTableCourtCaseData);
-router.post("/add-other-claimant-org", arbitCourtCaseTab.addOtherClaimantOrg);
-router.post("/add-other-respondent-org", arbitCourtCaseTab.addOtherRespondentOrg);
+
 router.post("/add-prev-conn-court-case", arbitCourtCaseTab.addPrevConnCases);
 router.post("/add-hearing-court-case", arbitCourtCaseTab.addHearingCases);
 router.post("/add-interim-order-court-case", arbitCourtCaseTab.addInterimOrder);
@@ -791,23 +781,22 @@ router.post("/create-arbitration-court-case", arbitCourtCaseTab.createArbitCourt
 router.put("/update-arbitration-court-case-status", arbitCourtCaseTab.updateArbitCourtCaseStatus);
 router.post("/add-counsel-details", arbitCourtCaseTab.addDetailsOfCounsel);
 router.get("/court-case-get-acts/", arbitCourtCaseTab.getActDropDownData);
-router.post("/court-case-document", arbitCourtCaseTab.upload.single('file'), arbitCourtCaseTab.courtCaseUploadDocument);
 router.get("/court-case-get-rules/:actID", arbitCourtCaseTab.getRuleDropDownData);
 router.get("/court-case-sub-court-type/:courtTypeID", arbitCourtCaseTab.getSubCourtTypeDropDown);
 router.get("/court-case-consumer-typeID/:consumerTypeID", arbitCourtCaseTab.getConsumerForumDropDown);
+router.get("/court-case/:roleID/:organisationID", pinOwnRole(), pinOwnOrganisation(), arbitCourtCaseTab.getCourtCase);
+
 router.get("/court-case/:roleID/:organisationID", arbitCourtCaseTab.getCourtCase);
 router.get("/court-case/:courtCaseID", arbitCourtCaseTab.getUpdateCourtCase);
 router.get("/get-last-case-no/:organisationID", arbitCourtCaseTab.fetchLastCaseNumber);
-router.post("/court-case-stage", arbitCourtCaseTab.createCourtCaseStage);
+
 router.delete("/delete-court-case/:caseID/:userID", arbitCourtCaseTab.deleteCourtCaseData);
-router.get("/get-ministry-defence-statement-document/:caseID", arbitCourtCaseTab.getDefenceStatDoc);
-router.delete("/delete-ministry-defence-statement-document/:caseID/:defenceFile", arbitCourtCaseTab.deleteMinistryDefenceDocument);
+
+
 router.post("/add-arbitration-claimant-and-respondent",arbitCourtCaseTab.addArbitrationClaimantAndRespondent)
 router.get("/get-arbitration-claimant-and-respondent/:caseID",arbitCourtCaseTab.getArbitrationClaimantAndRespondent)
 
-router.get("/court-case-doc/:courtCaseID", arbitCourtCaseTab.getCaseDocuments);
-router.delete("/delete-court-case/:courtID", arbitCourtCaseTab.deleteCaseDocuments);
-router.get("/download-court-document/:courtID", arbitCourtCaseTab.downloadCaseDocument);
+
 
 //Court Case Report
 router.get("/all-court-case-report/:userID", arbitCourtCaseTab.getCourtCaseReport);
@@ -1323,10 +1312,6 @@ router.get("/getbill-divisionwise/:divisionID/:billStage", auth, billsRead, bill
 router.get("/employee-attendance-weekone-report/:attendanceMonth/:attendanceYear/:week", auth, ministryOnly, attRead, empAttendanceReportTab.empAttendanceWeekOneReport);
 router.get("/employee-attendance-weekone-detail/:Year/:Month/:Wing/:Division/:type/:week", auth, ministryOnly, attRead, empAttendanceReportTab.getDetailAttendanceWeekOneReport);
 router.get("/employee-attendance-check", auth, ministryOnly, attRead, empAttendanceReportTab.getEmpAttendanceCheck);
-
-//Court Case Report
-// router.get("/all-court-case-report", arbitCourtCaseTab.getCourtCaseReport),
-//     router.get("/get-detailed-case-report/:organisationid/:type/:typeofcourt", arbitCourtCaseTab.getDetailCourtCaseReport),
 
 // Cabinet Notes - MoPSW Reports
 router.get(
@@ -2994,8 +2979,6 @@ router.get("/get-last-conciliation-number-no/:organisationID", conciliationCourt
 router.post("/add-conciliators-data", conciliationCourtCaseTab.addConciliatorsData);
 router.post("/add-second-party-data", conciliationCourtCaseTab.addSecondPartyData);
 router.post("/add-conciliation-prev-conn-cases", conciliationCourtCaseTab.addConciliationPrevConnCases);
-router.post("/add-conciliation-other-court-case-Org", conciliationCourtCaseTab.addConciliationOtherCourtCaseOrg);
-router.post("/add-conciliation-other-second-party-org", conciliationCourtCaseTab.addConciliationOtherSecondParty);
 router.post("/create-conciliation-court-case", conciliationCourtCaseTab.createConciliationCourtCase);
 router.post("/add-first-party-data", conciliationCourtCaseTab.addConciliationFirstParty);
 router.post("/add-conciliators-hearing-data", conciliationCourtCaseTab.addConciliatorsHearingData);

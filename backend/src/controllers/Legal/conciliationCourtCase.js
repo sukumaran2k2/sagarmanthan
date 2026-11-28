@@ -199,61 +199,6 @@ async function addConciliationPrevConnCases(req, res) {
     }
 }
 
-
-async function addConciliationOtherCourtCaseOrg(req, res) {
-    const { otherOrg } = req.body;
-
-    if (!Array.isArray(otherOrg) || otherOrg.length === 0) {
-        return res.status(400).json({ error: "Invalid data" });
-    }
-
-    const conn = await pool;
-
-    try {
-        const existingOrgNames = [];
-
-        //check which organisations already exist in the database
-        const placeholders = otherOrg.map((_, index) => `@organisationName${index}`).join(', ');
-        const selectRequest = conn.request();
-        otherOrg.forEach((orgName, index) => {
-            selectRequest.input(`organisationName${index}`, orgName);
-        });
-
-        const result = await selectRequest.query(
-            `SELECT organisation_name FROM mmt_conciliation_first_party WHERE organisation_name IN (${placeholders})`
-        );
-
-        // Extract the existing organisation names from the result
-        result.recordset.forEach(row => existingOrgNames.push(row.organisation_name));
-
-        // Insert new organisations that don't already exist
-        for (const orgName of otherOrg) {
-            if (!existingOrgNames.includes(orgName)) {
-                const request = conn.request();
-                request.input("organisationName", orgName);
-                await request.query(`INSERT INTO mmt_conciliation_first_party (organisation_name,status) VALUES (@organisationName ,1) `);
-            }
-        }
-
-        // Fetch and return the organisation IDs for all input organisations (including both new and existing ones)
-        const finalSelectRequest = conn.request();
-        otherOrg.forEach((orgName, index) => {
-            finalSelectRequest.input(`organisationName${index}`, orgName);
-        });
-
-        const finalResult = await finalSelectRequest.query(
-            `SELECT organisation_id, organisation_name FROM mmt_conciliation_first_party WHERE organisation_name IN (${placeholders})`
-        );
-
-        res.json(finalResult.recordset);
-    } catch (err) {
-        // Log the error for debugging purposes (optional)
-        // console.log(err);
-        return res.status(500).json({ error: "Internal Server Error" });
-    }
-}
-
-
 //submit conciliationCourtCase
 async function createConciliationCourtCase(req, res) {
     const {
@@ -502,61 +447,6 @@ async function createConciliationStatus(req,res) {
         }
     }
 
-
-    async function addConciliationOtherSecondParty(req, res) {
-        const { otherOrg } = req.body;
-        console.log("req.body",req.body)
-    
-        if (!Array.isArray(otherOrg) || otherOrg.length === 0) {
-            return res.status(400).json({ error: "Invalid data" });
-        }
-    
-        const conn = await pool;
-    
-        try {
-            const existingOrgNames = [];
-    
-            //check which organisations already exist in the database
-            const placeholders = otherOrg.map((_, index) => `@organisationName${index}`).join(', ');
-            const selectRequest = conn.request();
-            otherOrg.forEach((orgName, index) => {
-                selectRequest.input(`organisationName${index}`, orgName);
-            });
-    
-            const result = await selectRequest.query(
-                `SELECT organisation_name FROM mmt_conciliation_second_party WHERE organisation_name IN (${placeholders})`
-            );
-    
-            // Extract the existing organisation names from the result
-            result.recordset.forEach(row => existingOrgNames.push(row.organisation_name));
-    
-            // Insert new organisations that don't already exist
-            for (const orgName of otherOrg) {
-                if (!existingOrgNames.includes(orgName)) {
-                    const request = conn.request();
-                    request.input("organisationName", orgName);
-                    await request.query(`INSERT INTO mmt_conciliation_second_party (organisation_name,status) VALUES (@organisationName ,1) `);
-                }
-            }
-    
-            // Fetch and return the organisation IDs for all input organisations (including both new and existing ones)
-            const finalSelectRequest = conn.request();
-            otherOrg.forEach((orgName, index) => {
-                finalSelectRequest.input(`organisationName${index}`, orgName);
-            });
-    
-            const finalResult = await finalSelectRequest.query(
-                `SELECT organisation_id, organisation_name FROM mmt_conciliation_second_party WHERE organisation_name IN (${placeholders})`
-            );
-    
-            res.json(finalResult.recordset);
-        } catch (err) {
-            // Log the error for debugging purposes (optional)
-            // console.log(err);
-            return res.status(500).json({ error: "Internal Server Error" });
-        }
-    }
-
 async function addConciliationFirstPartyAndSecondParty(req,res) {
     const { caseID, firstParty, secondParty } = req.body;
 
@@ -615,7 +505,7 @@ async function getConciliationFirstPartyAndSecondParty(req,res) {
 }
 
 export default {getLastConciliationNumber,addConciliationPrevConnCases,addConciliatorsData,
-    addConciliationFirstParty,addSecondPartyData,addConciliationOtherCourtCaseOrg,createConciliationCourtCase,
+    addConciliationFirstParty,addSecondPartyData,createConciliationCourtCase,
     addConciliatorsHearingData,createConciliationStatus,
-    getSubTablesCourtCaseData,addConciliationOtherSecondParty,addConciliationFirstPartyAndSecondParty,getConciliationFirstPartyAndSecondParty
+    getSubTablesCourtCaseData,addConciliationFirstPartyAndSecondParty,getConciliationFirstPartyAndSecondParty
 }

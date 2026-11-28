@@ -54,11 +54,6 @@ export function addInterimOrder(payload) {
 export function updateArbitCaseStatus(payload) {
   return api.put('/update-arbitration-court-case-status', payload);
 }
-export function courtCaseUploadDocument(formData) {
-  return api.post('/court-case-document', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
-}
 export function fetchOrganisationName(organisationID) {
   return api.get(`/get-organisation-name/${organisationID}`);
 }
@@ -100,10 +95,6 @@ export function createLitigationCase(payload) {
   return api.post('/create-litigation-court-case', payload);
 }
 
-export function ministryInterventionDocument(payload) {
-  return api.post('/ministry-intervention-document', payload);
-}
-
 export function createMinistryIntervention(payload) {
   return api.post('/add-ministry-intervention', payload);
 }
@@ -113,12 +104,6 @@ export function submitCaseStatus(payload) {
   return api.post('/create-case-status', payload);
 }
  
-
-export function counterAffidavitDocument(formData) {
-  return api.post('/counter-affidavit-document', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
-}
 
 export function fetchLitigationSubTableData(typeName, caseID) {
   return api.get(`/get-litigation-sub-table-court-cases-data/${typeName}/${caseID}`);
@@ -243,4 +228,11 @@ export function fetchLitigationDomainwisePendencyOtherOrgReport(userID) {
   return api.get(`/litigation-other-org-domainwise-pendency-report/${userID}`);     
 }
 
+export function addCourtCaseOMDetails(payload) {
+  return api.post('/add-court-case-OM-details', payload);
+}
+
+export function checkCaseNumberExists(organisationID,caseNumber) {
+  return api.get(`/check-case-number-exists/${organisationID}/${encodeURIComponent(caseNumber)}`);
+}
 export default api;

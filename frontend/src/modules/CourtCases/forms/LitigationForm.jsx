@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { BASE_PATH } from "../CourtCases";
 import CaseForm from "../pages/CaseForm";
-import { litigationSchema, COURT, SUB_COURT_COURTS  } from "./litigation.schema";
+import { litigationSchema, COURT, SUB_COURT_COURTS, isOM } from "./litigation.schema";
 import { getSessionOrganisationId, getCurrentUserId } from "../../../utils/authSession";
 import { toOptions } from "../../../utils/option";
 import { useLitigationFormStore } from "../store/caseFormStore";
@@ -12,10 +12,8 @@ import {
 } from "../../../utils/notify";
 import api, {
   fetchLastLitigationCaseNo, createLitigationCase, addLitigationParties, addPrevConnCases,
-  addDetailsOfCounsel, addMinistryCounsel, createMinistryIntervention, submitCaseStatus, 
-  ministryInterventionDocument,counterAffidavitDocument,
-
-
+  addDetailsOfCounsel, addMinistryCounsel, createMinistryIntervention, submitCaseStatus,
+  addCourtCaseOMDetails, checkCaseNumberExists,
   addHearingCases, addInterimOrder,
   fetchOrganisationName, fetchDomains, fetchSubDomains, fetchDepartments, fetchActsDropdown,
   fetchRulesDropdown, fetchSubCourtTypes, fetchCaseTypes, fetchHighCourtBenches, fetchStates,
@@ -97,11 +95,13 @@ const asRows = (res) => {
   return d && typeof d === "object" ? [d] : [];
 };
 
-// builds a payload from the visible fields of one step (skips files and the tables sent separately)
+const sameNumber = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+// builds a payload from the visible fields of one step (skips the tables sent separately)
 const collect = (stepIndex, v, exclude = []) => {
   const out = {};
   litigationSchema.steps[stepIndex].fields.forEach((f) => {
-    if (f.type === "file" || exclude.includes(f.name)) return;
+    if (exclude.includes(f.name)) return;
     if (f.showIf && !f.showIf(v)) return;
     out[f.name] = v[f.name];
   });
@@ -242,12 +242,13 @@ async function loadCaseValues(id) {
   if (!c) throw new Error("Case not found");
   console.log("[LitigationForm] main row:", c);
 
-  const [parties, pcc, doc, hearing, interim] = await Promise.all([
+  const [parties, pcc, doc, hearing, interim, oms] = await Promise.all([
     safe("parties", () => api.get(partiesUrl(id))),
     safe("PCC", () => fetchSubTableData("PCC", id)),
     safe("DOC", () => fetchSubTableData("DOC", id)),
     safe("Hearing", () => fetchSubTableData("Hearing", id)),
     safe("Interim", () => fetchSubTableData("Interim", id)),
+    safe("OMS", () => fetchSubTableData("OMS", id)),
   ]);
 
   let ministryRows = [];
@@ -272,6 +273,9 @@ async function loadCaseValues(id) {
     counselData: rowsOr(asRows(doc || []).map((r) => ({
       nameOfCounsel: str(r.name_of_counsel), counselContact: str(r.contact),
       typeCounsel: str(r.type_of_counsel), counselDetails: str(r.details),
+    }))),
+    courtCaseOMDetailsData: rowsOr(asRows(oms || []).map((r) => ({
+      ministryDept: str(r.ministry), OMNumber: str(r.om_number), omDate: day(r.om_date),
     }))),
     ministryCounsel: rowsOr(ministryRows.map((r) => ({
       nameOfCounselMinistry: str(r.name_of_counsel), designationMinistry: str(r.designation), ministryContact: str(r.contact),
@@ -299,7 +303,9 @@ export default function LitigationForm({ triggerNotification }) {
   const { setCaseID, setOpt, mergeValues, setLoading, reset } = useStore.getState();
   const lookup = useLookupStore((s) => s.options);
   const dynamicOptions = useMemo(() => ({ ...lookup, ...opts }), [lookup, opts]);
-  const sel = useRef({}); 
+  const sel = useRef({});
+  // this case's own case number as saved: it must not be reported as a duplicate of itself
+  const savedCaseNumber = useRef("");
 
   const notifier = useNotifier(triggerNotification);
 
@@ -474,12 +480,14 @@ export default function LitigationForm({ triggerNotification }) {
   useEffect(() => {
     reset(editId || "");
     sel.current = {};
+    savedCaseNumber.current = "";
     if (!editId) return () => reset();
     let cancelled = false;
     (async () => {
       try {
         const values = await loadCaseValues(editId);
         if (cancelled) return;
+        savedCaseNumber.current = values.caseNumber;
         mergeValues(values);
         setLoading(false);
 
@@ -503,22 +511,6 @@ export default function LitigationForm({ triggerNotification }) {
     })();
     return () => { cancelled = true; reset(); };
   }, [editId]);
-
-  const makeForm = (file, docType) => {
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("ID", caseID);
-    fd.append("caseID", caseID);
-    fd.append("path", "Litigation");
-    fd.append("docType", docType);
-    return fd;
-  };
-  const upload = async (file, docType) => {
-    if (file instanceof File) await counterAffidavitDocument(makeForm(file, docType));
-  };
-  const uploadMinistry = async (file, docType) => {
-    if (file instanceof File) await ministryInterventionDocument(makeForm(file, docType));
-  };
 
   /* ---------------- Step 1: Basic Information ---------------- */
   const generateCaseID = async (organisationID) => {
@@ -555,6 +547,23 @@ export default function LitigationForm({ triggerNotification }) {
     const deptDivision = toDeptArray(v.deptDivision);
     if (!deptDivision.length) return fail("Please select at least one Department/Division.", "warning", "Required Field Missing");
 
+    // duplicate check for this organisation, before anything is saved
+    const caseNumber = String(v.caseNumber).trim();
+    if (!caseNumber) return fail("Please enter the Case Number.", "warning", "Required Field Missing");
+    // skipped for this case's own number, otherwise every update would be called a duplicate
+    if (!sameNumber(caseNumber, savedCaseNumber.current)) {
+      try {
+        const res = await checkCaseNumberExists(organisationID, caseNumber);
+        const exists = res?.data?.exists; // the API replies { exists: true } or { exists: false }
+        if (exists === true)
+          return fail(`Case number ${caseNumber} already exists for this organisation.`, "warning", "Duplicate Case Number");
+        if (exists !== false)
+          return fail("The case number could not be checked, so the case was not saved.", "error", "Save Failed");
+      } catch (e) {
+        return failApi(e, "The case number could not be checked, so the case was not saved.", "Save Failed");
+      }
+    }
+
     try {
       const id = caseID || (await generateCaseID(organisationID));
 
@@ -581,6 +590,7 @@ export default function LitigationForm({ triggerNotification }) {
       const { prevConnData, counselData, petitioners: _p, respondents: _r, ...main } = collect(0, v);
       const res = await createLitigationCase({
         ...basicPayload(main),
+        caseNumber,
         caseID: id, organisationID, userID, organisationName,
         deptDivision,
         prevConnCaseOrNot: v.prevConnectCases,
@@ -590,6 +600,7 @@ export default function LitigationForm({ triggerNotification }) {
         return fail("The litigation case could not be saved. Please try again.", "error", "Save Failed");
 
       const savedId = res?.data?.caseID || id;
+      savedCaseNumber.current = caseNumber;
       setCaseID(savedId);
       notify(
         "success",
@@ -620,10 +631,17 @@ export default function LitigationForm({ triggerNotification }) {
         return fail("Please enter a valid 10-digit phone number for the ministry counsel.");
     }
 
+    // OM details are optional, but a typed row must be complete
+    const omKeys = ["ministryDept", "OMNumber", "omDate"];
+    // "courtCaseOMDetailsData" is the table's name in litigation.schema.js
+    const omRows = isOM(v) ? used(v.courtCaseOMDetailsData, omKeys) : [];
+    const omError = isOM(v) ? checkTable(v.courtCaseOMDetailsData, omKeys, "the OM Details", false) : "";
+    if (omError) return fail(omError);
+
     try {
       if (counsel.length) await addMinistryCounsel({ caseID, detailsOfCounselMinistryData: counsel });
-      if (v.isMinistryParty === "1" && v.replyFiled === "1") await uploadMinistry(v.replyFiledDoc, "replyFiled");
-      if (v.ministryIntervention === "1") await uploadMinistry(v.intervenDoc, "intervention");
+      // "courtCaseOMDetailsData" is the name sent to the add-court-case-OM-details API
+      if (omRows.length) await addCourtCaseOMDetails({ caseID, userID, courtCaseOMDetailsData: omRows });
 
       const inv = v.ministryInvolved; 
       const res = await createMinistryIntervention({
@@ -677,7 +695,6 @@ export default function LitigationForm({ triggerNotification }) {
     if (err) return fail(err);
 
     try {
-      if (v.counterAffiFiled === "1") await upload(v.counterAffiDoc, "counterAffidavit");
       if (v.hearingStarted === "1")
         await addHearingCases({
           caseID,

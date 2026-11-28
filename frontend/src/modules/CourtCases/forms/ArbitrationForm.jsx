@@ -15,7 +15,7 @@ import {
 import api, {
   fetchLastArbitrationCaseNo, createArbitrationCase, addArbitrationClaimantAndRespondent,
   addPrevConnCases, addDetailsOfCounsel, addHearingCases, addInterimOrder,
-  updateArbitCaseStatus, courtCaseUploadDocument, fetchOrganisationName,
+  updateArbitCaseStatus, fetchOrganisationName,
   fetchDomains, fetchSubDomains, fetchDepartments, fetchCourtCaseById, fetchSubTableData,
 } from "../api";
 
@@ -372,14 +372,6 @@ export default function ArbitrationForm({ triggerNotification }) {
           caseID,
           hearingCaseData: nullifyRows(used(v.hearingData, [...hearingKeys, "nextHearingDate"])),
         });
-
-      if (v.defenceStatement === "1" && v.defenceDoc instanceof File) {
-        const fd = new FormData();
-        fd.append("file", v.defenceDoc);
-        fd.append("caseID", caseID);
-        fd.append("path", "Arbitration");
-        await courtCaseUploadDocument(fd);
-      }
 
       if (v.interimOrder === "1")
         await addInterimOrder({

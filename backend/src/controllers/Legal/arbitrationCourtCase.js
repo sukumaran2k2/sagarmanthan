@@ -168,33 +168,6 @@ async function getCourtCaseDataByID(req,res){
         return res.sendStatus(500);
     }
 }
-// async function getCourtCaseDataByID(req,res){
-//     // let caseType = req.params.caseType;
-//     const caseID = req.params.caseID;
-
-//    if (!caseID) {
-//         return res.status(400).json({ error: "Invalid case ID" });
-//     }
-
-//     const conn = await pool;
-//     const request = conn.request();
-//     // request.input("caseType", caseType);
-//     request.input("caseID", caseID);
-
-
-//     const caseQuery = `SELECT * FROM tbl_arbitration_cases WHERE case_id = @caseID ORDER BY case_id ASC`;
-
-//     try {
-//         const result = await request.query(caseQuery);
-//         res.json(result.recordset);
-//     } catch (err) {
-//         // console.log(err);
-//         return res.sendStatus(500);
-//     }
-// }
-
-
-
 
 async function getSubTableCourtCaseData(req,res){
     let typeName = req.params.typeName;
@@ -268,59 +241,6 @@ async function fetchLastCaseNumber(req,res){
     catch (err) {
         // //console.log(err);
         return res.sendStatus(500);
-    }
-}
-
-async function addOtherClaimantOrg(req, res) {
-    const { otherOrg } = req.body;
-
-    if (!Array.isArray(otherOrg) || otherOrg.length === 0) {
-        return res.status(400).json({ error: "Invalid data" });
-    }
-
-    const conn = await pool;
-
-    try {
-        const existingOrgNames = [];
-
-        //check which organisations already exist in the database
-        const placeholders = otherOrg.map((_, index) => `@organisationName${index}`).join(', ');
-        const selectRequest = conn.request();
-        otherOrg.forEach((orgName, index) => {
-            selectRequest.input(`organisationName${index}`, orgName);
-        });
-
-        const result = await selectRequest.query(
-            `SELECT organisation_name FROM mmt_arbitration_claimant WHERE organisation_name IN (${placeholders})`
-        );
-
-        // Extract the existing organisation names from the result
-        result.recordset.forEach(row => existingOrgNames.push(row.organisation_name));
-
-        // Insert new organisations that don't already exist
-        for (const orgName of otherOrg) {
-            if (!existingOrgNames.includes(orgName)) {
-                const request = conn.request();
-                request.input("organisationName", orgName);
-                await request.query(`INSERT INTO mmt_arbitration_claimant (organisation_name,status) VALUES (@organisationName ,1) `);
-            }
-        }
-
-        // Fetch and return the organisation IDs for all input organisations (including both new and existing ones)
-        const finalSelectRequest = conn.request();
-        otherOrg.forEach((orgName, index) => {
-            finalSelectRequest.input(`organisationName${index}`, orgName);
-        });
-
-        const finalResult = await finalSelectRequest.query(
-            `SELECT organisation_id, organisation_name FROM mmt_arbitration_claimant WHERE organisation_name IN (${placeholders})`
-        );
-
-        res.json(finalResult.recordset);
-    } catch (err) {
-        // Log the error for debugging purposes (optional)
-        console.log(err);
-        return res.status(500).json({ error: "Internal Server Error" });
     }
 }
 
@@ -888,137 +808,6 @@ const storage = multer.diskStorage({
     },
 });
 
-const upload = multer({
-    storage: storage,
-    limits: { fileSize: 10000000 }
-});
-
-async function courtCaseUploadDocument(req, res) {
-    try {
-        const conn = await pool;
-        const request = conn.request();
-
-        const caseID = req.body.caseID;  
-        
-        const pathFolder = req.body.path;  
-        // console.log("case ",caseID,"path ",pathFolder);
-        const uploadDir = path.join(__dirname, "../../../fileuploads/Court_Case"); 
-
-        request.input("caseID", caseID);
-
-        if (pathFolder === 'Arbitration') {
-            const fullPath = path.join(uploadDir, pathFolder);
-
-            if (!fs.existsSync(fullPath)) {
-                fs.mkdirSync(fullPath, { recursive: true });
-            }
-
-            const existingDocResult = await request.query(`
-                SELECT defence_doc_name FROM tbl_arbitration_cases 
-                WHERE case_id = @caseID
-            `);
-
-            const existingFileName = existingDocResult.recordset[0]?.defence_doc_name;
-
-            if (existingFileName) {
-                const existingFilePath = path.join(fullPath, existingFileName);
-
-                if (fs.existsSync(existingFilePath)) {
-                    try {
-                        fs.unlinkSync(existingFilePath);  
-                        console.log(`Existing file ${existingFileName} deleted successfully.`);
-                    } catch (err) {
-                        console.error("Error deleting file:", err);
-                    }
-                }
-            }
-
-            const newFileName = req.uniqueFileName;  
-            const newFilePath = path.join(fullPath, newFileName);
-
-            request.input("newFileName", newFileName);
-
-            if (req.file && req.file.path) {
-                fs.renameSync(req.file.path, newFilePath); 
-            } else {
-                console.error("No file found in req.file or req.file.path");
-            }
-
-            const result = await request.query(`
-                UPDATE tbl_arbitration_cases 
-                SET defence_doc_name = @newFileName 
-                WHERE case_id = @caseID
-            `);
-            res.status(201).json({ message: "Document uploaded and updated successfully." });
-        } else {
-            return res.status(400).json({ error: "Invalid path. Document upload is only allowed for 'Arbitration'." });
-        }
-    } catch (err) {
-        // console.error(err);
-        res.status(500).json({ error: "Internal server error" });
-    }
-}
-
-async function getUpdateCourtCase(req, res) {
-    const courtCaseID = req.params.courtCaseID;
-
-    const conn = await pool;
-    const request = conn.request();
-    request.input("courtCaseID", courtCaseID);
-    try {
-        const result = await request.query(`SELECT * FROM tbl_court_case WHERE tbl_court_case.court_case_id = @courtCaseID;`);
-
-        res.json(result.recordset);
-    }
-    catch (err) {
-        //console.log(err);
-        return res.sendStatus(500);
-    }
-};
-
-async function createCourtCaseStage(req, res) {
-    const courtCaseID = req.body.courtCaseID;
-    const stage = req.body.selectedStage;
-
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input("courtCaseID", courtCaseID);
-    request.input("stage", stage);
-
-    try {
-
-        const checkResult = await request.query(`
-        SELECT COUNT(*) AS recordCount
-        FROM tbl_court_case_stage
-        WHERE court_case_id = @courtCaseID
-    `);
-
-        if (checkResult.recordset[0].recordCount > 0) {
-
-            const updateResult = await request.query(`
-            UPDATE tbl_court_case_stage
-            SET stage_name = @stage
-            WHERE court_case_id = @courtCaseID
-        `);
-        } else {
-
-            const insertResult = await request.query(`
-            INSERT INTO tbl_court_case_stage (court_case_id, stage_name)
-            VALUES (@courtCaseID, @stage);
-        `);
-        }
-        res.sendStatus(201);
-    }
-
-
-    catch (err) {
-        //console.log(err);
-        return res.sendStatus(500);
-    }
-};
-
-
 function generateUniqueFileName(originalFileName) {
     const currentDate = new Date();
     const year = currentDate.getFullYear();
@@ -1033,101 +822,6 @@ function generateUniqueFileName(originalFileName) {
     const baseFileName = originalFileName.substring(0, originalFileName.lastIndexOf('.'));
 
     return `${baseFileName}_${day}${month}${year}_${hours}${minutes}${seconds}.${fileExtension}`;
-}
-
-async function getCaseDocuments(req, res) {
-    const courtCaseID = req.params.courtCaseID;
-
-    const conn = await pool;
-    const request = conn.request();
-    request.input("courtCaseID", courtCaseID);
-
-    try {
-        let result = await request.query(`SELECT * 
-        FROM tbl_court_case_document WHERE court_id = @courtCaseID ;`);
-        res.json(result.recordset);
-    }
-    catch (err) {
-        //console.log(err);
-        return res.sendStatus(500);
-    }
-}
-
-async function deleteCaseDocuments(req, res) {
-    try {
-
-        const courtID = req.params.courtID;
-        const conn = await pool;
-        const request = conn.request();
-
-        request.input("courtID", courtID);
-
-
-        const result = await request.query(
-            `SELECT ID,file_name FROM tbl_court_case_document WHERE ID = @courtID`
-        );
-
-        // console.log("result",result);
-
-        const fileName = result.recordset[0].file_name;
-
-        //const fileResult = await conn.query(`SELECT id FROM tbl_attendance WHERE file_name = '${fileName}'`);
-        //const fileId = fileResult.recordset[0].id;
-
-        if (fs.existsSync(`./fileuploads/Court_Case/${fileName}`)) {
-
-            fs.unlink(`./fileuploads/Court_Case/${fileName}`, (err) => {
-                if (err) {
-                    console.error("Error deleting file:", err);
-                }
-            });
-        } else {
-            console.log("File does not exist, no deletion needed");
-        }
-
-        let results = await request.query(`DELETE FROM tbl_court_case_document WHERE ID = @courtID`);
-
-        res.status(201).send({ message: 'File and data deleted' });
-    } catch (err) {
-        // console.error(err);
-        res.status(500).send({ message: err.message });
-    }
-}
-
-//---------------------------------------------------------------------------- Download logic ----------------------------------------------------------
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-async function downloadCaseDocument(req, res) {
-    try {
-        const courtID = req.params.courtID;
-        const conn = await pool;
-        const request = conn.request();
-
-        request.input("courtID", courtID);
-
-        const result = await request.query(`SELECT file_name FROM tbl_court_case_document WHERE ID = @courtID`);
-        const fileName = result.recordset[0].file_name;
-        const file_path = path.join(__dirname, "../../../fileuploads/Court_Case", fileName);
-
-        if (fs.existsSync(file_path)) {
-            res.setHeader('Content-Type', 'application/octet-stream');
-            res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-            res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
-            res.setHeader('Content-Length', fs.statSync(file_path).size);
-
-            // Create a readable stream and pipe it to the response
-            const fileStream = fs.createReadStream(file_path);
-            fileStream.pipe(res);
-
-        } else {
-            console.error("File not found on the server.");
-            res.status(404).send({ message: "File not found" });
-        }
-    } catch (err) {
-        // console.error(err);
-        res.status(500).send({ message: err.message });
-    }
 }
 
 async function getCourtCaseReport(req, res) {
@@ -1460,7 +1154,6 @@ async function getArbitrationDetailCourtCaseReport(req, res) {
 async function deleteCourtCaseData(req, res) {
     try {
         const courtCaseId = req.params.caseID;
-        const userID = req.params.userID;
 
         if (!courtCaseId) {
             return res.status(400).json({ error: "Invalid Case ID" });
@@ -1468,92 +1161,50 @@ async function deleteCourtCaseData(req, res) {
 
         const conn = await pool;
         const request = conn.request();
+        request.input("caseId", courtCaseId);
 
-        if (courtCaseId.startsWith('AR')) {
-            // Use named parameter for the query
-            const result = await request
-                .input('caseId', courtCaseId)
-                .query('SELECT defence_doc_name FROM tbl_arbitration_cases WHERE case_id = @caseId');
-            const defenceDocName = result.recordset[0]?.defence_doc_name;
+        let deleteQueries;
 
-            if (defenceDocName) {
-                const filePath = path.join(__dirname, 'fileuploads', 'Court_Case', defenceDocName);
-            
-                if (fs.existsSync(filePath)) {
-                    fs.unlinkSync(filePath); 
-                    console.log(`File ${defenceDocName} deleted successfully.`);
-                } else {
-                    console.log(`File ${defenceDocName} not found.`);
-                }
-            }
-
-            const deleteQueries = [
-                'DELETE FROM tbl_arbitration_cases WHERE case_id = @caseId',
-                'DELETE FROM tbl_arbitrators WHERE case_id = @caseId',
-                'DELETE FROM tbl_court_case_hearing WHERE case_id = @caseId',
-                'DELETE FROM tbl_court_case_interim_order WHERE case_id = @caseId',
-                'DELETE FROM tbl_court_cases_counsel_details WHERE case_id = @caseId',
-                'DELETE FROM tbl_prev_conn_court_cases WHERE case_id = @caseId',
-                'DELETE FROM tbl_party_requesting_arbitration WHERE case_id = @caseId'
+        if (courtCaseId.startsWith("AR")) {
+            deleteQueries = [
+                "DELETE FROM tbl_arbitration_cases WHERE case_id = @caseId",
+                "DELETE FROM tbl_arbitrators WHERE case_id = @caseId",
+                "DELETE FROM tbl_court_case_hearing WHERE case_id = @caseId",
+                "DELETE FROM tbl_court_case_interim_order WHERE case_id = @caseId",
+                "DELETE FROM tbl_court_cases_counsel_details WHERE case_id = @caseId",
+                "DELETE FROM tbl_prev_conn_court_cases WHERE case_id = @caseId",
+                "DELETE FROM tbl_party_requesting_arbitration WHERE case_id = @caseId",
             ];
-
-            for (const query of deleteQueries) {
-                await request.query(query);
-            }
-
-            res.status(200).send({ message: 'Court case and related data deleted successfully' });
-        } else if(courtCaseId.startsWith('LI')){
-            const result = await request
-            .input('caseId', courtCaseId)
-
-            .query('SELECT file_of_affidavit FROM tbl_litigation_cases WHERE case_id = @caseId');
-            const counterAffidavitDocument = result.recordset[0]?.file_of_affidavit;
-        if (counterAffidavitDocument) {
-            const filePath = path.join(__dirname, 'affidavitFiles', 'counter_affidavit_Document', counterAffidavitDocument);
-        
-            if (fs.existsSync(filePath)) {
-                fs.unlinkSync(filePath); 
-                console.log(`File ${counterAffidavitDocument} deleted successfully.`);
-            } else {
-                console.log(`File ${counterAffidavitDocument} not found.`);
-            }
+        } else if (courtCaseId.startsWith("LI")) {
+            deleteQueries = [
+                "DELETE FROM tbl_litigation_cases WHERE case_id = @caseId",
+                "DELETE FROM tbl_prev_conn_court_cases WHERE case_id = @caseId",
+                "DELETE FROM tbl_court_cases_counsel_details WHERE case_id = @caseId",
+                "DELETE FROM tbl_court_case_om WHERE case_id = @caseId",
+                "DELETE FROM tbl_court_case_interim_order WHERE case_id = @caseId",
+                "DELETE FROM tbl_court_case_hearing WHERE case_id = @caseId",
+            ];
+        } else if (courtCaseId.startsWith("CO")) {
+            deleteQueries = [
+                "DELETE FROM tbl_conciliation_cases WHERE case_id = @caseId",
+                "DELETE FROM tbl_prev_conn_court_cases WHERE case_id = @caseId",
+                "DELETE FROM tbl_conciliators WHERE case_id = @caseId",
+                "DELETE FROM tbl_claim_first_parties WHERE case_id = @caseId",
+                "DELETE FROM tbl_claim_second_parties WHERE case_id = @caseId",
+                "DELETE FROM tbl_court_case_hearing_for_conciliation WHERE case_id = @caseId",
+            ];
+        } else {
+            return res.status(400).json({ error: "Unknown case type" });
         }
-        const deleteQueries = [
-            'DELETE FROM tbl_litigation_cases WHERE case_id = @caseId',
-            'DELETE FROM tbl_prev_conn_court_cases WHERE case_id = @caseId',
-            'DELETE FROM tbl_court_cases_counsel_details WHERE case_id = @caseId',
-            'DELETE FROM tbl_court_case_om WHERE case_id = @caseId',
-            'DELETE FROM tbl_court_case_interim_order WHERE case_id = @caseId',
-            'DELETE FROM tbl_court_case_hearing WHERE case_id = @caseId',
 
-        ];
         for (const query of deleteQueries) {
             await request.query(query);
         }
-        res.status(200).send({ message: 'Court case and related data deleted successfully' });
 
-     }else if(courtCaseId.startsWith('CO')){
-
-                const result = await request
-                .input('caseId', courtCaseId)
-
-            const deleteQueries = [
-                'DELETE FROM tbl_conciliation_cases WHERE case_id = @caseId',
-                'DELETE FROM tbl_prev_conn_court_cases WHERE case_id = @caseId',
-                'DELETE FROM tbl_conciliators WHERE case_id = @caseId',
-                'DELETE FROM tbl_claim_first_parties WHERE case_id = @caseId',
-                'DELETE FROM tbl_claim_second_parties WHERE case_id = @caseId',
-                'DELETE FROM tbl_court_case_hearing_for_conciliation WHERE case_id = @caseId',
-
-            ];
-            for (const query of deleteQueries) {
-                await request.query(query);
-            }
-            res.status(200).send({ message: 'Court case and related data deleted successfully' });
-        }
+        return res.status(200).json({ message: "Court case and related data deleted successfully" });
     } catch (err) {
-        // console.error(err);
-        res.status(500).send({ message: err.message });
+        console.error(err);
+        return res.status(500).json({ message: err.message });
     }
 }
 
@@ -1620,111 +1271,6 @@ async function getConsumerForumDropDown(req, res) {
         return res.sendStatus(500);
     }
 }
-
-async function addOtherRespondentOrg(req, res) {
-    const { otherOrg } = req.body;
-
-    if (!Array.isArray(otherOrg) || otherOrg.length === 0) {
-        return res.status(400).json({ error: "Invalid data" });
-    }
-
-    const conn = await pool;
-
-    try {
-        const existingOrgNames = [];
-
-        //check which organisations already exist in the database
-        const placeholders = otherOrg.map((_, index) => `@organisationName${index}`).join(', ');
-        const selectRequest = conn.request();
-        otherOrg.forEach((orgName, index) => {
-            selectRequest.input(`organisationName${index}`, orgName);
-        });
-
-        const result = await selectRequest.query(
-            `SELECT organisation_name FROM mmt_arbitration_respondent WHERE organisation_name IN (${placeholders})`
-        );
-
-        // Extract the existing organisation names from the result
-        result.recordset.forEach(row => existingOrgNames.push(row.organisation_name));
-
-        // Insert new organisations that don't already exist
-        for (const orgName of otherOrg) {
-            if (!existingOrgNames.includes(orgName)) {
-                const request = conn.request();
-                request.input("organisationName", orgName);
-                await request.query(`INSERT INTO mmt_arbitration_respondent (organisation_name,status) VALUES (@organisationName ,1) `);
-            }
-        }
-
-        // Fetch and return the organisation IDs for all input organisations (including both new and existing ones)
-        const finalSelectRequest = conn.request();
-        otherOrg.forEach((orgName, index) => {
-            finalSelectRequest.input(`organisationName${index}`, orgName);
-        });
-
-        const finalResult = await finalSelectRequest.query(
-            `SELECT organisation_id, organisation_name FROM mmt_arbitration_respondent WHERE organisation_name IN (${placeholders})`
-        );
-
-        res.json(finalResult.recordset);
-    } catch (err) {
-        // Log the error for debugging purposes (optional)
-        // console.log(err);
-        return res.status(500).json({ error: "Internal Server Error" });
-    }
-}
-async function getDefenceStatDoc(req,res) {
-    const caseID = req.params.caseID;
-    try {
-        // console.log("caseID",caseID)
-        const conn = await pool;
-        const request = conn.request();
-        request.input("caseID", caseID);
-
-        let result = await request.query(`SELECT case_id,defence_doc_name
-            FROM tbl_arbitration_cases WHERE case_id = @caseID ;`)
-            res.json(result.recordset);
-            // console.log("result",result)
-    } catch (error) {
-        // console.log("error",error)
-        return res.status(500).json({error: "Internal server error" });
-    }    
-}
-
-async function deleteMinistryDefenceDocument(req, res) {
-    const caseID = req.params.caseID;
-    const defenceFile = req.params.defenceFile;
-    
-    const conn = await pool;
-    const request = conn.request();
-    request.input("caseID", caseID);
-    request.input("defenceFile", defenceFile);
-
-    try {
-        const checkResult = await request.query(`SELECT case_id,defence_doc_name FROM tbl_arbitration_cases WHERE case_id = @caseID`);
-     
-        if (checkResult.recordset.length > 0) {
-            await request.query(`UPDATE tbl_arbitration_cases SET defence_doc_name = NULL WHERE case_id = @caseID AND defence_doc_name = @defenceFile`);
-            const fileDeleted = deleteFile(defenceFile);
-            if (fileDeleted) {
-                return res.status(200).json({ message: "Document and file deleted successfully." });
-            } else {
-                return res.status(500).json({ error: "File deletion failed" });
-            }
-        } else {
-            const fileDeleted = deleteFile(defenceFile);
-            if (fileDeleted) {
-                return res.status(200).json({ message: "File deleted successfully" });
-            } else {
-                return res.status(404).json({ error: "File not found " });
-            }
-        }
-    } catch (err) {
-        // console.log(err);
-        return res.status(500).json({error: "Internal server error" });
-    }
-}
-
 
 function deleteFile(fileName) {
     try{
@@ -2045,11 +1591,10 @@ async function getArbitrationClaimantAndRespondent(req,res){
 }
 
 export default {
-    getCourtCase, getUpdateCourtCase, createCourtCaseStage, upload, getCaseDocuments,
-    deleteCaseDocuments, downloadCaseDocument,
+    getCourtCase, 
     getCourtCaseReport, getArbitrationDetailCourtCaseReport,
     deleteCourtCaseData, getActDropDownData, getRuleDropDownData, getSubCourtTypeDropDown, 
-    getConsumerForumDropDown, fetchLastCaseNumber,addOtherClaimantOrg,addOtherRespondentOrg,addDetailsOfCounsel, 
-    courtCaseUploadDocument,addPrevConnCases,createArbitCourtCase,addHearingCases, addInterimOrder, updateArbitCourtCaseStatus, getCourtCaseDataByID, getSubTableCourtCaseData,
-    getDefenceStatDoc,deleteMinistryDefenceDocument,getConciliationDetailCourtCaseReport,getLitigationcourtcasesReport,addArbitrationClaimantAndRespondent,getArbitrationClaimantAndRespondent
+    getConsumerForumDropDown, fetchLastCaseNumber,addDetailsOfCounsel, 
+    addPrevConnCases,createArbitCourtCase,addHearingCases, addInterimOrder, updateArbitCourtCaseStatus, getCourtCaseDataByID, getSubTableCourtCaseData,
+    getConciliationDetailCourtCaseReport,getLitigationcourtcasesReport,addArbitrationClaimantAndRespondent,getArbitrationClaimantAndRespondent
 }
