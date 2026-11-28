@@ -62,7 +62,6 @@ import hrEmployeeTab from "./controllers/HR/hrEmployee.js";
 import hrTrainingTab from "./controllers/HR/hrTraining.js";
 import vacancyStatusTab from "./controllers/HR/vacancyStatus.js";
 import revisedHrPost from "./controllers/HR/revisedHrPost.js";
-import revisedHrDepartment from "./controllers/HR/revisedHrDepartment.js";
 import hrHelperTab from "./controllers/HR/hrHelperFunctions.js";
 import { pinOwnOrganisation, pinOwnRole } from "./controllers/HR/hrHelperFunctions.js";
 import otherOrgVacancyDetailsTab from "./controllers/HR/otherOrgVacancyDetails.js";
@@ -996,49 +995,49 @@ router.delete("/consultant-candidate-all-data/:consultant_appointment_id/:userID
 router.delete("/ca-candidate-single/:candidate_id/:userID", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "delete"), consultantAppointmentTab.deleteCACandidateSingle);
 
 //HR
-router.post("/hr-department", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrDepartmentTab.createHrDepartment);
-router.get("/hr-department/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrDepartmentTab.getHrDepartment);
-router.get("/get-hr-department-by-org/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrDepartmentTab.getHrDepartmentByOrg);
-router.get("/get-hr-department-by-org-and-deprtid/:organisationID/:departmentID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrDepartmentTab.getHrPostsByOrgAndDept);
+// router.post("/hr-department", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrDepartmentTab.createHrDepartment);
+// router.get("/hr-department/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrDepartmentTab.getHrDepartment);
+// router.get("/get-hr-department-by-org/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrDepartmentTab.getHrDepartmentByOrg);
+// router.get("/get-hr-department-by-org-and-deprtid/:organisationID/:departmentID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrDepartmentTab.getHrPostsByOrgAndDept);
 
-router.get("/hr-total-post-details-org", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrDepartmentTab.getTotalHrPostDetailsOrg);
-router.post("/hr-post", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrPostTab.createHrPost);
-router.get("/hr-post/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrPostTab.getHrPost);
-router.delete("/delete-hr-post/:postId", auth, requireModulePermission("HR_MANAGEMENT", "delete"), hrPostTab.deleteHrPost);
-router.delete("/delete-hr-department-data/:deptID/:orgID", auth, requireModulePermission("HR_MANAGEMENT", "delete"), hrManagementTab.deleteHrDepartment);
-router.put("/update-hr-post-strength/:Id", auth, requireModulePermission("HR_MANAGEMENT", "update"), hrPostTab.updateHrPostStrength);
-router.get("/hr-management-post/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrPostTab.getHrManagementPost);
-router.get("/sanctioned-strength/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrPostTab.getSanctionedStrength);
-router.get("/get-filled-vacant-data-count/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrPostTab.getFilledVacantDataCount);
-router.get("/get-missing-post-data-count/:organisationId", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation("organisationId"), hrPostTab.getMissingPostDataCount);
+// router.get("/hr-total-post-details-org", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrDepartmentTab.getTotalHrPostDetailsOrg);
+// router.post("/hr-post", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrPostTab.createHrPost);
+// router.get("/hr-post/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrPostTab.getHrPost);
+// router.delete("/delete-hr-post/:postId", auth, requireModulePermission("HR_MANAGEMENT", "delete"), hrPostTab.deleteHrPost);
+// router.delete("/delete-hr-department-data/:deptID/:orgID", auth, requireModulePermission("HR_MANAGEMENT", "delete"), hrManagementTab.deleteHrDepartment);
+// router.put("/update-hr-post-strength/:Id", auth, requireModulePermission("HR_MANAGEMENT", "update"), hrPostTab.updateHrPostStrength);
+// router.get("/hr-management-post/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrPostTab.getHrManagementPost);
+// router.get("/sanctioned-strength/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrPostTab.getSanctionedStrength);
+// router.get("/get-filled-vacant-data-count/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrPostTab.getFilledVacantDataCount);
+// router.get("/get-missing-post-data-count/:organisationId", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation("organisationId"), hrPostTab.getMissingPostDataCount);
 
 // Organisation Structure Routes
-router.get("/get-organisation-structure-posts", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation("organisationId"), hrPostTab.getOrganisationStructurePosts);
+// router.get("/get-organisation-structure-posts", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation("organisationId"), hrPostTab.getOrganisationStructurePosts);
 router.get("/get-organisation-structure-posts/:organisationId", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation("organisationId"), hrPostTab.getOrganisationStructurePosts);
 router.post("/add-organisation-structure-post", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrPostTab.addOrganisationStructurePost);
 router.put("/update-organisation-structure-post/:postId", auth, requireModulePermission("HR_MANAGEMENT", "update"), hrPostTab.updateOrganisationStructurePost);
 router.delete("/delete-organisation-structure-post/:postId", auth, requireModulePermission("HR_MANAGEMENT", "delete"), hrPostTab.deleteOrganisationStructurePost);
 router.get("/get-organisation-structure-departments", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrPostTab.getOrganisationStructureDepartments);
 router.get("/get-organisation-structure-classes", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrPostTab.getOrganisationStructureClasses);
-router.get("/get-organisation-code/:organisationId", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation("organisationId"), hrManagementTab.getOrganisationCode);
-router.get("/get-department-id/:postId", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getDepartmentId);
-router.get("/check-post-code/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.checkPostCode);
-router.post("/post-strength-detail", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrManagementTab.addPostStrengthDetail);
-router.post("/post-hr-anticipated-vacancies", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrManagementTab.addAnticipatedVancancies);
-router.post("/put-hr-anticipated-vacancies", auth, requireModulePermission("HR_MANAGEMENT", "update"), hrManagementTab.updateAnticipatedVacancies);
-router.delete("/delete-hr-anticipated-vacancies/:anticipatedId", auth, requireModulePermission("HR_MANAGEMENT", "delete"), hrManagementTab.deleteAnticipatedVacancy);
-router.get("/get-hr-anticipated-vacancies/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getAnticipatedVacancies);
+// router.get("/get-organisation-code/:organisationId", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation("organisationId"), hrManagementTab.getOrganisationCode);
+// router.get("/get-department-id/:postId", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getDepartmentId);
+// router.get("/check-post-code/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.checkPostCode);
+// router.post("/post-strength-detail", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrManagementTab.addPostStrengthDetail);
+// router.post("/post-hr-anticipated-vacancies", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrManagementTab.addAnticipatedVancancies);
+// router.post("/put-hr-anticipated-vacancies", auth, requireModulePermission("HR_MANAGEMENT", "update"), hrManagementTab.updateAnticipatedVacancies);
+// router.delete("/delete-hr-anticipated-vacancies/:anticipatedId", auth, requireModulePermission("HR_MANAGEMENT", "delete"), hrManagementTab.deleteAnticipatedVacancy);
+// router.get("/get-hr-anticipated-vacancies/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getAnticipatedVacancies);
 router.post("/post-revive-detail", auth, requireModulePermission("HR_MANAGEMENT", "update"), hrManagementTab.addRevivePost);
 router.get("/get-strength-data/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getPostStrengthData);
-router.get("/get-strength-absolute-data/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getPostStrengthAbsoluteData);
-router.get("/get-permanent-abolished-post/", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getPermanentAbolishedPost);
-router.get("/get-permanent-abolished-post-org/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getPermanentAbolishedPostOrg);
-router.get("/get-filled-post/:postId", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getFilledPost);
-router.get("/get-vacant-post/:postId", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getVacantPost);
-router.post("/post-revival-date", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrManagementTab.postReviveDate);
+// router.get("/get-strength-absolute-data/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getPostStrengthAbsoluteData);
+// router.get("/get-permanent-abolished-post/", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getPermanentAbolishedPost);
+// router.get("/get-permanent-abolished-post-org/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getPermanentAbolishedPostOrg);
+// router.get("/get-filled-post/:postId", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getFilledPost);
+// router.get("/get-vacant-post/:postId", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getVacantPost);
+// router.post("/post-revival-date", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrManagementTab.postReviveDate);
 router.post("/update-revive-post-approval", auth, requireModulePermission("HR_MANAGEMENT", "update"), hrManagementTab.updateRevivePostApprovalDetails);
 
-router.delete("/delete-hr-post-data/:postId/:postCode", auth, requireModulePermission("HR_MANAGEMENT", "delete"), hrManagementTab.deleteHrPostData);
+// router.delete("/delete-hr-post-data/:postId/:postCode", auth, requireModulePermission("HR_MANAGEMENT", "delete"), hrManagementTab.deleteHrPostData);
 router.get("/get-hr-all-data/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getHRAllData);
 router.get('/get-transfer-in-employees-by-organisation/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getTransferInEmployeeListByOrgId);
 router.get('/get-emp-details-for-vacancy-management/:employeeID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getEmpDetailsForVacancyManagement);
@@ -1046,12 +1045,12 @@ router.get('/get-chd-in-employees-by-organisation/:organisationId', auth, requir
 
 router.get("/get-organisation-name/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), postRequestTab.getOrgName);
 
-router.get("/get-post-request-data/:postRequestId", auth, requireModulePermission("HR_MANAGEMENT", "read"), postRequestTab.getPostRequestData);
-router.post("/update-post-approval", auth, requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.updatePostApprovalDetails);
-router.post("/approve-post-request", auth, requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.approvePostRequest);
-router.post("/reject-approve-request", auth, requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.rejectApproveRequest);
-router.post("/update-post-request-approval", auth, requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.updatePostRequestApprovalDetail);
-router.get("/get-user-name/:userID", auth, requireModulePermission("HR_MANAGEMENT", "read"), postRequestTab.getUserName);
+// router.get("/get-post-request-data/:postRequestId", auth, requireModulePermission("HR_MANAGEMENT", "read"), postRequestTab.getPostRequestData);
+// router.post("/update-post-approval", auth, requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.updatePostApprovalDetails);
+// router.post("/approve-post-request", auth, requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.approvePostRequest);
+// router.post("/reject-approve-request", auth, requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.rejectApproveRequest);
+// router.post("/update-post-request-approval", auth, requireModulePermission("HR_MANAGEMENT", "update"), postRequestTab.updatePostRequestApprovalDetail);
+// router.get("/get-user-name/:userID", auth, requireModulePermission("HR_MANAGEMENT", "read"), postRequestTab.getUserName);
 
 router.get("/get-activity-date-data/:fromDate/:toDate/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrPostTab.getActivityDateData);
 
@@ -1066,42 +1065,42 @@ router.get("/get-dashboard-organisation-view/:userId", dashboardController.getDa
 
 //REVISED HR
 
-router.get("/hr-post-by-orgId/:organisationID/:departmentId", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrManagementTab.getPostListByOrgId);
+// router.get("/hr-post-by-orgId/:organisationID/:departmentId", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrManagementTab.getPostListByOrgId);
 router.post("/add-new-emplyee" , auth, requireModulePermission("HR_MANAGEMENT", "create"), hrManagementTab.addNewEmployee);
 router.post("/edit-employee-details", auth, requireModulePermission("HR_MANAGEMENT", "update"), hrManagementTab.editEmployeeDetails);
 router.put("/edit-employee-details/:employeeMasterId/:employeeId", auth, requireModulePermission("HR_MANAGEMENT", "update"), hrManagementTab.editEmployeeDetails);
-router.get("/get-sanctioned-strength-details/:userID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getDetailedSanctionedStrength);
-router.get("/get-total-filled-post-details/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrManagementTab.getDetailedTotalFilledPosts);
-router.get("/get-total-vacant-posts-details/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrManagementTab.getTotalVacantPosts);
-router.get("/get-abolised-vacant-posts-details/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrManagementTab.getAbolishedVacantPosts);
+// router.get("/get-sanctioned-strength-details/:userID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.getDetailedSanctionedStrength);
+// router.get("/get-total-filled-post-details/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrManagementTab.getDetailedTotalFilledPosts);
+// router.get("/get-total-vacant-posts-details/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrManagementTab.getTotalVacantPosts);
+// router.get("/get-abolised-vacant-posts-details/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), hrManagementTab.getAbolishedVacantPosts);
 
-router.post("/revised-hr-post", auth, requireModulePermission("HR_MANAGEMENT", "create"), revisedHrPost.createRevisedHrPost);
-router.get("/revised-hr-post/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), revisedHrPost.getRevisedHrPost);
-router.delete("/revised-delete-hr-post/:postId/:reason/:userID", auth, requireModulePermission("HR_MANAGEMENT", "delete"), revisedHrPost.revisedDeleteHrPost);
-router.get("/revised-get-hr-division/", auth, requireModulePermission("HR_MANAGEMENT", "read"), revisedHrPost.getDivisionDropdownData);
-router.put("/revised-update-hr-post-strength/:Id", auth, requireModulePermission("HR_MANAGEMENT", "update"), revisedHrPost.updateRevisedHrPostStrength);
-router.get("/revised-hr-management-post/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), revisedHrPost.getRevisedHrManagementPost);
+// router.post("/revised-hr-post", auth, requireModulePermission("HR_MANAGEMENT", "create"), revisedHrPost.createRevisedHrPost);
+// router.get("/revised-hr-post/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), revisedHrPost.getRevisedHrPost);
+// router.delete("/revised-delete-hr-post/:postId/:reason/:userID", auth, requireModulePermission("HR_MANAGEMENT", "delete"), revisedHrPost.revisedDeleteHrPost);
+// router.get("/revised-get-hr-division/", auth, requireModulePermission("HR_MANAGEMENT", "read"), revisedHrPost.getDivisionDropdownData);
+// router.put("/revised-update-hr-post-strength/:Id", auth, requireModulePermission("HR_MANAGEMENT", "update"), revisedHrPost.updateRevisedHrPostStrength);
+// router.get("/revised-hr-management-post/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), revisedHrPost.getRevisedHrManagementPost);
 
-router.get("/get-hr-employee-data/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getHrEmployee);
+// router.get("/get-hr-employee-data/:Id", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getHrEmployee);
 router.get("/get-hr-employee-by-id/:employeeMasterID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getHrEmployeeByID);
-router.get('/get-hr-department-dropdown-list', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getDepartmentList);
-router.get("/get-post-names-by-org/:selectedOrganisationId", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getPostNamesByOrgId);
-router.post('/update-employee-status/:status/:empID/:referenceID', auth, requireModulePermission("HR_MANAGEMENT", "update"), hrEmployeeTab.updateEmployeeStatus);
+// router.get('/get-hr-department-dropdown-list', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getDepartmentList);
+// router.get("/get-post-names-by-org/:selectedOrganisationId", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getPostNamesByOrgId);
+// router.post('/update-employee-status/:status/:empID/:referenceID', auth, requireModulePermission("HR_MANAGEMENT", "update"), hrEmployeeTab.updateEmployeeStatus);
 
 router.get('/get-hr-department-list/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getHrDepartmentList);
-router.get('/get-hr-division-list', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getHrDivisionList);
-router.get('/get-hr-post-list/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getHrPostList);
+// router.get('/get-hr-division-list', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getHrDivisionList);
+// router.get('/get-hr-post-list/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getHrPostList);
 router.get('/get-hr-post-details/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getHrPostDetails);
 router.get('/get-hr-vacancy-details/:postId/:isLive', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getHrVacancyDetails);
-router.get('/get-employee-details-by-org/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getEmployeeDetailsByOrgID);
-router.get('/get-employee-details-by-empId/:empID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getEmployeeDetailsByEmpId);
-router.get('/get-employee-list-by-org/:orgID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getEmployeeListByOrgId);
+// router.get('/get-employee-details-by-org/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getEmployeeDetailsByOrgID);
+// router.get('/get-employee-details-by-empIget-employee-details-by-empId/:empID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getEmployeeDetailsByEmpId);
+// router.get('/get-employee-list-by-org/:orgID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getEmployeeListByOrgId);
 router.get('/get-employee-list-by-organisation-dep-post/:roleID/:orgID/:depID/:postID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getEmployeeListByOrgDepPost);
 router.get('/get-post-code-by-postId/:postID/:methodOfApp', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getPostCodeByPostId);
-router.get("/get-all-hr-post-by-org/:orgID", auth, requireModulePermission("HR_MANAGEMENT", "read"), vacancyStatusTab.getAllHrPostByOrgID);
+// router.get("/get-all-hr-post-by-org/:orgID", auth, requireModulePermission("HR_MANAGEMENT", "read"), vacancyStatusTab.getAllHrPostByOrgID);
 router.get('/get-hr-postList-by-department-organisation/:departmentID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), revisedHrPost.getPostListByDepAndOrg);
 
-router.post("/delete-hr-post-codes",auth, requireModulePermission("HR_MANAGEMENT", "delete"), revisedHrPost.deleteHrPostCodes);
+// router.post("/delete-hr-post-codes",auth, requireModulePermission("HR_MANAGEMENT", "delete"), revisedHrPost.deleteHrPostCodes);
 router.put("/update-hr-employee-activity", auth, requireModulePermission("HR_MANAGEMENT", "update"), vacancyStatusTab.updateHrEmployeeActivity);
 // HR lists with server-side pagination (?page=&limit=, limit=all for export; organisation from the token)
 router.get('/hr/employees', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.listEmployeesHoldingDesignation);
@@ -1110,20 +1109,20 @@ router.get('/hr/anticipated-vacancies', auth, requireModulePermission("HR_MANAGE
 router.get('/hr/abolished-posts', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.listAbolishedPosts);
 router.get('/hr/abolished-posts/facets', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrManagementTab.listAbolishedPostFilters);
 
-router.get('/get-employee-list-holding-designation/:orgID/:depID/:postID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getEmployeeListHoldingDesig);
+// router.get('/get-employee-list-holding-designation/:orgID/:depID/:postID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getEmployeeListHoldingDesig);
 router.get('/get-employee-transaction-history-by-org/:empMasterID/:orgID/:roleID',auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getTransactionHstryOfEmp);
-router.put("/update-filled-post-activity-data",auth, requireModulePermission("HR_MANAGEMENT", "update"), revisedHrPost.updateFilledPostActivity);
+// router.put("/update-filled-post-activity-data",auth, requireModulePermission("HR_MANAGEMENT", "update"), revisedHrPost.updateFilledPostActivity);
 
 //vacancy status
 router.put("/update-all-vacancies", auth, requireModulePermission("HR_MANAGEMENT", "update"), hrEmployeeTab.updatedVaccancyPosts);
 // router.get('/get-hr-postList-by-department-organisation/:departmentID/:organisationID', revisedHrPost.getPostListByDepAndOrg);
 router.put("/update-post-strength-log", auth, requireModulePermission("HR_MANAGEMENT", "update"), revisedHrPost.updatePostStrengthLog);
-router.get('/get-employeeId-from-post-strength/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), revisedHrPost.getEmployeeIdFromPostStrength);
+// router.get('/get-employeeId-from-post-strength/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), revisedHrPost.getEmployeeIdFromPostStrength);
 router.get('/get-post-names-by-post-code/:postCode', auth, requireModulePermission("HR_MANAGEMENT", "read"), revisedHrPost.getPostNamesByPostCode);
-router.get('/get-deputed-employees-by-organisation/:organisationId', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getDeputedEmployeeListByOrgId);
+// router.get('/get-deputed-employees-by-organisation/:organisationId', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getDeputedEmployeeListByOrgId);
 router.get('/get-vacancy-log-details-by-postcode/:postCode', auth, requireModulePermission("HR_MANAGEMENT", "read"), revisedHrPost.getVaccancyLogDetailsByPostCode);
 router.get('/get-deputed-employees-by-orgId/:organisationId/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getDeputedEmployeesByOrgId);
-router.get('/get-employee-list-by-orgID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getHrEmployeeListByOrgId);
+// router.get('/get-employee-list-by-orgID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getHrEmployeeListByOrgId);
 router.get('/get-composite-employee-list-by-orgID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getHrCompositeEmployeeListByOrgId);
 
 //hr dash
@@ -1132,12 +1131,12 @@ router.get("/get-hr-all-employee-data/:roleID/:organisationID", auth, requireMod
 router.get('/get-hr-dashboard-content/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), vacancyStatusTab.getHRDashboardContentData);
 router.get('/get-abolishing-post-within-month/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), vacancyStatusTab.getAbolishingPostWithinAmonth);
 router.get('/get-emp-going-to-retire-within-six-months/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), vacancyStatusTab.getEmpGoingToRetireWithinSixMonths);
-router.get('/get-pwbd-wise-count/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), vacancyStatusTab.getPwbdWiseCount);
-router.get('/get-experienced-emp-count/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), vacancyStatusTab.getExperiencedEmpCount);
-router.get('/get-gender-wise-cont-by-org/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), vacancyStatusTab.getGenderWiseContByOrg);
+// router.get('/get-pwbd-wise-count/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), vacancyStatusTab.getPwbdWiseCount);
+// router.get('/get-experienced-emp-count/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), vacancyStatusTab.getExperiencedEmpCount);
+// router.get('/get-gender-wise-cont-by-org/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), vacancyStatusTab.getGenderWiseContByOrg);
 router.get('/get-department-wise-post-status/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), vacancyStatusTab.getDepartmentWiseEmpContByOrg);
-router.get('/get-community-wise-count-by-org/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), vacancyStatusTab.getCommunityWiseCountByOrg);
-router.get('/get-hr-dashboard-content-data-filter/:clusterID/:organisationID/:year/:month', auth, requireModulePermission("HR_MANAGEMENT", "read"), vacancyStatusTab.getHRDashboardContentDataFiltered);
+// router.get('/get-community-wise-count-by-orgget-community-wise-count-by-org/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), vacancyStatusTab.getCommunityWiseCountByOrg);
+// router.get('/get-hr-dashboard-content-data-filter/:clusterID/:organisationID/:year/:month', auth, requireModulePermission("HR_MANAGEMENT", "read"), vacancyStatusTab.getHRDashboardContentDataFiltered);
 router.get('/get-department-wise-emp-count-by-org-data-filter/:clusterID/:organisationID/:year/:month', auth, requireModulePermission("HR_MANAGEMENT", "read"), vacancyStatusTab.getDepartmentWiseEmpContByOrgFiltered);
 router.get('/get-admin-hr-dashboard-content/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), vacancyStatusTab.getAdminHRDashboardContentData);
 router.get('/get-admin-hr-gender-wise-cont-by-org/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), vacancyStatusTab.getAdminViewGenderWiseContByOrg);
@@ -1146,7 +1145,7 @@ router.get('/get-admin-view-pwbd-wise-count/:clusterID/:organisationID', auth, r
 router.get('/get-admin-view-community-wise-count-by-org/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), vacancyStatusTab.getAdminViewCommunityWiseCountByOrg);
 router.get('/get-admin-view-department-wise-post-status/:clusterID/:organisationID', auth, requireModulePermission("HR_MANAGEMENT", "read"), pinOwnOrganisation(), vacancyStatusTab.getAdminViewDepartmentWiseEmpContByOrg);
 
-router.post('/revoke-revive-hr-vacant-post', auth, requireModulePermission("HR_MANAGEMENT", "update"), revisedHrPost.upload.single('file'), revisedHrPost.revokeHRVacantPost);
+// router.post('/revoke-revive-hr-vacant-post', auth, requireModulePermission("HR_MANAGEMENT", "update"), revisedHrPost.upload.single('file'), revisedHrPost.revokeHRVacantPost);
 router.get('/get-hr-mis-total-manpower-actual/:departmentID/:classID/:orgCategory/:deptCategory', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportTab.getTotalManpowerSanctionActual);
 router.get('/get-hr-mis-gender-wise-major-port/:orgCategory', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportTab.getHRGenderWiseCountMajorReport);
 router.get('/get-total-manpower-class-wise-report/:orgCategory/:deptCategory', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrReportTab.getTotalManpowerClassWiseReport);
@@ -1159,26 +1158,26 @@ router.get('/get-hr-non-port-staffing-overview/:orgCategory', auth, requireModul
 router.post('/hr/create-hr-training-data', auth, requireModulePermission("HR_MANAGEMENT", "create"), hrTrainingTab.createHRTraining);
 router.put('/hr/update-hr-training-data/:trainingID', auth, requireModulePermission("HR_MANAGEMENT", "update"), hrTrainingTab.updateHRTraining);
 router.get('/hr/get-hr-staff-transact-data/:organisationID/:trainingID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.getHRStaffTransactData);
-router.get('/get-hr-training-data-by-org/:organisationID/:roleID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.getHRTrainingDataByOrg);
+// router.get('/get-hr-training-data-by-org/:organisationID/:roleID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.getHRTrainingDataByOrg);
 router.get('/hr/get-hr-training-data-by-id/:trainingID', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.getHRTrainingDataByID);
 router.post("/hr/contractual-employment", auth, requireModulePermission("HR_MANAGEMENT", "create"), hrTrainingTab.createContractData);
-router.get("/get-contract-data/:roleId/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.getContractData);
-router.get("/get-official-data-by-total/:contractId/:officialTotal", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.getOfficialDataByTotal);
-router.get("/get-non-official-data-by-total/:contractId/:NonOffTotal", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.getNonOfficialDataByTotal);
-router.get("/get-contractual-data-by-id/:contractId", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.getContractualDataByID);
+// router.get("/get-contract-data/:roleId/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.getContractData);
+// router.get("/get-official-data-by-total/:contractId/:officialTotal", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.getOfficialDataByTotal);
+// router.get("/get-non-official-data-by-total/:contractId/:NonOffTotal", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.getNonOfficialDataByTotal);
+// router.get("/get-contractual-data-by-id/:contractId", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.getContractualDataByID);
 router.get("/check-aadhar-number-existence/:aadharNumber", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrHelperTab.checkAadharNumberExistence);
 router.get("/check-reference-number-existence/:refNo/:orgID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrHelperTab.checkReferenceNumberExistence);
 router.get("/hr/get-hr-training-title-by-org/:organisationID/:trainingType", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.getTrainingTitleData);
 router.get("/hr/get-hr-training-type", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.getHRTrainingType);
-router.get("/get-hr-assessment-data-by-org/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), vacancyStatusTab.getHRAssessmentData);
-router.post("/submit-hr-vacancy-anticipation", auth, requireModulePermission("HR_MANAGEMENT", "create"), vacancyStatusTab.saveHrVacancyAnticipation);
-router.get("/get-hr-anticipated-vacancies-by-org/:departmentId/:postId/:className/:organisationID/:selectedYears", auth, requireModulePermission("HR_MANAGEMENT", "read"), vacancyStatusTab.getAnticipatedVacanciesByOrg);
+// router.get("/get-hr-assessment-data-by-org/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "read"), vacancyStatusTab.getHRAssessmentData);
+// router.post("/submit-hr-vacancy-anticipation", auth, requireModulePermission("HR_MANAGEMENT", "create"), vacancyStatusTab.saveHrVacancyAnticipation);
+// router.get("/get-hr-anticipated-vacancies-by-org/:departmentId/:postId/:className/:organisationID/:selectedYears", auth, requireModulePermission("HR_MANAGEMENT", "read"), vacancyStatusTab.getAnticipatedVacanciesByOrg);
 router.post("/submit-anticipated-vacancies", auth, requireModulePermission("HR_MANAGEMENT", "create"), vacancyStatusTab.submitAnticipatedVacancies);
 router.get("/get-mmt-organisation-by-cluster-id/:clusterID", auth, requireModulePermission("HR_MANAGEMENT", "read"), vacancyStatusTab.getOrganisationByCluster);
 router.put("/update-hr-post-activity", auth, requireModulePermission("HR_MANAGEMENT", "update"), vacancyStatusTab.updateHRPostActivitiy);
-router.put("/update-reason-process-not-initiated", auth, requireModulePermission("HR_MANAGEMENT", "update"), vacancyStatusTab.updateReasonForProcessNotInitiated);
+// router.put("/update-reason-process-not-initiated", auth, requireModulePermission("HR_MANAGEMENT", "update"), vacancyStatusTab.updateReasonForProcessNotInitiated);
 router.delete("/delete-contractual-data/:contractId/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "delete"), pinOwnOrganisation(), hrTrainingTab.deleteContracturalData);
-router.get('/get-hr-training-details-data-by-org', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.getHRTrainingDetailsDataByOrg);
+// router.get('/get-hr-training-details-data-by-org', auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.getHRTrainingDetailsDataByOrg);
 router.delete("/delete-training-data/:trainingID/:organisationID", auth, requireModulePermission("HR_MANAGEMENT", "delete"), pinOwnOrganisation(), hrTrainingTab.deleteTrainingData);
 router.get("/get-all-training-data/:userID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.getAllTrainingData);
 router.get("/get-all-contractual-data/:userID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrTrainingTab.getAllContractualData);

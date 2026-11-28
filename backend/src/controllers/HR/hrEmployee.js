@@ -38,29 +38,6 @@ async function createHrDepartment(req, res) {
 
 };
 
-async function getHrEmployee(req, res) {
-    const Id = req.params.Id;
-
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input("Id", Id);
-    try {
-        const result = await request.query(`
-            SELECT
-                *
-            FROM
-                tbl_employee e
-            WHERE
-                e.emp_parent_org_id = @Id
-        `);
-        res.json(result.recordset);
-    } catch (err) {
-        // //console.log(err);
-        return res.status(500).json({message:"Internal Server Error",error:err});
-    }
-}
-
 async function getHrEmployeeByID(req, res) {
     const employeeMasterID = req.params.employeeMasterID;
 
@@ -70,24 +47,7 @@ async function getHrEmployeeByID(req, res) {
     if (!Number.isInteger(Number(employeeMasterID))) return res.status(400).json({ message: "Invalid employee." });
     request.input("employeeMasterID", sql.Int, Number(employeeMasterID));
     try {
-        // const result = await request.query(`
-        //     SELECT e.*, 
-        //            o1.organisation_name AS current_organisation_name,  
-        //            o2.organisation_name AS parent_organisation_name,
-        //            d.department_name,
-        //            ps.date_of_arise_in_vacancy,
-        //            p.post_name AS name_of_post,
-        //            p.payscale_range AS payscale_range
-        //         FROM tbl_employee e
-        //         LEFT JOIN mmt_organisation o1 ON e.emp_curr_org_id = o1.organisation_id
-        //         LEFT JOIN mmt_organisation o2 ON e.emp_parent_org_id = o2.organisation_id
-        //         LEFT JOIN mmt_hr_department d ON d.department_id = e.emp_department_id
-        //         LEFT JOIN mmt_hr_post p ON p.post_id = e.emp_post_id
-        //         LEFT JOIN tbl_hr_post_strength ps ON ps.post_id = e.emp_post_id
-        //         WHERE e.employee_id = @employeeID;
-        // `);
-
-        // The employee with their current posting (open transaction first, else the latest one)
+        
         const result = await request.query(`SELECT TOP 1 em.*, o1.organisation_name AS parent_organisation_name, et.emp_post_join_date,
                    p.payscale_range AS payscale_range,
                    et.employee_id AS current_employee_id, et.emp_department_id, et.emp_department_name,
@@ -159,65 +119,65 @@ async function getHrEmployeeByID(req, res) {
 //     }
 // }
 
-async function getPostNamesByOrgId(req, res) {
-    const conn = await pool;
-    const request = conn.request();
-    const organisationID = req.params.selectedOrganisationId;
-    request.input("organisationID", organisationID);
+// async function getPostNamesByOrgId(req, res) {
+//     const conn = await pool;
+//     const request = conn.request();
+//     const organisationID = req.params.selectedOrganisationId;
+//     request.input("organisationID", organisationID);
 
-    try {
-        const query = `SELECT * FROM mmt_hr_post 
-                       WHERE organisation_id = @organisationID`;
-        const result = await request.query(query);
-        res.json(result.recordset);
-    } catch (err) {
-        return res.status(500).json({ message: "Internal Server Error", error: err });
-    }
-}
+//     try {
+//         const query = `SELECT * FROM mmt_hr_post 
+//                        WHERE organisation_id = @organisationID`;
+//         const result = await request.query(query);
+//         res.json(result.recordset);
+//     } catch (err) {
+//         return res.status(500).json({ message: "Internal Server Error", error: err });
+//     }
+// }
 
-async function getDepartmentList(req, res) {
+// async function getDepartmentList(req, res) {
 
-    const conn = await pool;
+//     const conn = await pool;
 
-    try {
-        const result = await conn.query(`
-            SELECT department_id, department_name, status
-            FROM mmt_hr_department;
-        `);
+//     try {
+//         const result = await conn.query(`
+//             SELECT department_id, department_name, status
+//             FROM mmt_hr_department;
+//         `);
 
-        res.json(result.recordset);
-    } catch (err) {
-        // //console.log(err);
-        return res.status(500).json({message:"Internal Server Error",error:err});
-    }
-}
+//         res.json(result.recordset);
+//     } catch (err) {
+//         // //console.log(err);
+//         return res.status(500).json({message:"Internal Server Error",error:err});
+//     }
+// }
 
-async function updateEmployeeStatus(req, res) {
-    const conn = await pool;
-    const request = conn.request();
-    const status = req.params.status;
-    const empID = req.params.empID;
-    const referenceID = req.params.referenceID;
+// async function updateEmployeeStatus(req, res) {
+//     const conn = await pool;
+//     const request = conn.request();
+//     const status = req.params.status;
+//     const empID = req.params.empID;
+//     const referenceID = req.params.referenceID;
 
-    request.input("status", status);
-    request.input("empID", empID);
-    request.input("referenceID", referenceID);
+//     request.input("status", status);
+//     request.input("empID", empID);
+//     request.input("referenceID", referenceID);
 
-    try {
-        const query = await request.query(`UPDATE m
-                        SET m.emp_status = @status
-                        FROM tbl_employee_master m
-                        JOIN tbl_employee_transaction_details et
-                            ON et.emp_master_id = m.emp_master_id
-                        WHERE m.emp_master_id = @empID
-                        AND et.emp_reference_id = @referenceID;`);
+//     try {
+//         const query = await request.query(`UPDATE m
+//                         SET m.emp_status = @status
+//                         FROM tbl_employee_master m
+//                         JOIN tbl_employee_transaction_details et
+//                             ON et.emp_master_id = m.emp_master_id
+//                         WHERE m.emp_master_id = @empID
+//                         AND et.emp_reference_id = @referenceID;`);
 
-        return res.status(201).send({ message: "Employee status updated successfully" });
-    } catch (err) {
-        // //console.log(err);
-        return res.status(500).json({message:"Internal Server Error",error:err});
-    }
-};
+//         return res.status(201).send({ message: "Employee status updated successfully" });
+//     } catch (err) {
+//         // //console.log(err);
+//         return res.status(500).json({message:"Internal Server Error",error:err});
+//     }
+// };
 
 
 async function getHrDepartmentList(req, res) {
@@ -255,40 +215,40 @@ async function getHrDepartmentList(req, res) {
     }
 }
 
-async function getHrDivisionList(req, res) {
+// async function getHrDivisionList(req, res) {
 
-    const conn = await pool;
-    const request = conn.request();
-    try {
-        const result = await request.query(`
-            SELECT *
-            FROM dbo.mmt_hr_division
-        `);
-        res.json(result.recordset);
-    } catch (err) {
-        // //console.log(err);
-        return res.status(500).json({message:"Internal Server Error",error:err});
-    }
-}
+//     const conn = await pool;
+//     const request = conn.request();
+//     try {
+//         const result = await request.query(`
+//             SELECT *
+//             FROM dbo.mmt_hr_division
+//         `);
+//         res.json(result.recordset);
+//     } catch (err) {
+//         // //console.log(err);
+//         return res.status(500).json({message:"Internal Server Error",error:err});
+//     }
+// }
 
-async function getHrPostList(req, res) {
+// async function getHrPostList(req, res) {
 
-    const conn = await pool;
-    const request = conn.request();
-    const organisationID = req.params.organisationID;
+//     const conn = await pool;
+//     const request = conn.request();
+//     const organisationID = req.params.organisationID;
 
-    request.input("organisationID", organisationID);
-    try {
-        const result = await request.query(`
-            SELECT *
-            FROM dbo.mmt_hr_post WHERE organisation_id= @organisationID
-        `);
-        res.json(result.recordset);
-    } catch (err) {
-        // //console.log(err);
-        return res.status(500).json({message:"Internal Server Error",error:err});
-    }
-}
+//     request.input("organisationID", organisationID);
+//     try {
+//         const result = await request.query(`
+//             SELECT *
+//             FROM dbo.mmt_hr_post WHERE organisation_id= @organisationID
+//         `);
+//         res.json(result.recordset);
+//     } catch (err) {
+//         // //console.log(err);
+//         return res.status(500).json({message:"Internal Server Error",error:err});
+//     }
+// }
 
 async function getHrPostDetails(req, res) {
     const conn = await pool;
@@ -523,62 +483,22 @@ async function getHrVacancyDetails(req, res) {
     }
 }
 
-async function getEmployeeDetailsByOrgID(req, res) {
-    const conn = await pool;
-    const request = conn.request();
-    const organisationID = req.params.organisationID;
+// async function getEmployeeDetailsByEmpId(req, res) {
+//     const conn = await pool;
+//     const request = conn.request();
+//     const empID = req.params.empID;
 
-    request.input("organisationID", organisationID);
-    try {
-        const result = await request.query(`
-            SELECT * FROM tbl_employee e WHERE e.emp_curr_org_id =@organisationID AND emp_status =1;
-        `);
-        res.json(result.recordset);
-    } catch (err) {
-        //console.log(err);
-        return res.status(500).json({message:"Internal Server Error",error:err});
-    }
-}
-
-async function getEmployeeDetailsByEmpId(req, res) {
-    const conn = await pool;
-    const request = conn.request();
-    const empID = req.params.empID;
-
-    request.input("empID", empID);
-    try {
-        const result = await request.query(`
-            SELECT * FROM tbl_employee e WHERE e.employee_id =@empID AND emp_status =1;
-        `);
-        res.json(result.recordset);
-    } catch (err) {
-        //console.log(err);
-        return res.status(500).json({message:"Internal Server Error",error:err});
-    }
-}
-
-async function getEmployeeListByOrgId(req, res) {
-
-    const conn = await pool;
-    const request = conn.request();
-    const orgID = req.params.orgID;
-
-    request.input("orgID", orgID);
-    try {
-        const result = await request.query(`
-            SELECT
-                *
-            FROM
-                tbl_employee e
-            WHERE
-                e.emp_curr_org_id = @orgID
-        `);
-        res.json(result.recordset);
-    } catch (err) {
-        //console.log(err);
-        return res.status(500).json({message:"Internal Server Error",error:err});
-    }
-}
+//     request.input("empID", empID);
+//     try {
+//         const result = await request.query(`
+//             SELECT * FROM tbl_employee e WHERE e.employee_id =@empID AND emp_status =1;
+//         `);
+//         res.json(result.recordset);
+//     } catch (err) {
+//         //console.log(err);
+//         return res.status(500).json({message:"Internal Server Error",error:err});
+//     }
+// }
 
 /**
  * Employee Database list, from stored procedure dbo.GetEmployeeListByOrgDepPost (@roleID, @orgID).
@@ -615,81 +535,81 @@ async function getEmployeeListByOrgDepPost(req, res) {
   }
 }
 
-async function getEmployeeListHoldingDesig(req, res) {
+// async function getEmployeeListHoldingDesig(req, res) {
   
-    const conn = await pool;
-    const request = conn.request();
-    const orgID = req.params.orgID;
-    const depID = req.params.depID;
-    const postID = req.params.postID;
+//     const conn = await pool;
+//     const request = conn.request();
+//     const orgID = req.params.orgID;
+//     const depID = req.params.depID;
+//     const postID = req.params.postID;
 
-    request.input("orgID", orgID);
-    if (depID != "None") {
-        request.input("depID", depID);
-    }
-    if (postID != "None") {
-        request.input("postID", postID);
-    }
+//     request.input("orgID", orgID);
+//     if (depID != "None") {
+//         request.input("depID", depID);
+//     }
+//     if (postID != "None") {
+//         request.input("postID", postID);
+//     }
 
-    try {
-        let query = `
-            SELECT et.employee_id,
-                   et.emp_master_id,
-                   et.emp_post_code,
-				   et.emp_post_end_date,
-                   m.emp_name,
-                   m.emp_dor,
-                et.emp_reference_id AS reference_id,
-                m.emp_status,
-                p.post_name,
-                p.post_id,
-                mmc.class,
-                d.department_id
-				,d.department_name
-                ,ps.date_of_arise_in_vacancy
-                ,ps.method_of_appointment
-                ,ps.exception_abolish
-                ,ps.employee_joined_date
-                ,ps.process_initiated_date
-                ,ps.notification_adv_issued_date
-                ,ps.renotification_adv_issued_date
-                ,ps.exam_conducted_date
-                ,ps.interview_conducted_date
-                ,ps.selection_process_completed_date
-                ,ps.result_declared_date
-                ,ps.appointment_letter_issued_date
-                ,ps.vigilance_clr_received_date
-                ,ps.dpc_conducted_date
-                ,ps.approval_by_ca_date
-                ,ps.promotion_order_issued_date
-                ,ps.application_received_date
-                ,ps.review_application_by_comm
-                ,ps.approval_received_date
-                ,ps.order_issued_date
-            FROM 
-            tbl_employee_transaction_details et
-			LEFT JOIN tbl_hr_post_strength ps ON et.emp_post_code = ps.post_code
-			LEFT JOIN tbl_employee_master m ON et.emp_master_id = m.emp_master_id
-            LEFT JOIN mmt_hr_post p ON et.emp_post_id = p.post_id
-            LEFT JOIN mmt_class mmc ON p.class_id = mmc.class_id
-            LEFT JOIN mmt_hr_department d ON p.department_id = d.department_id
-            WHERE ps.organisation_id = @orgID AND ps.vacant_or_filled='filled' AND emp_post_end_date IS NULL
-        `;
+//     try {
+//         let query = `
+//             SELECT et.employee_id,
+//                    et.emp_master_id,
+//                    et.emp_post_code,
+// 				   et.emp_post_end_date,
+//                    m.emp_name,
+//                    m.emp_dor,
+//                 et.emp_reference_id AS reference_id,
+//                 m.emp_status,
+//                 p.post_name,
+//                 p.post_id,
+//                 mmc.class,
+//                 d.department_id
+// 				,d.department_name
+//                 ,ps.date_of_arise_in_vacancy
+//                 ,ps.method_of_appointment
+//                 ,ps.exception_abolish
+//                 ,ps.employee_joined_date
+//                 ,ps.process_initiated_date
+//                 ,ps.notification_adv_issued_date
+//                 ,ps.renotification_adv_issued_date
+//                 ,ps.exam_conducted_date
+//                 ,ps.interview_conducted_date
+//                 ,ps.selection_process_completed_date
+//                 ,ps.result_declared_date
+//                 ,ps.appointment_letter_issued_date
+//                 ,ps.vigilance_clr_received_date
+//                 ,ps.dpc_conducted_date
+//                 ,ps.approval_by_ca_date
+//                 ,ps.promotion_order_issued_date
+//                 ,ps.application_received_date
+//                 ,ps.review_application_by_comm
+//                 ,ps.approval_received_date
+//                 ,ps.order_issued_date
+//             FROM 
+//             tbl_employee_transaction_details et
+// 			LEFT JOIN tbl_hr_post_strength ps ON et.emp_post_code = ps.post_code
+// 			LEFT JOIN tbl_employee_master m ON et.emp_master_id = m.emp_master_id
+//             LEFT JOIN mmt_hr_post p ON et.emp_post_id = p.post_id
+//             LEFT JOIN mmt_class mmc ON p.class_id = mmc.class_id
+//             LEFT JOIN mmt_hr_department d ON p.department_id = d.department_id
+//             WHERE ps.organisation_id = @orgID AND ps.vacant_or_filled='filled' AND emp_post_end_date IS NULL
+//         `;
 
-        if (depID != "None") {
-            query += ` AND d.department_id = @depID`;
-        }
-        if (postID != "None") {
-            query += ` AND p.post_id = @postID`;
-        }
+//         if (depID != "None") {
+//             query += ` AND d.department_id = @depID`;
+//         }
+//         if (postID != "None") {
+//             query += ` AND p.post_id = @postID`;
+//         }
 
-        const result = await request.query(query);
-        res.json(result.recordset);
-    } catch (err) {
-        //console.log(err);
-        return res.status(500).json({message:"Internal Server Error",error:err});
-    }
-}
+//         const result = await request.query(query);
+//         res.json(result.recordset);
+//     } catch (err) {
+//         //console.log(err);
+//         return res.status(500).json({message:"Internal Server Error",error:err});
+//     }
+// }
 
 async function getPostCodeByPostId(req, res) {
   
@@ -813,25 +733,25 @@ async function updatedVaccancyPosts(req, res) {
     }
 }
 
-async function getDeputedEmployeeListByOrgId(req, res) {
-    const conn = await pool;
-    const request = conn.request();
-    const organisationId = req.params.organisationId;
+// async function getDeputedEmployeeListByOrgId(req, res) {
+//     const conn = await pool;
+//     const request = conn.request();
+//     const organisationId = req.params.organisationId;
 
-    request.input("organisationId", organisationId);
-    try {
-        const result = await request.query(`
-            SELECT * FROM tbl_employee_transaction_details et
-            JOIN tbl_employee_master em ON em.emp_master_id = et.emp_master_id
-            WHERE method_of_appointment ='Deputation In' AND em.emp_curr_org_id =  @organisationID
-            AND org_to_be_deputed =@organisationID AND emp_post_end_date IS NULL AND date_of_deputing_out IS NULL
-            AND deputation_end_date IS NULL AND emp_post_code IS NULL`);
-        res.json(result.recordset);
-    } catch (err) {
-        //console.log(err);
-        return res.status(500).json({message:"Internal Server Error",error:err});
-    }
-}
+//     request.input("organisationId", organisationId);
+//     try {
+//         const result = await request.query(`
+//             SELECT * FROM tbl_employee_transaction_details et
+//             JOIN tbl_employee_master em ON em.emp_master_id = et.emp_master_id
+//             WHERE method_of_appointment ='Deputation In' AND em.emp_curr_org_id =  @organisationID
+//             AND org_to_be_deputed =@organisationID AND emp_post_end_date IS NULL AND date_of_deputing_out IS NULL
+//             AND deputation_end_date IS NULL AND emp_post_code IS NULL`);
+//         res.json(result.recordset);
+//     } catch (err) {
+//         //console.log(err);
+//         return res.status(500).json({message:"Internal Server Error",error:err});
+//     }
+// }
 
 async function getDeputedEmployeesByOrgId(req, res) {
     // The receiving organisation comes from the login for organisation users (the URL's
@@ -860,24 +780,24 @@ async function getDeputedEmployeesByOrgId(req, res) {
     }
 }
 
-async function getHrEmployeeListByOrgId(req, res) {
-    const conn = await pool;
-    const request = conn.request();
-    const organisationID = req.params.organisationID;
+// async function getHrEmployeeListByOrgId(req, res) {
+//     const conn = await pool;
+//     const request = conn.request();
+//     const organisationID = req.params.organisationID;
 
-    request.input("organisationID", organisationID);
-    try {
-        const result = await request.query(`
-            SELECT em.emp_master_id ,td.emp_reference_id, td.employee_id FROM tbl_employee_transaction_details td
-            JOIN tbl_employee_master em ON em.emp_master_id = td.emp_master_id
-            WHERE em.emp_parent_org_id= @organisationID AND td.emp_working_org_id =@organisationID
-            AND emp_status=1`);
-        res.json(result.recordset);
-    } catch (err) {
-        //console.log(err);
-        return res.status(500).json({message:"Internal Server Error",error:err});
-    }
-}
+//     request.input("organisationID", organisationID);
+//     try {
+//         const result = await request.query(`
+//             SELECT em.emp_master_id ,td.emp_reference_id, td.employee_id FROM tbl_employee_transaction_details td
+//             JOIN tbl_employee_master em ON em.emp_master_id = td.emp_master_id
+//             WHERE em.emp_parent_org_id= @organisationID AND td.emp_working_org_id =@organisationID
+//             AND emp_status=1`);
+//         res.json(result.recordset);
+//     } catch (err) {
+//         //console.log(err);
+//         return res.status(500).json({message:"Internal Server Error",error:err});
+//     }
+// }
 
 async function getHrCompositeEmployeeListByOrgId(req, res) {
     const conn = await pool;
@@ -1271,10 +1191,10 @@ async function listVacancyOverview(req, res) {
 }
 
 export default {
-    getDeputedEndEmployeeData,getHrEmployee,getTransferInEmployeeListByOrgId, getEmpDetailsForVacancyManagement,getHrEmployeeByID, getDepartmentList, updateEmployeeStatus,
-    getHrDepartmentList, getHrDivisionList, getHrPostList, getHrPostDetails, getHrVacancyDetails, getEmployeeDetailsByOrgID, getEmployeeDetailsByEmpId,
-    getPostNamesByOrgId, getEmployeeListByOrgId, getEmployeeListByOrgDepPost, getPostCodeByPostId,getEmployeeListHoldingDesig, getTransactionHstryOfEmp,
-    updatedVaccancyPosts, getDeputedEmployeeListByOrgId, getDeputedEmployeesByOrgId, getHrEmployeeListByOrgId, getHrCompositeEmployeeListByOrgId,getEmployeeDetailsByReferenceId,
+    getDeputedEndEmployeeData,getTransferInEmployeeListByOrgId, getEmpDetailsForVacancyManagement,getHrEmployeeByID,
+    getHrDepartmentList, getHrPostDetails, getHrVacancyDetails,
+    getEmployeeListByOrgDepPost, getPostCodeByPostId, getTransactionHstryOfEmp,
+    updatedVaccancyPosts, getDeputedEmployeesByOrgId, getHrCompositeEmployeeListByOrgId,getEmployeeDetailsByReferenceId,
     getEmployeeDetailsByReferenceIdOnly,getCHDEmployeesByOrgId,
     listEmployeesHoldingDesignation, listVacancyOverview
 };

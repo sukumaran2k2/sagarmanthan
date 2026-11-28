@@ -302,96 +302,96 @@ async function getHRStaffTransactData(req,res){
 }
 
 
-async function getHRTrainingDataByOrg(req, res) {
-    const organisationID = req.params.organisationID;
-    const roleID = req.params.roleID;
+// async function getHRTrainingDataByOrg(req, res) {
+//     const organisationID = req.params.organisationID;
+//     const roleID = req.params.roleID;
 
-    const conn = await pool;
-    const request = conn.request();
+//     const conn = await pool;
+//     const request = conn.request();
 
-    request.input("organisationID", organisationID);
+//     request.input("organisationID", organisationID);
 
-    try {
-        let query;
-        if (await isWideRole(roleID)) {
-            query = `
-            SELECT
-                org.organisation_id AS [org_id],
-                org.organisation_name AS [organisation_Name],
-                YEAR(ht.from_date) AS [year],
-                COUNT(DISTINCT ht.TRAINING_ID) AS [total_Trainings],
-                SUM(training_participants) AS [total_Participants],
-                ROUND(SUM(ht.expenditure) / 100000.0, 2) AS [total_Expenditure],
-                MAX(ht.to_date) AS [last_date],
-                MAX(ht.updated_date) AS [updated_date]
-            FROM mmt_organisation org
-            INNER JOIN tbl_hr_training ht ON org.organisation_id = ht.organisation_id
-            LEFT JOIN (
-                SELECT 
-                    training_id, 
-                    COUNT(emp_master_id) AS staff_count
-                FROM tbl_hr_staff_training
-                GROUP BY training_id
-            ) hst_counts ON ht.TRAINING_ID = hst_counts.training_id
-            CROSS APPLY (
-                SELECT ISNULL(hst_counts.staff_count,0) + ISNULL(ht.NO_OF_PARTICIPANTS,0) AS training_participants
-            ) AS t
-            GROUP BY
-                org.organisation_id,
-                org.organisation_name,
-                YEAR(ht.from_date)
-            ORDER BY
-                YEAR(ht.from_date) DESC;
-            `;
-        } else {
-            query = `
-                SELECT
-                    ht.training_id,
-                    t.[TITLE],
-                    ty.[TRAINING_TYPE_NAME],
-                    ht.[TRAINING_TITLE_ID],
-                    ht.training_source,
-                    YEAR(ht.from_date) AS year, 
-                    ht.to_date,
-                    ht.expenditure,
-                    ht.organisation_id,
-                    o.organisation_name,
-                    COUNT(hst.emp_master_id) AS NO_OF_PARTICIPANTS,
-                    ht.NO_OF_PARTICIPANTS,
-                    MAX(ht.updated_date) AS updated_date
+//     try {
+//         let query;
+//         if (await isWideRole(roleID)) {
+//             query = `
+//             SELECT
+//                 org.organisation_id AS [org_id],
+//                 org.organisation_name AS [organisation_Name],
+//                 YEAR(ht.from_date) AS [year],
+//                 COUNT(DISTINCT ht.TRAINING_ID) AS [total_Trainings],
+//                 SUM(training_participants) AS [total_Participants],
+//                 ROUND(SUM(ht.expenditure) / 100000.0, 2) AS [total_Expenditure],
+//                 MAX(ht.to_date) AS [last_date],
+//                 MAX(ht.updated_date) AS [updated_date]
+//             FROM mmt_organisation org
+//             INNER JOIN tbl_hr_training ht ON org.organisation_id = ht.organisation_id
+//             LEFT JOIN (
+//                 SELECT 
+//                     training_id, 
+//                     COUNT(emp_master_id) AS staff_count
+//                 FROM tbl_hr_staff_training
+//                 GROUP BY training_id
+//             ) hst_counts ON ht.TRAINING_ID = hst_counts.training_id
+//             CROSS APPLY (
+//                 SELECT ISNULL(hst_counts.staff_count,0) + ISNULL(ht.NO_OF_PARTICIPANTS,0) AS training_participants
+//             ) AS t
+//             GROUP BY
+//                 org.organisation_id,
+//                 org.organisation_name,
+//                 YEAR(ht.from_date)
+//             ORDER BY
+//                 YEAR(ht.from_date) DESC;
+//             `;
+//         } else {
+//             query = `
+//                 SELECT
+//                     ht.training_id,
+//                     t.[TITLE],
+//                     ty.[TRAINING_TYPE_NAME],
+//                     ht.[TRAINING_TITLE_ID],
+//                     ht.training_source,
+//                     YEAR(ht.from_date) AS year, 
+//                     ht.to_date,
+//                     ht.expenditure,
+//                     ht.organisation_id,
+//                     o.organisation_name,
+//                     COUNT(hst.emp_master_id) AS NO_OF_PARTICIPANTS,
+//                     ht.NO_OF_PARTICIPANTS,
+//                     MAX(ht.updated_date) AS updated_date
 
-                FROM tbl_hr_training ht
-                LEFT JOIN mmt_organisation o 
-                    ON o.organisation_id = ht.organisation_id
-                LEFT JOIN [TBL_TRAINING_TITLE] t 
-                    ON ht.[TRAINING_TITLE_ID] = t.[TRAINING_TITLE_ID]
-                LEFT JOIN [TBL_TRAINING_TYPE] ty 
-                    ON t.[TRAINING_TYPE_ID] = ty.[TRAINING_TYPE_ID]
-                LEFT JOIN tbl_hr_staff_training hst 
-                    ON ht.training_id = hst.training_id
-                WHERE ht.organisation_id = @organisationID
-                GROUP BY
-                    ht.training_id,
-                    t.TITLE,
-                    ty.TRAINING_TYPE_NAME,
-                    ht.TRAINING_TITLE_ID,
-                    ht.training_source,
-                    ht.from_date,
-                    ht.to_date,
-                    ht.expenditure,
-                    ht.organisation_id,
-                    o.organisation_name,
-                    ht.NO_OF_PARTICIPANTS;
-            `;
-        }
+//                 FROM tbl_hr_training ht
+//                 LEFT JOIN mmt_organisation o 
+//                     ON o.organisation_id = ht.organisation_id
+//                 LEFT JOIN [TBL_TRAINING_TITLE] t 
+//                     ON ht.[TRAINING_TITLE_ID] = t.[TRAINING_TITLE_ID]
+//                 LEFT JOIN [TBL_TRAINING_TYPE] ty 
+//                     ON t.[TRAINING_TYPE_ID] = ty.[TRAINING_TYPE_ID]
+//                 LEFT JOIN tbl_hr_staff_training hst 
+//                     ON ht.training_id = hst.training_id
+//                 WHERE ht.organisation_id = @organisationID
+//                 GROUP BY
+//                     ht.training_id,
+//                     t.TITLE,
+//                     ty.TRAINING_TYPE_NAME,
+//                     ht.TRAINING_TITLE_ID,
+//                     ht.training_source,
+//                     ht.from_date,
+//                     ht.to_date,
+//                     ht.expenditure,
+//                     ht.organisation_id,
+//                     o.organisation_name,
+//                     ht.NO_OF_PARTICIPANTS;
+//             `;
+//         }
 
-        const result = await request.query(query);
-        res.json(result.recordset);
-    } catch (e) {
-        console.log("E",e)
-        return res.status(500).json({message: "Internal Server Error"});
-    }
-}
+//         const result = await request.query(query);
+//         res.json(result.recordset);
+//     } catch (e) {
+//         console.log("E",e)
+//         return res.status(500).json({message: "Internal Server Error"});
+//     }
+// }
 
 async function getHRTrainingDataByID(req,res){
     const trainingID = req.params.trainingID;
@@ -606,75 +606,75 @@ catch (err) {
 }
 }
 
-async function getOfficialDataByTotal(req,res) {
-const contractId = req.params.contractId;
-const officialTotal = req.params.officialTotal;
+// async function getOfficialDataByTotal(req,res) {
+// const contractId = req.params.contractId;
+// const officialTotal = req.params.officialTotal;
 
-const conn = await pool;
-const request = conn.request();
+// const conn = await pool;
+// const request = conn.request();
 
-request.input("contractId",contractId);
-request.input("officialTotal",officialTotal);
+// request.input("contractId",contractId);
+// request.input("officialTotal",officialTotal);
 
-let query = `
-         SELECT financial_year,officers_direct_engagement,officers_retired_from_govt,officers_retd_from_own_organ,officers_through_agency,officers_for_ministry FROM tbl_hr_contract_data
-        WHERE contract_id = @contractId AND official_total = @officialTotal;
-    `;
-try {
-    const result = await request.query(query);
-    res.json(result.recordset);
-}
-catch (err) {
-    //console.log(err);
-    return res.status(500).json({error: "failed to load data" });
-}
-}
+// let query = `
+//          SELECT financial_year,officers_direct_engagement,officers_retired_from_govt,officers_retd_from_own_organ,officers_through_agency,officers_for_ministry FROM tbl_hr_contract_data
+//         WHERE contract_id = @contractId AND official_total = @officialTotal;
+//     `;
+// try {
+//     const result = await request.query(query);
+//     res.json(result.recordset);
+// }
+// catch (err) {
+//     //console.log(err);
+//     return res.status(500).json({error: "failed to load data" });
+// }
+// }
 
-async function getNonOfficialDataByTotal(req,res) {
-const contractId = req.params.contractId;
-const NonOffTotal = req.params.NonOffTotal;
+// async function getNonOfficialDataByTotal(req,res) {
+// const contractId = req.params.contractId;
+// const NonOffTotal = req.params.NonOffTotal;
 
-const conn = await pool;
-const request = conn.request();
+// const conn = await pool;
+// const request = conn.request();
 
-request.input("contractId",contractId);
-request.input("NonOffTotal",NonOffTotal);
+// request.input("contractId",contractId);
+// request.input("NonOffTotal",NonOffTotal);
 
-let query = `
-         SELECT financial_year,non_officers_direct_engagement,non_officers_retired_from_govt,non_officers_retd_from_own_organ,non_officers_through_agency,non_officers_for_ministry FROM tbl_hr_contract_data
-        WHERE contract_id = @contractId AND non_off_total = @NonOffTotal;
-    `;
-try {
-    const result = await request.query(query);
-    res.json(result.recordset);
-}
-catch (err) {
-    //console.log(err);
-    return res.status(500).json({error: "failed to load data" });
-}
-}
+// let query = `
+//          SELECT financial_year,non_officers_direct_engagement,non_officers_retired_from_govt,non_officers_retd_from_own_organ,non_officers_through_agency,non_officers_for_ministry FROM tbl_hr_contract_data
+//         WHERE contract_id = @contractId AND non_off_total = @NonOffTotal;
+//     `;
+// try {
+//     const result = await request.query(query);
+//     res.json(result.recordset);
+// }
+// catch (err) {
+//     //console.log(err);
+//     return res.status(500).json({error: "failed to load data" });
+// }
+// }
 
 
-async function getContractualDataByID(req,res){
-    const contractId = req.params.contractId;
+// async function getContractualDataByID(req,res){
+//     const contractId = req.params.contractId;
 
-    const conn = await pool;
-    const request = conn.request();
-    request.input("contractId", contractId);
+//     const conn = await pool;
+//     const request = conn.request();
+//     request.input("contractId", contractId);
 
-    try {
+//     try {
 
-        let contractIdQuery = `SELECT * FROM tbl_hr_contract_data WHERE contract_id = @contractId`;
+//         let contractIdQuery = `SELECT * FROM tbl_hr_contract_data WHERE contract_id = @contractId`;
     
-        const result = await request.query(contractIdQuery);
+//         const result = await request.query(contractIdQuery);
 
-        res.json(result.recordset);
-    }
-    catch (err) {
-        //console.log(err);
-        return res.status(500).json({error: "failed to load data" });
-    }
-}
+//         res.json(result.recordset);
+//     }
+//     catch (err) {
+//         //console.log(err);
+//         return res.status(500).json({error: "failed to load data" });
+//     }
+// }
 
 async function getTrainingTitleData(req,res){
     const organisationID = req.params.organisationID;
@@ -717,91 +717,6 @@ async function getHRTrainingType(req,res){
     }
 }
 
-async function submitHrVacancyAnticipation(req,res){
-    const { organisationID, userID, tableData } = req.body;
-    const conn = await pool;
-    const request = conn.request();
-    request.input("organisationID", sql.Int, organisationID);
-    request.input("userID", sql.Int, userID);
-
-    try{
-        if (!Array.isArray(tableData)) {
-            return res.status(400).json({ error: "tableData must be an array" });
-        }
-        if (tableData.length === 0) {
-            return res.status(400).json({ error: "tableData array cannot be empty" });
-        }
-
-        const transaction = new sql.Transaction(conn);
-        await transaction.begin();
-
-        try {
-            const deleteRequest = new sql.Request(transaction);
-            deleteRequest.input("organisationID", organisationID);
-            const deleteQuery = `
-                DELETE FROM [tbl_hr_vacancy_anticipation]
-                WHERE organisation_id = @organisationID`;
-            await deleteRequest.query(deleteQuery);
-
-            for (const data of tableData) {
-                const request = new sql.Request(transaction);
-                request.input("organisationID", organisationID);
-                request.input("userID", userID);
-                request.input('departmentId', data.department_id);
-                request.input('postId', data.post_id);
-                request.input('anticipatedVyArise', data.anticipated_count);
-                request.input('unforseenVyArise', data.unforseen_count);
-                request.input('actualPromotion', data.actual_promotion);
-                request.input('resultantPromotion',data.resultant_promotion);
-                request.input('drTotal',data.dr_count);
-
-                const query = `
-                    INSERT INTO [tbl_hr_vacancy_anticipation] (
-                        post_id,
-                        department_id,
-                        anticipated_vy_arise_during_year,
-                        unforseen_vy_arise_during_year,
-                        actual_promotion,
-                        resultant_promotion,
-                        dr_total,
-                        organisation_id,
-                        created_date,
-                        created_by
-                    )
-                    VALUES (
-                        @postId,
-                        @departmentId,
-                        @anticipatedVyArise,
-                        @unforseenVyArise,
-                        @actualPromotion,
-                        @resultantPromotion,
-                        @drTotal,
-                        @organisationID,
-                        GETDATE(),
-                        @userID
-                    )`;
-
-                await request.query(query);
-            }
-
-            await transaction.commit();
-            return res.status(201).json({
-                message: `Successfully inserted ${tableData.length} records`
-            });
-
-        } catch (err) {
-            await transaction.rollback();
-            throw err;
-        }
-    }
-    catch (err) {
-        return res.status(500).json({
-            error: "Failed to insert records",
-            details: err.message
-        });
-    }
-}
-
 async function deleteContracturalData(req, res) {
     const { contractId, organisationID } = req.params;
 
@@ -829,82 +744,82 @@ async function deleteContracturalData(req, res) {
 }
 
 
-async function getHRTrainingDetailsDataByOrg(req, res) {
-    const orgID = req.query.organisationID;
-    const organisationID = parseInt(orgID, 10);
+// async function getHRTrainingDetailsDataByOrg(req, res) {
+//     const orgID = req.query.organisationID;
+//     const organisationID = parseInt(orgID, 10);
     
-    const roleID = req.query.roleID;
-    const fromDate = req.query.fromDate;
-    const toDate = req.query.toDate;
-    const totalTrainings = req.query.totalTrainings;
+//     const roleID = req.query.roleID;
+//     const fromDate = req.query.fromDate;
+//     const toDate = req.query.toDate;
+//     const totalTrainings = req.query.totalTrainings;
 
-    if (!organisationID || !fromDate || !toDate || !totalTrainings) {
-        return res.status(400).json({ message: "Missing required query parameters" });
-    }
+//     if (!organisationID || !fromDate || !toDate || !totalTrainings) {
+//         return res.status(400).json({ message: "Missing required query parameters" });
+//     }
 
-    if (!(await isWideRole(roleID))) {
-        return res.status(403).json({ message: "Access denied" });
-    }
+//     if (!(await isWideRole(roleID))) {
+//         return res.status(403).json({ message: "Access denied" });
+//     }
 
-    const conn = await pool;
-    const request = conn.request();
+//     const conn = await pool;
+//     const request = conn.request();
 
-    request.input("organisationID", sql.Int, parseInt(organisationID));
+//     request.input("organisationID", sql.Int, parseInt(organisationID));
 
-    // Format dates, assuming fromDate is year like "2023"
-    const fromDateFormatted = /^\d{4}$/.test(fromDate) ? `${fromDate}-01-01` : fromDate;
-    request.input("fromDate", sql.Date, fromDateFormatted);
-    request.input("toDate", sql.Date, toDate);
-    request.input("totalTrainings", sql.Int, parseInt(totalTrainings));
+//     // Format dates, assuming fromDate is year like "2023"
+//     const fromDateFormatted = /^\d{4}$/.test(fromDate) ? `${fromDate}-01-01` : fromDate;
+//     request.input("fromDate", sql.Date, fromDateFormatted);
+//     request.input("toDate", sql.Date, toDate);
+//     request.input("totalTrainings", sql.Int, parseInt(totalTrainings));
 
-    try {
-            const query = `
-            WITH TrainingCounts AS (
-                SELECT
-                    organisation_id,
-                    COUNT(training_id) AS total_trainings
-                FROM tbl_hr_training
-                WHERE from_date >= @fromDate AND to_date <= @toDate
-                GROUP BY organisation_id
-            ),
-            StaffCounts AS (
-                SELECT
-                    training_id,
-                    COUNT(emp_master_id) AS staff_count
-                FROM tbl_hr_staff_training
-                GROUP BY training_id
-            )
-            SELECT
-                ht.training_id,
-                ht.TRAINING_TITLE_ID,
-                t.TITLE,
-                ty.TRAINING_TYPE_NAME,
-                ht.training_source,
-                ht.from_date,
-                ht.to_date,
-                ht.expenditure,
-                ht.organisation_id,
-                o.organisation_name,
-                ISNULL(ht.NO_OF_PARTICIPANTS, 0) + ISNULL(sc.staff_count, 0) AS NO_OF_PARTICIPANTS
-            FROM tbl_hr_training ht
-            LEFT JOIN StaffCounts sc ON ht.training_id = sc.training_id
-            LEFT JOIN mmt_organisation o ON o.organisation_id = ht.organisation_id
-            LEFT JOIN TBL_TRAINING_TITLE t ON ht.TRAINING_TITLE_ID = t.TRAINING_TITLE_ID
-            LEFT JOIN TBL_TRAINING_TYPE ty ON t.TRAINING_TYPE_ID = ty.TRAINING_TYPE_ID
-            INNER JOIN TrainingCounts tc ON ht.organisation_id = tc.organisation_id
-            WHERE ht.organisation_id = @organisationID
-            AND ht.from_date >= @fromDate
-            AND ht.to_date <= @toDate
-            AND tc.total_trainings = @totalTrainings
-            `;
+//     try {
+//             const query = `
+//             WITH TrainingCounts AS (
+//                 SELECT
+//                     organisation_id,
+//                     COUNT(training_id) AS total_trainings
+//                 FROM tbl_hr_training
+//                 WHERE from_date >= @fromDate AND to_date <= @toDate
+//                 GROUP BY organisation_id
+//             ),
+//             StaffCounts AS (
+//                 SELECT
+//                     training_id,
+//                     COUNT(emp_master_id) AS staff_count
+//                 FROM tbl_hr_staff_training
+//                 GROUP BY training_id
+//             )
+//             SELECT
+//                 ht.training_id,
+//                 ht.TRAINING_TITLE_ID,
+//                 t.TITLE,
+//                 ty.TRAINING_TYPE_NAME,
+//                 ht.training_source,
+//                 ht.from_date,
+//                 ht.to_date,
+//                 ht.expenditure,
+//                 ht.organisation_id,
+//                 o.organisation_name,
+//                 ISNULL(ht.NO_OF_PARTICIPANTS, 0) + ISNULL(sc.staff_count, 0) AS NO_OF_PARTICIPANTS
+//             FROM tbl_hr_training ht
+//             LEFT JOIN StaffCounts sc ON ht.training_id = sc.training_id
+//             LEFT JOIN mmt_organisation o ON o.organisation_id = ht.organisation_id
+//             LEFT JOIN TBL_TRAINING_TITLE t ON ht.TRAINING_TITLE_ID = t.TRAINING_TITLE_ID
+//             LEFT JOIN TBL_TRAINING_TYPE ty ON t.TRAINING_TYPE_ID = ty.TRAINING_TYPE_ID
+//             INNER JOIN TrainingCounts tc ON ht.organisation_id = tc.organisation_id
+//             WHERE ht.organisation_id = @organisationID
+//             AND ht.from_date >= @fromDate
+//             AND ht.to_date <= @toDate
+//             AND tc.total_trainings = @totalTrainings
+//             `;
 
-        const result = await request.query(query);
-        res.json(result.recordset);
-    } catch (e) {
-        console.error(e);
-        return res.status(500).json({ message: "Internal Server Error" });
-    }
-}
+//         const result = await request.query(query);
+//         res.json(result.recordset);
+//     } catch (e) {
+//         console.error(e);
+//         return res.status(500).json({ message: "Internal Server Error" });
+//     }
+// }
 
 
 async function deleteTrainingData(req, res) {
@@ -1351,6 +1266,6 @@ async function checkFinancialYearExist(req, res) {
 }
 
 
-export default {submitHrVacancyAnticipation,createContractData,getContractData,getOfficialDataByTotal,getNonOfficialDataByTotal,createHRTraining,updateHRTraining,getHRStaffTransactData, getHRTrainingDataByID, getHRTrainingDataByOrg,
-    getContractualDataByID,getTrainingTitleData,getHRTrainingType,deleteContracturalData,getHRTrainingDetailsDataByOrg,deleteTrainingData,getAllTrainingData,getAllContractualData,checkFinancialYearExist
+export default {createContractData,getContractData,createHRTraining,updateHRTraining,getHRStaffTransactData, getHRTrainingDataByID, 
+    getTrainingTitleData,getHRTrainingType,deleteContracturalData,deleteTrainingData,getAllTrainingData,getAllContractualData,checkFinancialYearExist
  }
