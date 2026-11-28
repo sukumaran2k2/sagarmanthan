@@ -10,7 +10,7 @@ import { resetAllStores } from './stores/resetRegistry';
 import { signOut, SESSION_EXPIRED_EVENT } from './utils/sessionRefresh';
 
 // Lazy-loaded feature modules for code splitting and instant initial page load
-const LandingView = lazy(() => import('./modules/Landing/Landing'));
+const HomeView = lazy(() => import('./modules/Home/HomeView'));
 const Projects = lazy(() => import('./modules/Projects/Projects'));
 const CSRProjectsView = lazy(() => import('./modules/CSRProjects/CSRProjects'));
 const GMISMOUView = lazy(() => import('./modules/GMISMOU/GMISMOU'));
@@ -294,9 +294,9 @@ export default function App() {
               />
             }
           >
-            {/* Landing Route */}
+            {/* Home: welcome banner and data entry status */}
             <Route index element={
-              <LandingView 
+              <HomeView
                 onNavigate={(tab, subKpi) => {
                   const norm = normalizeTab(tab);
                   const slug = ROUTE_MAP[norm] !== undefined ? ROUTE_MAP[norm] : norm;

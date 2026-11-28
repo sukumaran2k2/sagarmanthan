@@ -21,6 +21,7 @@ import terminalImageUploaderTab from "./controllers/MasterManagement/terminalIma
 
 //Dashboard Data Entry Status
 import dashboardController from "./controllers/Dashboard/dashboard.js";
+import homeDashboardController from "./controllers/Dashboard/homeDashboard.js";
 // Governance
 import attendanceTab from "./controllers/Governance/attendance.js";
 import excelDataTab from "./controllers/Governance/excelDataTab.js";
@@ -787,7 +788,6 @@ router.get("/court-case-consumer-typeID/:consumerTypeID", arbitCourtCaseTab.getC
 router.get("/court-case/:roleID/:organisationID", pinOwnRole(), pinOwnOrganisation(), arbitCourtCaseTab.getCourtCase);
 
 router.get("/court-case/:roleID/:organisationID", arbitCourtCaseTab.getCourtCase);
-router.get("/court-case/:courtCaseID", arbitCourtCaseTab.getUpdateCourtCase);
 router.get("/get-last-case-no/:organisationID", arbitCourtCaseTab.fetchLastCaseNumber);
 
 router.delete("/delete-court-case/:caseID/:userID", arbitCourtCaseTab.deleteCourtCaseData);
@@ -1059,10 +1059,8 @@ router.get("/get-emp-details-by-reference-id", auth, requireModulePermission("HR
 router.get("/get-emp-details-by-reference-id-and-emp-name/:referenceID", auth, requireModulePermission("HR_MANAGEMENT", "read"), hrEmployeeTab.getEmployeeDetailsByReferenceIdOnly);
 //Dashboard
 
-router.get("/get-wing-wise-dashboard/:userId", dashboardController.getDashboardWingWise);
-router.get("/get-dashboard-gem-pro-and-capex/:userId", auth, requireStrictModulePermission("CAPEX", "read"), dashboardController.getDashboardGemProAndCapex);
-router.get("/get-dashboard-gem-pro-and-capex-ministry-view/:userId", auth, requireStrictModulePermission("CAPEX", "read"), dashboardController.getDashboardGemProAndCapexministryView);
-router.get("/get-dashboard-organisation-view/:userId", dashboardController.getDashboardorganisationview);
+// Home page data entry status: scoped by the signed-in user (no user id in the address)
+router.get("/home-dashboard", auth, homeDashboardController.getHomeDashboard);
 
 //REVISED HR
 
@@ -2926,7 +2924,8 @@ router.get('/get-chatbot-modules/:groupId', dashboardController.getChatbotModule
 router.get('/get-logical-queries-mail/:moduleId', dashboardController.getLogicalQueriesEmail);
 router.get('/get-cc-logical-queries-mail/:moduleId', dashboardController.getCCEmailsForLogicalQueries);
 router.get('/get-module-name/:moduleId', dashboardController.getModuleName);
-router.get('/get-user-details-for-mail/:userId', dashboardController.getUserDetailsForMail);
+// Own details only: the id in the address is replaced with the signed-in user
+router.get('/get-user-details-for-mail/:userId', auth, pinOwnUser("userId"), dashboardController.getUserDetailsForMail);
 
 
 // GMIS & IMW MoU Tracking
